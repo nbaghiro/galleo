@@ -4,13 +4,18 @@
 > visible, demoable increment on the dev server (`pnpm dev` → localhost:8600). Companion to
 > `docs/architecture.md` (the whole-codebase map) — this drills into `surfaces/studio`.
 
-## Status (Arc A — editing core)
+## Status (Arc A — editing core) — COMPLETE
 - **P1 ✓** continuous section canvas + minimap + palette (SolidJS + Vite + Tailwind)
 - **P2 ✓** selection + hover overlay (engine regions + addressing, hit-test, Esc-walks-up)
 - **P3 ✓** drag-drop with live drop-targets (content ops, pointer DnD, skeleton ghost, undo/redo)
 - **P4 ✓** inspector (schema-driven controls) + section layout picker (live edits + undo)
-- **P5 ◦** text editing (Path B engine-native) — the remaining Arc A piece
+- **P5 ✓** inline text editing — contenteditable overlay matching engine text, live edits + undo
+- composites (`stat`/`quote`/`bullets`) are containers of real `text` elements → nested selection/editing
 Geometry/ops live in the pure kernel; Solid owns shell + state; the engine paints into refs.
+
+**Next (Arc B):** theming · format-as-view (deck/doc/web present+export) · element library expansion.
+P5 v1 uses a contenteditable overlay (browser caret/IME); full Path B (custom glyph caret +
+`kernel/text` line-layout, rich marks) is a later hardening.
 
 ```
 surfaces/studio/  main.ts ✓  dom-backend.ts ✓  measure.ts ✓  sample.ts ✓
