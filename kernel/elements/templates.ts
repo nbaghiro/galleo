@@ -26,3 +26,11 @@ export const TEMPLATES: Record<string, Template> = {
 };
 
 export const fallbackTemplate = full;
+
+export const TEMPLATE_LABELS: Record<string, string> = {
+    full: "Full",
+    "split-6040": "60 / 40",
+    "split-4060": "40 / 60",
+    "two-col": "Two columns",
+    "three-up": "Three up",
+};

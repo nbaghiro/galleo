@@ -91,3 +91,34 @@ export function removeAt(art: ArtifactContent, addr: ElementAddress): ArtifactCo
         return s; // deeper nesting: no-op in v1
     });
 }
+
+function updateInTree(inst: ElementInstance, path: number[], fn: (i: ElementInstance) => ElementInstance): ElementInstance {
+    if (path.length === 0) return fn(inst);
+    const kids = childrenOf(inst);
+    if (!kids) return inst;
+    const i = path[0]!;
+    const rest = path.slice(1);
+    return withChildren(
+        inst,
+        kids.map((c, idx) => (idx === i ? updateInTree(c, rest, fn) : c)),
+    );
+}
+
+export function updateElementAt(
+    art: ArtifactContent,
+    addr: ElementAddress,
+    fn: (inst: ElementInstance) => ElementInstance,
+): ArtifactContent {
+    return mapSection(art, addr.section, (s) => {
+        const root = s.cells[addr.cell]?.element;
+        return root ? putCell(s, addr.cell, { element: updateInTree(root, addr.path, fn) }) : s;
+    });
+}
+
+export function updateDataAt(art: ArtifactContent, addr: ElementAddress, data: unknown): ArtifactContent {
+    return updateElementAt(art, addr, (inst) => ({ type: inst.type, data }));
+}
+
+export function setSectionGrid(art: ArtifactContent, section: Id, grid: string): ArtifactContent {
+    return mapSection(art, section, (s) => ({ ...s, grid }));
+}
