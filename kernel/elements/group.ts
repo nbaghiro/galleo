@@ -35,7 +35,11 @@ export const groupElement: ElementSpec<GroupData> = {
                 return spec ? spec.layout(inst.data, ctx) : { w: grow(), h: fit(20) };
             }),
         ),
-    container: { children: (d) => d.children, arrange },
+    container: {
+        children: (d) => d.children,
+        arrange,
+        withChildren: (d, children) => ({ ...d, children }),
+    },
     controls: [],
 };
 

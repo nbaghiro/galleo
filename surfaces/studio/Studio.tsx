@@ -1,5 +1,6 @@
 import type { Component } from "solid-js";
 import { Canvas } from "./Canvas";
+import { DragGhost } from "./DragGhost";
 import { Minimap } from "./Minimap";
 import { Panel } from "./Panel";
 import { Topbar } from "./Topbar";
@@ -13,5 +14,6 @@ export const Studio: Component = () => (
             <Canvas />
             <Panel />
         </div>
+        <DragGhost />
     </div>
 );

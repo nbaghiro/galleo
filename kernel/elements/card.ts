@@ -42,7 +42,11 @@ export const cardElement: ElementSpec<CardData> = {
                 return spec.layout(inst.data, ctx);
             }),
         ),
-    container: { children: (d) => d.children, arrange },
+    container: {
+        children: (d) => d.children,
+        arrange,
+        withChildren: (d, children) => ({ ...d, children }),
+    },
     controls: [
         { key: "gap", label: "Gap", control: "slider" },
         { key: "padding", label: "Padding", control: "slider" },

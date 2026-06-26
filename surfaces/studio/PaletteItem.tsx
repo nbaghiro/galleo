@@ -2,6 +2,7 @@ import type { Component } from "solid-js";
 import { createEffect } from "solid-js";
 import { getElement } from "@elements/registry";
 import { skeletonFor } from "@elements/skeleton";
+import { startDrag } from "./dnd";
 import { paint } from "./dom-backend";
 import { measureText } from "./measure";
 import { ctxFor, layoutNode } from "./render";
@@ -21,7 +22,13 @@ export const PaletteItem: Component<{ type: string }> = (props) => {
     });
 
     return (
-        <div class="flex cursor-grab flex-col gap-2" draggable={true}>
+        <div
+            class="flex cursor-grab select-none flex-col gap-2"
+            onPointerDown={(e) => {
+                e.preventDefault();
+                startDrag({ kind: "new", type: props.type }, e.clientX, e.clientY, spec?.label ?? props.type);
+            }}
+        >
             <div class="flex items-center rounded-lg border border-line bg-[#fdfbf6] p-3">
                 <div ref={box} class="w-full" />
             </div>

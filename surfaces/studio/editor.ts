@@ -23,6 +23,30 @@ export const [regions, setRegions] = createSignal<Region[]>([]);
 export const [selection, setSelection] = createSignal<Target | null>(null, { equals: targetsEqual });
 export const [hover, setHover] = createSignal<Target | null>(null, { equals: targetsEqual });
 
+// Snapshot history. Every structural edit goes through commit() so undo/redo work uniformly.
+const past: ArtifactContent[] = [];
+const future: ArtifactContent[] = [];
+
+export function commit(next: ArtifactContent): void {
+    past.push(editor.artifact);
+    future.length = 0;
+    setEditor("artifact", next);
+}
+
+export function undo(): void {
+    const prev = past.pop();
+    if (prev === undefined) return;
+    future.push(editor.artifact);
+    setEditor("artifact", prev);
+}
+
+export function redo(): void {
+    const next = future.pop();
+    if (next === undefined) return;
+    past.push(editor.artifact);
+    setEditor("artifact", next);
+}
+
 export function jumpToSection(index: number): void {
     const el = canvasEl();
     if (!el) return;

@@ -42,10 +42,13 @@ export interface ElementSpec<Data = unknown> {
     // Structural ghost shown in the palette + as the drop preview. Optional: if absent, one is
     // derived automatically from layout(create()) via skeletonize() in @elements/skeleton.
     skeleton?: (ctx: LayoutCtx) => EngineNode;
-    // Containers expose their child instances + arrange already-composed child nodes. compose() uses
-    // this to recurse and address nested elements; `layout` stays the standalone (e.g. skeleton) path.
+    // Containers expose their child instances, arrange already-composed child nodes, and immutably
+    // swap their children. compose() uses children+arrange to recurse and address nested elements;
+    // content ops use children+withChildren to insert/remove generically. `layout` stays the
+    // standalone (e.g. skeleton) path.
     container?: {
         children: (data: Data) => ElementInstance[];
         arrange: (data: Data, ctx: LayoutCtx, children: EngineNode[]) => EngineNode;
+        withChildren: (data: Data, children: ElementInstance[]) => Data;
     };
 }
