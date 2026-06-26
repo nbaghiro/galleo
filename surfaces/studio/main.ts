@@ -3,15 +3,17 @@ import type { FormatDescriptor } from "@model/format";
 import "@elements/text";
 import "@elements/image";
 import "@elements/card";
+import "@elements/group";
 import "@elements/stat";
 import "@elements/bullets";
 import "@elements/button";
 import "@elements/divider";
 import "@elements/quote";
-import { layout } from "@engine/layout";
-import { paint } from "./dom-backend";
+import { renderCanvas } from "./canvas";
 import { measureText } from "./measure";
-import { buildShowcase } from "./palette";
+import { renderMinimap } from "./minimap";
+import { renderPanel } from "./right-panel";
+import { artifact } from "./store";
 
 const format: FormatDescriptor = {
     id: "deck",
@@ -24,23 +26,33 @@ const format: FormatDescriptor = {
     paginate: "always",
 };
 
-function render(): void {
-    const host = document.getElementById("stage");
-    if (!host) return;
-    const width = 880;
-    const ctx: LayoutCtx = {
-        box: { x: 0, y: 0, w: width, h: 0 },
-        availWidth: width,
-        format,
-        tokens: {},
-        theme: {},
-    };
-    const node = buildShowcase(ctx);
-    const commands = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measureText);
-    const bottom = commands.reduce((mx, c) => Math.max(mx, c.box.y + c.box.h), 0);
-    host.style.width = `${width}px`;
-    host.style.height = `${bottom}px`;
-    paint(commands, host);
+function baseCtx(): LayoutCtx {
+    return { box: { x: 0, y: 0, w: 0, h: 0 }, availWidth: 0, format, tokens: {}, theme: {} };
 }
 
-render();
+function mount(): void {
+    const canvasHost = document.getElementById("canvas");
+    const minimapHost = document.getElementById("minimap");
+    const panelHost = document.getElementById("panel");
+    if (!canvasHost || !minimapHost || !panelHost) return;
+
+    const ctx = baseCtx();
+
+    const draw = (): void => {
+        const tops = renderCanvas(artifact, canvasHost, ctx, measureText);
+        renderMinimap(artifact, minimapHost, ctx, measureText, (i) => {
+            canvasHost.scrollTo({ top: Math.max(0, (tops[i] ?? 0) - 18), behavior: "smooth" });
+        });
+        renderPanel(panelHost, ctx, measureText);
+    };
+
+    draw();
+
+    let raf = 0;
+    window.addEventListener("resize", () => {
+        window.cancelAnimationFrame(raf);
+        raf = window.requestAnimationFrame(draw);
+    });
+}
+
+mount();

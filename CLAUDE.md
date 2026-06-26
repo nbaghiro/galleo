@@ -33,10 +33,14 @@ pnpm db:generate    pnpm db:migrate
 ```
 
 ## Current state
-The kernel engine (`kernel/engine/layout.ts`, Clay-style 3-pass solver) is implemented and proven
-end-to-end by `surfaces/studio` (a card of text/image elements → `layout()` → DOM render commands).
-Next per `docs/architecture.md`: engine depth (`profile`/`grid`/`fragment`), more Core-v1 elements,
-and the studio shell (state · selection · inspector · rail).
+The kernel engine (`kernel/engine/layout.ts`, Clay-style 3-pass solver) drives the studio. P1 of
+`docs/studio-plan.md` is built: a 3-zone shell (`index.html`) — left minimap of live section
+thumbnails, center continuous **section canvas** (`canvas.ts`), right **element palette**
+(`right-panel.ts`). Sections compose via `@elements/templates` + `@elements/compose`; every element
+has a structural ghost (`@elements/skeleton`). Elements so far: text, image, card, group, stat,
+bullets, button, divider, quote.
+Next per `docs/studio-plan.md`: P2 selection + overlay, then P3 drag-drop with live drop-targets.
+Still planned: virtualization of the canvas, `engine/profile`/`fragment` (format-as-view), text editing.
 
 ## Commits
 Single-line, imperative; ticket prefix if the branch has one; **no co-author trailer**.

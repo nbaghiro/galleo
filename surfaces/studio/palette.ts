@@ -49,15 +49,26 @@ function chunk<T>(arr: T[], n: number): T[][] {
     return out;
 }
 
-function palette(ctx: LayoutCtx): EngineNode {
+function palette(ctx: LayoutCtx, perRow = 4): EngineNode {
     const tiles = PALETTE_TYPES.map((t): EngineNode => {
         const spec = getElement(t);
         return spec ? tile(spec.label, skeletonFor(spec, ctx)) : tile(t, label("?"));
     });
-    const rows = chunk(tiles, 4).map(
+    const rows = chunk(tiles, perRow).map(
         (r): EngineNode => ({ w: grow(), h: fit(), direction: "row", gap: 16, children: r }),
     );
     return { w: grow(), h: fit(), direction: "col", gap: 16, children: rows };
+}
+
+// The element library for the right panel (drag source). Narrower → fewer per row.
+export function paletteContent(ctx: LayoutCtx, perRow = 2): EngineNode {
+    return {
+        w: grow(),
+        h: fit(),
+        direction: "col",
+        gap: 16,
+        children: [label("ELEMENTS · drag onto a section"), palette(ctx, perRow)],
+    };
 }
 
 function dropPreview(): EngineNode {
