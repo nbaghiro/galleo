@@ -22,8 +22,11 @@ export const Canvas: Component = () => {
         for (const section of editor.artifact.sections) {
             const { commands, height } = layoutSection(section, width, measureText);
             const layer = document.createElement("div");
-            layer.style.cssText = `position:absolute;left:0;top:${y}px;width:${width}px;height:${height}px`;
+            layer.style.cssText = `left:0;top:${y}px;width:${width}px;height:${height}px`;
             paint(commands, layer);
+            // paint() forces position:relative on its host; keep the layer absolute (out of flow)
+            // so it sits exactly at top:y — otherwise normal-flow + top stacks and gaps compound.
+            layer.style.position = "absolute";
             stageEl.appendChild(layer);
             tops.push(y);
             y += height + SECTION_GAP;
