@@ -122,3 +122,7 @@ export function updateDataAt(art: ArtifactContent, addr: ElementAddress, data: u
 export function setSectionGrid(art: ArtifactContent, section: Id, grid: string): ArtifactContent {
     return mapSection(art, section, (s) => ({ ...s, grid }));
 }
+
+export function setArtifactTheme(art: ArtifactContent, theme: Id): ArtifactContent {
+    return { ...art, theme };
+}

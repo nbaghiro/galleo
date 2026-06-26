@@ -10,9 +10,9 @@ interface BulletsData {
     children: ElementInstance[];
 }
 
-const marker = (): EngineNode => ({ w: fixed(8), h: fixed(8), fill: { color: "#9a4f24", radius: 99 } });
+const marker = (color: string): EngineNode => ({ w: fixed(8), h: fixed(8), fill: { color, radius: 99 } });
 
-const arrange = (_d: BulletsData, _ctx: LayoutCtx, kids: EngineNode[]): EngineNode => ({
+const arrange = (_d: BulletsData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode => ({
     w: grow(),
     h: fit(),
     direction: "col",
@@ -23,7 +23,7 @@ const arrange = (_d: BulletsData, _ctx: LayoutCtx, kids: EngineNode[]): EngineNo
         direction: "row",
         gap: 12,
         alignY: "start",
-        children: [marker(), k],
+        children: [marker(ctx.theme.accent), k],
     })),
 });
 

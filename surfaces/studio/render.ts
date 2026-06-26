@@ -3,8 +3,10 @@ import type { EngineNode, MeasureText } from "@engine/node";
 import type { Region, RenderCommand } from "@engine/render-command";
 import type { Section } from "@model/content";
 import type { FormatDescriptor } from "@model/format";
+import type { Tokens } from "@themes/theme";
 import { composeSection } from "@elements/compose";
 import { layout } from "@engine/layout";
+import { DEFAULT_THEME } from "@themes/library";
 
 // Imperative bridge: kernel layout → render commands. Components paint these into refs; the engine
 // stays the single source of geometry (the framework never lays out content).
@@ -22,8 +24,8 @@ const format: FormatDescriptor = {
     paginate: "always",
 };
 
-export function ctxFor(width: number): LayoutCtx {
-    return { box: { x: 0, y: 0, w: width, h: 0 }, availWidth: width, format, tokens: {}, theme: {} };
+export function ctxFor(width: number, theme: Tokens = DEFAULT_THEME.tokens): LayoutCtx {
+    return { box: { x: 0, y: 0, w: width, h: 0 }, availWidth: width, format, theme };
 }
 
 function bottom(commands: RenderCommand[]): number {
@@ -34,8 +36,9 @@ export function layoutSection(
     section: Section,
     width: number,
     measure: MeasureText,
+    theme: Tokens = DEFAULT_THEME.tokens,
 ): { commands: RenderCommand[]; regions: Region[]; height: number } {
-    const node = composeSection(section, ctxFor(width));
+    const node = composeSection(section, ctxFor(width, theme));
     const { commands, regions } = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure);
     return { commands, regions, height: bottom(commands) };
 }

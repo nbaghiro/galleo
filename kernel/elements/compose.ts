@@ -14,18 +14,18 @@ import { fit, grow } from "@model/size";
 const GUTTER = 14;
 const pad = (n: number) => ({ top: n, right: n, bottom: n, left: n });
 
-function emptyCell(): EngineNode {
+function emptyCell(ctx: LayoutCtx): EngineNode {
     return {
         w: grow(),
         h: fit(90),
         alignX: "center",
         alignY: "center",
-        fill: { color: "#faf6ee", radius: 10, border: { color: "#d8cdb8", width: 1.5, style: "dashed" } },
+        fill: { color: ctx.theme.bg, radius: 10, border: { color: ctx.theme.line, width: 1.5, style: "dashed" } },
         children: [
             {
                 w: fit(),
                 h: fit(),
-                text: { text: "+ drop element", fontId: "mono", size: 12, color: "#b3a892", align: "center", wrap: "none" },
+                text: { text: "+ drop element", fontId: "mono", size: 12, color: ctx.theme.muted, align: "center", wrap: "none" },
             },
         ],
     };
@@ -57,7 +57,7 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
         const inst = section.cells[cellKey]?.element;
         const content = inst
             ? composeElement(inst, ctx, { section: section.id, cell: cellKey, path: [] })
-            : emptyCell();
+            : emptyCell(ctx);
         return {
             id: cellRegionId(section.id, cellKey),
             w: tmpl.widths[i] ?? grow(),
@@ -73,7 +73,7 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
         w: grow(),
         h: fit(),
         padding: pad(36),
-        fill: { color: "#fffdf8", radius: 18, border: { color: "#eae3d5", width: 1 } },
+        fill: { color: ctx.theme.surface, radius: ctx.theme.radius, border: { color: ctx.theme.line, width: 1 } },
         children: [inner],
     };
 }

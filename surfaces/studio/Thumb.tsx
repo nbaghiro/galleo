@@ -1,8 +1,9 @@
 import type { Section } from "@model/content";
 import type { Component } from "solid-js";
 import { createEffect } from "solid-js";
+import { resolveTheme } from "@themes/library";
 import { paint } from "./dom-backend";
-import { jumpToSection } from "./editor";
+import { editor, jumpToSection } from "./editor";
 import { measureText } from "./measure";
 import { layoutSection } from "./render";
 
@@ -15,7 +16,8 @@ export const Thumb: Component<{ section: Section; index: number }> = (props) => 
     createEffect(() => {
         const w = wrap.clientWidth || 150;
         const scale = w / THUMB_LAYOUT_WIDTH;
-        const { commands, height } = layoutSection(props.section, THUMB_LAYOUT_WIDTH, measureText);
+        const theme = resolveTheme(editor.artifact.theme).tokens;
+        const { commands, height } = layoutSection(props.section, THUMB_LAYOUT_WIDTH, measureText, theme);
         inner.style.cssText = `width:${THUMB_LAYOUT_WIDTH}px;height:${height}px;transform:scale(${scale});transform-origin:top left`;
         paint(commands, inner);
         wrap.style.height = `${Math.round(height * scale) + 2}px`;

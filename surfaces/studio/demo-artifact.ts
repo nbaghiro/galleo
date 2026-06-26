@@ -1,8 +1,5 @@
 import type { ArtifactContent } from "@model/content";
 
-const ACCENT = "#9a4f24";
-const INK = "#211c16";
-
 // The open artifact: an ordered list of variable-height sections. In-memory for now; persistence
 // (services/data) arrives later.
 
@@ -20,11 +17,11 @@ export const artifact: ArtifactContent = {
                         data: {
                             gap: 18,
                             children: [
-                                { type: "text", data: { text: "GALLEO", style: "eyebrow", color: ACCENT } },
-                                { type: "text", data: { text: "The editor for people who care how it looks.", style: "h1", color: INK } },
+                                { type: "text", data: { text: "GALLEO", style: "eyebrow" } },
+                                { type: "text", data: { text: "The editor for people who care how it looks.", style: "h1" } },
                                 {
                                     type: "text",
-                                    data: { text: "One canonical artifact. Deck, doc, and site are just views of it.", style: "body", color: "#5b5346" },
+                                    data: { text: "One canonical artifact. Deck, doc, and site are just views of it.", style: "lead" },
                                 },
                             ],
                         },
@@ -42,8 +39,8 @@ export const artifact: ArtifactContent = {
                         data: {
                             gap: 16,
                             children: [
-                                { type: "text", data: { text: "02 — Product", style: "eyebrow", color: ACCENT } },
-                                { type: "text", data: { text: "One editor. Every format.", style: "h2", color: INK } },
+                                { type: "text", data: { text: "02 — Product", style: "eyebrow" } },
+                                { type: "text", data: { text: "One editor. Every format.", style: "h2" } },
                                 {
                                     type: "bullets",
                                     data: {
@@ -138,8 +135,8 @@ export const artifact: ArtifactContent = {
                         data: {
                             gap: 18,
                             children: [
-                                { type: "text", data: { text: "07 — The ask", style: "eyebrow", color: ACCENT } },
-                                { type: "text", data: { text: "Raising a $3M seed to build it.", style: "h2", color: INK } },
+                                { type: "text", data: { text: "07 — The ask", style: "eyebrow" } },
+                                { type: "text", data: { text: "Raising a $3M seed to build it.", style: "h2" } },
                                 { type: "button", data: { label: "hello@galleo.app" } },
                             ],
                         },

@@ -13,7 +13,7 @@ interface CardData {
     radius?: number;
 }
 
-const arrange = (d: CardData, _ctx: LayoutCtx, kids: EngineNode[]): EngineNode => {
+const arrange = (d: CardData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode => {
     const p = d.padding ?? 24;
     return {
         w: grow(),
@@ -21,7 +21,7 @@ const arrange = (d: CardData, _ctx: LayoutCtx, kids: EngineNode[]): EngineNode =
         direction: d.direction ?? "col",
         gap: d.gap ?? 12,
         padding: { top: p, right: p, bottom: p, left: p },
-        fill: { color: d.bg ?? "#ffffff", radius: d.radius ?? 12, border: { color: "#e6dfd2", width: 1 } },
+        fill: { color: d.bg ?? ctx.theme.surface, radius: d.radius ?? 12, border: { color: ctx.theme.line, width: 1 } },
         children: kids,
     };
 };

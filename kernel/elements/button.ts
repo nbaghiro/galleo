@@ -14,18 +14,18 @@ export const buttonElement: ElementSpec<ButtonData> = {
     category: "interactive",
     tier: "interactive",
     create: () => ({ label: "Get started" }),
-    layout: (d: ButtonData, _ctx: LayoutCtx): EngineNode => ({
+    layout: (d: ButtonData, ctx: LayoutCtx): EngineNode => ({
         w: fit(),
         h: fixed(42),
         padding: { top: 0, bottom: 0, left: 20, right: 20 },
         alignX: "center",
         alignY: "center",
-        fill: { color: "#a8572c", radius: 8 },
+        fill: { color: ctx.theme.accent, radius: 8 },
         children: [
             {
                 w: fit(),
                 h: fit(),
-                text: { text: d.label, fontId: "ui", size: 14, weight: 600, color: "#ffffff", align: "center", wrap: "none" },
+                text: { text: d.label, fontId: "ui", size: 14, weight: 600, color: ctx.theme.onAccent, align: "center", wrap: "none" },
             },
         ],
     }),

@@ -5,6 +5,7 @@ import { createEffect, createMemo, onCleanup, onMount } from "solid-js";
 import { getElementAt } from "@elements/ops";
 import { getElement } from "@elements/registry";
 import { elementRegionId, parentTarget, parseTarget, specificity } from "@model/address";
+import { resolveTheme } from "@themes/library";
 import { paint } from "./dom-backend";
 import { applyDrop, computeDropTarget, drag, setDrag, startDrag } from "./dnd";
 import { commit, editing, editor, redo, setCanvasEl, setEditor, setHover, setRegions, setSelection, startEditing, undo } from "./editor";
@@ -34,12 +35,13 @@ export const Canvas: Component = () => {
         // suppress the painted text of the element being edited — only the live overlay shows it
         const editAddr = editing();
         const editId = editAddr ? elementRegionId(editAddr) : null;
+        const theme = resolveTheme(editor.artifact.theme).tokens;
 
         let y = 0;
         const tops: number[] = [];
         const all: Region[] = [];
         for (const section of editor.artifact.sections) {
-            const { commands, regions, height } = layoutSection(section, width, measureText);
+            const { commands, regions, height } = layoutSection(section, width, measureText, theme);
             const visible = editId ? commands.filter((c) => !(c.kind === "text" && c.id === editId)) : commands;
             const layer = document.createElement("div");
             layer.style.cssText = `left:0;top:${y}px;width:${width}px;height:${height}px`;
@@ -158,10 +160,13 @@ export const Canvas: Component = () => {
         });
     });
 
+    const pageBg = createMemo(() => resolveTheme(editor.artifact.theme).tokens.bg);
+
     return (
         <main
             ref={scrollEl}
             class="overflow-y-auto px-10 pt-8 pb-[140px]"
+            style={{ background: pageBg() }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}

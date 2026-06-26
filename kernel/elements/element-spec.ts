@@ -1,13 +1,13 @@
 import type { EngineNode, Rect } from "@engine/node";
 import type { ElementInstance } from "@model/content";
 import type { FormatDescriptor } from "@model/format";
+import type { Tokens } from "@themes/theme";
 
 export interface LayoutCtx {
     box: Rect;
     availWidth: number;
     format: FormatDescriptor;
-    tokens: Record<string, unknown>;
-    theme: Record<string, unknown>;
+    theme: Tokens;
 }
 
 export type ControlKind =

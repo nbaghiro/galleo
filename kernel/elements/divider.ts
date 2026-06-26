@@ -9,10 +9,10 @@ export const dividerElement: ElementSpec<Record<string, never>> = {
     category: "layout",
     tier: "primitive",
     create: () => ({}),
-    layout: (_d: Record<string, never>, _ctx: LayoutCtx): EngineNode => ({
+    layout: (_d: Record<string, never>, ctx: LayoutCtx): EngineNode => ({
         w: grow(),
         h: fixed(2),
-        fill: { color: "#e6dfd2", radius: 1 },
+        fill: { color: ctx.theme.line, radius: 1 },
     }),
     controls: [],
 };
