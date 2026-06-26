@@ -1,14 +1,16 @@
 # Galleo — Studio (editor) roadmap
 
 > The path from "engine renders a static artifact" to "full editing experience." Each phase is a
-> visible, demoable increment on the dev server (`pnpm dev` → localhost:5173). Companion to
+> visible, demoable increment on the dev server (`pnpm dev` → localhost:8600). Companion to
 > `docs/architecture.md` (the whole-codebase map) — this drills into `surfaces/studio`.
 
-## Current state
-
-The kernel engine lays out a single artifact and `surfaces/studio` paints it to the DOM. Verified
-visually (a card: eyebrow + heading + body + image, all engine-positioned). The canvas is
-**read-only** — no shell, state, selection, drag-drop, inspector, minimap, text editing, theming.
+## Status (Arc A — editing core)
+- **P1 ✓** continuous section canvas + minimap + palette (SolidJS + Vite + Tailwind)
+- **P2 ✓** selection + hover overlay (engine regions + addressing, hit-test, Esc-walks-up)
+- **P3 ✓** drag-drop with live drop-targets (content ops, pointer DnD, skeleton ghost, undo/redo)
+- **P4 ✓** inspector (schema-driven controls) + section layout picker (live edits + undo)
+- **P5 ◦** text editing (Path B engine-native) — the remaining Arc A piece
+Geometry/ops live in the pure kernel; Solid owns shell + state; the engine paints into refs.
 
 ```
 surfaces/studio/  main.ts ✓  dom-backend.ts ✓  measure.ts ✓  sample.ts ✓
