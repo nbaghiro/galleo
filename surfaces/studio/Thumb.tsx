@@ -24,15 +24,17 @@ export const Thumb: Component<{ section: Section; index: number }> = (props) => 
     });
 
     return (
-        <button
-            ref={wrap}
-            onClick={() => jumpToSection(props.index)}
-            class="relative block w-full cursor-pointer overflow-hidden rounded-lg border border-line bg-[#fffdf8] p-0 hover:border-accent"
-        >
-            <span class="absolute left-1.5 top-1 z-10 font-mono text-[10px] font-semibold text-muted">
+        <div class="flex items-start gap-2">
+            <span class="w-3.5 shrink-0 pt-px text-right font-mono text-[10px] font-semibold leading-none text-muted">
                 {props.index + 1}
             </span>
-            <div ref={inner} />
-        </button>
+            <button
+                ref={wrap}
+                onClick={() => jumpToSection(props.index)}
+                class="relative block min-w-0 flex-1 cursor-pointer overflow-hidden rounded-lg border border-line bg-[#fffdf8] p-0 hover:border-accent"
+            >
+                <div ref={inner} />
+            </button>
+        </div>
     );
 };
