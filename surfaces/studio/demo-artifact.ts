@@ -46,7 +46,13 @@ export const artifact: ArtifactContent = {
                                 { type: "text", data: { text: "One editor. Every format.", style: "h2", color: INK } },
                                 {
                                     type: "bullets",
-                                    data: { items: ["Blocks, not slides", "Themes that aren’t slop", "An agent with actual taste"] },
+                                    data: {
+                                        children: [
+                                            { type: "text", data: { text: "Blocks, not slides", style: "body" } },
+                                            { type: "text", data: { text: "Themes that aren’t slop", style: "body" } },
+                                            { type: "text", data: { text: "An agent with actual taste", style: "body" } },
+                                        ],
+                                    },
                                 },
                             ],
                         },
@@ -69,9 +75,39 @@ export const artifact: ArtifactContent = {
             id: "s3",
             grid: "three-up",
             cells: {
-                a: { element: { type: "stat", data: { value: "30s", label: "prompt → first draft" } } },
-                b: { element: { type: "stat", data: { value: "22", label: "built-in themes" } } },
-                c: { element: { type: "stat", data: { value: "4-in-1", label: "deck · doc · site · social" } } },
+                a: {
+                    element: {
+                        type: "stat",
+                        data: {
+                            children: [
+                                { type: "text", data: { text: "30s", style: "stat" } },
+                                { type: "text", data: { text: "prompt → first draft", style: "caption" } },
+                            ],
+                        },
+                    },
+                },
+                b: {
+                    element: {
+                        type: "stat",
+                        data: {
+                            children: [
+                                { type: "text", data: { text: "22", style: "stat" } },
+                                { type: "text", data: { text: "built-in themes", style: "caption" } },
+                            ],
+                        },
+                    },
+                },
+                c: {
+                    element: {
+                        type: "stat",
+                        data: {
+                            children: [
+                                { type: "text", data: { text: "4-in-1", style: "stat" } },
+                                { type: "text", data: { text: "deck · doc · site · social", style: "caption" } },
+                            ],
+                        },
+                    },
+                },
             },
         },
         {
@@ -81,7 +117,12 @@ export const artifact: ArtifactContent = {
                 a: {
                     element: {
                         type: "quote",
-                        data: { text: "Speed made everyone a publisher. Taste is the only moat left.", by: "— the Galleo thesis" },
+                        data: {
+                            children: [
+                                { type: "text", data: { text: "Speed made everyone a publisher. Taste is the only moat left.", style: "title" } },
+                                { type: "text", data: { text: "— the Galleo thesis", style: "byline" } },
+                            ],
+                        },
                     },
                 },
             },

@@ -1,11 +1,27 @@
 import type { ElementSpec, LayoutCtx } from "@elements/element-spec";
 import type { EngineNode } from "@engine/node";
-import { register } from "@elements/registry";
+import type { ElementInstance } from "@model/content";
+import { getElement, register } from "@elements/registry";
 import { fit, grow } from "@model/size";
 
+// A stat is a value + caption — both real text children, so each is independently selectable/editable.
 interface StatData {
-    value: string;
-    label: string;
+    children: ElementInstance[];
+}
+
+const arrange = (_d: StatData, _ctx: LayoutCtx, kids: EngineNode[]): EngineNode => ({
+    w: grow(),
+    h: fit(),
+    direction: "col",
+    gap: 6,
+    children: kids,
+});
+
+function compose(d: StatData, ctx: LayoutCtx): EngineNode[] {
+    return d.children.map((inst): EngineNode => {
+        const spec = getElement(inst.type);
+        return spec ? spec.layout(inst.data, ctx) : { w: grow(), h: fit(10) };
+    });
 }
 
 export const statElement: ElementSpec<StatData> = {
@@ -13,29 +29,15 @@ export const statElement: ElementSpec<StatData> = {
     label: "Stat",
     category: "data",
     tier: "smart",
-    create: () => ({ value: "30s", label: "prompt → first draft" }),
-    layout: (d: StatData, _ctx: LayoutCtx): EngineNode => ({
-        w: grow(),
-        h: fit(),
-        direction: "col",
-        gap: 6,
+    create: () => ({
         children: [
-            {
-                w: grow(),
-                h: fit(),
-                text: { text: d.value, fontId: "display", size: 44, weight: 600, color: "#211c16", align: "start", wrap: "none" },
-            },
-            {
-                w: grow(),
-                h: fit(),
-                text: { text: d.label, fontId: "ui", size: 14, color: "#8c8273", align: "start", wrap: "words" },
-            },
+            { type: "text", data: { text: "30s", style: "stat" } },
+            { type: "text", data: { text: "prompt → first draft", style: "caption" } },
         ],
     }),
-    controls: [
-        { key: "value", label: "Value", control: "text" },
-        { key: "label", label: "Label", control: "text" },
-    ],
+    layout: (d, ctx) => arrange(d, ctx, compose(d, ctx)),
+    container: { children: (d) => d.children, arrange, withChildren: (d, children) => ({ ...d, children }) },
+    controls: [],
 };
 
 register(statElement);
