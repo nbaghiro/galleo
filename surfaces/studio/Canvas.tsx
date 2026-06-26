@@ -160,13 +160,16 @@ export const Canvas: Component = () => {
         });
     });
 
-    const pageBg = createMemo(() => resolveTheme(editor.artifact.theme).tokens.bg);
+    const pageStyle = createMemo(() => {
+        const tk = resolveTheme(editor.artifact.theme).tokens;
+        return { background: tk.bg, "--sb": tk.line, "--sb-strong": tk.muted };
+    });
 
     return (
         <main
             ref={scrollEl}
             class="overflow-y-auto px-10 pt-8 pb-[140px]"
-            style={{ background: pageBg() }}
+            style={pageStyle()}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
