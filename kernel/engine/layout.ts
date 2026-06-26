@@ -1,5 +1,5 @@
 import type { Align, EngineNode, MeasureText, Rect } from "@engine/node";
-import type { RenderCommand } from "@engine/render-command";
+import type { Region, RenderCommand } from "@engine/render-command";
 import type { Size } from "@model/content";
 
 // A laid-out node: the input node plus its resolved box. Built across three passes
@@ -179,22 +179,29 @@ function layoutPositions(laid: Laid, x: number, y: number): void {
 
 // --- flatten to render commands (background fill first, then children) ---
 
-function emit(laid: Laid, out: RenderCommand[]): void {
+function emit(laid: Laid, commands: RenderCommand[], regions: Region[]): void {
     const { node } = laid;
     const box: Rect = { x: laid.x, y: laid.y, w: laid.w, h: laid.h };
-    if (node.fill) out.push({ kind: "rect", box, fill: node.fill });
-    if (node.image) out.push({ kind: "image", box, image: node.image });
-    if (node.text) out.push({ kind: "text", box, text: node.text });
-    if (node.surface) out.push({ kind: "surface", box, paint: node.surface.paint });
-    for (const c of laid.children) emit(c, out);
+    if (node.id) regions.push({ id: node.id, box });
+    if (node.fill) commands.push({ kind: "rect", box, fill: node.fill });
+    if (node.image) commands.push({ kind: "image", box, image: node.image });
+    if (node.text) commands.push({ kind: "text", box, text: node.text });
+    if (node.surface) commands.push({ kind: "surface", box, paint: node.surface.paint });
+    for (const c of laid.children) emit(c, commands, regions);
 }
 
-// Resolve a node tree into absolute-positioned render commands within a container rect.
-export function layout(node: EngineNode, container: Rect, measure: MeasureText): RenderCommand[] {
+// Resolve a node tree into absolute-positioned paint commands + interaction regions (for nodes
+// carrying an id) within a container rect.
+export function layout(
+    node: EngineNode,
+    container: Rect,
+    measure: MeasureText,
+): { commands: RenderCommand[]; regions: Region[] } {
     const laid = layoutWidths(node, container.w, measure);
     layoutHeights(laid, container.h, measure);
     layoutPositions(laid, container.x, container.y);
-    const out: RenderCommand[] = [];
-    emit(laid, out);
-    return out;
+    const commands: RenderCommand[] = [];
+    const regions: Region[] = [];
+    emit(laid, commands, regions);
+    return { commands, regions };
 }

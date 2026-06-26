@@ -13,33 +13,36 @@ interface CardData {
     radius?: number;
 }
 
+const arrange = (d: CardData, _ctx: LayoutCtx, kids: EngineNode[]): EngineNode => {
+    const p = d.padding ?? 24;
+    return {
+        w: grow(),
+        h: fit(),
+        direction: d.direction ?? "col",
+        gap: d.gap ?? 12,
+        padding: { top: p, right: p, bottom: p, left: p },
+        fill: { color: d.bg ?? "#ffffff", radius: d.radius ?? 12, border: { color: "#e6dfd2", width: 1 } },
+        children: kids,
+    };
+};
+
 export const cardElement: ElementSpec<CardData> = {
     type: "card",
     label: "Card",
     category: "container",
     tier: "container",
     create: () => ({ children: [] }),
-    layout: (data: CardData, ctx: LayoutCtx): EngineNode => {
-        const children = data.children.map((inst): EngineNode => {
-            const spec = getElement(inst.type);
-            if (!spec) throw new Error(`unknown element type: ${inst.type}`);
-            return spec.layout(inst.data, ctx);
-        });
-        const p = data.padding ?? 24;
-        return {
-            w: grow(),
-            h: fit(),
-            direction: data.direction ?? "col",
-            gap: data.gap ?? 12,
-            padding: { top: p, right: p, bottom: p, left: p },
-            fill: {
-                color: data.bg ?? "#ffffff",
-                radius: data.radius ?? 12,
-                border: { color: "#e6dfd2", width: 1 },
-            },
-            children,
-        };
-    },
+    layout: (d, ctx) =>
+        arrange(
+            d,
+            ctx,
+            d.children.map((inst): EngineNode => {
+                const spec = getElement(inst.type);
+                if (!spec) throw new Error(`unknown element type: ${inst.type}`);
+                return spec.layout(inst.data, ctx);
+            }),
+        ),
+    container: { children: (d) => d.children, arrange },
     controls: [
         { key: "gap", label: "Gap", control: "slider" },
         { key: "padding", label: "Padding", control: "slider" },

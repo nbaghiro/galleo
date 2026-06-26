@@ -12,23 +12,30 @@ interface GroupData {
     gap?: number;
 }
 
+const arrange = (d: GroupData, _ctx: LayoutCtx, kids: EngineNode[]): EngineNode => ({
+    w: grow(),
+    h: fit(),
+    direction: d.direction ?? "col",
+    gap: d.gap ?? 14,
+    children: kids,
+});
+
 export const groupElement: ElementSpec<GroupData> = {
     type: "group",
     label: "Group",
     category: "container",
     tier: "container",
     create: () => ({ children: [] }),
-    layout: (d: GroupData, ctx: LayoutCtx): EngineNode => ({
-        w: grow(),
-        h: fit(),
-        direction: d.direction ?? "col",
-        gap: d.gap ?? 14,
-        children: d.children.map((inst): EngineNode => {
-            const spec = getElement(inst.type);
-            if (!spec) return { w: grow(), h: fit(20) };
-            return spec.layout(inst.data, ctx);
-        }),
-    }),
+    layout: (d, ctx) =>
+        arrange(
+            d,
+            ctx,
+            d.children.map((inst): EngineNode => {
+                const spec = getElement(inst.type);
+                return spec ? spec.layout(inst.data, ctx) : { w: grow(), h: fit(20) };
+            }),
+        ),
+    container: { children: (d) => d.children, arrange },
     controls: [],
 };
 

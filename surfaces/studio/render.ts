@@ -1,6 +1,6 @@
 import type { LayoutCtx } from "@elements/element-spec";
 import type { EngineNode, MeasureText } from "@engine/node";
-import type { RenderCommand } from "@engine/render-command";
+import type { Region, RenderCommand } from "@engine/render-command";
 import type { Section } from "@model/content";
 import type { FormatDescriptor } from "@model/format";
 import { composeSection } from "@elements/compose";
@@ -34,10 +34,10 @@ export function layoutSection(
     section: Section,
     width: number,
     measure: MeasureText,
-): { commands: RenderCommand[]; height: number } {
+): { commands: RenderCommand[]; regions: Region[]; height: number } {
     const node = composeSection(section, ctxFor(width));
-    const commands = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure);
-    return { commands, height: bottom(commands) };
+    const { commands, regions } = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure);
+    return { commands, regions, height: bottom(commands) };
 }
 
 export function layoutNode(
@@ -45,6 +45,6 @@ export function layoutNode(
     width: number,
     measure: MeasureText,
 ): { commands: RenderCommand[]; height: number } {
-    const commands = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure);
+    const { commands } = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure);
     return { commands, height: bottom(commands) };
 }

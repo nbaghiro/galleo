@@ -1,4 +1,5 @@
 import type { EngineNode, Rect } from "@engine/node";
+import type { ElementInstance } from "@model/content";
 import type { FormatDescriptor } from "@model/format";
 
 export interface LayoutCtx {
@@ -41,4 +42,10 @@ export interface ElementSpec<Data = unknown> {
     // Structural ghost shown in the palette + as the drop preview. Optional: if absent, one is
     // derived automatically from layout(create()) via skeletonize() in @elements/skeleton.
     skeleton?: (ctx: LayoutCtx) => EngineNode;
+    // Containers expose their child instances + arrange already-composed child nodes. compose() uses
+    // this to recurse and address nested elements; `layout` stays the standalone (e.g. skeleton) path.
+    container?: {
+        children: (data: Data) => ElementInstance[];
+        arrange: (data: Data, ctx: LayoutCtx, children: EngineNode[]) => EngineNode;
+    };
 }
