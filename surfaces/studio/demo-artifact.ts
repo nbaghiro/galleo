@@ -3,8 +3,8 @@ import type { ArtifactContent } from "@model/content";
 const ACCENT = "#9a4f24";
 const INK = "#211c16";
 
-// The open artifact: an ordered list of variable-height sections. This is the in-memory store P1
-// renders; persistence (services/data) arrives later.
+// The open artifact: an ordered list of variable-height sections. In-memory for now; persistence
+// (services/data) arrives later.
 
 export const artifact: ArtifactContent = {
     format: "deck",

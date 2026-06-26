@@ -7,24 +7,29 @@
         "typecheck": "tsc --noEmit",
         "lint": "eslint .",
         "format": "prettier --write .",
-        "dev": "node scripts/dev.mjs",
-        "demo": "node scripts/build-demo.mjs",
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
         "db:generate": "drizzle-kit generate",
         "db:migrate": "drizzle-kit migrate"
     },
     "dependencies": {
         "drizzle-orm": "^0.38.0",
         "postgres": "^3.4.5",
+        "solid-js": "^1.9.13",
         "zod": "^3.24.1"
     },
     "devDependencies": {
+        "@tailwindcss/vite": "^4.3.1",
         "@types/node": "^22.10.5",
         "drizzle-kit": "^0.30.1",
-        "esbuild": "^0.24.2",
         "eslint": "^9.18.0",
         "eslint-plugin-import": "^2.31.0",
         "prettier": "^3.4.2",
+        "tailwindcss": "^4.3.1",
         "typescript": "^5.7.3",
-        "typescript-eslint": "^8.19.1"
+        "typescript-eslint": "^8.19.1",
+        "vite": "^8.1.0",
+        "vite-plugin-solid": "^2.11.12"
     }
 }

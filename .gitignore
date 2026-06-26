@@ -1,7 +1,6 @@
 node_modules/
 dist/
 *.tsbuildinfo
-surfaces/studio/demo.js
 .env
 .env.*
 !.env.example
