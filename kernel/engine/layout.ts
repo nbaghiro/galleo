@@ -183,10 +183,10 @@ function emit(laid: Laid, commands: RenderCommand[], regions: Region[]): void {
     const { node } = laid;
     const box: Rect = { x: laid.x, y: laid.y, w: laid.w, h: laid.h };
     if (node.id) regions.push({ id: node.id, box });
-    if (node.fill) commands.push({ kind: "rect", box, fill: node.fill });
-    if (node.image) commands.push({ kind: "image", box, image: node.image });
-    if (node.text) commands.push({ kind: "text", box, text: node.text });
-    if (node.surface) commands.push({ kind: "surface", box, paint: node.surface.paint });
+    if (node.fill) commands.push({ kind: "rect", box, fill: node.fill, id: node.id });
+    if (node.image) commands.push({ kind: "image", box, image: node.image, id: node.id });
+    if (node.text) commands.push({ kind: "text", box, text: node.text, id: node.id });
+    if (node.surface) commands.push({ kind: "surface", box, paint: node.surface.paint, id: node.id });
     for (const c of laid.children) emit(c, commands, regions);
 }
 

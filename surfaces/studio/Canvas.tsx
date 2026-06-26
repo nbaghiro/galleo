@@ -4,14 +4,15 @@ import type { Component } from "solid-js";
 import { createEffect, createMemo, onCleanup, onMount } from "solid-js";
 import { getElementAt } from "@elements/ops";
 import { getElement } from "@elements/registry";
-import { parentTarget, parseTarget, specificity } from "@model/address";
+import { elementRegionId, parentTarget, parseTarget, specificity } from "@model/address";
 import { paint } from "./dom-backend";
 import { applyDrop, computeDropTarget, drag, setDrag, startDrag } from "./dnd";
-import { commit, editor, redo, setCanvasEl, setEditor, setHover, setRegions, setSelection, undo } from "./editor";
+import { commit, editing, editor, redo, setCanvasEl, setEditor, setHover, setRegions, setSelection, startEditing, undo } from "./editor";
 import { DropIndicator } from "./DropIndicator";
 import { measureText } from "./measure";
 import { Overlay } from "./Overlay";
 import { SECTION_GAP, layoutSection } from "./render";
+import { TextEditor } from "./TextEditor";
 
 const DRAG_THRESHOLD = 4;
 
@@ -30,14 +31,19 @@ export const Canvas: Component = () => {
         const width = stageEl.clientWidth || 800;
         paintHost.replaceChildren();
 
+        // suppress the painted text of the element being edited — only the live overlay shows it
+        const editAddr = editing();
+        const editId = editAddr ? elementRegionId(editAddr) : null;
+
         let y = 0;
         const tops: number[] = [];
         const all: Region[] = [];
         for (const section of editor.artifact.sections) {
             const { commands, regions, height } = layoutSection(section, width, measureText);
+            const visible = editId ? commands.filter((c) => !(c.kind === "text" && c.id === editId)) : commands;
             const layer = document.createElement("div");
             layer.style.cssText = `left:0;top:${y}px;width:${width}px;height:${height}px`;
-            paint(commands, layer);
+            paint(visible, layer);
             layer.style.position = "absolute"; // paint() forces relative; keep layers out of flow
             paintHost.appendChild(layer);
             for (const r of regions) all.push({ id: r.id, box: { x: r.box.x, y: r.box.y + y, w: r.box.w, h: r.box.h } });
@@ -71,12 +77,20 @@ export const Canvas: Component = () => {
     };
 
     const onPointerDown = (e: PointerEvent): void => {
-        if (drag()) return;
+        if (drag() || editing()) return;
         pending = { target: hitTest(...point(e)), x: e.clientX, y: e.clientY };
     };
 
+    const onDoubleClick = (e: MouseEvent): void => {
+        const t = hitTest(...point(e));
+        if (t?.kind === "element" && getElementAt(editor.artifact, t.address)?.type === "text") {
+            setSelection(t);
+            startEditing(t.address);
+        }
+    };
+
     const onPointerMove = (e: PointerEvent): void => {
-        if (drag()) return; // active drag is driven by the window listeners below
+        if (drag() || editing()) return; // active drag is driven by the window listeners below
         if (pending?.target?.kind === "element" && Math.hypot(e.clientX - pending.x, e.clientY - pending.y) > DRAG_THRESHOLD) {
             const movedType = getElementAt(editor.artifact, pending.target.address)?.type;
             const label = (movedType && getElement(movedType)?.label) || "Move";
@@ -89,7 +103,7 @@ export const Canvas: Component = () => {
     };
 
     const onPointerUp = (): void => {
-        if (drag()) return;
+        if (drag() || editing()) return;
         if (pending) {
             setSelection(pending.target);
             pending = null;
@@ -101,6 +115,7 @@ export const Canvas: Component = () => {
         const ro = new ResizeObserver(() => draw());
         ro.observe(scrollEl);
         const onKey = (e: KeyboardEvent): void => {
+            if (editing()) return; // the inline editor owns the keyboard while active
             if (e.key === "Escape") setSelection((cur) => (cur ? parentTarget(cur) : null));
             else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
                 e.preventDefault();
@@ -150,12 +165,14 @@ export const Canvas: Component = () => {
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            onDblClick={onDoubleClick}
             onPointerLeave={() => !drag() && setHover(null)}
         >
             <div ref={stageEl} class="relative mx-auto max-w-[1100px]">
                 <div ref={paintHost} class="absolute inset-0" />
                 <Overlay />
                 <DropIndicator />
+                <TextEditor />
             </div>
         </main>
     );

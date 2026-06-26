@@ -1,5 +1,5 @@
 import type { Region } from "@engine/render-command";
-import type { Target } from "@model/address";
+import type { ElementAddress, Target } from "@model/address";
 import type { ArtifactContent } from "@model/content";
 import { createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
@@ -44,6 +44,31 @@ export function redo(): void {
     const next = future.pop();
     if (next === undefined) return;
     past.push(editor.artifact);
+    setEditor("artifact", next);
+}
+
+// Inline text editing: live keystrokes update the artifact WITHOUT touching history; one history
+// entry is recorded for the whole edit when it ends (so undo restores the pre-edit text).
+const [editing, setEditing] = createSignal<ElementAddress | null>(null);
+export { editing };
+
+let editBefore: ArtifactContent | null = null;
+
+export function startEditing(addr: ElementAddress): void {
+    editBefore = editor.artifact;
+    setEditing(addr);
+}
+
+export function stopEditing(): void {
+    if (editBefore && editBefore !== editor.artifact) {
+        past.push(editBefore);
+        future.length = 0;
+    }
+    editBefore = null;
+    setEditing(null);
+}
+
+export function setArtifactLive(next: ArtifactContent): void {
     setEditor("artifact", next);
 }
 
