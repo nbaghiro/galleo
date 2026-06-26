@@ -4,7 +4,15 @@ import importPlugin from "eslint-plugin-import";
 // Boundary rules (Kernel + Surfaces): the kernel stays pure; surfaces never import each other.
 export default tseslint.config(
     {
-        ignores: ["**/dist/**", "**/migrations/**", "*.config.*", "design/**", "docs/**"],
+        ignores: [
+            "**/dist/**",
+            "**/migrations/**",
+            "**/demo.js",
+            "scripts/**",
+            "*.config.*",
+            "design/**",
+            "docs/**",
+        ],
     },
     ...tseslint.configs.recommended,
     {
