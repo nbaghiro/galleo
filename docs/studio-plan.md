@@ -13,9 +13,14 @@
 - composites (`stat`/`quote`/`bullets`) are containers of real `text` elements → nested selection/editing
 Geometry/ops live in the pure kernel; Solid owns shell + state; the engine paints into refs.
 
-**Next (Arc B):** theming · format-as-view (deck/doc/web present+export) · element library expansion.
 P5 v1 uses a contenteditable overlay (browser caret/IME); full Path B (custom glyph caret +
 `kernel/text` line-layout, rich marks) is a later hardening.
+
+## Status (Arc B — a real format tool)
+- **P6 ✓** theming — semantic token model (`kernel/themes`), 6-theme library, elements read theme
+  colors via `LayoutCtx.theme`, topbar switcher, themed canvas (live recolor + undo)
+- **P7 ◦** format-as-view — deck/doc/web present + export (`engine/profile` + `engine/fragment`)
+- **P8 ◦** element library — chart · table · video · embed · photo grid · code · …
 
 ```
 surfaces/studio/  main.ts ✓  dom-backend.ts ✓  measure.ts ✓  sample.ts ✓
