@@ -7,6 +7,7 @@
         "typecheck": "tsc --noEmit",
         "lint": "eslint .",
         "format": "prettier --write .",
+        "dev": "node scripts/dev.mjs",
         "demo": "node scripts/build-demo.mjs",
         "db:generate": "drizzle-kit generate",
         "db:migrate": "drizzle-kit migrate"
