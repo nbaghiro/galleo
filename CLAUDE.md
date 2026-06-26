@@ -15,6 +15,8 @@ with high-fidelity export. Net-new, TypeScript.
   `agent`. A surface **never** imports another surface.
 - **`services/`** — backend: `data` (Postgres + Drizzle) · `api` · `auth` · `queue`.
 - Concrete render backends (DOM/canvas/PDF/SSR) live **with their surface**, never in `kernel`.
+- **Studio frontend = SolidJS + Vite + Tailwind v4.** The kernel stays framework-free; the engine
+  paints render commands imperatively into refs (`dom-backend.ts`) — Solid only owns shell + state.
 
 ## Conventions (enforced)
 - **No `index.ts` barrels.** Each concept is a named file (`engine/layout.ts`, `elements/element-spec.ts`).
@@ -26,21 +28,21 @@ with high-fidelity export. Net-new, TypeScript.
 
 ## Commands
 ```
+pnpm dev            # Vite dev server (HMR) → http://localhost:5173
+pnpm build          # production build → dist/
 pnpm typecheck      pnpm lint      pnpm format
-pnpm dev            # watch + serve the studio demo → http://localhost:5173/index.html
-pnpm demo           # one-shot bundle → surfaces/studio/demo.js, open via file://
 pnpm db:generate    pnpm db:migrate
 ```
 
 ## Current state
-The kernel engine (`kernel/engine/layout.ts`, Clay-style 3-pass solver) drives the studio. P1 of
-`docs/studio-plan.md` is built: a 3-zone shell (`index.html`) — left minimap of live section
-thumbnails, center continuous **section canvas** (`canvas.ts`), right **element palette**
-(`right-panel.ts`). Sections compose via `@elements/templates` + `@elements/compose`; every element
-has a structural ghost (`@elements/skeleton`). Elements so far: text, image, card, group, stat,
-bullets, button, divider, quote.
+The kernel engine (`kernel/engine/layout.ts`, Clay-style 3-pass solver) drives the studio, now a
+**SolidJS** app: `Studio.tsx` shell = `Topbar` · `Minimap` (live `Thumb`s) · `Canvas` (continuous
+section stack) · `Panel` (element palette). State in `editor.ts` (Solid store); imperative paint
+helpers in `render.ts`; engine output painted into refs via `dom-backend.ts`. Sections compose via
+`@elements/templates` + `@elements/compose`; every element has a structural ghost
+(`@elements/skeleton`). Elements: text, image, card, group, stat, bullets, button, divider, quote.
 Next per `docs/studio-plan.md`: P2 selection + overlay, then P3 drag-drop with live drop-targets.
-Still planned: virtualization of the canvas, `engine/profile`/`fragment` (format-as-view), text editing.
+Still planned: canvas virtualization, `engine/profile`/`fragment` (format-as-view), text editing.
 
 ## Commits
 Single-line, imperative; ticket prefix if the branch has one; **no co-author trailer**.
