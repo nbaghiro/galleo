@@ -4,7 +4,7 @@ import type { ArtifactContent } from "@model/content";
 import { createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import { targetsEqual } from "@model/address";
-import { artifact as demo } from "./demo-artifact";
+import { DEMOS } from "./demos";
 
 // The editor's reactive state: the open artifact + computed section offsets, the current selection /
 // hover target, and the geometry regions the canvas reports (in canvas-content coordinates).
@@ -14,7 +14,9 @@ interface EditorState {
     sectionTops: number[];
 }
 
-export const [editor, setEditor] = createStore<EditorState>({ artifact: demo, sectionTops: [] });
+const FIRST = DEMOS[0]!;
+
+export const [editor, setEditor] = createStore<EditorState>({ artifact: FIRST.artifact, sectionTops: [] });
 
 const [canvasEl, setCanvasEl] = createSignal<HTMLElement | null>(null);
 export { canvasEl, setCanvasEl };
@@ -70,6 +72,22 @@ export function stopEditing(): void {
 
 export function setArtifactLive(next: ArtifactContent): void {
     setEditor("artifact", next);
+}
+
+// Demo document switcher: load another sample artifact and reset transient editor state.
+export const [demoId, setDemoId] = createSignal(FIRST.id);
+
+export function loadDemo(id: string): void {
+    const d = DEMOS.find((x) => x.id === id);
+    if (!d) return;
+    past.length = 0;
+    future.length = 0;
+    editBefore = null;
+    setEditing(null);
+    setSelection(null);
+    setHover(null);
+    setDemoId(id);
+    setEditor("artifact", d.artifact);
 }
 
 export function jumpToSection(index: number): void {

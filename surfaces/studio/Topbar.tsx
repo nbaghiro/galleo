@@ -2,9 +2,41 @@ import type { Component } from "solid-js";
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { setArtifactTheme } from "@elements/ops";
 import { resolveTheme, THEME_LIST } from "@themes/library";
-import { commit, editor } from "./editor";
+import { DEMOS } from "./demos";
+import { commit, demoId, editor, loadDemo } from "./editor";
 
 const btn = "cursor-pointer rounded-lg border border-line bg-white px-3 py-1.5 text-[12px] font-semibold text-ink";
+
+const DocMenu: Component = () => {
+    const [open, setOpen] = createSignal(false);
+    const current = createMemo(() => DEMOS.find((d) => d.id === demoId()) ?? DEMOS[0]!);
+
+    return (
+        <div class="relative">
+            <button class="flex items-center gap-1.5 text-[13px] text-muted hover:text-ink" onClick={() => setOpen((o) => !o)}>
+                {current().title} <span class="text-[10px]">▾</span>
+            </button>
+            <Show when={open()}>
+                <div class="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+                <div class="absolute left-0 z-20 mt-2 w-56 rounded-xl border border-line bg-white p-1.5 shadow-xl">
+                    <For each={DEMOS}>
+                        {(d) => (
+                            <button
+                                class={`block w-full rounded-lg px-2.5 py-2 text-left text-[13px] ${d.id === demoId() ? "bg-[#faf2e9] font-semibold" : "hover:bg-[#f6f2ea]"}`}
+                                onClick={() => {
+                                    loadDemo(d.id);
+                                    setOpen(false);
+                                }}
+                            >
+                                {d.title}
+                            </button>
+                        )}
+                    </For>
+                </div>
+            </Show>
+        </div>
+    );
+};
 
 const Swatch: Component<{ surface: string; ink: string; accent: string }> = (props) => (
     <span class="flex h-4 w-4 overflow-hidden rounded-full border border-line">
@@ -51,7 +83,7 @@ const ThemeMenu: Component = () => {
 export const Topbar: Component = () => (
     <header class="flex items-center gap-3.5 border-b border-line bg-panel px-[18px]">
         <span class="font-mono text-[15px] font-bold tracking-wide text-accent">GALLEO</span>
-        <span class="text-[13px] text-muted">Untitled artifact</span>
+        <DocMenu />
         <span class="flex-1" />
         <ThemeMenu />
         <button class={btn}>Present</button>
