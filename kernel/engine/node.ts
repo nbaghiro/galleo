@@ -43,7 +43,7 @@ export interface ImageLeaf {
 export interface FillLeaf {
     color?: string;
     radius?: number;
-    border?: { color: string; width: number };
+    border?: { color: string; width: number; style?: "solid" | "dashed" };
 }
 
 export interface SurfaceLeaf {

@@ -38,4 +38,7 @@ export interface ElementSpec<Data = unknown> {
     layout: (data: Data, ctx: LayoutCtx) => EngineNode;
     controls: ControlField[];
     fallback?: (data: Data) => Data; // interactive -> static for paged/export
+    // Structural ghost shown in the palette + as the drop preview. Optional: if absent, one is
+    // derived automatically from layout(create()) via skeletonize() in @elements/skeleton.
+    skeleton?: (ctx: LayoutCtx) => EngineNode;
 }

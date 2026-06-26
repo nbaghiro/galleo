@@ -1,13 +1,17 @@
 import type { LayoutCtx } from "@elements/element-spec";
 import type { FormatDescriptor } from "@model/format";
-import "@elements/card";
-import "@elements/image";
 import "@elements/text";
-import { getElement } from "@elements/registry";
+import "@elements/image";
+import "@elements/card";
+import "@elements/stat";
+import "@elements/bullets";
+import "@elements/button";
+import "@elements/divider";
+import "@elements/quote";
 import { layout } from "@engine/layout";
 import { paint } from "./dom-backend";
 import { measureText } from "./measure";
-import { sample } from "./sample";
+import { buildShowcase } from "./palette";
 
 const format: FormatDescriptor = {
     id: "deck",
@@ -23,7 +27,7 @@ const format: FormatDescriptor = {
 function render(): void {
     const host = document.getElementById("stage");
     if (!host) return;
-    const width = 860;
+    const width = 880;
     const ctx: LayoutCtx = {
         box: { x: 0, y: 0, w: width, h: 0 },
         availWidth: width,
@@ -31,10 +35,8 @@ function render(): void {
         tokens: {},
         theme: {},
     };
-    const spec = getElement(sample.type);
-    if (!spec) return;
-    const node = spec.layout(sample.data, ctx);
-    const commands = layout(node, { x: 0, y: 0, w: width, h: 10000 }, measureText);
+    const node = buildShowcase(ctx);
+    const commands = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measureText);
     const bottom = commands.reduce((mx, c) => Math.max(mx, c.box.y + c.box.h), 0);
     host.style.width = `${width}px`;
     host.style.height = `${bottom}px`;

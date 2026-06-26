@@ -50,7 +50,16 @@ interface ElementSpec<Data> {
   capabilities: { minW?:number; maxW?:number; minH?:number;
                   resizable?:boolean; canBackground?:boolean; formats?:FormatKind[] };
   ai?: { generate?(prompt:string):Data; edit?(d:Data, instruction:string):Data };
+  skeleton?(ctx: LayoutCtx): EngineNode;   // structural ghost (palette + drop preview); auto if omitted
 }
+
+// Skeletons — every element shows a structural ghost in the right-panel palette (drag source) and as
+// the drop preview that ghosts into a target cell while dragging over a section.
+//  - AUTO: if `skeleton` is omitted it's derived from `skeletonize(layout(create()))` — text→bars,
+//    image/surface→ghost box, fills→panel-grey. Every element gets a faithful skeleton for free.
+//  - OVERRIDE: visual elements (chart, table, a fit-width button) supply a custom `skeleton`.
+//    Built from engine primitives (@elements/skeleton: bar/block/pill/dot) and rendered by the same
+//    engine — so previews are real engine output. (Implemented in kernel/elements/skeleton.ts.)
 
 type LayoutCtx = {
   box: Rect;            // the cell rectangle the element is being laid out into (constraints-down root)

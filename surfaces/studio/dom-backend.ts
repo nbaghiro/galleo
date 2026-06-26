@@ -24,7 +24,8 @@ export function paint(commands: RenderCommand[], host: HTMLElement): void {
             if (c.fill?.color) el.style.background = c.fill.color;
             if (c.fill?.radius !== undefined) el.style.borderRadius = `${c.fill.radius}px`;
             if (c.fill?.border) {
-                el.style.border = `${c.fill.border.width}px solid ${c.fill.border.color}`;
+                const b = c.fill.border;
+                el.style.border = `${b.width}px ${b.style ?? "solid"} ${b.color}`;
             }
         } else if (c.kind === "image") {
             el.style.backgroundImage = `url("${c.image.src}")`;
