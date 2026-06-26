@@ -6,8 +6,12 @@ import solid from "vite-plugin-solid";
 const abs = (p: string): string => fileURLToPath(new URL(p, import.meta.url));
 
 // The studio is the Vite root; kernel is reached via the same path aliases as tsconfig.
+// Galleo claims the 86xx host-port block so it runs alongside the other ~/Documents/code
+// projects (clientbridge 87xx, llamatrade 88xx, sourcewell 89xx). See docs/ports.md.
 export default defineConfig({
     root: "surfaces/studio",
+    server: { port: 8600, strictPort: true },
+    preview: { port: 8600, strictPort: true },
     plugins: [solid(), tailwindcss()],
     resolve: {
         alias: {

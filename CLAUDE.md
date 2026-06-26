@@ -28,11 +28,12 @@ with high-fidelity export. Net-new, TypeScript.
 
 ## Commands
 ```
-pnpm dev            # Vite dev server (HMR) → http://localhost:5173
+pnpm dev            # Vite dev server (HMR) → http://localhost:8600
 pnpm build          # production build → dist/
 pnpm typecheck      pnpm lint      pnpm format
 pnpm db:generate    pnpm db:migrate
 ```
+Galleo owns the **86xx** host-port block (runs alongside the sibling apps). See `docs/ports.md`.
 
 ## Current state
 The kernel engine (`kernel/engine/layout.ts`, Clay-style 3-pass solver) drives the studio, now a
