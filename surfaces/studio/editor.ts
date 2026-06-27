@@ -1,8 +1,9 @@
 import type { Region } from "@engine/render-command";
 import type { ElementAddress, Target } from "@model/address";
-import type { ArtifactContent } from "@model/content";
+import type { ArtifactContent, Section } from "@model/content";
 import { createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
+import { duplicateSection, insertSection, moveSection, removeSection } from "@elements/ops";
 import { targetsEqual } from "@model/address";
 import { DEMOS } from "./demos";
 
@@ -88,6 +89,33 @@ export function loadDemo(id: string): void {
     setHover(null);
     setDemoId(id);
     setEditor("artifact", d.artifact);
+}
+
+// --- section management ---
+function newSectionId(): string {
+    return `s-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+export function addSectionAfter(afterId: string | null): void {
+    const sec: Section = { id: newSectionId(), grid: "full", cells: { a: {} } };
+    const at = afterId
+        ? editor.artifact.sections.findIndex((s) => s.id === afterId) + 1
+        : editor.artifact.sections.length;
+    commit(insertSection(editor.artifact, at, sec));
+    setSelection({ kind: "section", section: sec.id });
+}
+
+export function duplicateSectionAt(id: string): void {
+    commit(duplicateSection(editor.artifact, id, newSectionId()));
+}
+
+export function removeSectionAt(id: string): void {
+    commit(removeSection(editor.artifact, id));
+    setSelection(null);
+}
+
+export function moveSectionBy(id: string, delta: number): void {
+    commit(moveSection(editor.artifact, id, delta));
 }
 
 export function jumpToSection(index: number): void {

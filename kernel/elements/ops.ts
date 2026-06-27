@@ -131,6 +131,35 @@ export function setSectionBleed(art: ArtifactContent, section: Id, bleed: boolea
     return mapSection(art, section, (s) => ({ ...s, bleed }));
 }
 
+export function insertSection(art: ArtifactContent, index: number, section: Section): ArtifactContent {
+    const sections = [...art.sections];
+    sections.splice(Math.max(0, Math.min(index, sections.length)), 0, section);
+    return { ...art, sections };
+}
+
+export function removeSection(art: ArtifactContent, id: Id): ArtifactContent {
+    if (art.sections.length <= 1) return art; // keep at least one section
+    return { ...art, sections: art.sections.filter((s) => s.id !== id) };
+}
+
+export function moveSection(art: ArtifactContent, id: Id, delta: number): ArtifactContent {
+    const i = art.sections.findIndex((s) => s.id === id);
+    if (i < 0) return art;
+    const j = Math.max(0, Math.min(art.sections.length - 1, i + delta));
+    if (i === j) return art;
+    const sections = [...art.sections];
+    const [sec] = sections.splice(i, 1);
+    sections.splice(j, 0, sec!);
+    return { ...art, sections };
+}
+
+export function duplicateSection(art: ArtifactContent, id: Id, newId: Id): ArtifactContent {
+    const i = art.sections.findIndex((s) => s.id === id);
+    if (i < 0) return art;
+    const copy: Section = { ...structuredClone(art.sections[i]!), id: newId };
+    return insertSection(art, i + 1, copy);
+}
+
 export function setArtifactTheme(art: ArtifactContent, theme: Id): ArtifactContent {
     return { ...art, theme };
 }

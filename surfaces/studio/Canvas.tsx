@@ -13,6 +13,7 @@ import { DropIndicator } from "./DropIndicator";
 import { measureText } from "./measure";
 import { Overlay } from "./Overlay";
 import { SECTION_GAP, layoutSection } from "./render";
+import { SectionToolbar } from "./SectionToolbar";
 import { TextEditor } from "./TextEditor";
 
 const DRAG_THRESHOLD = 4;
@@ -189,6 +190,7 @@ export const Canvas: Component = () => {
                 <div ref={paintHost} class="absolute inset-0" />
                 <Overlay />
                 <DropIndicator />
+                <SectionToolbar />
                 <TextEditor />
             </div>
         </main>
