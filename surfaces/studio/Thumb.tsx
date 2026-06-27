@@ -29,8 +29,8 @@ export const Thumb: Component<{ section: Section; index: number }> = (props) => 
     });
 
     return (
-        <div class="flex items-start gap-2">
-            <span class="w-3.5 shrink-0 pt-px text-right font-mono text-[10px] font-semibold leading-none text-muted">
+        <div class="flex items-center gap-2">
+            <span class="w-3.5 shrink-0 text-right font-mono text-[10px] font-semibold leading-none text-muted">
                 {props.index + 1}
             </span>
             <button
