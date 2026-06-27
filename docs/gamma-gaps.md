@@ -7,6 +7,15 @@
 
 Legend: 🟥 missing · 🟧 partial · 🟩 have it.
 
+## Progress (2026-06-26)
+**Closed:** §1 section backgrounds + full-bleed ✅ · §2 section management (add/dup/move/delete + toolbar) ✅
+· §3 categorized + searchable palette ✅ (slash-menu still ◦) · §4 tables, diagrams (process/pyramid/
+funnel/cycle), video/embed, callout variants ✅ (19 elements) · §6 Present mode ✅ + PDF export (print) ✅
++ localStorage autosave ✅ · §5 Agent panel + **local** prompt→deck generator ✅.
+**Backend-gated (need `services/`):** real LLM agent · cloud sync/persistence · publish/share URLs ·
+accounts/billing · collaboration. **Client polish remaining:** slash menu · hover block toolbar ·
+between-section `+` · format-as-view (doc/web modes) · more chart/diagram types.
+
 ---
 
 ## 1. Section model & canvas — the defining gap 🟥
