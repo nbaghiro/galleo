@@ -12,6 +12,7 @@ import { paint } from "./dom-backend";
 import { applyDrop, computeDropTarget, drag, setDrag, startDrag } from "./dnd";
 import {
     commit,
+    currentArtifactId,
     editing,
     editor,
     editSeq,
@@ -181,9 +182,10 @@ export const Canvas: Component = () => {
         });
     });
 
-    // editSeq() bumps on every edit (any format); reading it here guarantees a redraw.
+    // editSeq() bumps on every edit; currentArtifactId() changes on load — either forces a redraw.
     createEffect(() => {
         editSeq();
+        currentArtifactId();
         draw();
     });
 

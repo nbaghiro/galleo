@@ -2,8 +2,7 @@ import type { Component, JSX } from "solid-js";
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { setArtifactFormat, setArtifactTheme } from "@elements/ops";
 import { resolveTheme, THEME_LIST } from "@themes/library";
-import { DEMOS } from "./demos";
-import { commit, demoId, editor, loadDemo, present, setAgentOpen } from "./editor";
+import { commit, currentArtifactId, docs, editor, present, requestSwitchDoc, setAgentOpen } from "./editor";
 import { exportDeckPng, exportPdfAuto, exportPrint } from "./export-pdf";
 
 const btnBase = "cursor-pointer rounded-lg border px-3 py-1.5 text-[12px] font-semibold";
@@ -12,9 +11,7 @@ const btnAccent = `${btnBase} border-accent bg-accent text-onaccent`;
 
 const DocMenu: Component = () => {
     const [open, setOpen] = createSignal(false);
-    const current = createMemo(
-        () => DEMOS.find((d) => d.id === demoId()) ?? { id: demoId(), title: "Generated deck" },
-    );
+    const current = createMemo(() => docs().find((d) => d.id === currentArtifactId())?.title ?? "Untitled");
 
     return (
         <div class="relative">
@@ -22,17 +19,17 @@ const DocMenu: Component = () => {
                 class="flex items-center gap-1.5 text-[13px] text-muted hover:text-ink"
                 onClick={() => setOpen((o) => !o)}
             >
-                {current().title} <span class="text-[10px]">▾</span>
+                {current()} <span class="text-[10px]">▾</span>
             </button>
             <Show when={open()}>
                 <div class="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-                <div class="absolute left-0 z-20 mt-2 w-56 rounded-xl border border-line bg-panel p-1.5 shadow-xl">
-                    <For each={DEMOS}>
+                <div class="absolute left-0 z-20 mt-2 w-60 rounded-xl border border-line bg-panel p-1.5 shadow-xl">
+                    <For each={docs()}>
                         {(d) => (
                             <button
-                                class={`block w-full rounded-lg px-2.5 py-2 text-left text-[13px] ${d.id === demoId() ? "bg-canvas font-semibold text-accent" : "hover:bg-canvas"}`}
+                                class={`block w-full rounded-lg px-2.5 py-2 text-left text-[13px] ${d.id === currentArtifactId() ? "bg-canvas font-semibold text-accent" : "hover:bg-canvas"}`}
                                 onClick={() => {
-                                    loadDemo(d.id);
+                                    requestSwitchDoc(d.id);
                                     setOpen(false);
                                 }}
                             >

@@ -141,6 +141,36 @@ export function resetDoc(id: string): void {
     setEditor("artifact", d.artifact);
 }
 
+// --- documents from the backend (the app populates these + handles loading/switching) ---
+export interface DocSummary {
+    id: string;
+    title: string;
+    themeId?: string;
+}
+export const [docs, setDocs] = createSignal<DocSummary[]>([]);
+export const [currentArtifactId, setCurrentArtifactId] = createSignal<string | null>(null);
+
+let switchHandler: ((id: string) => void) | null = null;
+export function onSwitchDoc(fn: (id: string) => void): void {
+    switchHandler = fn;
+}
+export function requestSwitchDoc(id: string): void {
+    switchHandler?.(id);
+}
+
+// Load an artifact (fetched from the API) into the editor. Resets transient state; does NOT bump
+// editSeq, so it won't trigger an autosave — the canvas redraws because it also tracks currentArtifactId.
+export function loadArtifactContent(id: string, content: ArtifactContent): void {
+    past.length = 0;
+    future.length = 0;
+    editBefore = null;
+    setEditing(null);
+    setSelection(null);
+    setHover(null);
+    setCurrentArtifactId(id);
+    setEditor("artifact", content);
+}
+
 // --- section management ---
 function newSectionId(): string {
     return `s-${crypto.randomUUID().slice(0, 8)}`;

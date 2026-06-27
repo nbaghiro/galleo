@@ -5,11 +5,11 @@ import solid from "vite-plugin-solid";
 
 const abs = (p: string): string => fileURLToPath(new URL(p, import.meta.url));
 
-// The studio is the Vite root; kernel is reached via the same path aliases as tsconfig.
-// Galleo claims the 86xx host-port block so it runs alongside the other ~/Documents/code
-// projects (clientbridge 87xx, llamatrade 88xx, sourcewell 89xx). See docs/ports.md.
+// `app/` is the Vite root (the product shell); it composes the studio editor + shared theme. Kernel
+// + studio are reached via the same path aliases as tsconfig. Galleo claims the 86xx host-port block
+// so it runs alongside the other ~/Documents/code projects (clientbridge 87xx, …). See docs/ports.md.
 export default defineConfig({
-    root: "surfaces/studio",
+    root: "app",
     server: {
         port: 8600,
         strictPort: true,
@@ -29,6 +29,7 @@ export default defineConfig({
             "@themes": abs("./kernel/themes"),
             "@render": abs("./kernel/render"),
             "@data": abs("./services/data"),
+            "@studio": abs("./surfaces/studio"),
         },
     },
     build: {
@@ -36,8 +37,8 @@ export default defineConfig({
         emptyOutDir: true,
         rollupOptions: {
             input: {
-                main: abs("./surfaces/studio/index.html"),
-                playground: abs("./surfaces/studio/playground.html"),
+                main: abs("./app/index.html"),
+                playground: abs("./app/playground.html"),
             },
         },
     },

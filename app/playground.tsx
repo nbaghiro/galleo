@@ -1,22 +1,4 @@
-import "@elements/text";
-import "@elements/image";
-import "@elements/card";
-import "@elements/group";
-import "@elements/stat";
-import "@elements/bullets";
-import "@elements/button";
-import "@elements/divider";
-import "@elements/quote";
-import "@elements/callout";
-import "@elements/code";
-import "@elements/badge";
-import "@elements/spacer";
-import "@elements/gradient";
-import "@elements/chart";
-import "@elements/table";
-import "@elements/diagram";
-import "@elements/video";
-import "@elements/embed";
+import "@studio/register";
 
 import type { LayoutCtx } from "@elements/element-spec";
 import type { EngineNode } from "@engine/node";
@@ -26,10 +8,10 @@ import { getElement, listElements } from "@elements/registry";
 import { skeletonFor } from "@elements/skeleton";
 import { fit, grow } from "@model/size";
 import { resolveTheme, THEME_LIST } from "@themes/library";
-import { paint } from "./dom-backend";
-import { previewSvg } from "./element-previews";
-import { measureText } from "./measure";
-import { ctxFor, layoutNode } from "./render";
+import { paint } from "@studio/dom-backend";
+import { previewSvg } from "@studio/element-previews";
+import { measureText } from "@studio/measure";
+import { ctxFor, layoutNode } from "@studio/render";
 
 // Standalone element library: every registered element rendered in three states — structural
 // skeleton, default `create()` data, and a filled real-world case — across a width control and any

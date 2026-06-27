@@ -1,32 +1,21 @@
 import type { JSX } from "solid-js";
 import type { Component } from "solid-js";
-import { createEffect, createMemo, Show } from "solid-js";
+import { createMemo, Show } from "solid-js";
 import { resolveTheme } from "@themes/library";
 import { themeCssVars } from "@themes/theme";
 import { AgentPanel } from "./AgentPanel";
 import { Canvas } from "./Canvas";
 import { DragGhost } from "./DragGhost";
-import { demoId, editor, editSeq, leftOpen, saveDoc, setLeftOpen } from "./editor";
+import { editor, leftOpen, setLeftOpen } from "./editor";
 import { Icon } from "./icons";
 import { Minimap } from "./Minimap";
 import { Panel } from "./Panel";
 import { Present } from "./Present";
 import { Topbar } from "./Topbar";
 
-// The studio shell: topbar over a three-column body (minimap · canvas · right panel). The chrome
-// follows the artifact's theme by overriding Tailwind's color variables on the root.
+// The studio shell: topbar over a canvas with floating panels. The chrome follows the artifact's
+// theme by overriding the shared theme CSS variables on the root. (Persistence lives in the app.)
 export const Studio: Component = () => {
-    // Debounced autosave of the current doc — editSeq() re-runs this on every edit (theme/format/
-    // content), independent of fine-grained store tracking.
-    let saveTimer = 0;
-    createEffect(() => {
-        editSeq();
-        const art = editor.artifact;
-        const id = demoId();
-        window.clearTimeout(saveTimer);
-        saveTimer = window.setTimeout(() => saveDoc(id, art), 500);
-    });
-
     const vars = createMemo(
         (): JSX.CSSProperties => themeCssVars(resolveTheme(editor.artifact.theme).tokens) as JSX.CSSProperties,
     );
