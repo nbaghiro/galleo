@@ -1,11 +1,21 @@
 import type { Component } from "solid-js";
 import { For } from "solid-js";
-import { addSectionAfter, editor } from "./editor";
+import { addSectionAfter, editor, setLeftOpen } from "./editor";
 import { Thumb } from "./Thumb";
 
-// Left rail: a live thumbnail per section; click to jump-scroll the canvas. "+ Section" appends one.
+// Floating left rail: a live thumbnail per section; click to jump-scroll. "+ Section" appends one.
 export const Minimap: Component = () => (
-    <aside class="flex flex-col gap-3 overflow-y-auto border-r border-line bg-panel p-3.5">
+    <aside class="absolute left-3 top-3 z-20 flex max-h-[calc(100%-24px)] w-[182px] flex-col gap-3 overflow-y-auto rounded-2xl border border-line bg-panel/95 p-3 shadow-2xl backdrop-blur-md">
+        <div class="flex items-center justify-between pl-1">
+            <span class="text-[10px] font-semibold uppercase tracking-wider text-muted">Sections</span>
+            <button
+                class="flex h-5 w-5 items-center justify-center rounded text-[11px] text-muted hover:text-ink"
+                title="Hide"
+                onClick={() => setLeftOpen(false)}
+            >
+                ✕
+            </button>
+        </div>
         <For each={editor.artifact.sections}>
             {(section, i) => <Thumb section={section} index={i()} />}
         </For>

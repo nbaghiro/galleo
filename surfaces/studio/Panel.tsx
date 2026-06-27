@@ -2,7 +2,7 @@ import type { Component } from "solid-js";
 import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
 import { listElements } from "@elements/registry";
 import { ElementInspector } from "./ElementInspector";
-import { selection } from "./editor";
+import { selection, setRightOpen } from "./editor";
 import { PaletteItem } from "./PaletteItem";
 import { SectionInspector } from "./SectionInspector";
 
@@ -92,7 +92,16 @@ export const Panel: Component = () => {
     });
 
     return (
-        <aside class="overflow-y-auto border-l border-line bg-panel p-[18px]">
+        <aside class="absolute right-3 top-3 z-20 flex max-h-[calc(100%-24px)] w-[300px] flex-col overflow-y-auto rounded-2xl border border-line bg-panel/95 p-[18px] shadow-2xl backdrop-blur-md">
+            <div class="mb-2 flex justify-end">
+                <button
+                    class="flex h-5 w-5 items-center justify-center rounded text-[11px] text-muted hover:text-ink"
+                    title="Hide"
+                    onClick={() => setRightOpen(false)}
+                >
+                    ✕
+                </button>
+            </div>
             <Switch fallback={<Palette />}>
                 <Match when={elementAddr()}>
                     {(addr) => <ElementInspector address={addr()} />}

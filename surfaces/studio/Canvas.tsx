@@ -13,7 +13,9 @@ import {
     commit,
     editing,
     editor,
+    leftOpen,
     redo,
+    rightOpen,
     setCanvasEl,
     setEditor,
     setHover,
@@ -31,6 +33,11 @@ import { TextEditor } from "./TextEditor";
 
 const DRAG_THRESHOLD = 4;
 
+// Gutters reserved for the floating panels (so centered content clears them); collapsed → just a margin.
+const RAIL_GAP = 28;
+const PANEL_L = 200;
+const PANEL_R = 320;
+
 // The continuous section canvas: lays out + paints each section, accumulates regions (canvas coords)
 // for hit-testing, and drives selection + pointer-based drag-and-drop on top of the engine geometry.
 export const Canvas: Component = () => {
@@ -43,7 +50,10 @@ export const Canvas: Component = () => {
 
     const draw = (): void => {
         if (!paintHost) return;
-        const fullW = stageEl.clientWidth || 800;
+        // The panels float over the canvas; reserve their gutters so centered content clears them.
+        const padL = leftOpen() ? PANEL_L : RAIL_GAP;
+        const padR = rightOpen() ? PANEL_R : RAIL_GAP;
+        const fullW = Math.max(360, (scrollEl.clientWidth || 800) - padL - padR);
         const contentW = Math.min(fullW - 64, 1080); // contained sections sit centered at this width
         paintHost.replaceChildren();
 
@@ -203,6 +213,8 @@ export const Canvas: Component = () => {
             background: backdropCss(editor.artifact.background, tk),
             "background-size": "cover",
             "background-position": "center",
+            "padding-left": `${leftOpen() ? PANEL_L : RAIL_GAP}px`,
+            "padding-right": `${rightOpen() ? PANEL_R : RAIL_GAP}px`,
             "--sb": tk.line,
             "--sb-strong": tk.muted,
         };
@@ -211,7 +223,7 @@ export const Canvas: Component = () => {
     return (
         <main
             ref={scrollEl}
-            class="overflow-y-auto pt-6 pb-[140px]"
+            class="h-full overflow-y-auto pt-6 pb-[140px]"
             style={pageStyle()}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}

@@ -169,6 +169,10 @@ export function prevSlide(): void {
     setSlideIndex((i) => Math.max(0, i - 1));
 }
 
+// --- floating panels (the section rail + element panel float over a full-width canvas) ---
+export const [leftOpen, setLeftOpen] = createSignal(true);
+export const [rightOpen, setRightOpen] = createSignal(true);
+
 // --- agent (local preview generator; real AI lands with the backend) ---
 export const [agentOpen, setAgentOpen] = createSignal(false);
 
