@@ -127,6 +127,21 @@ export async function loadImages(commands: RenderCommand[]): Promise<Map<string,
     return map;
 }
 
+// Draw a command flow onto a w×h canvas filled with `bg` (used for paginated pages).
+export async function renderToCanvas(commands: RenderCommand[], w: number, h: number, bg: string, scale: number): Promise<HTMLCanvasElement> {
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    const cx = canvas.getContext("2d");
+    if (!cx) return canvas;
+    cx.scale(scale, scale);
+    cx.fillStyle = bg;
+    cx.fillRect(0, 0, w, h);
+    const images = await loadImages(commands);
+    drawCommands(cx, commands, images);
+    return canvas;
+}
+
 export interface SlideRender {
     canvas: HTMLCanvasElement;
     commands: RenderCommand[];

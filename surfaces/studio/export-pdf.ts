@@ -1,7 +1,9 @@
+import type { RenderCommand } from "@engine/render-command";
 import { PDFDocument } from "pdf-lib";
+import { fragment } from "@engine/fragment";
 import { resolveProfile } from "@engine/profile";
 import { resolveTheme } from "@themes/library";
-import { renderSlide } from "./canvas-backend";
+import { renderSlide, renderToCanvas } from "./canvas-backend";
 import { paint } from "./dom-backend";
 import { editor } from "./editor";
 import { measureText } from "./measure";
@@ -47,6 +49,46 @@ export async function exportPdf(): Promise<void> {
         page.drawImage(img, { x: 0, y: 0, width: PAGE_W, height: PAGE_H });
     }
     download(await pdf.save(), "galleo.pdf", "application/pdf");
+}
+
+// A4 page geometry (points) for the continuous Document format.
+const A4_W = 595;
+const A4_H = 842;
+const DOC_MARGIN = 48;
+const DOC_GAP = 26;
+
+// Document/continuous → paginated A4 PDF: lay out all sections in a reading column, then fragment the
+// flow into page-height chunks (engine/fragment) and render each as a page.
+export async function exportDocPdf(): Promise<void> {
+    const tk = tokens();
+    const layoutW = resolveProfile("doc").maxContentWidth ?? 744;
+
+    const all: RenderCommand[] = [];
+    let y = 0;
+    for (const section of editor.artifact.sections) {
+        const { commands, height } = layoutSection(section, layoutW, measureText, tk);
+        for (const c of commands) all.push({ ...c, box: { ...c.box, y: c.box.y + y } });
+        y += height + DOC_GAP;
+    }
+
+    const contentPtW = A4_W - 2 * DOC_MARGIN;
+    const scale = contentPtW / layoutW;
+    const pageContentPxH = (A4_H - 2 * DOC_MARGIN) / scale;
+    const pages = fragment(all, y, pageContentPxH);
+
+    const pdf = await PDFDocument.create();
+    for (const pageCmds of pages) {
+        const canvas = await renderToCanvas(pageCmds, layoutW, pageContentPxH, tk.bg, SCALE);
+        const img = await pdf.embedPng(await canvasPng(canvas));
+        const page = pdf.addPage([A4_W, A4_H]);
+        page.drawImage(img, { x: DOC_MARGIN, y: DOC_MARGIN, width: contentPtW, height: A4_H - 2 * DOC_MARGIN });
+    }
+    download(await pdf.save(), "galleo-doc.pdf", "application/pdf");
+}
+
+// Format-aware PDF: deck → 16:9 slide pages; doc/web → paginated A4.
+export function exportPdfAuto(): Promise<void> {
+    return resolveProfile(editor.artifact.format).kind === "continuous" ? exportDocPdf() : exportPdf();
 }
 
 // Export the whole deck as one tall PNG (all slides stacked).
