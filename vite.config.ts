@@ -27,5 +27,11 @@ export default defineConfig({
     build: {
         outDir: abs("./dist"),
         emptyOutDir: true,
+        rollupOptions: {
+            input: {
+                main: abs("./surfaces/studio/index.html"),
+                playground: abs("./surfaces/studio/playground.html"),
+            },
+        },
     },
 });
