@@ -2,11 +2,14 @@ import type { Rect } from "@engine/node";
 import type { Target } from "@model/address";
 import type { Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
+import { resolveProfile } from "@engine/profile";
 import { regionId } from "@model/address";
 import { resolveTheme } from "@themes/library";
 import { editor, hover, regions, selection } from "./editor";
 
 const accent = (): string => resolveTheme(editor.artifact.theme).tokens.accent;
+// Square outlines in the seamless doc/web formats (rounded looks odd on square sections).
+const radius = (): number => (resolveProfile(editor.artifact.format).kind === "continuous" ? 0 : 7);
 
 // Selection + hover highlights, drawn as box-shadow rings (no layout impact) over the painted canvas.
 // Reads geometry from the engine-reported regions, so it tracks exactly what the engine laid out.
@@ -22,6 +25,7 @@ const ring = (b: Rect, shadow: string) => ({
     top: `${b.y}px`,
     width: `${b.w}px`,
     height: `${b.h}px`,
+    "border-radius": `${radius()}px`,
     "box-shadow": shadow,
 });
 
@@ -39,7 +43,7 @@ export const Overlay: Component = () => {
             <Show when={hov()}>
                 {(b) => (
                     <div
-                        class="pointer-events-none absolute rounded-[7px] opacity-50"
+                        class="pointer-events-none absolute opacity-50"
                         style={ring(b(), `0 0 0 1.5px ${accent()}`)}
                     />
                 )}
@@ -47,7 +51,7 @@ export const Overlay: Component = () => {
             <Show when={sel()}>
                 {(b) => (
                     <div
-                        class="pointer-events-none absolute rounded-[7px]"
+                        class="pointer-events-none absolute"
                         style={ring(b(), `0 0 0 2px ${accent()}`)}
                     />
                 )}
