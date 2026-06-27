@@ -167,6 +167,20 @@ export function prevSlide(): void {
     setSlideIndex((i) => Math.max(0, i - 1));
 }
 
+// --- agent (local preview generator; real AI lands with the backend) ---
+export const [agentOpen, setAgentOpen] = createSignal(false);
+
+export function loadGenerated(art: ArtifactContent): void {
+    past.length = 0;
+    future.length = 0;
+    editBefore = null;
+    setEditing(null);
+    setSelection(null);
+    setHover(null);
+    setEditor("artifact", art);
+    setAgentOpen(false);
+}
+
 export function jumpToSection(index: number): void {
     const el = canvasEl();
     if (!el) return;

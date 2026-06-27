@@ -2,6 +2,7 @@ import type { JSX } from "solid-js";
 import type { Component } from "solid-js";
 import { createEffect, createMemo } from "solid-js";
 import { resolveTheme } from "@themes/library";
+import { AgentPanel } from "./AgentPanel";
 import { Canvas } from "./Canvas";
 import { DragGhost } from "./DragGhost";
 import { demoId, editor, saveDoc } from "./editor";
@@ -45,6 +46,7 @@ export const Studio: Component = () => {
             </div>
             <DragGhost />
             <Present />
+            <AgentPanel />
         </div>
     );
 };
