@@ -14,15 +14,9 @@ function getCtx(): CanvasRenderingContext2D {
     return ctx2d;
 }
 
-function family(fontId: string): string {
-    if (fontId === "display") return "Georgia, 'Times New Roman', serif";
-    if (fontId === "mono") return "ui-monospace, 'SF Mono', monospace";
-    return "system-ui, -apple-system, sans-serif";
-}
-
 export const measureText = (leaf: TextLeaf, maxWidth: number): Measured => {
     const cx = getCtx();
-    cx.font = `${leaf.weight ?? 400} ${leaf.size}px ${family(leaf.fontId)}`;
+    cx.font = `${leaf.weight ?? 400} ${leaf.size}px ${leaf.fontId}`;
     const lineHeight = leaf.lineHeight ?? leaf.size * 1.35;
     const full = cx.measureText(leaf.text).width;
     if (leaf.wrap === "none" || !Number.isFinite(maxWidth)) {

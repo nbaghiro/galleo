@@ -1,7 +1,7 @@
 import type { ArtifactContent } from "@model/content";
 import { bullets, button, cell, deck, empty, group, img, quote, section, stat, t } from "./build";
 
-export const aria: ArtifactContent = deck("midnight", [
+export const aria: ArtifactContent = deck("noir", [
     section("s1", "full", {
         a: cell(
             group(

@@ -62,7 +62,7 @@ const ThemeMenu: Component = () => {
             </button>
             <Show when={open()}>
                 <div class="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-                <div class="absolute right-0 z-20 mt-2 w-48 rounded-xl border border-line bg-white p-1.5 shadow-xl">
+                <div class="absolute right-0 z-20 mt-2 max-h-[72vh] w-60 overflow-y-auto rounded-xl border border-line bg-white p-1.5 shadow-xl">
                     <For each={THEME_LIST}>
                         {(t) => (
                             <button
@@ -70,7 +70,8 @@ const ThemeMenu: Component = () => {
                                 onClick={() => pick(t.id)}
                             >
                                 <Swatch surface={t.tokens.surface} ink={t.tokens.ink} accent={t.tokens.accent} />
-                                {t.name}
+                                <span class="flex-1 truncate">{t.name}</span>
+                                <span class="text-[10px] text-muted">{t.tag}</span>
                             </button>
                         )}
                     </For>

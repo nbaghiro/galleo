@@ -4,7 +4,6 @@ import { createMemo, onMount, Show } from "solid-js";
 import { getElementAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/registry";
 import { elementRegionId } from "@model/address";
-import { fontFamily } from "./dom-backend";
 import { editing, editor, regions, setArtifactLive, stopEditing } from "./editor";
 import { ctxFor } from "./render";
 
@@ -56,7 +55,7 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
             left: `${b.x}px`,
             top: `${b.y}px`,
             width: `${b.w}px`,
-            font: `${l.weight ?? 400} ${l.size}px ${fontFamily(l.fontId)}`,
+            font: `${l.weight ?? 400} ${l.size}px ${l.fontId}`,
             "line-height": `${l.lineHeight ?? l.size * 1.35}px`,
             color: l.color ?? "#1a1a1a",
             "text-align": l.align ?? "start",

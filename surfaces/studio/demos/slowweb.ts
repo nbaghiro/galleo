@@ -1,7 +1,7 @@
 import type { ArtifactContent } from "@model/content";
 import { bullets, cell, deck, group, img, quote, section, t } from "./build";
 
-export const slowweb: ArtifactContent = deck("editorial", [
+export const slowweb: ArtifactContent = deck("press", [
     section("s1", "full", {
         a: cell(group(t("ESSAY", "eyebrow"), t("The Slow Web", "display"), t("by Mara Okafor · 9 min read", "byline"))),
     }),

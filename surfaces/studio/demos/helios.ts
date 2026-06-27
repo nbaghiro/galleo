@@ -1,7 +1,7 @@
 import type { ArtifactContent } from "@model/content";
 import { bullets, cell, deck, group, img, quote, section, stat, t } from "./build";
 
-export const helios: ArtifactContent = deck("marine", [
+export const helios: ArtifactContent = deck("signal", [
     section("s1", "full", {
         a: cell(
             group(

@@ -1,8 +1,10 @@
 // Themes are data: a semantic token set applied across every block of an artifact. Elements read
-// colors by role (ink/muted/accent/...) from the active theme, so swapping a theme recolors all of
-// them. (Font + spacing theming is a later hardening; v1 themes colors + corner radius.)
+// colors by role (ink/muted/accent/...) and fonts by role (display/ui/mono) from the active theme,
+// so swapping a theme recolors AND re-typesets all of them.
 
 export type ColorToken = "bg" | "surface" | "ink" | "soft" | "muted" | "accent" | "onAccent" | "line";
+
+export type FontRole = "display" | "ui" | "mono";
 
 export interface Tokens {
     bg: string; // page / canvas behind sections
@@ -14,10 +16,23 @@ export interface Tokens {
     onAccent: string; // text/icons on the accent
     line: string; // borders / dividers
     radius: number; // section corner radius
+    fontDisplay: string; // family name for headings (e.g. "Fraunces")
+    fontBody: string; // family name for body / UI
+    fontMono: string; // family name for labels / mono
+    headingWeight: number; // weight applied to display-role text
 }
 
 export interface Theme {
     id: string;
     name: string;
+    tag: string; // short descriptor (e.g. "editorial", "cyber")
+    dark: boolean;
     tokens: Tokens;
+}
+
+// Resolve a font role to a CSS family stack (the role's generic fallback, matching the explorer).
+export function fontStack(role: FontRole, t: Tokens): string {
+    if (role === "display") return `'${t.fontDisplay}', serif`;
+    if (role === "mono") return `'${t.fontMono}', monospace`;
+    return `'${t.fontBody}', sans-serif`;
 }

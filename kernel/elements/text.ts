@@ -1,8 +1,9 @@
 import type { ElementSpec, LayoutCtx } from "@elements/element-spec";
 import type { EngineNode } from "@engine/node";
-import type { ColorToken } from "@themes/theme";
+import type { ColorToken, FontRole } from "@themes/theme";
 import { register } from "@elements/registry";
 import { fit, grow } from "@model/size";
+import { fontStack } from "@themes/theme";
 
 type TextStyle =
     | "display"
@@ -28,7 +29,7 @@ interface TextData {
 interface TextStyleSpec {
     size: number;
     weight: number;
-    fontId: string;
+    fontId: FontRole;
     tone: ColorToken;
 }
 
@@ -60,9 +61,9 @@ export const textElement: ElementSpec<TextData> = {
             h: fit(),
             text: {
                 text: data.text,
-                fontId: s.fontId,
+                fontId: fontStack(s.fontId, ctx.theme),
                 size: s.size,
-                weight: s.weight,
+                weight: s.fontId === "display" ? ctx.theme.headingWeight : s.weight,
                 color: data.color ?? ctx.theme[s.tone],
                 align: data.align ?? "start",
                 wrap: "words",

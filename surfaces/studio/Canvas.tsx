@@ -116,6 +116,10 @@ export const Canvas: Component = () => {
         setCanvasEl(scrollEl);
         const ro = new ResizeObserver(() => draw());
         ro.observe(scrollEl);
+        // Web fonts arrive after first paint — re-measure once they (or a theme's font) finish loading.
+        const onFonts = (): void => draw();
+        void document.fonts.ready.then(onFonts);
+        document.fonts.addEventListener("loadingdone", onFonts);
         const onKey = (e: KeyboardEvent): void => {
             if (editing()) return; // the inline editor owns the keyboard while active
             if (e.key === "Escape") setSelection((cur) => (cur ? parentTarget(cur) : null));
@@ -128,6 +132,7 @@ export const Canvas: Component = () => {
         window.addEventListener("keydown", onKey);
         onCleanup(() => {
             ro.disconnect();
+            document.fonts.removeEventListener("loadingdone", onFonts);
             window.removeEventListener("keydown", onKey);
         });
     });

@@ -3,12 +3,6 @@ import type { RenderCommand } from "@engine/render-command";
 
 // A DOM render backend: paints absolute-positioned divs from the engine's render commands.
 
-export function fontFamily(fontId: string): string {
-    if (fontId === "display") return "Georgia, 'Times New Roman', serif";
-    if (fontId === "mono") return "ui-monospace, 'SF Mono', monospace";
-    return "system-ui, -apple-system, sans-serif";
-}
-
 export function paint(commands: RenderCommand[], host: HTMLElement): void {
     host.replaceChildren();
     host.style.position = "relative";
@@ -36,7 +30,7 @@ export function paint(commands: RenderCommand[], host: HTMLElement): void {
         } else if (c.kind === "text") {
             const t = c.text;
             el.textContent = t.text;
-            el.style.font = `${t.weight ?? 400} ${t.size}px ${fontFamily(t.fontId)}`;
+            el.style.font = `${t.weight ?? 400} ${t.size}px ${t.fontId}`;
             el.style.lineHeight = `${t.lineHeight ?? t.size * 1.35}px`;
             el.style.color = t.color ?? "#1a1a1a";
             el.style.textAlign = t.align ?? "start";

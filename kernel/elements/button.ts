@@ -3,6 +3,7 @@ import type { EngineNode } from "@engine/node";
 import { register } from "@elements/registry";
 import { pill } from "@elements/skeleton";
 import { fit, fixed } from "@model/size";
+import { fontStack } from "@themes/theme";
 
 interface ButtonData {
     label: string;
@@ -25,7 +26,7 @@ export const buttonElement: ElementSpec<ButtonData> = {
             {
                 w: fit(),
                 h: fit(),
-                text: { text: d.label, fontId: "ui", size: 14, weight: 600, color: ctx.theme.onAccent, align: "center", wrap: "none" },
+                text: { text: d.label, fontId: fontStack("ui", ctx.theme), size: 14, weight: 600, color: ctx.theme.onAccent, align: "center", wrap: "none" },
             },
         ],
     }),

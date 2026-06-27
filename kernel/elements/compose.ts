@@ -6,6 +6,7 @@ import { getElement } from "@elements/registry";
 import { fallbackTemplate, TEMPLATES } from "@elements/templates";
 import { cellRegionId, elementRegionId, sectionRegionId } from "@model/address";
 import { fit, grow } from "@model/size";
+import { fontStack } from "@themes/theme";
 
 // Compose one Section into an EngineNode tree, tagging section / cell / element nodes with region ids
 // (so the engine can report their geometry for selection + drop-targets). Containers recurse here so
@@ -25,7 +26,7 @@ function emptyCell(ctx: LayoutCtx): EngineNode {
             {
                 w: fit(),
                 h: fit(),
-                text: { text: "+ drop element", fontId: "mono", size: 12, color: ctx.theme.muted, align: "center", wrap: "none" },
+                text: { text: "+ drop element", fontId: fontStack("mono", ctx.theme), size: 12, color: ctx.theme.muted, align: "center", wrap: "none" },
             },
         ],
     };

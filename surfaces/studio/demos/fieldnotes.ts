@@ -1,7 +1,7 @@
 import type { ArtifactContent } from "@model/content";
 import { cell, deck, group, img, quote, section, t } from "./build";
 
-export const fieldnotes: ArtifactContent = deck("blossom", [
+export const fieldnotes: ArtifactContent = deck("candy", [
     section("s1", "split-6040", {
         a: cell(
             group(
