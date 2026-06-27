@@ -4,6 +4,7 @@ import { setArtifactTheme } from "@elements/ops";
 import { resolveTheme, THEME_LIST } from "@themes/library";
 import { DEMOS } from "./demos";
 import { commit, demoId, editor, loadDemo, present } from "./editor";
+import { exportPrint } from "./export-pdf";
 
 const btn = "cursor-pointer rounded-lg border border-line bg-canvas px-3 py-1.5 text-[12px] font-semibold text-ink";
 
@@ -88,7 +89,7 @@ export const Topbar: Component = () => (
         <span class="flex-1" />
         <ThemeMenu />
         <button class={btn} onClick={() => present()}>▶ Present</button>
-        <button class={btn}>Share</button>
+        <button class={btn} onClick={() => exportPrint()}>Export</button>
         <button class={`${btn} border-accent bg-accent text-onaccent`}>✦ Generate</button>
     </header>
 );

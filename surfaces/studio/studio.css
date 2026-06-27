@@ -29,6 +29,22 @@ body {
     scrollbar-width: thin;
     scrollbar-color: var(--sb, var(--color-line)) transparent;
 }
+/* PDF export: show only the print container, one section per page. */
+#galleo-print {
+    display: none;
+}
+@media print {
+    #root {
+        display: none !important;
+    }
+    #galleo-print {
+        display: block !important;
+    }
+    @page {
+        margin: 0;
+    }
+}
+
 ::-webkit-scrollbar {
     width: 11px;
     height: 11px;

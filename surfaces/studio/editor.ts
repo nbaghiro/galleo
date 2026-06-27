@@ -15,9 +15,30 @@ interface EditorState {
     sectionTops: number[];
 }
 
+// Per-doc persistence to localStorage so edits survive a reload (real cloud sync arrives with the backend).
+const docKey = (id: string): string => `galleo:doc:${id}`;
+export function saveDoc(id: string, art: ArtifactContent): void {
+    try {
+        localStorage.setItem(docKey(id), JSON.stringify(art));
+    } catch {
+        // storage unavailable / quota — ignore
+    }
+}
+function loadSavedDoc(id: string): ArtifactContent | null {
+    try {
+        const s = localStorage.getItem(docKey(id));
+        return s ? (JSON.parse(s) as ArtifactContent) : null;
+    } catch {
+        return null;
+    }
+}
+
 const FIRST = DEMOS[0]!;
 
-export const [editor, setEditor] = createStore<EditorState>({ artifact: FIRST.artifact, sectionTops: [] });
+export const [editor, setEditor] = createStore<EditorState>({
+    artifact: loadSavedDoc(FIRST.id) ?? FIRST.artifact,
+    sectionTops: [],
+});
 
 const [canvasEl, setCanvasEl] = createSignal<HTMLElement | null>(null);
 export { canvasEl, setCanvasEl };
@@ -88,6 +109,16 @@ export function loadDemo(id: string): void {
     setSelection(null);
     setHover(null);
     setDemoId(id);
+    setEditor("artifact", loadSavedDoc(id) ?? d.artifact);
+}
+
+export function resetDoc(id: string): void {
+    const d = DEMOS.find((x) => x.id === id);
+    if (!d) return;
+    saveDoc(id, d.artifact);
+    past.length = 0;
+    future.length = 0;
+    setSelection(null);
     setEditor("artifact", d.artifact);
 }
 
