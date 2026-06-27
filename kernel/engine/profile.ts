@@ -22,7 +22,7 @@ export const PROFILES: Record<string, FormatDescriptor> = {
         kind: "continuous",
         width: 816, // ~8.5in @ 96dpi
         height: "auto",
-        maxContentWidth: 832,
+        maxContentWidth: 904,
         tokenScale: 1,
         splitMinWidth: 560,
         paginate: "export", // continuous on screen, paginated to paper on export
