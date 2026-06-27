@@ -42,12 +42,14 @@ const PREVIEWS: Record<string, string> = {
         <rect x="48" y="37" width="74" height="6" rx="3" fill="${muted}" opacity="0.7"/>`,
 
     code: `
-        <rect x="13" y="13" width="114" height="46" rx="8" fill="${ink}"/>
-        <rect x="24" y="23" width="24" height="5" rx="2.5" fill="${accent}"/>
-        <rect x="52" y="23" width="40" height="5" rx="2.5" fill="${canvas}" opacity="0.5"/>
-        <rect x="34" y="34" width="44" height="5" rx="2.5" fill="${canvas}" opacity="0.7"/>
-        <rect x="82" y="34" width="20" height="5" rx="2.5" fill="${accent}" opacity="0.85"/>
-        <rect x="24" y="45" width="34" height="5" rx="2.5" fill="${canvas}" opacity="0.5"/>`,
+        <rect x="13" y="13" width="114" height="46" rx="8" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
+        <circle cx="24" cy="22" r="1.8" fill="${muted}" opacity="0.55"/>
+        <circle cx="31" cy="22" r="1.8" fill="${muted}" opacity="0.4"/>
+        <circle cx="38" cy="22" r="1.8" fill="${muted}" opacity="0.28"/>
+        <rect x="24" y="33" width="22" height="5" rx="2.5" fill="${accent}"/>
+        <rect x="50" y="33" width="38" height="5" rx="2.5" fill="${ink}" opacity="0.5"/>
+        <rect x="34" y="44" width="40" height="5" rx="2.5" fill="${ink}" opacity="0.7"/>
+        <rect x="78" y="44" width="18" height="5" rx="2.5" fill="${accent}" opacity="0.8"/>`,
 
     image: `
         <rect x="13" y="12" width="114" height="48" rx="8" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
@@ -56,7 +58,7 @@ const PREVIEWS: Record<string, string> = {
         <path d="M58 58 L92 32 L120 58 Z" fill="${ink}" opacity="0.28"/>`,
 
     video: `
-        <rect x="13" y="12" width="114" height="48" rx="8" fill="${ink}"/>
+        <rect x="13" y="12" width="114" height="48" rx="8" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
         <circle cx="70" cy="36" r="13" fill="${accent}"/>
         <path d="M65 29 L65 43 L78 36 Z" fill="${onaccent}"/>`,
 
