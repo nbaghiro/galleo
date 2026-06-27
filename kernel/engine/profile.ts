@@ -33,7 +33,7 @@ export const PROFILES: Record<string, FormatDescriptor> = {
         kind: "continuous",
         width: "fill",
         height: "auto",
-        maxContentWidth: 1280,
+        maxContentWidth: 1180,
         tokenScale: 1,
         splitMinWidth: 720,
         paginate: "never",

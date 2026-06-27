@@ -109,6 +109,9 @@ function onDark(t: Tokens): Tokens {
 export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
     const bg = section.background;
     const bleed = section.bleed ?? false;
+    const continuous = ctx.format.kind === "continuous";
+    const webBand = ctx.format.id === "web"; // full-bleed band, but content stays in a centered column
+    const innerMax = ctx.format.maxContentWidth ?? 1180;
     const contentTheme = bgIsDark(bg) ? onDark(ctx.theme) : ctx.theme;
     const cctx: LayoutCtx = { ...ctx, theme: contentTheme };
 
@@ -128,22 +131,22 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
         };
     });
     const inner: EngineNode = {
-        w: grow(),
+        w: webBand ? grow(undefined, innerMax) : grow(),
         h: fit(),
         direction: "row",
         gap: 0,
-        alignY: "center",
+        alignY: continuous ? "start" : "center",
         children: cells,
     };
 
     // Continuous formats (doc/web) merge sections into one seamless surface: no card radius/border,
     // and the canvas stacks them with no gap so they read as one scrolling document / fluid site.
-    const continuous = ctx.format.kind === "continuous";
     const radius = bleed || continuous ? 0 : ctx.theme.radius;
     const node: EngineNode = {
         id: sectionRegionId(section.id),
         w: grow(),
         h: fit(),
+        alignX: webBand ? "center" : undefined, // center the capped content column in the full-width band
         padding: bleed ? { top: 64, bottom: 64, left: 72, right: 72 } : pad(36),
         children: [inner],
     };
