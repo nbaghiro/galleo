@@ -98,7 +98,7 @@ const ThemeMenu: Component = () => {
 };
 
 export const Topbar: Component = () => (
-    <header class="flex items-center gap-3.5 border-b border-line bg-panel px-[18px]">
+    <header class="relative z-30 flex items-center gap-3.5 border-b border-line bg-panel px-[18px]">
         <span class="font-mono text-[15px] font-bold tracking-wide text-accent">GALLEO</span>
         <DocMenu />
         <span class="flex-1" />
