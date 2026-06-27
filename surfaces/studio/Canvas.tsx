@@ -228,7 +228,7 @@ export const Canvas: Component = () => {
     return (
         <main
             ref={scrollEl}
-            class="h-full overflow-y-auto pt-6 pb-[140px]"
+            class="h-full overflow-y-auto overscroll-none pt-6 pb-[140px]"
             style={pageStyle()}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}

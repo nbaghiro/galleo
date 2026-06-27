@@ -16,6 +16,7 @@ body,
 #root {
     height: 100%;
     margin: 0;
+    overflow: hidden; /* only the canvas scrolls; the viewport itself never does */
 }
 
 body {
