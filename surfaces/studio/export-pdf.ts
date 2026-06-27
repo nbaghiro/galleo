@@ -55,20 +55,20 @@ export async function exportPdf(): Promise<void> {
 const A4_W = 595;
 const A4_H = 842;
 const DOC_MARGIN = 48;
-const DOC_GAP = 26;
 
 // Document/continuous → paginated A4 PDF: lay out all sections in a reading column, then fragment the
 // flow into page-height chunks (engine/fragment) and render each as a page.
 export async function exportDocPdf(): Promise<void> {
     const tk = tokens();
-    const layoutW = resolveProfile("doc").maxContentWidth ?? 744;
+    const docProfile = resolveProfile("doc");
+    const layoutW = docProfile.maxContentWidth ?? 744;
 
     const all: RenderCommand[] = [];
     let y = 0;
     for (const section of editor.artifact.sections) {
-        const { commands, height } = layoutSection(section, layoutW, measureText, tk);
+        const { commands, height } = layoutSection(section, layoutW, measureText, tk, docProfile);
         for (const c of commands) all.push({ ...c, box: { ...c.box, y: c.box.y + y } });
-        y += height + DOC_GAP;
+        y += height; // continuous: sections merge seamlessly
     }
 
     const contentPtW = A4_W - 2 * DOC_MARGIN;

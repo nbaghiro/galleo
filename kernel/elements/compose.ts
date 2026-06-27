@@ -136,7 +136,10 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
         children: cells,
     };
 
-    const radius = bleed ? 0 : ctx.theme.radius;
+    // Continuous formats (doc/web) merge sections into one seamless surface: no card radius/border,
+    // and the canvas stacks them with no gap so they read as one scrolling document / fluid site.
+    const continuous = ctx.format.kind === "continuous";
+    const radius = bleed || continuous ? 0 : ctx.theme.radius;
     const node: EngineNode = {
         id: sectionRegionId(section.id),
         w: grow(),
@@ -152,11 +155,9 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
     } else if (bg?.kind === "color" && bg.color) {
         node.fill = { color: bg.color, radius };
     } else {
-        node.fill = {
-            color: ctx.theme.surface,
-            radius,
-            border: bleed ? undefined : { color: ctx.theme.line, width: 1 },
-        };
+        node.fill = continuous
+            ? { color: ctx.theme.surface }
+            : { color: ctx.theme.surface, radius, border: bleed ? undefined : { color: ctx.theme.line, width: 1 } };
     }
     return node;
 }

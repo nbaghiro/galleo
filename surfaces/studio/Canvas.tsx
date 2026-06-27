@@ -54,6 +54,7 @@ export const Canvas: Component = () => {
         // The panels float over the canvas; reserve their gutters so centered content clears them.
         const profile = resolveProfile(editor.artifact.format);
         const web = profile.id === "web";
+        const gap = profile.kind === "continuous" ? 0 : SECTION_GAP; // doc/web merge seamlessly
         const padL = leftOpen() ? PANEL_L : RAIL_GAP;
         const fullW = Math.max(360, (scrollEl.clientWidth || 800) - padL - RAIL_R);
         // Format-as-view: deck = wide cards, doc = narrow reading column, web = full-bleed bands.
@@ -77,6 +78,7 @@ export const Canvas: Component = () => {
                 layoutW,
                 measureText,
                 theme,
+                profile,
             );
             const visible = editId
                 ? commands.filter((c) => !(c.kind === "text" && c.id === editId))
@@ -92,7 +94,7 @@ export const Canvas: Component = () => {
                     box: { x: r.box.x + x, y: r.box.y + y, w: r.box.w, h: r.box.h },
                 });
             tops.push(y);
-            y += height + SECTION_GAP;
+            y += height + gap;
         }
         stageEl.style.height = `${y}px`;
         setEditor("sectionTops", tops);

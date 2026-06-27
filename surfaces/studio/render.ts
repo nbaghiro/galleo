@@ -6,6 +6,7 @@ import type { FormatDescriptor } from "@model/format";
 import type { Tokens } from "@themes/theme";
 import { composeSection } from "@elements/compose";
 import { layout } from "@engine/layout";
+import { DEFAULT_PROFILE } from "@engine/profile";
 import { DEFAULT_THEME } from "@themes/library";
 
 // Imperative bridge: kernel layout → render commands. Components paint these into refs; the engine
@@ -13,18 +14,7 @@ import { DEFAULT_THEME } from "@themes/library";
 
 export const SECTION_GAP = 22;
 
-const format: FormatDescriptor = {
-    id: "deck",
-    name: "Deck",
-    kind: "paged",
-    width: 1000,
-    height: 625,
-    tokenScale: 1,
-    splitMinWidth: 520,
-    paginate: "always",
-};
-
-export function ctxFor(width: number, theme: Tokens = DEFAULT_THEME.tokens): LayoutCtx {
+export function ctxFor(width: number, theme: Tokens = DEFAULT_THEME.tokens, format: FormatDescriptor = DEFAULT_PROFILE): LayoutCtx {
     return { box: { x: 0, y: 0, w: width, h: 0 }, availWidth: width, format, theme };
 }
 
@@ -37,8 +27,9 @@ export function layoutSection(
     width: number,
     measure: MeasureText,
     theme: Tokens = DEFAULT_THEME.tokens,
+    format: FormatDescriptor = DEFAULT_PROFILE,
 ): { commands: RenderCommand[]; regions: Region[]; height: number } {
-    const node = composeSection(section, ctxFor(width, theme));
+    const node = composeSection(section, ctxFor(width, theme, format));
     const { commands, regions } = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure);
     return { commands, regions, height: bottom(commands) };
 }
