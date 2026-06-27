@@ -17,6 +17,7 @@ export const users = pgTable("users", {
     email: text("email").notNull().unique(),
     name: text("name"),
     avatarUrl: text("avatar_url"),
+    passwordHash: text("password_hash"), // null = OAuth-only account
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -4,11 +4,10 @@ import { desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { db, schema } from "../data/client";
+import { verifyPassword } from "../auth/password";
 import { makeSession, readSession, SESSION_COOKIE } from "../auth/session";
 
 const app = new Hono();
-
-const DEMO_EMAIL = "demo@galleo.app";
 
 interface SessionUser {
     id: string;
@@ -30,9 +29,16 @@ async function currentUser(token: string | undefined): Promise<SessionUser | nul
 app.get("/health", (c) => c.json({ ok: true }));
 
 // --- auth ---
-app.post("/auth/demo", async (c) => {
-    const [u] = await db.select().from(schema.users).where(eq(schema.users.email, DEMO_EMAIL));
-    if (!u) return c.json({ error: "demo user not seeded — run `pnpm seed`" }, 400);
+interface LoginBody {
+    email?: string;
+    password?: string;
+}
+
+app.post("/auth/login", async (c) => {
+    const { email, password } = (await c.req.json().catch(() => ({}))) as LoginBody;
+    if (!email || !password) return c.json({ error: "email and password are required" }, 400);
+    const [u] = await db.select().from(schema.users).where(eq(schema.users.email, email.trim().toLowerCase()));
+    if (!u || !verifyPassword(password, u.passwordHash)) return c.json({ error: "invalid email or password" }, 401);
     setCookie(c, SESSION_COOKIE, makeSession(u.id), { httpOnly: true, sameSite: "Lax", path: "/", maxAge: 60 * 60 * 24 * 30 });
     return c.json({ user: { id: u.id, email: u.email, name: u.name, avatarUrl: u.avatarUrl } });
 });
