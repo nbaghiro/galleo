@@ -71,7 +71,7 @@ export const textElement: ElementSpec<TextData> = {
         };
     },
     controls: [
-        { key: "text", label: "Text", control: "text" },
+        { key: "text", label: "Content", control: "text", multiline: true, placeholder: "Type text…" },
         {
             key: "style",
             label: "Style",
@@ -89,6 +89,17 @@ export const textElement: ElementSpec<TextData> = {
                 { label: "Byline", value: "byline" },
             ],
         },
+        {
+            key: "align",
+            label: "Align",
+            control: "segmented",
+            options: [
+                { label: "Left", value: "start" },
+                { label: "Center", value: "center" },
+                { label: "Right", value: "end" },
+            ],
+        },
+        { key: "color", label: "Color override", control: "color", group: "Appearance" },
     ],
 };
 

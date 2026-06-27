@@ -15,7 +15,9 @@ export function paint(commands: RenderCommand[], host: HTMLElement): void {
         el.style.height = `${c.box.h}px`;
         el.style.boxSizing = "border-box";
         if (c.kind === "rect") {
-            if (c.fill?.color) el.style.background = c.fill.color;
+            const g = c.fill?.gradient;
+            if (g) el.style.background = `linear-gradient(${g.angle ?? 135}deg, ${g.from}, ${g.to})`;
+            else if (c.fill?.color) el.style.background = c.fill.color;
             if (c.fill?.radius !== undefined) el.style.borderRadius = `${c.fill.radius}px`;
             if (c.fill?.border) {
                 const b = c.fill.border;

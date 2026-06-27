@@ -12,6 +12,7 @@ export interface LayoutCtx {
 
 export type ControlKind =
     | "select"
+    | "segmented"
     | "slider"
     | "toggle"
     | "color"
@@ -24,7 +25,14 @@ export interface ControlField {
     key: string;
     label: string;
     control: ControlKind;
-    options?: { label: string; value: string }[];
+    options?: { label: string; value: string }[]; // select / segmented
+    min?: number;
+    max?: number;
+    step?: number;
+    unit?: string; // suffix on slider/number values
+    multiline?: boolean; // text → textarea
+    placeholder?: string;
+    group?: string; // optional inspector section heading
 }
 
 export type ElementTier = "primitive" | "smart" | "container" | "interactive";

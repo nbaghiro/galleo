@@ -42,6 +42,7 @@ export interface ImageLeaf {
 
 export interface FillLeaf {
     color?: string;
+    gradient?: { from: string; to: string; angle?: number };
     radius?: number;
     border?: { color: string; width: number; style?: "solid" | "dashed" };
 }

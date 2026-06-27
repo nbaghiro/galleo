@@ -48,8 +48,19 @@ export const cardElement: ElementSpec<CardData> = {
         withChildren: (d, children) => ({ ...d, children }),
     },
     controls: [
-        { key: "gap", label: "Gap", control: "slider" },
-        { key: "padding", label: "Padding", control: "slider" },
+        {
+            key: "direction",
+            label: "Direction",
+            control: "segmented",
+            options: [
+                { label: "Stack", value: "col" },
+                { label: "Row", value: "row" },
+            ],
+        },
+        { key: "gap", label: "Gap", control: "slider", min: 0, max: 48, step: 2, unit: "px" },
+        { key: "padding", label: "Padding", control: "slider", min: 0, max: 64, step: 2, unit: "px", group: "Appearance" },
+        { key: "radius", label: "Corner radius", control: "slider", min: 0, max: 40, step: 1, unit: "px", group: "Appearance" },
+        { key: "bg", label: "Background", control: "color", group: "Appearance" },
     ],
 };
 

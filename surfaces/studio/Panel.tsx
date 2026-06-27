@@ -7,7 +7,7 @@ import { SectionInspector } from "./SectionInspector";
 
 // Right panel — context-dependent: element selected → inspector; section selected → layout picker;
 // otherwise the element palette (drag source).
-const TYPES = ["text", "image", "stat", "bullets", "quote", "button", "card", "divider"];
+const TYPES = ["text", "image", "stat", "bullets", "quote", "callout", "code", "button", "badge", "card", "divider", "spacer", "gradient"];
 
 const Palette: Component = () => (
     <>

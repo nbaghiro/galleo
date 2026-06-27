@@ -40,7 +40,18 @@ export const groupElement: ElementSpec<GroupData> = {
         arrange,
         withChildren: (d, children) => ({ ...d, children }),
     },
-    controls: [],
+    controls: [
+        {
+            key: "direction",
+            label: "Direction",
+            control: "segmented",
+            options: [
+                { label: "Stack", value: "col" },
+                { label: "Row", value: "row" },
+            ],
+        },
+        { key: "gap", label: "Gap", control: "slider", min: 0, max: 48, step: 2, unit: "px" },
+    ],
 };
 
 register(groupElement);
