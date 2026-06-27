@@ -105,21 +105,37 @@ const FORMATS = [
 
 const ExportMenu: Component = () => {
     const [open, setOpen] = createSignal(false);
+    const [busy, setBusy] = createSignal(false);
+    const run = async (fn: () => void | Promise<void>): Promise<void> => {
+        setOpen(false);
+        setBusy(true);
+        try {
+            await fn();
+        } finally {
+            setBusy(false);
+        }
+    };
     const item = (label: string, fn: () => void | Promise<void>): JSX.Element => (
-        <button
-            class="block w-full rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-canvas"
-            onClick={() => {
-                setOpen(false);
-                void fn();
-            }}
-        >
+        <button class="block w-full rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-canvas" onClick={() => void run(fn)}>
             {label}
         </button>
     );
     return (
         <div class="relative">
-            <button class={btn} onClick={() => setOpen((o) => !o)}>
-                Export <span class="text-[10px]">▾</span>
+            <button class={btn} disabled={busy()} onClick={() => !busy() && setOpen((o) => !o)}>
+                <Show
+                    when={busy()}
+                    fallback={
+                        <span>
+                            Export <span class="text-[10px]">▾</span>
+                        </span>
+                    }
+                >
+                    <span class="inline-flex items-center gap-1.5">
+                        <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        Exporting
+                    </span>
+                </Show>
             </button>
             <Show when={open()}>
                 <div class="fixed inset-0 z-10" onClick={() => setOpen(false)} />

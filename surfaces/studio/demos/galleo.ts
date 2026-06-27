@@ -15,7 +15,7 @@ import {
 } from "./build";
 
 export const galleo: ArtifactContent = deck(
-    "studio",
+    "couture",
     [
         section("s1", "full", {
             a: cell(
