@@ -4,7 +4,7 @@ import type { RenderCommand } from "@engine/render-command";
 // A DOM render backend: paints absolute-positioned divs from the engine's render commands.
 
 // Canvas implementation of the engine's backend-abstract DrawContext (for surface elements).
-function canvasDrawContext(cx: CanvasRenderingContext2D): DrawContext {
+export function canvasDrawContext(cx: CanvasRenderingContext2D): DrawContext {
     const apply = (s: DrawStyle): void => {
         if (s.fill) cx.fillStyle = s.fill;
         if (s.stroke) cx.strokeStyle = s.stroke;
