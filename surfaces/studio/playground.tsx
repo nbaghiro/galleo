@@ -27,6 +27,7 @@ import { skeletonFor } from "@elements/skeleton";
 import { fit, grow } from "@model/size";
 import { resolveTheme, THEME_LIST } from "@themes/library";
 import { paint } from "./dom-backend";
+import { previewSvg } from "./element-previews";
 import { measureText } from "./measure";
 import { ctxFor, layoutNode } from "./render";
 
@@ -114,6 +115,17 @@ function previewFrame(node: EngineNode, width: number, tk: Tokens, label: string
     return col;
 }
 
+function svgFrame(type: string, tk: Tokens, label: string): HTMLElement {
+    const inner = el("div", "width:200px;height:108px");
+    inner.innerHTML = previewSvg(type);
+    const box = el("div", `background:${tk.surface};border:1px solid ${tk.line};border-radius:14px;padding:12px`);
+    box.appendChild(inner);
+    const cap = el("div", `font:600 9.5px/1.4 ui-monospace,monospace;letter-spacing:.09em;text-transform:uppercase;color:${tk.muted};margin-bottom:9px`, label);
+    const col = el("div", "display:flex;flex-direction:column");
+    col.append(cap, box);
+    return col;
+}
+
 function elementCard(type: string, width: number, tk: Tokens): HTMLElement {
     const spec = getElement(type)!;
     const ctx = ctxFor(width, tk);
@@ -127,6 +139,7 @@ function elementCard(type: string, width: number, tk: Tokens): HTMLElement {
 
     const states = el("div", "display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start");
     states.append(
+        svgFrame(type, tk, "Preview"),
         previewFrame(skeletonFor(spec, ctx), width, tk, "Skeleton"),
         previewFrame(composeInstance({ type, data: spec.create() }, ctx), width, tk, "Default"),
         previewFrame(composeInstance({ type, data: FILLED[type] ?? spec.create() }, ctx), width, tk, "Filled"),
@@ -144,6 +157,17 @@ function render(): void {
     const theme = resolveTheme(themeId);
     const tk = theme.tokens;
     document.body.style.cssText = `margin:0;background:${tk.bg};color:${tk.ink};font-family:system-ui,sans-serif`;
+    // The SVG previews read these vars, so set them from the selected theme to recolor every preview.
+    const vars: Record<string, string> = {
+        "--color-canvas": tk.bg,
+        "--color-panel": tk.surface,
+        "--color-ink": tk.ink,
+        "--color-muted": tk.muted,
+        "--color-accent": tk.accent,
+        "--color-onaccent": tk.onAccent,
+        "--color-line": tk.line,
+    };
+    for (const [k, v] of Object.entries(vars)) app.style.setProperty(k, v);
     app.replaceChildren();
 
     // toolbar
