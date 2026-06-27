@@ -89,10 +89,15 @@ export function redo(): void {
 const [editing, setEditing] = createSignal<ElementAddress | null>(null);
 export { editing };
 
+// Client (viewport) point where the user clicked to start editing — the caret is placed there.
+const [editCaret, setEditCaret] = createSignal<{ x: number; y: number } | null>(null);
+export { editCaret };
+
 let editBefore: ArtifactContent | null = null;
 
-export function startEditing(addr: ElementAddress): void {
+export function startEditing(addr: ElementAddress, caret?: { x: number; y: number }): void {
     editBefore = editor.artifact;
+    setEditCaret(caret ?? null);
     setEditing(addr);
 }
 

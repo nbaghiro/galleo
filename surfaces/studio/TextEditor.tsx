@@ -5,8 +5,24 @@ import { getElementAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/registry";
 import { elementRegionId } from "@model/address";
 import { resolveTheme } from "@themes/library";
-import { editing, editor, regions, setArtifactLive, stopEditing } from "./editor";
+import { editCaret, editing, editor, regions, setArtifactLive, stopEditing } from "./editor";
 import { ctxFor } from "./render";
+
+// Map a viewport point to a text caret Range (Chrome/Safari vs Firefox APIs), typed without `any`.
+interface CaretDoc {
+    caretRangeFromPoint?(x: number, y: number): Range | null;
+    caretPositionFromPoint?(x: number, y: number): { offsetNode: Node; offset: number } | null;
+}
+function caretRangeAtPoint(x: number, y: number): Range | null {
+    const d = document as Document & CaretDoc;
+    if (d.caretRangeFromPoint) return d.caretRangeFromPoint(x, y);
+    const cp = d.caretPositionFromPoint?.(x, y);
+    if (!cp) return null;
+    const r = document.createRange();
+    r.setStart(cp.offsetNode, cp.offset);
+    r.collapse(true);
+    return r;
+}
 
 // A contenteditable overlay styled to exactly match the engine-rendered text: the browser supplies a
 // real caret + IME + selection, edits flow live into the model, and the engine re-lays-out beneath.
@@ -31,9 +47,18 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         el.textContent = ((inst()?.data ?? {}) as { text?: string }).text ?? "";
         el.focus();
         const sel = window.getSelection();
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        range.collapse(false);
+        let range: Range | null = null;
+        // Place the caret where the user clicked; fall back to the end of the text.
+        const caret = editCaret();
+        if (caret) {
+            const r = caretRangeAtPoint(caret.x, caret.y);
+            if (r && el.contains(r.startContainer)) range = r;
+        }
+        if (!range) {
+            range = document.createRange();
+            range.selectNodeContents(el);
+            range.collapse(false);
+        }
         sel?.removeAllRanges();
         sel?.addRange(range);
     });

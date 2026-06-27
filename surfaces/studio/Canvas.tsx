@@ -128,14 +128,6 @@ export const Canvas: Component = () => {
         pending = { target: hitTest(...point(e)), x: e.clientX, y: e.clientY };
     };
 
-    const onDoubleClick = (e: MouseEvent): void => {
-        const t = hitTest(...point(e));
-        if (t?.kind === "element" && getElementAt(editor.artifact, t.address)?.type === "text") {
-            setSelection(t);
-            startEditing(t.address);
-        }
-    };
-
     const onPointerMove = (e: PointerEvent): void => {
         if (drag() || editing()) return; // active drag is driven by the window listeners below
         if (
@@ -153,10 +145,14 @@ export const Canvas: Component = () => {
     };
 
     const onPointerUp = (): void => {
-        if (drag() || editing()) return;
-        if (pending) {
-            setSelection(pending.target);
-            pending = null;
+        if (drag() || editing() || !pending) return;
+        const t = pending.target;
+        const caret = { x: pending.x, y: pending.y };
+        pending = null;
+        setSelection(t);
+        // A clean click on text drops straight into editing, caret at the click point (drag = move).
+        if (t?.kind === "element" && getElementAt(editor.artifact, t.address)?.type === "text") {
+            startEditing(t.address, caret);
         }
     };
 
@@ -237,7 +233,6 @@ export const Canvas: Component = () => {
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
-            onDblClick={onDoubleClick}
             onPointerLeave={() => !drag() && setHover(null)}
         >
             <div ref={stageEl} class="relative w-full">
