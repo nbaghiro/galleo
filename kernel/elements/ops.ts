@@ -193,3 +193,7 @@ export function duplicateSection(art: ArtifactContent, id: Id, newId: Id): Artif
 export function setArtifactTheme(art: ArtifactContent, theme: Id): ArtifactContent {
     return { ...art, theme };
 }
+
+export function setArtifactFormat(art: ArtifactContent, format: Id): ArtifactContent {
+    return { ...art, format };
+}

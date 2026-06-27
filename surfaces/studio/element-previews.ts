@@ -7,7 +7,6 @@ const accent = "var(--color-accent)";
 const ink = "var(--color-ink)";
 const muted = "var(--color-muted)";
 const surface = "var(--color-panel)";
-const canvas = "var(--color-canvas)";
 const line = "var(--color-line)";
 const onaccent = "var(--color-onaccent)";
 

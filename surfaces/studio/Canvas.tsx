@@ -4,6 +4,7 @@ import type { Component } from "solid-js";
 import { createEffect, createMemo, onCleanup, onMount } from "solid-js";
 import { getElementAt } from "@elements/ops";
 import { getElement } from "@elements/registry";
+import { resolveProfile } from "@engine/profile";
 import { elementRegionId, parentTarget, parseTarget, specificity } from "@model/address";
 import { resolveTheme } from "@themes/library";
 import { backdropCss } from "./backdrop";
@@ -51,9 +52,12 @@ export const Canvas: Component = () => {
     const draw = (): void => {
         if (!paintHost) return;
         // The panels float over the canvas; reserve their gutters so centered content clears them.
+        const profile = resolveProfile(editor.artifact.format);
+        const web = profile.id === "web";
         const padL = leftOpen() ? PANEL_L : RAIL_GAP;
         const fullW = Math.max(360, (scrollEl.clientWidth || 800) - padL - RAIL_R);
-        const contentW = Math.min(fullW - 64, 1080); // contained sections sit centered at this width
+        // Format-as-view: deck = wide cards, doc = narrow reading column, web = full-bleed bands.
+        const contentW = Math.min(fullW - 64, profile.maxContentWidth ?? 1080);
         paintHost.replaceChildren();
 
         // suppress the painted text of the element being edited — only the live overlay shows it
@@ -65,7 +69,7 @@ export const Canvas: Component = () => {
         const tops: number[] = [];
         const all: Region[] = [];
         for (const section of editor.artifact.sections) {
-            const bleed = section.bleed ?? false;
+            const bleed = (section.bleed ?? false) || web;
             const layoutW = bleed ? fullW : contentW;
             const x = bleed ? 0 : Math.round((fullW - contentW) / 2);
             const { commands, regions, height } = layoutSection(

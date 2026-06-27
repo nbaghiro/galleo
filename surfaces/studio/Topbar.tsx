@@ -1,6 +1,6 @@
 import type { Component } from "solid-js";
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { setArtifactTheme } from "@elements/ops";
+import { setArtifactFormat, setArtifactTheme } from "@elements/ops";
 import { resolveTheme, THEME_LIST } from "@themes/library";
 import { DEMOS } from "./demos";
 import { commit, demoId, editor, loadDemo, present, setAgentOpen } from "./editor";
@@ -97,11 +97,33 @@ const ThemeMenu: Component = () => {
     );
 };
 
+const FORMATS = [
+    { id: "deck", label: "Deck" },
+    { id: "doc", label: "Doc" },
+    { id: "web", label: "Web" },
+];
+
+const FormatSwitcher: Component = () => (
+    <div class="flex gap-0.5 rounded-lg border border-line bg-canvas p-0.5">
+        <For each={FORMATS}>
+            {(f) => (
+                <button
+                    class={`rounded-md px-2.5 py-1 text-[12px] font-semibold ${editor.artifact.format === f.id ? "bg-panel text-ink shadow-sm" : "text-muted hover:text-ink"}`}
+                    onClick={() => commit(setArtifactFormat(editor.artifact, f.id))}
+                >
+                    {f.label}
+                </button>
+            )}
+        </For>
+    </div>
+);
+
 export const Topbar: Component = () => (
     <header class="relative z-30 flex items-center gap-3.5 border-b border-line bg-panel px-[18px]">
         <span class="font-mono text-[15px] font-bold tracking-wide text-accent">GALLEO</span>
         <DocMenu />
         <span class="flex-1" />
+        <FormatSwitcher />
         <ThemeMenu />
         <button class={btn} onClick={() => present()}>
             ▶ Present
