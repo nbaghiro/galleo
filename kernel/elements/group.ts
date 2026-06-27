@@ -2,6 +2,7 @@ import type { ElementSpec, LayoutCtx } from "@elements/element-spec";
 import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/content";
 import { getElement, register } from "@elements/registry";
+import { bar } from "@elements/skeleton";
 import { fit, grow } from "@model/size";
 
 // A transparent container that stacks several elements inside one cell (no background of its own).
@@ -52,6 +53,13 @@ export const groupElement: ElementSpec<GroupData> = {
         },
         { key: "gap", label: "Gap", control: "slider", min: 0, max: 48, step: 2, unit: "px" },
     ],
+    skeleton: (): EngineNode => ({
+        w: grow(),
+        h: fit(),
+        direction: "col",
+        gap: 8,
+        children: [bar(0.8, 12), bar(1, 9), bar(0.6, 9)],
+    }),
 };
 
 register(groupElement);

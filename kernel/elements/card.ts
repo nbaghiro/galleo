@@ -2,6 +2,7 @@ import type { ElementSpec, LayoutCtx } from "@elements/element-spec";
 import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/content";
 import { getElement, register } from "@elements/registry";
+import { bar, GHOST_LINE, GHOST_PANEL } from "@elements/skeleton";
 import { fit, grow } from "@model/size";
 
 interface CardData {
@@ -62,6 +63,15 @@ export const cardElement: ElementSpec<CardData> = {
         { key: "radius", label: "Corner radius", control: "slider", min: 0, max: 40, step: 1, unit: "px", group: "Appearance" },
         { key: "bg", label: "Background", control: "color", group: "Appearance" },
     ],
+    skeleton: (): EngineNode => ({
+        w: grow(),
+        h: fit(),
+        direction: "col",
+        gap: 8,
+        padding: { top: 14, right: 14, bottom: 14, left: 14 },
+        fill: { color: GHOST_PANEL, radius: 10, border: { color: GHOST_LINE, width: 1 } },
+        children: [bar(0.7, 12), bar(1, 9), bar(0.5, 9)],
+    }),
 };
 
 register(cardElement);
