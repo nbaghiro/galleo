@@ -22,7 +22,14 @@ export const PaletteItem: Component<{ type: string }> = (props) => {
         const frameW = inner.parentElement?.clientWidth ?? 120;
         const skel = skeletonFor(spec, ctxFor(frameW));
         skel.alignX = "center";
-        const node: EngineNode = { w: grow(), h: fit(), direction: "col", alignX: "center", alignY: "center", children: [skel] };
+        const node: EngineNode = {
+            w: grow(),
+            h: fit(),
+            direction: "col",
+            alignX: "center",
+            alignY: "center",
+            children: [skel],
+        };
         const { commands, height } = layoutNode(node, frameW, measureText);
         const scale = Math.min(1, (FRAME_H - 14) / Math.max(1, height));
         inner.style.width = `${frameW}px`;
@@ -37,7 +44,12 @@ export const PaletteItem: Component<{ type: string }> = (props) => {
             class="flex cursor-grab select-none flex-col gap-1.5"
             onPointerDown={(e) => {
                 e.preventDefault();
-                startDrag({ kind: "new", type: props.type }, e.clientX, e.clientY, spec?.label ?? props.type);
+                startDrag(
+                    { kind: "new", type: props.type },
+                    e.clientX,
+                    e.clientY,
+                    spec?.label ?? props.type,
+                );
             }}
         >
             <div
@@ -46,7 +58,9 @@ export const PaletteItem: Component<{ type: string }> = (props) => {
             >
                 <div ref={inner} />
             </div>
-            <span class="text-center text-[11px] font-medium text-muted">{spec?.label ?? props.type}</span>
+            <span class="text-center text-[11px] font-medium text-muted">
+                {spec?.label ?? props.type}
+            </span>
         </div>
     );
 };

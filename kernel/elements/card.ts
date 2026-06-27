@@ -22,7 +22,11 @@ const arrange = (d: CardData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode =>
         direction: d.direction ?? "col",
         gap: d.gap ?? 12,
         padding: { top: p, right: p, bottom: p, left: p },
-        fill: { color: d.bg ?? ctx.theme.surface, radius: d.radius ?? 12, border: { color: ctx.theme.line, width: 1 } },
+        fill: {
+            color: d.bg ?? ctx.theme.surface,
+            radius: d.radius ?? 12,
+            border: { color: ctx.theme.line, width: 1 },
+        },
         children: kids,
     };
 };
@@ -59,8 +63,26 @@ export const cardElement: ElementSpec<CardData> = {
             ],
         },
         { key: "gap", label: "Gap", control: "slider", min: 0, max: 48, step: 2, unit: "px" },
-        { key: "padding", label: "Padding", control: "slider", min: 0, max: 64, step: 2, unit: "px", group: "Appearance" },
-        { key: "radius", label: "Corner radius", control: "slider", min: 0, max: 40, step: 1, unit: "px", group: "Appearance" },
+        {
+            key: "padding",
+            label: "Padding",
+            control: "slider",
+            min: 0,
+            max: 64,
+            step: 2,
+            unit: "px",
+            group: "Appearance",
+        },
+        {
+            key: "radius",
+            label: "Corner radius",
+            control: "slider",
+            min: 0,
+            max: 40,
+            step: 1,
+            unit: "px",
+            group: "Appearance",
+        },
         { key: "bg", label: "Background", control: "color", group: "Appearance" },
     ],
     skeleton: (): EngineNode => ({

@@ -30,11 +30,31 @@ export const videoElement: ElementSpec<VideoData> = {
                 alignY: "center",
                 padding: { top: 8, bottom: 8, left: 13, right: 11 },
                 fill: { color: "rgba(255,255,255,0.16)", radius: 99 },
-                children: [{ w: fit(), h: fit(), text: { text: "▶", fontId: fontStack("ui", ctx.theme), size: 22, color: "#ffffff", align: "center", wrap: "none" } }],
+                children: [
+                    {
+                        w: fit(),
+                        h: fit(),
+                        text: {
+                            text: "▶",
+                            fontId: fontStack("ui", ctx.theme),
+                            size: 22,
+                            color: "#ffffff",
+                            align: "center",
+                            wrap: "none",
+                        },
+                    },
+                ],
             },
         ],
     }),
-    controls: [{ key: "url", label: "Video URL", control: "text", placeholder: "https://… (YouTube, Vimeo, mp4)" }],
+    controls: [
+        {
+            key: "url",
+            label: "Video URL",
+            control: "text",
+            placeholder: "https://… (YouTube, Vimeo, mp4)",
+        },
+    ],
     fallback: (d) => d,
 };
 

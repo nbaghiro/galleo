@@ -21,7 +21,10 @@ export const tableElement: ElementSpec<TableData> = {
     label: "Table",
     category: "data",
     tier: "smart",
-    create: () => ({ data: "Plan,Price,Seats\nStarter,Free,1\nPro,$20,5\nTeam,$50,20", header: true }),
+    create: () => ({
+        data: "Plan,Price,Seats\nStarter,Free,1\nPro,$20,5\nTeam,$50,20",
+        header: true,
+    }),
     layout: (d: TableData, ctx: LayoutCtx): EngineNode => {
         const rows = parse(d.data);
         const cols = Math.max(1, ...rows.map((r) => r.length));
@@ -33,7 +36,15 @@ export const tableElement: ElementSpec<TableData> = {
                 {
                     w: grow(),
                     h: fit(),
-                    text: { text, fontId: fontStack("ui", ctx.theme), size: 14, weight: head ? 700 : 400, color: head ? ctx.theme.ink : ctx.theme.soft, align: "start", wrap: "words" },
+                    text: {
+                        text,
+                        fontId: fontStack("ui", ctx.theme),
+                        size: 14,
+                        weight: head ? 700 : 400,
+                        color: head ? ctx.theme.ink : ctx.theme.soft,
+                        align: "start",
+                        wrap: "words",
+                    },
                 },
             ],
         });
@@ -52,12 +63,22 @@ export const tableElement: ElementSpec<TableData> = {
             w: grow(),
             h: fit(),
             direction: "col",
-            fill: { color: ctx.theme.surface, radius: Math.round(ctx.theme.radius / 2), border: { color: ctx.theme.line, width: 1 } },
+            fill: {
+                color: ctx.theme.surface,
+                radius: Math.round(ctx.theme.radius / 2),
+                border: { color: ctx.theme.line, width: 1 },
+            },
             children,
         };
     },
     controls: [
-        { key: "data", label: "Cells (rows ↵ · cols ,)", control: "text", multiline: true, placeholder: "A,B\n1,2" },
+        {
+            key: "data",
+            label: "Cells (rows ↵ · cols ,)",
+            control: "text",
+            multiline: true,
+            placeholder: "A,B\n1,2",
+        },
         { key: "header", label: "Header row", control: "toggle" },
     ],
 };

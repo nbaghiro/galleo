@@ -16,7 +16,15 @@ function markerNode(marker: Marker, i: number, ctx: LayoutCtx): EngineNode {
     const t = (text: string, color: string, weight?: number): EngineNode => ({
         w: fit(),
         h: fit(),
-        text: { text, fontId: fontStack("mono", ctx.theme), size: 14, weight, color, align: "start", wrap: "none" },
+        text: {
+            text,
+            fontId: fontStack("mono", ctx.theme),
+            size: 14,
+            weight,
+            color,
+            align: "start",
+            wrap: "none",
+        },
     });
     if (marker === "number") return t(`${i + 1}.`, ctx.theme.accent, 600);
     if (marker === "dash") return t("—", ctx.theme.muted);
@@ -29,14 +37,16 @@ const arrange = (d: BulletsData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode
     h: fit(),
     direction: "col",
     gap: 12,
-    children: kids.map((k, i): EngineNode => ({
-        w: grow(),
-        h: fit(),
-        direction: "row",
-        gap: 12,
-        alignY: "start",
-        children: [markerNode(d.marker ?? "dot", i, ctx), k],
-    })),
+    children: kids.map(
+        (k, i): EngineNode => ({
+            w: grow(),
+            h: fit(),
+            direction: "row",
+            gap: 12,
+            alignY: "start",
+            children: [markerNode(d.marker ?? "dot", i, ctx), k],
+        }),
+    ),
 });
 
 function compose(d: BulletsData, ctx: LayoutCtx): EngineNode[] {
@@ -60,7 +70,11 @@ export const bulletsElement: ElementSpec<BulletsData> = {
         marker: "dot",
     }),
     layout: (d, ctx) => arrange(d, ctx, compose(d, ctx)),
-    container: { children: (d) => d.children, arrange, withChildren: (d, children) => ({ ...d, children }) },
+    container: {
+        children: (d) => d.children,
+        arrange,
+        withChildren: (d, children) => ({ ...d, children }),
+    },
     controls: [
         {
             key: "marker",

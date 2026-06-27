@@ -22,12 +22,23 @@ function emptyCell(ctx: LayoutCtx): EngineNode {
         h: fit(90),
         alignX: "center",
         alignY: "center",
-        fill: { color: ctx.theme.bg, radius: 10, border: { color: ctx.theme.line, width: 1.5, style: "dashed" } },
+        fill: {
+            color: ctx.theme.bg,
+            radius: 10,
+            border: { color: ctx.theme.line, width: 1.5, style: "dashed" },
+        },
         children: [
             {
                 w: fit(),
                 h: fit(),
-                text: { text: "+ drop element", fontId: fontStack("mono", ctx.theme), size: 12, color: ctx.theme.muted, align: "center", wrap: "none" },
+                text: {
+                    text: "+ drop element",
+                    fontId: fontStack("mono", ctx.theme),
+                    size: 12,
+                    color: ctx.theme.muted,
+                    align: "center",
+                    wrap: "none",
+                },
             },
         ],
     };
@@ -36,14 +47,23 @@ function emptyCell(ctx: LayoutCtx): EngineNode {
 function composeElement(inst: ElementInstance, ctx: LayoutCtx, addr: ElementAddress): EngineNode {
     const spec = getElement(inst.type);
     if (!spec) {
-        return { id: elementRegionId(addr), w: grow(), h: fit(40), fill: { color: "#f6dede", radius: 6 } };
+        return {
+            id: elementRegionId(addr),
+            w: grow(),
+            h: fit(40),
+            fill: { color: "#f6dede", radius: 6 },
+        };
     }
     let node: EngineNode;
     if (spec.container) {
         const kids = spec.container
             .children(inst.data)
             .map((child, i) =>
-                composeElement(child, ctx, { section: addr.section, cell: addr.cell, path: [...addr.path, i] }),
+                composeElement(child, ctx, {
+                    section: addr.section,
+                    cell: addr.cell,
+                    path: [...addr.path, i],
+                }),
             );
         node = spec.container.arrange(inst.data, ctx, kids);
     } else {
@@ -56,7 +76,12 @@ function composeElement(inst: ElementInstance, ctx: LayoutCtx, addr: ElementAddr
 function luminance(hex: string): number {
     const h = hex.replace("#", "");
     if (h.length < 6) return 1;
-    return (0.299 * parseInt(h.slice(0, 2), 16) + 0.587 * parseInt(h.slice(2, 4), 16) + 0.114 * parseInt(h.slice(4, 6), 16)) / 255;
+    return (
+        (0.299 * parseInt(h.slice(0, 2), 16) +
+            0.587 * parseInt(h.slice(2, 4), 16) +
+            0.114 * parseInt(h.slice(4, 6), 16)) /
+        255
+    );
 }
 
 function bgIsDark(bg: SectionBackground | undefined): boolean {
@@ -102,7 +127,14 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
             children: [content],
         };
     });
-    const inner: EngineNode = { w: grow(), h: fit(), direction: "row", gap: 0, alignY: "center", children: cells };
+    const inner: EngineNode = {
+        w: grow(),
+        h: fit(),
+        direction: "row",
+        gap: 0,
+        alignY: "center",
+        children: cells,
+    };
 
     const radius = bleed ? 0 : ctx.theme.radius;
     const node: EngineNode = {
@@ -120,7 +152,11 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
     } else if (bg?.kind === "color" && bg.color) {
         node.fill = { color: bg.color, radius };
     } else {
-        node.fill = { color: ctx.theme.surface, radius, border: bleed ? undefined : { color: ctx.theme.line, width: 1 } };
+        node.fill = {
+            color: ctx.theme.surface,
+            radius,
+            border: bleed ? undefined : { color: ctx.theme.line, width: 1 },
+        };
     }
     return node;
 }

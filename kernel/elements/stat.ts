@@ -36,7 +36,11 @@ export const statElement: ElementSpec<StatData> = {
         ],
     }),
     layout: (d, ctx) => arrange(d, ctx, compose(d, ctx)),
-    container: { children: (d) => d.children, arrange, withChildren: (d, children) => ({ ...d, children }) },
+    container: {
+        children: (d) => d.children,
+        arrange,
+        withChildren: (d, children) => ({ ...d, children }),
+    },
     controls: [],
 };
 

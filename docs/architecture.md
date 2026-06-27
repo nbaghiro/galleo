@@ -16,6 +16,7 @@ services/ the backend (data · api · auth · queue)
 ## kernel/ — the core (pure TS, no DOM)
 
 ### kernel/model — the content contract
+
 ```
 content.ts          ✓ Id · Size · BoxInsets · ElementInstance · Cell · Section · ArtifactContent
 format.ts           ✓ FormatKind · FormatDescriptor
@@ -26,6 +27,7 @@ migrate.ts          ◦ content schema-version upgraders
 ```
 
 ### kernel/engine — the layout solver
+
 ```
 node.ts             ✓ EngineNode + leaves + Rect/Align/Measured/MeasureText
 render-command.ts   ✓ flat RenderCommand union (rect/text/image/surface)
@@ -37,6 +39,7 @@ fragment.ts         ◦ pagination: slice a continuous layout into fixed-height 
 ```
 
 ### kernel/elements — the registry + element library
+
 ```
 element-spec.ts     ✓ ElementSpec · LayoutCtx · ControlField
 registry.ts         ✓ register / getElement / listElements
@@ -48,6 +51,7 @@ catalog.ts          ◦ category metadata for the insert/slash menu
 ```
 
 ### kernel/text — engine-native rich text (Path B), pure parts only
+
 ```
 model.ts            ✓ Para · Mark · TextContent
 selection.ts        ✓ Point · Selection
@@ -57,6 +61,7 @@ layout-text.ts      ◦ greedy line-break + glyph geometry (consumes injected me
 ```
 
 ### kernel/themes — themes as data
+
 ```
 theme.ts            ✓ Theme · Tokens
 library.ts          ◦ the built-in theme set (the 22) as data
@@ -64,6 +69,7 @@ resolve.ts          ◦ theme → concrete token values used by elements/render
 ```
 
 ### kernel/render — the backend contract only
+
 ```
 backend.ts          ✓ Backend interface (RenderCommand[] -> a target)
 helpers.ts          ◦ shared command utilities (bounds, culling, hit-test math)
@@ -75,6 +81,7 @@ helpers.ts          ◦ shared command utilities (bounds, culling, hit-test math
 ## surfaces/ — the ways to touch the kernel
 
 ### surfaces/studio — the editor (deepest section)
+
 ```
 shell.ts            ◦ mounts the regions: topbar · rail · canvas · inspector
 state/
@@ -109,24 +116,28 @@ sample.ts main.ts index.html   ✓ current demo — evolves into the shell entry
 ```
 
 ### surfaces/present — presentation mode
+
 ```
 present.ts          ◦ fullscreen slide nav (keyboard/remote) via engine + a canvas backend
 notes.ts            ◦ speaker notes / presenter view
 ```
 
 ### surfaces/publish — hosted sites (edge SSR)
+
 ```
 ssr.ts              ◦ render an artifact → HTML string/stream (a string render backend)
 hydrate.ts          ◦ optional client interactivity for interactive elements
 ```
 
 ### surfaces/export — file outputs
+
 ```
 pdf.ts pptx.ts png.ts   ◦ render commands → file (each is a render backend)
 fonts.ts                ◦ embed + measurement parity with the editor (fidelity contract)
 ```
 
 ### surfaces/agent — the AI brain (UI-less; shared by studio chat + worker)
+
 ```
 runtime.ts          ◦ a turn: prompt → content ops applied to the model
 tools.ts            ◦ the ops the agent may perform (add/edit/restyle/regenerate)
@@ -138,6 +149,7 @@ generate.ts         ◦ outline-first generation (prompt → outline → full ar
 ## services/ — the backend
 
 ### services/data
+
 ```
 schema.ts           ✓ Drizzle schema (v1-core tables; full 29 in docs/data-model.md)
 client.ts           ✓ db client
@@ -148,6 +160,7 @@ rls.sql             ◦ Postgres row-level-security policies (workspace_id tenan
 ```
 
 ### services/api
+
 ```
 server.ts           ◦ HTTP app (Hono/tRPC) + middleware
 routes/             ◦ artifacts · folders · shares · links · auth · agent · export
@@ -156,6 +169,7 @@ context.ts          ◦ auth + workspace scoping per request
 ```
 
 ### services/auth
+
 ```
 session.ts          ◦ sessions / cookies
 providers.ts        ◦ OAuth providers
@@ -163,6 +177,7 @@ tokens.ts           ◦ api keys
 ```
 
 ### services/queue — the worker
+
 ```
 queue.ts            ◦ job queue setup (BullMQ/Redis or managed)
 jobs/               ◦ export · ai-generate · thumbnails · publish · import handlers
@@ -180,6 +195,7 @@ export:  services/queue → surfaces/export (kernel engine + pdf/pptx backend) �
 agent:   studio/agent.chat → surfaces/agent.runtime → kernel/model.ops → re-layout
 present: studio "Present" → surfaces/present (kernel engine + canvas backend)
 ```
+
 The kernel is the hub; every surface is the same engine output aimed at a different backend — which
 is exactly why editor == present == published == export.
 

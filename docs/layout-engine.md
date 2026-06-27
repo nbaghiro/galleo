@@ -17,10 +17,11 @@ layers: **compose** (block → engine tree, width-aware arrangement), **fragment
 (DOM / Canvas / PDF / PPTX).
 
 Rationale, in one line each:
+
 - **Clay model** → flexbox-simple sizing (`FIT/GROW/PERCENT/FIXED`) + render-command output that
   feeds web, canvas, and export from one layout. ([Clay](https://github.com/nicbarker/clay))
 - **Immediate mode** → "recompute from scratch" is fast enough at our scale and makes resize,
-  theme-switch, edit, and *new dimensions* all collapse to one verb: recompute.
+  theme-switch, edit, and _new dimensions_ all collapse to one verb: recompute.
 - **Constraints-down/sizes-up** (Flutter's model, which Clay embodies) → every box resolves to
   absolute `x/y/w/h` in one O(n) pass ⇒ **export fidelity is a free byproduct**.
 - **Ported to TS, not WASM** → the `MeasureText` callback fires per text node; a JS↔WASM boundary
@@ -29,7 +30,7 @@ Rationale, in one line each:
 
 **Non-goals (v1):** a general constraint solver (Cassowary) as the core; CSS Grid semantics;
 relayout-boundary incremental caching (add later only if artifacts get huge); pixel-perfect PPTX
-*text* (see §9 — fundamentally approximate).
+_text_ (see §9 — fundamentally approximate).
 
 ---
 
@@ -54,9 +55,10 @@ RenderCommand[]   (rect · text · image · border · clip — each with boxed x
 ```
 
 The three current modes are **three Format Descriptors**, nothing more:
-- **Deck** = a *paged* format, 1000×625 per page, paginated.
-- **Doc** = a *continuous* format at a fixed page width; paginates only on print/PDF export.
-- **Web** = a *continuous* format whose width *fills the viewport* and recomputes on resize.
+
+- **Deck** = a _paged_ format, 1000×625 per page, paginated.
+- **Doc** = a _continuous_ format at a fixed page width; paginates only on print/PDF export.
+- **Web** = a _continuous_ format whose width _fills the viewport_ and recomputes on resize.
 
 ---
 
@@ -64,29 +66,31 @@ The three current modes are **three Format Descriptors**, nothing more:
 
 Because the engine is dimension-agnostic and immediate-mode, **supporting a new size or a
 user-resizable canvas is a data change, not new code.** This is the product feature: users get
-Figma-frame / Canva-custom-size power, and *live resizing*, out of the box.
+Figma-frame / Canva-custom-size power, and _live resizing_, out of the box.
 
 ```ts
 type FormatDescriptor = {
-  id: string; name: string;
-  kind: 'paged' | 'continuous';
+    id: string;
+    name: string;
+    kind: "paged" | "continuous";
 
-  // geometry
-  width:  number | 'fill';          // 'fill' = track the viewport/container (web, resizable canvas)
-  height: number | 'auto';          // paged → fixed page height; continuous → 'auto'
-  maxContentWidth?: number;         // continuous: center & cap (doc = 720)
-  margin?: Box; bleed?: boolean;
+    // geometry
+    width: number | "fill"; // 'fill' = track the viewport/container (web, resizable canvas)
+    height: number | "auto"; // paged → fixed page height; continuous → 'auto'
+    maxContentWidth?: number; // continuous: center & cap (doc = 720)
+    margin?: Box;
+    bleed?: boolean;
 
-  // resize behavior
-  resize: 'fixed' | 'fill' | { min: number; max: number };
+    // resize behavior
+    resize: "fixed" | "fill" | { min: number; max: number };
 
-  // styling parameterization (does NOT change content)
-  tokenScale: number;               // type/space multiplier (deck 1.0, doc 0.7, web 0.9)
-  splitMinW: number;                // below this, 'auto' sections stack instead of split
+    // styling parameterization (does NOT change content)
+    tokenScale: number; // type/space multiplier (deck 1.0, doc 0.7, web 0.9)
+    splitMinW: number; // below this, 'auto' sections stack instead of split
 
-  // pagination (paged kind, or continuous-on-export)
-  paginate: 'always' | 'export' | 'never';
-  break?: { avoidOrphans: boolean; keepHeadingWithNext: boolean };
+    // pagination (paged kind, or continuous-on-export)
+    paginate: "always" | "export" | "never";
+    break?: { avoidOrphans: boolean; keepHeadingWithNext: boolean };
 };
 ```
 
@@ -104,11 +108,11 @@ type FormatDescriptor = {
 **Custom + resizable:** a user can create a format with any `width × height`, or set
 `resize:'fill'` / `{min,max}` to get a **draggable canvas** — each drag frame calls
 `layout(tree, {newW, newH})` and recomputes (µs). No new layout code; the same blocks just
-re-flow. *This is the immediate-mode payoff the whole approach is built around.*
+re-flow. _This is the immediate-mode payoff the whole approach is built around._
 
 ---
 
-## 4. Data model — blocks with *relative* layout intent
+## 4. Data model — blocks with _relative_ layout intent
 
 Content is a single semantic tree. **No absolute coordinates are ever stored** — they are computed.
 
@@ -139,7 +143,7 @@ type Block = {
 type Artifact = { root: Block; format: FormatDescriptor };
 ```
 
-Atomic blocks (`stat`, a stat *row*, a button) carry `breakInside:'avoid'` so pagination never
+Atomic blocks (`stat`, a stat _row_, a button) carry `breakInside:'avoid'` so pagination never
 splits them. `pin` is how "user builds custom-height blocks" (the secondary author-control goal).
 
 ---
@@ -168,7 +172,7 @@ Output: `RenderCommand[]` — `{ kind:'rect'|'text'|'image'|'border'|'clip', box
 config }`, sorted & culled. **The same array drives every backend.**
 
 > **Clay does NOT wrap child elements** (only text wraps). So responsive "split → stack" is
-> *our* decision in the compose pass (§6), not the engine's. This is a feature: explicit,
+> _our_ decision in the compose pass (§6), not the engine's. This is a feature: explicit,
 > designed breakpoints we control, recomputed live.
 
 ---
@@ -219,7 +223,7 @@ The single most important correctness invariant. The engine's `MeasureText(text,
 **must return identical metrics in the editor and in every export**, or PDFs drift from the screen.
 
 - **Editor (browser):** Canvas 2D `measureText` (+ a small line-height model).
-- **Export (server/headless):** the *same* metrics via a shared font-metrics source — embed the
+- **Export (server/headless):** the _same_ metrics via a shared font-metrics source — embed the
   exact fonts and shape with Skia / HarfBuzz, or run the same Canvas measurement in a headless
   context. One code path, one set of metrics.
 - All Google-Fonts faces used by themes are bundled/self-hosted so editor and export agree.
@@ -230,12 +234,12 @@ The single most important correctness invariant. The engine's `MeasureText(text,
 
 One `RenderCommand[]` → many serializers:
 
-| Backend | How | Fidelity |
-|---|---|---|
-| **DOM** (editor/web) | absolutely-positioned / `transform`ed nodes, or paint to a layer | exact |
-| **Canvas/WebGL** (Present, PNG) | draw rects/text/images from commands | exact |
-| **PDF** | boxes → points (pdf-lib / PDFKit), embed fonts | exact |
-| **PPTX** | boxes → DrawingML shapes in EMUs | **text approximate** — PowerPoint re-flows text; for exactness ship fixed text boxes / per-line boxes / outlines |
+| Backend                         | How                                                              | Fidelity                                                                                                         |
+| ------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **DOM** (editor/web)            | absolutely-positioned / `transform`ed nodes, or paint to a layer | exact                                                                                                            |
+| **Canvas/WebGL** (Present, PNG) | draw rects/text/images from commands                             | exact                                                                                                            |
+| **PDF**                         | boxes → points (pdf-lib / PDFKit), embed fonts                   | exact                                                                                                            |
+| **PPTX**                        | boxes → DrawingML shapes in EMUs                                 | **text approximate** — PowerPoint re-flows text; for exactness ship fixed text boxes / per-line boxes / outlines |
 
 ---
 
@@ -253,48 +257,49 @@ One `RenderCommand[]` → many serializers:
 
 ## 11. Build vs reuse
 
-| Piece | Decision |
-|---|---|
-| Box-layout core | **Build** — port Clay's algorithm to TS (~a few hundred lines; clean Canvas text interop). |
-| Sizing model | **Reuse Clay's** verbatim (FIT/GROW/PERCENT/FIXED). |
-| Compose / arrangement | **Build** (small). |
-| Fragmentation / pagination | **Build** (the hard part; Knuth–Plass-inspired). |
-| Text measurement | **Build** thin wrapper over Canvas/Skia/HarfBuzz. |
-| Export serializers | **Build** per target; reuse pdf-lib / pptxgenjs as writers. |
-| Constraint solver (pins/alignment) | **Defer** — optional kiwi.js layer above flow, later. |
-| WASM Clay / Taffy | **Fallback only** — if the TS port underperforms on huge artifacts or for heavy server export. |
+| Piece                              | Decision                                                                                       |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Box-layout core                    | **Build** — port Clay's algorithm to TS (~a few hundred lines; clean Canvas text interop).     |
+| Sizing model                       | **Reuse Clay's** verbatim (FIT/GROW/PERCENT/FIXED).                                            |
+| Compose / arrangement              | **Build** (small).                                                                             |
+| Fragmentation / pagination         | **Build** (the hard part; Knuth–Plass-inspired).                                               |
+| Text measurement                   | **Build** thin wrapper over Canvas/Skia/HarfBuzz.                                              |
+| Export serializers                 | **Build** per target; reuse pdf-lib / pptxgenjs as writers.                                    |
+| Constraint solver (pins/alignment) | **Defer** — optional kiwi.js layer above flow, later.                                          |
+| WASM Clay / Taffy                  | **Fallback only** — if the TS port underperforms on huge artifacts or for heavy server export. |
 
 ---
 
 ## 12. Risks & mitigations
 
-| Risk | Mitigation |
-|---|---|
-| Editor↔export text drift | One `MeasureText` path; bundle exact fonts; golden-image tests per theme. |
-| PPTX text fidelity | Accept approximate, or export fixed boxes / outlines / image fallback for pixel-exact decks. |
-| Fragmentation complexity | Ship "good not optimal" first (greedy + keep-with-next + avoid-atomic-split); add DP later. |
-| Column balancing (magazine doc) | Treat as a separate small solver; v1 single-column or fixed N columns without perfect balance. |
-| TS port perf on huge trees | Flat typed arrays, memoized measures; WASM/Taffy fallback documented. |
+| Risk                                               | Mitigation                                                                                     |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Editor↔export text drift                           | One `MeasureText` path; bundle exact fonts; golden-image tests per theme.                      |
+| PPTX text fidelity                                 | Accept approximate, or export fixed boxes / outlines / image fallback for pixel-exact decks.   |
+| Fragmentation complexity                           | Ship "good not optimal" first (greedy + keep-with-next + avoid-atomic-split); add DP later.    |
+| Column balancing (magazine doc)                    | Treat as a separate small solver; v1 single-column or fixed N columns without perfect balance. |
+| TS port perf on huge trees                         | Flat typed arrays, memoized measures; WASM/Taffy fallback documented.                          |
 | `arrange:'auto'` deep nesting needs resolved width | Limit auto-arrangement to section level (width≈container); one extra measure pass when nested. |
 
 ---
 
 ## 13. Phased roadmap
 
-| Phase | Deliverable | Exit criteria |
-|---|---|---|
-| **0 — Spec** | This doc | Locked ✅ |
-| **1 — Core** | TS Clay port: sizing + 8 passes + `RenderCommand[]`; DOM backend | A hand-built tree lays out & paints, matches a CSS reference |
+| Phase                     | Deliverable                                                                     | Exit criteria                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **0 — Spec**              | This doc                                                                        | Locked ✅                                                                                 |
+| **1 — Core**              | TS Clay port: sizing + 8 passes + `RenderCommand[]`; DOM backend                | A hand-built tree lays out & paints, matches a CSS reference                              |
 | **2 — Compose + Formats** | Block→engine compose; `FormatDescriptor`; Deck/Doc/Web presets; **live resize** | Same block tree renders correctly in all 3 presets + a custom WxH; drag-resize recomputes |
-| **3 — Wire into demo** | Replace `editor-explorer.html` CSS arrangement with computed coordinates | Deck/Doc/Web in the demo are engine-driven; themes still apply |
-| **4 — Fragmentation** | Deck pagination (one-section-per-slide + overflow split) | A long section splits cleanly across slides; no atomic-block splits |
-| **5 — Export** | PDF + PNG from `RenderCommand[]`; text-metric parity | Exported PDF is pixel-faithful to the editor |
-| **6 — Author control** | `pin` (custom block sizes); optional kiwi.js for alignment constraints | Users can set/lock block sizes that hold across formats |
-| **7 — Scale (if needed)** | Relayout boundaries; WASM core option | Large artifacts stay <16ms/recompute |
+| **3 — Wire into demo**    | Replace `editor-explorer.html` CSS arrangement with computed coordinates        | Deck/Doc/Web in the demo are engine-driven; themes still apply                            |
+| **4 — Fragmentation**     | Deck pagination (one-section-per-slide + overflow split)                        | A long section splits cleanly across slides; no atomic-block splits                       |
+| **5 — Export**            | PDF + PNG from `RenderCommand[]`; text-metric parity                            | Exported PDF is pixel-faithful to the editor                                              |
+| **6 — Author control**    | `pin` (custom block sizes); optional kiwi.js for alignment constraints          | Users can set/lock block sizes that hold across formats                                   |
+| **7 — Scale (if needed)** | Relayout boundaries; WASM core option                                           | Large artifacts stay <16ms/recompute                                                      |
 
 ---
 
 ## 14. Open questions
+
 - **Editor paint target:** DOM nodes from render commands, or a Canvas/WebGL layer? (DOM = easier
   a11y/text selection/contenteditable; Canvas = pixel-identical to export.) Likely **DOM for edit,
   Canvas for Present/export.**

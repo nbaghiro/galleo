@@ -6,7 +6,7 @@ website**, with high-fidelity export. See `design/` and `docs/` for the locked a
 ## Structure — Kernel + Surfaces
 
 - **`kernel/`** — the rendering core (pure TS, edge-safe). Shared by every surface.
-  - `model` content contract · `engine` layout · `elements` registry · `themes` · `text` · `render`
+    - `model` content contract · `engine` layout · `elements` registry · `themes` · `text` · `render`
 - **`surfaces/`** — the ways you touch the kernel: `studio` (editor), `present`, `publish` (hosted
   sites), `export` (pdf/pptx/png), `agent` (AI authoring).
 - **`services/`** — backend capabilities: `data` (Postgres + Drizzle), `api`, `auth`, `queue`.

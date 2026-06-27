@@ -7,7 +7,16 @@ import { PaletteItem } from "./PaletteItem";
 import { SectionInspector } from "./SectionInspector";
 
 const HIDDEN = new Set(["group"]); // internal container, not a palette item
-const CATEGORY_ORDER = ["text", "media", "data", "interactive", "branding", "layout", "decoration", "container"];
+const CATEGORY_ORDER = [
+    "text",
+    "media",
+    "data",
+    "interactive",
+    "branding",
+    "layout",
+    "decoration",
+    "container",
+];
 const CATEGORY_LABELS: Record<string, string> = {
     text: "Text",
     media: "Media",
@@ -26,7 +35,9 @@ const Palette: Component = () => {
 
     const groups = createMemo(() => {
         const query = q().trim().toLowerCase();
-        const items = query ? all.filter((s) => s.label.toLowerCase().includes(query) || s.type.includes(query)) : all;
+        const items = query
+            ? all.filter((s) => s.label.toLowerCase().includes(query) || s.type.includes(query))
+            : all;
         if (query) return [{ name: "", types: items.map((s) => s.type) }];
         const byCat = new Map<string, string[]>();
         for (const s of items) {
@@ -35,7 +46,10 @@ const Palette: Component = () => {
         }
         const known = CATEGORY_ORDER.filter((c) => byCat.has(c));
         const extra = [...byCat.keys()].filter((c) => !CATEGORY_ORDER.includes(c));
-        return [...known, ...extra].map((c) => ({ name: CATEGORY_LABELS[c] ?? c, types: byCat.get(c)! }));
+        return [...known, ...extra].map((c) => ({
+            name: CATEGORY_LABELS[c] ?? c,
+            types: byCat.get(c)!,
+        }));
     });
 
     return (
@@ -50,7 +64,9 @@ const Palette: Component = () => {
                 {(grp) => (
                     <div class="mb-4">
                         <Show when={grp.name}>
-                            <div class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted">{grp.name}</div>
+                            <div class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                                {grp.name}
+                            </div>
                         </Show>
                         <div class="grid grid-cols-2 gap-3">
                             <For each={grp.types}>{(t) => <PaletteItem type={t} />}</For>
@@ -78,7 +94,9 @@ export const Panel: Component = () => {
     return (
         <aside class="overflow-y-auto border-l border-line bg-panel p-[18px]">
             <Switch fallback={<Palette />}>
-                <Match when={elementAddr()}>{(addr) => <ElementInspector address={addr()} />}</Match>
+                <Match when={elementAddr()}>
+                    {(addr) => <ElementInspector address={addr()} />}
+                </Match>
                 <Match when={sectionId()}>{(id) => <SectionInspector section={id()} />}</Match>
             </Switch>
         </aside>

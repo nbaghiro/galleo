@@ -42,7 +42,12 @@ function intrinsicWidth(n: EngineNode, measure: MeasureText): number {
 
 // --- pass 1: widths (top-down; parent assigns each child's final width) ---
 
-function assignWidth(c: EngineNode, parentContentW: number, fitAvail: number, measure: MeasureText): number {
+function assignWidth(
+    c: EngineNode,
+    parentContentW: number,
+    fitAvail: number,
+    measure: MeasureText,
+): number {
     switch (c.w.mode) {
         case "fixed":
             return c.w.value;
@@ -74,7 +79,10 @@ function layoutWidths(node: EngineNode, w: number, measure: MeasureText): Laid {
         });
     } else {
         for (const c of kids) {
-            const cw = c.w.mode === "grow" ? clamp(contentW, c.w) : assignWidth(c, contentW, contentW, measure);
+            const cw =
+                c.w.mode === "grow"
+                    ? clamp(contentW, c.w)
+                    : assignWidth(c, contentW, contentW, measure);
             laid.children.push(layoutWidths(c, cw, measure));
         }
     }
@@ -172,7 +180,9 @@ function layoutPositions(laid: Laid, x: number, y: number): void {
     const gap = node.gap ?? 0;
 
     if (isRow(node)) {
-        const totalW = laid.children.reduce((s, c) => s + c.w, 0) + gap * Math.max(0, laid.children.length - 1);
+        const totalW =
+            laid.children.reduce((s, c) => s + c.w, 0) +
+            gap * Math.max(0, laid.children.length - 1);
         let cx = x + cl + mainOffset(contentW - totalW, node.alignX);
         for (const c of laid.children) {
             const cy = y + ct + mainOffset(contentH - c.h, node.alignY);
@@ -180,7 +190,9 @@ function layoutPositions(laid: Laid, x: number, y: number): void {
             cx += c.w + gap;
         }
     } else {
-        const totalH = laid.children.reduce((s, c) => s + c.h, 0) + gap * Math.max(0, laid.children.length - 1);
+        const totalH =
+            laid.children.reduce((s, c) => s + c.h, 0) +
+            gap * Math.max(0, laid.children.length - 1);
         let cy = y + ct + mainOffset(contentH - totalH, node.alignY);
         for (const c of laid.children) {
             const cx = x + cl + mainOffset(contentW - c.w, node.alignX);
@@ -199,7 +211,8 @@ function emit(laid: Laid, commands: RenderCommand[], regions: Region[]): void {
     if (node.fill) commands.push({ kind: "rect", box, fill: node.fill, id: node.id });
     if (node.image) commands.push({ kind: "image", box, image: node.image, id: node.id });
     if (node.text) commands.push({ kind: "text", box, text: node.text, id: node.id });
-    if (node.surface) commands.push({ kind: "surface", box, paint: node.surface.paint, id: node.id });
+    if (node.surface)
+        commands.push({ kind: "surface", box, paint: node.surface.paint, id: node.id });
     for (const c of laid.children) emit(c, commands, regions);
 }
 

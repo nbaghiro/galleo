@@ -71,7 +71,13 @@ export const textElement: ElementSpec<TextData> = {
         };
     },
     controls: [
-        { key: "text", label: "Content", control: "text", multiline: true, placeholder: "Type text…" },
+        {
+            key: "text",
+            label: "Content",
+            control: "text",
+            multiline: true,
+            placeholder: "Type text…",
+        },
         {
             key: "style",
             label: "Style",

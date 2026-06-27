@@ -1,6 +1,7 @@
 import type { Component } from "solid-js";
 import { createEffect, createMemo, onCleanup, onMount, Show } from "solid-js";
 import { resolveTheme } from "@themes/library";
+import { backdropCss } from "./backdrop";
 import { paint } from "./dom-backend";
 import { editor, exitPresent, nextSlide, presenting, prevSlide, slideIndex } from "./editor";
 import { measureText } from "./measure";
@@ -20,7 +21,11 @@ export const Present: Component = () => {
         const inner = document.createElement("div");
         inner.style.cssText = `position:relative;width:${SLIDE_W}px;height:${height}px`;
         paint(commands, inner);
-        const scale = Math.min((window.innerWidth - 96) / SLIDE_W, (window.innerHeight - 96) / height, 1);
+        const scale = Math.min(
+            (window.innerWidth - 96) / SLIDE_W,
+            (window.innerHeight - 96) / height,
+            1,
+        );
         inner.style.transform = `scale(${scale})`;
         inner.style.transformOrigin = "center center";
         host.replaceChildren(inner);
@@ -49,7 +54,15 @@ export const Present: Component = () => {
 
     return (
         <Show when={presenting()}>
-            <div class="fixed inset-0 z-50 flex items-center justify-center" style={{ background: theme().bg }} onClick={() => nextSlide()}>
+            <div
+                class="fixed inset-0 z-50 flex items-center justify-center bg-cover bg-center"
+                style={{
+                    background: backdropCss(editor.artifact.background, theme()),
+                    "background-size": "cover",
+                    "background-position": "center",
+                }}
+                onClick={() => nextSlide()}
+            >
                 <div ref={host} class="flex items-center justify-center" />
                 <button
                     class="absolute right-5 top-5 rounded-lg px-3 py-1.5 text-[12px] font-semibold"
@@ -61,7 +74,10 @@ export const Present: Component = () => {
                 >
                     Esc ✕
                 </button>
-                <div class="absolute bottom-5 right-6 font-mono text-[12px]" style={{ color: theme().muted }}>
+                <div
+                    class="absolute bottom-5 right-6 font-mono text-[12px]"
+                    style={{ color: theme().muted }}
+                >
                     {slideIndex() + 1} / {editor.artifact.sections.length}
                 </div>
             </div>

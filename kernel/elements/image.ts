@@ -15,7 +15,12 @@ export const imageElement: ElementSpec<ImageData> = {
     label: "Image",
     category: "media",
     tier: "primitive",
-    create: () => ({ src: "https://picsum.photos/seed/galleo-image/1100/760", aspect: 1.5, radius: 14, fit: "cover" }),
+    create: () => ({
+        src: "https://picsum.photos/seed/galleo-image/1100/760",
+        aspect: 1.5,
+        radius: 14,
+        fit: "cover",
+    }),
     layout: (data: ImageData, _ctx: LayoutCtx): EngineNode => ({
         w: grow(),
         h: fit(),
@@ -33,8 +38,25 @@ export const imageElement: ElementSpec<ImageData> = {
                 { label: "Contain", value: "contain" },
             ],
         },
-        { key: "aspect", label: "Aspect (w / h)", control: "slider", min: 0.4, max: 2.6, step: 0.05, group: "Frame" },
-        { key: "radius", label: "Corner radius", control: "slider", min: 0, max: 40, step: 1, unit: "px", group: "Frame" },
+        {
+            key: "aspect",
+            label: "Aspect (w / h)",
+            control: "slider",
+            min: 0.4,
+            max: 2.6,
+            step: 0.05,
+            group: "Frame",
+        },
+        {
+            key: "radius",
+            label: "Corner radius",
+            control: "slider",
+            min: 0,
+            max: 40,
+            step: 1,
+            unit: "px",
+            group: "Frame",
+        },
     ],
 };
 

@@ -72,7 +72,8 @@ export function paint(commands: RenderCommand[], host: HTMLElement): void {
         el.style.boxSizing = "border-box";
         if (c.kind === "rect") {
             const g = c.fill?.gradient;
-            if (g) el.style.background = `linear-gradient(${g.angle ?? 135}deg, ${g.from}, ${g.to})`;
+            if (g)
+                el.style.background = `linear-gradient(${g.angle ?? 135}deg, ${g.from}, ${g.to})`;
             else if (c.fill?.color) el.style.background = c.fill.color;
             if (c.fill?.radius !== undefined) el.style.borderRadius = `${c.fill.radius}px`;
             if (c.fill?.border) {
@@ -82,7 +83,9 @@ export function paint(commands: RenderCommand[], host: HTMLElement): void {
         } else if (c.kind === "image") {
             const scrim = c.image.scrim;
             const url = `url("${c.image.src}")`;
-            el.style.backgroundImage = scrim ? `linear-gradient(rgba(0,0,0,${scrim}), rgba(0,0,0,${scrim})), ${url}` : url;
+            el.style.backgroundImage = scrim
+                ? `linear-gradient(rgba(0,0,0,${scrim}), rgba(0,0,0,${scrim})), ${url}`
+                : url;
             el.style.backgroundSize = c.image.fit;
             el.style.backgroundPosition = "center";
             el.style.backgroundRepeat = "no-repeat";

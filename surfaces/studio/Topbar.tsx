@@ -6,15 +6,21 @@ import { DEMOS } from "./demos";
 import { commit, demoId, editor, loadDemo, present, setAgentOpen } from "./editor";
 import { exportPrint } from "./export-pdf";
 
-const btn = "cursor-pointer rounded-lg border border-line bg-canvas px-3 py-1.5 text-[12px] font-semibold text-ink";
+const btn =
+    "cursor-pointer rounded-lg border border-line bg-canvas px-3 py-1.5 text-[12px] font-semibold text-ink";
 
 const DocMenu: Component = () => {
     const [open, setOpen] = createSignal(false);
-    const current = createMemo(() => DEMOS.find((d) => d.id === demoId()) ?? { id: demoId(), title: "Generated deck" });
+    const current = createMemo(
+        () => DEMOS.find((d) => d.id === demoId()) ?? { id: demoId(), title: "Generated deck" },
+    );
 
     return (
         <div class="relative">
-            <button class="flex items-center gap-1.5 text-[13px] text-muted hover:text-ink" onClick={() => setOpen((o) => !o)}>
+            <button
+                class="flex items-center gap-1.5 text-[13px] text-muted hover:text-ink"
+                onClick={() => setOpen((o) => !o)}
+            >
                 {current().title} <span class="text-[10px]">▾</span>
             </button>
             <Show when={open()}>
@@ -58,7 +64,11 @@ const ThemeMenu: Component = () => {
     return (
         <div class="relative">
             <button class={`${btn} flex items-center gap-2`} onClick={() => setOpen((o) => !o)}>
-                <Swatch surface={current().tokens.surface} ink={current().tokens.ink} accent={current().tokens.accent} />
+                <Swatch
+                    surface={current().tokens.surface}
+                    ink={current().tokens.ink}
+                    accent={current().tokens.accent}
+                />
                 {current().name}
             </button>
             <Show when={open()}>
@@ -70,7 +80,11 @@ const ThemeMenu: Component = () => {
                                 class={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] ${t.id === current().id ? "bg-canvas font-semibold text-accent" : "hover:bg-canvas"}`}
                                 onClick={() => pick(t.id)}
                             >
-                                <Swatch surface={t.tokens.surface} ink={t.tokens.ink} accent={t.tokens.accent} />
+                                <Swatch
+                                    surface={t.tokens.surface}
+                                    ink={t.tokens.ink}
+                                    accent={t.tokens.accent}
+                                />
                                 <span class="flex-1 truncate">{t.name}</span>
                                 <span class="text-[10px] text-muted">{t.tag}</span>
                             </button>
@@ -88,8 +102,17 @@ export const Topbar: Component = () => (
         <DocMenu />
         <span class="flex-1" />
         <ThemeMenu />
-        <button class={btn} onClick={() => present()}>▶ Present</button>
-        <button class={btn} onClick={() => exportPrint()}>Export</button>
-        <button class={`${btn} border-accent bg-accent text-onaccent`} onClick={() => setAgentOpen(true)}>✦ Generate</button>
+        <button class={btn} onClick={() => present()}>
+            ▶ Present
+        </button>
+        <button class={btn} onClick={() => exportPrint()}>
+            Export
+        </button>
+        <button
+            class={`${btn} border-accent bg-accent text-onaccent`}
+            onClick={() => setAgentOpen(true)}
+        >
+            ✦ Generate
+        </button>
     </header>
 );

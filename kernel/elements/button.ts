@@ -25,7 +25,11 @@ export const buttonElement: ElementSpec<ButtonData> = {
             alignX: "center",
             alignY: "center",
             fill: outline
-                ? { color: "transparent", radius: 8, border: { color: ctx.theme.accent, width: 1.5 } }
+                ? {
+                      color: "transparent",
+                      radius: 8,
+                      border: { color: ctx.theme.accent, width: 1.5 },
+                  }
                 : { color: ctx.theme.accent, radius: 8 },
             children: [
                 {

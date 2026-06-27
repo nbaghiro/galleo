@@ -1,5 +1,12 @@
 import type { ElementAddress } from "@model/address";
-import type { ArtifactContent, Cell, ElementInstance, Id, Section, SectionBackground } from "@model/content";
+import type {
+    ArtifactContent,
+    Cell,
+    ElementInstance,
+    Id,
+    Section,
+    SectionBackground,
+} from "@model/content";
 import { getElement } from "@elements/registry";
 
 // Pure, immutable content ops over an artifact. Container traversal/editing goes through the
@@ -33,7 +40,10 @@ function wrapGroup(children: ElementInstance[]): ElementInstance {
     return { type: "group", data: g.container.withChildren(g.create(), children) };
 }
 
-export function getElementAt(art: ArtifactContent, addr: ElementAddress): ElementInstance | undefined {
+export function getElementAt(
+    art: ArtifactContent,
+    addr: ElementAddress,
+): ElementInstance | undefined {
     let inst = art.sections.find((s) => s.id === addr.section)?.cells[addr.cell]?.element;
     for (const i of addr.path) {
         if (!inst) return undefined;
@@ -92,7 +102,11 @@ export function removeAt(art: ArtifactContent, addr: ElementAddress): ArtifactCo
     });
 }
 
-function updateInTree(inst: ElementInstance, path: number[], fn: (i: ElementInstance) => ElementInstance): ElementInstance {
+function updateInTree(
+    inst: ElementInstance,
+    path: number[],
+    fn: (i: ElementInstance) => ElementInstance,
+): ElementInstance {
     if (path.length === 0) return fn(inst);
     const kids = childrenOf(inst);
     if (!kids) return inst;
@@ -115,7 +129,11 @@ export function updateElementAt(
     });
 }
 
-export function updateDataAt(art: ArtifactContent, addr: ElementAddress, data: unknown): ArtifactContent {
+export function updateDataAt(
+    art: ArtifactContent,
+    addr: ElementAddress,
+    data: unknown,
+): ArtifactContent {
     return updateElementAt(art, addr, (inst) => ({ type: inst.type, data }));
 }
 
@@ -123,15 +141,27 @@ export function setSectionGrid(art: ArtifactContent, section: Id, grid: string):
     return mapSection(art, section, (s) => ({ ...s, grid }));
 }
 
-export function setSectionBackground(art: ArtifactContent, section: Id, background: SectionBackground): ArtifactContent {
+export function setSectionBackground(
+    art: ArtifactContent,
+    section: Id,
+    background: SectionBackground,
+): ArtifactContent {
     return mapSection(art, section, (s) => ({ ...s, background }));
 }
 
-export function setSectionBleed(art: ArtifactContent, section: Id, bleed: boolean): ArtifactContent {
+export function setSectionBleed(
+    art: ArtifactContent,
+    section: Id,
+    bleed: boolean,
+): ArtifactContent {
     return mapSection(art, section, (s) => ({ ...s, bleed }));
 }
 
-export function insertSection(art: ArtifactContent, index: number, section: Section): ArtifactContent {
+export function insertSection(
+    art: ArtifactContent,
+    index: number,
+    section: Section,
+): ArtifactContent {
     const sections = [...art.sections];
     sections.splice(Math.max(0, Math.min(index, sections.length)), 0, section);
     return { ...art, sections };

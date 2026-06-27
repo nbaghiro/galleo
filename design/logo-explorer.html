@@ -1,194 +1,657 @@
 <!doctype html>
 <html lang="en">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Galleo — logo exploration</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-        href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Sora:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Spectral:wght@400;500;600&display=swap"
-        rel="stylesheet"
-    />
-    <style>
-        :root {
-            --bg: #f4f0e8;
-            --surface: #fffdf8;
-            --ink: #211c16;
-            --muted: #8c8273;
-            --line: #eae3d5;
-            --accent: #9a4f24;
-        }
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            background: var(--bg);
-            color: var(--ink);
-            font-family: "Space Grotesk", system-ui, sans-serif;
-            padding: 56px 40px 120px;
-        }
-        .wrap { max-width: 1180px; margin: 0 auto; }
-        header { margin-bottom: 8px; }
-        h1 { font-family: Fraunces, serif; font-weight: 600; font-size: 34px; margin: 0; letter-spacing: -0.01em; }
-        .sub { color: var(--muted); font-size: 14px; margin: 6px 0 0; max-width: 640px; line-height: 1.5; }
-        h2 {
-            font: 600 11px/1 "Space Mono", monospace;
-            letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
-            margin: 52px 0 16px; padding-bottom: 10px; border-bottom: 1px solid var(--line);
-        }
-        .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(258px, 1fr)); }
-        .card {
-            background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
-            min-height: 150px; display: flex; flex-direction: column;
-            box-shadow: 0 1px 2px rgba(80, 55, 25, 0.04);
-        }
-        .stage { flex: 1; display: flex; align-items: center; justify-content: center; gap: 14px; padding: 28px 22px; }
-        .cap { border-top: 1px solid var(--line); padding: 10px 16px; font: 500 11px/1.3 "Space Mono", monospace; color: var(--muted); }
-        .accent { color: var(--accent); }
-        svg { display: block; }
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Galleo — logo exploration</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Sora:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Spectral:wght@400;500;600&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            :root {
+                --bg: #f4f0e8;
+                --surface: #fffdf8;
+                --ink: #211c16;
+                --muted: #8c8273;
+                --line: #eae3d5;
+                --accent: #9a4f24;
+            }
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                background: var(--bg);
+                color: var(--ink);
+                font-family: "Space Grotesk", system-ui, sans-serif;
+                padding: 56px 40px 120px;
+            }
+            .wrap {
+                max-width: 1180px;
+                margin: 0 auto;
+            }
+            header {
+                margin-bottom: 8px;
+            }
+            h1 {
+                font-family: Fraunces, serif;
+                font-weight: 600;
+                font-size: 34px;
+                margin: 0;
+                letter-spacing: -0.01em;
+            }
+            .sub {
+                color: var(--muted);
+                font-size: 14px;
+                margin: 6px 0 0;
+                max-width: 640px;
+                line-height: 1.5;
+            }
+            h2 {
+                font:
+                    600 11px/1 "Space Mono",
+                    monospace;
+                letter-spacing: 0.16em;
+                text-transform: uppercase;
+                color: var(--muted);
+                margin: 52px 0 16px;
+                padding-bottom: 10px;
+                border-bottom: 1px solid var(--line);
+            }
+            .grid {
+                display: grid;
+                gap: 16px;
+                grid-template-columns: repeat(auto-fill, minmax(258px, 1fr));
+            }
+            .card {
+                background: var(--surface);
+                border: 1px solid var(--line);
+                border-radius: 16px;
+                min-height: 150px;
+                display: flex;
+                flex-direction: column;
+                box-shadow: 0 1px 2px rgba(80, 55, 25, 0.04);
+            }
+            .stage {
+                flex: 1;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 14px;
+                padding: 28px 22px;
+            }
+            .cap {
+                border-top: 1px solid var(--line);
+                padding: 10px 16px;
+                font:
+                    500 11px/1.3 "Space Mono",
+                    monospace;
+                color: var(--muted);
+            }
+            .accent {
+                color: var(--accent);
+            }
+            svg {
+                display: block;
+            }
 
-        /* wordmark treatments */
-        .wm { font-size: 38px; letter-spacing: -0.01em; line-height: 1; white-space: nowrap; }
-        .fraunces { font-family: Fraunces, serif; font-weight: 600; }
-        .fraunces-l { font-family: Fraunces, serif; font-weight: 400; }
-        .frital { font-family: Fraunces, serif; font-style: italic; font-weight: 500; }
-        .spectral { font-family: Spectral, serif; font-weight: 600; }
-        .newsreader { font-family: Newsreader, serif; font-weight: 500; }
-        .grotesk { font-family: "Space Grotesk", sans-serif; font-weight: 600; }
-        .sora { font-family: Sora, sans-serif; font-weight: 700; }
-        .mono { font-family: "Space Mono", monospace; font-weight: 700; }
-        .caps { text-transform: uppercase; letter-spacing: 0.26em; font-size: 26px; }
-        .lower { text-transform: lowercase; }
-        .lens-o { display: inline-block; vertical-align: -0.12em; }
+            /* wordmark treatments */
+            .wm {
+                font-size: 38px;
+                letter-spacing: -0.01em;
+                line-height: 1;
+                white-space: nowrap;
+            }
+            .fraunces {
+                font-family: Fraunces, serif;
+                font-weight: 600;
+            }
+            .fraunces-l {
+                font-family: Fraunces, serif;
+                font-weight: 400;
+            }
+            .frital {
+                font-family: Fraunces, serif;
+                font-style: italic;
+                font-weight: 500;
+            }
+            .spectral {
+                font-family: Spectral, serif;
+                font-weight: 600;
+            }
+            .newsreader {
+                font-family: Newsreader, serif;
+                font-weight: 500;
+            }
+            .grotesk {
+                font-family: "Space Grotesk", sans-serif;
+                font-weight: 600;
+            }
+            .sora {
+                font-family: Sora, sans-serif;
+                font-weight: 700;
+            }
+            .mono {
+                font-family: "Space Mono", monospace;
+                font-weight: 700;
+            }
+            .caps {
+                text-transform: uppercase;
+                letter-spacing: 0.26em;
+                font-size: 26px;
+            }
+            .lower {
+                text-transform: lowercase;
+            }
+            .lens-o {
+                display: inline-block;
+                vertical-align: -0.12em;
+            }
 
-        .mark { width: 46px; height: 46px; color: var(--accent); }
-        .mono-mark { font-size: 30px; }
+            .mark {
+                width: 46px;
+                height: 46px;
+                color: var(--accent);
+            }
+            .mono-mark {
+                font-size: 30px;
+            }
 
-        /* app icons */
-        .icons { display: flex; flex-wrap: wrap; gap: 18px; }
-        .icon {
-            width: 92px; height: 92px; border-radius: 22px; display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14); position: relative;
-        }
-        .icon svg { width: 48px; height: 48px; }
-        .icon .gly { font-family: Fraunces, serif; font-weight: 600; font-size: 50px; }
-        .iconlabel { font: 500 10px/1.2 "Space Mono", monospace; color: var(--muted); text-align: center; margin-top: 8px; }
-        .iconwrap { display: flex; flex-direction: column; align-items: center; }
+            /* app icons */
+            .icons {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 18px;
+            }
+            .icon {
+                width: 92px;
+                height: 92px;
+                border-radius: 22px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
+                position: relative;
+            }
+            .icon svg {
+                width: 48px;
+                height: 48px;
+            }
+            .icon .gly {
+                font-family: Fraunces, serif;
+                font-weight: 600;
+                font-size: 50px;
+            }
+            .iconlabel {
+                font:
+                    500 10px/1.2 "Space Mono",
+                    monospace;
+                color: var(--muted);
+                text-align: center;
+                margin-top: 8px;
+            }
+            .iconwrap {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
 
-        /* dark cards */
-        .dark { background: #1e2129; border-color: #2c313c; }
-        .dark .cap { border-color: #2c313c; color: #8b93a3; }
-        .dark .wm, .dark .mono-mark { color: #f3f5f8; }
-        .dark .accent { color: #5ad1c8; }
-        .dark .mark { color: #5ad1c8; }
-    </style>
-</head>
-<body>
-<div class="wrap">
-    <header>
-        <h1>Galleo — logo exploration</h1>
-        <p class="sub">Concepts across four directions — <span class="accent">optics</span> (Galileo: lens · aperture · orbit),
-            <span class="accent">gallery</span> (frame · curation), <span class="accent">composition</span> (layered blocks),
-            and pure <span class="accent">wordmarks</span>. Throwaway page for side-by-side comparison.</p>
-    </header>
+            /* dark cards */
+            .dark {
+                background: #1e2129;
+                border-color: #2c313c;
+            }
+            .dark .cap {
+                border-color: #2c313c;
+                color: #8b93a3;
+            }
+            .dark .wm,
+            .dark .mono-mark {
+                color: #f3f5f8;
+            }
+            .dark .accent {
+                color: #5ad1c8;
+            }
+            .dark .mark {
+                color: #5ad1c8;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="wrap">
+            <header>
+                <h1>Galleo — logo exploration</h1>
+                <p class="sub">
+                    Concepts across four directions — <span class="accent">optics</span> (Galileo:
+                    lens · aperture · orbit), <span class="accent">gallery</span> (frame ·
+                    curation), <span class="accent">composition</span> (layered blocks), and pure
+                    <span class="accent">wordmarks</span>. Throwaway page for side-by-side
+                    comparison.
+                </p>
+            </header>
 
-    <!-- ============ WORDMARKS ============ -->
-    <h2>Wordmarks</h2>
-    <div class="grid">
-        <div class="card"><div class="stage"><span class="wm fraunces">Galleo</span></div><div class="cap">Fraunces 600 · editorial serif</div></div>
-        <div class="card"><div class="stage"><span class="wm fraunces-l">Galleo</span></div><div class="cap">Fraunces 400 · light & airy</div></div>
-        <div class="card"><div class="stage"><span class="wm frital">Galleo</span></div><div class="cap">Fraunces italic · expressive</div></div>
-        <div class="card"><div class="stage"><span class="wm newsreader">Galleo</span></div><div class="cap">Newsreader · magazine</div></div>
-        <div class="card"><div class="stage"><span class="wm spectral">Galleo</span></div><div class="cap">Spectral · refined serif</div></div>
-        <div class="card"><div class="stage"><span class="wm grotesk">Galleo</span></div><div class="cap">Space Grotesk · modern/techy</div></div>
-        <div class="card"><div class="stage"><span class="wm sora">Galleo</span></div><div class="cap">Sora 700 · geometric sans</div></div>
-        <div class="card"><div class="stage"><span class="wm mono">Galleo</span></div><div class="cap">Space Mono · code/techy</div></div>
-        <div class="card"><div class="stage"><span class="wm grotesk caps">Galleo</span></div><div class="cap">Tracked caps · structured</div></div>
-        <div class="card"><div class="stage"><span class="wm fraunces lower">galleo</span></div><div class="cap">Lowercase serif · friendly</div></div>
-        <div class="card"><div class="stage"><span class="wm fraunces">Gall<span class="accent">eo</span></span></div><div class="cap">Two-tone · accent on "eo"</div></div>
-        <div class="card"><div class="stage"><span class="wm grotesk">Galleo<span class="accent">.</span></span></div><div class="cap">Trailing dot · product-y</div></div>
-        <div class="card">
-            <div class="stage"><span class="wm fraunces">Galle<svg class="lens-o" width="34" height="34" viewBox="0 0 44 44" fill="none" stroke="var(--accent)" stroke-width="3.5"><circle cx="22" cy="22" r="18"/><circle cx="22" cy="22" r="7"/></svg></span></div>
-            <div class="cap">Lens-"o" · name = optics</div>
-        </div>
-        <div class="card">
-            <div class="stage"><span class="wm grotesk">Galle<svg class="lens-o" width="32" height="32" viewBox="0 0 44 44" fill="none" stroke="var(--accent)" stroke-width="3.5"><circle cx="22" cy="22" r="5" fill="var(--accent)" stroke="none"/><ellipse cx="22" cy="22" rx="18" ry="8" transform="rotate(-25 22 22)"/></svg></span></div>
-            <div class="cap">Orbit-"o" · sans variant</div>
-        </div>
-    </div>
+            <!-- ============ WORDMARKS ============ -->
+            <h2>Wordmarks</h2>
+            <div class="grid">
+                <div class="card">
+                    <div class="stage"><span class="wm fraunces">Galleo</span></div>
+                    <div class="cap">Fraunces 600 · editorial serif</div>
+                </div>
+                <div class="card">
+                    <div class="stage"><span class="wm fraunces-l">Galleo</span></div>
+                    <div class="cap">Fraunces 400 · light & airy</div>
+                </div>
+                <div class="card">
+                    <div class="stage"><span class="wm frital">Galleo</span></div>
+                    <div class="cap">Fraunces italic · expressive</div>
+                </div>
+                <div class="card">
+                    <div class="stage"><span class="wm newsreader">Galleo</span></div>
+                    <div class="cap">Newsreader · magazine</div>
+                </div>
+                <div class="card">
+                    <div class="stage"><span class="wm spectral">Galleo</span></div>
+                    <div class="cap">Spectral · refined serif</div>
+                </div>
+                <div class="card">
+                    <div class="stage"><span class="wm grotesk">Galleo</span></div>
+                    <div class="cap">Space Grotesk · modern/techy</div>
+                </div>
+                <div class="card">
+                    <div class="stage"><span class="wm sora">Galleo</span></div>
+                    <div class="cap">Sora 700 · geometric sans</div>
+                </div>
+                <div class="card">
+                    <div class="stage"><span class="wm mono">Galleo</span></div>
+                    <div class="cap">Space Mono · code/techy</div>
+                </div>
+                <div class="card">
+                    <div class="stage"><span class="wm grotesk caps">Galleo</span></div>
+                    <div class="cap">Tracked caps · structured</div>
+                </div>
+                <div class="card">
+                    <div class="stage"><span class="wm fraunces lower">galleo</span></div>
+                    <div class="cap">Lowercase serif · friendly</div>
+                </div>
+                <div class="card">
+                    <div class="stage">
+                        <span class="wm fraunces">Gall<span class="accent">eo</span></span>
+                    </div>
+                    <div class="cap">Two-tone · accent on "eo"</div>
+                </div>
+                <div class="card">
+                    <div class="stage">
+                        <span class="wm grotesk">Galleo<span class="accent">.</span></span>
+                    </div>
+                    <div class="cap">Trailing dot · product-y</div>
+                </div>
+                <div class="card">
+                    <div class="stage">
+                        <span class="wm fraunces"
+                            >Galle<svg
+                                class="lens-o"
+                                width="34"
+                                height="34"
+                                viewBox="0 0 44 44"
+                                fill="none"
+                                stroke="var(--accent)"
+                                stroke-width="3.5"
+                            >
+                                <circle cx="22" cy="22" r="18" />
+                                <circle cx="22" cy="22" r="7" /></svg
+                        ></span>
+                    </div>
+                    <div class="cap">Lens-"o" · name = optics</div>
+                </div>
+                <div class="card">
+                    <div class="stage">
+                        <span class="wm grotesk"
+                            >Galle<svg
+                                class="lens-o"
+                                width="32"
+                                height="32"
+                                viewBox="0 0 44 44"
+                                fill="none"
+                                stroke="var(--accent)"
+                                stroke-width="3.5"
+                            >
+                                <circle cx="22" cy="22" r="5" fill="var(--accent)" stroke="none" />
+                                <ellipse
+                                    cx="22"
+                                    cy="22"
+                                    rx="18"
+                                    ry="8"
+                                    transform="rotate(-25 22 22)"
+                                /></svg
+                        ></span>
+                    </div>
+                    <div class="cap">Orbit-"o" · sans variant</div>
+                </div>
+            </div>
 
-    <!-- ============ MONOGRAMS ============ -->
-    <h2>Monograms · G-marks</h2>
-    <div class="grid">
-        <div class="card"><div class="stage"><span class="mono-mark fraunces" style="font-size:56px">G</span></div><div class="cap">Fraunces G · serif initial</div></div>
-        <div class="card"><div class="stage"><span class="mono-mark grotesk" style="font-size:54px">G</span></div><div class="cap">Grotesk G · geometric</div></div>
-        <div class="card">
-            <div class="stage"><svg class="mark" style="width:62px;height:62px" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="22" cy="22" r="18"/><text x="22" y="30" font-family="Fraunces, serif" font-size="24" font-weight="600" fill="currentColor" stroke="none" text-anchor="middle">G</text></svg></div>
-            <div class="cap">G in lens · monogram + optics</div>
-        </div>
-        <div class="card">
-            <div class="stage"><svg class="mark" style="width:62px;height:62px" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="22" cy="22" r="18"/><path d="M30 16 a10 10 0 1 0 1 11 h-7" stroke-linecap="round"/></svg></div>
-            <div class="cap">Aperture-G · negative space</div>
-        </div>
-        <div class="card"><div class="stage"><span class="grotesk" style="font-size:50px;font-weight:700;letter-spacing:-0.04em">GA</span></div><div class="cap">GA ligature · compact</div></div>
-    </div>
+            <!-- ============ MONOGRAMS ============ -->
+            <h2>Monograms · G-marks</h2>
+            <div class="grid">
+                <div class="card">
+                    <div class="stage">
+                        <span class="mono-mark fraunces" style="font-size: 56px">G</span>
+                    </div>
+                    <div class="cap">Fraunces G · serif initial</div>
+                </div>
+                <div class="card">
+                    <div class="stage">
+                        <span class="mono-mark grotesk" style="font-size: 54px">G</span>
+                    </div>
+                    <div class="cap">Grotesk G · geometric</div>
+                </div>
+                <div class="card">
+                    <div class="stage">
+                        <svg
+                            class="mark"
+                            style="width: 62px; height: 62px"
+                            viewBox="0 0 44 44"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.6"
+                        >
+                            <circle cx="22" cy="22" r="18" />
+                            <text
+                                x="22"
+                                y="30"
+                                font-family="Fraunces, serif"
+                                font-size="24"
+                                font-weight="600"
+                                fill="currentColor"
+                                stroke="none"
+                                text-anchor="middle"
+                            >
+                                G
+                            </text>
+                        </svg>
+                    </div>
+                    <div class="cap">G in lens · monogram + optics</div>
+                </div>
+                <div class="card">
+                    <div class="stage">
+                        <svg
+                            class="mark"
+                            style="width: 62px; height: 62px"
+                            viewBox="0 0 44 44"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.6"
+                        >
+                            <circle cx="22" cy="22" r="18" />
+                            <path d="M30 16 a10 10 0 1 0 1 11 h-7" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="cap">Aperture-G · negative space</div>
+                </div>
+                <div class="card">
+                    <div class="stage">
+                        <span
+                            class="grotesk"
+                            style="font-size: 50px; font-weight: 700; letter-spacing: -0.04em"
+                            >GA</span
+                        >
+                    </div>
+                    <div class="cap">GA ligature · compact</div>
+                </div>
+            </div>
 
-    <!-- ============ SYMBOL + WORDMARK ============ -->
-    <h2>Symbol + wordmark</h2>
-    <div class="grid">
-        <div class="card">
-            <div class="stage"><svg class="mark" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="3"><circle cx="22" cy="22" r="18"/><circle cx="22" cy="22" r="9"/><circle cx="22" cy="22" r="2.5" fill="currentColor" stroke="none"/></svg><span class="wm fraunces" style="font-size:30px">Galleo</span></div>
-            <div class="cap">Lens / target · optics</div>
-        </div>
-        <div class="card">
-            <div class="stage"><svg class="mark" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="3"><circle cx="22" cy="22" r="5" fill="currentColor" stroke="none"/><ellipse cx="22" cy="22" rx="19" ry="8" transform="rotate(-22 22 22)"/></svg><span class="wm grotesk" style="font-size:30px">Galleo</span></div>
-            <div class="cap">Orbit · discovery / AI</div>
-        </div>
-        <div class="card">
-            <div class="stage"><svg class="mark" viewBox="0 0 44 44" fill="currentColor" stroke="none"><path d="M22 3 C23 14 30 21 41 22 C30 23 23 30 22 41 C21 30 14 23 3 22 C14 21 21 14 22 3 Z"/></svg><span class="wm sora" style="font-size:29px">Galleo</span></div>
-            <div class="cap">Spark · the generate ✦</div>
-        </div>
-        <div class="card">
-            <div class="stage"><svg class="mark" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="3"><rect x="7" y="7" width="30" height="9" rx="3"/><rect x="7" y="18" width="30" height="9" rx="3"/><rect x="7" y="29" width="20" height="9" rx="3"/></svg><span class="wm grotesk" style="font-size:30px">Galleo</span></div>
-            <div class="cap">Blocks · variable sections</div>
-        </div>
-        <div class="card">
-            <div class="stage"><svg class="mark" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="3"><rect x="6" y="6" width="32" height="32" rx="6"/><line x1="23" y1="6" x2="23" y2="38"/><line x1="23" y1="22" x2="38" y2="22"/></svg><span class="wm grotesk" style="font-size:30px">Galleo</span></div>
-            <div class="cap">Composition · the grid split</div>
-        </div>
-        <div class="card">
-            <div class="stage"><svg class="mark" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="3"><rect x="6" y="6" width="32" height="32" rx="5"/><circle cx="16" cy="16" r="3" fill="currentColor" stroke="none"/><path d="M9 34 L19 23 L26 30 L31 25 L35 29" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="wm newsreader" style="font-size:30px">Galleo</span></div>
-            <div class="cap">Frame · gallery / image</div>
-        </div>
-        <div class="card">
-            <div class="stage"><svg class="mark" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="2.6"><polygon points="22,5 36,13 36,31 22,39 8,31 8,13"/><polygon points="22,13 29,17 29,27 22,31 15,27 15,17"/></svg><span class="wm grotesk" style="font-size:30px">Galleo</span></div>
-            <div class="cap">Aperture · lens iris</div>
-        </div>
-        <div class="card">
-            <div class="stage"><svg class="mark" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="3"><circle cx="22" cy="22" r="18"/><path d="M30 16 a10 10 0 1 0 1 11 h-7" stroke-linecap="round"/></svg><span class="wm fraunces" style="font-size:30px">Galleo</span></div>
-            <div class="cap">G-aperture · monogram lockup</div>
-        </div>
-    </div>
+            <!-- ============ SYMBOL + WORDMARK ============ -->
+            <h2>Symbol + wordmark</h2>
+            <div class="grid">
+                <div class="card">
+                    <div class="stage">
+                        <svg
+                            class="mark"
+                            viewBox="0 0 44 44"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="3"
+                        >
+                            <circle cx="22" cy="22" r="18" />
+                            <circle cx="22" cy="22" r="9" />
+                            <circle
+                                cx="22"
+                                cy="22"
+                                r="2.5"
+                                fill="currentColor"
+                                stroke="none"
+                            /></svg
+                        ><span class="wm fraunces" style="font-size: 30px">Galleo</span>
+                    </div>
+                    <div class="cap">Lens / target · optics</div>
+                </div>
+                <div class="card">
+                    <div class="stage">
+                        <svg
+                            class="mark"
+                            viewBox="0 0 44 44"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="3"
+                        >
+                            <circle cx="22" cy="22" r="5" fill="currentColor" stroke="none" />
+                            <ellipse
+                                cx="22"
+                                cy="22"
+                                rx="19"
+                                ry="8"
+                                transform="rotate(-22 22 22)"
+                            /></svg
+                        ><span class="wm grotesk" style="font-size: 30px">Galleo</span>
+                    </div>
+                    <div class="cap">Orbit · discovery / AI</div>
+                </div>
+                <div class="card">
+                    <div class="stage">
+                        <svg class="mark" viewBox="0 0 44 44" fill="currentColor" stroke="none">
+                            <path
+                                d="M22 3 C23 14 30 21 41 22 C30 23 23 30 22 41 C21 30 14 23 3 22 C14 21 21 14 22 3 Z"
+                            /></svg
+                        ><span class="wm sora" style="font-size: 29px">Galleo</span>
+                    </div>
+                    <div class="cap">Spark · the generate ✦</div>
+                </div>
+                <div class="card">
+                    <div class="stage">
+                        <svg
+                            class="mark"
+                            viewBox="0 0 44 44"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="3"
+                        >
+                            <rect x="7" y="7" width="30" height="9" rx="3" />
+                            <rect x="7" y="18" width="30" height="9" rx="3" />
+                            <rect x="7" y="29" width="20" height="9" rx="3" /></svg
+                        ><span class="wm grotesk" style="font-size: 30px">Galleo</span>
+                    </div>
+                    <div class="cap">Blocks · variable sections</div>
+                </div>
+                <div class="card">
+                    <div class="stage">
+                        <svg
+                            class="mark"
+                            viewBox="0 0 44 44"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="3"
+                        >
+                            <rect x="6" y="6" width="32" height="32" rx="6" />
+                            <line x1="23" y1="6" x2="23" y2="38" />
+                            <line x1="23" y1="22" x2="38" y2="22" /></svg
+                        ><span class="wm grotesk" style="font-size: 30px">Galleo</span>
+                    </div>
+                    <div class="cap">Composition · the grid split</div>
+                </div>
+                <div class="card">
+                    <div class="stage">
+                        <svg
+                            class="mark"
+                            viewBox="0 0 44 44"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="3"
+                        >
+                            <rect x="6" y="6" width="32" height="32" rx="5" />
+                            <circle cx="16" cy="16" r="3" fill="currentColor" stroke="none" />
+                            <path
+                                d="M9 34 L19 23 L26 30 L31 25 L35 29"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            /></svg
+                        ><span class="wm newsreader" style="font-size: 30px">Galleo</span>
+                    </div>
+                    <div class="cap">Frame · gallery / image</div>
+                </div>
+                <div class="card">
+                    <div class="stage">
+                        <svg
+                            class="mark"
+                            viewBox="0 0 44 44"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.6"
+                        >
+                            <polygon points="22,5 36,13 36,31 22,39 8,31 8,13" />
+                            <polygon points="22,13 29,17 29,27 22,31 15,27 15,17" /></svg
+                        ><span class="wm grotesk" style="font-size: 30px">Galleo</span>
+                    </div>
+                    <div class="cap">Aperture · lens iris</div>
+                </div>
+                <div class="card">
+                    <div class="stage">
+                        <svg
+                            class="mark"
+                            viewBox="0 0 44 44"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="3"
+                        >
+                            <circle cx="22" cy="22" r="18" />
+                            <path d="M30 16 a10 10 0 1 0 1 11 h-7" stroke-linecap="round" /></svg
+                        ><span class="wm fraunces" style="font-size: 30px">Galleo</span>
+                    </div>
+                    <div class="cap">G-aperture · monogram lockup</div>
+                </div>
+            </div>
 
-    <!-- ============ APP ICONS (themed) ============ -->
-    <h2>App icons · tied to the six themes</h2>
-    <div class="icons">
-        <div class="iconwrap"><div class="icon" style="background:#9a4f24"><svg viewBox="0 0 44 44" fill="none" stroke="#fff" stroke-width="3"><circle cx="22" cy="22" r="16"/><circle cx="22" cy="22" r="7"/></svg></div><div class="iconlabel">Studio · lens</div></div>
-        <div class="iconwrap"><div class="icon" style="background:#1e2129"><svg viewBox="0 0 44 44" fill="none" stroke="#5ad1c8" stroke-width="3"><circle cx="22" cy="22" r="5" fill="#5ad1c8" stroke="none"/><ellipse cx="22" cy="22" rx="17" ry="7.5" transform="rotate(-22 22 22)"/></svg></div><div class="iconlabel">Midnight · orbit</div></div>
-        <div class="iconwrap"><div class="icon" style="background:#c2402c"><span class="gly" style="color:#fff">G</span></div><div class="iconlabel">Editorial · G</div></div>
-        <div class="iconwrap"><div class="icon" style="background:#4a7c3f"><svg viewBox="0 0 44 44" fill="#fff" stroke="none"><path d="M22 3 C23 14 30 21 41 22 C30 23 23 30 22 41 C21 30 14 23 3 22 C14 21 21 14 22 3 Z"/></svg></div><div class="iconlabel">Botanic · spark</div></div>
-        <div class="iconwrap"><div class="icon" style="background:#1f7a8c"><svg viewBox="0 0 44 44" fill="none" stroke="#fff" stroke-width="3"><rect x="9" y="9" width="26" height="26" rx="5"/><line x1="24" y1="9" x2="24" y2="35"/><line x1="24" y1="22" x2="35" y2="22"/></svg></div><div class="iconlabel">Marine · grid</div></div>
-        <div class="iconwrap"><div class="icon" style="background:#b5417e"><svg viewBox="0 0 44 44" fill="none" stroke="#fff" stroke-width="3"><rect x="8" y="9" width="28" height="8" rx="3"/><rect x="8" y="19" width="28" height="8" rx="3"/><rect x="8" y="29" width="18" height="8" rx="3"/></svg></div><div class="iconlabel">Blossom · blocks</div></div>
-        <div class="iconwrap"><div class="icon" style="background:linear-gradient(135deg,#9a4f24,#c2402c)"><svg viewBox="0 0 44 44" fill="none" stroke="#fff" stroke-width="3"><circle cx="22" cy="22" r="16"/><circle cx="22" cy="22" r="7"/></svg></div><div class="iconlabel">Gradient · lens</div></div>
-    </div>
+            <!-- ============ APP ICONS (themed) ============ -->
+            <h2>App icons · tied to the six themes</h2>
+            <div class="icons">
+                <div class="iconwrap">
+                    <div class="icon" style="background: #9a4f24">
+                        <svg viewBox="0 0 44 44" fill="none" stroke="#fff" stroke-width="3">
+                            <circle cx="22" cy="22" r="16" />
+                            <circle cx="22" cy="22" r="7" />
+                        </svg>
+                    </div>
+                    <div class="iconlabel">Studio · lens</div>
+                </div>
+                <div class="iconwrap">
+                    <div class="icon" style="background: #1e2129">
+                        <svg viewBox="0 0 44 44" fill="none" stroke="#5ad1c8" stroke-width="3">
+                            <circle cx="22" cy="22" r="5" fill="#5ad1c8" stroke="none" />
+                            <ellipse
+                                cx="22"
+                                cy="22"
+                                rx="17"
+                                ry="7.5"
+                                transform="rotate(-22 22 22)"
+                            />
+                        </svg>
+                    </div>
+                    <div class="iconlabel">Midnight · orbit</div>
+                </div>
+                <div class="iconwrap">
+                    <div class="icon" style="background: #c2402c">
+                        <span class="gly" style="color: #fff">G</span>
+                    </div>
+                    <div class="iconlabel">Editorial · G</div>
+                </div>
+                <div class="iconwrap">
+                    <div class="icon" style="background: #4a7c3f">
+                        <svg viewBox="0 0 44 44" fill="#fff" stroke="none">
+                            <path
+                                d="M22 3 C23 14 30 21 41 22 C30 23 23 30 22 41 C21 30 14 23 3 22 C14 21 21 14 22 3 Z"
+                            />
+                        </svg>
+                    </div>
+                    <div class="iconlabel">Botanic · spark</div>
+                </div>
+                <div class="iconwrap">
+                    <div class="icon" style="background: #1f7a8c">
+                        <svg viewBox="0 0 44 44" fill="none" stroke="#fff" stroke-width="3">
+                            <rect x="9" y="9" width="26" height="26" rx="5" />
+                            <line x1="24" y1="9" x2="24" y2="35" />
+                            <line x1="24" y1="22" x2="35" y2="22" />
+                        </svg>
+                    </div>
+                    <div class="iconlabel">Marine · grid</div>
+                </div>
+                <div class="iconwrap">
+                    <div class="icon" style="background: #b5417e">
+                        <svg viewBox="0 0 44 44" fill="none" stroke="#fff" stroke-width="3">
+                            <rect x="8" y="9" width="28" height="8" rx="3" />
+                            <rect x="8" y="19" width="28" height="8" rx="3" />
+                            <rect x="8" y="29" width="18" height="8" rx="3" />
+                        </svg>
+                    </div>
+                    <div class="iconlabel">Blossom · blocks</div>
+                </div>
+                <div class="iconwrap">
+                    <div class="icon" style="background: linear-gradient(135deg, #9a4f24, #c2402c)">
+                        <svg viewBox="0 0 44 44" fill="none" stroke="#fff" stroke-width="3">
+                            <circle cx="22" cy="22" r="16" />
+                            <circle cx="22" cy="22" r="7" />
+                        </svg>
+                    </div>
+                    <div class="iconlabel">Gradient · lens</div>
+                </div>
+            </div>
 
-    <!-- ============ ON DARK ============ -->
-    <h2>On dark</h2>
-    <div class="grid">
-        <div class="card dark"><div class="stage"><span class="wm fraunces">Galleo</span></div><div class="cap">Fraunces · inverted</div></div>
-        <div class="card dark"><div class="stage"><svg class="mark" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="3"><circle cx="22" cy="22" r="18"/><circle cx="22" cy="22" r="9"/><circle cx="22" cy="22" r="2.5" fill="currentColor" stroke="none"/></svg><span class="wm grotesk" style="font-size:30px">Galleo</span></div><div class="cap">Lens lockup · inverted</div></div>
-        <div class="card dark"><div class="stage"><span class="wm grotesk">Gall<span class="accent">eo</span></span></div><div class="cap">Two-tone · cyan accent</div></div>
-    </div>
-</div>
-</body>
+            <!-- ============ ON DARK ============ -->
+            <h2>On dark</h2>
+            <div class="grid">
+                <div class="card dark">
+                    <div class="stage"><span class="wm fraunces">Galleo</span></div>
+                    <div class="cap">Fraunces · inverted</div>
+                </div>
+                <div class="card dark">
+                    <div class="stage">
+                        <svg
+                            class="mark"
+                            viewBox="0 0 44 44"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="3"
+                        >
+                            <circle cx="22" cy="22" r="18" />
+                            <circle cx="22" cy="22" r="9" />
+                            <circle
+                                cx="22"
+                                cy="22"
+                                r="2.5"
+                                fill="currentColor"
+                                stroke="none"
+                            /></svg
+                        ><span class="wm grotesk" style="font-size: 30px">Galleo</span>
+                    </div>
+                    <div class="cap">Lens lockup · inverted</div>
+                </div>
+                <div class="card dark">
+                    <div class="stage">
+                        <span class="wm grotesk">Gall<span class="accent">eo</span></span>
+                    </div>
+                    <div class="cap">Two-tone · cyan accent</div>
+                </div>
+            </div>
+        </div>
+    </body>
 </html>

@@ -6,9 +6,14 @@ import { getElementAt, removeAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/registry";
 import { commit, editor, setSelection } from "./editor";
 
-const inputCls = "w-full rounded-md border border-line bg-canvas px-2 py-1.5 text-[13px] text-ink outline-none focus:border-accent";
+const inputCls =
+    "w-full rounded-md border border-line bg-canvas px-2 py-1.5 text-[13px] text-ink outline-none focus:border-accent";
 
-function Field(props: { field: ControlField; value: unknown; onChange: (v: unknown) => void }): JSX.Element {
+function Field(props: {
+    field: ControlField;
+    value: unknown;
+    onChange: (v: unknown) => void;
+}): JSX.Element {
     const f = props.field;
     const num = (): number => Number(props.value ?? f.min ?? 0);
     return (
@@ -34,8 +39,14 @@ function Field(props: { field: ControlField; value: unknown; onChange: (v: unkno
                     />
                 </Match>
                 <Match when={f.control === "select"}>
-                    <select class={inputCls} value={String(props.value ?? "")} onChange={(e) => props.onChange(e.currentTarget.value)}>
-                        <For each={f.options ?? []}>{(o) => <option value={o.value}>{o.label}</option>}</For>
+                    <select
+                        class={inputCls}
+                        value={String(props.value ?? "")}
+                        onChange={(e) => props.onChange(e.currentTarget.value)}
+                    >
+                        <For each={f.options ?? []}>
+                            {(o) => <option value={o.value}>{o.label}</option>}
+                        </For>
                     </select>
                 </Match>
                 <Match when={f.control === "segmented"}>
@@ -70,12 +81,27 @@ function Field(props: { field: ControlField; value: unknown; onChange: (v: unkno
                     </div>
                 </Match>
                 <Match when={f.control === "number"}>
-                    <input type="number" min={f.min} max={f.max} step={f.step} class={inputCls} value={num()} onInput={(e) => props.onChange(Number(e.currentTarget.value))} />
+                    <input
+                        type="number"
+                        min={f.min}
+                        max={f.max}
+                        step={f.step}
+                        class={inputCls}
+                        value={num()}
+                        onInput={(e) => props.onChange(Number(e.currentTarget.value))}
+                    />
                 </Match>
                 <Match when={f.control === "color"}>
                     <div class="flex items-center gap-2">
-                        <input type="color" class="h-7 w-9 cursor-pointer rounded border border-line bg-canvas p-0.5" value={String(props.value ?? "#000000")} onInput={(e) => props.onChange(e.currentTarget.value)} />
-                        <span class="font-mono text-[12px] text-muted">{String(props.value ?? "—")}</span>
+                        <input
+                            type="color"
+                            class="h-7 w-9 cursor-pointer rounded border border-line bg-canvas p-0.5"
+                            value={String(props.value ?? "#000000")}
+                            onInput={(e) => props.onChange(e.currentTarget.value)}
+                        />
+                        <span class="font-mono text-[12px] text-muted">
+                            {String(props.value ?? "—")}
+                        </span>
                     </div>
                 </Match>
                 <Match when={f.control === "toggle"}>
@@ -83,7 +109,9 @@ function Field(props: { field: ControlField; value: unknown; onChange: (v: unkno
                         onClick={() => props.onChange(!props.value)}
                         class={`relative h-5 w-9 rounded-full transition-colors ${props.value ? "bg-accent" : "bg-line"}`}
                     >
-                        <span class={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${props.value ? "left-[18px]" : "left-0.5"}`} />
+                        <span
+                            class={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${props.value ? "left-[18px]" : "left-0.5"}`}
+                        />
                     </button>
                 </Match>
             </Switch>
@@ -123,19 +151,34 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
     return (
         <div>
             <div class="mb-4 flex items-center justify-between">
-                <span class="font-mono text-[11px] font-semibold uppercase tracking-wider text-muted">{spec()?.label ?? "Element"}</span>
+                <span class="font-mono text-[11px] font-semibold uppercase tracking-wider text-muted">
+                    {spec()?.label ?? "Element"}
+                </span>
                 <button class="text-[12px] font-semibold text-accent hover:underline" onClick={del}>
                     Delete
                 </button>
             </div>
-            <Show when={(spec()?.controls.length ?? 0) > 0} fallback={<p class="text-[13px] text-muted">No editable properties.</p>}>
+            <Show
+                when={(spec()?.controls.length ?? 0) > 0}
+                fallback={<p class="text-[13px] text-muted">No editable properties.</p>}
+            >
                 <For each={groups()}>
                     {(grp) => (
                         <div class="mb-4">
                             <Show when={grp.name}>
-                                <div class="mb-2.5 border-t border-line pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted">{grp.name}</div>
+                                <div class="mb-2.5 border-t border-line pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                                    {grp.name}
+                                </div>
                             </Show>
-                            <For each={grp.fields}>{(c) => <Field field={c} value={data()[c.key]} onChange={(v) => set(c.key, v)} />}</For>
+                            <For each={grp.fields}>
+                                {(c) => (
+                                    <Field
+                                        field={c}
+                                        value={data()[c.key]}
+                                        onChange={(v) => set(c.key, v)}
+                                    />
+                                )}
+                            </For>
                         </div>
                     )}
                 </For>

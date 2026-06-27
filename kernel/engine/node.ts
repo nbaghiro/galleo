@@ -34,7 +34,14 @@ export interface DrawContext {
     line(x1: number, y1: number, x2: number, y2: number, style: DrawStyle): void;
     circle(cx: number, cy: number, r: number, style: DrawStyle): void;
     polyline(points: [number, number][], style: DrawStyle): void;
-    wedge(cx: number, cy: number, r: number, startRad: number, endRad: number, style: DrawStyle): void;
+    wedge(
+        cx: number,
+        cy: number,
+        r: number,
+        startRad: number,
+        endRad: number,
+        style: DrawStyle,
+    ): void;
     text(text: string, x: number, y: number, style: DrawTextStyle): void;
 }
 

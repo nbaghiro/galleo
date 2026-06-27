@@ -1,9 +1,17 @@
 import type { Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
 import { sectionRegionId } from "@model/address";
-import { addSectionAfter, duplicateSectionAt, moveSectionBy, regions, removeSectionAt, selection } from "./editor";
+import {
+    addSectionAfter,
+    duplicateSectionAt,
+    moveSectionBy,
+    regions,
+    removeSectionAt,
+    selection,
+} from "./editor";
 
-const btn = "flex h-7 w-7 items-center justify-center rounded-md text-[13px] leading-none text-ink hover:bg-canvas";
+const btn =
+    "flex h-7 w-7 items-center justify-center rounded-md text-[13px] leading-none text-ink hover:bg-canvas";
 
 // Floating toolbar over a selected section: reorder · duplicate · add-below · delete.
 export const SectionToolbar: Component = () => {
@@ -24,11 +32,33 @@ export const SectionToolbar: Component = () => {
                     style={{ left: `${b().x + b().w - 184}px`, top: `${b().y + 10}px` }}
                     onPointerDown={(e) => e.stopPropagation()}
                 >
-                    <button class={btn} title="Move up" onClick={() => moveSectionBy(sid()!, -1)}>↑</button>
-                    <button class={btn} title="Move down" onClick={() => moveSectionBy(sid()!, 1)}>↓</button>
-                    <button class={btn} title="Duplicate" onClick={() => duplicateSectionAt(sid()!)}>⧉</button>
-                    <button class={btn} title="Add section below" onClick={() => addSectionAfter(sid()!)}>＋</button>
-                    <button class={`${btn} text-accent`} title="Delete section" onClick={() => removeSectionAt(sid()!)}>✕</button>
+                    <button class={btn} title="Move up" onClick={() => moveSectionBy(sid()!, -1)}>
+                        ↑
+                    </button>
+                    <button class={btn} title="Move down" onClick={() => moveSectionBy(sid()!, 1)}>
+                        ↓
+                    </button>
+                    <button
+                        class={btn}
+                        title="Duplicate"
+                        onClick={() => duplicateSectionAt(sid()!)}
+                    >
+                        ⧉
+                    </button>
+                    <button
+                        class={btn}
+                        title="Add section below"
+                        onClick={() => addSectionAfter(sid()!)}
+                    >
+                        ＋
+                    </button>
+                    <button
+                        class={`${btn} text-accent`}
+                        title="Delete section"
+                        onClick={() => removeSectionAt(sid()!)}
+                    >
+                        ✕
+                    </button>
                 </div>
             )}
         </Show>

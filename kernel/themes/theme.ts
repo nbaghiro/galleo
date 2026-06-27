@@ -2,7 +2,15 @@
 // colors by role (ink/muted/accent/...) and fonts by role (display/ui/mono) from the active theme,
 // so swapping a theme recolors AND re-typesets all of them.
 
-export type ColorToken = "bg" | "surface" | "ink" | "soft" | "muted" | "accent" | "onAccent" | "line";
+export type ColorToken =
+    | "bg"
+    | "surface"
+    | "ink"
+    | "soft"
+    | "muted"
+    | "accent"
+    | "onAccent"
+    | "line";
 
 export type FontRole = "display" | "ui" | "mono";
 

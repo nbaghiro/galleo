@@ -46,7 +46,9 @@ function drawChart(g: DrawContext, box: Rect, d: ChartData, t: Tokens): void {
         let a = -Math.PI / 2;
         data.forEach((v, i) => {
             const slice = (v / total) * Math.PI * 2;
-            g.wedge(cx, cy, r, a, a + slice, { fill: hexA(t.accent, Math.max(0.32, 1 - i * 0.16)) });
+            g.wedge(cx, cy, r, a, a + slice, {
+                fill: hexA(t.accent, Math.max(0.32, 1 - i * 0.16)),
+            });
             a += slice;
         });
         return;
@@ -61,7 +63,10 @@ function drawChart(g: DrawContext, box: Rect, d: ChartData, t: Tokens): void {
         const bw = (w - gap * (n - 1)) / n;
         data.forEach((v, i) => {
             const bh = (v / max) * h;
-            g.rect(x0 + i * (bw + gap), y0 + h - bh, bw, bh, { fill: t.accent, radius: Math.min(6, bw / 3) });
+            g.rect(x0 + i * (bw + gap), y0 + h - bh, bw, bh, {
+                fill: t.accent,
+                radius: Math.min(6, bw / 3),
+            });
         });
     } else {
         const n = data.length;
@@ -70,7 +75,9 @@ function drawChart(g: DrawContext, box: Rect, d: ChartData, t: Tokens): void {
         const area: [number, number][] = [[x0, y0 + h], ...pts, [x0 + w, y0 + h]];
         g.polyline(area, { fill: hexA(t.accent, 0.12) });
         g.polyline(pts, { stroke: t.accent, width: 2.5 });
-        pts.forEach((p) => g.circle(p[0], p[1], 3.5, { fill: t.surface, stroke: t.accent, width: 2 }));
+        pts.forEach((p) =>
+            g.circle(p[0], p[1], 3.5, { fill: t.surface, stroke: t.accent, width: 2 }),
+        );
     }
 }
 
@@ -97,7 +104,16 @@ export const chartElement: ElementSpec<ChartData> = {
             ],
         },
         { key: "values", label: "Values", control: "text", placeholder: "12, 19, 7, 23" },
-        { key: "height", label: "Height", control: "slider", min: 160, max: 420, step: 10, unit: "px", group: "Frame" },
+        {
+            key: "height",
+            label: "Height",
+            control: "slider",
+            min: 160,
+            max: 420,
+            step: 10,
+            unit: "px",
+            group: "Frame",
+        },
     ],
     skeleton: (): EngineNode => ({
         w: grow(),
@@ -106,7 +122,9 @@ export const chartElement: ElementSpec<ChartData> = {
         gap: 7,
         alignY: "end",
         padding: { top: 8, right: 10, bottom: 8, left: 10 },
-        children: [18, 34, 26, 42, 30].map((bh): EngineNode => ({ w: grow(), h: fixed(bh), fill: { color: GHOST, radius: 3 } })),
+        children: [18, 34, 26, 42, 30].map(
+            (bh): EngineNode => ({ w: grow(), h: fixed(bh), fill: { color: GHOST, radius: 3 } }),
+        ),
     }),
 };
 

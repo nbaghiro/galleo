@@ -1,8 +1,17 @@
-import type { ArtifactContent, Cell, ElementInstance, Section, SectionBackground } from "@model/content";
+import type {
+    ArtifactContent,
+    Cell,
+    ElementInstance,
+    Section,
+    SectionBackground,
+} from "@model/content";
 
 // Concise builders for authoring demo artifacts (real content, full element variety).
 
-export const t = (text: string, style: string): ElementInstance => ({ type: "text", data: { text, style } });
+export const t = (text: string, style: string): ElementInstance => ({
+    type: "text",
+    data: { text, style },
+});
 
 export const img = (seed: string, aspect: number, radius = 14): ElementInstance => ({
     type: "image",
@@ -24,7 +33,10 @@ export const bullets = (...items: string[]): ElementInstance => ({
     data: { children: items.map((i) => t(i, "body")) },
 });
 
-export const group = (...children: ElementInstance[]): ElementInstance => ({ type: "group", data: { children } });
+export const group = (...children: ElementInstance[]): ElementInstance => ({
+    type: "group",
+    data: { children },
+});
 
 export const button = (label: string): ElementInstance => ({ type: "button", data: { label } });
 
@@ -52,4 +64,13 @@ export const bgImage = (seed: string, scrim = 0.5): SectionBackground => ({
     scrim,
 });
 
-export const deck = (theme: string, sections: Section[]): ArtifactContent => ({ format: "deck", theme, sections });
+export const deck = (
+    theme: string,
+    sections: Section[],
+    background?: SectionBackground,
+): ArtifactContent => ({
+    format: "deck",
+    theme,
+    sections,
+    ...(background ? { background } : {}),
+});

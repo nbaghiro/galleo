@@ -25,7 +25,15 @@ export const badgeElement: ElementSpec<BadgeData> = {
             {
                 w: fit(),
                 h: fit(),
-                text: { text: d.text, fontId: fontStack("mono", ctx.theme), size: 11, weight: 700, color: ctx.theme.accent, align: "center", wrap: "none" },
+                text: {
+                    text: d.text,
+                    fontId: fontStack("mono", ctx.theme),
+                    size: 11,
+                    weight: 700,
+                    color: ctx.theme.accent,
+                    align: "center",
+                    wrap: "none",
+                },
             },
         ],
     }),

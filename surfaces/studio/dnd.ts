@@ -33,10 +33,17 @@ export function startDrag(payload: DragPayload, x: number, y: number, label: str
     setDrag({ payload, x, y, label, target: null });
 }
 
-const inside = (b: { x: number; y: number; w: number; h: number }, px: number, py: number): boolean =>
-    px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h;
+const inside = (
+    b: { x: number; y: number; w: number; h: number },
+    px: number,
+    py: number,
+): boolean => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h;
 
-function cellAt(regions: Region[], px: number, py: number): { section: string; cell: string } | null {
+function cellAt(
+    regions: Region[],
+    px: number,
+    py: number,
+): { section: string; cell: string } | null {
     for (const r of regions) {
         if (!r.id.startsWith("cell:") || !inside(r.box, px, py)) continue;
         const p = r.id.split(":");
@@ -77,7 +84,11 @@ export function computeDropTarget(regions: Region[], px: number, py: number): Dr
     return { section: c.section, cell: c.cell, mode: "insert", index, indicatorY };
 }
 
-export function applyDrop(art: ArtifactContent, target: DropTarget, payload: DragPayload): ArtifactContent {
+export function applyDrop(
+    art: ArtifactContent,
+    target: DropTarget,
+    payload: DragPayload,
+): ArtifactContent {
     let element: ElementInstance;
     let base = art;
     let tgt = target;

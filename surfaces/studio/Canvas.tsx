@@ -6,9 +6,22 @@ import { getElementAt } from "@elements/ops";
 import { getElement } from "@elements/registry";
 import { elementRegionId, parentTarget, parseTarget, specificity } from "@model/address";
 import { resolveTheme } from "@themes/library";
+import { backdropCss } from "./backdrop";
 import { paint } from "./dom-backend";
 import { applyDrop, computeDropTarget, drag, setDrag, startDrag } from "./dnd";
-import { commit, editing, editor, redo, setCanvasEl, setEditor, setHover, setRegions, setSelection, startEditing, undo } from "./editor";
+import {
+    commit,
+    editing,
+    editor,
+    redo,
+    setCanvasEl,
+    setEditor,
+    setHover,
+    setRegions,
+    setSelection,
+    startEditing,
+    undo,
+} from "./editor";
 import { DropIndicator } from "./DropIndicator";
 import { measureText } from "./measure";
 import { Overlay } from "./Overlay";
@@ -46,14 +59,25 @@ export const Canvas: Component = () => {
             const bleed = section.bleed ?? false;
             const layoutW = bleed ? fullW : contentW;
             const x = bleed ? 0 : Math.round((fullW - contentW) / 2);
-            const { commands, regions, height } = layoutSection(section, layoutW, measureText, theme);
-            const visible = editId ? commands.filter((c) => !(c.kind === "text" && c.id === editId)) : commands;
+            const { commands, regions, height } = layoutSection(
+                section,
+                layoutW,
+                measureText,
+                theme,
+            );
+            const visible = editId
+                ? commands.filter((c) => !(c.kind === "text" && c.id === editId))
+                : commands;
             const layer = document.createElement("div");
             layer.style.cssText = `left:${x}px;top:${y}px;width:${layoutW}px;height:${height}px`;
             paint(visible, layer);
             layer.style.position = "absolute"; // paint() forces relative; keep layers out of flow
             paintHost.appendChild(layer);
-            for (const r of regions) all.push({ id: r.id, box: { x: r.box.x + x, y: r.box.y + y, w: r.box.w, h: r.box.h } });
+            for (const r of regions)
+                all.push({
+                    id: r.id,
+                    box: { x: r.box.x + x, y: r.box.y + y, w: r.box.w, h: r.box.h },
+                });
             tops.push(y);
             y += height + SECTION_GAP;
         }
@@ -98,7 +122,10 @@ export const Canvas: Component = () => {
 
     const onPointerMove = (e: PointerEvent): void => {
         if (drag() || editing()) return; // active drag is driven by the window listeners below
-        if (pending?.target?.kind === "element" && Math.hypot(e.clientX - pending.x, e.clientY - pending.y) > DRAG_THRESHOLD) {
+        if (
+            pending?.target?.kind === "element" &&
+            Math.hypot(e.clientX - pending.x, e.clientY - pending.y) > DRAG_THRESHOLD
+        ) {
             const movedType = getElementAt(editor.artifact, pending.target.address)?.type;
             const label = (movedType && getElement(movedType)?.label) || "Move";
             startDrag({ kind: "move", from: pending.target.address }, e.clientX, e.clientY, label);
@@ -172,7 +199,13 @@ export const Canvas: Component = () => {
 
     const pageStyle = createMemo(() => {
         const tk = resolveTheme(editor.artifact.theme).tokens;
-        return { background: tk.bg, "--sb": tk.line, "--sb-strong": tk.muted };
+        return {
+            background: backdropCss(editor.artifact.background, tk),
+            "background-size": "cover",
+            "background-position": "center",
+            "--sb": tk.line,
+            "--sb-strong": tk.muted,
+        };
     });
 
     return (

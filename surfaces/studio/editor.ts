@@ -44,7 +44,9 @@ const [canvasEl, setCanvasEl] = createSignal<HTMLElement | null>(null);
 export { canvasEl, setCanvasEl };
 
 export const [regions, setRegions] = createSignal<Region[]>([]);
-export const [selection, setSelection] = createSignal<Target | null>(null, { equals: targetsEqual });
+export const [selection, setSelection] = createSignal<Target | null>(null, {
+    equals: targetsEqual,
+});
 export const [hover, setHover] = createSignal<Target | null>(null, { equals: targetsEqual });
 
 // Snapshot history. Every structural edit goes through commit() so undo/redo work uniformly.

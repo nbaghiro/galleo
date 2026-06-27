@@ -17,7 +17,8 @@ export type Target =
 
 export const sectionRegionId = (section: Id): string => `section:${section}`;
 export const cellRegionId = (section: Id, cell: string): string => `cell:${section}:${cell}`;
-export const elementRegionId = (a: ElementAddress): string => `el:${a.section}:${a.cell}:${a.path.join(".")}`;
+export const elementRegionId = (a: ElementAddress): string =>
+    `el:${a.section}:${a.cell}:${a.path.join(".")}`;
 
 export function regionId(t: Target): string {
     if (t.kind === "section") return sectionRegionId(t.section);

@@ -63,7 +63,11 @@ function textBars(text: string, size: number): EngineNode[] {
     for (let i = 0; i < lines; i++) {
         const last = i === lines - 1;
         const frac = lines === 1 ? Math.min(1, Math.max(0.25, len / 36)) : last ? 0.55 : 1;
-        out.push({ w: percent(frac), h: fixed(h), fill: { color: GHOST, radius: Math.min(4, h / 2) } });
+        out.push({
+            w: percent(frac),
+            h: fixed(h),
+            fill: { color: GHOST, radius: Math.min(4, h / 2) },
+        });
     }
     return out;
 }
@@ -88,14 +92,20 @@ export function skeletonize(node: EngineNode): EngineNode {
         };
     }
     if (node.image || node.surface) {
-        return { ...base, aspect: base.aspect ?? 16 / 9, fill: { color: GHOST, radius: node.image?.radius ?? 8 } };
+        return {
+            ...base,
+            aspect: base.aspect ?? 16 / 9,
+            fill: { color: GHOST, radius: node.image?.radius ?? 8 },
+        };
     }
     const out: EngineNode = { ...base };
     if (node.fill) {
         out.fill = {
             color: GHOST_PANEL,
             radius: node.fill.radius,
-            border: node.fill.border ? { color: GHOST_LINE, width: node.fill.border.width } : undefined,
+            border: node.fill.border
+                ? { color: GHOST_LINE, width: node.fill.border.width }
+                : undefined,
         };
     }
     if (node.children) out.children = node.children.map(skeletonize);

@@ -37,10 +37,20 @@ export const Overlay: Component = () => {
     return (
         <>
             <Show when={hov()}>
-                {(b) => <div class="pointer-events-none absolute rounded-[7px] opacity-50" style={ring(b(), `0 0 0 1.5px ${accent()}`)} />}
+                {(b) => (
+                    <div
+                        class="pointer-events-none absolute rounded-[7px] opacity-50"
+                        style={ring(b(), `0 0 0 1.5px ${accent()}`)}
+                    />
+                )}
             </Show>
             <Show when={sel()}>
-                {(b) => <div class="pointer-events-none absolute rounded-[7px]" style={ring(b(), `0 0 0 2px ${accent()}`)} />}
+                {(b) => (
+                    <div
+                        class="pointer-events-none absolute rounded-[7px]"
+                        style={ring(b(), `0 0 0 2px ${accent()}`)}
+                    />
+                )}
             </Show>
         </>
     );

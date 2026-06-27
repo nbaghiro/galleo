@@ -20,7 +20,11 @@ export const codeElement: ElementSpec<CodeData> = {
         direction: "col",
         gap: 2,
         padding: { top: 16, bottom: 16, left: 18, right: 18 },
-        fill: { color: ctx.theme.bg, radius: Math.round(ctx.theme.radius / 2), border: { color: ctx.theme.line, width: 1 } },
+        fill: {
+            color: ctx.theme.bg,
+            radius: Math.round(ctx.theme.radius / 2),
+            border: { color: ctx.theme.line, width: 1 },
+        },
         children: d.code.split("\n").map(
             (line): EngineNode => ({
                 w: grow(),
@@ -36,7 +40,9 @@ export const codeElement: ElementSpec<CodeData> = {
             }),
         ),
     }),
-    controls: [{ key: "code", label: "Code", control: "text", multiline: true, placeholder: "// code" }],
+    controls: [
+        { key: "code", label: "Code", control: "text", multiline: true, placeholder: "// code" },
+    ],
 };
 
 register(codeElement);

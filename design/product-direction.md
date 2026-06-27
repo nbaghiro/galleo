@@ -11,21 +11,22 @@ website — and gives you a calm, AI-native editor to refine it.** A Gamma compe
 a sharper editorial point of view and a design language that doesn't look like everyone else's.
 
 The name comes from **galley** (a printer's proof — the artifact just before it's published)
-+ **gallery** (something made to be shown). The product is about getting from raw idea →
-publishable artifact, fast, without it looking generic.
+
+- **gallery** (something made to be shown). The product is about getting from raw idea →
+  publishable artifact, fast, without it looking generic.
 
 ## What you make (one engine, four output types)
 
-| Type | What it is | Why it matters |
-|---|---|---|
-| **Deck** | Card-based presentation (reflowable, not fixed 16:9) | the wedge — competes with Gamma/Pitch/Beautiful.ai |
-| **Doc** | Long-form document / report / proposal | the "magazine/editorial" surface |
-| **Site** | A shareable hosted page from the same content | the Gamma "publish to web" move |
-| **Social** | Charts, quote cards, infographics | the Gamma Imagine / marketing-asset move |
+| Type       | What it is                                           | Why it matters                                     |
+| ---------- | ---------------------------------------------------- | -------------------------------------------------- |
+| **Deck**   | Card-based presentation (reflowable, not fixed 16:9) | the wedge — competes with Gamma/Pitch/Beautiful.ai |
+| **Doc**    | Long-form document / report / proposal               | the "magazine/editorial" surface                   |
+| **Site**   | A shareable hosted page from the same content        | the Gamma "publish to web" move                    |
+| **Social** | Charts, quote cards, infographics                    | the Gamma Imagine / marketing-asset move           |
 
 **One content model underneath — the output type is just a layout.** Internally there is no
 "deck" vs "doc": every artifact is an ordered tree of **blocks/sections**. Deck / Doc / Web /
-Social are *positioning modes* (type scale, column width, full-bleed vs paginated) over the same
+Social are _positioning modes_ (type scale, column width, full-bleed vs paginated) over the same
 blocks — a view concern and a positioning/marketing label, not a separate data structure. The
 editor proves this with a Layout toggle that re-renders the same blocks as Deck / Doc / Web.
 
@@ -39,7 +40,7 @@ editor proves this with a Layout toggle that re-renders the same blocks as Deck 
 3. **The Galleo agent.** A chat-native design partner that can restyle the whole artifact,
    rewrite tone, pull in web content with citations, and critique — sitting in the right panel.
 4. **Theme is a per-artifact property — and a real product surface.** Color + type + radius +
-   density are a theme the user picks/switches *live in the editor* (the Themes panel), applied
+   density are a theme the user picks/switches _live in the editor_ (the Themes panel), applied
    across every block. A large, genuinely distinctive **theme library** is the moat against "AI
    slop" decks. The editor ships a data-driven theme engine (each theme = a token set) so the
    library is easy to grow — currently **22 themes** spanning editorial → brutalist → neon →
@@ -63,7 +64,7 @@ This is the surface the explorer focuses on. Five regions:
 - **Topbar** — identity, doc title, collab presence, Share / Present, and the always-present
   **Generate** affordance (AI is a first-class verb, not a buried menu).
 - **Card rail** (left) — card thumbnails with reorder, an Outline tab, "+ Add card".
-- **Canvas** (center) — *the thing*. The active card with real editable blocks and the
+- **Canvas** (center) — _the thing_. The active card with real editable blocks and the
   micro-interactions of editing: drag handles, block toolbar, the "+" insert line, inline
   text selection. This is where a design language lives or dies.
 - **Agent panel** (right) — tabbed: **Themes** (the live theme gallery — default), **Galleo**
@@ -81,14 +82,14 @@ Deco Gold · Swiss · Botanical · Candy · Terminal · Vapor · Memphis · Blue
 Couture · Sunrise · Ink Wash · Mineral`
 
 This is the surface to push on: add/cut themes, refine palettes & type pairings, decide which
-2–3 are the *defaults* the brand ships with vs. the long tail users can opt into.
+2–3 are the _defaults_ the brand ships with vs. the long tail users can opt into.
 
 ## Open questions for the back-and-forth
 
 - Which 2–3 themes are the **shipped defaults** (the brand's face) vs. the opt-in long tail?
 - **Light-first or dark-first** default? (lots of strong dark options now: Noir, Couture, Vapor…)
 - Do themes need **per-theme structural tweaks** (e.g. Press = real masthead/rules, Neon = glow
-  borders) beyond tokens — i.e. should a theme be able to change *layout*, not just style?
+  borders) beyond tokens — i.e. should a theme be able to change _layout_, not just style?
 - Should users **author/save custom themes** (brand kit: drop a logo + 2 colors → a theme)?
 - Where does the **agent** live — persistent right panel (current) vs summonable command bar?
 - Do we want the canvas to feel like **paper** (Studio/Press/Aura) or like a **screen** (Signal/Noir/Canvas)?

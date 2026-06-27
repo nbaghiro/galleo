@@ -12,12 +12,20 @@ export const AgentPanel: Component = () => {
 
     return (
         <Show when={agentOpen()}>
-            <div class="fixed inset-0 z-40 flex items-start justify-center bg-black/30 pt-24" onClick={() => setAgentOpen(false)}>
-                <div class="w-[560px] rounded-2xl border border-line bg-panel p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div
+                class="fixed inset-0 z-40 flex items-start justify-center bg-black/30 pt-24"
+                onClick={() => setAgentOpen(false)}
+            >
+                <div
+                    class="w-[560px] rounded-2xl border border-line bg-panel p-5 shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                >
                     <div class="mb-1 text-[15px] font-semibold text-ink">✦ Galleo Agent</div>
                     <p class="mb-3 text-[13px] text-muted">
                         Describe the deck you want.{" "}
-                        <span class="opacity-70">Local preview generator — real AI lands with the backend.</span>
+                        <span class="opacity-70">
+                            Local preview generator — real AI lands with the backend.
+                        </span>
                     </p>
                     <textarea
                         ref={ta}
@@ -30,10 +38,16 @@ export const AgentPanel: Component = () => {
                         }}
                     />
                     <div class="mt-3 flex items-center justify-end gap-2">
-                        <button class="rounded-lg border border-line bg-canvas px-3 py-1.5 text-[12px] font-semibold text-ink" onClick={() => setAgentOpen(false)}>
+                        <button
+                            class="rounded-lg border border-line bg-canvas px-3 py-1.5 text-[12px] font-semibold text-ink"
+                            onClick={() => setAgentOpen(false)}
+                        >
                             Cancel
                         </button>
-                        <button class="rounded-lg border border-accent bg-accent px-3 py-1.5 text-[12px] font-semibold text-onaccent" onClick={generate}>
+                        <button
+                            class="rounded-lg border border-accent bg-accent px-3 py-1.5 text-[12px] font-semibold text-onaccent"
+                            onClick={generate}
+                        >
                             ✦ Generate deck
                         </button>
                     </div>

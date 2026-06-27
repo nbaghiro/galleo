@@ -17,7 +17,12 @@ export const Thumb: Component<{ section: Section; index: number }> = (props) => 
         const w = wrap.clientWidth || 150;
         const scale = w / THUMB_LAYOUT_WIDTH;
         const theme = resolveTheme(editor.artifact.theme).tokens;
-        const { commands, height } = layoutSection(props.section, THUMB_LAYOUT_WIDTH, measureText, theme);
+        const { commands, height } = layoutSection(
+            props.section,
+            THUMB_LAYOUT_WIDTH,
+            measureText,
+            theme,
+        );
         inner.style.cssText = `width:${THUMB_LAYOUT_WIDTH}px;height:${height}px;transform:scale(${scale});transform-origin:top left`;
         paint(commands, inner);
         wrap.style.height = `${Math.round(height * scale) + 2}px`;

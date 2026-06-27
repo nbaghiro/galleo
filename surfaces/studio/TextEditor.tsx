@@ -18,9 +18,14 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         const i = inst();
         const spec = getElement("text");
         if (!i || i.type !== "text" || !spec) return null;
-        return spec.layout(i.data, ctxFor(200, resolveTheme(editor.artifact.theme).tokens)).text ?? null;
+        return (
+            spec.layout(i.data, ctxFor(200, resolveTheme(editor.artifact.theme).tokens)).text ??
+            null
+        );
     });
-    const box = createMemo(() => regions().find((r) => r.id === elementRegionId(props.address))?.box ?? null);
+    const box = createMemo(
+        () => regions().find((r) => r.id === elementRegionId(props.address))?.box ?? null,
+    );
 
     onMount(() => {
         el.textContent = ((inst()?.data ?? {}) as { text?: string }).text ?? "";
@@ -37,7 +42,10 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         const i = inst();
         if (!i) return;
         setArtifactLive(
-            updateDataAt(editor.artifact, props.address, { ...(i.data as Record<string, unknown>), text: el.textContent ?? "" }),
+            updateDataAt(editor.artifact, props.address, {
+                ...(i.data as Record<string, unknown>),
+                text: el.textContent ?? "",
+            }),
         );
     };
 
@@ -80,4 +88,6 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
     );
 };
 
-export const TextEditor: Component = () => <Show when={editing()}>{(addr) => <EditingField address={addr()} />}</Show>;
+export const TextEditor: Component = () => (
+    <Show when={editing()}>{(addr) => <EditingField address={addr()} />}</Show>
+);

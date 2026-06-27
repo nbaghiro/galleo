@@ -36,7 +36,11 @@ const arrange = (d: CalloutData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode
     w: grow(),
     h: fit(),
     direction: "row",
-    fill: { color: ctx.theme.bg, radius: Math.round(ctx.theme.radius / 1.6), border: { color: ctx.theme.line, width: 1 } },
+    fill: {
+        color: ctx.theme.bg,
+        radius: Math.round(ctx.theme.radius / 1.6),
+        border: { color: ctx.theme.line, width: 1 },
+    },
     children: [
         { w: fixed(4), h: grow(), fill: { color: toneColor(d.tone, ctx.theme) } },
         {
@@ -56,7 +60,15 @@ export const calloutElement: ElementSpec<CalloutData> = {
     category: "text",
     tier: "smart",
     create: () => ({
-        children: [{ type: "text", data: { text: "Heads up — callouts hold real text you can edit inline.", style: "body" } }],
+        children: [
+            {
+                type: "text",
+                data: {
+                    text: "Heads up — callouts hold real text you can edit inline.",
+                    style: "body",
+                },
+            },
+        ],
         tone: "note",
     }),
     layout: (d, ctx) =>
@@ -68,7 +80,11 @@ export const calloutElement: ElementSpec<CalloutData> = {
                 return spec ? spec.layout(inst.data, ctx) : { w: grow(), h: fit(10) };
             }),
         ),
-    container: { children: (d) => d.children, arrange, withChildren: (d, children) => ({ ...d, children }) },
+    container: {
+        children: (d) => d.children,
+        arrange,
+        withChildren: (d, children) => ({ ...d, children }),
+    },
     controls: [
         {
             key: "tone",
