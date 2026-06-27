@@ -118,6 +118,24 @@ export function moveSectionBy(id: string, delta: number): void {
     commit(moveSection(editor.artifact, id, delta));
 }
 
+// --- present mode ---
+export const [presenting, setPresenting] = createSignal(false);
+export const [slideIndex, setSlideIndex] = createSignal(0);
+
+export function present(): void {
+    setSlideIndex(0);
+    setPresenting(true);
+}
+export function exitPresent(): void {
+    setPresenting(false);
+}
+export function nextSlide(): void {
+    setSlideIndex((i) => Math.min(editor.artifact.sections.length - 1, i + 1));
+}
+export function prevSlide(): void {
+    setSlideIndex((i) => Math.max(0, i - 1));
+}
+
 export function jumpToSection(index: number): void {
     const el = canvasEl();
     if (!el) return;

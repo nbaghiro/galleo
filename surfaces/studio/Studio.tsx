@@ -7,6 +7,7 @@ import { DragGhost } from "./DragGhost";
 import { editor } from "./editor";
 import { Minimap } from "./Minimap";
 import { Panel } from "./Panel";
+import { Present } from "./Present";
 import { Topbar } from "./Topbar";
 
 // The studio shell: topbar over a three-column body (minimap · canvas · right panel). The chrome
@@ -34,6 +35,7 @@ export const Studio: Component = () => {
                 <Panel />
             </div>
             <DragGhost />
+            <Present />
         </div>
     );
 };
