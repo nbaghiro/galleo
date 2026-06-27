@@ -1,27 +1,31 @@
+import type { EngineNode } from "@engine/node";
 import type { Component } from "solid-js";
 import { createEffect } from "solid-js";
 import { getElement } from "@elements/registry";
 import { skeletonFor } from "@elements/skeleton";
+import { fit, grow } from "@model/size";
 import { startDrag } from "./dnd";
 import { paint } from "./dom-backend";
 import { measureText } from "./measure";
 import { ctxFor, layoutNode } from "./render";
 
-const NOMINAL_W = 150; // skeletons are laid out at a fixed width, then scaled to fit the frame
 const FRAME_H = 58;
 
-// One draggable element: its structural skeleton, scaled to fit a fixed-size frame so every tile is
-// uniform (and labels stay aligned), with a label underneath.
+// One draggable element: its structural skeleton, laid out at the frame width and centered, scaled
+// down only if too tall — so every tile is uniform and the preview is centered.
 export const PaletteItem: Component<{ type: string }> = (props) => {
     let inner!: HTMLDivElement;
     const spec = getElement(props.type);
 
     createEffect(() => {
         if (!spec) return;
-        const { commands, height } = layoutNode(skeletonFor(spec, ctxFor(NOMINAL_W)), NOMINAL_W, measureText);
         const frameW = inner.parentElement?.clientWidth ?? 120;
-        const scale = Math.min(1, (frameW - 18) / NOMINAL_W, (FRAME_H - 16) / Math.max(1, height));
-        inner.style.width = `${NOMINAL_W}px`;
+        const skel = skeletonFor(spec, ctxFor(frameW));
+        skel.alignX = "center";
+        const node: EngineNode = { w: grow(), h: fit(), direction: "col", alignX: "center", alignY: "center", children: [skel] };
+        const { commands, height } = layoutNode(node, frameW, measureText);
+        const scale = Math.min(1, (FRAME_H - 14) / Math.max(1, height));
+        inner.style.width = `${frameW}px`;
         inner.style.height = `${height}px`;
         inner.style.transform = `scale(${scale})`;
         inner.style.transformOrigin = "center center";
