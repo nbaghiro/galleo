@@ -10,7 +10,14 @@ const abs = (p: string): string => fileURLToPath(new URL(p, import.meta.url));
 // projects (clientbridge 87xx, llamatrade 88xx, sourcewell 89xx). See docs/ports.md.
 export default defineConfig({
     root: "surfaces/studio",
-    server: { port: 8600, strictPort: true },
+    server: {
+        port: 8600,
+        strictPort: true,
+        // Same-origin in dev: /api/* → the backend API (8601), so cookies work without CORS.
+        proxy: {
+            "/api": { target: "http://localhost:8601", changeOrigin: true, rewrite: (p) => p.replace(/^\/api/, "") },
+        },
+    },
     preview: { port: 8600, strictPort: true },
     plugins: [solid(), tailwindcss()],
     resolve: {

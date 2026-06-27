@@ -1,0 +1,22 @@
+# Galleo local services. Host ports use the 86xx block (see docs/ports.md); container ports stay
+# conventional. Bring up with: docker compose up -d
+services:
+    postgres:
+        image: postgres:16-alpine
+        container_name: galleo-pg
+        ports:
+            - "8602:5432"
+        environment:
+            POSTGRES_USER: galleo
+            POSTGRES_PASSWORD: galleo
+            POSTGRES_DB: galleo
+        volumes:
+            - galleo-pgdata:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U galleo -d galleo"]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
+volumes:
+    galleo-pgdata:
