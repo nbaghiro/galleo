@@ -4,7 +4,7 @@ import { getElement } from "@elements/registry";
 
 // Pure, immutable content ops over an artifact. Container traversal/editing goes through the
 // `container` contract (children/withChildren), so they work for any container, not just groups.
-// v1 is snapshot-style: every op returns a fresh tree (cheap for JSONB-sized artifacts).
+// Snapshot-style: every op returns a fresh tree (cheap for JSONB-sized artifacts).
 
 const clamp = (i: number, len: number): number => Math.max(0, Math.min(i, len));
 
@@ -88,7 +88,7 @@ export function removeAt(art: ArtifactContent, addr: ElementAddress): ArtifactCo
             if (next.length === 0) return putCell(s, addr.cell, {});
             return putCell(s, addr.cell, { element: withChildren(root, next) });
         }
-        return s; // deeper nesting: no-op in v1
+        return s; // deeper nesting: not handled yet
     });
 }
 

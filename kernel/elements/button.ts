@@ -14,7 +14,7 @@ export const buttonElement: ElementSpec<ButtonData> = {
     type: "button",
     label: "Button",
     category: "interactive",
-    tier: "interactive",
+    tier: "primitive",
     create: () => ({ label: "Get started" }),
     layout: (d: ButtonData, ctx: LayoutCtx): EngineNode => {
         const outline = d.variant === "outline";

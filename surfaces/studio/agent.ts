@@ -2,7 +2,7 @@ import type { ArtifactContent } from "@model/content";
 import { bgImage, bullets, button, cell, deck, empty, group, img, quote, section, stat, t } from "./demos/build";
 
 // Local preview generator: turns a prompt into a starter deck deterministically. The real
-// outline-first LLM generation arrives with the agent backend (Arc C); this proves the flow.
+// outline-first LLM generation arrives with the agent backend; this proves the flow.
 export function generateFromPrompt(prompt: string, themeId: string): ArtifactContent {
     const title = (prompt.trim() || "Untitled deck").replace(/[.!?]+$/, "");
     const seed = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 24) || "deck";

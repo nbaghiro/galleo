@@ -5,7 +5,7 @@ import { fit, fixed, grow, percent } from "@model/size";
 import { fontStack } from "@themes/theme";
 
 interface TableData {
-    data: string; // rows by newline, cells by comma (v1 data editor)
+    data: string; // rows by newline, cells by comma (a grid data-editor comes later)
     header?: boolean;
 }
 

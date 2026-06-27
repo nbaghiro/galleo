@@ -1,5 +1,5 @@
-// Engine-native rich-text core (Path B). The engine owns text layout everywhere; a hidden
-// contenteditable is only an input/IME sink. v1 is Latin-first, desktop-first.
+// Engine-native rich-text core. The engine owns text layout everywhere; a hidden contenteditable is
+// only an input/IME sink. Latin-first, desktop-first to start.
 
 export type MarkType = "b" | "i" | "u" | "s" | "code" | "link" | "color" | "hl";
 

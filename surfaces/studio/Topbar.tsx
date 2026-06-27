@@ -10,7 +10,7 @@ const btn = "cursor-pointer rounded-lg border border-line bg-canvas px-3 py-1.5 
 
 const DocMenu: Component = () => {
     const [open, setOpen] = createSignal(false);
-    const current = createMemo(() => DEMOS.find((d) => d.id === demoId()) ?? DEMOS[0]!);
+    const current = createMemo(() => DEMOS.find((d) => d.id === demoId()) ?? { id: demoId(), title: "Generated deck" });
 
     return (
         <div class="relative">

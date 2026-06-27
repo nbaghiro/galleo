@@ -9,7 +9,7 @@ type ChartKind = "bar" | "line" | "pie";
 
 interface ChartData {
     kind: ChartKind;
-    values: string; // comma-separated numbers (v1 data editor; a grid editor comes later)
+    values: string; // comma-separated numbers (a grid data-editor comes later)
     height?: number;
 }
 

@@ -177,6 +177,7 @@ export function loadGenerated(art: ArtifactContent): void {
     setEditing(null);
     setSelection(null);
     setHover(null);
+    setDemoId("generated"); // its own doc slot so it doesn't overwrite a demo's saved edits
     setEditor("artifact", art);
     setAgentOpen(false);
 }
