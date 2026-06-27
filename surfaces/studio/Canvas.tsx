@@ -14,6 +14,7 @@ import {
     commit,
     editing,
     editor,
+    editSeq,
     leftOpen,
     redo,
     setCanvasEl,
@@ -184,8 +185,11 @@ export const Canvas: Component = () => {
         });
     });
 
-    // Reads editor.artifact.sections inside draw(), so it re-runs on every content edit.
-    createEffect(() => draw());
+    // editSeq() bumps on every edit (any format); reading it here guarantees a redraw.
+    createEffect(() => {
+        editSeq();
+        draw();
+    });
 
     // While a drag is active, the cursor lives anywhere on screen — track it on the window.
     const isDragging = createMemo(() => drag() !== null);

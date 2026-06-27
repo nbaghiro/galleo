@@ -53,10 +53,19 @@ export const [hover, setHover] = createSignal<Target | null>(null, { equals: tar
 const past: ArtifactContent[] = [];
 const future: ArtifactContent[] = [];
 
+// A monotonic edit counter the canvas reads to force a redraw on every edit, in ANY format — a
+// reliable trigger independent of fine-grained store-path tracking through the layout pipeline.
+const [editSeq, setEditSeq] = createSignal(0);
+export { editSeq };
+const bumpSeq = (): void => {
+    setEditSeq((n) => n + 1);
+};
+
 export function commit(next: ArtifactContent): void {
     past.push(editor.artifact);
     future.length = 0;
     setEditor("artifact", next);
+    bumpSeq();
 }
 
 export function undo(): void {
@@ -64,6 +73,7 @@ export function undo(): void {
     if (prev === undefined) return;
     future.push(editor.artifact);
     setEditor("artifact", prev);
+    bumpSeq();
 }
 
 export function redo(): void {
@@ -71,6 +81,7 @@ export function redo(): void {
     if (next === undefined) return;
     past.push(editor.artifact);
     setEditor("artifact", next);
+    bumpSeq();
 }
 
 // Inline text editing: live keystrokes update the artifact WITHOUT touching history; one history
@@ -96,6 +107,7 @@ export function stopEditing(): void {
 
 export function setArtifactLive(next: ArtifactContent): void {
     setEditor("artifact", next);
+    bumpSeq();
 }
 
 // Demo document switcher: load another sample artifact and reset transient editor state.
