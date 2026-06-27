@@ -6,13 +6,31 @@ import { getElement, register } from "@elements/registry";
 import { fit, fixed, grow } from "@model/size";
 
 // A note box (note/tip/warn) with an accent bar and real text children — the body edits inline.
+type Tone = "note" | "info" | "tip" | "success" | "warn" | "caution" | "question";
+
 interface CalloutData {
     children: ElementInstance[];
-    tone?: "note" | "tip" | "warn";
+    tone?: Tone;
 }
 
-const toneColor = (tone: CalloutData["tone"], t: Tokens): string =>
-    tone === "warn" ? "#c2402c" : tone === "tip" ? "#3f8f4f" : t.accent;
+function toneColor(tone: Tone | undefined, t: Tokens): string {
+    switch (tone) {
+        case "info":
+            return "#2d5bff";
+        case "tip":
+            return "#3f8f4f";
+        case "success":
+            return "#2e9e5b";
+        case "warn":
+            return "#d98324";
+        case "caution":
+            return "#c2402c";
+        case "question":
+            return "#7a5af0";
+        default:
+            return t.accent; // note
+    }
+}
 
 const arrange = (d: CalloutData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode => ({
     w: grow(),
@@ -55,11 +73,15 @@ export const calloutElement: ElementSpec<CalloutData> = {
         {
             key: "tone",
             label: "Tone",
-            control: "segmented",
+            control: "select",
             options: [
                 { label: "Note", value: "note" },
+                { label: "Info", value: "info" },
                 { label: "Tip", value: "tip" },
-                { label: "Warn", value: "warn" },
+                { label: "Success", value: "success" },
+                { label: "Warning", value: "warn" },
+                { label: "Caution", value: "caution" },
+                { label: "Question", value: "question" },
             ],
         },
     ],
