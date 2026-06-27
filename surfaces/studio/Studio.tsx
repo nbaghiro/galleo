@@ -6,6 +6,7 @@ import { AgentPanel } from "./AgentPanel";
 import { Canvas } from "./Canvas";
 import { DragGhost } from "./DragGhost";
 import { demoId, editor, leftOpen, saveDoc, setLeftOpen } from "./editor";
+import { Icon } from "./icons";
 import { Minimap } from "./Minimap";
 import { Panel } from "./Panel";
 import { Present } from "./Present";
@@ -45,11 +46,11 @@ export const Studio: Component = () => {
                     when={leftOpen()}
                     fallback={
                         <button
-                            class="absolute left-3 top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl border border-line bg-panel/95 text-[15px] text-muted shadow-lg backdrop-blur-md transition-colors hover:text-ink"
+                            class="absolute left-3 top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl border border-line bg-panel/95 text-muted shadow-lg backdrop-blur-md transition-colors hover:text-ink"
                             title="Sections"
                             onClick={() => setLeftOpen(true)}
                         >
-                            ▤
+                            <Icon name="sections" />
                         </button>
                     }
                 >

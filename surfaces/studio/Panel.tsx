@@ -3,6 +3,7 @@ import { createEffect, createMemo, createSignal, For, Match, Show, Switch } from
 import { listElements } from "@elements/registry";
 import { ElementInspector } from "./ElementInspector";
 import { rightTab, selection, setRightTab } from "./editor";
+import { Icon } from "./icons";
 import { PaletteItem } from "./PaletteItem";
 import { SectionInspector } from "./SectionInspector";
 
@@ -17,16 +18,6 @@ const CAT_LABEL: Record<string, string> = {
     layout: "Layout",
     decoration: "Decoration",
     container: "Containers",
-};
-const CAT_ICON: Record<string, string> = {
-    text: "T",
-    media: "❏",
-    data: "▦",
-    interactive: "◉",
-    branding: "❖",
-    layout: "▭",
-    decoration: "▨",
-    container: "▢",
 };
 
 // Right side: an always-on vertical icon rail. Clicking an icon opens a flyout — a category's
@@ -59,15 +50,15 @@ export const Panel: Component = () => {
         return tab && tab !== "inspector" && tab !== "search" ? all.filter((s) => s.category === tab) : all;
     });
 
-    const railBtn = (id: string, glyph: string, label: string): JSX.Element => (
+    const railBtn = (id: string, label: string): JSX.Element => (
         <button
             title={label}
-            class={`flex h-9 w-9 items-center justify-center rounded-lg text-[15px] leading-none transition-colors ${
+            class={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
                 rightTab() === id ? "bg-accent text-onaccent" : "text-muted hover:bg-canvas hover:text-ink"
             }`}
             onClick={() => setRightTab((t) => (t === id ? null : id))}
         >
-            {glyph}
+            <Icon name={id} />
         </button>
     );
 
@@ -108,9 +99,9 @@ export const Panel: Component = () => {
             </Show>
 
             <div class="flex flex-col gap-1 self-center rounded-2xl border border-line bg-panel/95 p-1.5 shadow-2xl backdrop-blur-md">
-                <Show when={selection()}>{railBtn("inspector", "⚙", "Properties")}</Show>
-                {railBtn("search", "⌕", "Search")}
-                <For each={cats()}>{(c) => railBtn(c, CAT_ICON[c] ?? "▢", CAT_LABEL[c] ?? c)}</For>
+                <Show when={selection()}>{railBtn("inspector", "Properties")}</Show>
+                {railBtn("search", "Search")}
+                <For each={cats()}>{(c) => railBtn(c, CAT_LABEL[c] ?? c)}</For>
             </div>
         </div>
     );
