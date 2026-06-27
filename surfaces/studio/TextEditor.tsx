@@ -4,6 +4,7 @@ import { createMemo, onMount, Show } from "solid-js";
 import { getElementAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/registry";
 import { elementRegionId } from "@model/address";
+import { resolveTheme } from "@themes/library";
 import { editing, editor, regions, setArtifactLive, stopEditing } from "./editor";
 import { ctxFor } from "./render";
 
@@ -17,7 +18,7 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         const i = inst();
         const spec = getElement("text");
         if (!i || i.type !== "text" || !spec) return null;
-        return spec.layout(i.data, ctxFor(200)).text ?? null;
+        return spec.layout(i.data, ctxFor(200, resolveTheme(editor.artifact.theme).tokens)).text ?? null;
     });
     const box = createMemo(() => regions().find((r) => r.id === elementRegionId(props.address))?.box ?? null);
 
@@ -60,7 +61,7 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
             color: l.color ?? "#1a1a1a",
             "text-align": l.align ?? "start",
             "white-space": l.wrap === "none" ? "nowrap" : "normal",
-            "caret-color": "#9a4f24",
+            "caret-color": resolveTheme(editor.artifact.theme).tokens.accent,
         };
     });
 

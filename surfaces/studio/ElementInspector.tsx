@@ -6,7 +6,7 @@ import { getElementAt, removeAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/registry";
 import { commit, editor, setSelection } from "./editor";
 
-const inputCls = "w-full rounded-md border border-line bg-white px-2 py-1.5 text-[13px] text-ink outline-none focus:border-accent";
+const inputCls = "w-full rounded-md border border-line bg-canvas px-2 py-1.5 text-[13px] text-ink outline-none focus:border-accent";
 
 function Field(props: { field: ControlField; value: unknown; onChange: (v: unknown) => void }): JSX.Element {
     const f = props.field;
@@ -43,7 +43,7 @@ function Field(props: { field: ControlField; value: unknown; onChange: (v: unkno
                         <For each={f.options ?? []}>
                             {(o) => (
                                 <button
-                                    class={`flex-1 truncate rounded-md px-2 py-1 text-[12px] ${String(props.value) === o.value ? "bg-white font-semibold text-ink shadow-sm" : "text-muted hover:text-ink"}`}
+                                    class={`flex-1 truncate rounded-md px-2 py-1 text-[12px] ${String(props.value) === o.value ? "bg-panel font-semibold text-ink shadow-sm" : "text-muted hover:text-ink"}`}
                                     onClick={() => props.onChange(o.value)}
                                 >
                                     {o.label}
@@ -74,7 +74,7 @@ function Field(props: { field: ControlField; value: unknown; onChange: (v: unkno
                 </Match>
                 <Match when={f.control === "color"}>
                     <div class="flex items-center gap-2">
-                        <input type="color" class="h-7 w-9 cursor-pointer rounded border border-line bg-white p-0.5" value={String(props.value ?? "#000000")} onInput={(e) => props.onChange(e.currentTarget.value)} />
+                        <input type="color" class="h-7 w-9 cursor-pointer rounded border border-line bg-canvas p-0.5" value={String(props.value ?? "#000000")} onInput={(e) => props.onChange(e.currentTarget.value)} />
                         <span class="font-mono text-[12px] text-muted">{String(props.value ?? "—")}</span>
                     </div>
                 </Match>

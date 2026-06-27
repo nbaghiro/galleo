@@ -31,7 +31,7 @@ export const Thumb: Component<{ section: Section; index: number }> = (props) => 
             <button
                 ref={wrap}
                 onClick={() => jumpToSection(props.index)}
-                class="relative block min-w-0 flex-1 cursor-pointer overflow-hidden rounded-lg border border-line bg-[#fffdf8] p-0 hover:border-accent"
+                class="relative block min-w-0 flex-1 cursor-pointer overflow-hidden rounded-lg border border-line bg-canvas p-0 hover:border-accent"
             >
                 <div ref={inner} />
             </button>

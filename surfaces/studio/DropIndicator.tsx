@@ -1,8 +1,11 @@
 import type { Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
 import { cellRegionId } from "@model/address";
+import { resolveTheme } from "@themes/library";
 import { drag } from "./dnd";
-import { regions } from "./editor";
+import { editor, regions } from "./editor";
+
+const accent = (): string => resolveTheme(editor.artifact.theme).tokens.accent;
 
 // Lives inside the canvas stage (canvas coords): an accent ring on an empty target cell, or an accent
 // insertion line between items. Shows where the dragged element will land.
@@ -24,8 +27,7 @@ export const DropIndicator: Component = () => {
                             top: `${b().y}px`,
                             width: `${b().w}px`,
                             height: `${b().h}px`,
-                            "box-shadow": "0 0 0 2px #9a4f24",
-                            background: "rgba(154,79,36,0.06)",
+                            "box-shadow": `0 0 0 2px ${accent()}`,
                         }}
                     />
                 )}
@@ -39,7 +41,7 @@ export const DropIndicator: Component = () => {
                             top: `${drag()?.target?.indicatorY ?? 0}px`,
                             width: `${b().w - 20}px`,
                             height: "3px",
-                            background: "#9a4f24",
+                            background: accent(),
                         }}
                     />
                 )}

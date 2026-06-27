@@ -29,7 +29,7 @@ export const PaletteItem: Component<{ type: string }> = (props) => {
                 startDrag({ kind: "new", type: props.type }, e.clientX, e.clientY, spec?.label ?? props.type);
             }}
         >
-            <div class="flex items-center rounded-lg border border-line bg-[#fdfbf6] p-3">
+            <div class="flex items-center rounded-lg border border-line bg-canvas p-3">
                 <div ref={box} class="w-full" />
             </div>
             <span class="text-[12px] font-semibold text-ink">{spec?.label ?? props.type}</span>

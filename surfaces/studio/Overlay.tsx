@@ -3,7 +3,10 @@ import type { Target } from "@model/address";
 import type { Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
 import { regionId } from "@model/address";
-import { hover, regions, selection } from "./editor";
+import { resolveTheme } from "@themes/library";
+import { editor, hover, regions, selection } from "./editor";
+
+const accent = (): string => resolveTheme(editor.artifact.theme).tokens.accent;
 
 // Selection + hover highlights, drawn as box-shadow rings (no layout impact) over the painted canvas.
 // Reads geometry from the engine-reported regions, so it tracks exactly what the engine laid out.
@@ -34,10 +37,10 @@ export const Overlay: Component = () => {
     return (
         <>
             <Show when={hov()}>
-                {(b) => <div class="pointer-events-none absolute rounded-[7px]" style={ring(b(), "0 0 0 1.5px rgba(154,79,36,0.4)")} />}
+                {(b) => <div class="pointer-events-none absolute rounded-[7px] opacity-50" style={ring(b(), `0 0 0 1.5px ${accent()}`)} />}
             </Show>
             <Show when={sel()}>
-                {(b) => <div class="pointer-events-none absolute rounded-[7px]" style={ring(b(), "0 0 0 2px #9a4f24")} />}
+                {(b) => <div class="pointer-events-none absolute rounded-[7px]" style={ring(b(), `0 0 0 2px ${accent()}`)} />}
             </Show>
         </>
     );

@@ -5,7 +5,7 @@ import { resolveTheme, THEME_LIST } from "@themes/library";
 import { DEMOS } from "./demos";
 import { commit, demoId, editor, loadDemo } from "./editor";
 
-const btn = "cursor-pointer rounded-lg border border-line bg-white px-3 py-1.5 text-[12px] font-semibold text-ink";
+const btn = "cursor-pointer rounded-lg border border-line bg-canvas px-3 py-1.5 text-[12px] font-semibold text-ink";
 
 const DocMenu: Component = () => {
     const [open, setOpen] = createSignal(false);
@@ -18,11 +18,11 @@ const DocMenu: Component = () => {
             </button>
             <Show when={open()}>
                 <div class="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-                <div class="absolute left-0 z-20 mt-2 w-56 rounded-xl border border-line bg-white p-1.5 shadow-xl">
+                <div class="absolute left-0 z-20 mt-2 w-56 rounded-xl border border-line bg-panel p-1.5 shadow-xl">
                     <For each={DEMOS}>
                         {(d) => (
                             <button
-                                class={`block w-full rounded-lg px-2.5 py-2 text-left text-[13px] ${d.id === demoId() ? "bg-[#faf2e9] font-semibold" : "hover:bg-[#f6f2ea]"}`}
+                                class={`block w-full rounded-lg px-2.5 py-2 text-left text-[13px] ${d.id === demoId() ? "bg-canvas font-semibold text-accent" : "hover:bg-canvas"}`}
                                 onClick={() => {
                                     loadDemo(d.id);
                                     setOpen(false);
@@ -62,11 +62,11 @@ const ThemeMenu: Component = () => {
             </button>
             <Show when={open()}>
                 <div class="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-                <div class="absolute right-0 z-20 mt-2 max-h-[72vh] w-60 overflow-y-auto rounded-xl border border-line bg-white p-1.5 shadow-xl">
+                <div class="absolute right-0 z-20 mt-2 max-h-[72vh] w-60 overflow-y-auto rounded-xl border border-line bg-panel p-1.5 shadow-xl">
                     <For each={THEME_LIST}>
                         {(t) => (
                             <button
-                                class={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] ${t.id === current().id ? "bg-[#faf2e9] font-semibold" : "hover:bg-[#f6f2ea]"}`}
+                                class={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] ${t.id === current().id ? "bg-canvas font-semibold text-accent" : "hover:bg-canvas"}`}
                                 onClick={() => pick(t.id)}
                             >
                                 <Swatch surface={t.tokens.surface} ink={t.tokens.ink} accent={t.tokens.accent} />
@@ -89,6 +89,6 @@ export const Topbar: Component = () => (
         <ThemeMenu />
         <button class={btn}>Present</button>
         <button class={btn}>Share</button>
-        <button class={`${btn} border-accent bg-accent text-white`}>✦ Generate</button>
+        <button class={`${btn} border-accent bg-accent text-onaccent`}>✦ Generate</button>
     </header>
 );

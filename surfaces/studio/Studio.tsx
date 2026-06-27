@@ -1,19 +1,39 @@
+import type { JSX } from "solid-js";
 import type { Component } from "solid-js";
+import { createMemo } from "solid-js";
+import { resolveTheme } from "@themes/library";
 import { Canvas } from "./Canvas";
 import { DragGhost } from "./DragGhost";
+import { editor } from "./editor";
 import { Minimap } from "./Minimap";
 import { Panel } from "./Panel";
 import { Topbar } from "./Topbar";
 
-// The studio shell: topbar over a three-column body (minimap · canvas · right panel).
-export const Studio: Component = () => (
-    <div class="grid h-screen grid-rows-[52px_1fr] bg-canvas text-ink">
-        <Topbar />
-        <div class="grid min-h-0 grid-cols-[188px_1fr_296px]">
-            <Minimap />
-            <Canvas />
-            <Panel />
+// The studio shell: topbar over a three-column body (minimap · canvas · right panel). The chrome
+// follows the artifact's theme by overriding Tailwind's color variables on the root.
+export const Studio: Component = () => {
+    const vars = createMemo((): JSX.CSSProperties => {
+        const tk = resolveTheme(editor.artifact.theme).tokens;
+        return {
+            "--color-canvas": tk.bg,
+            "--color-panel": tk.surface,
+            "--color-line": tk.line,
+            "--color-ink": tk.ink,
+            "--color-muted": tk.muted,
+            "--color-accent": tk.accent,
+            "--color-onaccent": tk.onAccent,
+        };
+    });
+
+    return (
+        <div class="grid h-screen grid-rows-[52px_1fr] bg-canvas text-ink" style={vars()}>
+            <Topbar />
+            <div class="grid min-h-0 grid-cols-[188px_1fr_296px]">
+                <Minimap />
+                <Canvas />
+                <Panel />
+            </div>
+            <DragGhost />
         </div>
-        <DragGhost />
-    </div>
-);
+    );
+};
