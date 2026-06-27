@@ -13,9 +13,11 @@ export default defineConfig({
     server: {
         port: 8600,
         strictPort: true,
-        // Same-origin in dev: /api/* → the backend API (8601), so cookies work without CORS.
+        // Same-origin in dev: /api/* → the backend API (8601), so cookies work without CORS. The key
+        // is a regex (leading ^) requiring the trailing slash, so it doesn't swallow the app/api.ts
+        // module request (/api.ts), which a bare "/api" prefix would.
         proxy: {
-            "/api": { target: "http://localhost:8601", changeOrigin: true, rewrite: (p) => p.replace(/^\/api/, "") },
+            "^/api/": { target: "http://localhost:8601", changeOrigin: true, rewrite: (p) => p.replace(/^\/api/, "") },
         },
     },
     preview: { port: 8600, strictPort: true },
