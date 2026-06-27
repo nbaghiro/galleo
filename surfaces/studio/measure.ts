@@ -18,24 +18,35 @@ export const measureText = (leaf: TextLeaf, maxWidth: number): Measured => {
     const cx = getCtx();
     cx.font = `${leaf.weight ?? 400} ${leaf.size}px ${leaf.fontId}`;
     const lineHeight = leaf.lineHeight ?? leaf.size * 1.35;
-    const full = cx.measureText(leaf.text).width;
+    const hard = leaf.text.split("\n"); // explicit (shift-enter) line breaks
+
     if (leaf.wrap === "none" || !Number.isFinite(maxWidth)) {
-        return { width: full, height: lineHeight };
+        const width = Math.max(0, ...hard.map((l) => cx.measureText(l).width));
+        return { width, height: hard.length * lineHeight };
     }
-    const words = leaf.text.split(/\s+/).filter(Boolean);
-    let line = "";
+
+    let lines = 0;
     let widest = 0;
-    let lines = words.length === 0 ? 0 : 1;
-    for (const word of words) {
-        const candidate = line === "" ? word : `${line} ${word}`;
-        if (cx.measureText(candidate).width > maxWidth && line !== "") {
-            widest = Math.max(widest, cx.measureText(line).width);
-            line = word;
-            lines += 1;
-        } else {
-            line = candidate;
+    for (const seg of hard) {
+        const words = seg.split(/\s+/).filter(Boolean);
+        if (words.length === 0) {
+            lines += 1; // an empty hard line still occupies a row
+            continue;
         }
+        let line = "";
+        let segLines = 1;
+        for (const word of words) {
+            const candidate = line === "" ? word : `${line} ${word}`;
+            if (cx.measureText(candidate).width > maxWidth && line !== "") {
+                widest = Math.max(widest, cx.measureText(line).width);
+                line = word;
+                segLines += 1;
+            } else {
+                line = candidate;
+            }
+        }
+        widest = Math.max(widest, cx.measureText(line).width);
+        lines += segLines;
     }
-    widest = Math.max(widest, cx.measureText(line).width);
     return { width: Math.min(widest, maxWidth), height: lines * lineHeight };
 };

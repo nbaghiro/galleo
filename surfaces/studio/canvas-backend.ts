@@ -96,7 +96,7 @@ export function drawCommands(cx: CanvasRenderingContext2D, commands: RenderComma
             cx.textAlign = t.align === "center" ? "center" : t.align === "end" ? "right" : "left";
             const x = t.align === "center" ? b.x + b.w / 2 : t.align === "end" ? b.x + b.w : b.x;
             const lh = t.lineHeight ?? t.size * 1.35;
-            const lines = t.wrap === "none" ? [t.text] : wrapLines(cx, t.text, b.w);
+            const lines = t.wrap === "none" ? t.text.split("\n") : t.text.split("\n").flatMap((seg) => wrapLines(cx, seg, b.w));
             lines.forEach((line, i) => cx.fillText(line, x, b.y + i * lh + lh / 2));
         } else {
             cx.save();

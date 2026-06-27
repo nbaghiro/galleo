@@ -97,7 +97,7 @@ export function paint(commands: RenderCommand[], host: HTMLElement): void {
             el.style.lineHeight = `${t.lineHeight ?? t.size * 1.35}px`;
             el.style.color = t.color ?? "#1a1a1a";
             el.style.textAlign = t.align ?? "start";
-            el.style.whiteSpace = t.wrap === "none" ? "nowrap" : "normal";
+            el.style.whiteSpace = t.wrap === "none" ? "pre" : "pre-wrap"; // honor \n hard breaks
             el.style.overflow = "hidden";
         } else {
             const canvas = document.createElement("canvas");

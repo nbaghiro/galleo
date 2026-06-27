@@ -69,7 +69,7 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         setArtifactLive(
             updateDataAt(editor.artifact, props.address, {
                 ...(i.data as Record<string, unknown>),
-                text: el.textContent ?? "",
+                text: el.innerText, // innerText captures <br>/shift-enter as \n (textContent drops them)
             }),
         );
     };
@@ -93,7 +93,7 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
             "line-height": `${l.lineHeight ?? l.size * 1.35}px`,
             color: l.color ?? "#1a1a1a",
             "text-align": l.align ?? "start",
-            "white-space": l.wrap === "none" ? "nowrap" : "normal",
+            "white-space": l.wrap === "none" ? "pre" : "pre-wrap",
             "caret-color": resolveTheme(editor.artifact.theme).tokens.accent,
         };
     });
