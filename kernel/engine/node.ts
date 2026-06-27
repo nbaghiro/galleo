@@ -62,6 +62,7 @@ export interface ImageLeaf {
     src: string;
     fit: "cover" | "contain";
     radius?: number;
+    scrim?: number; // 0..1 dark overlay (for text over a background image)
 }
 
 export interface FillLeaf {

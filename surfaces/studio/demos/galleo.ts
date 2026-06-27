@@ -1,16 +1,21 @@
 import type { ArtifactContent } from "@model/content";
-import { bullets, button, cell, deck, empty, group, img, quote, section, stat, t } from "./build";
+import { bgImage, bullets, button, cell, deck, empty, group, img, quote, section, stat, t } from "./build";
 
 export const galleo: ArtifactContent = deck("studio", [
-    section("s1", "full", {
-        a: cell(
-            group(
-                t("GALLEO", "eyebrow"),
-                t("The editor for people who care how it looks.", "display"),
-                t("One canonical artifact. Deck, doc, and site are just views of it — generated fast, then made genuinely good.", "lead"),
+    section(
+        "s1",
+        "full",
+        {
+            a: cell(
+                group(
+                    t("GALLEO", "eyebrow"),
+                    t("The editor for people who care how it looks.", "display"),
+                    t("One canonical artifact. Deck, doc, and site are just views of it — generated fast, then made genuinely good.", "lead"),
+                ),
             ),
-        ),
-    }),
+        },
+        { bleed: true, background: bgImage("galleo-cover", 0.55) },
+    ),
     section("s2", "split-6040", {
         a: cell(
             group(

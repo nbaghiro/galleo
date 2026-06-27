@@ -26,10 +26,21 @@ export interface Cell {
     element?: ElementInstance;
 }
 
+export interface SectionBackground {
+    kind: "none" | "color" | "gradient" | "image";
+    color?: string;
+    gradient?: { from: string; to: string; angle?: number };
+    image?: string;
+    scrim?: number; // 0..1 dark overlay over an image for text legibility
+    dark?: boolean; // override auto contrast (light text on dark backgrounds)
+}
+
 export interface Section {
     id: Id;
     grid: string; // grid template id, e.g. "split-6040"
     cells: Record<string, Cell>;
+    background?: SectionBackground;
+    bleed?: boolean; // full-bleed (edge-to-edge) vs a contained card
 }
 
 export interface ArtifactContent {

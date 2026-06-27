@@ -1,7 +1,8 @@
 import type { LayoutCtx } from "@elements/element-spec";
 import type { EngineNode } from "@engine/node";
 import type { ElementAddress } from "@model/address";
-import type { ElementInstance, Section } from "@model/content";
+import type { ElementInstance, Section, SectionBackground } from "@model/content";
+import type { Tokens } from "@themes/theme";
 import { getElement } from "@elements/registry";
 import { fallbackTemplate, TEMPLATES } from "@elements/templates";
 import { cellRegionId, elementRegionId, sectionRegionId } from "@model/address";
@@ -52,13 +53,46 @@ function composeElement(inst: ElementInstance, ctx: LayoutCtx, addr: ElementAddr
     return node;
 }
 
+function luminance(hex: string): number {
+    const h = hex.replace("#", "");
+    if (h.length < 6) return 1;
+    return (0.299 * parseInt(h.slice(0, 2), 16) + 0.587 * parseInt(h.slice(2, 4), 16) + 0.114 * parseInt(h.slice(4, 6), 16)) / 255;
+}
+
+function bgIsDark(bg: SectionBackground | undefined): boolean {
+    if (!bg || bg.kind === "none") return false;
+    if (bg.dark !== undefined) return bg.dark;
+    if (bg.kind === "image") return true; // the scrim makes images dark
+    if (bg.kind === "color" && bg.color) return luminance(bg.color) < 0.5;
+    if (bg.kind === "gradient" && bg.gradient) return luminance(bg.gradient.from) < 0.5;
+    return false;
+}
+
+// Over a dark background, content reads in light tones (kept the accent).
+function onDark(t: Tokens): Tokens {
+    return {
+        ...t,
+        ink: "#ffffff",
+        soft: "rgba(255,255,255,0.86)",
+        muted: "rgba(255,255,255,0.64)",
+        line: "rgba(255,255,255,0.24)",
+        surface: "rgba(255,255,255,0.10)",
+        bg: "rgba(255,255,255,0.06)",
+    };
+}
+
 export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
+    const bg = section.background;
+    const bleed = section.bleed ?? false;
+    const contentTheme = bgIsDark(bg) ? onDark(ctx.theme) : ctx.theme;
+    const cctx: LayoutCtx = { ...ctx, theme: contentTheme };
+
     const tmpl = TEMPLATES[section.grid] ?? fallbackTemplate;
     const cells = tmpl.cells.map((cellKey, i): EngineNode => {
         const inst = section.cells[cellKey]?.element;
         const content = inst
-            ? composeElement(inst, ctx, { section: section.id, cell: cellKey, path: [] })
-            : emptyCell(ctx);
+            ? composeElement(inst, cctx, { section: section.id, cell: cellKey, path: [] })
+            : emptyCell(cctx);
         return {
             id: cellRegionId(section.id, cellKey),
             w: tmpl.widths[i] ?? grow(),
@@ -69,12 +103,24 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
         };
     });
     const inner: EngineNode = { w: grow(), h: fit(), direction: "row", gap: 0, alignY: "center", children: cells };
-    return {
+
+    const radius = bleed ? 0 : ctx.theme.radius;
+    const node: EngineNode = {
         id: sectionRegionId(section.id),
         w: grow(),
         h: fit(),
-        padding: pad(36),
-        fill: { color: ctx.theme.surface, radius: ctx.theme.radius, border: { color: ctx.theme.line, width: 1 } },
+        padding: bleed ? { top: 64, bottom: 64, left: 72, right: 72 } : pad(36),
         children: [inner],
     };
+
+    if (bg?.kind === "image" && bg.image) {
+        node.image = { src: bg.image, fit: "cover", radius, scrim: bg.scrim ?? 0.45 };
+    } else if (bg?.kind === "gradient" && bg.gradient) {
+        node.fill = { gradient: bg.gradient, radius };
+    } else if (bg?.kind === "color" && bg.color) {
+        node.fill = { color: bg.color, radius };
+    } else {
+        node.fill = { color: ctx.theme.surface, radius, border: bleed ? undefined : { color: ctx.theme.line, width: 1 } };
+    }
+    return node;
 }

@@ -29,7 +29,8 @@ export const Canvas: Component = () => {
 
     const draw = (): void => {
         if (!paintHost) return;
-        const width = stageEl.clientWidth || 800;
+        const fullW = stageEl.clientWidth || 800;
+        const contentW = Math.min(fullW - 64, 1080); // contained sections sit centered at this width
         paintHost.replaceChildren();
 
         // suppress the painted text of the element being edited — only the live overlay shows it
@@ -41,14 +42,17 @@ export const Canvas: Component = () => {
         const tops: number[] = [];
         const all: Region[] = [];
         for (const section of editor.artifact.sections) {
-            const { commands, regions, height } = layoutSection(section, width, measureText, theme);
+            const bleed = section.bleed ?? false;
+            const layoutW = bleed ? fullW : contentW;
+            const x = bleed ? 0 : Math.round((fullW - contentW) / 2);
+            const { commands, regions, height } = layoutSection(section, layoutW, measureText, theme);
             const visible = editId ? commands.filter((c) => !(c.kind === "text" && c.id === editId)) : commands;
             const layer = document.createElement("div");
-            layer.style.cssText = `left:0;top:${y}px;width:${width}px;height:${height}px`;
+            layer.style.cssText = `left:${x}px;top:${y}px;width:${layoutW}px;height:${height}px`;
             paint(visible, layer);
             layer.style.position = "absolute"; // paint() forces relative; keep layers out of flow
             paintHost.appendChild(layer);
-            for (const r of regions) all.push({ id: r.id, box: { x: r.box.x, y: r.box.y + y, w: r.box.w, h: r.box.h } });
+            for (const r of regions) all.push({ id: r.id, box: { x: r.box.x + x, y: r.box.y + y, w: r.box.w, h: r.box.h } });
             tops.push(y);
             y += height + SECTION_GAP;
         }
@@ -173,7 +177,7 @@ export const Canvas: Component = () => {
     return (
         <main
             ref={scrollEl}
-            class="overflow-y-auto px-10 pt-8 pb-[140px]"
+            class="overflow-y-auto pt-6 pb-[140px]"
             style={pageStyle()}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
@@ -181,7 +185,7 @@ export const Canvas: Component = () => {
             onDblClick={onDoubleClick}
             onPointerLeave={() => !drag() && setHover(null)}
         >
-            <div ref={stageEl} class="relative mx-auto max-w-[1100px]">
+            <div ref={stageEl} class="relative w-full">
                 <div ref={paintHost} class="absolute inset-0" />
                 <Overlay />
                 <DropIndicator />

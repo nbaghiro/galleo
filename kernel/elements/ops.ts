@@ -1,5 +1,5 @@
 import type { ElementAddress } from "@model/address";
-import type { ArtifactContent, Cell, ElementInstance, Id, Section } from "@model/content";
+import type { ArtifactContent, Cell, ElementInstance, Id, Section, SectionBackground } from "@model/content";
 import { getElement } from "@elements/registry";
 
 // Pure, immutable content ops over an artifact. Container traversal/editing goes through the
@@ -121,6 +121,14 @@ export function updateDataAt(art: ArtifactContent, addr: ElementAddress, data: u
 
 export function setSectionGrid(art: ArtifactContent, section: Id, grid: string): ArtifactContent {
     return mapSection(art, section, (s) => ({ ...s, grid }));
+}
+
+export function setSectionBackground(art: ArtifactContent, section: Id, background: SectionBackground): ArtifactContent {
+    return mapSection(art, section, (s) => ({ ...s, background }));
+}
+
+export function setSectionBleed(art: ArtifactContent, section: Id, bleed: boolean): ArtifactContent {
+    return mapSection(art, section, (s) => ({ ...s, bleed }));
 }
 
 export function setArtifactTheme(art: ArtifactContent, theme: Id): ArtifactContent {

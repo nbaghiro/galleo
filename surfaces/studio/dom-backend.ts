@@ -80,7 +80,9 @@ export function paint(commands: RenderCommand[], host: HTMLElement): void {
                 el.style.border = `${b.width}px ${b.style ?? "solid"} ${b.color}`;
             }
         } else if (c.kind === "image") {
-            el.style.backgroundImage = `url("${c.image.src}")`;
+            const scrim = c.image.scrim;
+            const url = `url("${c.image.src}")`;
+            el.style.backgroundImage = scrim ? `linear-gradient(rgba(0,0,0,${scrim}), rgba(0,0,0,${scrim})), ${url}` : url;
             el.style.backgroundSize = c.image.fit;
             el.style.backgroundPosition = "center";
             el.style.backgroundRepeat = "no-repeat";

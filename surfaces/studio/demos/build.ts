@@ -1,4 +1,4 @@
-import type { ArtifactContent, Cell, ElementInstance, Section } from "@model/content";
+import type { ArtifactContent, Cell, ElementInstance, Section, SectionBackground } from "@model/content";
 
 // Concise builders for authoring demo artifacts (real content, full element variety).
 
@@ -39,6 +39,17 @@ export const cell = (element: ElementInstance): Cell => ({ element });
 
 export const empty: Cell = {};
 
-export const section = (id: string, grid: string, cells: Record<string, Cell>): Section => ({ id, grid, cells });
+export const section = (
+    id: string,
+    grid: string,
+    cells: Record<string, Cell>,
+    opts?: { background?: SectionBackground; bleed?: boolean },
+): Section => ({ id, grid, cells, ...opts });
+
+export const bgImage = (seed: string, scrim = 0.5): SectionBackground => ({
+    kind: "image",
+    image: `https://picsum.photos/seed/${seed}/1700/1100`,
+    scrim,
+});
 
 export const deck = (theme: string, sections: Section[]): ArtifactContent => ({ format: "deck", theme, sections });
