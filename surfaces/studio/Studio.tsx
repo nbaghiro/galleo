@@ -2,6 +2,7 @@ import type { JSX } from "solid-js";
 import type { Component } from "solid-js";
 import { createEffect, createMemo, Show } from "solid-js";
 import { resolveTheme } from "@themes/library";
+import { themeCssVars } from "@themes/theme";
 import { AgentPanel } from "./AgentPanel";
 import { Canvas } from "./Canvas";
 import { DragGhost } from "./DragGhost";
@@ -26,18 +27,9 @@ export const Studio: Component = () => {
         saveTimer = window.setTimeout(() => saveDoc(id, art), 500);
     });
 
-    const vars = createMemo((): JSX.CSSProperties => {
-        const tk = resolveTheme(editor.artifact.theme).tokens;
-        return {
-            "--color-canvas": tk.bg,
-            "--color-panel": tk.surface,
-            "--color-line": tk.line,
-            "--color-ink": tk.ink,
-            "--color-muted": tk.muted,
-            "--color-accent": tk.accent,
-            "--color-onaccent": tk.onAccent,
-        };
-    });
+    const vars = createMemo(
+        (): JSX.CSSProperties => themeCssVars(resolveTheme(editor.artifact.theme).tokens) as JSX.CSSProperties,
+    );
 
     return (
         <div class="grid h-screen grid-rows-[52px_1fr] overflow-hidden bg-canvas text-ink" style={vars()}>

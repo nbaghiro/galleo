@@ -1,5 +1,10 @@
+/* Shared theming for every frontend module (app + studio + future library/teams/settings). The
+   active theme recolors chrome by setting these `--color-*` vars on a root element via
+   themeCssVars() (kernel/themes). Imported once by the app entry; @source scans all module dirs so
+   their utility classes + tokens are available everywhere. */
 @import "tailwindcss";
-@source "./*.tsx";
+@source "../app/**/*.{ts,tsx,html}";
+@source "../surfaces/studio/**/*.{ts,tsx,html}";
 
 @theme {
     --color-canvas: #f4f0e8;

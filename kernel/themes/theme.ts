@@ -44,3 +44,17 @@ export function fontStack(role: FontRole, t: Tokens): string {
     if (role === "mono") return `'${t.fontMono}', monospace`;
     return `'${t.fontBody}', sans-serif`;
 }
+
+// The Tailwind color variables for a theme — any module sets these on a root element to recolor its
+// chrome (the shared theme.css declares the matching `@theme` tokens). Pure: just a string record.
+export function themeCssVars(t: Tokens): Record<string, string> {
+    return {
+        "--color-canvas": t.bg,
+        "--color-panel": t.surface,
+        "--color-line": t.line,
+        "--color-ink": t.ink,
+        "--color-muted": t.muted,
+        "--color-accent": t.accent,
+        "--color-onaccent": t.onAccent,
+    };
+}

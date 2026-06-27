@@ -1,4 +1,5 @@
-/* @refresh reload */
+// Side-effect import that registers every element into the kernel registry. Import once at startup
+// (the app entry + the playground both do).
 import "@elements/text";
 import "@elements/image";
 import "@elements/card";
@@ -18,9 +19,3 @@ import "@elements/table";
 import "@elements/diagram";
 import "@elements/video";
 import "@elements/embed";
-import { render } from "solid-js/web";
-import { Studio } from "./Studio";
-import "../../theme/styles.css";
-
-const root = document.getElementById("root");
-if (root) render(() => <Studio />, root);
