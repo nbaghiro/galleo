@@ -1,23 +1,14 @@
-import type { Component } from "solid-js";
-import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
+import type { Component, JSX } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
 import { listElements } from "@elements/registry";
 import { ElementInspector } from "./ElementInspector";
-import { selection, setRightOpen } from "./editor";
+import { rightTab, selection, setRightTab } from "./editor";
 import { PaletteItem } from "./PaletteItem";
 import { SectionInspector } from "./SectionInspector";
 
 const HIDDEN = new Set(["group"]); // internal container, not a palette item
-const CATEGORY_ORDER = [
-    "text",
-    "media",
-    "data",
-    "interactive",
-    "branding",
-    "layout",
-    "decoration",
-    "container",
-];
-const CATEGORY_LABELS: Record<string, string> = {
+const CAT_ORDER = ["text", "media", "data", "interactive", "branding", "layout", "decoration", "container"];
+const CAT_LABEL: Record<string, string> = {
     text: "Text",
     media: "Media",
     data: "Data & charts",
@@ -27,61 +18,24 @@ const CATEGORY_LABELS: Record<string, string> = {
     decoration: "Decoration",
     container: "Containers",
 };
-
-// The element library: a search field over categorized, searchable element tiles (drag source).
-const Palette: Component = () => {
-    const [q, setQ] = createSignal("");
-    const all = listElements().filter((s) => !HIDDEN.has(s.type));
-
-    const groups = createMemo(() => {
-        const query = q().trim().toLowerCase();
-        const items = query
-            ? all.filter((s) => s.label.toLowerCase().includes(query) || s.type.includes(query))
-            : all;
-        if (query) return [{ name: "", types: items.map((s) => s.type) }];
-        const byCat = new Map<string, string[]>();
-        for (const s of items) {
-            if (!byCat.has(s.category)) byCat.set(s.category, []);
-            byCat.get(s.category)!.push(s.type);
-        }
-        const known = CATEGORY_ORDER.filter((c) => byCat.has(c));
-        const extra = [...byCat.keys()].filter((c) => !CATEGORY_ORDER.includes(c));
-        return [...known, ...extra].map((c) => ({
-            name: CATEGORY_LABELS[c] ?? c,
-            types: byCat.get(c)!,
-        }));
-    });
-
-    return (
-        <>
-            <input
-                value={q()}
-                onInput={(e) => setQ(e.currentTarget.value)}
-                placeholder="Search elements…"
-                class="mb-4 w-full rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-accent"
-            />
-            <For each={groups()}>
-                {(grp) => (
-                    <div class="mb-4">
-                        <Show when={grp.name}>
-                            <div class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted">
-                                {grp.name}
-                            </div>
-                        </Show>
-                        <div class="grid grid-cols-2 gap-3">
-                            <For each={grp.types}>{(t) => <PaletteItem type={t} />}</For>
-                        </div>
-                    </div>
-                )}
-            </For>
-            <Show when={groups().length === 0}>
-                <p class="text-[13px] text-muted">No elements match.</p>
-            </Show>
-        </>
-    );
+const CAT_ICON: Record<string, string> = {
+    text: "T",
+    media: "❏",
+    data: "▦",
+    interactive: "◉",
+    branding: "❖",
+    layout: "▭",
+    decoration: "▨",
+    container: "▢",
 };
 
+// Right side: an always-on vertical icon rail. Clicking an icon opens a flyout — a category's
+// draggable elements, a search over all of them, or the inspector for the current selection.
 export const Panel: Component = () => {
+    const [q, setQ] = createSignal("");
+    const all = listElements().filter((s) => !HIDDEN.has(s.type));
+    const cats = createMemo(() => CAT_ORDER.filter((c) => all.some((s) => s.category === c)));
+
     const elementAddr = createMemo(() => {
         const s = selection();
         return s?.kind === "element" ? s.address : null;
@@ -91,23 +45,73 @@ export const Panel: Component = () => {
         return s?.kind === "section" ? s.section : null;
     });
 
+    // Selecting something opens the inspector flyout; clearing it closes that flyout.
+    createEffect(() => {
+        const s = selection();
+        if (s?.kind === "element" || s?.kind === "section") setRightTab("inspector");
+        else setRightTab((t) => (t === "inspector" ? null : t));
+    });
+
+    const items = createMemo(() => {
+        const query = q().trim().toLowerCase();
+        if (query) return all.filter((s) => s.label.toLowerCase().includes(query) || s.type.includes(query));
+        const tab = rightTab();
+        return tab && tab !== "inspector" && tab !== "search" ? all.filter((s) => s.category === tab) : all;
+    });
+
+    const railBtn = (id: string, glyph: string, label: string): JSX.Element => (
+        <button
+            title={label}
+            class={`flex h-9 w-9 items-center justify-center rounded-lg text-[15px] leading-none transition-colors ${
+                rightTab() === id ? "bg-accent text-onaccent" : "text-muted hover:bg-canvas hover:text-ink"
+            }`}
+            onClick={() => setRightTab((t) => (t === id ? null : id))}
+        >
+            {glyph}
+        </button>
+    );
+
     return (
-        <aside class="absolute right-3 top-3 z-20 flex max-h-[calc(100%-24px)] w-[300px] flex-col overflow-y-auto rounded-2xl border border-line bg-panel/95 p-[18px] shadow-2xl backdrop-blur-md">
-            <div class="mb-2 flex justify-end">
-                <button
-                    class="flex h-5 w-5 items-center justify-center rounded text-[11px] text-muted hover:text-ink"
-                    title="Hide"
-                    onClick={() => setRightOpen(false)}
-                >
-                    ✕
-                </button>
+        <div class="absolute right-3 top-1/2 z-20 flex -translate-y-1/2 items-stretch gap-2">
+            <Show when={rightTab()}>
+                {(tab) => (
+                    <aside class="flex max-h-[calc(100vh-120px)] w-[284px] flex-col overflow-y-auto rounded-2xl border border-line bg-panel/95 p-[18px] shadow-2xl backdrop-blur-md">
+                        <Show
+                            when={tab() === "inspector"}
+                            fallback={
+                                <>
+                                    <div class="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                                        {tab() === "search" ? "All elements" : (CAT_LABEL[tab()] ?? tab())}
+                                    </div>
+                                    <input
+                                        value={q()}
+                                        onInput={(e) => setQ(e.currentTarget.value)}
+                                        placeholder="Search elements…"
+                                        class="mb-4 w-full rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-accent"
+                                    />
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <For each={items()}>{(s) => <PaletteItem type={s.type} />}</For>
+                                    </div>
+                                    <Show when={items().length === 0}>
+                                        <p class="text-[13px] text-muted">No elements match.</p>
+                                    </Show>
+                                </>
+                            }
+                        >
+                            <Switch fallback={<p class="text-[13px] text-muted">Select an element or section to edit it.</p>}>
+                                <Match when={elementAddr()}>{(addr) => <ElementInspector address={addr()} />}</Match>
+                                <Match when={sectionId()}>{(id) => <SectionInspector section={id()} />}</Match>
+                            </Switch>
+                        </Show>
+                    </aside>
+                )}
+            </Show>
+
+            <div class="flex flex-col gap-1 self-center rounded-2xl border border-line bg-panel/95 p-1.5 shadow-2xl backdrop-blur-md">
+                <Show when={selection()}>{railBtn("inspector", "⚙", "Properties")}</Show>
+                {railBtn("search", "⌕", "Search")}
+                <For each={cats()}>{(c) => railBtn(c, CAT_ICON[c] ?? "▢", CAT_LABEL[c] ?? c)}</For>
             </div>
-            <Switch fallback={<Palette />}>
-                <Match when={elementAddr()}>
-                    {(addr) => <ElementInspector address={addr()} />}
-                </Match>
-                <Match when={sectionId()}>{(id) => <SectionInspector section={id()} />}</Match>
-            </Switch>
-        </aside>
+        </div>
     );
 };

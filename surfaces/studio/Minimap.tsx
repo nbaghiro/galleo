@@ -5,7 +5,7 @@ import { Thumb } from "./Thumb";
 
 // Floating left rail: a live thumbnail per section; click to jump-scroll. "+ Section" appends one.
 export const Minimap: Component = () => (
-    <aside class="absolute left-3 top-3 z-20 flex max-h-[calc(100%-24px)] w-[182px] flex-col gap-3 overflow-y-auto rounded-2xl border border-line bg-panel/95 p-3 shadow-2xl backdrop-blur-md">
+    <aside class="absolute left-3 top-1/2 z-20 flex max-h-[calc(100%-24px)] w-[182px] -translate-y-1/2 flex-col gap-3 overflow-y-auto rounded-2xl border border-line bg-panel/95 p-3 shadow-2xl backdrop-blur-md">
         <div class="flex items-center justify-between pl-1">
             <span class="text-[10px] font-semibold uppercase tracking-wider text-muted">Sections</span>
             <button

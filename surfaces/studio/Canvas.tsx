@@ -15,7 +15,6 @@ import {
     editor,
     leftOpen,
     redo,
-    rightOpen,
     setCanvasEl,
     setEditor,
     setHover,
@@ -28,6 +27,7 @@ import { DropIndicator } from "./DropIndicator";
 import { measureText } from "./measure";
 import { Overlay } from "./Overlay";
 import { SECTION_GAP, layoutSection } from "./render";
+import { SectionActions } from "./SectionActions";
 import { SectionToolbar } from "./SectionToolbar";
 import { TextEditor } from "./TextEditor";
 
@@ -36,7 +36,7 @@ const DRAG_THRESHOLD = 4;
 // Gutters reserved for the floating panels (so centered content clears them); collapsed → just a margin.
 const RAIL_GAP = 28;
 const PANEL_L = 200;
-const PANEL_R = 320;
+const RAIL_R = 64; // the right icon rail (the element flyout overlays content when opened)
 
 // The continuous section canvas: lays out + paints each section, accumulates regions (canvas coords)
 // for hit-testing, and drives selection + pointer-based drag-and-drop on top of the engine geometry.
@@ -52,8 +52,7 @@ export const Canvas: Component = () => {
         if (!paintHost) return;
         // The panels float over the canvas; reserve their gutters so centered content clears them.
         const padL = leftOpen() ? PANEL_L : RAIL_GAP;
-        const padR = rightOpen() ? PANEL_R : RAIL_GAP;
-        const fullW = Math.max(360, (scrollEl.clientWidth || 800) - padL - padR);
+        const fullW = Math.max(360, (scrollEl.clientWidth || 800) - padL - RAIL_R);
         const contentW = Math.min(fullW - 64, 1080); // contained sections sit centered at this width
         paintHost.replaceChildren();
 
@@ -214,7 +213,7 @@ export const Canvas: Component = () => {
             "background-size": "cover",
             "background-position": "center",
             "padding-left": `${leftOpen() ? PANEL_L : RAIL_GAP}px`,
-            "padding-right": `${rightOpen() ? PANEL_R : RAIL_GAP}px`,
+            "padding-right": `${RAIL_R}px`,
             "--sb": tk.line,
             "--sb-strong": tk.muted,
         };
@@ -235,6 +234,7 @@ export const Canvas: Component = () => {
                 <div ref={paintHost} class="absolute inset-0" />
                 <Overlay />
                 <DropIndicator />
+                <SectionActions />
                 <SectionToolbar />
                 <TextEditor />
             </div>
