@@ -169,7 +169,7 @@ export const Topbar: Component = () => (
         <FormatSwitcher />
         <ThemeMenu />
         <button class={btn} onClick={() => present()}>
-            ▶ Present
+            {editor.artifact.format === "deck" ? "▶ Present" : "⤢ Preview"}
         </button>
         <ExportMenu />
         <button class={btnAccent} onClick={() => setAgentOpen(true)}>
