@@ -1,16 +1,16 @@
 import type { Section } from "@model/content";
 import type { Component } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { resolveProfile } from "@engine/profile";
 import { resolveTheme } from "@themes/library";
 import { paint } from "./dom-backend";
 import { editor, exitPresent, nextSlide, presenting, prevSlide, setSlideIndex, slideIndex } from "./editor";
 import { measureText } from "./measure";
-import { layoutSection } from "./render";
+import { layoutSlide } from "./render";
 
-// Deck slide geometry (16:9). Sections lay out at the content width and fit inside the slide.
+// Deck slide geometry (16:9). Each section is stretched to fill the slide.
 const SLIDE_W = 1280;
 const SLIDE_H = 720;
-const CONTENT_W = 1180;
 const MINI_W = 250;
 
 // Fullscreen presentation: one section per 16:9 slide, fit-to-screen, with an overview grid.
@@ -19,16 +19,15 @@ export const Present: Component = () => {
     let host!: HTMLDivElement;
     const [overview, setOverview] = createSignal(false);
     const theme = createMemo(() => resolveTheme(editor.artifact.theme).tokens);
+    const deck = createMemo(() => resolveProfile("deck"));
 
-    // One section → a 1280×720 slide div (section centered, scaled down if it overflows the slide).
+    // One section → a 1280×720 slide: the section fills the frame (taller sections scale down to fit).
     const buildSlide = (section: Section): HTMLDivElement => {
         const tk = theme();
-        const bleed = section.bleed ?? false;
-        const layoutW = bleed ? SLIDE_W : CONTENT_W;
-        const { commands, height } = layoutSection(section, layoutW, measureText, tk);
+        const { commands, height } = layoutSlide(section, SLIDE_W, SLIDE_H, measureText, tk, deck());
         const fit = Math.min(1, SLIDE_H / height);
         const content = document.createElement("div");
-        content.style.cssText = `position:absolute;width:${layoutW}px;height:${height}px;transform:scale(${fit});transform-origin:top left;left:${(SLIDE_W - layoutW * fit) / 2}px;top:${(SLIDE_H - height * fit) / 2}px`;
+        content.style.cssText = `position:absolute;width:${SLIDE_W}px;height:${height}px;transform:scale(${fit});transform-origin:top left;left:${(SLIDE_W - SLIDE_W * fit) / 2}px;top:${(SLIDE_H - height * fit) / 2}px`;
         paint(commands, content);
         const slide = document.createElement("div");
         slide.style.cssText = `position:relative;width:${SLIDE_W}px;height:${SLIDE_H}px;overflow:hidden;background:${tk.bg}`;

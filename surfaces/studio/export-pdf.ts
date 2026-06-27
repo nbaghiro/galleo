@@ -14,7 +14,6 @@ const PRINT_W = 1100;
 // Slide geometry (matches Present) + the PDF page size in points (13.33in × 7.5in widescreen).
 const SLIDE_W = 1280;
 const SLIDE_H = 720;
-const CONTENT_W = 1180;
 const SCALE = 2; // raster supersampling for crisp output
 const PAGE_W = 960;
 const PAGE_H = 540;
@@ -43,7 +42,7 @@ export async function exportPdf(): Promise<void> {
     const tk = tokens();
     const pdf = await PDFDocument.create();
     for (const section of editor.artifact.sections) {
-        const { canvas } = await renderSlide(section, tk, { w: SLIDE_W, h: SLIDE_H, contentW: CONTENT_W, scale: SCALE });
+        const { canvas } = await renderSlide(section, tk, { w: SLIDE_W, h: SLIDE_H, scale: SCALE });
         const img = await pdf.embedPng(await canvasPng(canvas));
         const page = pdf.addPage([PAGE_W, PAGE_H]);
         page.drawImage(img, { x: 0, y: 0, width: PAGE_W, height: PAGE_H });
@@ -101,7 +100,7 @@ export async function exportDeckPng(): Promise<void> {
     const cx = out.getContext("2d");
     if (!cx) return;
     for (let i = 0; i < sections.length; i++) {
-        const { canvas } = await renderSlide(sections[i]!, tk, { w: SLIDE_W, h: SLIDE_H, contentW: CONTENT_W, scale: SCALE });
+        const { canvas } = await renderSlide(sections[i]!, tk, { w: SLIDE_W, h: SLIDE_H, scale: SCALE });
         cx.drawImage(canvas, 0, i * SLIDE_H * SCALE);
     }
     download(await canvasPng(out), "galleo-deck.png", "image/png");

@@ -1,9 +1,10 @@
 import type { RenderCommand } from "@engine/render-command";
 import type { Section } from "@model/content";
 import type { Tokens } from "@themes/theme";
+import { resolveProfile } from "@engine/profile";
 import { canvasDrawContext } from "./dom-backend";
 import { measureText } from "./measure";
-import { layoutSection } from "./render";
+import { layoutSlide } from "./render";
 
 // A Canvas render backend: draws a RenderCommand[] onto a 2D context. Mirrors the DOM backend so the
 // raster output matches the editor. Powers PNG export + the rasterized surfaces inside the PDF.
@@ -154,13 +155,11 @@ export interface SlideRender {
 
 // Render one section into a fixed page (w×h), section centered + scaled to fit. Returns the canvas
 // plus the placement transform (so a vector backend can reuse the same geometry).
-export async function renderSlide(section: Section, tk: Tokens, opts: { w: number; h: number; contentW: number; scale: number }): Promise<SlideRender> {
-    const { w, h, contentW, scale } = opts;
-    const bleed = section.bleed ?? false;
-    const layoutW = bleed ? w : contentW;
-    const { commands, height } = layoutSection(section, layoutW, measureText, tk);
+export async function renderSlide(section: Section, tk: Tokens, opts: { w: number; h: number; scale: number }): Promise<SlideRender> {
+    const { w, h, scale } = opts;
+    const { commands, height } = layoutSlide(section, w, h, measureText, tk, resolveProfile("deck"));
     const fit = Math.min(1, h / height);
-    const offsetX = (w - layoutW * fit) / 2;
+    const offsetX = (w - w * fit) / 2;
     const offsetY = (h - height * fit) / 2;
 
     const canvas = document.createElement("canvas");
@@ -178,5 +177,5 @@ export async function renderSlide(section: Section, tk: Tokens, opts: { w: numbe
         drawCommands(cx, commands, images);
         cx.restore();
     }
-    return { canvas, commands, layoutW, height, fit, offsetX, offsetY };
+    return { canvas, commands, layoutW: w, height, fit, offsetX, offsetY };
 }

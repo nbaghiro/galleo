@@ -135,7 +135,7 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
         h: fit(),
         direction: "row",
         gap: 0,
-        alignY: continuous ? "start" : "center",
+        alignY: "center",
         children: cells,
     };
 
