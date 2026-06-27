@@ -6,8 +6,9 @@ import { DEMOS } from "./demos";
 import { commit, demoId, editor, loadDemo, present, setAgentOpen } from "./editor";
 import { exportPrint } from "./export-pdf";
 
-const btn =
-    "cursor-pointer rounded-lg border border-line bg-canvas px-3 py-1.5 text-[12px] font-semibold text-ink";
+const btnBase = "cursor-pointer rounded-lg border px-3 py-1.5 text-[12px] font-semibold";
+const btn = `${btnBase} border-line bg-canvas text-ink`;
+const btnAccent = `${btnBase} border-accent bg-accent text-onaccent`;
 
 const DocMenu: Component = () => {
     const [open, setOpen] = createSignal(false);
@@ -108,10 +109,7 @@ export const Topbar: Component = () => (
         <button class={btn} onClick={() => exportPrint()}>
             Export
         </button>
-        <button
-            class={`${btn} border-accent bg-accent text-onaccent`}
-            onClick={() => setAgentOpen(true)}
-        >
+        <button class={btnAccent} onClick={() => setAgentOpen(true)}>
             ✦ Generate
         </button>
     </header>
