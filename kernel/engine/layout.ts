@@ -185,7 +185,7 @@ function layoutPositions(laid: Laid, x: number, y: number): void {
             gap * Math.max(0, laid.children.length - 1);
         let cx = x + cl + mainOffset(contentW - totalW, node.alignX);
         for (const c of laid.children) {
-            const cy = y + ct + mainOffset(contentH - c.h, node.alignY);
+            const cy = y + ct + mainOffset(contentH - c.h, c.node.alignSelf ?? node.alignY);
             layoutPositions(c, cx, cy);
             cx += c.w + gap;
         }
@@ -195,7 +195,7 @@ function layoutPositions(laid: Laid, x: number, y: number): void {
             gap * Math.max(0, laid.children.length - 1);
         let cy = y + ct + mainOffset(contentH - totalH, node.alignY);
         for (const c of laid.children) {
-            const cx = x + cl + mainOffset(contentW - c.w, node.alignX);
+            const cx = x + cl + mainOffset(contentW - c.w, c.node.alignSelf ?? node.alignX);
             layoutPositions(c, cx, cy);
             cy += c.h + gap;
         }

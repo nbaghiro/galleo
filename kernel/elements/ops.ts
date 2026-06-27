@@ -3,6 +3,7 @@ import type {
     ArtifactContent,
     Cell,
     ElementInstance,
+    ElementLayout,
     Id,
     Section,
     SectionBackground,
@@ -31,7 +32,7 @@ function childrenOf(inst: ElementInstance): ElementInstance[] | null {
 function withChildren(inst: ElementInstance, children: ElementInstance[]): ElementInstance {
     const spec = getElement(inst.type);
     if (!spec?.container) throw new Error(`not a container: ${inst.type}`);
-    return { type: inst.type, data: spec.container.withChildren(inst.data, children) };
+    return { ...inst, data: spec.container.withChildren(inst.data, children) };
 }
 
 function wrapGroup(children: ElementInstance[]): ElementInstance {
@@ -134,7 +135,15 @@ export function updateDataAt(
     addr: ElementAddress,
     data: unknown,
 ): ArtifactContent {
-    return updateElementAt(art, addr, (inst) => ({ type: inst.type, data }));
+    return updateElementAt(art, addr, (inst) => ({ ...inst, data }));
+}
+
+export function setElementLayout(
+    art: ArtifactContent,
+    addr: ElementAddress,
+    layout: ElementLayout,
+): ArtifactContent {
+    return updateElementAt(art, addr, (inst) => ({ ...inst, layout }));
 }
 
 export function setSectionGrid(art: ArtifactContent, section: Id, grid: string): ArtifactContent {

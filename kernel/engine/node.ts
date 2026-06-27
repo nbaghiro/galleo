@@ -95,6 +95,7 @@ export interface EngineNode {
     gap?: number;
     alignX?: Align;
     alignY?: Align;
+    alignSelf?: Align; // overrides the parent's cross-axis alignment for this child
     text?: TextLeaf;
     image?: ImageLeaf;
     fill?: FillLeaf;

@@ -1,13 +1,37 @@
 import type { ControlField } from "@elements/element-spec";
 import type { ElementAddress } from "@model/address";
+import type { ElementLayout } from "@model/content";
 import type { Component, JSX } from "solid-js";
 import { createMemo, For, Match, Show, Switch } from "solid-js";
-import { getElementAt, removeAt, updateDataAt } from "@elements/ops";
+import { getElementAt, removeAt, setElementLayout, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/registry";
 import { commit, editor, setSelection } from "./editor";
 
 const inputCls =
     "w-full rounded-md border border-line bg-canvas px-2 py-1.5 text-[13px] text-ink outline-none focus:border-accent";
+
+// Universal per-element layout controls (independent of the element's data controls).
+const WIDTH_FIELD: ControlField = {
+    key: "width",
+    label: "Width",
+    control: "segmented",
+    options: [
+        { label: "Fit", value: "fit" },
+        { label: "Fill", value: "fill" },
+        { label: "%", value: "pct" },
+    ],
+};
+const PCT_FIELD: ControlField = { key: "pct", label: "Width %", control: "slider", min: 10, max: 100, step: 5, unit: "%" };
+const ALIGN_FIELD: ControlField = {
+    key: "align",
+    label: "Align",
+    control: "segmented",
+    options: [
+        { label: "Start", value: "start" },
+        { label: "Center", value: "center" },
+        { label: "End", value: "end" },
+    ],
+};
 
 function Field(props: {
     field: ControlField;
@@ -148,6 +172,26 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
         setSelection(null);
     };
 
+    // Per-instance layout (width + cross-axis align), shown for every element.
+    const layout = createMemo((): ElementLayout => inst()?.layout ?? {});
+    const widthMode = (): string => {
+        const w = layout().width;
+        if (w === "fit") return "fit";
+        if (typeof w === "object") return "pct";
+        return "fill"; // "fill" or unset → fills (the natural default for most elements)
+    };
+    const pct = (): number => {
+        const w = layout().width;
+        return typeof w === "object" ? w.pct : 50;
+    };
+    const setLayout = (patch: Partial<ElementLayout>): void =>
+        commit(setElementLayout(editor.artifact, props.address, { ...layout(), ...patch }));
+    const setWidth = (mode: unknown): void => {
+        if (mode === "fit") setLayout({ width: "fit" });
+        else if (mode === "pct") setLayout({ width: { pct: pct() } });
+        else setLayout({ width: "fill" });
+    };
+
     return (
         <div>
             <div class="mb-4 flex items-center justify-between">
@@ -157,6 +201,14 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
                 <button class="text-[12px] font-semibold text-accent hover:underline" onClick={del}>
                     Delete
                 </button>
+            </div>
+            <div class="mb-4">
+                <div class="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted">Layout</div>
+                <Field field={WIDTH_FIELD} value={widthMode()} onChange={setWidth} />
+                <Show when={widthMode() === "pct"}>
+                    <Field field={PCT_FIELD} value={pct()} onChange={(v) => setLayout({ width: { pct: Number(v) } })} />
+                </Show>
+                <Field field={ALIGN_FIELD} value={layout().align ?? "start"} onChange={(v) => setLayout({ align: v as "start" | "center" | "end" })} />
             </div>
             <Show
                 when={(spec()?.controls.length ?? 0) > 0}

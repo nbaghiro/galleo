@@ -1,12 +1,12 @@
 import type { LayoutCtx } from "@elements/element-spec";
 import type { EngineNode } from "@engine/node";
 import type { ElementAddress } from "@model/address";
-import type { ElementInstance, Section, SectionBackground } from "@model/content";
+import type { ElementInstance, ElementLayout, Section, SectionBackground } from "@model/content";
 import type { Tokens } from "@themes/theme";
 import { getElement } from "@elements/registry";
 import { fallbackTemplate, TEMPLATES } from "@elements/templates";
 import { cellRegionId, elementRegionId, sectionRegionId } from "@model/address";
-import { fit, grow } from "@model/size";
+import { fit, grow, percent } from "@model/size";
 import { fontStack } from "@themes/theme";
 
 // Compose one Section into an EngineNode tree, tagging section / cell / element nodes with region ids
@@ -44,6 +44,16 @@ function emptyCell(ctx: LayoutCtx): EngineNode {
     };
 }
 
+// Per-instance layout: how the element sits in its parent row/column (width + cross-axis align).
+function applyLayout(node: EngineNode, layout: ElementLayout | undefined): EngineNode {
+    if (!layout) return node;
+    if (layout.width === "fit") node.w = fit();
+    else if (layout.width === "fill") node.w = grow();
+    else if (layout.width && typeof layout.width === "object") node.w = percent(layout.width.pct / 100);
+    if (layout.align) node.alignSelf = layout.align;
+    return node;
+}
+
 function composeElement(inst: ElementInstance, ctx: LayoutCtx, addr: ElementAddress): EngineNode {
     const spec = getElement(inst.type);
     if (!spec) {
@@ -70,7 +80,7 @@ function composeElement(inst: ElementInstance, ctx: LayoutCtx, addr: ElementAddr
         node = spec.layout(inst.data, ctx);
     }
     node.id = elementRegionId(addr);
-    return node;
+    return applyLayout(node, inst.layout);
 }
 
 function luminance(hex: string): number {

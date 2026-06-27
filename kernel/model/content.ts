@@ -16,10 +16,17 @@ export interface BoxInsets {
     left: number;
 }
 
+// Per-instance layout (how an element sits in its parent row/column) — independent of element data.
+export interface ElementLayout {
+    width?: "fit" | "fill" | { pct: number }; // fit content · grow to fill · percent of the row
+    align?: "start" | "center" | "end"; // self cross-axis alignment
+}
+
 // A registered content component instance; `data` is interpreted by its ElementSpec.
 export interface ElementInstance {
     type: string;
     data: unknown;
+    layout?: ElementLayout;
 }
 
 export interface Cell {
