@@ -1,10 +1,10 @@
-import type { Component } from "solid-js";
+import type { Component, JSX } from "solid-js";
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { setArtifactFormat, setArtifactTheme } from "@elements/ops";
 import { resolveTheme, THEME_LIST } from "@themes/library";
 import { DEMOS } from "./demos";
 import { commit, demoId, editor, loadDemo, present, setAgentOpen } from "./editor";
-import { exportPrint } from "./export-pdf";
+import { exportDeckPng, exportPdf, exportPrint } from "./export-pdf";
 
 const btnBase = "cursor-pointer rounded-lg border px-3 py-1.5 text-[12px] font-semibold";
 const btn = `${btnBase} border-line bg-canvas text-ink`;
@@ -103,6 +103,36 @@ const FORMATS = [
     { id: "web", label: "Web" },
 ];
 
+const ExportMenu: Component = () => {
+    const [open, setOpen] = createSignal(false);
+    const item = (label: string, fn: () => void | Promise<void>): JSX.Element => (
+        <button
+            class="block w-full rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-canvas"
+            onClick={() => {
+                setOpen(false);
+                void fn();
+            }}
+        >
+            {label}
+        </button>
+    );
+    return (
+        <div class="relative">
+            <button class={btn} onClick={() => setOpen((o) => !o)}>
+                Export <span class="text-[10px]">▾</span>
+            </button>
+            <Show when={open()}>
+                <div class="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+                <div class="absolute right-0 z-20 mt-2 w-52 rounded-xl border border-line bg-panel p-1.5 shadow-xl">
+                    {item("PDF — slides", exportPdf)}
+                    {item("PNG — deck", exportDeckPng)}
+                    {item("Print…", exportPrint)}
+                </div>
+            </Show>
+        </div>
+    );
+};
+
 const FormatSwitcher: Component = () => (
     <div class="flex gap-0.5 rounded-lg border border-line bg-canvas p-0.5">
         <For each={FORMATS}>
@@ -128,9 +158,7 @@ export const Topbar: Component = () => (
         <button class={btn} onClick={() => present()}>
             ▶ Present
         </button>
-        <button class={btn} onClick={() => exportPrint()}>
-            Export
-        </button>
+        <ExportMenu />
         <button class={btnAccent} onClick={() => setAgentOpen(true)}>
             ✦ Generate
         </button>
