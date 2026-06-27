@@ -50,6 +50,12 @@ function applyLayout(node: EngineNode, layout: ElementLayout | undefined): Engin
     if (layout.width === "fit") node.w = fit();
     else if (layout.width === "fill") node.w = grow();
     else if (layout.width && typeof layout.width === "object") node.w = percent(layout.width.pct / 100);
+    // Fill = stretch to the row's cross-height; drop any intrinsic aspect so it can grow (images
+    // then cover-fill via their `fit`).
+    if (layout.height === "fill") {
+        node.h = grow();
+        node.aspect = undefined;
+    }
     if (layout.align) node.alignSelf = layout.align;
     return node;
 }

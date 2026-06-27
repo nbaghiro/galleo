@@ -19,6 +19,7 @@ export interface BoxInsets {
 // Per-instance layout (how an element sits in its parent row/column) — independent of element data.
 export interface ElementLayout {
     width?: "fit" | "fill" | { pct: number }; // fit content · grow to fill · percent of the row
+    height?: "fit" | "fill"; // fit content · stretch to the row's cross-height (match a sibling column)
     align?: "start" | "center" | "end"; // self cross-axis alignment
 }
 

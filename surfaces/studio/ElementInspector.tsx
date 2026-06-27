@@ -22,6 +22,15 @@ const WIDTH_FIELD: ControlField = {
     ],
 };
 const PCT_FIELD: ControlField = { key: "pct", label: "Width %", control: "slider", min: 10, max: 100, step: 5, unit: "%" };
+const HEIGHT_FIELD: ControlField = {
+    key: "height",
+    label: "Height",
+    control: "segmented",
+    options: [
+        { label: "Fit", value: "fit" },
+        { label: "Fill", value: "fill" },
+    ],
+};
 const ALIGN_FIELD: ControlField = {
     key: "align",
     label: "Align",
@@ -208,6 +217,7 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
                 <Show when={widthMode() === "pct"}>
                     <Field field={PCT_FIELD} value={pct()} onChange={(v) => setLayout({ width: { pct: Number(v) } })} />
                 </Show>
+                <Field field={HEIGHT_FIELD} value={layout().height ?? "fit"} onChange={(v) => setLayout({ height: v as "fit" | "fill" })} />
                 <Field field={ALIGN_FIELD} value={layout().align ?? "start"} onChange={(v) => setLayout({ align: v as "start" | "center" | "end" })} />
             </div>
             <Show
