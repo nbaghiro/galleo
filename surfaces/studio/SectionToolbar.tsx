@@ -29,7 +29,7 @@ export const SectionToolbar: Component = () => {
             {(b) => (
                 <div
                     class="absolute z-20 flex items-center gap-0.5 rounded-lg border border-line bg-panel p-1 shadow-lg"
-                    style={{ left: `${b().x + b().w - 184}px`, top: `${b().y + 10}px` }}
+                    style={{ left: `${b().x + 10}px`, top: `${b().y + 10}px` }}
                     onPointerDown={(e) => e.stopPropagation()}
                 >
                     <button class={btn} title="Move up" onClick={() => moveSectionBy(sid()!, -1)}>
