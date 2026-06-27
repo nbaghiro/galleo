@@ -109,9 +109,22 @@ function layoutHeights(laid: Laid, assignedH: number, measure: MeasureText): voi
 
     const contentH = Math.max(0, assignedH - padY(node));
     if (isRow(node)) {
+        // Measure non-grow children first to establish the row's cross height; grow-height children
+        // then stretch to it. In a `fit` row that height is the tallest sibling (not the container) —
+        // otherwise a `grow` bar would fill the unbounded measurement height.
         let maxH = 0;
+        const growKids: Laid[] = [];
         for (const c of laid.children) {
+            if (c.node.h.mode === "grow") {
+                growKids.push(c);
+                continue;
+            }
             layoutHeights(c, contentH, measure);
+            maxH = Math.max(maxH, c.h);
+        }
+        const crossH = node.h.mode === "fit" ? maxH : contentH;
+        for (const c of growKids) {
+            layoutHeights(c, crossH, measure);
             maxH = Math.max(maxH, c.h);
         }
         laid.h = resolveHeight(node.h, assignedH, maxH + padY(node));
