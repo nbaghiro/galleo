@@ -13,6 +13,7 @@ import "@elements/code";
 import "@elements/badge";
 import "@elements/spacer";
 import "@elements/gradient";
+import "@elements/chart";
 import { render } from "solid-js/web";
 import { Studio } from "./Studio";
 import "./studio.css";

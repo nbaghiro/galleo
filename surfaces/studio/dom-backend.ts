@@ -1,7 +1,63 @@
-import type { DrawContext } from "@engine/node";
+import type { DrawContext, DrawStyle, DrawTextStyle } from "@engine/node";
 import type { RenderCommand } from "@engine/render-command";
 
 // A DOM render backend: paints absolute-positioned divs from the engine's render commands.
+
+// Canvas implementation of the engine's backend-abstract DrawContext (for surface elements).
+function canvasDrawContext(cx: CanvasRenderingContext2D): DrawContext {
+    const apply = (s: DrawStyle): void => {
+        if (s.fill) cx.fillStyle = s.fill;
+        if (s.stroke) cx.strokeStyle = s.stroke;
+        cx.lineWidth = s.width ?? 1;
+        cx.setLineDash(s.dash ?? []);
+    };
+    const finish = (s: DrawStyle): void => {
+        if (s.fill) cx.fill();
+        if (s.stroke) cx.stroke();
+    };
+    return {
+        rect(x, y, w, h, s) {
+            apply(s);
+            cx.beginPath();
+            cx.roundRect(x, y, w, h, s.radius ?? 0);
+            finish(s);
+        },
+        line(x1, y1, x2, y2, s) {
+            apply(s);
+            cx.beginPath();
+            cx.moveTo(x1, y1);
+            cx.lineTo(x2, y2);
+            cx.stroke();
+        },
+        circle(cxx, cyy, r, s) {
+            apply(s);
+            cx.beginPath();
+            cx.arc(cxx, cyy, r, 0, Math.PI * 2);
+            finish(s);
+        },
+        polyline(points, s) {
+            apply(s);
+            cx.beginPath();
+            points.forEach((p, i) => (i ? cx.lineTo(p[0], p[1]) : cx.moveTo(p[0], p[1])));
+            finish(s);
+        },
+        wedge(cxx, cyy, r, a0, a1, s) {
+            apply(s);
+            cx.beginPath();
+            cx.moveTo(cxx, cyy);
+            cx.arc(cxx, cyy, r, a0, a1);
+            cx.closePath();
+            finish(s);
+        },
+        text(text, x, y, s: DrawTextStyle) {
+            cx.fillStyle = s.fill ?? "#000";
+            cx.font = `${s.weight ?? 400} ${s.size ?? 12}px ${s.font ?? "system-ui, sans-serif"}`;
+            cx.textAlign = s.align === "start" ? "left" : s.align === "end" ? "right" : "center";
+            cx.textBaseline = s.baseline ?? "alphabetic";
+            cx.fillText(text, x, y);
+        },
+    };
+}
 
 export function paint(commands: RenderCommand[], host: HTMLElement): void {
     host.replaceChildren();
@@ -40,12 +96,16 @@ export function paint(commands: RenderCommand[], host: HTMLElement): void {
             el.style.overflow = "hidden";
         } else {
             const canvas = document.createElement("canvas");
-            canvas.width = c.box.w;
-            canvas.height = c.box.h;
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = Math.max(1, Math.round(c.box.w * dpr));
+            canvas.height = Math.max(1, Math.round(c.box.h * dpr));
             canvas.style.width = "100%";
             canvas.style.height = "100%";
             const cx = canvas.getContext("2d");
-            if (cx) c.paint(cx as unknown as DrawContext, { x: 0, y: 0, w: c.box.w, h: c.box.h });
+            if (cx) {
+                cx.scale(dpr, dpr);
+                c.paint(canvasDrawContext(cx), { x: 0, y: 0, w: c.box.w, h: c.box.h });
+            }
             el.appendChild(canvas);
         }
         host.appendChild(el);

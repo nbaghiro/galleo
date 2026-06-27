@@ -1,5 +1,5 @@
 import type { ArtifactContent } from "@model/content";
-import { bullets, cell, deck, group, img, quote, section, stat, t } from "./build";
+import { bullets, cell, chart, deck, group, img, quote, section, stat, t } from "./build";
 
 export const helios: ArtifactContent = deck("signal", [
     section("s1", "full", {
@@ -24,7 +24,7 @@ export const helios: ArtifactContent = deck("signal", [
                 bullets("Solar is the cheapest power in history", "Interconnection queues are the new bottleneck", "Storage, not panels, decides 2030"),
             ),
         ),
-        b: cell(img("helios-solar", 0.78, 10)),
+        b: cell(chart("line", "31, 34, 37, 39, 41", 300)),
     }),
     section("s4", "full", { a: cell(quote("We solved the hard physics. What’s left is permitting.", "— Dr. Idris Bello, grid analyst")) }),
     section("s5", "two-col", {

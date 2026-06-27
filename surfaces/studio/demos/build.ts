@@ -28,6 +28,11 @@ export const group = (...children: ElementInstance[]): ElementInstance => ({ typ
 
 export const button = (label: string): ElementInstance => ({ type: "button", data: { label } });
 
+export const chart = (kind: string, values: string, height = 240): ElementInstance => ({
+    type: "chart",
+    data: { kind, values, height },
+});
+
 export const divider = (): ElementInstance => ({ type: "divider", data: {} });
 
 export const cell = (element: ElementInstance): Cell => ({ element });

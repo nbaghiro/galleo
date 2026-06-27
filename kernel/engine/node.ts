@@ -9,9 +9,33 @@ export interface Rect {
 
 export type Align = "start" | "center" | "end";
 
-// Backend-abstract drawing context — implemented per target (DOM/canvas/PDF) in @render/backend.
+export interface DrawStyle {
+    fill?: string;
+    stroke?: string;
+    width?: number; // stroke width
+    radius?: number; // rect corner radius
+    dash?: number[];
+}
+
+export interface DrawTextStyle {
+    fill?: string;
+    size?: number;
+    font?: string;
+    weight?: number;
+    align?: "start" | "center" | "end";
+    baseline?: "top" | "middle" | "bottom";
+}
+
+// Backend-abstract drawing API for self-rendered (surface) elements — charts, diagrams, gauges.
+// Implemented per target (canvas in the DOM/PNG backends, vector for PDF/PPTX). Coordinates are
+// local to the element's box.
 export interface DrawContext {
-    [key: string]: unknown;
+    rect(x: number, y: number, w: number, h: number, style: DrawStyle): void;
+    line(x1: number, y1: number, x2: number, y2: number, style: DrawStyle): void;
+    circle(cx: number, cy: number, r: number, style: DrawStyle): void;
+    polyline(points: [number, number][], style: DrawStyle): void;
+    wedge(cx: number, cy: number, r: number, startRad: number, endRad: number, style: DrawStyle): void;
+    text(text: string, x: number, y: number, style: DrawTextStyle): void;
 }
 
 // A measured text size. Named `Measured` to avoid clashing with the DOM `TextMetrics` global.
