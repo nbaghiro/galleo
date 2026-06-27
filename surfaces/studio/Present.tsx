@@ -26,11 +26,9 @@ export const Present: Component = () => {
         host.replaceChildren(inner);
     };
 
+    // render() reads editor.artifact.sections[slideIndex()] + theme(), so it re-runs on nav/edit/theme.
     createEffect(() => {
-        if (!presenting()) return;
-        slideIndex();
-        editor.artifact.sections.length;
-        render();
+        if (presenting()) render();
     });
 
     onMount(() => {
