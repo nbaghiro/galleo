@@ -7,32 +7,42 @@ import { paint } from "./dom-backend";
 import { measureText } from "./measure";
 import { ctxFor, layoutNode } from "./render";
 
-// One draggable element in the palette: its structural skeleton (engine-painted) + a label.
+const NOMINAL_W = 150; // skeletons are laid out at a fixed width, then scaled to fit the frame
+const FRAME_H = 58;
+
+// One draggable element: its structural skeleton, scaled to fit a fixed-size frame so every tile is
+// uniform (and labels stay aligned), with a label underneath.
 export const PaletteItem: Component<{ type: string }> = (props) => {
-    let box!: HTMLDivElement;
+    let inner!: HTMLDivElement;
     const spec = getElement(props.type);
 
     createEffect(() => {
         if (!spec) return;
-        const w = box.clientWidth || 110;
-        const node = skeletonFor(spec, ctxFor(w));
-        const { commands, height } = layoutNode(node, w, measureText);
-        box.style.height = `${Math.max(52, height)}px`;
-        paint(commands, box);
+        const { commands, height } = layoutNode(skeletonFor(spec, ctxFor(NOMINAL_W)), NOMINAL_W, measureText);
+        const frameW = inner.parentElement?.clientWidth ?? 120;
+        const scale = Math.min(1, (frameW - 18) / NOMINAL_W, (FRAME_H - 16) / Math.max(1, height));
+        inner.style.width = `${NOMINAL_W}px`;
+        inner.style.height = `${height}px`;
+        inner.style.transform = `scale(${scale})`;
+        inner.style.transformOrigin = "center center";
+        paint(commands, inner);
     });
 
     return (
         <div
-            class="flex cursor-grab select-none flex-col gap-2"
+            class="flex cursor-grab select-none flex-col gap-1.5"
             onPointerDown={(e) => {
                 e.preventDefault();
                 startDrag({ kind: "new", type: props.type }, e.clientX, e.clientY, spec?.label ?? props.type);
             }}
         >
-            <div class="flex items-center rounded-lg border border-line bg-canvas p-3">
-                <div ref={box} class="w-full" />
+            <div
+                class="flex items-center justify-center overflow-hidden rounded-lg border border-line bg-canvas transition-colors hover:border-accent"
+                style={{ height: `${FRAME_H}px` }}
+            >
+                <div ref={inner} />
             </div>
-            <span class="text-[12px] font-semibold text-ink">{spec?.label ?? props.type}</span>
+            <span class="text-center text-[11px] font-medium text-muted">{spec?.label ?? props.type}</span>
         </div>
     );
 };
