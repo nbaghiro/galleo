@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Galleo — Brutalist</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="theme.css" />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            d: ["var(--fd)", "sans-serif"],
+                            m: ["var(--fm)", "monospace"],
+                        },
+                        colors: {
+                            pap: "var(--bg)",
+                            ink: "var(--ink)",
+                            acc: "var(--accent)",
+                            soft: "var(--soft)",
+                            mut: "var(--muted)",
+                            line: "var(--line)",
+                        },
+                    },
+                },
+            };
+        </script>
+        <style>
+            body {
+                background: var(--bg);
+                color: var(--ink);
+                font-family: var(--fu), sans-serif;
+                -webkit-font-smoothing: antialiased;
+            }
+            ::selection {
+                background: var(--accent);
+                color: var(--accent-ink);
+            }
+            .bd {
+                border: 2px solid var(--ink);
+            }
+            .bd2 {
+                border: 2px solid var(--ink);
+                border-top: none;
+            }
+            .hover-i:hover {
+                background: var(--ink);
+                color: var(--bg);
+            }
+            @keyframes mar {
+                to {
+                    transform: translateX(-50%);
+                }
+            }
+            .mar {
+                display: inline-block;
+                white-space: nowrap;
+                animation: mar 22s linear infinite;
+            }
+        </style>
+    </head>
+    <body class="font-d">
+        <!-- TICKER -->
+        <div class="bg-ink text-pap overflow-hidden py-2 font-m text-[12px] tracking-wide">
+            <div class="mar">
+                DECK · DOC · SITE · ONE ARTIFACT · GENERATE FAST · MAKE IT GOOD · 22 THEMES · DECK ·
+                DOC · SITE · ONE ARTIFACT · GENERATE FAST · MAKE IT GOOD · 22 THEMES ·
+            </div>
+        </div>
+
+        <header class="bd border-t-0 border-x-0">
+            <div class="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
+                <span class="font-d font-900 text-[22px] tracking-tight">GALLEO®</span>
+                <nav class="hidden md:flex font-m text-[12px] uppercase">
+                    <a class="px-4 py-2 border-l-2 border-ink hover-i">Product</a
+                    ><a class="px-4 py-2 border-l-2 border-ink hover-i">Themes</a
+                    ><a class="px-4 py-2 border-l-2 border-ink hover-i">Pricing</a
+                    ><a
+                        class="px-4 py-2 border-l-2 border-r-2 border-ink hover-i bg-acc"
+                        style="color: var(--accent-ink)"
+                        >Start →</a
+                    >
+                </nav>
+            </div>
+        </header>
+
+        <!-- HERO -->
+        <section class="max-w-[1200px] mx-auto px-6">
+            <div
+                class="py-3 font-m text-[12px] uppercase flex justify-between bd border-x-0 border-t-0"
+            >
+                <span>[01] The product</span><span>Est. 2026 — TS / SolidJS</span>
+            </div>
+            <h1
+                class="font-d font-900 uppercase leading-[.84] tracking-[-.03em] text-[clamp(56px,13vw,184px)] py-6"
+            >
+                One<br />Artifact.<br /><span class="text-acc">Every</span> format.
+            </h1>
+            <div class="grid md:grid-cols-[1.4fr_1fr] bd border-x-0 border-b-0">
+                <div class="p-7 md:border-r-2 border-ink">
+                    <p class="text-[19px] font-600 leading-snug max-w-[44ch]">
+                        Generate a deck, a document, or a website in seconds — then make it
+                        genuinely good. One source of truth, three brutally polished views.
+                    </p>
+                    <div class="mt-7 flex gap-4">
+                        <a class="bg-ink text-pap font-m text-[13px] uppercase px-7 py-4"
+                            >Start free →</a
+                        ><a class="bd font-m text-[13px] uppercase px-7 py-4 hover-i">Watch demo</a>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 font-m text-[12px] uppercase">
+                    <div class="p-5 border-l-2 border-ink">
+                        <div class="text-[40px] font-900 font-d">3</div>
+                        views
+                    </div>
+                    <div class="p-5 border-l-2 border-ink">
+                        <div class="text-[40px] font-900 font-d">22</div>
+                        themes
+                    </div>
+                    <div class="p-5 border-l-2 border-t-2 border-ink">
+                        <div class="text-[40px] font-900 font-d">30s</div>
+                        to draft
+                    </div>
+                    <div
+                        class="p-5 border-l-2 border-t-2 border-ink"
+                        style="background: var(--accent); color: var(--accent-ink)"
+                    >
+                        <div class="text-[40px] font-900 font-d">∞</div>
+                        exports
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- THREE -->
+        <section class="max-w-[1200px] mx-auto px-6 mt-16">
+            <div class="bd p-4 font-m text-[12px] uppercase flex justify-between">
+                <span>[02] Three views, one source</span><span>→</span>
+            </div>
+            <div class="grid md:grid-cols-3 bd2">
+                <div class="p-7 md:border-r-2 border-ink">
+                    <div class="font-m text-[12px] uppercase mb-3">A / Deck</div>
+                    <div class="bd aspect-[4/3] p-5 flex items-end bg-ink text-pap">
+                        <span class="font-d font-800 text-[20px] leading-tight uppercase"
+                            >A presentation that looks composed</span
+                        >
+                    </div>
+                </div>
+                <div class="p-7 md:border-r-2 border-ink">
+                    <div class="font-m text-[12px] uppercase mb-3">B / Doc</div>
+                    <div class="bd aspect-[4/3] p-5 bg-pap">
+                        <div class="h-2.5 w-3/5 bg-ink"></div>
+                        <div class="h-1.5 w-[90%] bg-line mt-3"></div>
+                        <div class="h-1.5 w-[82%] bg-line mt-2"></div>
+                        <div class="h-1.5 w-[88%] bg-line mt-2"></div>
+                    </div>
+                </div>
+                <div class="p-7">
+                    <div class="font-m text-[12px] uppercase mb-3">C / Site</div>
+                    <div
+                        class="bd aspect-[4/3] p-5 flex items-end bg-acc"
+                        style="color: var(--accent-ink)"
+                    >
+                        <span class="font-d font-800 text-[20px] leading-tight uppercase"
+                            >A site that ships itself</span
+                        >
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- STATEMENT -->
+        <section class="bg-ink text-pap mt-16">
+            <div class="max-w-[1200px] mx-auto px-6 py-24">
+                <p
+                    class="font-d font-800 uppercase text-[clamp(30px,5vw,64px)] leading-[.95] tracking-tight"
+                >
+                    AI made the first draft free.<br /><span
+                        class="px-2"
+                        style="background: var(--accent); color: var(--accent-ink)"
+                        >The bottleneck moved</span
+                    ><br />from making to judging.
+                </p>
+            </div>
+        </section>
+
+        <!-- CTA -->
+        <section class="max-w-[1200px] mx-auto px-6 my-16">
+            <div class="bd bg-acc p-12 text-center" style="color: var(--accent-ink)">
+                <h2
+                    class="font-d font-900 uppercase text-[clamp(36px,7vw,90px)] leading-[.86] tracking-tight"
+                >
+                    Make it<br />good.
+                </h2>
+                <a class="inline-block mt-8 bg-ink text-pap font-m text-[13px] uppercase px-9 py-4"
+                    >Start free →</a
+                >
+            </div>
+        </section>
+
+        <footer class="bd border-x-0 border-b-0">
+            <div
+                class="max-w-[1200px] mx-auto px-6 py-6 font-m text-[12px] uppercase flex flex-wrap justify-between gap-3"
+            >
+                <span>GALLEO® 2026</span
+                ><span class="flex gap-6"><a>Product</a><a>Pricing</a><a>Privacy</a></span
+                ><span>Made with taste</span>
+            </div>
+        </footer>
+
+        <script>
+            (function () {
+                var p = new URLSearchParams(location.search).get("theme");
+                document.documentElement.className = p && /^t-[a-z]+$/.test(p) ? p : "t-studio";
+                addEventListener("message", function (e) {
+                    if (e.data && e.data.theme) document.documentElement.className = e.data.theme;
+                });
+            })();
+        </script>
+    </body>
+</html>

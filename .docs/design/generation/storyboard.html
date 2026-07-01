@@ -1,0 +1,1934 @@
+<!doctype html>
+<html lang="en" class="t-studio">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Galleo — Live Generation · Storyboard</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="stylesheet" href="../marketing/theme.css" />
+        <link
+            rel="preload"
+            as="image"
+            href="https://picsum.photos/seed/galleosb/1200/800?grayscale"
+        />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            d: ["var(--fd)", "serif"],
+                            s: ["var(--fu)", "sans-serif"],
+                            m: ["var(--fm)", "monospace"],
+                        },
+                        colors: {
+                            paper: "var(--bg)",
+                            panel: "var(--surface)",
+                            ink: "var(--ink)",
+                            soft: "var(--soft)",
+                            mut: "var(--muted)",
+                            acc: "var(--accent)",
+                            line: "var(--line)",
+                        },
+                    },
+                },
+            };
+        </script>
+        <style>
+            /* ---------- base ---------- */
+            * {
+                box-sizing: border-box;
+                scrollbar-width: none;
+            }
+            *::-webkit-scrollbar {
+                display: none;
+                width: 0;
+                height: 0;
+            }
+            html,
+            body {
+                margin: 0;
+                width: 1300px;
+                height: 812px;
+                overflow: hidden;
+            }
+            body {
+                --e: cubic-bezier(0.2, 0.7, 0.2, 1);
+                background: var(--bg);
+                color: var(--ink);
+                font-family: var(--fu), system-ui, sans-serif;
+                -webkit-font-smoothing: antialiased;
+                transition:
+                    background 0.5s var(--e),
+                    color 0.5s var(--e);
+            }
+            ::selection {
+                background: var(--accent);
+                color: var(--accent-ink);
+            }
+            .mono {
+                font-family: var(--fm), monospace;
+            }
+
+            /* ---------- app frame ---------- */
+            .app {
+                width: 1300px;
+                height: 812px;
+                display: flex;
+                flex-direction: column;
+                position: relative;
+                background: var(--bg);
+                color: var(--ink);
+                overflow: hidden;
+                transition:
+                    background 0.5s var(--e),
+                    color 0.5s var(--e);
+            }
+
+            /* ---------- build view (revealed after intake) ---------- */
+            .build {
+                flex: 1 1 auto;
+                display: flex;
+                flex-direction: column;
+                min-height: 0;
+                opacity: 0;
+                transition: opacity 0.55s var(--e);
+            }
+            .build.show {
+                opacity: 1;
+            }
+
+            /* ---------- intake overlay ---------- */
+            .intake {
+                position: absolute;
+                inset: 0;
+                z-index: 20;
+                display: flex;
+                flex-direction: column;
+                background: var(--bg);
+                color: var(--ink);
+                transition:
+                    opacity 0.55s var(--e),
+                    transform 0.55s var(--e),
+                    background 0.5s var(--e);
+            }
+            .intake.gone {
+                opacity: 0;
+                transform: translateY(-16px) scale(0.985);
+                pointer-events: none;
+            }
+            .ihead {
+                flex: 0 0 auto;
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                padding: 13px 34px;
+                border-bottom: var(--border) solid var(--line);
+                background: var(--surface);
+                transition:
+                    background 0.5s var(--e),
+                    border-color 0.5s var(--e);
+            }
+            .istep {
+                margin-left: auto;
+                font-family: var(--fm), monospace;
+                font-size: 0.66rem;
+                letter-spacing: 0.16em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+            .istep b {
+                color: var(--accent);
+                font-weight: 600;
+            }
+            .ibody {
+                flex: 1 1 auto;
+                min-height: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0 40px;
+            }
+            .icol {
+                width: 100%;
+                max-width: 900px;
+                display: flex;
+                flex-direction: column;
+                gap: 19px;
+            }
+
+            .ieyebrow {
+                font-family: var(--fm), monospace;
+                font-size: 0.64rem;
+                letter-spacing: 0.2em;
+                text-transform: uppercase;
+                color: var(--accent);
+            }
+            .ititle {
+                font-family: var(--fd), serif;
+                font-weight: var(--hw, 700);
+                font-size: 1.5rem;
+                letter-spacing: -0.02em;
+                line-height: 1.1;
+                margin-top: 7px;
+            }
+
+            .promptbox {
+                position: relative;
+                border: var(--border) solid var(--line);
+                border-radius: calc(var(--radius) * 0.72);
+                background: var(--surface);
+                box-shadow: var(--shadow);
+                padding: 18px 22px;
+                min-height: 118px;
+                transition:
+                    border-color 0.3s var(--e),
+                    box-shadow 0.3s var(--e),
+                    background 0.5s var(--e);
+            }
+            .promptbox.focus {
+                border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+                box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent);
+            }
+            .pkicker {
+                font-family: var(--fm), monospace;
+                font-size: 0.56rem;
+                letter-spacing: 0.16em;
+                text-transform: uppercase;
+                color: var(--muted);
+                margin-bottom: 11px;
+            }
+            .pkicker b {
+                color: var(--accent);
+                font-weight: 600;
+            }
+            .ptext {
+                font-family: var(--fd), serif;
+                font-weight: var(--hw, 700);
+                font-size: 1.28rem;
+                line-height: 1.42;
+                letter-spacing: -0.01em;
+                color: var(--ink);
+            }
+
+            .irow {
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                flex-wrap: wrap;
+            }
+            .surfsel {
+                display: inline-flex;
+                gap: 3px;
+                padding: 4px;
+                border: var(--border) solid var(--line);
+                border-radius: 999px;
+                background: var(--surface);
+            }
+            .surf {
+                font-family: var(--fm), monospace;
+                font-size: 0.66rem;
+                letter-spacing: 0.06em;
+                padding: 7px 15px;
+                border-radius: 999px;
+                border: 0;
+                background: transparent;
+                color: var(--muted);
+                cursor: default;
+                transition:
+                    background 0.3s var(--e),
+                    color 0.3s var(--e);
+            }
+            .surf.on {
+                background: var(--ink);
+                color: var(--bg);
+            }
+            .dchips {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+            .dchip {
+                font-family: var(--fm), monospace;
+                font-size: 0.62rem;
+                letter-spacing: 0.04em;
+                padding: 7px 12px;
+                border-radius: 999px;
+                border: var(--border) solid var(--line);
+                background: var(--surface);
+                color: var(--muted);
+                white-space: nowrap;
+                opacity: 0;
+                transform: translateY(7px);
+                transition:
+                    opacity 0.34s var(--e),
+                    transform 0.34s var(--e),
+                    background 0.5s var(--e),
+                    border-color 0.5s var(--e);
+            }
+            .dchip.in {
+                opacity: 1;
+                transform: none;
+            }
+            .dchip b {
+                color: var(--accent);
+                font-weight: 600;
+            }
+
+            .ctxpanel {
+                position: relative;
+                overflow: hidden;
+                border: var(--border) solid color-mix(in srgb, var(--accent) 30%, var(--line));
+                border-radius: calc(var(--radius) * 0.62);
+                background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+                padding: 15px 17px;
+                transition:
+                    background 0.5s var(--e),
+                    border-color 0.5s var(--e);
+            }
+            .ctxpanel.scan::after {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: -32%;
+                height: 100%;
+                width: 32%;
+                pointer-events: none;
+                z-index: 1;
+                background: linear-gradient(
+                    100deg,
+                    transparent,
+                    color-mix(in srgb, var(--accent) 20%, transparent),
+                    transparent
+                );
+            }
+            .ctxhead {
+                display: flex;
+                align-items: center;
+                gap: 11px;
+                margin-bottom: 12px;
+                position: relative;
+                z-index: 2;
+            }
+            .ctxlabel {
+                font-family: var(--fm), monospace;
+                font-size: 0.62rem;
+                letter-spacing: 0.18em;
+                text-transform: uppercase;
+                color: var(--accent);
+            }
+            .ground {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                font-family: var(--fu), sans-serif;
+                font-size: 0.78rem;
+                color: var(--muted);
+                opacity: 0;
+                transition: opacity 0.4s var(--e);
+            }
+            .ground.in {
+                opacity: 1;
+            }
+            .gdot {
+                width: 7px;
+                height: 7px;
+                border-radius: 50%;
+                background: var(--accent);
+                flex: 0 0 auto;
+            }
+            .atts {
+                display: flex;
+                gap: 12px;
+                position: relative;
+                z-index: 2;
+            }
+            .att {
+                flex: 1 1 0;
+                display: flex;
+                align-items: center;
+                gap: 11px;
+                min-width: 0;
+                border: var(--border) solid var(--line);
+                border-radius: calc(var(--radius) * 0.45);
+                background: var(--surface);
+                padding: 11px 14px;
+                opacity: 0;
+                transform: translateY(10px) scale(0.985);
+                transition:
+                    opacity 0.42s var(--e),
+                    transform 0.42s var(--e),
+                    border-color 0.42s var(--e),
+                    box-shadow 0.42s var(--e),
+                    background 0.5s var(--e);
+            }
+            .att.in {
+                opacity: 1;
+                transform: none;
+            }
+            .att.ring {
+                border-color: var(--accent);
+                box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+            }
+            .att .ic {
+                font-size: 1.15rem;
+                flex: 0 0 auto;
+                line-height: 1;
+            }
+            .attname {
+                font-family: var(--fu), sans-serif;
+                font-size: 0.9rem;
+                color: var(--ink);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                min-width: 0;
+            }
+            .attkind {
+                margin-left: auto;
+                flex: 0 0 auto;
+                font-family: var(--fm), monospace;
+                font-size: 0.54rem;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: var(--muted);
+                border: var(--border) solid var(--line);
+                padding: 3px 8px;
+                border-radius: 999px;
+            }
+
+            .genrow {
+                display: flex;
+                align-items: center;
+                gap: 16px;
+            }
+            .genhint {
+                margin-right: auto;
+                font-family: var(--fm), monospace;
+                font-size: 0.64rem;
+                letter-spacing: 0.06em;
+                color: var(--muted);
+            }
+            .genhint b {
+                color: var(--accent);
+                font-weight: 600;
+            }
+            .genbtn {
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                cursor: pointer;
+                font-family: var(--fu), sans-serif;
+                font-weight: 700;
+                font-size: 1rem;
+                letter-spacing: 0.01em;
+                background: var(--accent);
+                color: var(--accent-ink);
+                border: 0;
+                padding: 13px 24px;
+                border-radius: 999px;
+                box-shadow: 0 12px 26px -12px color-mix(in srgb, var(--accent) 75%, transparent);
+                transition:
+                    transform 0.18s var(--e),
+                    box-shadow 0.3s var(--e),
+                    background 0.5s var(--e);
+            }
+            .genbtn .garrow {
+                transition: transform 0.3s var(--e);
+            }
+            .genbtn.press {
+                transform: scale(0.94);
+            }
+
+            /* ---------- header ---------- */
+            .hdr {
+                flex: 0 0 auto;
+                background: var(--surface);
+                border-bottom: var(--border) solid var(--line);
+                padding: 13px 34px 0;
+                transition:
+                    background 0.5s var(--e),
+                    border-color 0.5s var(--e);
+            }
+            .hdr-top {
+                display: flex;
+                align-items: center;
+                gap: 16px;
+            }
+            .brand {
+                display: flex;
+                align-items: center;
+                gap: 9px;
+                flex: 0 0 auto;
+            }
+            .glyph {
+                width: 26px;
+                height: 26px;
+                display: grid;
+                place-items: center;
+                font-family: var(--fd), serif;
+                font-weight: 800;
+                font-size: 0.95rem;
+                background: var(--accent);
+                color: var(--accent-ink);
+                border-radius: calc(var(--radius) * 0.42);
+            }
+            .bn {
+                font-family: var(--fd), serif;
+                font-weight: 700;
+                font-size: 1.04rem;
+                letter-spacing: -0.01em;
+            }
+            .bn b {
+                color: var(--accent);
+                font-weight: 700;
+            }
+            .livedot {
+                width: 7px;
+                height: 7px;
+                border-radius: 50%;
+                background: var(--accent);
+                flex: 0 0 auto;
+            }
+            .modechip {
+                font-family: var(--fm), monospace;
+                font-size: 0.6rem;
+                letter-spacing: 0.18em;
+                text-transform: uppercase;
+                padding: 4px 9px;
+                border-radius: 999px;
+                color: var(--muted);
+                border: var(--border) solid var(--line);
+                background: transparent;
+            }
+            .deckname {
+                margin-left: 6px;
+                font-family: var(--fm), monospace;
+                font-size: 0.68rem;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: var(--muted);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .counter {
+                margin-left: auto;
+                flex: 0 0 auto;
+                display: flex;
+                align-items: baseline;
+                gap: 6px;
+                font-family: var(--fm), monospace;
+                font-size: 0.74rem;
+                letter-spacing: 0.1em;
+                color: var(--muted);
+            }
+            .counter b {
+                font-family: var(--fd), serif;
+                font-weight: var(--hw, 700);
+                font-size: 1.18rem;
+                color: var(--accent);
+                letter-spacing: 0;
+            }
+            .counter .tot {
+                color: var(--ink);
+                opacity: 0.7;
+            }
+            .replay {
+                flex: 0 0 auto;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                margin-left: 14px;
+                font-family: var(--fm), monospace;
+                font-size: 0.64rem;
+                letter-spacing: 0.08em;
+                padding: 6px 11px;
+                border-radius: 999px;
+                cursor: pointer;
+                border: var(--border) solid var(--line);
+                background: var(--surface);
+                color: var(--ink);
+                transition: all 0.25s var(--e);
+            }
+            .replay:hover {
+                border-color: var(--accent);
+                color: var(--accent);
+            }
+            .replay .r {
+                display: inline-block;
+                transition: transform 0.5s var(--e);
+            }
+            .replay:hover .r {
+                transform: rotate(-180deg);
+            }
+
+            .track {
+                height: 3px;
+                width: 100%;
+                margin: 11px 0 0;
+                border-radius: 3px;
+                overflow: hidden;
+                background: color-mix(in srgb, var(--ink) 12%, transparent);
+                transform: translateY(1px);
+            }
+            .fill {
+                height: 100%;
+                width: 0;
+                background: var(--accent);
+                border-radius: 3px;
+                transition: width 0.55s var(--e);
+            }
+
+            /* ---------- contact sheet ---------- */
+            .sheet {
+                flex: 1 1 auto;
+                min-height: 0;
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                grid-template-rows: repeat(3, 1fr);
+                gap: 15px;
+                padding: 20px 34px 16px;
+            }
+
+            /* ---------- a single storyboard frame ---------- */
+            .cell {
+                position: relative;
+                display: grid;
+                grid-template-columns: 1fr;
+                min-width: 0;
+                min-height: 0;
+                background: var(--surface);
+                color: var(--ink);
+                border: var(--border) solid var(--line);
+                border-radius: calc(var(--radius) * 0.58);
+                opacity: 0.5;
+                transition:
+                    opacity 0.5s var(--e),
+                    box-shadow 0.42s var(--e),
+                    border-color 0.45s var(--e),
+                    transform 0.42s var(--e),
+                    background 0.5s var(--e),
+                    color 0.5s var(--e);
+            }
+            .cell.wide {
+                grid-column: span 2;
+            }
+            .cell.inv {
+                background: var(--ink);
+                color: var(--bg);
+                border-color: var(--ink);
+            }
+            .cell.active {
+                opacity: 1;
+                z-index: 5;
+                transform: translateY(-2px);
+                box-shadow:
+                    0 0 0 2px var(--accent),
+                    0 16px 36px -18px color-mix(in srgb, var(--ink) 46%, transparent);
+            }
+            .cell.settled {
+                opacity: 1;
+                border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+            }
+            .cell.inv.settled {
+                border-color: color-mix(in srgb, var(--accent) 55%, var(--ink));
+            }
+
+            .num {
+                position: absolute;
+                top: 9px;
+                right: 11px;
+                z-index: 6;
+                font-family: var(--fm), monospace;
+                font-size: 0.56rem;
+                letter-spacing: 0.16em;
+                color: var(--muted);
+                opacity: 0.55;
+                transition:
+                    color 0.4s var(--e),
+                    opacity 0.4s var(--e);
+            }
+            .cell.active .num,
+            .cell.settled .num {
+                color: var(--accent);
+                opacity: 1;
+            }
+            .cell.inv .num {
+                color: color-mix(in srgb, var(--bg) 55%, transparent);
+            }
+            .cell.inv.active .num,
+            .cell.inv.settled .num {
+                color: var(--accent);
+            }
+
+            /* layered ghost + content */
+            .sk-layer,
+            .content {
+                grid-column: 1;
+                grid-row: 1;
+                min-width: 0;
+                min-height: 0;
+                padding: 13px 15px;
+                border-radius: inherit;
+            }
+            .cell.wide .sk-layer,
+            .cell.wide .content {
+                padding: 18px 22px;
+            }
+            .sk-layer {
+                overflow: hidden;
+                transition: opacity 0.42s var(--e);
+            }
+            .sk-layer.hide {
+                opacity: 0;
+                pointer-events: none;
+            }
+            .sk {
+                display: block;
+                background: currentColor;
+                opacity: 0.13;
+                border-radius: 5px;
+            }
+            .sk-row {
+                display: flex;
+                gap: 9px;
+                margin-top: 13px;
+            }
+            .sk-row > div {
+                flex: 1;
+            }
+            .sk-layer.shimmer {
+                position: relative;
+            }
+            .sk-layer.shimmer::after {
+                content: "";
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+                border-radius: inherit;
+                background: linear-gradient(
+                    115deg,
+                    transparent 24%,
+                    color-mix(in srgb, var(--accent) 50%, transparent) 50%,
+                    transparent 76%
+                );
+                background-size: 240% 100%;
+                background-position: 140% 0;
+                opacity: 0.5;
+            }
+            .cell.active .sk-layer.shimmer::after {
+                opacity: 0.95;
+            }
+
+            .content {
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+                gap: 7px;
+                overflow: hidden;
+                justify-content: center;
+            }
+            .k-image .content {
+                justify-content: space-between;
+            }
+            .k-bullets .content {
+                justify-content: center;
+                gap: 9px;
+            }
+
+            /* ---------- type primitives (mini-slide scale) ---------- */
+            .eyebrow {
+                font-family: var(--fm), monospace;
+                font-size: 0.58rem;
+                letter-spacing: 0.18em;
+                text-transform: uppercase;
+                color: var(--accent);
+                line-height: 1.2;
+            }
+            .mh {
+                font-family: var(--fd), serif;
+                font-weight: var(--hw, 700);
+                letter-spacing: -0.015em;
+                line-height: 1.13;
+                margin: 0;
+                font-size: 1.02rem;
+            }
+            .cell.wide .mh {
+                font-size: 1.62rem;
+                line-height: 1.07;
+            }
+            .cell.inv .mh,
+            .cell.inv .sub,
+            .cell.inv .biglabel,
+            .cell.inv .pq {
+                color: var(--bg);
+            }
+            .sub {
+                font-family: var(--fu), sans-serif;
+                font-size: 0.66rem;
+                line-height: 1.45;
+                opacity: 0.8;
+                margin: 0;
+            }
+            .cell.wide .sub {
+                font-size: 0.8rem;
+            }
+
+            .caret {
+                display: inline-block;
+                width: 2px;
+                height: 1em;
+                background: var(--accent);
+                vertical-align: -0.12em;
+                margin-left: 2px;
+                border-radius: 1px;
+            }
+            .caret.big {
+                height: 0.9em;
+            }
+
+            .snap {
+                opacity: 0;
+                transform: translateY(5px);
+                transition:
+                    opacity 0.26s var(--e),
+                    transform 0.26s var(--e);
+            }
+            .snap.in {
+                opacity: 1;
+                transform: none;
+            }
+
+            /* big number (bigstat / ask) */
+            .bignum {
+                font-family: var(--fd), serif;
+                font-weight: var(--hw, 700);
+                font-size: 2.7rem;
+                line-height: 0.92;
+                color: var(--accent);
+                letter-spacing: -0.03em;
+            }
+            .cell.wide .bignum {
+                font-size: 3.3rem;
+            }
+            .biglabel {
+                font-family: var(--fm), monospace;
+                font-size: 0.62rem;
+                letter-spacing: 0.08em;
+                color: var(--muted);
+                line-height: 1.35;
+            }
+            .cell.inv .biglabel {
+                color: color-mix(in srgb, var(--bg) 78%, transparent);
+            }
+
+            /* stat trio */
+            .trio {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 9px;
+            }
+            .stat {
+                border: var(--border) solid var(--line);
+                border-radius: calc(var(--radius) * 0.4);
+                padding: 9px 8px;
+                background: var(--bg);
+                opacity: 0;
+                transform: translateY(9px);
+                transition:
+                    opacity 0.4s var(--e),
+                    transform 0.4s var(--e),
+                    background 0.5s var(--e),
+                    border-color 0.5s var(--e);
+            }
+            .stat.reveal {
+                opacity: 1;
+                transform: none;
+            }
+            .snum {
+                font-family: var(--fd), serif;
+                font-weight: var(--hw, 700);
+                font-size: 1.44rem;
+                line-height: 1;
+                color: var(--accent);
+                letter-spacing: -0.02em;
+            }
+            .slabel {
+                font-family: var(--fm), monospace;
+                font-size: 0.5rem;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                color: var(--muted);
+                margin-top: 7px;
+                line-height: 1.3;
+            }
+
+            /* pull-quote */
+            .qmark {
+                font-family: var(--fd), serif;
+                font-size: 1.9rem;
+                line-height: 0.3;
+                height: 0.9rem;
+                color: var(--accent);
+                opacity: 0.55;
+            }
+            .pq {
+                font-family: var(--fd), serif;
+                font-style: italic;
+                font-weight: 500;
+                font-size: 0.96rem;
+                line-height: 1.26;
+                letter-spacing: -0.01em;
+                margin: 0;
+            }
+            .attrib {
+                font-family: var(--fm), monospace;
+                font-size: 0.54rem;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: var(--muted);
+                margin-top: 4px;
+                opacity: 0;
+                transform: translateY(5px);
+                transition:
+                    opacity 0.4s var(--e),
+                    transform 0.4s var(--e);
+            }
+            .attrib.in {
+                opacity: 1;
+                transform: none;
+            }
+
+            /* bullets */
+            .blist {
+                display: flex;
+                flex-direction: column;
+                gap: 7px;
+            }
+            .bl {
+                position: relative;
+                padding-left: 13px;
+                font-family: var(--fu), sans-serif;
+                font-size: 0.72rem;
+                line-height: 1.32;
+                opacity: 0;
+                transform: translateY(6px);
+                transition:
+                    opacity 0.3s var(--e),
+                    transform 0.3s var(--e);
+            }
+            .bl.in {
+                opacity: 0.92;
+                transform: none;
+            }
+            .bl::before {
+                content: "";
+                position: absolute;
+                left: 0;
+                top: 0.52em;
+                width: 7px;
+                height: 2px;
+                background: var(--accent);
+                border-radius: 2px;
+            }
+
+            /* image blur-up develop */
+            .imgwrap {
+                position: relative;
+                flex: 1 1 auto;
+                width: 100%;
+                min-height: 0;
+                border-radius: calc(var(--radius) * 0.4);
+                overflow: hidden;
+                background: color-mix(in srgb, currentColor 12%, transparent);
+                border: var(--border) solid color-mix(in srgb, currentColor 16%, transparent);
+            }
+            .imgwrap.shimmer::after {
+                content: "";
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+                z-index: 2;
+                background: linear-gradient(
+                    115deg,
+                    transparent 22%,
+                    color-mix(in srgb, var(--accent) 55%, transparent) 50%,
+                    transparent 78%
+                );
+                background-size: 230% 100%;
+                background-position: 140% 0;
+            }
+            .dev-img {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                filter: blur(14px);
+                transform: scale(1.04);
+                opacity: 0;
+                transition:
+                    filter 0.6s var(--e),
+                    transform 0.6s var(--e),
+                    opacity 0.6s var(--e);
+            }
+            .imgwrap.developed .dev-img {
+                filter: blur(0);
+                transform: scale(1);
+                opacity: 1;
+            }
+            .develop-overlay {
+                position: absolute;
+                inset: 0;
+                z-index: 1;
+                background: color-mix(in srgb, var(--accent) 42%, transparent);
+                transform: translateX(0);
+                opacity: 1;
+                transition:
+                    transform 0.6s var(--e),
+                    opacity 0.6s var(--e);
+            }
+            .imgwrap.developed .develop-overlay {
+                transform: translateX(101%);
+                opacity: 0;
+            }
+            .imgcap {
+                font-family: var(--fm), monospace;
+                font-size: 0.56rem;
+                letter-spacing: 0.06em;
+                color: var(--muted);
+                line-height: 1.3;
+            }
+            .cell.inv .imgcap {
+                color: color-mix(in srgb, var(--bg) 70%, transparent);
+            }
+
+            /* ---------- ticker ---------- */
+            .ticker {
+                flex: 0 0 auto;
+                height: 48px;
+                display: flex;
+                align-items: center;
+                gap: 11px;
+                padding: 0 34px;
+                background: var(--surface);
+                border-top: var(--border) solid var(--line);
+                transition:
+                    background 0.5s var(--e),
+                    border-color 0.5s var(--e);
+            }
+            .tdot {
+                width: 7px;
+                height: 7px;
+                border-radius: 50%;
+                background: var(--accent);
+                flex: 0 0 auto;
+            }
+            .tlabel {
+                font-family: var(--fm), monospace;
+                font-size: 0.6rem;
+                letter-spacing: 0.18em;
+                text-transform: uppercase;
+                color: var(--muted);
+                flex: 0 0 auto;
+            }
+            .tsep {
+                width: 1px;
+                height: 14px;
+                background: var(--line);
+                flex: 0 0 auto;
+            }
+            .ntext {
+                font-family: var(--fu), sans-serif;
+                font-size: 0.86rem;
+                line-height: 1.2;
+                color: var(--soft);
+                white-space: nowrap;
+                overflow: hidden;
+            }
+            .ntext .mono {
+                font-family: var(--fm), monospace;
+                color: var(--accent);
+                font-size: 0.84em;
+            }
+
+            /* ---------- animation (gated) ---------- */
+            @media (prefers-reduced-motion: no-preference) {
+                .livedot,
+                .tdot {
+                    animation: lpulse 1.4s var(--e) infinite;
+                }
+                .caret {
+                    animation: blink 1s steps(1) infinite;
+                }
+                .sk-layer.shimmer::after,
+                .imgwrap.shimmer::after {
+                    animation: sheen 2.4s var(--e) infinite;
+                }
+                .cell.active .sk-layer.shimmer::after {
+                    animation-duration: 1.15s;
+                }
+                .cell.active {
+                    animation: cardpulse 1.5s var(--e) infinite;
+                }
+                .cell.settled {
+                    animation: settlePop 0.42s var(--e);
+                }
+                @keyframes blink {
+                    0%,
+                    49% {
+                        opacity: 1;
+                    }
+                    50%,
+                    100% {
+                        opacity: 0;
+                    }
+                }
+                @keyframes sheen {
+                    0% {
+                        background-position: 140% 0;
+                    }
+                    60%,
+                    100% {
+                        background-position: -40% 0;
+                    }
+                }
+                @keyframes lpulse {
+                    0% {
+                        box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
+                    }
+                    70% {
+                        box-shadow: 0 0 0 6px transparent;
+                    }
+                    100% {
+                        box-shadow: 0 0 0 0 transparent;
+                    }
+                }
+                @keyframes cardpulse {
+                    0% {
+                        box-shadow:
+                            0 0 0 2px var(--accent),
+                            0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent),
+                            0 16px 36px -18px color-mix(in srgb, var(--ink) 46%, transparent);
+                    }
+                    70% {
+                        box-shadow:
+                            0 0 0 2px var(--accent),
+                            0 0 0 9px transparent,
+                            0 16px 36px -18px color-mix(in srgb, var(--ink) 46%, transparent);
+                    }
+                    100% {
+                        box-shadow:
+                            0 0 0 2px var(--accent),
+                            0 0 0 0 transparent,
+                            0 16px 36px -18px color-mix(in srgb, var(--ink) 46%, transparent);
+                    }
+                }
+                @keyframes settlePop {
+                    0% {
+                        transform: scale(0.99);
+                    }
+                    55% {
+                        transform: scale(1.006);
+                    }
+                    100% {
+                        transform: none;
+                    }
+                }
+                /* intake */
+                .gdot {
+                    animation: lpulse 1.4s var(--e) infinite;
+                }
+                .genbtn.ready {
+                    animation: genpulse 1.7s var(--e) infinite;
+                }
+                .ctxpanel.scan::after {
+                    animation: ctxscan 1.8s var(--e) infinite;
+                }
+                @keyframes genpulse {
+                    0% {
+                        box-shadow:
+                            0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent),
+                            0 12px 26px -12px color-mix(in srgb, var(--accent) 75%, transparent);
+                    }
+                    70% {
+                        box-shadow:
+                            0 0 0 13px transparent,
+                            0 12px 26px -12px color-mix(in srgb, var(--accent) 75%, transparent);
+                    }
+                    100% {
+                        box-shadow:
+                            0 0 0 0 transparent,
+                            0 12px 26px -12px color-mix(in srgb, var(--accent) 75%, transparent);
+                    }
+                }
+                @keyframes ctxscan {
+                    0% {
+                        left: -32%;
+                    }
+                    60%,
+                    100% {
+                        left: 132%;
+                    }
+                }
+            }
+            /* reduced-motion: instant build */
+            body.rm .dev-img,
+            body.rm .develop-overlay,
+            body.rm .snap,
+            body.rm .stat,
+            body.rm .attrib,
+            body.rm .bl,
+            body.rm .cell,
+            body.rm .sk-layer,
+            body.rm .fill,
+            body.rm .intake,
+            body.rm .build,
+            body.rm .promptbox,
+            body.rm .dchip,
+            body.rm .att,
+            body.rm .ground {
+                transition: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="app">
+            <!-- ===================== BUILD VIEW (revealed after intake) ===================== -->
+            <div class="build" id="build">
+                <!-- header -->
+                <header class="hdr">
+                    <div class="hdr-top">
+                        <div class="brand">
+                            <span class="glyph">G</span>
+                            <span class="bn">Galleo · <b>Composing</b></span>
+                            <span class="livedot" aria-hidden="true"></span>
+                        </div>
+                        <span class="modechip">storyboard</span>
+                        <span class="deckname">Aldon — Seed</span>
+                        <div class="counter">
+                            <b id="cur">00</b> <span class="tot">/ 10</span> <span>beats</span>
+                        </div>
+                        <button class="replay" id="replay"><span class="r">↻</span> Replay</button>
+                    </div>
+                    <div class="track"><div class="fill" id="fill"></div></div>
+                </header>
+
+                <!-- contact sheet -->
+                <main class="sheet" id="sheet"></main>
+
+                <!-- narration ticker -->
+                <footer class="ticker">
+                    <span class="tdot" aria-hidden="true"></span>
+                    <span class="tlabel">agent</span>
+                    <span class="tsep"></span>
+                    <span class="ntext" id="tick"></span>
+                </footer>
+            </div>
+
+            <!-- ===================== INTAKE OVERLAY ===================== -->
+            <div class="intake" id="intake">
+                <div class="ihead">
+                    <div class="brand">
+                        <span class="glyph">G</span>
+                        <span class="bn">Galleo · <b>Compose</b></span>
+                        <span class="livedot" aria-hidden="true"></span>
+                    </div>
+                    <span class="modechip">storyboard</span>
+                    <span class="istep"><b>1</b> · intake</span>
+                </div>
+
+                <div class="ibody">
+                    <div class="icol">
+                        <div>
+                            <div class="ieyebrow">New artifact</div>
+                            <div class="ititle">What should Galleo make?</div>
+                        </div>
+
+                        <div class="promptbox" id="promptbox">
+                            <div class="pkicker"><b>prompt</b> · describe the deck</div>
+                            <div class="ptext" id="ptext"></div>
+                        </div>
+
+                        <div class="irow">
+                            <div class="surfsel">
+                                <button class="surf on">Deck</button
+                                ><button class="surf">Doc</button><button class="surf">Site</button>
+                            </div>
+                            <div class="dchips" id="dchips">
+                                <span class="dchip">Goal&nbsp;<b>Pitch</b></span>
+                                <span class="dchip">Who&nbsp;<b>Investors</b></span>
+                                <span class="dchip">Tone&nbsp;<b>Bold</b></span>
+                                <span class="dchip">Length&nbsp;<b>Standard</b></span>
+                            </div>
+                        </div>
+
+                        <div class="ctxpanel" id="ctxpanel">
+                            <div class="ctxhead">
+                                <span class="ctxlabel">Add context</span>
+                                <span class="ground" id="ground"
+                                    ><span class="gdot" aria-hidden="true"></span> grounding in your
+                                    context</span
+                                >
+                            </div>
+                            <div class="atts" id="atts">
+                                <div class="att">
+                                    <span class="ic" aria-hidden="true">📄</span
+                                    ><span class="attname">aldon-onepager.pdf</span
+                                    ><span class="attkind">PDF</span>
+                                </div>
+                                <div class="att">
+                                    <span class="ic" aria-hidden="true">🔗</span
+                                    ><span class="attname">aldon.com</span
+                                    ><span class="attkind">Website</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="genrow">
+                            <span class="genhint" id="genhint">5 inputs ready</span>
+                            <button class="genbtn" id="genbtn">
+                                <span>Generate</span
+                                ><span class="garrow" aria-hidden="true">→</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            (function () {
+                "use strict";
+                const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+                if (RM) document.body.classList.add("rm");
+
+                const $ = (s, r = document) => r.querySelector(s);
+                const el = (t, c) => {
+                    const e = document.createElement(t);
+                    if (c) e.className = c;
+                    return e;
+                };
+                const raf = (fn) => requestAnimationFrame(fn);
+                const pad = (n) => (n < 10 ? "0" + n : "" + n);
+                const IMG = "https://picsum.photos/seed/galleosb/1200/800?grayscale";
+
+                const sheet = $("#sheet");
+                const tick = $("#tick");
+                const cur = $("#cur");
+                const fill = $("#fill");
+
+                // ---- intake refs ----
+                const buildEl = $("#build"),
+                    intakeEl = $("#intake");
+                const promptbox = $("#promptbox"),
+                    ptext = $("#ptext");
+                const ctxpanel = $("#ctxpanel"),
+                    ground = $("#ground");
+                const genbtn = $("#genbtn"),
+                    genhint = $("#genhint");
+                const dchipEls = [...document.querySelectorAll("#dchips .dchip")];
+                const attEls = [...document.querySelectorAll("#atts .att")];
+                const PROMPT =
+                    "An investor pitch deck for Aldon — we turn idle commercial HVAC into virtual power plants. Raising a $6M seed, for climate + infra VCs. Bold but credible.";
+
+                // ---- durations ----
+                const T = RM
+                    ? {
+                          boot: 150,
+                          plan: 80,
+                          ring: 90,
+                          head: 0,
+                          line: 32,
+                          snap: 50,
+                          shimmer: 90,
+                          develop: 130,
+                          count: 240,
+                          settle: 90,
+                          hold: 1100,
+                          tick: 0,
+                          iboot: 120,
+                          ptype: 0,
+                          ichip: 40,
+                          iatt: 80,
+                          iready: 220,
+                          ipress: 120,
+                          ireveal: 150,
+                          igap: 80,
+                      }
+                    : {
+                          boot: 300,
+                          plan: 300,
+                          ring: 200,
+                          head: 13,
+                          line: 100,
+                          snap: 130,
+                          shimmer: 300,
+                          develop: 520,
+                          count: 840,
+                          settle: 230,
+                          hold: 1450,
+                          tick: 13,
+                          iboot: 320,
+                          ptype: 11,
+                          ichip: 135,
+                          iatt: 300,
+                          iready: 620,
+                          ipress: 480,
+                          ireveal: 560,
+                          igap: 280,
+                      };
+
+                // ---- run token: only the live run's waits resolve ----
+                let RUN = null;
+                function wait(ms) {
+                    const my = RUN;
+                    return new Promise((r) =>
+                        setTimeout(() => {
+                            if (my === RUN) r();
+                        }, ms),
+                    );
+                }
+
+                // ---- type-on across mono/plain segments (with caret) ----
+                async function typeSegs(node, segs, speed, big) {
+                    node.textContent = "";
+                    const caret = el("span", "caret" + (big ? " big" : ""));
+                    node.appendChild(caret);
+                    for (const seg of segs) {
+                        const s = el("span", seg.m ? "mono" : null);
+                        node.insertBefore(s, caret);
+                        if (speed <= 0) {
+                            s.textContent = seg.t;
+                        } else {
+                            for (const ch of seg.t) {
+                                s.append(ch);
+                                await wait(speed);
+                            }
+                        }
+                    }
+                    await wait(speed <= 0 ? 30 : 280);
+                    caret.remove();
+                }
+
+                // ---- ticker: retype a single line each beat ----
+                function narrateTick(segs) {
+                    return typeSegs(tick, segs, T.tick, false);
+                }
+
+                function fmtN(o) {
+                    return (o.pre || "") + o.to.toFixed(o.dec) + (o.suf || "");
+                }
+                function lockFinal(node, o) {
+                    node._lock = true;
+                    node.textContent = fmtN(o);
+                }
+                function countUp(node, o) {
+                    const my = RUN,
+                        start = performance.now(),
+                        dur = o.dur;
+                    const fmt = (v) =>
+                        (o.pre || "") + (v < 0 ? 0 : v).toFixed(o.dec) + (o.suf || "");
+                    function frame(now) {
+                        if (my !== RUN || node._lock) return; // run-cancelled or already finalized
+                        const p = Math.min(1, (now - start) / dur);
+                        const e = 1 - Math.pow(1 - p, 3);
+                        node.textContent = fmt(o.to * e);
+                        if (p < 1) requestAnimationFrame(frame);
+                        else node.textContent = fmtN(o);
+                    }
+                    requestAnimationFrame(frame);
+                }
+
+                function showSnaps(root) {
+                    root.querySelectorAll(".snap").forEach((s) => raf(() => s.classList.add("in")));
+                }
+
+                // ============================ DECK ============================
+                const DECK = [
+                    {
+                        n: 1,
+                        type: "cover",
+                        wide: true,
+                        invert: true,
+                        eyebrow: "ALDON · SEED",
+                        head: "The grid was built for a century that's ending.",
+                        sub: "We turn idle commercial HVAC into a fleet of virtual power plants.",
+                        seg: [
+                            { t: "composing beat 1 · " },
+                            { t: "cover", m: 1 },
+                            { t: " → lead with the thesis, " },
+                            { t: "full-bleed", m: 1 },
+                        ],
+                    },
+
+                    {
+                        n: 2,
+                        type: "statement",
+                        eyebrow: "THE PROBLEM",
+                        head: "Demand is climbing. The wires aren't.",
+                        seg: [
+                            { t: "beat 2 · the problem → a hard " },
+                            { t: "statement", m: 1 },
+                            { t: ", no image" },
+                        ],
+                    },
+
+                    {
+                        n: 3,
+                        type: "image",
+                        eyebrow: "PRESSURE",
+                        cap: "rain-streaked grid, dusk",
+                        seg: [
+                            { t: "beat 3 · evidence → sourcing a photo, " },
+                            { t: "blur-up develop", m: 1 },
+                        ],
+                    },
+
+                    {
+                        n: 4,
+                        type: "bigstat",
+                        eyebrow: "THE STALL",
+                        big: "2009",
+                        label: "last major U.S. transmission build-out",
+                        seg: [
+                            { t: "beat 4 · the stall → one number does the talking · " },
+                            { t: "2009", m: 1 },
+                        ],
+                    },
+
+                    {
+                        n: 5,
+                        type: "shift",
+                        eyebrow: "THE SHIFT",
+                        head: "Software-defined. Storage-first. Carbon-aware.",
+                        seg: [{ t: "beat 5 · the shift → the turn, " }, { t: "three verbs", m: 1 }],
+                    },
+
+                    {
+                        n: 6,
+                        type: "image",
+                        eyebrow: "METHOD",
+                        cap: "a substation, re-coded",
+                        seg: [
+                            { t: "beat 6 · the how → a substation re-coded · " },
+                            { t: "blur-up", m: 1 },
+                        ],
+                    },
+
+                    {
+                        n: 7,
+                        type: "stats",
+                        eyebrow: "THE PROOF",
+                        stats: [
+                            { to: 3.4, dec: 1, suf: "×", label: "capacity / node" },
+                            { to: 128, dec: 0, label: "grids live" },
+                            { to: 760, dec: 0, pre: "$", label: "saved / MWh" },
+                        ],
+                        seg: [
+                            { t: "beat 7 · the proof → a " },
+                            { t: "stat triplet", m: 1 },
+                            { t: " counts up · " },
+                            { t: "3.4× 128 $760", m: 1 },
+                        ],
+                    },
+
+                    {
+                        n: 8,
+                        type: "quote",
+                        quote: "Aldon did in eight months what our utility couldn't in eight years.",
+                        attrib: "Dana Okafor · Meridian Power",
+                        seg: [
+                            { t: "beat 8 · momentum → a " },
+                            { t: "pull-quote", m: 1 },
+                            { t: " for air + trust" },
+                        ],
+                    },
+
+                    {
+                        n: 9,
+                        type: "bullets",
+                        eyebrow: "MOMENTUM",
+                        bullets: [
+                            "18 utilities in active pipeline",
+                            "3.1 GW under contract",
+                            "Backed by Breakthrough + DCVC",
+                        ],
+                        seg: [
+                            { t: "beat 9 · traction → metrics line up as " },
+                            { t: "bullets", m: 1 },
+                        ],
+                    },
+
+                    {
+                        n: 10,
+                        type: "ask",
+                        wide: true,
+                        invert: true,
+                        eyebrow: "THE ASK",
+                        big: "$6M",
+                        sub: "seed round · 12 grids online by 2027",
+                        seg: [{ t: "beat 10 · the ask → the close · " }, { t: "$6M seed", m: 1 }],
+                    },
+                ];
+
+                const SEG_PLAN = [
+                    { t: "planning the deck · " },
+                    { t: "10 beats", m: 1 },
+                    { t: " · one thesis" },
+                ];
+                const SEG_END = [
+                    { t: "storyboard ready · " },
+                    { t: "10 / 10", m: 1 },
+                    { t: " → assembling the deck…" },
+                ];
+
+                // ---- skeleton ghost per frame type ----
+                function skel(def) {
+                    const w = def.wide;
+                    switch (def.type) {
+                        case "cover":
+                            return (
+                                '<div class="sk" style="width:34%;height:9px"></div>' +
+                                '<div class="sk" style="width:80%;height:22px;margin-top:15px;border-radius:7px"></div>' +
+                                '<div class="sk" style="width:62%;height:22px;margin-top:10px;border-radius:7px"></div>' +
+                                '<div class="sk" style="width:46%;height:11px;margin-top:18px"></div>'
+                            );
+                        case "statement":
+                        case "shift":
+                            return (
+                                '<div class="sk" style="width:42%;height:8px"></div>' +
+                                '<div class="sk" style="width:90%;height:15px;margin-top:14px;border-radius:6px"></div>' +
+                                '<div class="sk" style="width:74%;height:15px;margin-top:9px;border-radius:6px"></div>' +
+                                '<div class="sk" style="width:54%;height:15px;margin-top:9px;border-radius:6px"></div>'
+                            );
+                        case "image":
+                            return (
+                                '<div class="sk" style="width:36%;height:8px"></div>' +
+                                '<div class="sk" style="width:100%;height:92px;margin-top:11px;border-radius:8px"></div>' +
+                                '<div class="sk" style="width:60%;height:8px;margin-top:11px"></div>'
+                            );
+                        case "bigstat":
+                        case "ask":
+                            return (
+                                '<div class="sk" style="width:34%;height:8px"></div>' +
+                                '<div class="sk" style="width:' +
+                                (w ? "50%" : "62%") +
+                                ";height:" +
+                                (w ? "48px" : "40px") +
+                                ';margin-top:13px;border-radius:9px"></div>' +
+                                '<div class="sk" style="width:78%;height:9px;margin-top:14px"></div>'
+                            );
+                        case "stats":
+                            return (
+                                '<div class="sk" style="width:38%;height:8px"></div>' +
+                                '<div class="sk-row">' +
+                                '<div><div class="sk" style="width:70%;height:30px;border-radius:7px"></div><div class="sk" style="width:90%;height:7px;margin-top:9px"></div></div>' +
+                                '<div><div class="sk" style="width:70%;height:30px;border-radius:7px"></div><div class="sk" style="width:90%;height:7px;margin-top:9px"></div></div>' +
+                                '<div><div class="sk" style="width:70%;height:30px;border-radius:7px"></div><div class="sk" style="width:90%;height:7px;margin-top:9px"></div></div>' +
+                                "</div>"
+                            );
+                        case "quote":
+                            return (
+                                '<div class="sk" style="width:24px;height:18px;border-radius:6px"></div>' +
+                                '<div class="sk" style="width:94%;height:13px;margin-top:12px;border-radius:6px"></div>' +
+                                '<div class="sk" style="width:86%;height:13px;margin-top:8px;border-radius:6px"></div>' +
+                                '<div class="sk" style="width:50%;height:13px;margin-top:8px;border-radius:6px"></div>' +
+                                '<div class="sk" style="width:54%;height:8px;margin-top:14px"></div>'
+                            );
+                        case "bullets":
+                            return (
+                                '<div class="sk" style="width:38%;height:8px"></div>' +
+                                '<div class="sk" style="width:80%;height:11px;margin-top:14px;border-radius:5px"></div>' +
+                                '<div class="sk" style="width:66%;height:11px;margin-top:9px;border-radius:5px"></div>' +
+                                '<div class="sk" style="width:74%;height:11px;margin-top:9px;border-radius:5px"></div>'
+                            );
+                        default:
+                            return "";
+                    }
+                }
+
+                // ---- build the contact sheet once ----
+                const cells = [];
+                DECK.forEach((def) => {
+                    const cell = el(
+                        "div",
+                        "cell k-" +
+                            def.type +
+                            (def.wide ? " wide" : "") +
+                            (def.invert ? " inv" : ""),
+                    );
+                    cell.innerHTML =
+                        '<span class="num">' +
+                        pad(def.n) +
+                        "</span>" +
+                        '<div class="sk-layer shimmer">' +
+                        skel(def) +
+                        "</div>" +
+                        '<div class="content"></div>';
+                    sheet.appendChild(cell);
+                    cells.push(cell);
+                });
+
+                function hideSkel(cell) {
+                    const sk = $(".sk-layer", cell);
+                    sk.classList.remove("shimmer");
+                    sk.classList.add("hide");
+                }
+
+                // ---- materialize one frame's real content ----
+                async function materialize(def, c) {
+                    switch (def.type) {
+                        case "cover": {
+                            c.innerHTML =
+                                '<div class="eyebrow snap"></div><h3 class="mh"></h3><div class="sub snap"></div>';
+                            $(".eyebrow", c).textContent = def.eyebrow;
+                            $(".sub", c).textContent = def.sub;
+                            raf(() => $(".eyebrow", c).classList.add("in"));
+                            await wait(T.snap);
+                            await typeSegs($(".mh", c), [{ t: def.head }], T.head, true);
+                            raf(() => $(".sub", c).classList.add("in"));
+                            await wait(T.snap);
+                            break;
+                        }
+                        case "statement":
+                        case "shift": {
+                            c.innerHTML = '<div class="eyebrow snap"></div><h3 class="mh"></h3>';
+                            $(".eyebrow", c).textContent = def.eyebrow;
+                            raf(() => $(".eyebrow", c).classList.add("in"));
+                            await wait(T.snap);
+                            await typeSegs($(".mh", c), [{ t: def.head }], T.head, true);
+                            break;
+                        }
+                        case "image": {
+                            c.innerHTML =
+                                '<div class="eyebrow snap"></div>' +
+                                '<div class="imgwrap shimmer"><img class="dev-img" alt="" src="' +
+                                IMG +
+                                '"><div class="develop-overlay"></div></div>' +
+                                '<div class="imgcap snap"></div>';
+                            $(".eyebrow", c).textContent = def.eyebrow;
+                            $(".imgcap", c).textContent = def.cap;
+                            showSnaps(c);
+                            await wait(T.snap);
+                            const wrap = $(".imgwrap", c);
+                            await wait(T.shimmer);
+                            wrap.classList.remove("shimmer");
+                            wrap.classList.add("developed");
+                            await wait(T.develop);
+                            break;
+                        }
+                        case "bigstat": {
+                            c.innerHTML =
+                                '<div class="eyebrow snap"></div><div class="bignum snap"></div><div class="biglabel snap"></div>';
+                            $(".eyebrow", c).textContent = def.eyebrow;
+                            $(".bignum", c).textContent = def.big;
+                            $(".biglabel", c).textContent = def.label;
+                            showSnaps(c);
+                            await wait(T.count * 0.55);
+                            break;
+                        }
+                        case "ask": {
+                            c.innerHTML =
+                                '<div class="eyebrow snap"></div><div class="bignum"></div><div class="biglabel snap"></div>';
+                            $(".eyebrow", c).textContent = def.eyebrow;
+                            $(".biglabel", c).textContent = def.sub;
+                            raf(() => {
+                                $(".eyebrow", c).classList.add("in");
+                                $(".biglabel", c).classList.add("in");
+                            });
+                            await wait(T.snap);
+                            countUp($(".bignum", c), {
+                                to: 6,
+                                dec: 0,
+                                pre: "$",
+                                suf: "M",
+                                dur: T.count,
+                            });
+                            await wait(T.count);
+                            lockFinal($(".bignum", c), { to: 6, dec: 0, pre: "$", suf: "M" }); // guarantee final
+                            break;
+                        }
+                        case "stats": {
+                            let s = '<div class="eyebrow snap"></div><div class="trio">';
+                            def.stats.forEach(
+                                () =>
+                                    (s +=
+                                        '<div class="stat"><div class="snum">0</div><div class="slabel"></div></div>'),
+                            );
+                            s += "</div>";
+                            c.innerHTML = s;
+                            $(".eyebrow", c).textContent = def.eyebrow;
+                            raf(() => $(".eyebrow", c).classList.add("in"));
+                            const st = [...c.querySelectorAll(".stat")];
+                            st.forEach(
+                                (s, i) =>
+                                    (s.querySelector(".slabel").textContent = def.stats[i].label),
+                            );
+                            await wait(T.snap);
+                            for (let i = 0; i < st.length; i++) {
+                                st[i].classList.add("reveal");
+                                countUp(
+                                    st[i].querySelector(".snum"),
+                                    Object.assign({ dur: T.count }, def.stats[i]),
+                                );
+                                await wait(180);
+                            }
+                            await wait(T.count * 0.8);
+                            st.forEach((e, i) => lockFinal(e.querySelector(".snum"), def.stats[i])); // guarantee finals
+                            break;
+                        }
+                        case "quote": {
+                            c.innerHTML =
+                                '<div class="qmark">“</div><blockquote class="pq"></blockquote><div class="attrib"></div>';
+                            $(".attrib", c).textContent = def.attrib;
+                            await typeSegs($(".pq", c), [{ t: def.quote }], T.head, true);
+                            raf(() => $(".attrib", c).classList.add("in"));
+                            await wait(T.snap);
+                            break;
+                        }
+                        case "bullets": {
+                            c.innerHTML =
+                                '<div class="eyebrow snap"></div><div class="blist"></div>';
+                            $(".eyebrow", c).textContent = def.eyebrow;
+                            raf(() => $(".eyebrow", c).classList.add("in"));
+                            await wait(T.snap);
+                            const bl = $(".blist", c);
+                            for (const ln of def.bullets) {
+                                const d = el("div", "bl");
+                                d.textContent = ln;
+                                bl.appendChild(d);
+                                raf(() => d.classList.add("in"));
+                                await wait(T.line);
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                function setProgress(n) {
+                    cur.textContent = pad(n);
+                    fill.style.width = (n / DECK.length) * 100 + "%";
+                }
+
+                async function composeCard(def) {
+                    const cell = cells[def.n - 1];
+                    setProgress(def.n);
+                    cell.classList.add("active");
+                    narrateTick(def.seg); // streams concurrently while the frame fills
+                    await wait(T.ring);
+                    hideSkel(cell);
+                    await materialize(def, $(".content", cell));
+                    await wait(120);
+                    cell.classList.remove("active");
+                    cell.classList.add("settled");
+                    await wait(T.settle);
+                }
+
+                // ============================ INTAKE ============================
+                async function intake() {
+                    await wait(T.iboot);
+                    promptbox.classList.add("focus");
+                    await typeSegs(ptext, [{ t: PROMPT }], T.ptype, true); // prompt types on
+                    await wait(T.igap);
+                    for (const ch of dchipEls) {
+                        ch.classList.add("in");
+                        await wait(T.ichip);
+                    } // auto-derived chips
+                    await wait(T.igap * 0.6);
+                    ground.classList.add("in");
+                    ctxpanel.classList.add("scan"); // grounding cue
+                    for (const a of attEls) {
+                        // attachments land
+                        a.classList.add("in", "ring");
+                        const my = RUN;
+                        setTimeout(() => {
+                            if (my === RUN) a.classList.remove("ring");
+                        }, 640);
+                        await wait(T.iatt);
+                    }
+                    await wait(T.igap);
+                    genbtn.classList.add("ready");
+                    genhint.innerHTML = "5 inputs · <b>ready</b>";
+                    await wait(T.iready);
+                    genbtn.classList.remove("ready");
+                    genbtn.classList.add("press"); // Generate pressed
+                    await wait(T.ipress);
+                }
+
+                async function revealBuild() {
+                    intakeEl.classList.add("gone"); // intake dissolves
+                    buildEl.classList.add("show"); // empty grid of ghosts appears, ready to fill
+                    await wait(T.ireveal);
+                }
+
+                // ---- reset for a fresh run ----
+                function reset() {
+                    cells.forEach((cell) => {
+                        cell.classList.remove("active", "settled");
+                        const sk = $(".sk-layer", cell);
+                        sk.classList.remove("hide");
+                        sk.classList.add("shimmer");
+                        $(".content", cell).innerHTML = "";
+                    });
+                    tick.textContent = "";
+                    setProgress(0);
+                    // intake
+                    intakeEl.classList.remove("gone");
+                    buildEl.classList.remove("show");
+                    promptbox.classList.remove("focus");
+                    ptext.textContent = "";
+                    dchipEls.forEach((c) => c.classList.remove("in"));
+                    ground.classList.remove("in");
+                    ctxpanel.classList.remove("scan");
+                    attEls.forEach((a) => a.classList.remove("in", "ring"));
+                    genbtn.classList.remove("ready", "press");
+                    genhint.innerHTML = "5 inputs ready";
+                }
+
+                // ============================ TIMELINE ============================
+                async function sequence() {
+                    /* ---- prepended INTAKE phase ---- */
+                    await intake();
+                    await revealBuild();
+
+                    /* ---- existing BUILD sequence (unchanged: the grid of ghosts blooming) ---- */
+                    await wait(T.boot);
+                    await narrateTick(SEG_PLAN);
+                    await wait(T.plan);
+
+                    for (let i = 0; i < DECK.length; i++) {
+                        await composeCard(DECK[i]);
+                    }
+
+                    setProgress(DECK.length);
+                    narrateTick(SEG_END);
+                    await wait(T.hold);
+                    startRun(); // auto-replay
+                }
+
+                function startRun() {
+                    RUN = {}; // invalidate any prior run's pending waits
+                    reset();
+                    sequence().catch(() => {});
+                }
+
+                $("#replay").addEventListener("click", startRun);
+
+                startRun();
+            })();
+        </script>
+
+        <script>
+            (function () {
+                var p = new URLSearchParams(location.search).get("theme");
+                document.documentElement.className = p && /^t-[a-z]+$/.test(p) ? p : "t-studio";
+                addEventListener("message", function (e) {
+                    if (e.data && e.data.theme) document.documentElement.className = e.data.theme;
+                });
+            })();
+        </script>
+    </body>
+</html>

@@ -57,5 +57,3 @@ export interface ArtifactContent {
     sections: Section[];
     background?: SectionBackground; // document-level backdrop behind all sections
 }
-
-export type ArtifactStatus = "draft" | "published";

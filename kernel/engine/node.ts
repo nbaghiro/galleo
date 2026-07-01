@@ -77,6 +77,7 @@ export interface FillLeaf {
     gradient?: { from: string; to: string; angle?: number };
     radius?: number;
     border?: { color: string; width: number; style?: "solid" | "dashed" };
+    shadow?: string; // CSS box-shadow (theme design character)
 }
 
 export interface SurfaceLeaf {

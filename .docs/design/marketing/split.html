@@ -1,0 +1,1662 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Galleo — Split-screen</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="stylesheet" href="theme.css" />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            d: ["var(--fd)", "serif"],
+                            s: ["var(--fu)", "sans-serif"],
+                            m: ["var(--fm)", "monospace"],
+                        },
+                        colors: {
+                            paper: "var(--bg)",
+                            panel: "var(--surface)",
+                            ink: "var(--ink)",
+                            soft: "var(--soft)",
+                            mut: "var(--muted)",
+                            acc: "var(--accent)",
+                            line: "var(--line)",
+                        },
+                    },
+                },
+            };
+        </script>
+        <style>
+            html {
+                scroll-behavior: smooth;
+            }
+            body {
+                background: var(--bg);
+                color: var(--ink);
+                font-family: var(--fu), sans-serif;
+                -webkit-font-smoothing: antialiased;
+            }
+            ::selection {
+                background: var(--accent);
+                color: var(--accent-ink);
+            }
+
+            /* ── THE SPLIT — the whole identity ───────────────────────────────────── */
+            .split {
+                display: flex;
+                flex-direction: column;
+            }
+            @media (min-width: 900px) {
+                .split {
+                    flex-direction: row;
+                    align-items: flex-start;
+                }
+                .leftp {
+                    position: sticky;
+                    top: 0;
+                    height: 100vh;
+                    width: 42%;
+                    flex: 0 0 42%;
+                    align-self: flex-start;
+                    overflow-y: auto;
+                    overflow-x: hidden;
+                }
+                .rightp {
+                    width: 58%;
+                    flex: 1 1 58%;
+                    min-width: 0;
+                }
+            }
+            /* hide scrollbar on the fixed panel, keep it scrollable on short screens */
+            .leftp {
+                scrollbar-width: none;
+            }
+            .leftp::-webkit-scrollbar {
+                width: 0;
+                height: 0;
+            }
+
+            /* the inverted panel: var(--ink) bg + var(--bg) text — always the inverse of the page */
+            .leftp {
+                background: var(--ink);
+                color: var(--bg);
+            }
+            .leftp .dim {
+                opacity: 0.66;
+            }
+            .leftp .dimmer {
+                opacity: 0.46;
+            }
+            .hair-inv {
+                border-color: color-mix(in srgb, var(--bg) 18%, transparent);
+            }
+
+            /* vertical nav list — persistent, with live scrollspy */
+            .vnav {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.1rem 1.05rem;
+            }
+            .vnav a {
+                display: flex;
+                align-items: baseline;
+                gap: 0.7rem;
+                color: var(--bg);
+                opacity: 0.6;
+                transition:
+                    opacity 0.25s ease,
+                    color 0.25s ease;
+                line-height: 1;
+            }
+            .vnav a:hover {
+                opacity: 1;
+            }
+            .vnav .vn-num {
+                font-family: var(--fm), monospace;
+                font-size: 11px;
+                letter-spacing: 0.16em;
+                opacity: 0.7;
+                display: none;
+            }
+            .vnav .vn-bar {
+                display: none;
+                height: 1px;
+                flex: 1;
+                background: color-mix(in srgb, var(--bg) 24%, transparent);
+                transition: background 0.25s ease;
+            }
+            .vnav a.on {
+                opacity: 1;
+            }
+            @media (min-width: 900px) {
+                .vnav {
+                    flex-direction: column;
+                    gap: 0;
+                }
+                .vnav a {
+                    padding: 0.62rem 0;
+                    border-top: 1px solid color-mix(in srgb, var(--bg) 14%, transparent);
+                }
+                .vnav a:first-child {
+                    border-top: 0;
+                }
+                .vnav .vn-num {
+                    display: inline;
+                }
+                .vnav .vn-bar {
+                    display: block;
+                }
+                .vnav a.on {
+                    color: var(--accent);
+                }
+                .vnav a.on .vn-num {
+                    color: var(--accent);
+                    opacity: 1;
+                }
+                .vnav a.on .vn-bar {
+                    background: var(--accent);
+                }
+            }
+
+            /* ── surfaces & components ────────────────────────────────────────────── */
+            .card {
+                background: var(--surface);
+                border: var(--border) solid var(--line);
+                border-radius: var(--radius);
+                box-shadow: var(--shadow);
+            }
+            .rule {
+                border-top: var(--border) solid var(--line);
+            }
+            .eyebrow {
+                font-family: var(--fm), monospace;
+                font-size: 11.5px;
+                text-transform: uppercase;
+                letter-spacing: 0.22em;
+                color: var(--accent);
+            }
+            .label {
+                font-family: var(--fm), monospace;
+                font-size: 10.5px;
+                text-transform: uppercase;
+                letter-spacing: 0.18em;
+            }
+            .num {
+                font-family: var(--fd), serif;
+                font-weight: 400;
+            }
+            .btn {
+                border-radius: calc(var(--radius) * 0.55 + 6px);
+                font-weight: 600;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 0.5rem;
+                transition:
+                    opacity 0.2s,
+                    transform 0.15s,
+                    background 0.2s;
+            }
+            .btn:hover {
+                opacity: 0.92;
+            }
+            .btn:active {
+                transform: translateY(1px);
+            }
+            .btn-primary {
+                background: var(--accent);
+                color: var(--accent-ink);
+            }
+            .btn-ghost {
+                background: transparent;
+                border: var(--border) solid var(--line);
+                color: var(--ink);
+            }
+            .btn-page {
+                background: var(--bg);
+                color: var(--ink);
+            } /* on the ink panel */
+            .btn-outline-inv {
+                background: transparent;
+                border: 1px solid color-mix(in srgb, var(--bg) 42%, transparent);
+                color: var(--bg);
+            }
+            [id] {
+                scroll-margin-top: 24px;
+            }
+
+            /* ── rotating / stacked artifact mock ─────────────────────────────────── */
+            .stage {
+                position: relative;
+                height: 208px;
+            }
+            .pv {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: clamp(220px, 86%, 300px);
+                height: 168px;
+                margin: -84px 0 0 0;
+                transform: translateX(-50%);
+                background: var(--surface);
+                color: var(--ink);
+                border: var(--border) solid var(--line);
+                border-radius: calc(var(--radius) * 0.62);
+                box-shadow: 0 18px 40px rgba(0, 0, 0, 0.34);
+                overflow: hidden;
+                animation: cyc 13.5s cubic-bezier(0.55, 0.1, 0.25, 1) infinite;
+                will-change: transform, opacity;
+            }
+            .pv:nth-child(1) {
+                animation-delay: 0s;
+            }
+            .pv:nth-child(2) {
+                animation-delay: -4.5s;
+            }
+            .pv:nth-child(3) {
+                animation-delay: -9s;
+            }
+            @keyframes cyc {
+                0%,
+                22% {
+                    transform: translateX(-50%) translate(0, 0) rotate(-2deg) scale(1);
+                    opacity: 1;
+                    z-index: 3;
+                }
+                33%,
+                55% {
+                    transform: translateX(-50%) translate(38px, -15px) rotate(3.2deg) scale(0.93);
+                    opacity: 0.62;
+                    z-index: 2;
+                }
+                66%,
+                88% {
+                    transform: translateX(-50%) translate(-34px, -28px) rotate(-4.6deg) scale(0.85);
+                    opacity: 0.32;
+                    z-index: 1;
+                }
+                100% {
+                    transform: translateX(-50%) translate(0, 0) rotate(-2deg) scale(1);
+                    opacity: 1;
+                    z-index: 3;
+                }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .pv {
+                    animation: none;
+                }
+                .pv:nth-child(1) {
+                    transform: translateX(-50%) rotate(-2deg);
+                    z-index: 3;
+                }
+                .pv:nth-child(2) {
+                    transform: translateX(-50%) translate(34px, -14px) rotate(3deg) scale(0.93);
+                    opacity: 0.62;
+                    z-index: 2;
+                }
+                .pv:nth-child(3) {
+                    transform: translateX(-50%) translate(-30px, -26px) rotate(-4deg) scale(0.85);
+                    opacity: 0.32;
+                    z-index: 1;
+                }
+            }
+
+            @keyframes fade {
+                from {
+                    opacity: 0;
+                    transform: translateY(14px);
+                }
+                to {
+                    opacity: 1;
+                    transform: none;
+                }
+            }
+            .fade {
+                animation: fade 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+            }
+            .d1 {
+                animation-delay: 0.07s;
+            }
+            .d2 {
+                animation-delay: 0.15s;
+            }
+            .d3 {
+                animation-delay: 0.24s;
+            }
+            .d4 {
+                animation-delay: 0.33s;
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .fade {
+                    animation: none;
+                }
+            }
+        </style>
+    </head>
+    <body class="font-s">
+        <div class="split">
+            <!-- ════════════════ FIXED LEFT PANEL — the persistent half ════════════════ -->
+            <aside class="leftp">
+                <div class="flex flex-col min-h-full px-7 sm:px-9 lg:px-11 py-8 lg:py-10">
+                    <!-- wordmark -->
+                    <a href="#overview" class="flex items-center gap-3 shrink-0">
+                        <span
+                            class="grid place-items-center w-9 h-9 shrink-0"
+                            style="
+                                background: var(--accent);
+                                color: var(--accent-ink);
+                                border-radius: calc(var(--radius) * 0.42);
+                            "
+                            ><span class="font-d font-bold text-[19px] leading-none">G</span></span
+                        >
+                        <span class="leading-none">
+                            <span class="font-d font-bold text-[26px] tracking-tight block"
+                                >Galleo</span
+                            >
+                            <span class="label dim block mt-1">The composition studio</span>
+                        </span>
+                    </a>
+
+                    <!-- manifesto + rotating artifact mock -->
+                    <div class="flex-1 flex flex-col justify-center py-8 lg:py-9">
+                        <p
+                            class="font-d font-medium text-[clamp(22px,2.5vw,30px)] leading-[1.16] tracking-[-.01em] max-w-[18ch]"
+                        >
+                            One source.<br />Three polished views.
+                        </p>
+                        <p class="dim text-[14px] leading-relaxed mt-4 max-w-[34ch]">
+                            A deck, a document, and a website — composed from one canonical
+                            artifact. Edit once; every format stays in sync.
+                        </p>
+
+                        <div class="stage mt-8 select-none" aria-hidden="true">
+                            <!-- Deck -->
+                            <article class="pv">
+                                <div
+                                    class="flex items-center gap-2 px-3 h-7"
+                                    style="
+                                        border-bottom: var(--border) solid var(--line);
+                                        background: var(--surface2);
+                                    "
+                                >
+                                    <span class="flex gap-1"
+                                        ><i
+                                            class="w-2 h-2 rounded-full block"
+                                            style="background: var(--line)"
+                                        ></i
+                                        ><i
+                                            class="w-2 h-2 rounded-full block"
+                                            style="background: var(--line)"
+                                        ></i
+                                        ><i
+                                            class="w-2 h-2 rounded-full block"
+                                            style="background: var(--line)"
+                                        ></i
+                                    ></span>
+                                    <span
+                                        class="ml-1 px-2 py-[3px] label rounded-full"
+                                        style="background: var(--accent); color: var(--accent-ink)"
+                                        >Deck</span
+                                    >
+                                    <span class="ml-auto label text-mut">03 / 12</span>
+                                </div>
+                                <div class="p-4">
+                                    <span class="label text-acc">Field notes</span>
+                                    <h4
+                                        class="font-d font-semibold text-[18px] leading-[1.05] tracking-tight mt-1"
+                                    >
+                                        Grown, not manufactured.
+                                    </h4>
+                                    <div
+                                        class="mt-2.5 h-1 w-12 rounded-full"
+                                        style="background: var(--accent)"
+                                    ></div>
+                                    <div class="grid grid-cols-2 gap-2 mt-3">
+                                        <div
+                                            class="px-2.5 py-1.5 rounded"
+                                            style="
+                                                background: var(--surface2);
+                                                border: var(--border) solid var(--line);
+                                            "
+                                        >
+                                            <span class="font-d font-semibold text-[16px]"
+                                                >92%</span
+                                            >
+                                        </div>
+                                        <div
+                                            class="px-2.5 py-1.5 rounded"
+                                            style="
+                                                background: var(--surface2);
+                                                border: var(--border) solid var(--line);
+                                            "
+                                        >
+                                            <span class="font-d font-semibold text-[16px]">3×</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </article>
+                            <!-- Doc -->
+                            <article class="pv">
+                                <div
+                                    class="flex items-center gap-2 px-3 h-7"
+                                    style="
+                                        border-bottom: var(--border) solid var(--line);
+                                        background: var(--surface2);
+                                    "
+                                >
+                                    <span class="label text-mut">Document</span
+                                    ><span class="ml-auto label text-mut">A4</span>
+                                </div>
+                                <div class="p-4">
+                                    <div
+                                        class="h-2 w-2/5 rounded"
+                                        style="background: var(--ink)"
+                                    ></div>
+                                    <div
+                                        class="h-1.5 w-[92%] rounded mt-3"
+                                        style="background: var(--line)"
+                                    ></div>
+                                    <div
+                                        class="h-1.5 w-[86%] rounded mt-2"
+                                        style="background: var(--line)"
+                                    ></div>
+                                    <div
+                                        class="h-1.5 w-[90%] rounded mt-2"
+                                        style="background: var(--line)"
+                                    ></div>
+                                    <div
+                                        class="h-1.5 w-1/3 rounded mt-2"
+                                        style="background: var(--accent)"
+                                    ></div>
+                                    <div
+                                        class="h-1.5 w-[80%] rounded mt-3"
+                                        style="background: var(--line)"
+                                    ></div>
+                                    <div
+                                        class="h-1.5 w-[64%] rounded mt-2"
+                                        style="background: var(--line)"
+                                    ></div>
+                                </div>
+                            </article>
+                            <!-- Site -->
+                            <article class="pv flex flex-col">
+                                <img
+                                    src="https://picsum.photos/seed/galleosplit/520/300?grayscale"
+                                    alt=""
+                                    class="w-full h-[96px] object-cover"
+                                />
+                                <div class="px-4 py-3">
+                                    <span class="label text-acc">Live site</span>
+                                    <h4
+                                        class="font-d font-semibold text-[17px] leading-tight mt-0.5"
+                                    >
+                                        A page that publishes itself.
+                                    </h4>
+                                </div>
+                            </article>
+                        </div>
+                    </div>
+
+                    <!-- vertical nav -->
+                    <nav class="vnav shrink-0" aria-label="Sections">
+                        <a href="#overview" data-sec="overview" class="on"
+                            ><span class="vn-num">01</span><span class="vn-label">Overview</span
+                            ><span class="vn-bar"></span
+                        ></a>
+                        <a href="#views" data-sec="views"
+                            ><span class="vn-num">02</span
+                            ><span class="vn-label">Three&nbsp;views</span
+                            ><span class="vn-bar"></span
+                        ></a>
+                        <a href="#features" data-sec="features"
+                            ><span class="vn-num">03</span><span class="vn-label">Features</span
+                            ><span class="vn-bar"></span
+                        ></a>
+                        <a href="#showcase" data-sec="showcase"
+                            ><span class="vn-num">04</span><span class="vn-label">Themes</span
+                            ><span class="vn-bar"></span
+                        ></a>
+                        <a href="#proof" data-sec="proof"
+                            ><span class="vn-num">05</span><span class="vn-label">Proof</span
+                            ><span class="vn-bar"></span
+                        ></a>
+                        <a href="#pricing" data-sec="pricing"
+                            ><span class="vn-num">06</span><span class="vn-label">Pricing</span
+                            ><span class="vn-bar"></span
+                        ></a>
+                    </nav>
+
+                    <!-- panel footer: CTA + meta -->
+                    <div class="shrink-0 mt-8 pt-6 border-t hair-inv">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <a href="#" class="btn btn-primary px-5 py-2.5 text-[14px]"
+                                >Start free</a
+                            >
+                            <a href="#" class="btn btn-outline-inv px-5 py-2.5 text-[14px]"
+                                >Sign in</a
+                            >
+                        </div>
+                        <p class="label dimmer mt-5">
+                            No credit card · 36 themes included · ©&nbsp;2026 Galleo
+                        </p>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- ════════════════ SCROLLING RIGHT SIDE — a sequence of spreads ════════════════ -->
+            <main class="rightp">
+                <!-- 01 · OVERVIEW SPREAD -->
+                <section
+                    id="overview"
+                    class="min-h-[100svh] flex flex-col justify-center px-7 sm:px-10 lg:px-16 py-20"
+                >
+                    <p class="fade eyebrow mb-6">One source · three views</p>
+                    <h1
+                        class="fade d1 font-d font-semibold tracking-[-.025em] leading-[.94] text-[clamp(40px,6.2vw,82px)] max-w-[14ch]"
+                    >
+                        Write it once. Ship it three&nbsp;ways.
+                    </h1>
+                    <p
+                        class="fade d2 mt-7 text-[17px] md:text-[19px] text-soft leading-relaxed max-w-[50ch]"
+                    >
+                        Describe what you need and Galleo composes one canonical artifact — then
+                        renders it as a polished deck, a flowing document, and a live website.
+                        Change a line in one; all three update.
+                    </p>
+                    <div class="fade d3 mt-9 flex flex-wrap items-center gap-x-6 gap-y-4">
+                        <a
+                            href="#"
+                            class="btn btn-primary px-7 py-3.5 text-[15px]"
+                            style="box-shadow: var(--shadow)"
+                            >Start free</a
+                        >
+                        <a
+                            href="#views"
+                            class="text-[15px] font-semibold text-ink inline-flex items-center gap-2"
+                            >See it switch views <span class="text-acc">→</span></a
+                        >
+                    </div>
+                    <div class="fade d4 mt-12 flex flex-wrap items-center gap-x-8 gap-y-3">
+                        <span class="label text-mut">Trusted by studios who ship</span>
+                        <span
+                            class="flex flex-wrap gap-x-6 gap-y-2 font-d text-[17px] text-soft font-medium"
+                        >
+                            <span>Northwind</span><span>Atelier&nbsp;Nord</span
+                            ><span>Helios&nbsp;Labs</span><span>Field&nbsp;Co.</span>
+                        </span>
+                    </div>
+                    <a
+                        href="#views"
+                        class="fade d4 mt-16 inline-flex items-center gap-3 label text-mut hover:text-ink transition-colors"
+                    >
+                        <span
+                            class="grid place-items-center w-8 h-8 rounded-full"
+                            style="border: var(--border) solid var(--line)"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.7"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                class="w-4 h-4 text-acc"
+                            >
+                                <path d="M12 5v14" />
+                                <path d="M6 13l6 6 6-6" />
+                            </svg>
+                        </span>
+                        Scroll the right — the split stays
+                    </a>
+                </section>
+
+                <!-- 02 · THREE VIEWS SPREAD -->
+                <section
+                    id="views"
+                    class="rule px-7 sm:px-10 lg:px-16 py-20 md:py-28"
+                    style="background: var(--surface2)"
+                >
+                    <p class="eyebrow mb-5">The same artifact, three ways</p>
+                    <h2
+                        class="font-d font-semibold text-[clamp(30px,4.4vw,52px)] tracking-[-.02em] leading-[.98] max-w-[16ch]"
+                    >
+                        Deck, doc, and site — switch instantly.
+                    </h2>
+                    <p
+                        class="text-soft text-[16px] md:text-[17px] leading-relaxed mt-5 max-w-[52ch]"
+                    >
+                        The content is canonical; the format is just a lens. Flip deck ⇄ doc ⇄ site
+                        and the layout engine re-typesets every block. Never a re-author. Never a
+                        copy-paste.
+                    </p>
+
+                    <div class="grid xl:grid-cols-3 gap-5 md:gap-6 mt-12">
+                        <article>
+                            <div
+                                class="card aspect-[4/3] p-6 flex flex-col justify-end overflow-hidden"
+                            >
+                                <span class="label text-acc">Slide 04</span>
+                                <span class="font-d font-semibold text-[21px] leading-tight mt-2"
+                                    >A presentation that looks composed, not assembled.</span
+                                >
+                                <div
+                                    class="mt-4 h-1.5 w-16 rounded-full"
+                                    style="background: var(--accent)"
+                                ></div>
+                            </div>
+                            <div class="flex items-baseline gap-3 mt-5">
+                                <span class="num text-mut text-[28px] leading-none italic">01</span>
+                                <div>
+                                    <h3 class="font-d font-semibold text-[20px]">Deck</h3>
+                                    <p class="text-soft text-[14px] mt-0.5 leading-snug">
+                                        16:9 slides, a present mode, speaker-ready exports.
+                                    </p>
+                                </div>
+                            </div>
+                        </article>
+                        <article>
+                            <div class="card aspect-[4/3] p-6 overflow-hidden">
+                                <span class="label text-mut">Document</span>
+                                <div
+                                    class="h-2.5 w-3/5 rounded mt-3"
+                                    style="background: var(--ink)"
+                                ></div>
+                                <div
+                                    class="h-1.5 w-[94%] rounded mt-4"
+                                    style="background: var(--line)"
+                                ></div>
+                                <div
+                                    class="h-1.5 w-[88%] rounded mt-2"
+                                    style="background: var(--line)"
+                                ></div>
+                                <div
+                                    class="h-1.5 w-[91%] rounded mt-2"
+                                    style="background: var(--line)"
+                                ></div>
+                                <div
+                                    class="h-1.5 w-2/5 rounded mt-2"
+                                    style="background: var(--accent)"
+                                ></div>
+                                <div
+                                    class="h-1.5 w-[86%] rounded mt-4"
+                                    style="background: var(--line)"
+                                ></div>
+                                <div
+                                    class="h-1.5 w-[72%] rounded mt-2"
+                                    style="background: var(--line)"
+                                ></div>
+                            </div>
+                            <div class="flex items-baseline gap-3 mt-5">
+                                <span class="num text-mut text-[28px] leading-none italic">02</span>
+                                <div>
+                                    <h3 class="font-d font-semibold text-[20px]">Doc</h3>
+                                    <p class="text-soft text-[14px] mt-0.5 leading-snug">
+                                        A flowing, readable document with real typography.
+                                    </p>
+                                </div>
+                            </div>
+                        </article>
+                        <article>
+                            <div class="card aspect-[4/3] overflow-hidden flex flex-col">
+                                <img
+                                    src="https://picsum.photos/seed/galleopage/640/360?grayscale"
+                                    alt=""
+                                    class="w-full flex-1 object-cover"
+                                />
+                                <div class="p-5">
+                                    <span class="label text-acc">Live site</span
+                                    ><span
+                                        class="font-d font-semibold text-[20px] block leading-tight mt-1"
+                                        >A page that publishes itself.</span
+                                    >
+                                </div>
+                            </div>
+                            <div class="flex items-baseline gap-3 mt-5">
+                                <span class="num text-mut text-[28px] leading-none italic">03</span>
+                                <div>
+                                    <h3 class="font-d font-semibold text-[20px]">Site</h3>
+                                    <p class="text-soft text-[14px] mt-0.5 leading-snug">
+                                        Full-bleed responsive pages, published in one click.
+                                    </p>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+
+                <!-- 03 · FEATURES — VERTICAL RHYTHM -->
+                <section id="features" class="rule px-7 sm:px-10 lg:px-16 py-20 md:py-28">
+                    <div class="flex flex-wrap items-end justify-between gap-4 mb-10 md:mb-14">
+                        <div>
+                            <p class="eyebrow mb-4">Why it holds together</p>
+                            <h2
+                                class="font-d font-semibold text-[clamp(30px,4.4vw,52px)] tracking-[-.02em] leading-[.98]"
+                            >
+                                Everything composes.
+                            </h2>
+                        </div>
+                        <p class="label text-mut">Six reasons</p>
+                    </div>
+
+                    <div
+                        class="rule grid grid-cols-[3rem_1fr] md:grid-cols-[4.5rem_1fr_auto] gap-x-5 md:gap-x-9 items-baseline py-7 md:py-9"
+                    >
+                        <span class="num text-mut text-[38px] md:text-[54px] leading-none italic"
+                            >01</span
+                        >
+                        <div class="md:pt-2">
+                            <h3
+                                class="font-d font-semibold text-[22px] md:text-[28px] tracking-tight leading-tight"
+                            >
+                                A real layout engine
+                            </h3>
+                            <p class="text-soft text-[15px] mt-2 max-w-[58ch] leading-relaxed">
+                                True typesetting and composition — not slides with textboxes. Every
+                                block (text, image, chart, table, stat, quote, diagram, callout) is
+                                a first-class element that re-typesets to fit.
+                            </p>
+                        </div>
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            class="hidden md:block w-7 h-7 self-center justify-self-end text-acc"
+                        >
+                            <path d="M12 3l9 5-9 5-9-5 9-5z" />
+                            <path d="M3 13l9 5 9-5" />
+                        </svg>
+                    </div>
+                    <div
+                        class="rule grid grid-cols-[3rem_1fr] md:grid-cols-[4.5rem_1fr_auto] gap-x-5 md:gap-x-9 items-baseline py-7 md:py-9"
+                    >
+                        <span class="num text-mut text-[38px] md:text-[54px] leading-none italic"
+                            >02</span
+                        >
+                        <div class="md:pt-2">
+                            <h3
+                                class="font-d font-semibold text-[22px] md:text-[28px] tracking-tight leading-tight"
+                            >
+                                One source, three views
+                            </h3>
+                            <p class="text-soft text-[15px] mt-2 max-w-[58ch] leading-relaxed">
+                                Deck, doc, and site render from a single canonical artifact. Switch
+                                views instantly, edit once, and every format stays in sync.
+                            </p>
+                        </div>
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            class="hidden md:block w-7 h-7 self-center justify-self-end text-acc"
+                        >
+                            <path d="M4 7h13l-3-3" />
+                            <path d="M20 17H7l3 3" />
+                        </svg>
+                    </div>
+                    <div
+                        class="rule grid grid-cols-[3rem_1fr] md:grid-cols-[4.5rem_1fr_auto] gap-x-5 md:gap-x-9 items-baseline py-7 md:py-9"
+                    >
+                        <span class="num text-mut text-[38px] md:text-[54px] leading-none italic"
+                            >03</span
+                        >
+                        <div class="md:pt-2">
+                            <h3
+                                class="font-d font-semibold text-[22px] md:text-[28px] tracking-tight leading-tight"
+                            >
+                                36 designer themes
+                            </h3>
+                            <p class="text-soft text-[15px] mt-2 max-w-[58ch] leading-relaxed">
+                                Each is a complete system: a font trio, color, corner radius, border
+                                weight, and shadow character. One click restyles the whole artifact,
+                                structurally — not just recolored.
+                            </p>
+                        </div>
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            class="hidden md:block w-7 h-7 self-center justify-self-end text-acc"
+                        >
+                            <path d="M12 3s6 6 6 10a6 6 0 1 1-12 0c0-4 6-10 6-10z" />
+                        </svg>
+                    </div>
+                    <div
+                        class="rule grid grid-cols-[3rem_1fr] md:grid-cols-[4.5rem_1fr_auto] gap-x-5 md:gap-x-9 items-baseline py-7 md:py-9"
+                    >
+                        <span class="num text-mut text-[38px] md:text-[54px] leading-none italic"
+                            >04</span
+                        >
+                        <div class="md:pt-2">
+                            <h3
+                                class="font-d font-semibold text-[22px] md:text-[28px] tracking-tight leading-tight"
+                            >
+                                AI generation
+                            </h3>
+                            <p class="text-soft text-[15px] mt-2 max-w-[58ch] leading-relaxed">
+                                Prompt it, or import what you already have, and get a polished first
+                                draft in seconds. Then make it genuinely good.
+                            </p>
+                        </div>
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            class="hidden md:block w-7 h-7 self-center justify-self-end text-acc"
+                        >
+                            <path
+                                d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z"
+                            />
+                        </svg>
+                    </div>
+                    <div
+                        class="rule grid grid-cols-[3rem_1fr] md:grid-cols-[4.5rem_1fr_auto] gap-x-5 md:gap-x-9 items-baseline py-7 md:py-9"
+                    >
+                        <span class="num text-mut text-[38px] md:text-[54px] leading-none italic"
+                            >05</span
+                        >
+                        <div class="md:pt-2">
+                            <h3
+                                class="font-d font-semibold text-[22px] md:text-[28px] tracking-tight leading-tight"
+                            >
+                                High-fidelity export &amp; publish
+                            </h3>
+                            <p class="text-soft text-[15px] mt-2 max-w-[58ch] leading-relaxed">
+                                Pixel-true PDF and PPTX, plus one-click live web publishing. What
+                                you compose is exactly what ships.
+                            </p>
+                        </div>
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            class="hidden md:block w-7 h-7 self-center justify-self-end text-acc"
+                        >
+                            <path d="M12 16V4" />
+                            <path d="M8 8l4-4 4 4" />
+                            <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
+                        </svg>
+                    </div>
+                    <div
+                        class="rule grid grid-cols-[3rem_1fr] md:grid-cols-[4.5rem_1fr_auto] gap-x-5 md:gap-x-9 items-baseline py-7 md:py-9"
+                    >
+                        <span class="num text-mut text-[38px] md:text-[54px] leading-none italic"
+                            >06</span
+                        >
+                        <div class="md:pt-2">
+                            <h3
+                                class="font-d font-semibold text-[22px] md:text-[28px] tracking-tight leading-tight"
+                            >
+                                Built for teams
+                            </h3>
+                            <p class="text-soft text-[15px] mt-2 max-w-[58ch] leading-relaxed">
+                                Real-time collaboration, shared workspaces, and folders — so a whole
+                                team can hold one standard.
+                            </p>
+                        </div>
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.6"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            class="hidden md:block w-7 h-7 self-center justify-self-end text-acc"
+                        >
+                            <circle cx="9" cy="8" r="3" />
+                            <path d="M3 20c0-3 3-5 6-5s6 2 6 5" />
+                            <path d="M16 5.5a3 3 0 0 1 0 6" />
+                            <path d="M22 20c0-2.4-1.6-3.8-4-4.4" />
+                        </svg>
+                    </div>
+                    <div class="rule"></div>
+                </section>
+
+                <!-- 04 · THEMES SHOWCASE SPREAD -->
+                <section
+                    id="showcase"
+                    class="rule px-7 sm:px-10 lg:px-16 py-20 md:py-28"
+                    style="background: var(--surface2)"
+                >
+                    <p class="eyebrow mb-5">The wardrobe — 36 complete systems</p>
+                    <h2
+                        class="font-d font-semibold text-[clamp(30px,4.4vw,52px)] tracking-[-.02em] leading-[.96] max-w-[18ch]"
+                    >
+                        One artifact. Thirty-six ways to dress it.
+                    </h2>
+                    <p class="text-soft text-[16px] leading-relaxed mt-5 max-w-[52ch]">
+                        Each theme sets a font trio, color, corner radius, border weight, and shadow
+                        character — together. Tap a system to preview this whole page in it.
+                    </p>
+
+                    <div class="grid grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5 mt-12">
+                        <a href="?theme=t-studio" class="card p-4 md:p-5">
+                            <div
+                                class="p-4 mb-4"
+                                style="
+                                    background: #f4f0e8;
+                                    border-radius: calc(var(--radius) * 0.55);
+                                "
+                            >
+                                <div class="h-2.5 w-1/2 rounded" style="background: #211c16"></div>
+                                <div
+                                    class="h-1.5 w-3/4 rounded mt-2"
+                                    style="background: #211c16; opacity: 0.35"
+                                ></div>
+                                <div
+                                    class="h-1.5 w-2/3 rounded mt-1.5"
+                                    style="background: #211c16; opacity: 0.35"
+                                ></div>
+                                <span
+                                    class="inline-block mt-3 px-2 py-1 label rounded"
+                                    style="background: #a8572c; color: #fff"
+                                    >Aa</span
+                                >
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="label">Studio</span
+                                ><span
+                                    class="w-3 h-3 rounded-full"
+                                    style="background: #a8572c"
+                                ></span>
+                            </div>
+                        </a>
+                        <a href="?theme=t-noir" class="card p-4 md:p-5">
+                            <div
+                                class="p-4 mb-4"
+                                style="
+                                    background: #0c0e13;
+                                    border-radius: calc(var(--radius) * 0.55);
+                                "
+                            >
+                                <div class="h-2.5 w-1/2 rounded" style="background: #eceef2"></div>
+                                <div
+                                    class="h-1.5 w-3/4 rounded mt-2"
+                                    style="background: #eceef2; opacity: 0.4"
+                                ></div>
+                                <div
+                                    class="h-1.5 w-2/3 rounded mt-1.5"
+                                    style="background: #eceef2; opacity: 0.4"
+                                ></div>
+                                <span
+                                    class="inline-block mt-3 px-2 py-1 label rounded"
+                                    style="background: #5b8cff; color: #0b1020"
+                                    >Aa</span
+                                >
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="label">Noir</span
+                                ><span
+                                    class="w-3 h-3 rounded-full"
+                                    style="background: #5b8cff"
+                                ></span>
+                            </div>
+                        </a>
+                        <a href="?theme=t-press" class="card p-4 md:p-5">
+                            <div
+                                class="p-4 mb-4"
+                                style="
+                                    background: #eceae1;
+                                    border-radius: calc(var(--radius) * 0.55);
+                                "
+                            >
+                                <div class="h-2.5 w-1/2 rounded" style="background: #16140f"></div>
+                                <div
+                                    class="h-1.5 w-3/4 rounded mt-2"
+                                    style="background: #16140f; opacity: 0.35"
+                                ></div>
+                                <div
+                                    class="h-1.5 w-2/3 rounded mt-1.5"
+                                    style="background: #16140f; opacity: 0.35"
+                                ></div>
+                                <span
+                                    class="inline-block mt-3 px-2 py-1 label rounded"
+                                    style="background: #c2301a; color: #fff"
+                                    >Aa</span
+                                >
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="label">Press</span
+                                ><span
+                                    class="w-3 h-3 rounded-full"
+                                    style="background: #c2301a"
+                                ></span>
+                            </div>
+                        </a>
+                        <a href="?theme=t-botanic" class="card p-4 md:p-5">
+                            <div
+                                class="p-4 mb-4"
+                                style="
+                                    background: #eef0e6;
+                                    border-radius: calc(var(--radius) * 0.55);
+                                "
+                            >
+                                <div class="h-2.5 w-1/2 rounded" style="background: #26301f"></div>
+                                <div
+                                    class="h-1.5 w-3/4 rounded mt-2"
+                                    style="background: #26301f; opacity: 0.35"
+                                ></div>
+                                <div
+                                    class="h-1.5 w-2/3 rounded mt-1.5"
+                                    style="background: #26301f; opacity: 0.35"
+                                ></div>
+                                <span
+                                    class="inline-block mt-3 px-2 py-1 label rounded"
+                                    style="background: #5b7a4f; color: #fff"
+                                    >Aa</span
+                                >
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="label">Botanic</span
+                                ><span
+                                    class="w-3 h-3 rounded-full"
+                                    style="background: #5b7a4f"
+                                ></span>
+                            </div>
+                        </a>
+                        <a href="?theme=t-couture" class="card p-4 md:p-5">
+                            <div
+                                class="p-4 mb-4"
+                                style="
+                                    background: #0c0c0c;
+                                    border-radius: calc(var(--radius) * 0.55);
+                                "
+                            >
+                                <div class="h-2.5 w-1/2 rounded" style="background: #f2efea"></div>
+                                <div
+                                    class="h-1.5 w-3/4 rounded mt-2"
+                                    style="background: #f2efea; opacity: 0.4"
+                                ></div>
+                                <div
+                                    class="h-1.5 w-2/3 rounded mt-1.5"
+                                    style="background: #f2efea; opacity: 0.4"
+                                ></div>
+                                <span
+                                    class="inline-block mt-3 px-2 py-1 label rounded"
+                                    style="background: #c0a875; color: #0c0c0c"
+                                    >Aa</span
+                                >
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="label">Couture</span
+                                ><span
+                                    class="w-3 h-3 rounded-full"
+                                    style="background: #c0a875"
+                                ></span>
+                            </div>
+                        </a>
+                        <a href="?theme=t-candy" class="card p-4 md:p-5">
+                            <div
+                                class="p-4 mb-4"
+                                style="
+                                    background: #fff4fa;
+                                    border-radius: calc(var(--radius) * 0.55);
+                                "
+                            >
+                                <div class="h-2.5 w-1/2 rounded" style="background: #3a2536"></div>
+                                <div
+                                    class="h-1.5 w-3/4 rounded mt-2"
+                                    style="background: #3a2536; opacity: 0.3"
+                                ></div>
+                                <div
+                                    class="h-1.5 w-2/3 rounded mt-1.5"
+                                    style="background: #3a2536; opacity: 0.3"
+                                ></div>
+                                <span
+                                    class="inline-block mt-3 px-2 py-1 label rounded"
+                                    style="background: #ff6fb5; color: #fff"
+                                    >Aa</span
+                                >
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="label">Candy</span
+                                ><span
+                                    class="w-3 h-3 rounded-full"
+                                    style="background: #ff6fb5"
+                                ></span>
+                            </div>
+                        </a>
+                    </div>
+                    <p class="mt-8 label text-mut">
+                        Studio · Noir · Press · Botanic · Couture · Candy ·
+                        <span class="text-acc">+ 30 more</span>
+                    </p>
+                </section>
+
+                <!-- 05 · PROOF SPREAD -->
+                <section id="proof" class="rule px-7 sm:px-10 lg:px-16 py-20 md:py-28">
+                    <p class="eyebrow mb-8 md:mb-10">Dispatches</p>
+                    <blockquote
+                        class="font-d font-medium text-[clamp(24px,3.6vw,42px)] leading-[1.18] tracking-[-.01em] max-w-[24ch]"
+                    >
+                        &ldquo;We stopped reformatting and started
+                        <span class="italic" style="color: var(--accent)">deciding</span>. Same
+                        content — a deck, a doc, and a launch page — and all three finally look
+                        composed.&rdquo;
+                    </blockquote>
+                    <p class="mt-7 label text-mut">— Marielle Tran · Head of Brand, Northwind</p>
+
+                    <div class="grid sm:grid-cols-3 gap-y-8 gap-x-6 mt-14 md:mt-20">
+                        <div>
+                            <span class="num text-acc text-[clamp(40px,6vw,64px)] leading-none"
+                                >36</span
+                            >
+                            <p class="text-soft text-[14px] mt-2 leading-snug max-w-[22ch]">
+                                complete themes, each a full design system.
+                            </p>
+                        </div>
+                        <div>
+                            <span class="num text-acc text-[clamp(40px,6vw,64px)] leading-none"
+                                >3</span
+                            >
+                            <p class="text-soft text-[14px] mt-2 leading-snug max-w-[22ch]">
+                                views — deck, doc, site — from one source.
+                            </p>
+                        </div>
+                        <div>
+                            <span class="num text-acc text-[clamp(40px,6vw,64px)] leading-none"
+                                >1</span
+                            >
+                            <p class="text-soft text-[14px] mt-2 leading-snug max-w-[22ch]">
+                                canonical artifact. Edit once, ship anywhere.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="grid sm:grid-cols-2 gap-8 md:gap-10 mt-14">
+                        <div class="rule pt-7">
+                            <blockquote
+                                class="font-d font-medium text-[19px] md:text-[22px] leading-[1.32]"
+                            >
+                                &ldquo;The layout engine is the real thing. It typesets — it does
+                                not snap boxes to a grid and hope.&rdquo;
+                            </blockquote>
+                            <p class="mt-5 label text-mut">
+                                — Daniel Osei · Design Lead, Helios&nbsp;Labs
+                            </p>
+                        </div>
+                        <div class="rule pt-7">
+                            <blockquote
+                                class="font-d font-medium text-[19px] md:text-[22px] leading-[1.32]"
+                            >
+                                &ldquo;One click and the whole system changes — type, color, edges.
+                                Our investor update has never looked this considered.&rdquo;
+                            </blockquote>
+                            <p class="mt-5 label text-mut">
+                                — Priya Anand · Founder, Field&nbsp;Co.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 06 · PRICING SPREAD -->
+                <section
+                    id="pricing"
+                    class="rule px-7 sm:px-10 lg:px-16 py-20 md:py-28"
+                    style="background: var(--surface2)"
+                >
+                    <div class="flex flex-wrap items-end justify-between gap-4 mb-10 md:mb-14">
+                        <div>
+                            <p class="eyebrow mb-4">Subscriptions</p>
+                            <h2
+                                class="font-d font-semibold text-[clamp(30px,4.4vw,52px)] tracking-[-.02em] leading-[.98]"
+                            >
+                                Priced like a tool you keep.
+                            </h2>
+                        </div>
+                        <p class="text-mut text-[14px] max-w-[26ch] leading-relaxed">
+                            Billed yearly · switch or cancel whenever · every plan includes all 36
+                            themes.
+                        </p>
+                    </div>
+
+                    <div class="space-y-5">
+                        <!-- Free -->
+                        <div
+                            class="card p-6 md:p-8 grid sm:grid-cols-[1fr_1.6fr_auto] gap-6 md:gap-8 items-center"
+                        >
+                            <div>
+                                <p class="label text-mut">Free</p>
+                                <div class="flex items-baseline gap-1.5 mt-2">
+                                    <span
+                                        class="font-d font-semibold text-[clamp(34px,4vw,46px)] leading-none"
+                                        >$0</span
+                                    ><span class="text-mut text-[14px]">/ forever</span>
+                                </div>
+                                <p class="text-soft text-[14px] mt-2 max-w-[24ch]">
+                                    For trying the idea on real work.
+                                </p>
+                            </div>
+                            <ul
+                                class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-[14px] text-soft"
+                            >
+                                <li class="flex gap-2.5">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="w-4 h-4 mt-0.5 shrink-0 text-acc"
+                                    >
+                                        <path d="M5 12l5 5L20 6" /></svg
+                                    >3 active artifacts
+                                </li>
+                                <li class="flex gap-2.5">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="w-4 h-4 mt-0.5 shrink-0 text-acc"
+                                    >
+                                        <path d="M5 12l5 5L20 6" /></svg
+                                    >All 36 themes
+                                </li>
+                                <li class="flex gap-2.5">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="w-4 h-4 mt-0.5 shrink-0 text-acc"
+                                    >
+                                        <path d="M5 12l5 5L20 6" /></svg
+                                    >Deck, doc &amp; site views
+                                </li>
+                                <li class="flex gap-2.5">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="w-4 h-4 mt-0.5 shrink-0 text-acc"
+                                    >
+                                        <path d="M5 12l5 5L20 6" /></svg
+                                    >PDF export
+                                </li>
+                            </ul>
+                            <a
+                                href="#"
+                                class="btn btn-ghost px-6 py-3 text-[14px] whitespace-nowrap"
+                                >Start free</a
+                            >
+                        </div>
+
+                        <!-- Pro (highlighted) -->
+                        <div
+                            class="card p-6 md:p-8 grid sm:grid-cols-[1fr_1.6fr_auto] gap-6 md:gap-8 items-center relative"
+                            style="
+                                border-color: var(--accent);
+                                background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+                            "
+                        >
+                            <span
+                                class="absolute -top-3 left-6 md:left-8 px-3 py-1 label rounded-full"
+                                style="background: var(--accent); color: var(--accent-ink)"
+                                >Most chosen</span
+                            >
+                            <div>
+                                <p class="label text-acc">Pro</p>
+                                <div class="flex items-baseline gap-1.5 mt-2">
+                                    <span
+                                        class="font-d font-semibold text-[clamp(34px,4vw,46px)] leading-none"
+                                        >$20</span
+                                    ><span class="text-mut text-[14px]">/ month</span>
+                                </div>
+                                <p class="text-soft text-[14px] mt-2 max-w-[24ch]">
+                                    For individuals who ship.
+                                </p>
+                            </div>
+                            <ul
+                                class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-[14px] text-soft"
+                            >
+                                <li class="flex gap-2.5">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="w-4 h-4 mt-0.5 shrink-0 text-acc"
+                                    >
+                                        <path d="M5 12l5 5L20 6" /></svg
+                                    ><span class="text-ink font-medium"
+                                        >Everything in Free, plus</span
+                                    >
+                                </li>
+                                <li class="flex gap-2.5">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="w-4 h-4 mt-0.5 shrink-0 text-acc"
+                                    >
+                                        <path d="M5 12l5 5L20 6" /></svg
+                                    >Unlimited artifacts
+                                </li>
+                                <li class="flex gap-2.5">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="w-4 h-4 mt-0.5 shrink-0 text-acc"
+                                    >
+                                        <path d="M5 12l5 5L20 6" /></svg
+                                    >AI generation &amp; import
+                                </li>
+                                <li class="flex gap-2.5">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="w-4 h-4 mt-0.5 shrink-0 text-acc"
+                                    >
+                                        <path d="M5 12l5 5L20 6" /></svg
+                                    >PPTX export + web publish
+                                </li>
+                            </ul>
+                            <a
+                                href="#"
+                                class="btn btn-primary px-6 py-3 text-[14px] whitespace-nowrap"
+                                >Start Pro trial</a
+                            >
+                        </div>
+
+                        <!-- Team -->
+                        <div
+                            class="card p-6 md:p-8 grid sm:grid-cols-[1fr_1.6fr_auto] gap-6 md:gap-8 items-center"
+                        >
+                            <div>
+                                <p class="label text-mut">Team</p>
+                                <div class="flex items-baseline gap-1.5 mt-2">
+                                    <span
+                                        class="font-d font-semibold text-[clamp(34px,4vw,46px)] leading-none"
+                                        >$48</span
+                                    ><span class="text-mut text-[14px]">/ user · mo</span>
+                                </div>
+                                <p class="text-soft text-[14px] mt-2 max-w-[24ch]">
+                                    For teams with a standard.
+                                </p>
+                            </div>
+                            <ul
+                                class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-[14px] text-soft"
+                            >
+                                <li class="flex gap-2.5">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="w-4 h-4 mt-0.5 shrink-0 text-acc"
+                                    >
+                                        <path d="M5 12l5 5L20 6" /></svg
+                                    ><span class="text-ink font-medium"
+                                        >Everything in Pro, plus</span
+                                    >
+                                </li>
+                                <li class="flex gap-2.5">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="w-4 h-4 mt-0.5 shrink-0 text-acc"
+                                    >
+                                        <path d="M5 12l5 5L20 6" /></svg
+                                    >Real-time collaboration
+                                </li>
+                                <li class="flex gap-2.5">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="w-4 h-4 mt-0.5 shrink-0 text-acc"
+                                    >
+                                        <path d="M5 12l5 5L20 6" /></svg
+                                    >Shared workspaces &amp; folders
+                                </li>
+                                <li class="flex gap-2.5">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="w-4 h-4 mt-0.5 shrink-0 text-acc"
+                                    >
+                                        <path d="M5 12l5 5L20 6" /></svg
+                                    >SSO / SAML, roles &amp; admin
+                                </li>
+                            </ul>
+                            <a
+                                href="#"
+                                class="btn btn-ghost px-6 py-3 text-[14px] whitespace-nowrap"
+                                >Talk to us</a
+                            >
+                        </div>
+                    </div>
+                </section>
+
+                <!-- FINAL CTA SPREAD -->
+                <section class="rule px-7 sm:px-10 lg:px-16 py-24 md:py-32">
+                    <p class="eyebrow mb-7">The thesis</p>
+                    <p
+                        class="font-d font-medium text-[clamp(26px,4vw,50px)] leading-[1.12] tracking-[-.01em] max-w-[22ch]"
+                    >
+                        AI made a first draft free — and the average deck worse. The bottleneck
+                        moved from making to judging.
+                        <span class="text-mut">Galleo is the editor for the judging.</span>
+                    </p>
+                    <div class="mt-10 flex flex-wrap items-center gap-x-6 gap-y-4">
+                        <a
+                            href="#"
+                            class="btn btn-primary px-8 py-4 text-[15px]"
+                            style="box-shadow: var(--shadow)"
+                            >Start free</a
+                        >
+                        <a
+                            href="#showcase"
+                            class="text-[15px] font-semibold text-ink inline-flex items-center gap-2"
+                            >Browse the showcase <span class="text-acc">→</span></a
+                        >
+                    </div>
+                    <p class="mt-8 label text-mut">
+                        One source · three polished views · thirty-six themes
+                    </p>
+                </section>
+            </main>
+        </div>
+
+        <!-- ════════════════ FULL-WIDTH FOOTER — the split resolves ════════════════ -->
+        <footer
+            class="px-7 sm:px-10 lg:px-16 py-14 md:py-16"
+            style="background: var(--ink); color: var(--bg)"
+        >
+            <div class="grid md:grid-cols-[1.6fr_1fr_1fr_1fr] gap-10 md:gap-8">
+                <div class="max-w-[32ch]">
+                    <div class="flex items-center gap-3">
+                        <span
+                            class="grid place-items-center w-8 h-8"
+                            style="
+                                background: var(--accent);
+                                color: var(--accent-ink);
+                                border-radius: calc(var(--radius) * 0.42);
+                            "
+                            ><span class="font-d font-bold text-[17px] leading-none">G</span></span
+                        >
+                        <span class="font-d text-[22px] font-bold tracking-tight">Galleo</span>
+                    </div>
+                    <p class="dim text-[14px] mt-4 leading-relaxed">
+                        One source. Three polished views. The editor for people who care how it
+                        looks.
+                    </p>
+                    <p class="label dimmer mt-5">Est. MMXXVI</p>
+                </div>
+                <div>
+                    <p class="label dimmer mb-4">Product</p>
+                    <ul class="space-y-2.5 text-[14px]">
+                        <li>
+                            <a class="dim hover:opacity-100 transition-opacity" href="#overview"
+                                >Overview</a
+                            >
+                        </li>
+                        <li>
+                            <a class="dim hover:opacity-100 transition-opacity" href="#views"
+                                >Three views</a
+                            >
+                        </li>
+                        <li>
+                            <a class="dim hover:opacity-100 transition-opacity" href="#showcase"
+                                >Themes</a
+                            >
+                        </li>
+                        <li>
+                            <a class="dim hover:opacity-100 transition-opacity" href="#pricing"
+                                >Pricing</a
+                            >
+                        </li>
+                    </ul>
+                </div>
+                <div>
+                    <p class="label dimmer mb-4">Company</p>
+                    <ul class="space-y-2.5 text-[14px]">
+                        <li>
+                            <a class="dim hover:opacity-100 transition-opacity" href="#">About</a>
+                        </li>
+                        <li>
+                            <a class="dim hover:opacity-100 transition-opacity" href="#"
+                                >Manifesto</a
+                            >
+                        </li>
+                        <li>
+                            <a class="dim hover:opacity-100 transition-opacity" href="#">Careers</a>
+                        </li>
+                        <li>
+                            <a class="dim hover:opacity-100 transition-opacity" href="#">Press</a>
+                        </li>
+                    </ul>
+                </div>
+                <div>
+                    <p class="label dimmer mb-4">Resources</p>
+                    <ul class="space-y-2.5 text-[14px]">
+                        <li>
+                            <a class="dim hover:opacity-100 transition-opacity" href="#">Docs</a>
+                        </li>
+                        <li>
+                            <a class="dim hover:opacity-100 transition-opacity" href="#"
+                                >Templates</a
+                            >
+                        </li>
+                        <li>
+                            <a class="dim hover:opacity-100 transition-opacity" href="#"
+                                >Changelog</a
+                            >
+                        </li>
+                        <li>
+                            <a class="dim hover:opacity-100 transition-opacity" href="#">Status</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <div
+                class="mt-12 pt-7 border-t hair-inv flex flex-wrap items-center justify-between gap-4 label dimmer"
+            >
+                <span>© 2026 Galleo — All rights reserved</span>
+                <span>Set in Fraunces &amp; Hanken Grotesk</span>
+                <span class="flex gap-5"
+                    ><a class="hover:opacity-100 transition-opacity" href="#">X</a
+                    ><a class="hover:opacity-100 transition-opacity" href="#">LinkedIn</a
+                    ><a class="hover:opacity-100 transition-opacity" href="#">GitHub</a></span
+                >
+            </div>
+        </footer>
+
+        <!-- live scrollspy for the persistent vertical nav -->
+        <script>
+            (function () {
+                var links = [].slice.call(document.querySelectorAll(".vnav a[data-sec]"));
+                if (!links.length || !("IntersectionObserver" in window)) return;
+                var map = {};
+                links.forEach(function (l) {
+                    map[l.getAttribute("data-sec")] = l;
+                });
+                var secs = links
+                    .map(function (l) {
+                        return document.getElementById(l.getAttribute("data-sec"));
+                    })
+                    .filter(Boolean);
+                var io = new IntersectionObserver(
+                    function (es) {
+                        es.forEach(function (e) {
+                            if (e.isIntersecting) {
+                                links.forEach(function (l) {
+                                    l.classList.remove("on");
+                                });
+                                var a = map[e.target.id];
+                                if (a) a.classList.add("on");
+                            }
+                        });
+                    },
+                    { rootMargin: "-45% 0px -50% 0px", threshold: 0 },
+                );
+                secs.forEach(function (s) {
+                    io.observe(s);
+                });
+            })();
+        </script>
+
+        <script>
+            (function () {
+                var p = new URLSearchParams(location.search).get("theme");
+                document.documentElement.className = p && /^t-[a-z]+$/.test(p) ? p : "t-studio";
+                addEventListener("message", function (e) {
+                    if (e.data && e.data.theme) document.documentElement.className = e.data.theme;
+                });
+            })();
+        </script>
+    </body>
+</html>

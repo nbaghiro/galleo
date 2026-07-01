@@ -28,6 +28,9 @@ export interface Tokens {
     fontBody: string; // family name for body / UI
     fontMono: string; // family name for labels / mono
     headingWeight: number; // weight applied to display-role text
+    border?: number; // border width for cards/sections (heavier = blockier theme)
+    shadow?: string; // box-shadow for cards (hard-offset brutalist · soft lift · subtle)
+    scrim?: number; // 0..1 default darkening over section background images (higher = safer text); default 0.45
 }
 
 export interface Theme {
@@ -53,8 +56,16 @@ export function themeCssVars(t: Tokens): Record<string, string> {
         "--color-panel": t.surface,
         "--color-line": t.line,
         "--color-ink": t.ink,
+        "--color-soft": t.soft,
         "--color-muted": t.muted,
         "--color-accent": t.accent,
         "--color-onaccent": t.onAccent,
+        "--border-width": `${t.border ?? 1}px`,
+        "--shadow": t.shadow ?? "0 1px 2px rgba(0,0,0,0.05)",
+        "--radius": `${t.radius}px`,
+        "--font-display": `'${t.fontDisplay}', serif`,
+        "--font-body": `'${t.fontBody}', system-ui, sans-serif`,
+        "--font-mono": `'${t.fontMono}', monospace`,
+        "--hw": String(t.headingWeight),
     };
 }

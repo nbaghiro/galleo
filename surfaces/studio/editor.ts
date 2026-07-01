@@ -3,9 +3,10 @@ import type { ElementAddress, Target } from "@model/address";
 import type { ArtifactContent, Section } from "@model/content";
 import { createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
+import type { Theme, Tokens } from "@themes/theme";
 import { duplicateSection, insertSection, moveSection, removeSection } from "@elements/ops";
 import { targetsEqual } from "@model/address";
-import { DEMOS } from "./demos";
+import { resolveTheme } from "@themes/library";
 
 // The editor's reactive state: the open artifact + computed section offsets, the current selection /
 // hover target, and the geometry regions the canvas reports (in canvas-content coordinates).
@@ -15,33 +16,33 @@ interface EditorState {
     sectionTops: number[];
 }
 
-// Per-doc persistence to localStorage so edits survive a reload (real cloud sync arrives with the backend).
-const docKey = (id: string): string => `galleo:doc:${id}`;
-export function saveDoc(id: string, art: ArtifactContent): void {
-    try {
-        localStorage.setItem(docKey(id), JSON.stringify(art));
-    } catch {
-        // storage unavailable / quota — ignore
-    }
-}
-function loadSavedDoc(id: string): ArtifactContent | null {
-    try {
-        const s = localStorage.getItem(docKey(id));
-        return s ? (JSON.parse(s) as ArtifactContent) : null;
-    } catch {
-        return null;
-    }
-}
-
-const FIRST = DEMOS[0]!;
+// The store starts on a blank artifact; the app replaces it via loadArtifactContent once the real one
+// is fetched from the backend. (Persistence + the doc library are the API's job — the studio no longer
+// hardcodes demo fixtures or its own localStorage layer.)
+const EMPTY_ARTIFACT: ArtifactContent = {
+    format: "deck",
+    theme: "studio",
+    sections: [{ id: "s-1", grid: "full", cells: { a: {} } }],
+};
 
 export const [editor, setEditor] = createStore<EditorState>({
-    artifact: loadSavedDoc(FIRST.id) ?? FIRST.artifact,
+    artifact: EMPTY_ARTIFACT,
     sectionTops: [],
 });
 
+// The resolved theme for the open artifact — the single place the studio derives its theme from the
+// artifact's theme id (reactive: reads editor.artifact.theme).
+export const editorTheme = (): Theme => resolveTheme(editor.artifact.theme);
+export const editorTokens = (): Tokens => editorTheme().tokens;
+export const editorAccent = (): string => editorTokens().accent;
+
 const [canvasEl, setCanvasEl] = createSignal<HTMLElement | null>(null);
 export { canvasEl, setCanvasEl };
+
+// The painted stage element (content coords for the overlays). Used to width-aware-place the
+// floating element inspector beside its element.
+const [stageEl, setStageEl] = createSignal<HTMLElement | null>(null);
+export { stageEl, setStageEl };
 
 export const [regions, setRegions] = createSignal<Region[]>([]);
 export const [selection, setSelection] = createSignal<Target | null>(null, {
@@ -66,6 +67,46 @@ export function commit(next: ArtifactContent): void {
     future.length = 0;
     setEditor("artifact", next);
     bumpSeq();
+}
+
+// --- theme preview (non-destructive "open in app theme") ---
+// Swap the rendered theme so the whole editor recolors, but remember the artifact's real saved theme
+// so autosave keeps persisting THAT — until the user explicitly keeps the previewed one. The swap
+// doesn't bump editSeq, so previewing on its own never triggers a save.
+const [previewingTheme, setPreviewingTheme] = createSignal(false);
+export { previewingTheme };
+let savedThemeUnderPreview: string | null = null;
+
+export function startThemePreview(themeId: string): void {
+    if (themeId === editor.artifact.theme) return;
+    savedThemeUnderPreview = editor.artifact.theme;
+    setEditor("artifact", "theme", themeId);
+    setPreviewingTheme(true);
+}
+
+// Promote the previewed theme to the artifact's saved theme (persists on the next autosave).
+export function keepPreviewedTheme(): void {
+    if (!previewingTheme()) return;
+    savedThemeUnderPreview = null;
+    setPreviewingTheme(false);
+    bumpSeq();
+}
+
+// Drop the preview and restore the saved theme in the live editor (on revert / editor exit).
+export function endThemePreview(): void {
+    if (savedThemeUnderPreview !== null) setEditor("artifact", "theme", savedThemeUnderPreview);
+    savedThemeUnderPreview = null;
+    setPreviewingTheme(false);
+}
+
+// The original saved theme while previewing (for labelling), else null.
+export function previewSavedTheme(): string | null {
+    return savedThemeUnderPreview;
+}
+
+// The theme id autosave must write: the real saved theme while previewing, else the live one.
+export function themeForPersist(): string {
+    return savedThemeUnderPreview ?? editor.artifact.theme;
 }
 
 export function undo(): void {
@@ -115,47 +156,40 @@ export function setArtifactLive(next: ArtifactContent): void {
     bumpSeq();
 }
 
-// Demo document switcher: load another sample artifact and reset transient editor state.
-export const [demoId, setDemoId] = createSignal(FIRST.id);
-
-export function loadDemo(id: string): void {
-    const d = DEMOS.find((x) => x.id === id);
-    if (!d) return;
-    past.length = 0;
-    future.length = 0;
-    editBefore = null;
-    setEditing(null);
-    setSelection(null);
-    setHover(null);
-    setDemoId(id);
-    setEditor("artifact", loadSavedDoc(id) ?? d.artifact);
-}
-
-export function resetDoc(id: string): void {
-    const d = DEMOS.find((x) => x.id === id);
-    if (!d) return;
-    saveDoc(id, d.artifact);
-    past.length = 0;
-    future.length = 0;
-    setSelection(null);
-    setEditor("artifact", d.artifact);
-}
-
 // --- documents from the backend (the app populates these + handles loading/switching) ---
-export interface DocSummary {
+export interface ArtifactSummary {
     id: string;
     title: string;
     themeId?: string;
 }
-export const [docs, setDocs] = createSignal<DocSummary[]>([]);
+export const [artifacts, setArtifacts] = createSignal<ArtifactSummary[]>([]);
 export const [currentArtifactId, setCurrentArtifactId] = createSignal<string | null>(null);
 
 let switchHandler: ((id: string) => void) | null = null;
-export function onSwitchDoc(fn: (id: string) => void): void {
+export function onSwitchArtifact(fn: (id: string) => void): void {
     switchHandler = fn;
 }
-export function requestSwitchDoc(id: string): void {
+export function requestSwitchArtifact(id: string): void {
     switchHandler?.(id);
+}
+
+// The app registers a handler so the studio's wordmark can navigate back to the library.
+let homeHandler: (() => void) | null = null;
+export function onHome(fn: () => void): void {
+    homeHandler = fn;
+}
+export function requestHome(): void {
+    homeHandler?.();
+}
+
+// The app registers a handler so the studio's theme control can open the app-level theme drawer
+// (the singular switcher). No-op when the studio runs without an app host.
+let themePickerHandler: (() => void) | null = null;
+export function onThemePicker(fn: () => void): void {
+    themePickerHandler = fn;
+}
+export function requestThemePicker(): void {
+    themePickerHandler?.();
 }
 
 // Load an artifact (fetched from the API) into the editor. Resets transient state; does NOT bump
@@ -167,6 +201,8 @@ export function loadArtifactContent(id: string, content: ArtifactContent): void 
     setEditing(null);
     setSelection(null);
     setHover(null);
+    savedThemeUnderPreview = null;
+    setPreviewingTheme(false);
     setCurrentArtifactId(id);
     setEditor("artifact", content);
 }
@@ -231,7 +267,6 @@ export function loadGenerated(art: ArtifactContent): void {
     setEditing(null);
     setSelection(null);
     setHover(null);
-    setDemoId("generated"); // its own doc slot so it doesn't overwrite a demo's saved edits
     setEditor("artifact", art);
     setAgentOpen(false);
 }

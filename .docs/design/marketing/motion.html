@@ -1,0 +1,1541 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Galleo — Kinetic / Marquee</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="stylesheet" href="theme.css" />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            d: ["var(--fd)", "serif"],
+                            s: ["var(--fu)", "sans-serif"],
+                            m: ["var(--fm)", "monospace"],
+                        },
+                        colors: {
+                            paper: "var(--bg)",
+                            panel: "var(--surface)",
+                            ink: "var(--ink)",
+                            soft: "var(--soft)",
+                            mut: "var(--muted)",
+                            acc: "var(--accent)",
+                            line: "var(--line)",
+                        },
+                    },
+                },
+            };
+        </script>
+        <style>
+            body {
+                background: var(--bg);
+                color: var(--ink);
+                font-family: var(--fu), sans-serif;
+                -webkit-font-smoothing: antialiased;
+            }
+            ::selection {
+                background: var(--accent);
+                color: var(--accent-ink);
+            }
+            html {
+                scroll-behavior: smooth;
+            }
+
+            /* ---------- type ---------- */
+            .display {
+                font-family: var(--fd), serif;
+                font-weight: 800;
+                letter-spacing: -0.025em;
+                line-height: 0.9;
+            }
+            .lab {
+                font-family: var(--fm), monospace;
+                text-transform: uppercase;
+                letter-spacing: 0.2em;
+                font-size: 0.72rem;
+                line-height: 1;
+            }
+            .hollow-ink {
+                color: transparent;
+                -webkit-text-stroke: 2px var(--ink);
+            }
+            .hollow-bg {
+                color: transparent;
+                -webkit-text-stroke: 2px var(--bg);
+            }
+
+            /* ---------- contrast bands ---------- */
+            .band-ink {
+                background: var(--ink);
+                color: var(--bg);
+            }
+            .band-ink .lab {
+                color: var(--bg);
+            }
+
+            /* ---------- buttons ---------- */
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.55rem;
+                font-weight: 700;
+                line-height: 1;
+                padding: 0.95rem 1.5rem;
+                border-radius: calc(var(--radius) * 0.8);
+                transition:
+                    transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+                    box-shadow 0.18s;
+            }
+            .btn-primary {
+                background: var(--accent);
+                color: var(--accent-ink);
+                border: calc(var(--border) * 2) solid var(--ink);
+            }
+            .btn-primary:hover {
+                transform: translate(-3px, -3px);
+                box-shadow: 5px 5px 0 var(--ink);
+            }
+            .btn-ghost {
+                background: var(--surface);
+                color: var(--ink);
+                border: calc(var(--border) * 2) solid var(--ink);
+            }
+            .btn-ghost:hover {
+                transform: translate(-3px, -3px);
+                box-shadow: 5px 5px 0 var(--accent);
+            }
+            .btn-on-ink {
+                background: var(--bg);
+                color: var(--ink);
+                border: calc(var(--border) * 2) solid var(--bg);
+            }
+            .btn-on-ink:hover {
+                transform: translate(-3px, -3px);
+                box-shadow: 5px 5px 0 var(--accent);
+            }
+
+            /* ---------- cards & chips ---------- */
+            .card {
+                background: var(--surface);
+                border: calc(var(--border) * 2) solid var(--ink);
+                border-radius: var(--radius);
+            }
+            .feat {
+                position: relative;
+                overflow: hidden;
+                background: var(--surface);
+                border: calc(var(--border) * 2) solid var(--ink);
+                border-radius: var(--radius);
+                transition:
+                    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+                    box-shadow 0.2s;
+            }
+            .feat:hover {
+                transform: translate(-5px, -5px);
+                box-shadow: 9px 9px 0 var(--accent);
+            }
+            .feat__bar {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                height: 6px;
+                background: var(--accent);
+                transform: scaleX(0);
+                transform-origin: left;
+                transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            }
+            .feat:hover .feat__bar {
+                transform: scaleX(1);
+            }
+            .pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.5rem;
+                white-space: nowrap;
+                border: calc(var(--border) * 2) solid var(--ink);
+                border-radius: 999px;
+                padding: 0.5rem 1.05rem;
+                background: var(--surface);
+                font-family: var(--fm), monospace;
+                font-size: 0.78rem;
+                letter-spacing: 0.04em;
+            }
+            .pill .dot {
+                width: 0.55rem;
+                height: 0.55rem;
+                border-radius: 999px;
+                background: var(--accent);
+                flex: 0 0 auto;
+            }
+
+            /* ---------- marquee engine ---------- */
+            .mq {
+                overflow: hidden;
+                width: 100%;
+            }
+            .mq__row {
+                display: flex;
+                flex-wrap: nowrap;
+                width: max-content;
+                will-change: transform;
+            }
+            .mq__grp {
+                display: flex;
+                flex-wrap: nowrap;
+                align-items: center;
+                flex: 0 0 auto;
+            }
+            .mq--fade {
+                -webkit-mask-image: linear-gradient(
+                    90deg,
+                    transparent,
+                    #000 7%,
+                    #000 93%,
+                    transparent
+                );
+                mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+            }
+            @keyframes mq {
+                to {
+                    transform: translateX(-50%);
+                }
+            }
+            @keyframes mqrev {
+                from {
+                    transform: translateX(-50%);
+                }
+                to {
+                    transform: translateX(0);
+                }
+            }
+
+            /* ---------- ticker text ---------- */
+            .tick {
+                display: inline-flex;
+                align-items: center;
+                font-family: var(--fd), serif;
+                font-weight: 800;
+                letter-spacing: -0.01em;
+                line-height: 1;
+                font-size: clamp(2.6rem, 7.5vw, 6rem);
+            }
+            .tick .sep {
+                color: var(--accent);
+                margin: 0 0.42em;
+                font-family: var(--fm), monospace;
+                font-weight: 500;
+            }
+            .strip {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.85rem;
+                font-family: var(--fm), monospace;
+                text-transform: uppercase;
+                letter-spacing: 0.16em;
+                font-size: 0.85rem;
+                padding-right: 0.85rem;
+            }
+            .strip .star {
+                color: var(--accent);
+            }
+
+            /* ---------- decorative shapes ---------- */
+            .shape {
+                position: absolute;
+                pointer-events: none;
+            }
+            .ring {
+                border: calc(var(--border) * 3) solid var(--ink);
+                border-radius: 999px;
+            }
+            .disc {
+                background: var(--accent);
+                border-radius: 999px;
+            }
+            .cross {
+                position: relative;
+            }
+            .cross::before,
+            .cross::after {
+                content: "";
+                position: absolute;
+                background: var(--ink);
+            }
+            .cross::before {
+                left: 50%;
+                top: 0;
+                width: calc(var(--border) * 3);
+                height: 100%;
+                transform: translateX(-50%);
+            }
+            .cross::after {
+                top: 50%;
+                left: 0;
+                height: calc(var(--border) * 3);
+                width: 100%;
+                transform: translateY(-50%);
+            }
+
+            /* ---------- motion (gated for reduced-motion) ---------- */
+            .rise {
+                opacity: 1;
+            }
+            @media (prefers-reduced-motion: no-preference) {
+                .mq__row {
+                    animation: mq var(--mqd, 38s) linear infinite;
+                }
+                .mq__row.rev {
+                    animation-name: mqrev;
+                }
+                .mq:hover .mq__row.pauseable {
+                    animation-play-state: paused;
+                }
+                .rise {
+                    opacity: 0;
+                    animation: rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+                }
+                .float {
+                    animation: floaty 6s ease-in-out infinite;
+                }
+                .spin {
+                    animation: spin 22s linear infinite;
+                }
+                @keyframes rise {
+                    from {
+                        opacity: 0;
+                        transform: translateY(46px) rotate(-2.5deg);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: none;
+                    }
+                }
+                @keyframes floaty {
+                    50% {
+                        transform: translateY(-16px);
+                    }
+                }
+                @keyframes spin {
+                    to {
+                        transform: rotate(360deg);
+                    }
+                }
+            }
+        </style>
+    </head>
+    <body class="font-s">
+        <!-- ============================================================= -->
+        <!-- 0 · ANNOUNCEMENT MARQUEE (full-bleed accent strip)            -->
+        <!-- ============================================================= -->
+        <div
+            class="mq"
+            style="
+                background: var(--accent);
+                color: var(--accent-ink);
+                border-bottom: calc(var(--border) * 2) solid var(--ink);
+            "
+        >
+            <div class="mq__row pauseable" style="--mqd: 30s">
+                <span class="mq__grp">
+                    <span class="strip">Now in public beta <span class="star">✺</span></span>
+                    <span class="strip"
+                        >One source — three polished views <span class="star">✺</span></span
+                    >
+                    <span class="strip"
+                        >36 designer themes, one click <span class="star">✺</span></span
+                    >
+                    <span class="strip">Edit once, stays in sync <span class="star">✺</span></span>
+                    <span class="strip">Decks · docs · sites <span class="star">✺</span></span>
+                </span>
+                <span class="mq__grp" aria-hidden="true">
+                    <span class="strip">Now in public beta <span class="star">✺</span></span>
+                    <span class="strip"
+                        >One source — three polished views <span class="star">✺</span></span
+                    >
+                    <span class="strip"
+                        >36 designer themes, one click <span class="star">✺</span></span
+                    >
+                    <span class="strip">Edit once, stays in sync <span class="star">✺</span></span>
+                    <span class="strip">Decks · docs · sites <span class="star">✺</span></span>
+                </span>
+            </div>
+        </div>
+
+        <!-- ============================================================= -->
+        <!-- 1 · NAV                                                        -->
+        <!-- ============================================================= -->
+        <header
+            class="sticky top-0 z-50"
+            style="background: var(--bg); border-bottom: calc(var(--border) * 2) solid var(--ink)"
+        >
+            <div class="max-w-[1280px] mx-auto px-5 md:px-8 h-16 flex items-center justify-between">
+                <a href="#top" class="flex items-center gap-2.5">
+                    <span
+                        class="grid place-items-center font-d font-black text-lg"
+                        style="
+                            width: 34px;
+                            height: 34px;
+                            background: var(--accent);
+                            color: var(--accent-ink);
+                            border: calc(var(--border) * 2) solid var(--ink);
+                            border-radius: 10px;
+                        "
+                        >G</span
+                    >
+                    <span class="font-d font-black text-2xl tracking-tight">Galleo</span>
+                </a>
+                <nav class="hidden md:flex items-center gap-8 lab">
+                    <a href="#views" class="hover:text-acc transition-colors">Views</a>
+                    <a href="#features" class="hover:text-acc transition-colors">Features</a>
+                    <a href="#themes" class="hover:text-acc transition-colors">Themes</a>
+                    <a href="#pricing" class="hover:text-acc transition-colors">Pricing</a>
+                </nav>
+                <div class="flex items-center gap-3">
+                    <a href="#" class="hidden sm:inline lab hover:text-acc transition-colors"
+                        >Sign in</a
+                    >
+                    <a
+                        href="#pricing"
+                        class="btn btn-primary text-sm"
+                        style="padding: 0.6rem 1.1rem"
+                        >Start free</a
+                    >
+                </div>
+            </div>
+        </header>
+
+        <!-- ============================================================= -->
+        <!-- 2 · HERO                                                       -->
+        <!-- ============================================================= -->
+        <section id="top" class="relative overflow-hidden">
+            <!-- decorative pop shapes -->
+            <div
+                class="shape ring float hidden md:block"
+                style="width: 120px; height: 120px; top: 90px; right: 6%; animation-delay: 0.4s"
+            ></div>
+            <div
+                class="shape disc float hidden md:block"
+                style="width: 34px; height: 34px; top: 240px; left: 5%; animation-delay: 1.1s"
+            ></div>
+            <div
+                class="shape cross spin hidden md:block"
+                style="width: 46px; height: 46px; bottom: 120px; right: 14%"
+            ></div>
+            <div
+                class="shape float hidden lg:block"
+                style="bottom: 60px; left: 8%; animation-delay: 0.7s"
+            >
+                <svg width="92" height="26" viewBox="0 0 92 26" fill="none">
+                    <path
+                        d="M2 24L14 4L26 24L38 4L50 24L62 4L74 24L86 4"
+                        stroke="var(--accent)"
+                        stroke-width="5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    />
+                </svg>
+            </div>
+
+            <div class="max-w-[1280px] mx-auto px-5 md:px-8 pt-16 md:pt-24 pb-12 md:pb-16 relative">
+                <div class="flex items-center gap-3 mb-7 rise" style="animation-delay: 0.05s">
+                    <span class="lab text-acc">✺ AI content engine</span>
+                    <span class="hidden sm:inline lab text-mut">Est. 2026</span>
+                </div>
+
+                <h1 class="display text-[clamp(3rem,11vw,8.4rem)]">
+                    <span class="block rise" style="animation-delay: 0.1s">One source.</span>
+                    <span class="block rise" style="animation-delay: 0.22s"
+                        >Three
+                        <span
+                            class="relative inline-block"
+                            style="
+                                background: var(--accent);
+                                color: var(--accent-ink);
+                                padding: 0 0.14em;
+                                border: calc(var(--border) * 2) solid var(--ink);
+                                transform: rotate(-1.5deg);
+                            "
+                            >polished</span
+                        >
+                    </span>
+                    <span class="block rise hollow-ink" style="animation-delay: 0.34s">views.</span>
+                </h1>
+
+                <div class="mt-9 grid md:grid-cols-12 gap-8 items-end">
+                    <p
+                        class="md:col-span-7 text-soft text-lg md:text-xl leading-relaxed rise"
+                        style="animation-delay: 0.46s"
+                    >
+                        Describe what you need. Galleo generates one canonical artifact that renders
+                        three ways — a <strong style="color: var(--ink)">deck</strong>, a
+                        <strong style="color: var(--ink)">document</strong>, and a live
+                        <strong style="color: var(--ink)">website</strong>. Edit once; every format
+                        stays in sync. Real typesetting, not slides-with-textboxes.
+                    </p>
+                    <div
+                        class="md:col-span-5 flex flex-wrap gap-3 md:justify-end rise"
+                        style="animation-delay: 0.58s"
+                    >
+                        <a href="#pricing" class="btn btn-primary text-base"
+                            >Start creating free →</a
+                        >
+                        <a href="#views" class="btn btn-ghost text-base">See it switch</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- value-prop marquee (bordered strip) -->
+            <div
+                class="mq mq--fade"
+                style="
+                    border-top: calc(var(--border) * 2) solid var(--ink);
+                    border-bottom: calc(var(--border) * 2) solid var(--ink);
+                    background: var(--surface);
+                    padding: 0.9rem 0;
+                "
+            >
+                <div class="mq__row" style="--mqd: 34s">
+                    <span class="mq__grp">
+                        <span class="strip"
+                            >One source → three views <span class="star">✺</span></span
+                        >
+                        <span class="strip"
+                            >Edit once, always in sync <span class="star">✺</span></span
+                        >
+                        <span class="strip">A real layout engine <span class="star">✺</span></span>
+                        <span class="strip">36 designer themes <span class="star">✺</span></span>
+                        <span class="strip"
+                            >Prompt to polished draft <span class="star">✺</span></span
+                        >
+                        <span class="strip"
+                            >Export to PDF · PPTX · web <span class="star">✺</span></span
+                        >
+                        <span class="strip">Built for teams <span class="star">✺</span></span>
+                    </span>
+                    <span class="mq__grp" aria-hidden="true">
+                        <span class="strip"
+                            >One source → three views <span class="star">✺</span></span
+                        >
+                        <span class="strip"
+                            >Edit once, always in sync <span class="star">✺</span></span
+                        >
+                        <span class="strip">A real layout engine <span class="star">✺</span></span>
+                        <span class="strip">36 designer themes <span class="star">✺</span></span>
+                        <span class="strip"
+                            >Prompt to polished draft <span class="star">✺</span></span
+                        >
+                        <span class="strip"
+                            >Export to PDF · PPTX · web <span class="star">✺</span></span
+                        >
+                        <span class="strip">Built for teams <span class="star">✺</span></span>
+                    </span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- 3 · FORMAT TICKER (inverted contrast band)                    -->
+        <!-- ============================================================= -->
+        <section class="band-ink py-7 md:py-9 overflow-hidden">
+            <div class="mq">
+                <div class="mq__row" style="--mqd: 26s">
+                    <span class="mq__grp">
+                        <span class="tick">DECK<span class="sep">·</span></span>
+                        <span class="tick hollow-bg">DOC<span class="sep">·</span></span>
+                        <span class="tick">SITE<span class="sep">·</span></span>
+                        <span class="tick hollow-bg">DECK<span class="sep">·</span></span>
+                        <span class="tick">DOC<span class="sep">·</span></span>
+                        <span class="tick hollow-bg">SITE<span class="sep">·</span></span>
+                    </span>
+                    <span class="mq__grp" aria-hidden="true">
+                        <span class="tick">DECK<span class="sep">·</span></span>
+                        <span class="tick hollow-bg">DOC<span class="sep">·</span></span>
+                        <span class="tick">SITE<span class="sep">·</span></span>
+                        <span class="tick hollow-bg">DECK<span class="sep">·</span></span>
+                        <span class="tick">DOC<span class="sep">·</span></span>
+                        <span class="tick hollow-bg">SITE<span class="sep">·</span></span>
+                    </span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- 4 · ONE SOURCE, THREE VIEWS                                    -->
+        <!-- ============================================================= -->
+        <section id="views" class="max-w-[1280px] mx-auto px-5 md:px-8 py-20 md:py-28">
+            <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-12">
+                <div>
+                    <div class="lab text-acc mb-4">✺ One canonical artifact</div>
+                    <h2 class="display text-[clamp(2.2rem,5.5vw,4rem)] max-w-2xl">
+                        Write it once.<br />Ship it three ways.
+                    </h2>
+                </div>
+                <p class="text-soft text-base md:text-lg max-w-sm leading-relaxed">
+                    Every block — text, image, chart, table, stat, quote, diagram, callout — is a
+                    first-class element that re-typesets per format. Switch deck ⇄ doc ⇄ site
+                    instantly. No copy-paste, no drift.
+                </p>
+            </div>
+
+            <!-- source → views -->
+            <div class="grid lg:grid-cols-12 gap-6">
+                <!-- source -->
+                <div
+                    class="lg:col-span-4 card p-6 flex flex-col"
+                    style="background: var(--ink); color: var(--bg); border-color: var(--ink)"
+                >
+                    <div class="lab" style="color: var(--bg); opacity: 0.7">The source</div>
+                    <div class="mt-4 font-d text-2xl font-bold leading-snug">
+                        “Make a launch brief for Project Northwind — vision, traction, the ask.”
+                    </div>
+                    <div class="mt-6 space-y-2.5">
+                        <div
+                            class="flex items-center gap-3 lab"
+                            style="color: var(--bg); opacity: 0.85"
+                        >
+                            <span style="color: var(--accent)">■</span> TITLE BLOCK
+                        </div>
+                        <div
+                            class="flex items-center gap-3 lab"
+                            style="color: var(--bg); opacity: 0.85"
+                        >
+                            <span style="color: var(--accent)">■</span> STAT · 3.4× GROWTH
+                        </div>
+                        <div
+                            class="flex items-center gap-3 lab"
+                            style="color: var(--bg); opacity: 0.85"
+                        >
+                            <span style="color: var(--accent)">■</span> CHART · ARR
+                        </div>
+                        <div
+                            class="flex items-center gap-3 lab"
+                            style="color: var(--bg); opacity: 0.85"
+                        >
+                            <span style="color: var(--accent)">■</span> QUOTE · CUSTOMER
+                        </div>
+                        <div
+                            class="flex items-center gap-3 lab"
+                            style="color: var(--bg); opacity: 0.85"
+                        >
+                            <span style="color: var(--accent)">■</span> CALLOUT · THE ASK
+                        </div>
+                    </div>
+                    <div class="mt-auto pt-6 lab" style="color: var(--accent)">↓ renders as ↓</div>
+                </div>
+
+                <!-- three views -->
+                <div class="lg:col-span-8 grid sm:grid-cols-3 gap-6">
+                    <!-- DECK -->
+                    <article class="feat p-3 flex flex-col">
+                        <div
+                            class="overflow-hidden"
+                            style="
+                                border: calc(var(--border) * 2) solid var(--ink);
+                                border-radius: calc(var(--radius) * 0.6);
+                            "
+                        >
+                            <img
+                                src="https://picsum.photos/seed/galleodeck/800/520?grayscale"
+                                alt="Deck view"
+                                class="w-full aspect-[4/3] object-cover"
+                            />
+                        </div>
+                        <div class="flex items-center justify-between mt-3 px-1">
+                            <span class="font-d font-bold text-lg">Deck</span>
+                            <span class="lab text-acc">16:9</span>
+                        </div>
+                        <p class="text-mut text-sm px-1 mt-1 leading-snug">
+                            Big type, one idea per slide — present live or export to PPTX.
+                        </p>
+                        <span class="feat__bar"></span>
+                    </article>
+                    <!-- DOC -->
+                    <article class="feat p-3 flex flex-col">
+                        <div
+                            class="overflow-hidden"
+                            style="
+                                border: calc(var(--border) * 2) solid var(--ink);
+                                border-radius: calc(var(--radius) * 0.6);
+                            "
+                        >
+                            <img
+                                src="https://picsum.photos/seed/galleodoc/800/520?grayscale"
+                                alt="Document view"
+                                class="w-full aspect-[4/3] object-cover"
+                            />
+                        </div>
+                        <div class="flex items-center justify-between mt-3 px-1">
+                            <span class="font-d font-bold text-lg">Doc</span>
+                            <span class="lab text-acc">A4</span>
+                        </div>
+                        <p class="text-mut text-sm px-1 mt-1 leading-snug">
+                            Flowing columns and footnotes — a leave-behind that reads like print.
+                        </p>
+                        <span class="feat__bar"></span>
+                    </article>
+                    <!-- SITE -->
+                    <article class="feat p-3 flex flex-col">
+                        <div
+                            class="overflow-hidden"
+                            style="
+                                border: calc(var(--border) * 2) solid var(--ink);
+                                border-radius: calc(var(--radius) * 0.6);
+                            "
+                        >
+                            <img
+                                src="https://picsum.photos/seed/galleosite/800/520?grayscale"
+                                alt="Website view"
+                                class="w-full aspect-[4/3] object-cover"
+                            />
+                        </div>
+                        <div class="flex items-center justify-between mt-3 px-1">
+                            <span class="font-d font-bold text-lg">Site</span>
+                            <span class="lab text-acc">RESPONSIVE</span>
+                        </div>
+                        <p class="text-mut text-sm px-1 mt-1 leading-snug">
+                            A scrolling page on your domain — publish in a click, no build step.
+                        </p>
+                        <span class="feat__bar"></span>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- 5 · BLOCK-TYPE TICKER (bordered band)                          -->
+        <!-- ============================================================= -->
+        <section
+            class="overflow-hidden py-5"
+            style="
+                border-top: calc(var(--border) * 2) solid var(--ink);
+                border-bottom: calc(var(--border) * 2) solid var(--ink);
+                background: var(--surface);
+            "
+        >
+            <div class="mq mq--fade">
+                <div class="mq__row rev" style="--mqd: 40s">
+                    <span class="mq__grp">
+                        <span class="strip">Text <span class="star">/</span></span
+                        ><span class="strip">Image <span class="star">/</span></span>
+                        <span class="strip">Chart <span class="star">/</span></span
+                        ><span class="strip">Table <span class="star">/</span></span>
+                        <span class="strip">Stat <span class="star">/</span></span
+                        ><span class="strip">Quote <span class="star">/</span></span>
+                        <span class="strip">Diagram <span class="star">/</span></span
+                        ><span class="strip">Callout <span class="star">/</span></span>
+                        <span class="strip">Bullets <span class="star">/</span></span
+                        ><span class="strip">Divider <span class="star">/</span></span>
+                    </span>
+                    <span class="mq__grp" aria-hidden="true">
+                        <span class="strip">Text <span class="star">/</span></span
+                        ><span class="strip">Image <span class="star">/</span></span>
+                        <span class="strip">Chart <span class="star">/</span></span
+                        ><span class="strip">Table <span class="star">/</span></span>
+                        <span class="strip">Stat <span class="star">/</span></span
+                        ><span class="strip">Quote <span class="star">/</span></span>
+                        <span class="strip">Diagram <span class="star">/</span></span
+                        ><span class="strip">Callout <span class="star">/</span></span>
+                        <span class="strip">Bullets <span class="star">/</span></span
+                        ><span class="strip">Divider <span class="star">/</span></span>
+                    </span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- 6 · FEATURES                                                   -->
+        <!-- ============================================================= -->
+        <section id="features" class="max-w-[1280px] mx-auto px-5 md:px-8 py-20 md:py-28">
+            <div class="mb-12 max-w-3xl">
+                <div class="lab text-acc mb-4">✺ What's under the hood</div>
+                <h2 class="display text-[clamp(2.2rem,5.5vw,4rem)]">
+                    Built like a tool that<br />respects the work.
+                </h2>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <article class="feat p-7">
+                    <div class="font-m text-acc text-sm">01</div>
+                    <h3 class="font-d font-bold text-2xl mt-4">A real layout engine</h3>
+                    <p class="text-soft mt-2.5 leading-relaxed">
+                        True typesetting, not boxes nudged on a canvas. Every block re-flows to fit
+                        the format, the column, the theme.
+                    </p>
+                    <span class="feat__bar"></span>
+                </article>
+                <article class="feat p-7">
+                    <div class="font-m text-acc text-sm">02</div>
+                    <h3 class="font-d font-bold text-2xl mt-4">One source, three views</h3>
+                    <p class="text-soft mt-2.5 leading-relaxed">
+                        Deck, doc, and site come from a single canonical artifact. Change a stat
+                        once; it updates everywhere.
+                    </p>
+                    <span class="feat__bar"></span>
+                </article>
+                <article class="feat p-7">
+                    <div class="font-m text-acc text-sm">03</div>
+                    <h3 class="font-d font-bold text-2xl mt-4">36 designer themes</h3>
+                    <p class="text-soft mt-2.5 leading-relaxed">
+                        Each is a complete system — font trio, color, radius, borders, shadow. One
+                        click restyles the whole artifact.
+                    </p>
+                    <span class="feat__bar"></span>
+                </article>
+                <article class="feat p-7">
+                    <div class="font-m text-acc text-sm">04</div>
+                    <h3 class="font-d font-bold text-2xl mt-4">AI first draft</h3>
+                    <p class="text-soft mt-2.5 leading-relaxed">
+                        Prompt it, or import an outline, and get a finished-feeling draft in seconds
+                        — structured, not a wall of text.
+                    </p>
+                    <span class="feat__bar"></span>
+                </article>
+                <article class="feat p-7">
+                    <div class="font-m text-acc text-sm">05</div>
+                    <h3 class="font-d font-bold text-2xl mt-4">High-fidelity export</h3>
+                    <p class="text-soft mt-2.5 leading-relaxed">
+                        PDF, PPTX, and live web publishing — pixel-faithful to what you see, ready
+                        to send or ship.
+                    </p>
+                    <span class="feat__bar"></span>
+                </article>
+                <article class="feat p-7">
+                    <div class="font-m text-acc text-sm">06</div>
+                    <h3 class="font-d font-bold text-2xl mt-4">Built for teams</h3>
+                    <p class="text-soft mt-2.5 leading-relaxed">
+                        Real-time collaboration, shared workspaces, and folders — so the whole team
+                        works from one source of truth.
+                    </p>
+                    <span class="feat__bar"></span>
+                </article>
+            </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- 7 · POSITIONING STATEMENT (inverted band)                     -->
+        <!-- ============================================================= -->
+        <section class="band-ink py-20 md:py-28 relative overflow-hidden">
+            <div
+                class="shape disc float hidden md:block"
+                style="width: 120px; height: 120px; top: -30px; right: 8%; opacity: 0.9"
+            ></div>
+            <div
+                class="shape ring spin hidden md:block"
+                style="width: 90px; height: 90px; bottom: -20px; left: 6%; border-color: var(--bg)"
+            ></div>
+            <div class="max-w-[1100px] mx-auto px-5 md:px-8 relative">
+                <div class="lab mb-7" style="color: var(--accent)">✺ Why we built it</div>
+                <p
+                    class="font-d font-semibold text-[clamp(1.8rem,4.6vw,3.4rem)] leading-[1.08] tracking-tight"
+                >
+                    AI made a first draft free — and the average deck
+                    <span style="color: var(--accent)">worse</span>. The bottleneck moved from
+                    <span class="hollow-bg">making</span> to
+                    <span style="border-bottom: 6px solid var(--accent)">judging</span>. Galleo is
+                    the editor for the judging.
+                </p>
+                <div class="mt-9 flex flex-wrap items-center gap-4">
+                    <a href="#pricing" class="btn btn-on-ink text-base">Try the editor →</a>
+                    <span class="lab" style="color: var(--bg); opacity: 0.7"
+                        >No credit card required</span
+                    >
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- 8 · THEME TICKER (36 names, two rows)                          -->
+        <!-- ============================================================= -->
+        <section id="themes" class="py-20 md:py-28 overflow-hidden">
+            <div
+                class="max-w-[1280px] mx-auto px-5 md:px-8 mb-12 flex flex-col md:flex-row md:items-end md:justify-between gap-6"
+            >
+                <div>
+                    <div class="lab text-acc mb-4">✺ 36 designer themes</div>
+                    <h2 class="display text-[clamp(2.2rem,5.5vw,4rem)] max-w-xl">
+                        One click,<br />a whole new look.
+                    </h2>
+                </div>
+                <p class="text-soft text-base md:text-lg max-w-sm leading-relaxed">
+                    Fonts, color, radius, borders, shadow — every theme is a full system. This page
+                    reacts to them too; append <span class="font-m text-ink">?theme=t-noir</span> to
+                    the URL and watch.
+                </p>
+            </div>
+
+            <!-- row A -->
+            <div class="mq mq--fade mb-4">
+                <div class="mq__row pauseable" style="--mqd: 48s">
+                    <span class="mq__grp">
+                        <span class="pill"><span class="dot"></span>Studio</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Press</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Noir</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Signal</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Aura</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Canvas</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Brut</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Neon</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Retro</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Deco</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Swiss</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Botanic</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Candy</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Term</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Vapor</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Memphis</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Blue</span
+                        ><span class="pill" style="margin-left: 0.85rem; margin-right: 0.85rem"
+                            ><span class="dot"></span>Riso</span
+                        >
+                    </span>
+                    <span class="mq__grp" aria-hidden="true">
+                        <span class="pill"><span class="dot"></span>Studio</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Press</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Noir</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Signal</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Aura</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Canvas</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Brut</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Neon</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Retro</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Deco</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Swiss</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Botanic</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Candy</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Term</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Vapor</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Memphis</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Blue</span
+                        ><span class="pill" style="margin-left: 0.85rem; margin-right: 0.85rem"
+                            ><span class="dot"></span>Riso</span
+                        >
+                    </span>
+                </div>
+            </div>
+
+            <!-- row B (reverse) -->
+            <div class="mq mq--fade">
+                <div class="mq__row rev pauseable" style="--mqd: 54s">
+                    <span class="mq__grp">
+                        <span class="pill"><span class="dot"></span>Couture</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Sunrise</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Sumi</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Mineral</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Dune</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Pine</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Cobalt</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Rose</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Mocha</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Lagoon</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Ember</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Pearl</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Amethyst</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Mint</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Rust</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Indigo</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Manuscript</span
+                        ><span class="pill" style="margin-left: 0.85rem; margin-right: 0.85rem"
+                            ><span class="dot"></span>Carbon</span
+                        >
+                    </span>
+                    <span class="mq__grp" aria-hidden="true">
+                        <span class="pill"><span class="dot"></span>Couture</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Sunrise</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Sumi</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Mineral</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Dune</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Pine</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Cobalt</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Rose</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Mocha</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Lagoon</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Ember</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Pearl</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Amethyst</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Mint</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Rust</span
+                        ><span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Indigo</span
+                        >
+                        <span class="pill" style="margin-left: 0.85rem"
+                            ><span class="dot"></span>Manuscript</span
+                        ><span class="pill" style="margin-left: 0.85rem; margin-right: 0.85rem"
+                            ><span class="dot"></span>Carbon</span
+                        >
+                    </span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- 9 · PROOF — stats, logos, testimonial                         -->
+        <!-- ============================================================= -->
+        <section class="max-w-[1280px] mx-auto px-5 md:px-8 pb-6">
+            <!-- stats -->
+            <div
+                class="grid grid-cols-2 lg:grid-cols-4 gap-px"
+                style="
+                    background: var(--ink);
+                    border: calc(var(--border) * 2) solid var(--ink);
+                    border-radius: var(--radius);
+                    overflow: hidden;
+                "
+            >
+                <div class="p-7 md:p-9" style="background: var(--bg)">
+                    <div class="display text-[clamp(2.4rem,5vw,3.6rem)] text-acc">3-in-1</div>
+                    <div class="lab text-mut mt-2">Deck · doc · site</div>
+                </div>
+                <div class="p-7 md:p-9" style="background: var(--bg)">
+                    <div class="display text-[clamp(2.4rem,5vw,3.6rem)]">36</div>
+                    <div class="lab text-mut mt-2">Designer themes</div>
+                </div>
+                <div class="p-7 md:p-9" style="background: var(--bg)">
+                    <div class="display text-[clamp(2.4rem,5vw,3.6rem)]">~8s</div>
+                    <div class="lab text-mut mt-2">To first draft</div>
+                </div>
+                <div class="p-7 md:p-9" style="background: var(--bg)">
+                    <div class="display text-[clamp(2.4rem,5vw,3.6rem)]">12k+</div>
+                    <div class="lab text-mut mt-2">Artifacts made</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- logo marquee -->
+        <section class="py-12 overflow-hidden">
+            <div class="max-w-[1280px] mx-auto px-5 md:px-8 mb-6">
+                <div class="lab text-mut text-center">
+                    Teams that care how it looks build with Galleo
+                </div>
+            </div>
+            <div class="mq mq--fade">
+                <div class="mq__row pauseable" style="--mqd: 44s">
+                    <span class="mq__grp" style="gap: 0">
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Northwind</span
+                        >
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Lumen</span
+                        >
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Atlas Labs</span
+                        >
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Foundry</span
+                        >
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Vellum</span
+                        >
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Meridian</span
+                        >
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Parallel</span
+                        >
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Northstar</span
+                        >
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Hatch</span
+                        >
+                    </span>
+                    <span class="mq__grp" style="gap: 0" aria-hidden="true">
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Northwind</span
+                        >
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Lumen</span
+                        >
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Atlas Labs</span
+                        >
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Foundry</span
+                        >
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Vellum</span
+                        >
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Meridian</span
+                        >
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Parallel</span
+                        >
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Northstar</span
+                        >
+                        <span
+                            class="font-d font-black text-2xl md:text-3xl opacity-60 px-7"
+                            style="white-space: nowrap"
+                            >Hatch</span
+                        >
+                    </span>
+                </div>
+            </div>
+        </section>
+
+        <!-- testimonial -->
+        <section class="max-w-[1280px] mx-auto px-5 md:px-8 pb-20 md:pb-28">
+            <div class="card p-8 md:p-14 relative overflow-hidden">
+                <span
+                    class="font-d font-black absolute select-none"
+                    style="
+                        font-size: 14rem;
+                        line-height: 0.7;
+                        top: -1rem;
+                        right: 1.5rem;
+                        color: var(--accent);
+                        opacity: 0.14;
+                    "
+                    >”</span
+                >
+                <blockquote
+                    class="font-d font-semibold text-[clamp(1.5rem,3.6vw,2.6rem)] leading-snug max-w-4xl relative"
+                >
+                    We replaced three tools with one. The pitch deck, the leave-behind doc, and the
+                    launch microsite now come from a single Galleo file — and they finally
+                    <span class="text-acc">look the same</span>.
+                </blockquote>
+                <div class="mt-8 flex items-center gap-4 relative">
+                    <img
+                        src="https://picsum.photos/seed/galleoavatar/120/120?grayscale"
+                        alt=""
+                        class="w-12 h-12 rounded-full object-cover"
+                        style="border: calc(var(--border) * 2) solid var(--ink)"
+                    />
+                    <div>
+                        <div class="font-bold">Priya Natarajan</div>
+                        <div class="lab text-mut mt-1">Head of Brand · Meridian</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- 10 · PRICING                                                   -->
+        <!-- ============================================================= -->
+        <section id="pricing" class="band-ink py-20 md:py-28">
+            <div class="max-w-[1280px] mx-auto px-5 md:px-8">
+                <div class="text-center mb-14">
+                    <div class="lab mb-4" style="color: var(--accent)">✺ Pricing</div>
+                    <h2 class="display text-[clamp(2.2rem,5.5vw,4rem)]">
+                        Start free.<br />Upgrade when it ships.
+                    </h2>
+                </div>
+
+                <div class="grid md:grid-cols-3 gap-6 items-start">
+                    <!-- Free -->
+                    <div
+                        class="p-8 flex flex-col"
+                        style="
+                            background: var(--bg);
+                            color: var(--ink);
+                            border: calc(var(--border) * 2) solid var(--bg);
+                            border-radius: var(--radius);
+                        "
+                    >
+                        <div class="lab text-mut">Free</div>
+                        <div class="mt-4 flex items-end gap-1">
+                            <span class="display text-5xl">$0</span
+                            ><span class="text-mut mb-1">/forever</span>
+                        </div>
+                        <p class="text-soft mt-3 leading-relaxed">
+                            For trying it out and one-off artifacts.
+                        </p>
+                        <ul class="mt-6 space-y-3 text-soft text-[15px]">
+                            <li class="flex gap-3">
+                                <span class="text-acc">✦</span> 3 active documents
+                            </li>
+                            <li class="flex gap-3">
+                                <span class="text-acc">✦</span> All 36 designer themes
+                            </li>
+                            <li class="flex gap-3">
+                                <span class="text-acc">✦</span> Deck, doc & site views
+                            </li>
+                            <li class="flex gap-3">
+                                <span class="text-acc">✦</span> PDF export (with watermark)
+                            </li>
+                        </ul>
+                        <a href="#" class="btn btn-ghost mt-8 justify-center">Get started</a>
+                    </div>
+
+                    <!-- Pro (featured) -->
+                    <div
+                        class="p-8 flex flex-col relative"
+                        style="
+                            background: var(--accent);
+                            color: var(--accent-ink);
+                            border: calc(var(--border) * 2) solid var(--bg);
+                            border-radius: var(--radius);
+                            box-shadow: 8px 8px 0 var(--bg);
+                        "
+                    >
+                        <span
+                            class="absolute -top-3.5 left-8 lab"
+                            style="
+                                background: var(--bg);
+                                color: var(--ink);
+                                padding: 0.45rem 0.8rem;
+                                border: calc(var(--border) * 2) solid var(--ink);
+                                border-radius: 999px;
+                            "
+                            >Most popular</span
+                        >
+                        <div class="lab" style="opacity: 0.8">Pro</div>
+                        <div class="mt-4 flex items-end gap-1">
+                            <span class="display text-5xl">$20</span
+                            ><span class="mb-1" style="opacity: 0.8">/month</span>
+                        </div>
+                        <p class="mt-3 leading-relaxed" style="opacity: 0.9">
+                            For people who care how it looks.
+                        </p>
+                        <ul class="mt-6 space-y-3 text-[15px]">
+                            <li class="flex gap-3"><span>✦</span> Unlimited documents</li>
+                            <li class="flex gap-3"><span>✦</span> AI generation & rewrites</li>
+                            <li class="flex gap-3"><span>✦</span> High-fidelity PDF + PPTX</li>
+                            <li class="flex gap-3"><span>✦</span> Publish to your own domain</li>
+                            <li class="flex gap-3">
+                                <span>✦</span> No watermark · version history
+                            </li>
+                        </ul>
+                        <a
+                            href="#"
+                            class="btn mt-8 justify-center"
+                            style="
+                                background: var(--ink);
+                                color: var(--bg);
+                                border: calc(var(--border) * 2) solid var(--ink);
+                            "
+                            >Start Pro free</a
+                        >
+                    </div>
+
+                    <!-- Team -->
+                    <div
+                        class="p-8 flex flex-col"
+                        style="
+                            background: var(--bg);
+                            color: var(--ink);
+                            border: calc(var(--border) * 2) solid var(--bg);
+                            border-radius: var(--radius);
+                        "
+                    >
+                        <div class="lab text-mut">Team</div>
+                        <div class="mt-4 flex items-end gap-1">
+                            <span class="display text-5xl">$48</span
+                            ><span class="text-mut mb-1">/user/mo</span>
+                        </div>
+                        <p class="text-soft mt-3 leading-relaxed">
+                            For teams shipping from one source.
+                        </p>
+                        <ul class="mt-6 space-y-3 text-soft text-[15px]">
+                            <li class="flex gap-3">
+                                <span class="text-acc">✦</span> Everything in Pro
+                            </li>
+                            <li class="flex gap-3">
+                                <span class="text-acc">✦</span> Real-time collaboration
+                            </li>
+                            <li class="flex gap-3">
+                                <span class="text-acc">✦</span> Shared workspaces & folders
+                            </li>
+                            <li class="flex gap-3">
+                                <span class="text-acc">✦</span> Brand kit & locked themes
+                            </li>
+                            <li class="flex gap-3">
+                                <span class="text-acc">✦</span> Roles, permissions & SSO
+                            </li>
+                        </ul>
+                        <a href="#" class="btn btn-ghost mt-8 justify-center">Talk to us</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================= -->
+        <!-- 11 · FINAL CTA                                                 -->
+        <!-- ============================================================= -->
+        <section class="relative overflow-hidden py-20 md:py-32">
+            <div
+                class="shape ring float hidden md:block"
+                style="width: 100px; height: 100px; top: 50px; left: 8%; animation-delay: 0.5s"
+            ></div>
+            <div
+                class="shape disc spin hidden md:block"
+                style="width: 40px; height: 40px; top: 90px; right: 12%; border-radius: 0"
+            ></div>
+            <div class="max-w-[1100px] mx-auto px-5 md:px-8 text-center relative">
+                <div class="lab text-acc mb-6">✺ Ready when you are</div>
+                <h2 class="display text-[clamp(2.6rem,9vw,7rem)]">
+                    Make it once.<br /><span class="text-acc">Ship it everywhere.</span>
+                </h2>
+                <p class="text-soft text-lg md:text-xl mt-7 max-w-2xl mx-auto leading-relaxed">
+                    Decks, docs, and sites from one canonical artifact. The editor for people who
+                    care how it looks.
+                </p>
+                <div class="mt-10 flex flex-wrap gap-4 justify-center">
+                    <a href="#" class="btn btn-primary text-lg" style="padding: 1.1rem 2rem"
+                        >Start creating — it's free →</a
+                    >
+                    <a href="#views" class="btn btn-ghost text-lg" style="padding: 1.1rem 2rem"
+                        >Watch the demo</a
+                    >
+                </div>
+            </div>
+        </section>
+
+        <!-- closing wordmark marquee -->
+        <div
+            class="mq band-ink py-6"
+            style="
+                border-top: calc(var(--border) * 2) solid var(--ink);
+                border-bottom: calc(var(--border) * 2) solid var(--ink);
+            "
+        >
+            <div class="mq__row" style="--mqd: 30s">
+                <span class="mq__grp">
+                    <span class="tick">Galleo<span class="sep">✺</span></span
+                    ><span class="tick hollow-bg">Galleo<span class="sep">✺</span></span>
+                    <span class="tick">Galleo<span class="sep">✺</span></span
+                    ><span class="tick hollow-bg">Galleo<span class="sep">✺</span></span>
+                </span>
+                <span class="mq__grp" aria-hidden="true">
+                    <span class="tick">Galleo<span class="sep">✺</span></span
+                    ><span class="tick hollow-bg">Galleo<span class="sep">✺</span></span>
+                    <span class="tick">Galleo<span class="sep">✺</span></span
+                    ><span class="tick hollow-bg">Galleo<span class="sep">✺</span></span>
+                </span>
+            </div>
+        </div>
+
+        <!-- ============================================================= -->
+        <!-- 12 · FOOTER                                                    -->
+        <!-- ============================================================= -->
+        <footer class="max-w-[1280px] mx-auto px-5 md:px-8 py-16 md:py-20">
+            <div class="grid md:grid-cols-12 gap-10">
+                <div class="md:col-span-4">
+                    <a href="#top" class="flex items-center gap-2.5">
+                        <span
+                            class="grid place-items-center font-d font-black text-lg"
+                            style="
+                                width: 34px;
+                                height: 34px;
+                                background: var(--accent);
+                                color: var(--accent-ink);
+                                border: calc(var(--border) * 2) solid var(--ink);
+                                border-radius: 10px;
+                            "
+                            >G</span
+                        >
+                        <span class="font-d font-black text-2xl tracking-tight">Galleo</span>
+                    </a>
+                    <p class="text-soft mt-5 max-w-xs leading-relaxed">
+                        One source. Three polished views. The editor for people who care how it
+                        looks.
+                    </p>
+                    <div class="mt-6 flex flex-wrap gap-2">
+                        <span class="pill"><span class="dot"></span>Deck</span>
+                        <span class="pill"><span class="dot"></span>Doc</span>
+                        <span class="pill"><span class="dot"></span>Site</span>
+                    </div>
+                </div>
+                <nav class="md:col-span-2">
+                    <div class="lab text-mut mb-4">Product</div>
+                    <ul class="space-y-3 text-soft">
+                        <li>
+                            <a href="#views" class="hover:text-acc transition-colors"
+                                >Three views</a
+                            >
+                        </li>
+                        <li>
+                            <a href="#features" class="hover:text-acc transition-colors"
+                                >Features</a
+                            >
+                        </li>
+                        <li>
+                            <a href="#themes" class="hover:text-acc transition-colors">Themes</a>
+                        </li>
+                        <li>
+                            <a href="#pricing" class="hover:text-acc transition-colors">Pricing</a>
+                        </li>
+                    </ul>
+                </nav>
+                <nav class="md:col-span-2">
+                    <div class="lab text-mut mb-4">Company</div>
+                    <ul class="space-y-3 text-soft">
+                        <li><a href="#" class="hover:text-acc transition-colors">About</a></li>
+                        <li><a href="#" class="hover:text-acc transition-colors">Careers</a></li>
+                        <li><a href="#" class="hover:text-acc transition-colors">Blog</a></li>
+                        <li><a href="#" class="hover:text-acc transition-colors">Changelog</a></li>
+                    </ul>
+                </nav>
+                <nav class="md:col-span-2">
+                    <div class="lab text-mut mb-4">Resources</div>
+                    <ul class="space-y-3 text-soft">
+                        <li><a href="#" class="hover:text-acc transition-colors">Docs</a></li>
+                        <li><a href="#" class="hover:text-acc transition-colors">Templates</a></li>
+                        <li><a href="#" class="hover:text-acc transition-colors">Community</a></li>
+                        <li><a href="#" class="hover:text-acc transition-colors">Support</a></li>
+                    </ul>
+                </nav>
+                <nav class="md:col-span-2">
+                    <div class="lab text-mut mb-4">Legal</div>
+                    <ul class="space-y-3 text-soft">
+                        <li><a href="#" class="hover:text-acc transition-colors">Privacy</a></li>
+                        <li><a href="#" class="hover:text-acc transition-colors">Terms</a></li>
+                        <li><a href="#" class="hover:text-acc transition-colors">Security</a></li>
+                        <li><a href="#" class="hover:text-acc transition-colors">Status</a></li>
+                    </ul>
+                </nav>
+            </div>
+
+            <div
+                class="mt-14 pt-7 flex flex-col sm:flex-row items-center justify-between gap-4 lab text-mut"
+                style="border-top: calc(var(--border) * 2) solid var(--ink)"
+            >
+                <span>© 2026 Galleo — Decks, docs &amp; sites from one source.</span>
+                <span>Made for people who care how it looks ✺</span>
+            </div>
+        </footer>
+
+        <script>
+            (function () {
+                var p = new URLSearchParams(location.search).get("theme");
+                document.documentElement.className = p && /^t-[a-z]+$/.test(p) ? p : "t-memphis";
+                addEventListener("message", function (e) {
+                    if (e.data && e.data.theme) document.documentElement.className = e.data.theme;
+                });
+            })();
+        </script>
+    </body>
+</html>

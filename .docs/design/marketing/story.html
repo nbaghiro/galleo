@@ -1,0 +1,1204 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Galleo — One source, three polished views</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="stylesheet" href="theme.css" />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            d: ["var(--fd)", "serif"],
+                            s: ["var(--fu)", "sans-serif"],
+                            m: ["var(--fm)", "monospace"],
+                        },
+                        colors: {
+                            paper: "var(--bg)",
+                            panel: "var(--surface)",
+                            ink: "var(--ink)",
+                            soft: "var(--soft)",
+                            mut: "var(--muted)",
+                            acc: "var(--accent)",
+                            line: "var(--line)",
+                        },
+                    },
+                },
+            };
+        </script>
+        <style>
+            html {
+                scroll-behavior: smooth;
+                scroll-padding-top: 5rem;
+            }
+            body {
+                background: var(--bg);
+                color: var(--ink);
+                font-family: var(--fu), sans-serif;
+                -webkit-font-smoothing: antialiased;
+            }
+            ::selection {
+                background: var(--accent);
+                color: var(--accent-ink);
+            }
+
+            /* ---- Scrollytelling signature CSS ------------------------------------ */
+
+            /* thin scroll-progress indicator (pure CSS, scroll-driven) */
+            .progress-track {
+                position: fixed;
+                inset: 0 0 auto 0;
+                height: 2px;
+                background: color-mix(in oklab, var(--ink) 10%, transparent);
+                z-index: 70;
+            }
+            .progress-fill {
+                height: 100%;
+                background: var(--accent);
+                transform-origin: left;
+                transform: scaleX(0);
+            }
+            @supports (animation-timeline: scroll()) {
+                .progress-fill {
+                    animation: pgrow auto linear;
+                    animation-timeline: scroll(root block);
+                }
+                @keyframes pgrow {
+                    from {
+                        transform: scaleX(0);
+                    }
+                    to {
+                        transform: scaleX(1);
+                    }
+                }
+            }
+
+            /* glassy nav */
+            .glass {
+                background: color-mix(in oklab, var(--surface) 72%, transparent);
+                backdrop-filter: blur(14px);
+                -webkit-backdrop-filter: blur(14px);
+            }
+
+            /* hairlines + tints (theme-reactive translucency) */
+            .hair {
+                border-color: color-mix(in oklab, var(--ink) 12%, transparent);
+            }
+            .hair-inv {
+                border-color: color-mix(in oklab, var(--bg) 26%, transparent);
+            }
+            .tint {
+                background: color-mix(in oklab, var(--accent) 12%, transparent);
+            }
+
+            /* eyebrows / kickers */
+            .eyebrow {
+                font-family: var(--fm);
+                text-transform: uppercase;
+                letter-spacing: 0.26em;
+                font-size: 0.68rem;
+                font-weight: 500;
+            }
+
+            /* big chapter numerals */
+            .numeral {
+                font-family: var(--fd);
+                font-weight: var(--hw);
+                line-height: 0.8;
+                font-size: clamp(5rem, 11vw, 9rem);
+            }
+            .watermark {
+                font-family: var(--fd);
+                font-weight: var(--hw);
+                line-height: 0.7;
+                font-size: clamp(14rem, 40vh, 32rem);
+                color: color-mix(in oklab, var(--accent) 16%, transparent);
+                user-select: none;
+                pointer-events: none;
+            }
+
+            /* buttons */
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.55rem;
+                font-family: var(--fu);
+                font-weight: 600;
+                font-size: 0.92rem;
+                padding: 0.85rem 1.5rem;
+                border-radius: var(--radius);
+                border: 1px solid transparent;
+                line-height: 1;
+                transition: 0.2s ease;
+                cursor: pointer;
+            }
+            .btn-acc {
+                background: var(--accent);
+                color: var(--accent-ink);
+            }
+            .btn-acc:hover {
+                filter: brightness(1.07);
+                transform: translateY(-1px);
+            }
+            .btn-ghost {
+                border-color: var(--line);
+                color: var(--ink);
+                background: transparent;
+            }
+            .btn-ghost:hover {
+                border-color: var(--accent);
+                color: var(--accent);
+            }
+            .btn-ghost-inv {
+                border-color: color-mix(in oklab, var(--bg) 32%, transparent);
+                color: var(--bg);
+                background: transparent;
+            }
+            .btn-ghost-inv:hover {
+                border-color: var(--accent);
+                color: var(--accent);
+            }
+
+            /* artifact frame (the pinned signature motif) */
+            .frame {
+                width: 100%;
+                background: var(--surface);
+                border: 1px solid var(--line);
+                border-radius: var(--radius);
+                box-shadow: var(--shadow);
+                overflow: hidden;
+            }
+            .frame-bar {
+                display: flex;
+                align-items: center;
+                gap: 0.55rem;
+                padding: 0.6rem 0.8rem;
+                border-bottom: 1px solid var(--line);
+                background: color-mix(in oklab, var(--surface) 90%, var(--ink) 6%);
+            }
+            .dot {
+                width: 9px;
+                height: 9px;
+                border-radius: 999px;
+                flex: 0 0 auto;
+            }
+            .seg {
+                margin-left: auto;
+                display: flex;
+                gap: 0.15rem;
+                font-family: var(--fm);
+                font-size: 0.6rem;
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+            }
+            .seg span {
+                padding: 0.22rem 0.55rem;
+                border-radius: 999px;
+                color: var(--muted);
+                white-space: nowrap;
+            }
+            .seg .on {
+                color: var(--accent);
+                background: color-mix(in oklab, var(--accent) 15%, transparent);
+            }
+            .ln {
+                height: 7px;
+                border-radius: 6px;
+                background: color-mix(in oklab, var(--ink) 13%, transparent);
+            }
+            .ln.f {
+                background: color-mix(in oklab, var(--ink) 7%, transparent);
+            }
+
+            /* reveal-on-enter — tasteful, opt-in, graceful fallback (visible by default) */
+            @media (min-width: 768px) {
+                @supports (animation-timeline: view()) {
+                    .reveal {
+                        animation: revealin linear both;
+                        animation-timeline: view();
+                        animation-range: entry 4% cover 30%;
+                    }
+                    @keyframes revealin {
+                        from {
+                            opacity: 0;
+                            transform: translateY(30px);
+                        }
+                        to {
+                            opacity: 1;
+                            transform: none;
+                        }
+                    }
+                }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .reveal {
+                    animation: none !important;
+                    opacity: 1 !important;
+                    transform: none !important;
+                }
+                html {
+                    scroll-behavior: auto;
+                }
+                .progress-fill {
+                    animation: none !important;
+                }
+            }
+        </style>
+    </head>
+    <body class="font-s">
+        <!-- scroll progress -->
+        <div class="progress-track"><div class="progress-fill"></div></div>
+
+        <!-- ===================== NAV ===================== -->
+        <header class="fixed top-0 inset-x-0 z-[60] glass border-b hair">
+            <div class="mx-auto max-w-[1200px] px-6 h-16 flex items-center gap-6">
+                <a href="#top" class="flex items-baseline gap-1 mr-auto">
+                    <span class="font-d text-2xl tracking-tight">Galleo</span>
+                    <span class="text-acc text-2xl leading-none">.</span>
+                </a>
+                <nav class="hidden md:flex items-center gap-7 text-sm text-soft">
+                    <a href="#story" class="hover:text-ink transition-colors">The story</a>
+                    <a href="#features" class="hover:text-ink transition-colors">Features</a>
+                    <a href="#proof" class="hover:text-ink transition-colors">Customers</a>
+                    <a href="#pricing" class="hover:text-ink transition-colors">Pricing</a>
+                </nav>
+                <a
+                    href="#"
+                    class="hidden sm:inline-flex text-sm text-soft hover:text-ink transition-colors"
+                    >Sign in</a
+                >
+                <a href="#start" class="btn btn-acc !py-2.5 !px-4 text-sm">Start free</a>
+            </div>
+        </header>
+
+        <!-- ===================== HERO ===================== -->
+        <section id="top" class="min-h-screen flex items-center pt-24 pb-16">
+            <div
+                class="mx-auto max-w-[1200px] px-6 w-full grid md:grid-cols-[1.05fr_.95fr] gap-12 md:gap-16 items-center"
+            >
+                <div>
+                    <p class="eyebrow text-acc">An AI editor for decks, docs &amp; sites</p>
+                    <h1
+                        class="font-d leading-[.92] tracking-tight mt-5 text-[clamp(3rem,8vw,6rem)]"
+                    >
+                        One source.<br />Three&nbsp;<span class="italic text-acc">polished</span>
+                        views.
+                    </h1>
+                    <p class="mt-7 text-lg md:text-xl text-soft max-w-xl leading-relaxed">
+                        Describe what you need. Galleo generates a single canonical artifact that
+                        renders as a
+                        <span class="text-ink font-medium">deck</span>, a
+                        <span class="text-ink font-medium">document</span>, and a
+                        <span class="text-ink font-medium">website</span>. Edit one block — every
+                        format stays in sync.
+                    </p>
+                    <div class="mt-9 flex flex-wrap items-center gap-3">
+                        <a href="#start" class="btn btn-acc">Start free</a>
+                        <a href="#story" class="btn btn-ghost"
+                            >Read the story
+                            <span aria-hidden="true">↓</span>
+                        </a>
+                    </div>
+                    <p class="mt-7 eyebrow text-mut">
+                        No card required · 36 designer themes · Export PDF, PPTX &amp; live web
+                    </p>
+                </div>
+
+                <!-- static deck preview of the artifact motif -->
+                <figure class="reveal md:justify-self-end w-full max-w-[480px]">
+                    <div class="frame">
+                        <div class="frame-bar">
+                            <span class="dot" style="background: #e0625e"></span>
+                            <span class="dot" style="background: #e8b94e"></span>
+                            <span class="dot" style="background: #5bb978"></span>
+                            <span class="ml-2 font-m text-[.62rem] text-mut"
+                                >meridian-2026.galleo</span
+                            >
+                            <span class="seg"
+                                ><span class="on">Deck</span><span>Doc</span><span>Site</span></span
+                            >
+                        </div>
+                        <div
+                            class="aspect-[16/10] p-7 flex flex-col justify-between"
+                            style="
+                                background: color-mix(in oklab, var(--surface) 94%, var(--ink) 3%);
+                            "
+                        >
+                            <div>
+                                <p class="eyebrow text-acc">Annual Review</p>
+                                <h3 class="font-d text-[2.4rem] leading-none mt-2">
+                                    Meridian 2026
+                                </h3>
+                                <p class="text-sm text-soft mt-2">
+                                    The year we crossed nine figures.
+                                </p>
+                            </div>
+                            <div class="grid grid-cols-3 gap-3">
+                                <div>
+                                    <div class="font-d text-2xl">$48M</div>
+                                    <div class="eyebrow text-mut mt-1">ARR</div>
+                                </div>
+                                <div>
+                                    <div class="font-d text-2xl">312%</div>
+                                    <div class="eyebrow text-mut mt-1">Net&nbsp;ret.</div>
+                                </div>
+                                <div>
+                                    <div class="font-d text-2xl">1,240</div>
+                                    <div class="eyebrow text-mut mt-1">Customers</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <figcaption class="font-m text-[.62rem] text-mut mt-3 flex items-center gap-2">
+                        <span class="text-acc">↻</span> one source — switch the view, the content
+                        never moves
+                    </figcaption>
+                </figure>
+            </div>
+        </section>
+
+        <!-- chapter index -->
+        <section id="story" class="border-y hair">
+            <div class="mx-auto max-w-[1200px] px-6 py-10 grid sm:grid-cols-3 gap-6">
+                <a href="#act-1" class="group flex items-baseline gap-4">
+                    <span class="font-d text-acc text-3xl">I</span>
+                    <span
+                        ><span class="block font-medium group-hover:text-acc transition-colors"
+                            >One source</span
+                        >
+                        <span class="eyebrow text-mut">Author it once</span></span
+                    >
+                </a>
+                <a href="#act-2" class="group flex items-baseline gap-4 sm:border-l hair sm:pl-6">
+                    <span class="font-d text-acc text-3xl">II</span>
+                    <span
+                        ><span class="block font-medium group-hover:text-acc transition-colors"
+                            >Three views</span
+                        >
+                        <span class="eyebrow text-mut">Deck ⇄ doc ⇄ site</span></span
+                    >
+                </a>
+                <a href="#act-3" class="group flex items-baseline gap-4 sm:border-l hair sm:pl-6">
+                    <span class="font-d text-acc text-3xl">III</span>
+                    <span
+                        ><span class="block font-medium group-hover:text-acc transition-colors"
+                            >Make it good</span
+                        >
+                        <span class="eyebrow text-mut">The editor for judging</span></span
+                    >
+                </a>
+            </div>
+        </section>
+
+        <!-- ===================== ACT I ===================== -->
+        <section id="act-1" class="relative">
+            <div class="mx-auto max-w-[1200px] px-6 grid md:grid-cols-2 gap-10 md:gap-16">
+                <!-- narrative -->
+                <div class="order-2 md:order-1">
+                    <header class="pt-20 md:pt-28">
+                        <p class="eyebrow text-mut">Act I</p>
+                        <div class="numeral text-acc mt-2">I</div>
+                        <h2 class="font-d text-[clamp(2.4rem,5vw,3.6rem)] leading-tight mt-3">
+                            One source
+                        </h2>
+                        <p class="mt-4 text-lg text-soft max-w-md">
+                            Stop rebuilding the same idea in three tools. In Galleo you author the
+                            truth exactly once.
+                        </p>
+                    </header>
+
+                    <div class="beat min-h-screen flex flex-col justify-center reveal">
+                        <p class="eyebrow text-acc">I.1 — The canonical artifact</p>
+                        <h3 class="font-d text-[clamp(1.8rem,3.4vw,2.6rem)] leading-snug mt-3">
+                            Everything lives in one structured stack of blocks.
+                        </h3>
+                        <p class="mt-4 text-lg text-soft leading-relaxed max-w-md">
+                            Headings, images, charts, tables, stats, quotes, diagrams, callouts —
+                            each one a real, first-class element. There's no master deck and three
+                            forked copies drifting apart. There is a single source, and it is the
+                            truth.
+                        </p>
+                    </div>
+
+                    <div class="beat min-h-screen flex flex-col justify-center reveal">
+                        <p class="eyebrow text-acc">I.2 — Not slides-with-textboxes</p>
+                        <h3 class="font-d text-[clamp(1.8rem,3.4vw,2.6rem)] leading-snug mt-3">
+                            A real layout engine sits underneath.
+                        </h3>
+                        <p class="mt-4 text-lg text-soft leading-relaxed max-w-md">
+                            Galleo genuinely typesets your content for whatever it's about to
+                            become. Change a number, rewrite a line, swap an image — and the deck,
+                            the doc, and the site all update at once. One edit, everywhere.
+                        </p>
+                        <ul class="mt-6 space-y-2 text-soft">
+                            <li class="flex gap-3">
+                                <span class="text-acc">—</span> Every block re-typesets per format
+                            </li>
+                            <li class="flex gap-3">
+                                <span class="text-acc">—</span> Prompt or import to a first draft in
+                                seconds
+                            </li>
+                            <li class="flex gap-3">
+                                <span class="text-acc">—</span> No copy-paste between three apps,
+                                ever
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- pinned artifact: DECK view -->
+                <div class="order-1 md:order-2 pt-20 md:pt-0">
+                    <div
+                        class="relative md:sticky md:top-20 md:h-[calc(100vh-5rem)] flex items-center justify-center overflow-hidden"
+                    >
+                        <div
+                            class="watermark absolute inset-0 grid place-items-center"
+                            aria-hidden="true"
+                        >
+                            I
+                        </div>
+                        <figure class="relative z-10 w-[94%] max-w-[520px]">
+                            <div class="frame">
+                                <div class="frame-bar">
+                                    <span class="dot tint" style="background: var(--accent)"></span>
+                                    <span class="font-m text-[.62rem] text-mut"
+                                        >meridian-2026.galleo</span
+                                    >
+                                    <span class="seg"
+                                        ><span class="on">Deck</span><span>Doc</span
+                                        ><span>Site</span></span
+                                    >
+                                </div>
+                                <div
+                                    class="aspect-[16/10] p-7 flex flex-col justify-between"
+                                    style="
+                                        background: color-mix(
+                                            in oklab,
+                                            var(--surface) 94%,
+                                            var(--ink) 3%
+                                        );
+                                    "
+                                >
+                                    <div>
+                                        <p class="eyebrow text-acc">Annual Review</p>
+                                        <h3 class="font-d text-[2.4rem] leading-none mt-2">
+                                            Meridian 2026
+                                        </h3>
+                                        <p class="text-sm text-soft mt-2">
+                                            The year we crossed nine figures.
+                                        </p>
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-3">
+                                        <div>
+                                            <div class="font-d text-2xl">$48M</div>
+                                            <div class="eyebrow text-mut mt-1">ARR</div>
+                                        </div>
+                                        <div>
+                                            <div class="font-d text-2xl">312%</div>
+                                            <div class="eyebrow text-mut mt-1">Net&nbsp;ret.</div>
+                                        </div>
+                                        <div>
+                                            <div class="font-d text-2xl">1,240</div>
+                                            <div class="eyebrow text-mut mt-1">Customers</div>
+                                        </div>
+                                    </div>
+                                    <div
+                                        class="flex items-center justify-between font-m text-[.6rem] text-mut pt-1 border-t hair"
+                                    >
+                                        <span>MERIDIAN · CONFIDENTIAL</span><span>01 / 12</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <figcaption class="font-m text-[.66rem] text-acc mt-3 tracking-wide">
+                                ACT I — ONE SOURCE · viewing as <span class="text-ink">Deck</span>
+                            </figcaption>
+                        </figure>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===================== ACT II ===================== -->
+        <section id="act-2" class="relative border-t hair">
+            <div class="mx-auto max-w-[1200px] px-6 grid md:grid-cols-2 gap-10 md:gap-16">
+                <div class="order-2 md:order-1">
+                    <header class="pt-20 md:pt-28">
+                        <p class="eyebrow text-mut">Act II</p>
+                        <div class="numeral text-acc mt-2">II</div>
+                        <h2 class="font-d text-[clamp(2.4rem,5vw,3.6rem)] leading-tight mt-3">
+                            Three views
+                        </h2>
+                        <p class="mt-4 text-lg text-soft max-w-md">
+                            The same artifact, rendered three ways. Present it, send it, publish it
+                            — without ever leaving the file.
+                        </p>
+                    </header>
+
+                    <div class="beat min-h-screen flex flex-col justify-center reveal">
+                        <p class="eyebrow text-acc">II.1 — Switch instantly</p>
+                        <h3 class="font-d text-[clamp(1.8rem,3.4vw,2.6rem)] leading-snug mt-3">
+                            Deck&nbsp;⇄&nbsp;doc&nbsp;⇄&nbsp;site, one click apart.
+                        </h3>
+                        <p class="mt-4 text-lg text-soft leading-relaxed max-w-md">
+                            Walk a room through the deck. Send the same thing as a clean document.
+                            Publish the recap to a live web page. Three polished renderings, zero
+                            reformatting — because there was only ever one set of content.
+                        </p>
+                    </div>
+
+                    <div class="beat min-h-screen flex flex-col justify-center reveal">
+                        <p class="eyebrow text-acc">II.2 — It re-typesets, it doesn't break</p>
+                        <h3 class="font-d text-[clamp(1.8rem,3.4vw,2.6rem)] leading-snug mt-3">
+                            Every view looks designed — not exported.
+                        </h3>
+                        <p class="mt-4 text-lg text-soft leading-relaxed max-w-md">
+                            A line that anchors a slide becomes a section heading in the document
+                            and a hero on the website. Galleo lays each block out natively for its
+                            format, so nothing reflows into a mess. You stop babysitting layouts and
+                            start shipping.
+                        </p>
+                        <div
+                            class="mt-6 inline-flex items-center gap-3 self-start tint rounded-[var(--radius)] px-4 py-2 font-m text-xs text-acc"
+                        >
+                            <span>↻</span> watch the caption change as you scroll →
+                        </div>
+                    </div>
+                </div>
+
+                <!-- pinned artifact: DOC view -->
+                <div class="order-1 md:order-2 pt-20 md:pt-0">
+                    <div
+                        class="relative md:sticky md:top-20 md:h-[calc(100vh-5rem)] flex items-center justify-center overflow-hidden"
+                    >
+                        <div
+                            class="watermark absolute inset-0 grid place-items-center"
+                            aria-hidden="true"
+                        >
+                            II
+                        </div>
+                        <figure class="relative z-10 w-[94%] max-w-[520px]">
+                            <div class="frame">
+                                <div class="frame-bar">
+                                    <span class="dot" style="background: var(--accent)"></span>
+                                    <span class="font-m text-[.62rem] text-mut"
+                                        >meridian-2026.galleo</span
+                                    >
+                                    <span class="seg"
+                                        ><span>Deck</span><span class="on">Doc</span
+                                        ><span>Site</span></span
+                                    >
+                                </div>
+                                <div
+                                    class="p-7"
+                                    style="
+                                        background: color-mix(
+                                            in oklab,
+                                            var(--surface) 96%,
+                                            var(--ink) 2%
+                                        );
+                                    "
+                                >
+                                    <p class="eyebrow text-mut">Document · 8 min read</p>
+                                    <h3 class="font-d text-[1.9rem] leading-tight mt-2">
+                                        Meridian — 2026 Annual Review
+                                    </h3>
+                                    <p class="font-m text-[.66rem] text-mut mt-1">
+                                        By the Meridian team · February 2026
+                                    </p>
+                                    <div class="mt-5 space-y-2.5">
+                                        <div class="ln" style="width: 100%"></div>
+                                        <div class="ln" style="width: 96%"></div>
+                                        <div class="ln" style="width: 88%"></div>
+                                    </div>
+                                    <div
+                                        class="my-5 pl-4 border-l-2"
+                                        style="border-color: var(--accent)"
+                                    >
+                                        <div class="font-d text-[1.6rem] leading-none text-acc">
+                                            312%
+                                        </div>
+                                        <div class="eyebrow text-mut mt-1">
+                                            net revenue retention, FY26
+                                        </div>
+                                    </div>
+                                    <div class="space-y-2.5">
+                                        <div class="ln" style="width: 94%"></div>
+                                        <div class="ln" style="width: 99%"></div>
+                                        <div class="ln f" style="width: 70%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <figcaption class="font-m text-[.66rem] text-acc mt-3 tracking-wide">
+                                ACT II — THREE VIEWS · viewing as <span class="text-ink">Doc</span>
+                            </figcaption>
+                        </figure>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===================== ACT III ===================== -->
+        <section id="act-3" class="relative border-t hair">
+            <div class="mx-auto max-w-[1200px] px-6 grid md:grid-cols-2 gap-10 md:gap-16">
+                <div class="order-2 md:order-1">
+                    <header class="pt-20 md:pt-28">
+                        <p class="eyebrow text-mut">Act III</p>
+                        <div class="numeral text-acc mt-2">III</div>
+                        <h2 class="font-d text-[clamp(2.4rem,5vw,3.6rem)] leading-tight mt-3">
+                            Make it good
+                        </h2>
+                        <p class="mt-4 text-lg text-soft max-w-md">
+                            A draft is the easy part now. The hard part is judgment — and that's the
+                            part Galleo is built for.
+                        </p>
+                    </header>
+
+                    <div class="beat min-h-screen flex flex-col justify-center reveal">
+                        <p class="eyebrow text-acc">III.1 — 36 designer themes</p>
+                        <h3 class="font-d text-[clamp(1.8rem,3.4vw,2.6rem)] leading-snug mt-3">
+                            Restyle everything in a single click.
+                        </h3>
+                        <p class="mt-4 text-lg text-soft leading-relaxed max-w-md">
+                            Each theme is a complete system — a font trio, a color world, a radius
+                            language. Apply one and the entire artifact restyles across all three
+                            views, while your content stays exactly where it was. Taste, on tap.
+                        </p>
+                    </div>
+
+                    <div class="beat min-h-screen flex flex-col justify-center reveal">
+                        <p class="eyebrow text-acc">III.2 — The thesis</p>
+                        <h3 class="font-d text-[clamp(1.9rem,3.6vw,2.8rem)] leading-snug mt-3">
+                            The bottleneck moved from making to judging.
+                        </h3>
+                        <p class="mt-4 text-lg text-soft leading-relaxed max-w-md">
+                            AI made a first draft free — and the average deck worse. When everyone
+                            can generate, the work becomes deciding what's good and fixing what
+                            isn't. Galleo is the editor for the judging: the controls to make it
+                            actually good.
+                        </p>
+                        <a href="#start" class="btn btn-acc mt-7 self-start"
+                            >Start your first artifact</a
+                        >
+                    </div>
+                </div>
+
+                <!-- pinned artifact: SITE view -->
+                <div class="order-1 md:order-2 pt-20 md:pt-0">
+                    <div
+                        class="relative md:sticky md:top-20 md:h-[calc(100vh-5rem)] flex items-center justify-center overflow-hidden"
+                    >
+                        <div
+                            class="watermark absolute inset-0 grid place-items-center"
+                            aria-hidden="true"
+                        >
+                            III
+                        </div>
+                        <figure class="relative z-10 w-[94%] max-w-[520px]">
+                            <div class="frame">
+                                <div class="frame-bar">
+                                    <span class="dot" style="background: var(--accent)"></span>
+                                    <span class="font-m text-[.62rem] text-mut"
+                                        >meridian-2026.galleo</span
+                                    >
+                                    <span class="seg"
+                                        ><span>Deck</span><span>Doc</span
+                                        ><span class="on">Site</span></span
+                                    >
+                                </div>
+                                <div style="background: var(--surface)">
+                                    <!-- mini site nav -->
+                                    <div
+                                        class="flex items-center justify-between px-5 py-3 border-b hair"
+                                    >
+                                        <span class="font-d text-sm">Meridian</span>
+                                        <span
+                                            class="hidden sm:flex gap-4 font-m text-[.58rem] uppercase tracking-wider text-mut"
+                                        >
+                                            <span>Story</span><span>Metrics</span
+                                            ><span>Team</span></span
+                                        >
+                                        <span
+                                            class="text-[.6rem] font-medium px-2.5 py-1 rounded-full"
+                                            style="
+                                                background: var(--accent);
+                                                color: var(--accent-ink);
+                                            "
+                                            >Read</span
+                                        >
+                                    </div>
+                                    <!-- mini hero -->
+                                    <div class="px-5 pt-6 pb-4">
+                                        <p class="eyebrow text-acc">Annual Review 2026</p>
+                                        <h3 class="font-d text-[1.7rem] leading-tight mt-2">
+                                            The year we crossed nine figures.
+                                        </h3>
+                                        <div class="mt-3 space-y-2">
+                                            <div class="ln" style="width: 90%"></div>
+                                            <div class="ln f" style="width: 64%"></div>
+                                        </div>
+                                    </div>
+                                    <img
+                                        src="https://picsum.photos/seed/meridian/1200/520?grayscale"
+                                        alt=""
+                                        class="w-full h-28 object-cover"
+                                    />
+                                    <!-- mini card row -->
+                                    <div class="grid grid-cols-3 gap-2.5 p-4">
+                                        <div class="rounded-[var(--radius)] border hair p-2.5">
+                                            <div class="font-d text-lg">$48M</div>
+                                            <div class="eyebrow text-mut mt-1 !text-[.55rem]">
+                                                ARR
+                                            </div>
+                                        </div>
+                                        <div class="rounded-[var(--radius)] border hair p-2.5">
+                                            <div class="font-d text-lg">312%</div>
+                                            <div class="eyebrow text-mut mt-1 !text-[.55rem]">
+                                                Net&nbsp;ret.
+                                            </div>
+                                        </div>
+                                        <div class="rounded-[var(--radius)] border hair p-2.5">
+                                            <div class="font-d text-lg">1,240</div>
+                                            <div class="eyebrow text-mut mt-1 !text-[.55rem]">
+                                                Clients
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <figcaption class="font-m text-[.66rem] text-acc mt-3 tracking-wide">
+                                ACT III — MAKE IT GOOD · viewing as
+                                <span class="text-ink">Site</span>
+                            </figcaption>
+                        </figure>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===================== THESIS BAND (inverted) ===================== -->
+        <section class="bg-ink text-paper">
+            <div class="mx-auto max-w-[1100px] px-6 py-24 md:py-32 text-center">
+                <p class="eyebrow" style="color: var(--accent)">The shift Galleo is built on</p>
+                <blockquote class="font-d text-[clamp(2rem,5.5vw,4rem)] leading-[1.08] mt-6">
+                    AI made a first draft free — and the average deck
+                    <span class="italic" style="color: var(--accent)">worse</span>. So we built the
+                    editor for the part that still matters: <span class="italic">judging it</span>.
+                </blockquote>
+                <p
+                    class="mt-8 text-lg"
+                    style="color: color-mix(in oklab, var(--bg) 70%, var(--ink))"
+                >
+                    One source. Three polished views. Made good.
+                </p>
+            </div>
+        </section>
+
+        <!-- ===================== FEATURES (editorial index) ===================== -->
+        <section id="features" class="mx-auto max-w-[1200px] px-6 py-24 md:py-32">
+            <div class="grid md:grid-cols-[1fr_2fr] gap-10 md:gap-16">
+                <div class="md:sticky md:top-24 md:self-start">
+                    <p class="eyebrow text-acc">Everything in one editor</p>
+                    <h2 class="font-d text-[clamp(2.2rem,4.5vw,3.4rem)] leading-tight mt-4">
+                        What's underneath the artifact.
+                    </h2>
+                    <p class="mt-5 text-lg text-soft max-w-sm">
+                        Six capabilities, one canonical file. No exporting between tools, no formats
+                        drifting out of sync.
+                    </p>
+                </div>
+
+                <ol class="md:border-t hair">
+                    <li
+                        class="group grid grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_auto] gap-x-5 gap-y-2 items-baseline py-7 border-b hair transition-colors hover:[background:color-mix(in_oklab,var(--accent)_6%,transparent)] -mx-4 px-4 rounded-[var(--radius)]"
+                    >
+                        <span class="font-m text-sm text-mut group-hover:text-acc transition-colors"
+                            >01</span
+                        >
+                        <div>
+                            <h3 class="font-d text-2xl">AI generation</h3>
+                            <p class="text-soft mt-1 max-w-md">
+                                Prompt — or import an existing deck or doc — to a polished, fully
+                                typeset first draft in seconds.
+                            </p>
+                        </div>
+                        <span class="hidden sm:block eyebrow text-mut">Draft</span>
+                    </li>
+                    <li
+                        class="group grid grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_auto] gap-x-5 gap-y-2 items-baseline py-7 border-b hair transition-colors hover:[background:color-mix(in_oklab,var(--accent)_6%,transparent)] -mx-4 px-4 rounded-[var(--radius)]"
+                    >
+                        <span class="font-m text-sm text-mut group-hover:text-acc transition-colors"
+                            >02</span
+                        >
+                        <div>
+                            <h3 class="font-d text-2xl">One source, three views</h3>
+                            <p class="text-soft mt-1 max-w-md">
+                                Deck, document, and website from a single artifact. Edit any block
+                                and all three stay in sync.
+                            </p>
+                        </div>
+                        <span class="hidden sm:block eyebrow text-mut">Sync</span>
+                    </li>
+                    <li
+                        class="group grid grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_auto] gap-x-5 gap-y-2 items-baseline py-7 border-b hair transition-colors hover:[background:color-mix(in_oklab,var(--accent)_6%,transparent)] -mx-4 px-4 rounded-[var(--radius)]"
+                    >
+                        <span class="font-m text-sm text-mut group-hover:text-acc transition-colors"
+                            >03</span
+                        >
+                        <div>
+                            <h3 class="font-d text-2xl">A real layout engine</h3>
+                            <p class="text-soft mt-1 max-w-md">
+                                True typesetting, not slides-with-textboxes. Every block re-typesets
+                                natively for the format it's in.
+                            </p>
+                        </div>
+                        <span class="hidden sm:block eyebrow text-mut">Engine</span>
+                    </li>
+                    <li
+                        class="group grid grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_auto] gap-x-5 gap-y-2 items-baseline py-7 border-b hair transition-colors hover:[background:color-mix(in_oklab,var(--accent)_6%,transparent)] -mx-4 px-4 rounded-[var(--radius)]"
+                    >
+                        <span class="font-m text-sm text-mut group-hover:text-acc transition-colors"
+                            >04</span
+                        >
+                        <div>
+                            <h3 class="font-d text-2xl">36 designer themes</h3>
+                            <p class="text-soft mt-1 max-w-md">
+                                Each a complete system — font trio, color, radius. One click
+                                restyles the whole artifact.
+                            </p>
+                        </div>
+                        <span class="hidden sm:block eyebrow text-mut">Style</span>
+                    </li>
+                    <li
+                        class="group grid grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_auto] gap-x-5 gap-y-2 items-baseline py-7 border-b hair transition-colors hover:[background:color-mix(in_oklab,var(--accent)_6%,transparent)] -mx-4 px-4 rounded-[var(--radius)]"
+                    >
+                        <span class="font-m text-sm text-mut group-hover:text-acc transition-colors"
+                            >05</span
+                        >
+                        <div>
+                            <h3 class="font-d text-2xl">High-fidelity export &amp; publish</h3>
+                            <p class="text-soft mt-1 max-w-md">
+                                Pixel-honest PDF and PPTX, plus one-click publish to a live,
+                                responsive web page.
+                            </p>
+                        </div>
+                        <span class="hidden sm:block eyebrow text-mut">Ship</span>
+                    </li>
+                    <li
+                        class="group grid grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_auto] gap-x-5 gap-y-2 items-baseline py-7 transition-colors hover:[background:color-mix(in_oklab,var(--accent)_6%,transparent)] -mx-4 px-4 rounded-[var(--radius)]"
+                    >
+                        <span class="font-m text-sm text-mut group-hover:text-acc transition-colors"
+                            >06</span
+                        >
+                        <div>
+                            <h3 class="font-d text-2xl">Built for teams</h3>
+                            <p class="text-soft mt-1 max-w-md">
+                                Real-time collaboration, shared workspaces, and folders — so the
+                                whole team works from one truth.
+                            </p>
+                        </div>
+                        <span class="hidden sm:block eyebrow text-mut">Together</span>
+                    </li>
+                </ol>
+            </div>
+        </section>
+
+        <!-- ===================== PROOF ===================== -->
+        <section
+            id="proof"
+            class="border-y hair"
+            style="background: color-mix(in oklab, var(--surface) 60%, transparent)"
+        >
+            <div class="mx-auto max-w-[1200px] px-6 py-20 md:py-28">
+                <p class="eyebrow text-mut text-center">Trusted by teams who care how it looks</p>
+                <div
+                    class="mt-8 flex flex-wrap items-center justify-center gap-x-12 gap-y-5 font-d text-xl text-soft opacity-80"
+                >
+                    <span>Northwind</span><span>Axiom</span><span>Lumen</span
+                    ><span>Forge&nbsp;&amp;&nbsp;Co.</span><span>Verde</span
+                    ><span>Atlas&nbsp;Type</span>
+                </div>
+
+                <figure class="mt-16 max-w-3xl mx-auto text-center">
+                    <blockquote class="font-d text-[clamp(1.6rem,3.6vw,2.6rem)] leading-snug">
+                        “Galleo collapsed three tools into one. We pitch from it, send the doc from
+                        it, and publish the recap from it — all from the same file. Nothing drifts
+                        out of sync anymore.”
+                    </blockquote>
+                    <figcaption class="mt-6 eyebrow text-mut">
+                        Anya Mercer · Head of Brand, Northwind
+                    </figcaption>
+                </figure>
+
+                <div
+                    class="mt-16 grid grid-cols-2 md:grid-cols-4 gap-px rounded-[var(--radius)] overflow-hidden border hair"
+                    style="background: var(--line)"
+                >
+                    <div class="bg-panel p-7 text-center">
+                        <div class="font-d text-4xl text-acc">3-in-1</div>
+                        <div class="eyebrow text-mut mt-2">Deck · doc · site</div>
+                    </div>
+                    <div class="bg-panel p-7 text-center">
+                        <div class="font-d text-4xl text-acc">36</div>
+                        <div class="eyebrow text-mut mt-2">Designer themes</div>
+                    </div>
+                    <div class="bg-panel p-7 text-center">
+                        <div class="font-d text-4xl text-acc">&lt;60s</div>
+                        <div class="eyebrow text-mut mt-2">To first draft</div>
+                    </div>
+                    <div class="bg-panel p-7 text-center">
+                        <div class="font-d text-4xl text-acc">0</div>
+                        <div class="eyebrow text-mut mt-2">Reformatting</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===================== PRICING ===================== -->
+        <section id="pricing" class="mx-auto max-w-[1200px] px-6 py-24 md:py-32">
+            <div class="max-w-2xl">
+                <p class="eyebrow text-acc">Pricing</p>
+                <h2 class="font-d text-[clamp(2.2rem,4.5vw,3.4rem)] leading-tight mt-4">
+                    Start free. Pay when it ships out the door.
+                </h2>
+                <p class="mt-5 text-lg text-soft">
+                    Every plan includes all 36 themes and the full three-view editor. Upgrade for
+                    high-fidelity export, publishing, and your team.
+                </p>
+            </div>
+
+            <div class="mt-12 grid md:grid-cols-3 gap-5 items-stretch">
+                <!-- Solo -->
+                <div class="flex flex-col rounded-[var(--radius)] border hair p-7 bg-panel">
+                    <p class="eyebrow text-mut">Solo</p>
+                    <div class="mt-4 flex items-baseline gap-1">
+                        <span class="font-d text-5xl">$0</span><span class="text-mut">/mo</span>
+                    </div>
+                    <p class="mt-3 text-soft">For one person, getting an idea out the door.</p>
+                    <ul class="mt-6 space-y-2.5 text-soft text-sm flex-1">
+                        <li class="flex gap-3">
+                            <span class="text-acc">—</span> Unlimited artifacts
+                        </li>
+                        <li class="flex gap-3">
+                            <span class="text-acc">—</span> All 36 designer themes
+                        </li>
+                        <li class="flex gap-3">
+                            <span class="text-acc">—</span> Deck · doc · site views
+                        </li>
+                        <li class="flex gap-3"><span class="text-acc">—</span> PDF export</li>
+                        <li class="flex gap-3">
+                            <span class="text-acc">—</span> Publish with Galleo badge
+                        </li>
+                    </ul>
+                    <a href="#start" class="btn btn-ghost mt-7 justify-center">Start free</a>
+                </div>
+
+                <!-- Studio (featured, inverted) -->
+                <div
+                    class="flex flex-col rounded-[var(--radius)] p-7 bg-ink text-paper shadow-[var(--shadow)] md:-translate-y-3 relative"
+                >
+                    <span
+                        class="absolute top-5 right-5 eyebrow px-2.5 py-1 rounded-full"
+                        style="background: var(--accent); color: var(--accent-ink)"
+                        >Popular</span
+                    >
+                    <p class="eyebrow" style="color: var(--accent)">Studio</p>
+                    <div class="mt-4 flex items-baseline gap-1">
+                        <span class="font-d text-5xl">$24</span
+                        ><span style="color: color-mix(in oklab, var(--bg) 65%, var(--ink))"
+                            >/mo</span
+                        >
+                    </div>
+                    <p class="mt-3" style="color: color-mix(in oklab, var(--bg) 78%, var(--ink))">
+                        For the maker who's judged on the final look.
+                    </p>
+                    <ul
+                        class="mt-6 space-y-2.5 text-sm flex-1"
+                        style="color: color-mix(in oklab, var(--bg) 82%, var(--ink))"
+                    >
+                        <li class="flex gap-3">
+                            <span style="color: var(--accent)">—</span> Everything in Solo
+                        </li>
+                        <li class="flex gap-3">
+                            <span style="color: var(--accent)">—</span> High-fidelity PPTX &amp; PDF
+                        </li>
+                        <li class="flex gap-3">
+                            <span style="color: var(--accent)">—</span> Publish to a custom domain
+                        </li>
+                        <li class="flex gap-3">
+                            <span style="color: var(--accent)">—</span> No Galleo badge
+                        </li>
+                        <li class="flex gap-3">
+                            <span style="color: var(--accent)">—</span> Version history
+                        </li>
+                    </ul>
+                    <a href="#start" class="btn btn-acc mt-7 justify-center">Start free trial</a>
+                </div>
+
+                <!-- Team -->
+                <div class="flex flex-col rounded-[var(--radius)] border hair p-7 bg-panel">
+                    <p class="eyebrow text-mut">Team</p>
+                    <div class="mt-4 flex items-baseline gap-1">
+                        <span class="font-d text-5xl">$20</span
+                        ><span class="text-mut">/user&nbsp;·&nbsp;mo</span>
+                    </div>
+                    <p class="mt-3 text-soft">For teams working from one source of truth.</p>
+                    <ul class="mt-6 space-y-2.5 text-soft text-sm flex-1">
+                        <li class="flex gap-3">
+                            <span class="text-acc">—</span> Everything in Studio
+                        </li>
+                        <li class="flex gap-3">
+                            <span class="text-acc">—</span> Real-time collaboration
+                        </li>
+                        <li class="flex gap-3">
+                            <span class="text-acc">—</span> Shared workspaces &amp; folders
+                        </li>
+                        <li class="flex gap-3">
+                            <span class="text-acc">—</span> Roles &amp; permissions
+                        </li>
+                        <li class="flex gap-3">
+                            <span class="text-acc">—</span> SSO &amp; priority support
+                        </li>
+                    </ul>
+                    <a href="#" class="btn btn-ghost mt-7 justify-center">Talk to us</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===================== CLOSING CTA (inverted) ===================== -->
+        <section id="start" class="relative bg-ink text-paper overflow-hidden">
+            <div
+                class="watermark absolute -bottom-20 -right-10 opacity-60 hidden md:block"
+                aria-hidden="true"
+                style="
+                    font-size: clamp(16rem, 34vw, 30rem);
+                    color: color-mix(in oklab, var(--bg) 8%, transparent);
+                "
+            >
+                .
+            </div>
+            <div class="relative mx-auto max-w-[1000px] px-6 py-28 md:py-40 text-center">
+                <p class="eyebrow" style="color: var(--accent)">
+                    One source. Three polished views.
+                </p>
+                <h2 class="font-d text-[clamp(2.6rem,7vw,5.5rem)] leading-[1.02] mt-6">
+                    Start your first artifact.
+                </h2>
+                <p
+                    class="mt-7 text-lg md:text-xl max-w-xl mx-auto"
+                    style="color: color-mix(in oklab, var(--bg) 72%, var(--ink))"
+                >
+                    Describe it once. Watch it become a deck, a doc, and a website — and make it
+                    good. Free to start, no card required.
+                </p>
+                <div class="mt-10 flex flex-wrap items-center justify-center gap-3">
+                    <a href="#" class="btn btn-acc">Start free</a>
+                    <a href="#" class="btn btn-ghost-inv">Book a walkthrough</a>
+                </div>
+                <p
+                    class="mt-8 eyebrow"
+                    style="color: color-mix(in oklab, var(--bg) 55%, var(--ink))"
+                >
+                    The editor for people who care how it looks.
+                </p>
+            </div>
+        </section>
+
+        <!-- ===================== FOOTER ===================== -->
+        <footer class="border-t hair">
+            <div class="mx-auto max-w-[1200px] px-6 py-16">
+                <div class="grid md:grid-cols-[2fr_1fr_1fr_1fr] gap-10">
+                    <div>
+                        <a href="#top" class="flex items-baseline gap-1"
+                            ><span class="font-d text-2xl">Galleo</span
+                            ><span class="text-acc text-2xl">.</span></a
+                        >
+                        <p class="mt-4 text-soft max-w-xs">
+                            Decks, docs, and sites — one canonical artifact. The editor for the
+                            judging.
+                        </p>
+                    </div>
+                    <div>
+                        <p class="eyebrow text-mut">Product</p>
+                        <ul class="mt-4 space-y-2.5 text-soft text-sm">
+                            <li>
+                                <a href="#features" class="hover:text-acc transition-colors"
+                                    >Features</a
+                                >
+                            </li>
+                            <li>
+                                <a href="#story" class="hover:text-acc transition-colors"
+                                    >The three views</a
+                                >
+                            </li>
+                            <li>
+                                <a href="#pricing" class="hover:text-acc transition-colors"
+                                    >Pricing</a
+                                >
+                            </li>
+                            <li><a href="#" class="hover:text-acc transition-colors">Themes</a></li>
+                            <li>
+                                <a href="#" class="hover:text-acc transition-colors"
+                                    >Export &amp; publish</a
+                                >
+                            </li>
+                        </ul>
+                    </div>
+                    <div>
+                        <p class="eyebrow text-mut">Company</p>
+                        <ul class="mt-4 space-y-2.5 text-soft text-sm">
+                            <li><a href="#" class="hover:text-acc transition-colors">About</a></li>
+                            <li>
+                                <a href="#" class="hover:text-acc transition-colors">Careers</a>
+                            </li>
+                            <li>
+                                <a href="#proof" class="hover:text-acc transition-colors"
+                                    >Customers</a
+                                >
+                            </li>
+                            <li><a href="#" class="hover:text-acc transition-colors">Blog</a></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <p class="eyebrow text-mut">Resources</p>
+                        <ul class="mt-4 space-y-2.5 text-soft text-sm">
+                            <li><a href="#" class="hover:text-acc transition-colors">Docs</a></li>
+                            <li>
+                                <a href="#" class="hover:text-acc transition-colors">Templates</a>
+                            </li>
+                            <li>
+                                <a href="#" class="hover:text-acc transition-colors">Changelog</a>
+                            </li>
+                            <li>
+                                <a href="#" class="hover:text-acc transition-colors">Contact</a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div
+                    class="mt-14 pt-6 border-t hair flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-m text-xs text-mut"
+                >
+                    <span>© 2026 Galleo. All rights reserved.</span>
+                    <span class="flex gap-5"
+                        ><a href="#" class="hover:text-ink transition-colors">Privacy</a
+                        ><a href="#" class="hover:text-ink transition-colors">Terms</a
+                        ><a href="#" class="hover:text-ink transition-colors">Security</a></span
+                    >
+                </div>
+            </div>
+        </footer>
+
+        <script>
+            (function () {
+                var p = new URLSearchParams(location.search).get("theme");
+                document.documentElement.className = p && /^t-[a-z]+$/.test(p) ? p : "t-couture";
+                addEventListener("message", function (e) {
+                    if (e.data && e.data.theme) document.documentElement.className = e.data.theme;
+                });
+            })();
+        </script>
+    </body>
+</html>

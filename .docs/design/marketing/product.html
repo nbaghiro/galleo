@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Galleo — Product</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="theme.css" />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            d: ["var(--fd)", "serif"],
+                            s: ["var(--fu)", "sans-serif"],
+                            m: ["var(--fm)", "monospace"],
+                        },
+                        colors: {
+                            bg: "var(--bg)",
+                            surface: "var(--surface)",
+                            ink: "var(--ink)",
+                            soft: "var(--soft)",
+                            mut: "var(--muted)",
+                            acc: "var(--accent)",
+                            aink: "var(--accent-ink)",
+                            acc2: "color-mix(in srgb, var(--accent) 55%, #0FB6A4)",
+                            line: "var(--line)",
+                        },
+                    },
+                },
+            };
+        </script>
+        <style>
+            body {
+                background: var(--bg);
+                color: var(--ink);
+                font-family: var(--fu), sans-serif;
+                -webkit-font-smoothing: antialiased;
+            }
+            ::selection {
+                background: var(--accent);
+                color: var(--accent-ink);
+            }
+            .grid-bg {
+                background-image:
+                    linear-gradient(var(--line) 1px, transparent 1px),
+                    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+                background-size: 28px 28px;
+            }
+            .glow {
+                box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 30%, transparent);
+            }
+            .lift {
+                box-shadow:
+                    0 2px 6px rgba(20, 22, 28, 0.06),
+                    0 24px 60px rgba(20, 22, 28, 0.13);
+            }
+            @keyframes fade {
+                from {
+                    opacity: 0;
+                    transform: translateY(12px);
+                }
+                to {
+                    opacity: 1;
+                    transform: none;
+                }
+            }
+            .fade {
+                animation: fade 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+            }
+            .d1 {
+                animation-delay: 0.06s;
+            }
+            .d2 {
+                animation-delay: 0.14s;
+            }
+            .d3 {
+                animation-delay: 0.22s;
+            }
+        </style>
+    </head>
+    <body class="font-s">
+        <header
+            class="sticky top-0 z-40 backdrop-blur-md bg-[color-mix(in_srgb,var(--bg)_85%,transparent)] border-b border-line"
+        >
+            <div class="max-w-[1140px] mx-auto px-7 h-16 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <span
+                        class="grid place-items-center w-7 h-7 rounded-lg bg-acc text-aink font-d font-bold"
+                        >G</span
+                    ><span class="font-d text-[18px] font-700 tracking-tight">Galleo</span>
+                </div>
+                <nav class="hidden md:flex gap-7 text-[14px] text-soft font-medium">
+                    <a>Product</a><a>Solutions</a><a>Docs</a><a>Pricing</a>
+                </nav>
+                <div class="flex items-center gap-3 text-[14px]">
+                    <a class="text-soft font-semibold">Sign in</a
+                    ><a class="rounded-lg bg-acc text-aink px-4 py-2 font-semibold glow"
+                        >Get started</a
+                    >
+                </div>
+            </div>
+        </header>
+
+        <!-- HERO -->
+        <section class="relative overflow-hidden">
+            <div class="absolute inset-0 grid-bg opacity-60"></div>
+            <div
+                class="absolute -top-32 left-1/2 -translate-x-1/2 w-[760px] h-[460px] rounded-full blur-3xl opacity-25"
+                style="background: radial-gradient(circle, var(--accent), transparent 60%)"
+            ></div>
+            <div class="relative max-w-[860px] mx-auto px-7 pt-20 pb-10 text-center">
+                <a
+                    class="fade inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3.5 py-1.5 text-[12.5px] font-semibold text-soft mb-7"
+                    ><span class="w-1.5 h-1.5 rounded-full bg-acc2"></span>New — publish to the web
+                    in one click</a
+                >
+                <h1
+                    class="fade d1 font-d font-700 tracking-[-.03em] leading-[1.0] text-[clamp(42px,6vw,72px)]"
+                >
+                    Decks, docs &amp; sites,<br />generated &amp; refined.
+                </h1>
+                <p class="fade d2 mt-6 text-[19px] text-soft leading-relaxed max-w-[52ch] mx-auto">
+                    One canonical artifact, three polished views. Generate fast, then make it
+                    genuinely good in a real editor — and ship it anywhere.
+                </p>
+                <div class="fade d3 mt-8 flex justify-center gap-3">
+                    <a class="rounded-lg bg-acc text-aink px-6 py-3 font-semibold glow"
+                        >Start free →</a
+                    ><a
+                        class="rounded-lg border border-line bg-surface px-6 py-3 font-semibold text-ink"
+                        >Book a demo</a
+                    >
+                </div>
+                <p class="fade d3 mt-4 font-m text-[11px] text-mut">
+                    No credit card · 3 free artifacts
+                </p>
+            </div>
+            <!-- product shot -->
+            <div class="fade d3 relative max-w-[1000px] mx-auto px-7 pb-16">
+                <div class="rounded-2xl overflow-hidden lift border border-line">
+                    <div class="h-9 bg-white border-b border-line flex items-center gap-1.5 px-4">
+                        <i class="w-2.5 h-2.5 rounded-full bg-[#ff5f57]"></i
+                        ><i class="w-2.5 h-2.5 rounded-full bg-[#febc2e]"></i
+                        ><i class="w-2.5 h-2.5 rounded-full bg-[#28c840]"></i
+                        ><span class="ml-3 font-m text-[11px] text-mut">app.galleo.io/edit</span>
+                    </div>
+                    <div class="flex" style="height: 430px; background: #eceef3">
+                        <div
+                            class="w-[52px] flex flex-col items-center gap-2 py-3"
+                            style="background: #14151b"
+                        >
+                            <span
+                                class="w-8 h-8 rounded-lg grid place-items-center text-white font-d font-bold text-[13px]"
+                                style="background: #5b54f0"
+                                >G</span
+                            ><span
+                                class="w-8 h-8 rounded-lg bg-white/10 text-white/50 grid place-items-center text-[12px]"
+                                >T</span
+                            ><span
+                                class="w-8 h-8 rounded-lg bg-white/10 text-white/50 grid place-items-center text-[12px]"
+                                >▢</span
+                            ><span
+                                class="w-8 h-8 rounded-lg bg-white/10 text-white/50 grid place-items-center text-[12px]"
+                                >▦</span
+                            >
+                        </div>
+                        <div class="flex-1 grid-bg grid place-items-center">
+                            <div
+                                class="bg-white rounded-xl lift p-10 max-w-[440px]"
+                                style="color: #14161c"
+                            >
+                                <span
+                                    class="font-m text-[10px] uppercase tracking-widest text-acc font-semibold"
+                                    >GALLEO</span
+                                >
+                                <div
+                                    class="font-d font-700 text-[30px] leading-[1.05] tracking-tight mt-3"
+                                >
+                                    The editor for people who care how it looks.
+                                </div>
+                                <div class="h-2 w-[78%] bg-line rounded mt-5"></div>
+                                <div class="h-2 w-[60%] bg-line rounded mt-2"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- LOGOS -->
+        <div class="max-w-[1140px] mx-auto px-7 py-6 text-center">
+            <p class="font-m text-[11px] uppercase tracking-widest text-mut mb-5">
+                Teams ship faster with Galleo
+            </p>
+            <div
+                class="flex justify-center gap-10 flex-wrap opacity-55 font-d font-700 text-[18px]"
+            >
+                <span>Northwind</span><span>Helios</span><span>Atelier</span><span>Field Co.</span
+                ><span>Terra</span>
+            </div>
+        </div>
+
+        <!-- FEATURES -->
+        <section class="max-w-[1140px] mx-auto px-7 py-16">
+            <div class="text-center mb-12">
+                <p class="font-m text-[12px] uppercase tracking-[.18em] text-acc mb-3">
+                    Why Galleo
+                </p>
+                <h2 class="font-d font-700 text-[clamp(30px,4vw,46px)] tracking-tight">
+                    Everything you need to make it good.
+                </h2>
+            </div>
+            <div class="grid md:grid-cols-3 gap-5">
+                <div class="rounded-2xl bg-surface border border-line p-7">
+                    <div
+                        class="w-11 h-11 rounded-xl grid place-items-center bg-acc text-aink text-[18px] mb-4"
+                    >
+                        ✶
+                    </div>
+                    <h3 class="font-d font-700 text-[19px]">Generate in seconds</h3>
+                    <p class="text-soft text-[14.5px] mt-2 leading-relaxed">
+                        Prompt to a full draft — structured sections, real layout, on-brand from the
+                        first frame.
+                    </p>
+                </div>
+                <div class="rounded-2xl bg-surface border border-line p-7">
+                    <div
+                        class="w-11 h-11 rounded-xl grid place-items-center bg-acc2 text-white text-[18px] mb-4"
+                    >
+                        ◐
+                    </div>
+                    <h3 class="font-d font-700 text-[19px]">22 themes, your brand</h3>
+                    <p class="text-soft text-[14.5px] mt-2 leading-relaxed">
+                        Complete systems — fonts, palette, radii. Re-skin an entire artifact
+                        instantly, or bring your own.
+                    </p>
+                </div>
+                <div class="rounded-2xl bg-surface border border-line p-7">
+                    <div
+                        class="w-11 h-11 rounded-xl grid place-items-center bg-ink text-bg text-[18px] mb-4"
+                    >
+                        ↗
+                    </div>
+                    <h3 class="font-d font-700 text-[19px]">Ship anywhere</h3>
+                    <p class="text-soft text-[14.5px] mt-2 leading-relaxed">
+                        Present, export a vector PDF, or publish a live site — all from the same
+                        source of truth.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- PRICING -->
+        <section class="max-w-[1140px] mx-auto px-7 py-16">
+            <div class="text-center mb-10">
+                <h2 class="font-d font-700 text-[clamp(28px,3.5vw,42px)] tracking-tight">
+                    Start free. Scale when you ship.
+                </h2>
+            </div>
+            <div class="grid md:grid-cols-3 gap-5 max-w-[920px] mx-auto">
+                <div class="rounded-2xl bg-surface border border-line p-7">
+                    <p class="font-m text-[11px] uppercase tracking-widest text-mut font-semibold">
+                        Free
+                    </p>
+                    <p class="font-d font-700 text-[42px] mt-2">
+                        $0<span class="text-[15px] text-mut font-400">/mo</span>
+                    </p>
+                    <ul class="mt-5 space-y-2.5 text-[14px] text-soft">
+                        <li class="flex gap-2">
+                            <span class="text-acc font-bold">✓</span>3 artifacts
+                        </li>
+                        <li class="flex gap-2">
+                            <span class="text-acc font-bold">✓</span>All 22 themes
+                        </li>
+                        <li class="flex gap-2">
+                            <span class="text-acc font-bold">✓</span>PDF + PNG export
+                        </li>
+                    </ul>
+                    <a
+                        class="mt-6 block text-center rounded-lg border border-line py-2.5 font-semibold"
+                        >Get started</a
+                    >
+                </div>
+                <div class="rounded-2xl bg-surface p-7 ring-2 ring-acc relative">
+                    <span
+                        class="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-acc text-aink text-[11px] font-bold px-3 py-1"
+                        >Popular</span
+                    >
+                    <p class="font-m text-[11px] uppercase tracking-widest text-acc font-semibold">
+                        Pro
+                    </p>
+                    <p class="font-d font-700 text-[42px] mt-2">
+                        $18<span class="text-[15px] text-mut font-400">/mo</span>
+                    </p>
+                    <ul class="mt-5 space-y-2.5 text-[14px] text-soft">
+                        <li class="flex gap-2">
+                            <span class="text-acc font-bold">✓</span>Unlimited artifacts
+                        </li>
+                        <li class="flex gap-2">
+                            <span class="text-acc font-bold">✓</span>Custom brand kit
+                        </li>
+                        <li class="flex gap-2">
+                            <span class="text-acc font-bold">✓</span>Publish to the web
+                        </li>
+                        <li class="flex gap-2">
+                            <span class="text-acc font-bold">✓</span>Vector PDF
+                        </li>
+                    </ul>
+                    <a
+                        class="mt-6 block text-center rounded-lg bg-acc text-aink py-2.5 font-semibold glow"
+                        >Start Pro</a
+                    >
+                </div>
+                <div class="rounded-2xl bg-surface border border-line p-7">
+                    <p class="font-m text-[11px] uppercase tracking-widest text-mut font-semibold">
+                        Team
+                    </p>
+                    <p class="font-d font-700 text-[42px] mt-2">
+                        $32<span class="text-[15px] text-mut font-400">/seat</span>
+                    </p>
+                    <ul class="mt-5 space-y-2.5 text-[14px] text-soft">
+                        <li class="flex gap-2">
+                            <span class="text-acc font-bold">✓</span>Shared workspaces
+                        </li>
+                        <li class="flex gap-2">
+                            <span class="text-acc font-bold">✓</span>Roles &amp; permissions
+                        </li>
+                        <li class="flex gap-2">
+                            <span class="text-acc font-bold">✓</span>Brand governance
+                        </li>
+                        <li class="flex gap-2"><span class="text-acc font-bold">✓</span>SSO</li>
+                    </ul>
+                    <a
+                        class="mt-6 block text-center rounded-lg border border-line py-2.5 font-semibold"
+                        >Contact us</a
+                    >
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA -->
+        <section class="px-7 pb-20">
+            <div
+                class="max-w-[1140px] mx-auto rounded-3xl px-10 py-16 text-center relative overflow-hidden"
+                style="background: var(--ink); color: var(--bg)"
+            >
+                <div
+                    class="absolute -top-24 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full blur-3xl opacity-40"
+                    style="background: radial-gradient(circle, var(--accent), transparent 60%)"
+                ></div>
+                <h2
+                    class="relative font-d font-700 text-[clamp(30px,4vw,52px)] tracking-tight text-bg"
+                >
+                    Ship your next idea in minutes.
+                </h2>
+                <a
+                    class="relative inline-block mt-7 rounded-lg bg-acc text-aink px-7 py-3 font-semibold glow"
+                    >Start free →</a
+                >
+            </div>
+        </section>
+
+        <footer class="border-t border-line">
+            <div
+                class="max-w-[1140px] mx-auto px-7 py-9 flex flex-wrap justify-between gap-4 text-mut text-[13px]"
+            >
+                <span class="font-d text-ink text-[15px] font-700">Galleo</span
+                ><span class="flex gap-7"
+                    ><a>Product</a><a>Pricing</a><a>Privacy</a><a>Terms</a></span
+                ><span>© 2026</span>
+            </div>
+        </footer>
+
+        <script>
+            (function () {
+                var p = new URLSearchParams(location.search).get("theme");
+                document.documentElement.className = p && /^t-[a-z]+$/.test(p) ? p : "t-studio";
+                addEventListener("message", function (e) {
+                    if (e.data && e.data.theme) document.documentElement.className = e.data.theme;
+                });
+            })();
+        </script>
+    </body>
+</html>

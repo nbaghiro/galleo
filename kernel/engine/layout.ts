@@ -109,7 +109,6 @@ function layoutHeights(laid: Laid, assignedH: number, measure: MeasureText): voi
     if (!node.children || node.children.length === 0) {
         let intrinsic = 0;
         if (node.text) intrinsic = measure(node.text, laid.w).height;
-        else if (node.image && node.aspect) intrinsic = laid.w / node.aspect;
         else if (node.aspect) intrinsic = laid.w / node.aspect;
         laid.h = resolveHeight(node.h, assignedH, intrinsic);
         return;

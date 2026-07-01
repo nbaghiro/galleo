@@ -1,0 +1,290 @@
+/* Kinetic marketing landing — brutalist marquee design, fully theme-aware. Every surface, accent,
+   border, radius and font references the app-theme vars (set on the app root by themeCssVars), so the
+   page recolors AND re-typesets with the active app theme. Inverted bands use the ink color as a
+   background + canvas as text, so they flip on dark themes. Scoped under `.mkt`; keyframes are
+   `mk-`-prefixed so they never clobber Tailwind's own (e.g. `spin`). */
+
+.mkt {
+    scroll-behavior: smooth;
+}
+.mkt ::selection {
+    background: var(--color-accent);
+    color: var(--color-onaccent);
+}
+
+/* ---------- type ---------- */
+.mkt .display {
+    font-family: var(--font-display), serif;
+    font-weight: var(--hw, 800);
+    letter-spacing: -0.025em;
+    line-height: 0.9;
+}
+.mkt .lab {
+    font-family: var(--font-mono), monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-size: 0.72rem;
+    line-height: 1;
+}
+.mkt .hollow-ink {
+    color: transparent;
+    -webkit-text-stroke: 2px var(--color-ink);
+}
+.mkt .hollow-bg {
+    color: transparent;
+    -webkit-text-stroke: 2px var(--color-canvas);
+}
+
+/* ---------- contrast bands ---------- */
+.mkt .band-ink {
+    background: var(--color-ink);
+    color: var(--color-canvas);
+}
+.mkt .band-ink .lab {
+    color: var(--color-canvas);
+}
+
+/* ---------- buttons ---------- */
+.mkt .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0.95rem 1.5rem;
+    border-radius: calc(var(--radius) * 0.8);
+    cursor: pointer;
+    transition:
+        transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+        box-shadow 0.18s;
+}
+.mkt .btn-primary {
+    background: var(--color-accent);
+    color: var(--color-onaccent);
+    border: calc(var(--border-width) * 2) solid var(--color-ink);
+}
+.mkt .btn-primary:hover {
+    transform: translate(-3px, -3px);
+    box-shadow: 5px 5px 0 var(--color-ink);
+}
+.mkt .btn-ghost {
+    background: var(--color-panel);
+    color: var(--color-ink);
+    border: calc(var(--border-width) * 2) solid var(--color-ink);
+}
+.mkt .btn-ghost:hover {
+    transform: translate(-3px, -3px);
+    box-shadow: 5px 5px 0 var(--color-accent);
+}
+.mkt .btn-on-ink {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    border: calc(var(--border-width) * 2) solid var(--color-canvas);
+}
+.mkt .btn-on-ink:hover {
+    transform: translate(-3px, -3px);
+    box-shadow: 5px 5px 0 var(--color-accent);
+}
+
+/* ---------- cards & chips ---------- */
+.mkt .card {
+    background: var(--color-panel);
+    border: calc(var(--border-width) * 2) solid var(--color-ink);
+    border-radius: var(--radius);
+}
+.mkt .feat {
+    position: relative;
+    overflow: hidden;
+    background: var(--color-panel);
+    border: calc(var(--border-width) * 2) solid var(--color-ink);
+    border-radius: var(--radius);
+    transition:
+        transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+        box-shadow 0.2s;
+}
+.mkt .feat:hover {
+    transform: translate(-5px, -5px);
+    box-shadow: 9px 9px 0 var(--color-accent);
+}
+.mkt .feat__bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 6px;
+    background: var(--color-accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.mkt .feat:hover .feat__bar {
+    transform: scaleX(1);
+}
+.mkt .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+    border: calc(var(--border-width) * 2) solid var(--color-ink);
+    border-radius: 999px;
+    padding: 0.5rem 1.05rem;
+    background: var(--color-panel);
+    font-family: var(--font-mono), monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+}
+.mkt .pill .dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 999px;
+    background: var(--color-accent);
+    flex: 0 0 auto;
+}
+
+/* ---------- marquee engine ---------- */
+.mkt .mq {
+    overflow: hidden;
+    width: 100%;
+}
+.mkt .mq__row {
+    display: flex;
+    flex-wrap: nowrap;
+    width: max-content;
+    will-change: transform;
+}
+.mkt .mq__grp {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    flex: 0 0 auto;
+}
+.mkt .mq--fade {
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+}
+@keyframes mk-mq {
+    to {
+        transform: translateX(-50%);
+    }
+}
+@keyframes mk-mqrev {
+    from {
+        transform: translateX(-50%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+/* ---------- ticker text ---------- */
+.mkt .tick {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-display), serif;
+    font-weight: var(--hw, 800);
+    letter-spacing: -0.01em;
+    line-height: 1;
+    font-size: clamp(2.6rem, 7.5vw, 6rem);
+}
+.mkt .tick .sep {
+    color: var(--color-accent);
+    margin: 0 0.42em;
+    font-family: var(--font-mono), monospace;
+    font-weight: 500;
+}
+.mkt .strip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.85rem;
+    font-family: var(--font-mono), monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-size: 0.85rem;
+    padding-right: 0.85rem;
+}
+.mkt .strip .star {
+    color: var(--color-accent);
+}
+
+/* ---------- decorative shapes ---------- */
+.mkt .shape {
+    position: absolute;
+    pointer-events: none;
+}
+.mkt .ring {
+    border: calc(var(--border-width) * 3) solid var(--color-ink);
+    border-radius: 999px;
+}
+.mkt .disc {
+    background: var(--color-accent);
+    border-radius: 999px;
+}
+.mkt .cross {
+    position: relative;
+}
+.mkt .cross::before,
+.mkt .cross::after {
+    content: "";
+    position: absolute;
+    background: var(--color-ink);
+}
+.mkt .cross::before {
+    left: 50%;
+    top: 0;
+    width: calc(var(--border-width) * 3);
+    height: 100%;
+    transform: translateX(-50%);
+}
+.mkt .cross::after {
+    top: 50%;
+    left: 0;
+    height: calc(var(--border-width) * 3);
+    width: 100%;
+    transform: translateY(-50%);
+}
+
+/* ---------- motion (gated for reduced-motion) ---------- */
+.mkt .rise {
+    opacity: 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+    .mkt .mq__row {
+        animation: mk-mq var(--mqd, 38s) linear infinite;
+    }
+    .mkt .mq__row.rev {
+        animation-name: mk-mqrev;
+    }
+    .mkt .mq:hover .mq__row.pauseable {
+        animation-play-state: paused;
+    }
+    .mkt .rise {
+        opacity: 0;
+        animation: mk-rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    }
+    .mkt .float {
+        animation: mk-floaty 6s ease-in-out infinite;
+    }
+    .mkt .spin {
+        animation: mk-spin 22s linear infinite;
+    }
+    @keyframes mk-rise {
+        from {
+            opacity: 0;
+            transform: translateY(46px) rotate(-2.5deg);
+        }
+        to {
+            opacity: 1;
+            transform: none;
+        }
+    }
+    @keyframes mk-floaty {
+        50% {
+            transform: translateY(-16px);
+        }
+    }
+    @keyframes mk-spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+}

@@ -5,15 +5,22 @@
 @import "tailwindcss";
 @source "../app/**/*.{ts,tsx,html}";
 @source "../surfaces/studio/**/*.{ts,tsx,html}";
+@source "../marketing/**/*.{ts,tsx,html}";
 
 @theme {
     --color-canvas: #f4f0e8;
     --color-panel: #fbf8f1;
     --color-line: #e7e0d2;
     --color-ink: #211c16;
+    --color-soft: #4d453a;
     --color-muted: #8c8273;
     --color-accent: #9a4f24;
     --color-onaccent: #ffffff;
+    /* font roles — overridden per app-theme via themeCssVars() so the chrome re-typesets like the editor.
+       font-display = headings, font-body = UI/text, font-mono = labels. */
+    --font-display: "Fraunces", serif;
+    --font-body: "Hanken Grotesk", system-ui, sans-serif;
+    --font-mono: "DM Mono", ui-monospace, monospace;
 }
 
 html,
@@ -38,6 +45,46 @@ body {
     scrollbar-width: thin;
     scrollbar-color: var(--sb, var(--color-line)) transparent;
 }
+/* Generation skeletons: a slow accent shimmer sweeping across the waiting block. */
+.gen-shimmer {
+    background: linear-gradient(
+        100deg,
+        transparent 20%,
+        color-mix(in oklab, var(--color-accent) 22%, transparent) 50%,
+        transparent 80%
+    );
+    background-size: 220% 100%;
+    animation: gen-sweep 1.8s linear infinite;
+}
+@keyframes gen-sweep {
+    from {
+        background-position: 180% 0;
+    }
+    to {
+        background-position: -80% 0;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .gen-shimmer {
+        animation: none;
+    }
+}
+
+/* Spotlight direction: an accent beam from the top + a vignette fading to the theme bg at the edges. */
+.gen-spotbeam {
+    background:
+        radial-gradient(
+            62% 48% at 50% -4%,
+            color-mix(in oklab, var(--color-accent) 16%, transparent),
+            transparent 72%
+        ),
+        radial-gradient(
+            130% 96% at 50% 42%,
+            transparent 52%,
+            color-mix(in oklab, var(--color-canvas) 80%, transparent)
+        );
+}
+
 /* PDF export: show only the print container, one section per page. */
 #galleo-print {
     display: none;
@@ -74,4 +121,17 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background-color: var(--sb-strong, var(--sb, var(--color-line)));
     background-clip: content-box;
+}
+
+/* theme drawer slide-in */
+@keyframes theme-drawer-in {
+    from {
+        transform: translateX(100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+.theme-drawer-enter {
+    animation: theme-drawer-in 0.18s ease;
 }

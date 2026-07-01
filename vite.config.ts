@@ -1,3 +1,4 @@
+import type { Plugin } from "vite";
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
@@ -5,11 +6,30 @@ import solid from "vite-plugin-solid";
 
 const abs = (p: string): string => fileURLToPath(new URL(p, import.meta.url));
 
-// `app/` is the Vite root (the product shell); it composes the studio editor + shared theme. Kernel
-// + studio are reached via the same path aliases as tsconfig. Galleo claims the 86xx host-port block
-// so it runs alongside the other ~/Documents/code projects (clientbridge 87xx, …). See docs/ports.md.
+// Single domain, two builds. The repo root is the Vite root so each entry sits at its public URL:
+//   /         → index.html      → the marketing site (standalone, not the product SPA)
+//   /app/*    → app/index.html  → the product SPA (SolidJS Router base "/app")
+// In dev one server serves both; in prod the host routes / → marketing, /app/* → the app. This
+// middleware gives the app SPA its client-side fallback in dev (/app/<anything> → app/index.html).
+function appSpaFallback(): Plugin {
+    return {
+        name: "app-spa-fallback",
+        configureServer(server) {
+            server.middlewares.use((req, _res, next) => {
+                const url = req.url ?? "";
+                const isHtmlNav =
+                    (req.headers.accept ?? "").includes("text/html") && !/\.\w+(\?|$)/.test(url);
+                if (url.startsWith("/app") && url !== "/app/index.html" && isHtmlNav)
+                    req.url = "/app/index.html";
+                next();
+            });
+        },
+    };
+}
+
 export default defineConfig({
-    root: "app",
+    root: ".",
+    publicDir: abs("./app/public"),
     server: {
         port: 8600,
         strictPort: true,
@@ -17,20 +37,21 @@ export default defineConfig({
         // is a regex (leading ^) requiring the trailing slash, so it doesn't swallow the app/api.ts
         // module request (/api.ts), which a bare "/api" prefix would.
         proxy: {
-            "^/api/": { target: "http://localhost:8601", changeOrigin: true, rewrite: (p) => p.replace(/^\/api/, "") },
+            "^/api/": {
+                target: "http://localhost:8601",
+                changeOrigin: true,
+                rewrite: (p) => p.replace(/^\/api/, ""),
+            },
         },
     },
     preview: { port: 8600, strictPort: true },
-    plugins: [solid(), tailwindcss()],
+    plugins: [solid(), tailwindcss(), appSpaFallback()],
     resolve: {
         alias: {
             "@model": abs("./kernel/model"),
             "@engine": abs("./kernel/engine"),
             "@elements": abs("./kernel/elements"),
-            "@text": abs("./kernel/text"),
             "@themes": abs("./kernel/themes"),
-            "@render": abs("./kernel/render"),
-            "@data": abs("./services/data"),
             "@studio": abs("./surfaces/studio"),
         },
     },
@@ -39,7 +60,8 @@ export default defineConfig({
         emptyOutDir: true,
         rollupOptions: {
             input: {
-                main: abs("./app/index.html"),
+                marketing: abs("./index.html"),
+                app: abs("./app/index.html"),
                 playground: abs("./app/playground.html"),
             },
         },

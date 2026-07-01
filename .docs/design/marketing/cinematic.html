@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Galleo — Cinematic</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="theme.css" />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            d: ["var(--fd)", "serif"],
+                            s: ["var(--fu)", "sans-serif"],
+                            m: ["var(--fm)", "monospace"],
+                        },
+                        colors: {
+                            bg: "var(--bg)",
+                            pan: "var(--surface)",
+                            ink: "var(--ink)",
+                            soft: "var(--soft)",
+                            mut: "var(--muted)",
+                            acc: "var(--accent)",
+                            line: "var(--line)",
+                        },
+                    },
+                },
+            };
+        </script>
+        <style>
+            body {
+                background: var(--bg);
+                color: var(--ink);
+                font-family: var(--fu), sans-serif;
+                -webkit-font-smoothing: antialiased;
+            }
+            ::selection {
+                background: var(--accent);
+                color: var(--accent-ink);
+            }
+            .gold {
+                color: var(--accent);
+            }
+            .hairline {
+                border-color: var(--line);
+            }
+            .glowtext {
+                text-shadow: 0 0 60px color-mix(in srgb, var(--accent) 25%, transparent);
+            }
+            .grain::after {
+                content: "";
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+                opacity: 0.05;
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            }
+            @keyframes fade {
+                from {
+                    opacity: 0;
+                    transform: translateY(16px);
+                }
+                to {
+                    opacity: 1;
+                    transform: none;
+                }
+            }
+            .fade {
+                animation: fade 1s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+            }
+            .d1 {
+                animation-delay: 0.1s;
+            }
+            .d2 {
+                animation-delay: 0.25s;
+            }
+            .d3 {
+                animation-delay: 0.4s;
+            }
+            @keyframes drift {
+                0%,
+                100% {
+                    transform: translate(0, 0);
+                }
+                50% {
+                    transform: translate(40px, -30px);
+                }
+            }
+        </style>
+    </head>
+    <body class="font-s">
+        <header
+            class="sticky top-0 z-40 backdrop-blur-md border-b hairline"
+            style="background: color-mix(in srgb, var(--bg) 70%, transparent)"
+        >
+            <div class="max-w-[1180px] mx-auto px-8 h-[74px] flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span
+                        class="grid place-items-center w-7 h-7 rounded-md bg-acc font-d font-600 text-[17px]"
+                        style="color: var(--accent-ink)"
+                        >G</span
+                    ><span class="font-d text-[24px] font-500 tracking-wide">GALLEO</span>
+                </div>
+                <nav class="hidden md:flex gap-9 text-[13px] tracking-wide text-soft uppercase">
+                    <a>Product</a><a>Showcase</a><a>Pricing</a>
+                </nav>
+                <a
+                    class="text-[12px] tracking-[.2em] uppercase border border-acc gold rounded-full px-5 py-2.5"
+                    >Start free</a
+                >
+            </div>
+        </header>
+
+        <!-- HERO -->
+        <section class="relative overflow-hidden grain">
+            <div
+                class="absolute top-[-10%] left-[20%] w-[640px] h-[640px] rounded-full blur-[120px] opacity-30"
+                style="
+                    background: radial-gradient(circle, var(--accent), transparent 62%);
+                    animation: drift 14s ease-in-out infinite;
+                "
+            ></div>
+            <div
+                class="absolute bottom-[-20%] right-[5%] w-[520px] h-[520px] rounded-full blur-[120px] opacity-20"
+                style="background: radial-gradient(circle, var(--accent), transparent 60%)"
+            ></div>
+            <div class="relative max-w-[1080px] mx-auto px-8 pt-28 pb-24 text-center">
+                <p class="fade font-m text-[11px] tracking-[.3em] uppercase mut mb-8">
+                    Decks · Documents · Sites
+                </p>
+                <h1
+                    class="fade d1 font-d font-500 leading-[.92] tracking-[-.01em] text-[clamp(54px,9vw,128px)] glowtext"
+                >
+                    Make something<br /><span class="gold italic">worth looking at.</span>
+                </h1>
+                <p
+                    class="fade d2 mt-10 text-[19px] soft font-300 max-w-[54ch] mx-auto leading-relaxed"
+                >
+                    One canonical artifact, three flawless views. Generate in seconds — then refine
+                    in an editor built for taste.
+                </p>
+                <div class="fade d3 mt-12 flex justify-center items-center gap-7">
+                    <a
+                        class="bg-acc rounded-full px-9 py-4 text-[14px] tracking-[.12em] uppercase font-500"
+                        style="color: var(--accent-ink)"
+                        >Begin</a
+                    >
+                    <a class="text-[14px] tracking-[.12em] uppercase soft flex items-center gap-3"
+                        >Watch the film <span class="gold">→</span></a
+                    >
+                </div>
+            </div>
+        </section>
+
+        <!-- SHOWCASE -->
+        <section class="border-t hairline">
+            <div class="max-w-[1180px] mx-auto px-8 py-24">
+                <div class="flex items-end justify-between mb-14">
+                    <h2
+                        class="font-d font-500 text-[clamp(34px,5vw,60px)] leading-none max-w-[16ch]"
+                    >
+                        Three views. <span class="gold italic">One source.</span>
+                    </h2>
+                    <p class="hidden md:block soft max-w-[32ch] text-[15px] font-300">
+                        Switch formats without re-authoring — the engine re-flows everything into
+                        each medium.
+                    </p>
+                </div>
+                <div class="grid md:grid-cols-3 gap-px bg-line border hairline">
+                    <div class="bg-bg p-10">
+                        <span class="font-m text-[10px] tracking-[.2em] uppercase mut"
+                            >01 — Deck</span
+                        >
+                        <div class="mt-6 aspect-[4/3] rounded bg-pan grid place-items-center p-6">
+                            <span class="font-d text-[26px] font-500 gold text-center leading-tight"
+                                >A presentation that commands the room.</span
+                            >
+                        </div>
+                    </div>
+                    <div class="bg-bg p-10">
+                        <span class="font-m text-[10px] tracking-[.2em] uppercase mut"
+                            >02 — Doc</span
+                        >
+                        <div class="mt-6 aspect-[4/3] rounded bg-pan p-6">
+                            <div
+                                class="h-2 w-3/5 rounded"
+                                style="
+                                    background: color-mix(in srgb, var(--accent) 70%, transparent);
+                                "
+                            ></div>
+                            <div class="h-1.5 w-[90%] bg-line rounded mt-4"></div>
+                            <div class="h-1.5 w-[84%] bg-line rounded mt-2.5"></div>
+                            <div class="h-1.5 w-[88%] bg-line rounded mt-2.5"></div>
+                        </div>
+                    </div>
+                    <div class="bg-bg p-10">
+                        <span class="font-m text-[10px] tracking-[.2em] uppercase mut"
+                            >03 — Site</span
+                        >
+                        <div
+                            class="mt-6 aspect-[4/3] rounded grid place-items-end p-6"
+                            style="background: linear-gradient(160deg, #1a1a1a, #0a0a0a)"
+                        >
+                            <span
+                                class="font-d text-[26px] font-500 leading-tight"
+                                style="color: #c0a875"
+                                >A site that ships itself.</span
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- QUOTE -->
+        <section class="border-t hairline">
+            <div class="max-w-[940px] mx-auto px-8 py-28 text-center">
+                <p class="font-d font-400 italic text-[clamp(30px,4.5vw,52px)] leading-[1.2]">
+                    “The bottleneck moved from making to judging.”
+                </p>
+                <p class="mt-8 font-m text-[11px] tracking-[.25em] uppercase mut">
+                    — The Galleo thesis
+                </p>
+            </div>
+        </section>
+
+        <!-- CTA -->
+        <section class="border-t hairline relative overflow-hidden grain">
+            <div
+                class="absolute inset-0 opacity-25"
+                style="
+                    background: radial-gradient(
+                        700px 400px at 50% 0%,
+                        var(--accent),
+                        transparent 60%
+                    );
+                "
+            ></div>
+            <div class="relative max-w-[1080px] mx-auto px-8 py-28 text-center">
+                <h2 class="font-d font-500 text-[clamp(40px,6vw,84px)] leading-[.95] glowtext">
+                    Your taste,<br />finally <span class="gold italic">scalable.</span>
+                </h2>
+                <a
+                    class="inline-block mt-12 bg-acc rounded-full px-10 py-4 text-[14px] tracking-[.12em] uppercase font-500"
+                    style="color: var(--accent-ink)"
+                    >Start free</a
+                >
+            </div>
+        </section>
+
+        <footer class="border-t hairline">
+            <div
+                class="max-w-[1180px] mx-auto px-8 py-10 flex flex-wrap justify-between gap-4 mut text-[12px] tracking-wide"
+            >
+                <span class="font-d ink text-[18px] tracking-wide">GALLEO</span
+                ><span class="flex gap-8 uppercase"><a>Product</a><a>Pricing</a><a>Privacy</a></span
+                ><span>© MMXXVI</span>
+            </div>
+        </footer>
+
+        <script>
+            (function () {
+                var p = new URLSearchParams(location.search).get("theme");
+                document.documentElement.className = p && /^t-[a-z]+$/.test(p) ? p : "t-studio";
+                addEventListener("message", function (e) {
+                    if (e.data && e.data.theme) document.documentElement.className = e.data.theme;
+                });
+            })();
+        </script>
+    </body>
+</html>

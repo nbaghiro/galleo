@@ -119,7 +119,7 @@ function updateInTree(
     );
 }
 
-export function updateElementAt(
+function updateElementAt(
     art: ArtifactContent,
     addr: ElementAddress,
     fn: (inst: ElementInstance) => ElementInstance,
@@ -172,7 +172,7 @@ export function insertSection(
     section: Section,
 ): ArtifactContent {
     const sections = [...art.sections];
-    sections.splice(Math.max(0, Math.min(index, sections.length)), 0, section);
+    sections.splice(clamp(index, sections.length), 0, section);
     return { ...art, sections };
 }
 
@@ -184,7 +184,7 @@ export function removeSection(art: ArtifactContent, id: Id): ArtifactContent {
 export function moveSection(art: ArtifactContent, id: Id, delta: number): ArtifactContent {
     const i = art.sections.findIndex((s) => s.id === id);
     if (i < 0) return art;
-    const j = Math.max(0, Math.min(art.sections.length - 1, i + delta));
+    const j = clamp(i + delta, art.sections.length - 1);
     if (i === j) return art;
     const sections = [...art.sections];
     const [sec] = sections.splice(i, 1);

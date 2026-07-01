@@ -4,6 +4,7 @@ import type { Tokens } from "@themes/theme";
 import { register } from "@elements/registry";
 import { GHOST } from "@elements/skeleton";
 import { fit, fixed, grow } from "@model/size";
+import { hexA } from "@themes/color";
 
 type ChartKind = "bar" | "line" | "pie";
 
@@ -18,15 +19,6 @@ function nums(values: string): number[] {
         .split(",")
         .map((s) => parseFloat(s.trim()))
         .filter((n) => Number.isFinite(n));
-}
-
-function hexA(hex: string, a: number): string {
-    const h = hex.replace("#", "");
-    if (h.length < 6) return hex;
-    const r = parseInt(h.slice(0, 2), 16);
-    const g = parseInt(h.slice(2, 4), 16);
-    const b = parseInt(h.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
 function drawChart(g: DrawContext, box: Rect, d: ChartData, t: Tokens): void {

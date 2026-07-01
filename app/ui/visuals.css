@@ -1,0 +1,299 @@
+/* Abstract, themeable motion for the sign-in panel. Built from --color-accent (+ tints) on a deep
+   base, so each visual recolors with the active app theme. */
+.viz {
+    position: relative;
+    overflow: hidden;
+    background: transparent; /* the auth panel (accent gradient) shows through — this layer is motion only */
+}
+@keyframes vspin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* aurora */
+.v-aurora .b {
+    position: absolute;
+    width: 64%;
+    height: 64%;
+    border-radius: 50%;
+    filter: blur(46px);
+    opacity: 0.6;
+}
+.v-aurora .b1 {
+    background: var(--viz-tint, var(--color-accent));
+    left: -8%;
+    top: -14%;
+    animation: au1 13s ease-in-out infinite;
+}
+.v-aurora .b2 {
+    background: color-mix(in srgb, var(--viz-tint, var(--color-accent)) 45%, #ffffff);
+    right: -12%;
+    top: 6%;
+    animation: au2 17s ease-in-out infinite;
+}
+.v-aurora .b3 {
+    background: color-mix(in srgb, var(--viz-tint, var(--color-accent)) 55%, #6aa0ff);
+    left: 14%;
+    bottom: -22%;
+    width: 74%;
+    height: 74%;
+    animation: au3 15s ease-in-out infinite;
+}
+@keyframes au1 {
+    50% {
+        transform: translate(42%, 30%) scale(1.22);
+    }
+}
+@keyframes au2 {
+    50% {
+        transform: translate(-32%, 42%) scale(0.82);
+    }
+}
+@keyframes au3 {
+    50% {
+        transform: translate(20%, -32%) scale(1.16);
+    }
+}
+
+/* mesh */
+.v-mesh {
+    background: transparent;
+}
+.v-mesh .m {
+    position: absolute;
+    inset: -22%;
+    filter: blur(36px);
+    opacity: 0.82;
+    background:
+        radial-gradient(38% 38% at 22% 26%, var(--viz-tint, var(--color-accent)), transparent 60%),
+        radial-gradient(
+            42% 42% at 80% 20%,
+            color-mix(in srgb, var(--viz-tint, var(--color-accent)) 50%, #fff),
+            transparent 60%
+        ),
+        radial-gradient(
+            48% 48% at 72% 80%,
+            color-mix(in srgb, var(--viz-tint, var(--color-accent)) 55%, #6aa0ff),
+            transparent 62%
+        ),
+        radial-gradient(
+            44% 44% at 24% 82%,
+            color-mix(in srgb, var(--viz-tint, var(--color-accent)) 72%, #000),
+            transparent 60%
+        );
+    animation: vmesh 17s ease-in-out infinite;
+}
+@keyframes vmesh {
+    50% {
+        transform: translate(6%, 4%) scale(1.16) rotate(7deg);
+    }
+}
+
+/* beam */
+.v-beam .beam {
+    position: absolute;
+    inset: -60%;
+    background: conic-gradient(
+        from 0deg,
+        transparent 0 60%,
+        color-mix(in srgb, var(--viz-tint, var(--color-accent)) 85%, #fff) 80%,
+        var(--viz-tint, var(--color-accent)) 86%,
+        transparent 93% 100%
+    );
+    animation: vspin 9s linear infinite;
+    opacity: 0.6;
+}
+.v-beam .beam.s2 {
+    animation-duration: 14s;
+    animation-direction: reverse;
+    opacity: 0.32;
+}
+.v-beam::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 50%, transparent 38%, rgba(0, 0, 0, 0.42) 80%);
+}
+
+/* spectrum */
+.v-spectrum .wheel {
+    position: absolute;
+    inset: -30%;
+    background: conic-gradient(
+        from 0deg,
+        var(--viz-tint, var(--color-accent)),
+        color-mix(in srgb, var(--viz-tint, var(--color-accent)) 40%, #fff),
+        color-mix(in srgb, var(--viz-tint, var(--color-accent)) 55%, #6aa0ff),
+        color-mix(in srgb, var(--viz-tint, var(--color-accent)) 40%, #fff),
+        var(--viz-tint, var(--color-accent))
+    );
+    filter: blur(10px);
+    opacity: 0.72;
+    animation: vspin 11s linear infinite;
+}
+.v-spectrum::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 50%, transparent 28%, rgba(0, 0, 0, 0.42) 82%);
+}
+
+/* waves */
+.v-waves svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+.v-waves path {
+    fill: none;
+    stroke-width: 2.4;
+    opacity: 0.6;
+}
+.v-waves .p1 {
+    stroke: var(--viz-tint, var(--color-accent));
+    animation: vwav 7s ease-in-out infinite;
+}
+.v-waves .p2 {
+    stroke: color-mix(in srgb, var(--viz-tint, var(--color-accent)) 50%, #fff);
+    animation: vwav 9.5s ease-in-out infinite reverse;
+}
+.v-waves .p3 {
+    stroke: color-mix(in srgb, var(--viz-tint, var(--color-accent)) 45%, #6aa0ff);
+    animation: vwav 12s ease-in-out infinite;
+}
+@keyframes vwav {
+    50% {
+        transform: translateY(20px);
+    }
+}
+
+/* dot field */
+.v-dots .matrix {
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(
+        circle,
+        color-mix(in srgb, var(--viz-tint, var(--color-accent)) 70%, #fff) 1.4px,
+        transparent 2px
+    );
+    background-size: 24px 24px;
+    opacity: 0.5;
+}
+.v-dots .spot {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+        170px 170px at 30% 40%,
+        color-mix(in srgb, var(--viz-tint, var(--color-accent)) 60%, transparent),
+        transparent 70%
+    );
+    animation: vspot 10s ease-in-out infinite;
+}
+@keyframes vspot {
+    0%,
+    100% {
+        transform: translate(-12%, -8%);
+    }
+    50% {
+        transform: translate(38%, 32%);
+    }
+}
+
+/* rays / sunburst */
+.v-rays .rs {
+    position: absolute;
+    inset: -45%;
+    background: conic-gradient(
+        var(--viz-tint, var(--color-accent)) 0 2.6deg,
+        transparent 2.6deg 18deg
+    );
+    animation: vspin 24s linear infinite;
+    opacity: 0.42;
+}
+.v-rays::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+        circle,
+        color-mix(in srgb, var(--viz-tint, var(--color-accent)) 55%, transparent) 0%,
+        transparent 56%
+    );
+}
+
+/* sonar */
+.v-pulse .core {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 16px;
+    height: 16px;
+    margin: -8px;
+    border-radius: 50%;
+    background: var(--viz-tint, var(--color-accent));
+    box-shadow: 0 0 28px var(--viz-tint, var(--color-accent));
+}
+.v-pulse .ring {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 28px;
+    height: 28px;
+    margin: -14px;
+    border-radius: 50%;
+    border: 2px solid var(--viz-tint, var(--color-accent));
+    opacity: 0;
+    animation: vsonar 3.6s ease-out infinite;
+}
+.v-pulse .r2 {
+    animation-delay: 1.2s;
+}
+.v-pulse .r3 {
+    animation-delay: 2.4s;
+}
+@keyframes vsonar {
+    0% {
+        transform: scale(0.2);
+        opacity: 0.9;
+    }
+    100% {
+        transform: scale(8);
+        opacity: 0;
+    }
+}
+
+/* lattice / constellation */
+.v-lattice svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+.v-lattice line {
+    stroke: color-mix(in srgb, var(--viz-tint, var(--color-accent)) 45%, transparent);
+    stroke-width: 0.5;
+}
+.v-lattice circle {
+    fill: var(--viz-tint, var(--color-accent));
+    animation: vnode 3s ease-in-out infinite;
+}
+@keyframes vnode {
+    50% {
+        opacity: 0.35;
+    }
+}
+
+/* hide scrollbars app-wide — content still scrolls (wheel/trackpad/drag), just no visible bar */
+* {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}

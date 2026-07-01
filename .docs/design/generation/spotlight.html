@@ -1,0 +1,1862 @@
+<!doctype html>
+<html lang="en" class="t-studio">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Galleo — Live Generation · Spotlight</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="stylesheet" href="../marketing/theme.css" />
+        <link
+            rel="preload"
+            as="image"
+            href="https://picsum.photos/seed/galleospot/1200/800?grayscale"
+        />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            d: ["var(--fd)", "serif"],
+                            s: ["var(--fu)", "sans-serif"],
+                            m: ["var(--fm)", "monospace"],
+                        },
+                        colors: {
+                            paper: "var(--bg)",
+                            panel: "var(--surface)",
+                            ink: "var(--ink)",
+                            soft: "var(--soft)",
+                            mut: "var(--muted)",
+                            acc: "var(--accent)",
+                            line: "var(--line)",
+                        },
+                    },
+                },
+            };
+        </script>
+        <style>
+            /* ---------- base ---------- */
+            * {
+                box-sizing: border-box;
+                scrollbar-width: none;
+            }
+            *::-webkit-scrollbar {
+                display: none;
+                width: 0;
+                height: 0;
+            }
+            html,
+            body {
+                margin: 0;
+                padding: 0;
+                width: 1300px;
+                height: 812px;
+                overflow: hidden;
+                background: var(--bg);
+            }
+            body {
+                --e: cubic-bezier(0.2, 0.7, 0.2, 1);
+                color: var(--ink);
+                font-family: var(--fu), system-ui, sans-serif;
+                -webkit-font-smoothing: antialiased;
+            }
+            ::selection {
+                background: var(--accent);
+                color: var(--accent-ink);
+            }
+            .mono {
+                font-family: var(--fm), monospace;
+            }
+
+            #root {
+                position: relative;
+                width: 1300px;
+                height: 812px;
+                overflow: hidden;
+                background: var(--bg);
+                color: var(--ink);
+                transition:
+                    background 0.5s var(--e),
+                    color 0.5s var(--e);
+            }
+
+            /* ---------- spotlight beam ---------- */
+            .spotbeam {
+                position: absolute;
+                left: 650px;
+                top: 333px;
+                transform: translate(-50%, -50%);
+                width: 1180px;
+                height: 660px;
+                border-radius: 50%;
+                pointer-events: none;
+                z-index: 0;
+                background: radial-gradient(
+                    ellipse at center,
+                    color-mix(in srgb, var(--accent) 13%, transparent),
+                    transparent 62%
+                );
+                filter: blur(6px);
+                transition: background 0.5s var(--e);
+            }
+
+            /* ---------- top bar ---------- */
+            .topbar {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 1300px;
+                height: 84px;
+                z-index: 10;
+                border-bottom: var(--border) solid var(--line);
+                background: var(--surface);
+                transition:
+                    background 0.5s var(--e),
+                    border-color 0.5s var(--e);
+            }
+            .brand {
+                position: absolute;
+                left: 30px;
+                top: 0;
+                height: 84px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .glyph {
+                width: 27px;
+                height: 27px;
+                display: grid;
+                place-items: center;
+                font-family: var(--fd), serif;
+                font-weight: 800;
+                font-size: 0.98rem;
+                background: var(--accent);
+                color: var(--accent-ink);
+                border-radius: calc(var(--radius) * 0.42);
+            }
+            .brandname {
+                font-family: var(--fd), serif;
+                font-weight: 700;
+                font-size: 1.02rem;
+                letter-spacing: -0.01em;
+            }
+            .brandname b {
+                color: var(--accent);
+                font-weight: 700;
+            }
+            .livedot {
+                width: 7px;
+                height: 7px;
+                border-radius: 50%;
+                background: var(--accent);
+                flex: 0 0 auto;
+            }
+
+            .replay {
+                position: absolute;
+                right: 26px;
+                top: 25px;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                font-family: var(--fm), monospace;
+                font-size: 0.66rem;
+                letter-spacing: 0.08em;
+                padding: 7px 12px;
+                border-radius: 999px;
+                cursor: pointer;
+                border: var(--border) solid var(--line);
+                background: var(--surface);
+                color: var(--ink);
+                transition: all 0.25s var(--e);
+            }
+            .replay:hover {
+                border-color: var(--accent);
+                color: var(--accent);
+            }
+            .replay .r {
+                display: inline-block;
+                transition: transform 0.5s var(--e);
+            }
+            .replay:hover .r {
+                transform: rotate(-180deg);
+            }
+
+            /* ---------- stepper ---------- */
+            .stepper {
+                position: absolute;
+                left: 50%;
+                top: 27px;
+                transform: translateX(-50%);
+                display: flex;
+                align-items: center;
+            }
+            .step {
+                display: flex;
+                align-items: center;
+            }
+            .conn {
+                width: 58px;
+                height: 2px;
+                margin: 0 7px;
+                border-radius: 2px;
+                background: color-mix(in srgb, var(--ink) 18%, transparent);
+                transition: background 0.35s var(--e);
+            }
+            .step:first-child .conn {
+                display: none;
+            }
+            .node {
+                position: relative;
+                display: grid;
+                place-items: center;
+            }
+            .dot {
+                width: 13px;
+                height: 13px;
+                border-radius: 50%;
+                background: var(--surface);
+                border: 2px solid color-mix(in srgb, var(--ink) 28%, transparent);
+                transition:
+                    background 0.35s var(--e),
+                    border-color 0.35s var(--e),
+                    transform 0.35s var(--e);
+            }
+            .step.active .dot,
+            .step.done .dot {
+                border-color: var(--accent);
+                background: var(--accent);
+            }
+            .step.active .conn,
+            .step.done .conn {
+                background: var(--accent);
+            }
+            .slabel2 {
+                position: absolute;
+                top: 21px;
+                left: 50%;
+                transform: translateX(-50%);
+                white-space: nowrap;
+                font-family: var(--fm), monospace;
+                font-size: 0.57rem;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--muted);
+                transition: color 0.35s var(--e);
+            }
+            .step.active .slabel2 {
+                color: var(--ink);
+            }
+            .step.done .slabel2 {
+                color: var(--soft);
+            }
+
+            /* ---------- layers (slides + filmstrip share coords) ---------- */
+            #stripLayer {
+                position: absolute;
+                inset: 0;
+                z-index: 1;
+            }
+            #slides {
+                position: absolute;
+                inset: 0;
+                z-index: 2;
+            }
+            #intakeLayer {
+                position: absolute;
+                inset: 0;
+                z-index: 4;
+            }
+
+            /* ---------- the slide ---------- */
+            .slide {
+                position: absolute;
+                left: 270px;
+                top: 118px;
+                width: 760px;
+                height: 430px;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                background: var(--surface);
+                color: var(--ink);
+                border: var(--border) solid var(--line);
+                border-radius: var(--radius);
+                box-shadow: var(--shadow);
+                padding: 30px 34px;
+                transform-origin: 0 0;
+                z-index: 5;
+                transition:
+                    transform 0.56s var(--e),
+                    opacity 0.42s var(--e),
+                    box-shadow 0.42s var(--e),
+                    border-color 0.42s var(--e),
+                    background 0.5s var(--e),
+                    color 0.5s var(--e);
+            }
+            .slide.enter {
+                opacity: 0;
+                transform: translateY(26px);
+            }
+            .slide.invert {
+                background: var(--ink);
+                color: var(--bg);
+                border-color: var(--ink);
+            }
+            .slide.active {
+                box-shadow:
+                    0 0 0 2px var(--accent),
+                    0 40px 90px -34px color-mix(in srgb, var(--ink) 50%, transparent),
+                    var(--shadow);
+            }
+            .slide.settled {
+                border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+            }
+            .slide.invert.settled {
+                border-color: color-mix(in srgb, var(--accent) 55%, var(--ink));
+            }
+            .slide.parked {
+                z-index: 3;
+                pointer-events: none;
+                box-shadow: 0 16px 34px -18px color-mix(in srgb, var(--ink) 50%, transparent);
+            }
+
+            .card-tag {
+                position: absolute;
+                top: 15px;
+                right: 18px;
+                z-index: 4;
+                font-family: var(--fm), monospace;
+                font-size: 0.58rem;
+                letter-spacing: 0.16em;
+                text-transform: uppercase;
+                color: var(--accent);
+                opacity: 0;
+                transition: opacity 0.45s var(--e);
+            }
+            .slide.active .card-tag,
+            .slide.settled .card-tag,
+            .slide.parked .card-tag {
+                opacity: 0.85;
+            }
+
+            .layers {
+                position: relative;
+                flex: 1 1 auto;
+                display: grid;
+                min-height: 0;
+            }
+            .sk-layer,
+            .content {
+                grid-column: 1;
+                grid-row: 1;
+                min-width: 0;
+                min-height: 0;
+                height: 100%;
+            }
+            .content {
+                display: flex;
+                flex-direction: column;
+            }
+            .sk-layer {
+                overflow: hidden;
+                transition: opacity 0.42s var(--e);
+            }
+            .sk-layer.hide {
+                opacity: 0;
+                pointer-events: none;
+            }
+            .sk {
+                background: currentColor;
+                opacity: 0.12;
+                border-radius: 8px;
+            }
+            .sk-layer.shimmer {
+                position: relative;
+            }
+            .sk-layer.shimmer::after {
+                content: "";
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+                background: linear-gradient(
+                    115deg,
+                    transparent 22%,
+                    color-mix(in srgb, var(--accent) 55%, transparent) 50%,
+                    transparent 78%
+                );
+                background-size: 230% 100%;
+                background-position: 140% 0;
+            }
+
+            /* ---------- type primitives ---------- */
+            .eyebrow {
+                font-family: var(--fm), monospace;
+                font-size: 0.66rem;
+                letter-spacing: 0.2em;
+                text-transform: uppercase;
+                color: var(--accent);
+                margin: 0;
+            }
+            .headline {
+                font-family: var(--fd), serif;
+                font-weight: var(--hw, 700);
+                letter-spacing: -0.02em;
+                line-height: 1.05;
+                margin: 0;
+            }
+            .cover-h {
+                font-size: 2.5rem;
+                margin-top: 16px;
+            }
+            .split-h {
+                font-size: 1.7rem;
+                margin-top: 10px;
+            }
+            .state-h {
+                font-size: 2.05rem;
+                margin-top: 12px;
+            }
+            .ask-h {
+                font-size: 1.9rem;
+                margin-top: 12px;
+            }
+            .lead {
+                font-family: var(--fu), sans-serif;
+                font-size: 1.02rem;
+                line-height: 1.5;
+                margin: 0;
+                opacity: 0.82;
+            }
+
+            .caret {
+                display: inline-block;
+                width: 2px;
+                height: 1em;
+                background: var(--accent);
+                vertical-align: -0.12em;
+                margin-left: 2px;
+                border-radius: 1px;
+            }
+            .caret.big {
+                width: 2px;
+                height: 0.92em;
+            }
+
+            .wd {
+                opacity: 0;
+                transition: opacity 0.3s var(--e);
+            }
+            .wd.in {
+                opacity: 1;
+            }
+
+            .bodylines {
+                margin-top: 18px;
+                display: flex;
+                flex-direction: column;
+                gap: 9px;
+            }
+            .bodylines.big {
+                margin-top: 20px;
+                gap: 11px;
+            }
+            .bodylines.mini {
+                margin-top: 0;
+                gap: 6px;
+            }
+            .bodyline {
+                position: relative;
+                padding-left: 18px;
+                font-family: var(--fu), sans-serif;
+                font-size: 0.92rem;
+                line-height: 1.42;
+                opacity: 0;
+                transform: translateY(8px);
+                transition:
+                    opacity 0.3s var(--e),
+                    transform 0.3s var(--e);
+            }
+            .bodylines.big .bodyline {
+                font-size: 1.02rem;
+            }
+            .bodylines.mini .bodyline {
+                font-size: 0.82rem;
+                padding-left: 15px;
+            }
+            .bodyline.in {
+                opacity: 0.9;
+                transform: none;
+            }
+            .bodyline::before {
+                content: "";
+                position: absolute;
+                left: 0;
+                top: 0.6em;
+                width: 8px;
+                height: 2px;
+                background: var(--accent);
+                border-radius: 2px;
+            }
+
+            /* split (problem) */
+            .split2 {
+                display: grid;
+                grid-template-columns: 1.12fr 1fr;
+                gap: 26px;
+                height: 100%;
+                align-items: center;
+            }
+            .imgcol {
+                min-width: 0;
+                height: 100%;
+            }
+            .imgwrap {
+                position: relative;
+                width: 100%;
+                height: 100%;
+                border-radius: calc(var(--radius) * 0.6);
+                overflow: hidden;
+                background: color-mix(in srgb, currentColor 12%, transparent);
+                border: var(--border) solid color-mix(in srgb, currentColor 16%, transparent);
+            }
+            .imgwrap.shimmer::after {
+                content: "";
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+                z-index: 2;
+                background: linear-gradient(
+                    115deg,
+                    transparent 22%,
+                    color-mix(in srgb, var(--accent) 55%, transparent) 50%,
+                    transparent 78%
+                );
+                background-size: 230% 100%;
+                background-position: 140% 0;
+            }
+            .dev-img {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                filter: blur(14px);
+                transform: scale(1.04);
+                opacity: 0;
+                transition:
+                    filter 0.6s var(--e),
+                    transform 0.6s var(--e),
+                    opacity 0.6s var(--e);
+            }
+            .imgwrap.developed .dev-img {
+                filter: blur(0);
+                transform: scale(1);
+                opacity: 1;
+            }
+            .develop-overlay {
+                position: absolute;
+                inset: 0;
+                z-index: 1;
+                background: color-mix(in srgb, var(--accent) 42%, transparent);
+                transform: translateX(0);
+                opacity: 1;
+                transition:
+                    transform 0.6s var(--e),
+                    opacity 0.6s var(--e);
+            }
+            .imgwrap.developed .develop-overlay {
+                transform: translateX(101%);
+                opacity: 0;
+            }
+            .txtcol {
+                min-width: 0;
+                align-self: center;
+            }
+
+            /* stats (proof) */
+            .cproof {
+                font-family: var(--fd), serif;
+                font-weight: var(--hw, 700);
+                font-size: 1.4rem;
+                margin-top: 9px;
+                letter-spacing: -0.01em;
+            }
+            .stats {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 16px;
+                margin-top: 24px;
+            }
+            .stat {
+                border: var(--border) solid var(--line);
+                border-radius: calc(var(--radius) * 0.6);
+                padding: 18px 16px;
+                background: var(--bg);
+                opacity: 0;
+                transform: translateY(12px);
+                transition:
+                    opacity 0.42s var(--e),
+                    transform 0.42s var(--e),
+                    background 0.5s var(--e),
+                    border-color 0.5s var(--e);
+            }
+            .stat.reveal {
+                opacity: 1;
+                transform: none;
+            }
+            .snum {
+                font-family: var(--fd), serif;
+                font-weight: var(--hw, 700);
+                font-size: 2.6rem;
+                line-height: 1;
+                color: var(--accent);
+                letter-spacing: -0.02em;
+            }
+            .slabel {
+                font-family: var(--fm), monospace;
+                font-size: 0.6rem;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: var(--muted);
+                margin-top: 12px;
+                line-height: 1.35;
+            }
+
+            /* quote (momentum) */
+            .quote-mark {
+                font-family: var(--fd), serif;
+                font-size: 3.4rem;
+                line-height: 0.4;
+                height: 1.6rem;
+                color: var(--accent);
+                opacity: 0.5;
+            }
+            .pullquote {
+                font-family: var(--fd), serif;
+                font-style: italic;
+                font-weight: 500;
+                font-size: 1.95rem;
+                line-height: 1.3;
+                letter-spacing: -0.01em;
+                margin: 14px 0 0;
+            }
+            .attrib {
+                font-family: var(--fm), monospace;
+                font-size: 0.72rem;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: var(--muted);
+                margin-top: 24px;
+                opacity: 0;
+                transform: translateY(6px);
+                transition:
+                    opacity 0.4s var(--e),
+                    transform 0.4s var(--e);
+            }
+            .attrib.in {
+                opacity: 1;
+                transform: none;
+            }
+
+            /* ask */
+            .askrow {
+                display: flex;
+                align-items: flex-end;
+                gap: 28px;
+            }
+            .bignum {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .bigask {
+                font-family: var(--fd), serif;
+                font-weight: var(--hw, 700);
+                font-size: 3.4rem;
+                line-height: 0.95;
+                color: var(--accent);
+                letter-spacing: -0.02em;
+            }
+            .biglabel {
+                font-family: var(--fm), monospace;
+                font-size: 0.62rem;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+            .askmeta {
+                flex: 1 1 auto;
+                min-width: 0;
+                padding-bottom: 6px;
+            }
+
+            .snap {
+                opacity: 0;
+                transform: translateY(6px) scale(0.985);
+                transition:
+                    opacity 0.26s var(--e),
+                    transform 0.26s var(--e);
+            }
+            .snap.in {
+                opacity: 1;
+                transform: none;
+            }
+
+            /* ---------- reasoning line ---------- */
+            .reason {
+                position: absolute;
+                left: 0;
+                right: 0;
+                top: 574px;
+                z-index: 6;
+                text-align: center;
+                padding: 0 60px;
+                font-family: var(--fu), sans-serif;
+                font-size: 0.94rem;
+                color: var(--soft);
+            }
+            .reason .rtag {
+                font-family: var(--fm), monospace;
+                font-size: 0.6rem;
+                letter-spacing: 0.16em;
+                text-transform: uppercase;
+                color: var(--accent);
+                margin-right: 9px;
+                opacity: 0.85;
+            }
+            .reason .mono {
+                font-family: var(--fm), monospace;
+                color: var(--accent);
+                font-size: 0.86em;
+            }
+
+            /* ---------- filmstrip ---------- */
+            .striplabel {
+                position: absolute;
+                top: 632px;
+                left: 101px;
+                z-index: 1;
+                font-family: var(--fm), monospace;
+                font-size: 0.58rem;
+                letter-spacing: 0.2em;
+                text-transform: uppercase;
+                color: var(--muted);
+                display: flex;
+                align-items: center;
+                gap: 7px;
+            }
+            .striplabel .livedot {
+                width: 6px;
+                height: 6px;
+            }
+            .fslot {
+                position: absolute;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                gap: 5px;
+                border: 1.5px dashed color-mix(in srgb, var(--ink) 18%, transparent);
+                border-radius: 7px;
+                background: color-mix(in srgb, var(--surface) 60%, transparent);
+                transition:
+                    border-color 0.35s var(--e),
+                    opacity 0.35s var(--e),
+                    background 0.35s var(--e);
+            }
+            .fslot .fnum {
+                font-family: var(--fm), monospace;
+                font-size: 0.62rem;
+                letter-spacing: 0.08em;
+                color: var(--muted);
+            }
+            .fslot .fname {
+                font-family: var(--fm), monospace;
+                font-size: 0.5rem;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: var(--muted);
+                opacity: 0.7;
+            }
+            .fslot.building {
+                border-style: solid;
+                border-color: var(--accent);
+                background: color-mix(in srgb, var(--accent) 7%, transparent);
+            }
+            .fslot.building .fnum,
+            .fslot.building .fname {
+                color: var(--accent);
+            }
+            .fslot.filled {
+                opacity: 0;
+            }
+
+            /* ---------- intake (pre-build spotlight) ---------- */
+            .intake-card {
+                position: absolute;
+                left: 50%;
+                top: 118px;
+                width: 860px;
+                transform: translate(-50%, 18px);
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+                background: var(--surface);
+                color: var(--ink);
+                border: var(--border) solid var(--line);
+                border-radius: var(--radius);
+                padding: 24px 28px;
+                opacity: 0;
+                box-shadow:
+                    0 0 0 2px var(--accent),
+                    0 40px 90px -34px color-mix(in srgb, var(--ink) 50%, transparent),
+                    var(--shadow);
+                transition:
+                    opacity 0.5s var(--e),
+                    transform 0.5s var(--e),
+                    background 0.5s var(--e),
+                    color 0.5s var(--e),
+                    border-color 0.5s var(--e);
+            }
+            .intake-card.show {
+                opacity: 1;
+                transform: translate(-50%, 0);
+            }
+            .intake-card.exit {
+                opacity: 0;
+                transform: translate(-50%, -26px) scale(0.985);
+            }
+
+            .ik-head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+            .ik-eyebrow {
+                font-family: var(--fm), monospace;
+                font-size: 0.62rem;
+                letter-spacing: 0.2em;
+                text-transform: uppercase;
+                color: var(--accent);
+            }
+            .ik-surface {
+                display: inline-flex;
+                border: var(--border) solid var(--line);
+                border-radius: 999px;
+                padding: 3px;
+                gap: 2px;
+                background: var(--bg);
+            }
+            .ik-seg {
+                font-family: var(--fm), monospace;
+                font-size: 0.66rem;
+                letter-spacing: 0.05em;
+                padding: 5px 13px;
+                border-radius: 999px;
+                border: 0;
+                background: transparent;
+                color: var(--muted);
+                cursor: pointer;
+                transition:
+                    background 0.25s var(--e),
+                    color 0.25s var(--e);
+            }
+            .ik-seg.on {
+                background: var(--ink);
+                color: var(--bg);
+            }
+
+            .ik-field {
+                border: var(--border) solid var(--line);
+                border-radius: calc(var(--radius) * 0.7);
+                padding: 14px 16px;
+                background: var(--bg);
+                display: flex;
+                flex-direction: column;
+                gap: 7px;
+            }
+            .ik-fieldlabel {
+                font-family: var(--fm), monospace;
+                font-size: 0.56rem;
+                letter-spacing: 0.18em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+            .ik-prompt {
+                font-family: var(--fd), serif;
+                font-weight: 500;
+                font-size: 1.35rem;
+                line-height: 1.34;
+                letter-spacing: -0.01em;
+                margin: 0;
+                color: var(--ink);
+                min-height: 1.34em;
+            }
+
+            .ik-chips {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .ik-chip {
+                font-family: var(--fm), monospace;
+                font-size: 0.62rem;
+                letter-spacing: 0.03em;
+                padding: 6px 11px;
+                border-radius: 999px;
+                border: var(--border) solid var(--line);
+                color: var(--soft);
+                background: var(--surface);
+            }
+            .ik-chip b {
+                color: var(--accent);
+                font-weight: 500;
+                margin-right: 6px;
+                text-transform: uppercase;
+                letter-spacing: 0.09em;
+                font-size: 0.92em;
+            }
+
+            .ik-context {
+                border: 1.5px dashed color-mix(in srgb, var(--accent) 42%, var(--line));
+                border-radius: calc(var(--radius) * 0.7);
+                padding: 14px 16px;
+                background: color-mix(in srgb, var(--accent) 5%, transparent);
+                display: flex;
+                flex-direction: column;
+                gap: 11px;
+            }
+            .ik-ctxhead {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+            .ik-ctxlabel {
+                font-family: var(--fm), monospace;
+                font-size: 0.68rem;
+                letter-spacing: 0.05em;
+                color: var(--ink);
+            }
+            .ik-ground {
+                font-family: var(--fm), monospace;
+                font-size: 0.6rem;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: var(--muted);
+                opacity: 0;
+                transition: opacity 0.4s var(--e);
+                display: flex;
+                align-items: center;
+                gap: 7px;
+            }
+            .ik-ground::before {
+                content: "";
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: var(--accent);
+            }
+            .ik-ground.on {
+                opacity: 1;
+            }
+            .ik-atts {
+                display: flex;
+                gap: 12px;
+            }
+            .ik-att {
+                flex: 1;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                position: relative;
+                overflow: hidden;
+                border: var(--border) solid var(--line);
+                border-radius: calc(var(--radius) * 0.5);
+                padding: 10px 13px;
+                background: var(--surface);
+                opacity: 0;
+                transform: translateY(10px);
+                transition:
+                    opacity 0.4s var(--e),
+                    transform 0.4s var(--e),
+                    border-color 0.4s var(--e);
+            }
+            .ik-att.added {
+                opacity: 1;
+                transform: none;
+                border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+            }
+            .ik-ico {
+                font-size: 1.05rem;
+                line-height: 1;
+                flex: 0 0 auto;
+            }
+            .ik-attname {
+                font-family: var(--fu), sans-serif;
+                font-size: 0.86rem;
+                color: var(--ink);
+                flex: 1 1 auto;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .ik-attkind {
+                font-family: var(--fm), monospace;
+                font-size: 0.52rem;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+            .ik-attbar {
+                position: absolute;
+                left: 0;
+                bottom: 0;
+                height: 2px;
+                width: 0;
+                background: var(--accent);
+            }
+            .ik-att.added .ik-attbar {
+                width: 100%;
+                transition: width 0.75s var(--e) 0.12s;
+            }
+
+            .ik-footer {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-top: 2px;
+            }
+            .ik-hint {
+                font-family: var(--fm), monospace;
+                font-size: 0.62rem;
+                letter-spacing: 0.04em;
+                color: var(--muted);
+            }
+            .ik-generate {
+                display: inline-flex;
+                align-items: center;
+                gap: 9px;
+                font-family: var(--fu), sans-serif;
+                font-weight: 600;
+                font-size: 0.96rem;
+                padding: 11px 26px;
+                border-radius: 999px;
+                border: 0;
+                cursor: pointer;
+                background: var(--accent);
+                color: var(--accent-ink);
+                box-shadow: 0 8px 24px -10px color-mix(in srgb, var(--accent) 70%, transparent);
+                transition:
+                    transform 0.18s var(--e),
+                    box-shadow 0.25s var(--e);
+            }
+            .ik-generate .gdot {
+                width: 7px;
+                height: 7px;
+                border-radius: 50%;
+                background: var(--accent-ink);
+                opacity: 0.85;
+            }
+            .ik-generate.press {
+                transform: scale(0.93);
+            }
+
+            /* ---------- animation (gated) ---------- */
+            @media (prefers-reduced-motion: no-preference) {
+                .livedot {
+                    animation: lpulse 1.4s var(--e) infinite;
+                }
+                .caret {
+                    animation: blink 1s steps(1) infinite;
+                }
+                .step.active .dot {
+                    animation: pulse 1.15s var(--e) infinite;
+                }
+                .fslot.building {
+                    animation: pulseSoft 1.5s var(--e) infinite;
+                }
+                .sk-layer.shimmer::after,
+                .imgwrap.shimmer::after {
+                    animation: sheen 1.25s var(--e) infinite;
+                }
+                .slide.settled {
+                    animation: settlePop 0.42s var(--e);
+                }
+                .ik-generate.ready {
+                    animation: genPulse 1.25s var(--e) infinite;
+                }
+                @keyframes genPulse {
+                    0% {
+                        box-shadow:
+                            0 8px 24px -10px color-mix(in srgb, var(--accent) 70%, transparent),
+                            0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+                    }
+                    70% {
+                        box-shadow:
+                            0 8px 24px -10px color-mix(in srgb, var(--accent) 70%, transparent),
+                            0 0 0 11px transparent;
+                    }
+                    100% {
+                        box-shadow:
+                            0 8px 24px -10px color-mix(in srgb, var(--accent) 70%, transparent),
+                            0 0 0 0 transparent;
+                    }
+                }
+                @keyframes blink {
+                    0%,
+                    49% {
+                        opacity: 1;
+                    }
+                    50%,
+                    100% {
+                        opacity: 0;
+                    }
+                }
+                @keyframes sheen {
+                    0% {
+                        background-position: 140% 0;
+                    }
+                    100% {
+                        background-position: -40% 0;
+                    }
+                }
+                @keyframes pulse {
+                    0% {
+                        box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+                    }
+                    70% {
+                        box-shadow: 0 0 0 7px transparent;
+                    }
+                    100% {
+                        box-shadow: 0 0 0 0 transparent;
+                    }
+                }
+                @keyframes pulseSoft {
+                    0% {
+                        box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 38%, transparent);
+                    }
+                    70% {
+                        box-shadow: 0 0 0 8px transparent;
+                    }
+                    100% {
+                        box-shadow: 0 0 0 0 transparent;
+                    }
+                }
+                @keyframes lpulse {
+                    0% {
+                        box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
+                    }
+                    70% {
+                        box-shadow: 0 0 0 6px transparent;
+                    }
+                    100% {
+                        box-shadow: 0 0 0 0 transparent;
+                    }
+                }
+                @keyframes settlePop {
+                    0% {
+                        transform: translateY(0) scale(0.994);
+                    }
+                    55% {
+                        transform: translateY(0) scale(1.005);
+                    }
+                    100% {
+                        transform: none;
+                    }
+                }
+            }
+            /* reduced-motion: instant build */
+            body.rm .slide,
+            body.rm .dev-img,
+            body.rm .develop-overlay,
+            body.rm .wd,
+            body.rm .bodyline,
+            body.rm .stat,
+            body.rm .attrib,
+            body.rm .snap,
+            body.rm .intake-card,
+            body.rm .ik-att,
+            body.rm .ik-attbar,
+            body.rm .ik-ground,
+            body.rm .ik-generate {
+                transition: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="root">
+            <!-- top bar -->
+            <div class="topbar">
+                <div class="brand">
+                    <span class="glyph">G</span>
+                    <span class="brandname">Galleo · <b>Generating</b></span>
+                    <span class="livedot" aria-hidden="true"></span>
+                </div>
+                <div class="stepper" id="stepper">
+                    <div class="step">
+                        <span class="conn"></span
+                        ><span class="node"
+                            ><span class="dot"></span><span class="slabel2">Cover</span></span
+                        >
+                    </div>
+                    <div class="step">
+                        <span class="conn"></span
+                        ><span class="node"
+                            ><span class="dot"></span><span class="slabel2">Problem</span></span
+                        >
+                    </div>
+                    <div class="step">
+                        <span class="conn"></span
+                        ><span class="node"
+                            ><span class="dot"></span><span class="slabel2">Shift</span></span
+                        >
+                    </div>
+                    <div class="step">
+                        <span class="conn"></span
+                        ><span class="node"
+                            ><span class="dot"></span><span class="slabel2">Proof</span></span
+                        >
+                    </div>
+                    <div class="step">
+                        <span class="conn"></span
+                        ><span class="node"
+                            ><span class="dot"></span><span class="slabel2">Momentum</span></span
+                        >
+                    </div>
+                    <div class="step">
+                        <span class="conn"></span
+                        ><span class="node"
+                            ><span class="dot"></span><span class="slabel2">Ask</span></span
+                        >
+                    </div>
+                </div>
+                <button class="replay" id="replay"><span class="r">↻</span> Replay</button>
+            </div>
+
+            <div class="spotbeam" aria-hidden="true"></div>
+
+            <!-- filmstrip slots (built in JS) -->
+            <div class="striplabel"><span class="livedot"></span> Storyboard</div>
+            <div id="stripLayer"></div>
+
+            <!-- slides (built in JS) -->
+            <div id="slides"></div>
+
+            <!-- intake panel (built in JS) -->
+            <div id="intakeLayer"></div>
+
+            <!-- reasoning line -->
+            <div class="reason">
+                <span class="rtag">reasoning</span><span class="rtext" id="reasonText"></span>
+            </div>
+        </div>
+
+        <script>
+            (function () {
+                "use strict";
+                const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+                if (RM) document.body.classList.add("rm");
+
+                const $ = (s, r = document) => r.querySelector(s);
+                const el = (t, c) => {
+                    const e = document.createElement(t);
+                    if (c) e.className = c;
+                    return e;
+                };
+                const raf = (fn) => requestAnimationFrame(fn);
+
+                const slidesEl = $("#slides");
+                const stripLayer = $("#stripLayer");
+                const intakeLayer = $("#intakeLayer");
+                const reasonText = $("#reasonText");
+                const steps = [...document.querySelectorAll(".step")];
+
+                // ---- geometry (slides + filmstrip share one coordinate space) ----
+                const W = 1300;
+                const CARD = { w: 760, h: 430, left: 270, top: 118 };
+                const N = 6,
+                    SLOTW = 168,
+                    GAP = 18,
+                    STRIP_TOP = 656;
+                const stripTotal = N * SLOTW + (N - 1) * GAP;
+                const STRIP_X0 = (W - stripTotal) / 2;
+                const SCALE = SLOTW / CARD.w;
+                const SLOTH = CARD.h * SCALE;
+                const slotX = (i) => STRIP_X0 + i * (SLOTW + GAP);
+                const parkTransform = (i) =>
+                    `translate(${slotX(i) - CARD.left}px, ${STRIP_TOP - CARD.top}px) scale(${SCALE})`;
+
+                // ---- durations ----
+                const T = RM
+                    ? {
+                          boot: 160,
+                          rise: 0,
+                          reason: 0,
+                          head: 0,
+                          word: 0,
+                          line: 0,
+                          prompt: 0,
+                          snap: 40,
+                          shimmer: 140,
+                          develop: 160,
+                          count: 220,
+                          settle: 120,
+                          hold: 900,
+                      }
+                    : {
+                          boot: 280,
+                          rise: 180,
+                          reason: 10,
+                          head: 14,
+                          word: 25,
+                          line: 105,
+                          prompt: 8,
+                          snap: 120,
+                          shimmer: 250,
+                          develop: 360,
+                          count: 620,
+                          settle: 200,
+                          hold: 1100,
+                      };
+
+                // ---- run token (cancellation-safe) ----
+                let RUN = null;
+                function wait(ms) {
+                    const my = RUN;
+                    return new Promise((r) =>
+                        setTimeout(() => {
+                            if (my === RUN) r();
+                        }, ms),
+                    );
+                }
+
+                // ---- type-on across mono/plain segments (with caret) ----
+                async function typeSegs(node, segs, speed, big) {
+                    node.textContent = "";
+                    const caret = el("span", "caret" + (big ? " big" : ""));
+                    node.appendChild(caret);
+                    for (const seg of segs) {
+                        const s = el("span", seg.m ? "mono" : null);
+                        node.insertBefore(s, caret);
+                        if (speed <= 0) {
+                            s.textContent = seg.t;
+                        } else {
+                            for (const ch of seg.t) {
+                                s.append(ch);
+                                await wait(speed);
+                            }
+                        }
+                    }
+                    await wait(speed <= 0 ? 30 : 160);
+                    caret.remove();
+                }
+                async function reason(segs) {
+                    await typeSegs(reasonText, segs, T.reason, false);
+                }
+
+                async function streamWords(node, text) {
+                    node.textContent = "";
+                    const words = text.split(" ");
+                    for (let i = 0; i < words.length; i++) {
+                        const s = el("span", "wd");
+                        s.textContent = (i ? " " : "") + words[i];
+                        node.appendChild(s);
+                        raf(() => s.classList.add("in"));
+                        await wait(T.word);
+                    }
+                }
+                async function streamLines(node, lines) {
+                    for (const ln of lines) {
+                        const d = el("div", "bodyline");
+                        d.textContent = ln;
+                        node.appendChild(d);
+                        raf(() => d.classList.add("in"));
+                        await wait(T.line);
+                    }
+                }
+                function countUp(node, o) {
+                    const my = RUN,
+                        start = performance.now(),
+                        dur = o.dur;
+                    const fmt = (v) => (o.pre || "") + v.toFixed(o.dec) + (o.suf || "");
+                    function frame(now) {
+                        if (my !== RUN) return;
+                        const p = Math.min(1, (now - start) / dur),
+                            e = 1 - Math.pow(1 - p, 3);
+                        node.textContent = fmt(o.to * e);
+                        if (p < 1) requestAnimationFrame(frame);
+                        else node.textContent = fmt(o.to);
+                    }
+                    requestAnimationFrame(frame);
+                }
+                function showSnaps(slide) {
+                    slide
+                        .querySelectorAll(".snap")
+                        .forEach((s) => raf(() => s.classList.add("in")));
+                }
+
+                // ---- stepper / slot helpers ----
+                function stepActive(i) {
+                    steps[i].classList.remove("done");
+                    steps[i].classList.add("active");
+                }
+                function stepDone(i) {
+                    steps[i].classList.remove("active");
+                    steps[i].classList.add("done");
+                }
+                let slots = [];
+
+                // ============================ CONTENT ============================
+                const IMG = "https://picsum.photos/seed/galleospot/1200/800?grayscale";
+
+                const SKEL = {
+                    cover:
+                        '<div class="sk" style="width:200px;height:12px"></div>' +
+                        '<div class="sk" style="width:88%;height:36px;margin-top:30px;border-radius:10px"></div>' +
+                        '<div class="sk" style="width:72%;height:36px;margin-top:12px;border-radius:10px"></div>' +
+                        '<div class="sk" style="width:52%;height:36px;margin-top:12px;border-radius:10px"></div>' +
+                        '<div class="sk" style="width:66%;height:14px;margin-top:46px"></div>' +
+                        '<div class="sk" style="width:54%;height:14px;margin-top:10px"></div>',
+                    split:
+                        '<div style="display:grid;grid-template-columns:1.12fr 1fr;gap:26px;height:100%;align-items:center">' +
+                        '<div class="sk" style="width:100%;height:100%;border-radius:12px"></div>' +
+                        "<div>" +
+                        '<div class="sk" style="width:120px;height:12px"></div>' +
+                        '<div class="sk" style="width:94%;height:26px;margin-top:16px;border-radius:8px"></div>' +
+                        '<div class="sk" style="width:74%;height:26px;margin-top:10px;border-radius:8px"></div>' +
+                        '<div class="sk" style="width:100%;height:12px;margin-top:24px"></div>' +
+                        '<div class="sk" style="width:90%;height:12px;margin-top:10px"></div>' +
+                        '<div class="sk" style="width:82%;height:12px;margin-top:10px"></div>' +
+                        "</div>" +
+                        "</div>",
+                    statement:
+                        '<div style="height:100%;display:flex;flex-direction:column;justify-content:center">' +
+                        '<div class="sk" style="width:150px;height:12px"></div>' +
+                        '<div class="sk" style="width:80%;height:30px;margin-top:16px;border-radius:8px"></div>' +
+                        '<div class="sk" style="width:58%;height:30px;margin-top:10px;border-radius:8px"></div>' +
+                        '<div class="sk" style="width:96%;height:12px;margin-top:26px"></div>' +
+                        '<div class="sk" style="width:88%;height:12px;margin-top:11px"></div>' +
+                        '<div class="sk" style="width:80%;height:12px;margin-top:11px"></div>' +
+                        "</div>",
+                    stats:
+                        '<div class="sk" style="width:130px;height:12px"></div>' +
+                        '<div class="sk" style="width:62%;height:22px;margin-top:14px;border-radius:8px"></div>' +
+                        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px">' +
+                        '<div><div class="sk" style="width:70%;height:46px;border-radius:10px"></div><div class="sk" style="width:92%;height:11px;margin-top:14px"></div></div>' +
+                        '<div><div class="sk" style="width:70%;height:46px;border-radius:10px"></div><div class="sk" style="width:92%;height:11px;margin-top:14px"></div></div>' +
+                        '<div><div class="sk" style="width:70%;height:46px;border-radius:10px"></div><div class="sk" style="width:92%;height:11px;margin-top:14px"></div></div>' +
+                        "</div>",
+                    quote:
+                        '<div style="height:100%;display:flex;flex-direction:column;justify-content:center">' +
+                        '<div class="sk" style="width:44px;height:30px;border-radius:8px"></div>' +
+                        '<div class="sk" style="width:90%;height:28px;margin-top:18px;border-radius:8px"></div>' +
+                        '<div class="sk" style="width:84%;height:28px;margin-top:12px;border-radius:8px"></div>' +
+                        '<div class="sk" style="width:56%;height:28px;margin-top:12px;border-radius:8px"></div>' +
+                        '<div class="sk" style="width:250px;height:13px;margin-top:28px"></div>' +
+                        "</div>",
+                    ask:
+                        '<div style="height:100%;display:flex;flex-direction:column">' +
+                        '<div class="sk" style="width:120px;height:12px"></div>' +
+                        '<div class="sk" style="width:62%;height:30px;margin-top:16px;border-radius:8px"></div>' +
+                        '<div style="margin-top:auto;display:flex;align-items:flex-end;gap:26px">' +
+                        '<div class="sk" style="width:180px;height:62px;border-radius:12px"></div>' +
+                        '<div style="flex:1"><div class="sk" style="width:80%;height:12px"></div><div class="sk" style="width:66%;height:12px;margin-top:11px"></div></div>' +
+                        "</div>" +
+                        "</div>",
+                };
+
+                const CONTENT = {
+                    async cover(slide, c) {
+                        c.innerHTML =
+                            '<div class="eyebrow snap">NORTHWIND ENERGY · SEED</div>' +
+                            '<h2 class="headline cover-h"></h2>' +
+                            '<p class="lead" style="margin-top:auto"></p>';
+                        showSnaps(slide);
+                        await wait(T.snap);
+                        await typeSegs(
+                            $(".cover-h", c),
+                            [{ t: "The grid was built for a century that's ending." }],
+                            T.head,
+                            true,
+                        );
+                        await streamWords(
+                            $(".lead", c),
+                            "We're rebuilding it for the one that's arriving — software-defined, storage-first, carbon-aware.",
+                        );
+                    },
+                    async split(slide, c) {
+                        c.innerHTML =
+                            '<div class="split2">' +
+                            '<div class="imgcol"><div class="imgwrap shimmer">' +
+                            '<img class="dev-img" alt="city grid at dusk" src="' +
+                            IMG +
+                            '">' +
+                            '<div class="develop-overlay"></div>' +
+                            "</div></div>" +
+                            '<div class="txtcol">' +
+                            '<div class="eyebrow snap">THE PROBLEM</div>' +
+                            '<h3 class="headline split-h"></h3>' +
+                            '<div class="bodylines"></div>' +
+                            "</div>" +
+                            "</div>";
+                        showSnaps(slide);
+                        await wait(T.snap);
+                        await typeSegs(
+                            $(".split-h", c),
+                            [{ t: "Demand is climbing. The wires aren't." }],
+                            T.head,
+                            true,
+                        );
+                        await streamLines($(".bodylines", c), [
+                            "Peak load up 19% in five years.",
+                            "Transmission build-out stalled since 2009.",
+                            "Every blackout is a market the grid can't serve.",
+                        ]);
+                        const wrap = $(".imgwrap", c);
+                        await wait(T.shimmer);
+                        wrap.classList.remove("shimmer");
+                        wrap.classList.add("developed");
+                        await wait(T.develop);
+                    },
+                    async statement(slide, c) {
+                        c.style.justifyContent = "center";
+                        c.innerHTML =
+                            '<div class="eyebrow snap">THE SHIFT</div>' +
+                            '<h3 class="headline state-h"></h3>' +
+                            '<div class="bodylines big"></div>';
+                        showSnaps(slide);
+                        await wait(T.snap);
+                        await typeSegs(
+                            $(".state-h", c),
+                            [{ t: "Then the economics flipped." }],
+                            T.head,
+                            true,
+                        );
+                        await streamLines($(".bodylines.big", c), [
+                            "Storage now undercuts every peaker plant.",
+                            "Software dispatches it in milliseconds.",
+                            "The grid can finally think for itself.",
+                        ]);
+                    },
+                    async stats(slide, c) {
+                        c.innerHTML =
+                            '<div class="eyebrow snap">THE PROOF</div>' +
+                            '<div class="cproof"></div>' +
+                            '<div class="stats">' +
+                            '<div class="stat"><div class="snum">0</div><div class="slabel">capacity unlocked / node</div></div>' +
+                            '<div class="stat"><div class="snum">0</div><div class="slabel">grids live by year-end</div></div>' +
+                            '<div class="stat"><div class="snum">$0</div><div class="slabel">saved / MWh shifted</div></div>' +
+                            "</div>";
+                        await typeSegs(
+                            $(".cproof", c),
+                            [{ t: "What changes when the grid gets smart" }],
+                            T.head,
+                            false,
+                        );
+                        const st = [...c.querySelectorAll(".stat")];
+                        const data = [
+                            { to: 3.4, dec: 1, suf: "×" },
+                            { to: 128, dec: 0 },
+                            { to: 760, dec: 0, pre: "$" },
+                        ];
+                        for (let k = 0; k < st.length; k++) {
+                            st[k].classList.add("reveal");
+                            countUp(
+                                st[k].querySelector(".snum"),
+                                Object.assign({ dur: T.count }, data[k]),
+                            );
+                            await wait(RM ? 60 : 170);
+                        }
+                        await wait(T.count);
+                    },
+                    async quote(slide, c) {
+                        c.style.justifyContent = "center";
+                        c.innerHTML =
+                            '<div class="quote-mark">“</div>' +
+                            '<blockquote class="pullquote"></blockquote>' +
+                            '<div class="attrib">Dana Okafor · Grid Operations, Meridian Power</div>';
+                        await typeSegs(
+                            $(".pullquote", c),
+                            [
+                                {
+                                    t: "Northwind did in eight months what our utility couldn't do in eight years.",
+                                },
+                            ],
+                            T.head,
+                            true,
+                        );
+                        raf(() => $(".attrib", c).classList.add("in"));
+                        await wait(T.settle + 180);
+                    },
+                    async ask(slide, c) {
+                        c.innerHTML =
+                            '<div class="eyebrow snap">THE ASK</div>' +
+                            '<h3 class="headline ask-h"></h3>' +
+                            '<div class="askrow" style="margin-top:auto">' +
+                            '<div class="bignum"><span class="snum bigask">$0M</span><span class="biglabel snap">seed round · open now</span></div>' +
+                            '<div class="askmeta"><div class="bodylines mini"></div></div>' +
+                            "</div>";
+                        showSnaps(slide);
+                        await wait(T.snap);
+                        await typeSegs(
+                            $(".ask-h", c),
+                            [{ t: "Help us rewire the grid." }],
+                            T.head,
+                            true,
+                        );
+                        countUp($(".bigask", c), {
+                            to: 6,
+                            dec: 0,
+                            pre: "$",
+                            suf: "M",
+                            dur: T.count,
+                        });
+                        await streamLines($(".bodylines.mini", c), [
+                            "$6M seed — 18-month runway.",
+                            "Target: 40 live grids, then Series A.",
+                        ]);
+                        await wait(T.count);
+                    },
+                };
+
+                const BEATS = [
+                    {
+                        type: "cover",
+                        tag: "01 · Cover",
+                        invert: true,
+                        reason: [
+                            { t: "cover beat → " },
+                            { t: "lead with the thesis", m: true },
+                            { t: ", full-bleed" },
+                        ],
+                    },
+                    {
+                        type: "split",
+                        tag: "02 · Problem",
+                        reason: [
+                            { t: "problem beat → an " },
+                            { t: "image", m: true },
+                            { t: " carries the weight" },
+                        ],
+                    },
+                    {
+                        type: "statement",
+                        tag: "03 · Shift",
+                        reason: [{ t: "shift beat → the moment it " }, { t: "clicks", m: true }],
+                    },
+                    {
+                        type: "stats",
+                        tag: "04 · Proof",
+                        reason: [
+                            { t: "proof beat → a " },
+                            { t: "stat triplet", m: true },
+                            { t: " reads as scale" },
+                        ],
+                    },
+                    {
+                        type: "quote",
+                        tag: "05 · Momentum",
+                        reason: [
+                            { t: "momentum beat → a " },
+                            { t: "pull-quote", m: true },
+                            { t: " for air + trust" },
+                        ],
+                    },
+                    {
+                        type: "ask",
+                        tag: "06 · Ask",
+                        invert: true,
+                        reason: [
+                            { t: "ask beat → name the number — " },
+                            { t: "$6M seed", m: true },
+                        ],
+                    },
+                ];
+
+                const LABELS = ["Cover", "Problem", "Shift", "Proof", "Momentum", "Ask"];
+
+                // ---- build filmstrip ghost slots once ----
+                for (let i = 0; i < N; i++) {
+                    const s = el("div", "fslot");
+                    s.style.left = slotX(i) + "px";
+                    s.style.top = STRIP_TOP + "px";
+                    s.style.width = SLOTW + "px";
+                    s.style.height = SLOTH + "px";
+                    s.innerHTML =
+                        '<span class="fnum">' +
+                        String(i + 1).padStart(2, "0") +
+                        '</span><span class="fname">' +
+                        LABELS[i] +
+                        "</span>";
+                    stripLayer.appendChild(s);
+                }
+                slots = [...stripLayer.children];
+
+                // ============================ ONE BEAT ============================
+                async function buildBeat(i) {
+                    const b = BEATS[i];
+                    const slide = el("div", "slide enter" + (b.invert ? " invert" : ""));
+                    slide.innerHTML =
+                        '<span class="card-tag">' +
+                        b.tag +
+                        "</span>" +
+                        '<div class="layers"><div class="sk-layer">' +
+                        SKEL[b.type] +
+                        '</div><div class="content"></div></div>';
+                    slidesEl.appendChild(slide);
+                    slots[i].classList.add("building");
+
+                    raf(() => slide.classList.remove("enter")); // rise into the spotlight
+                    stepActive(i);
+                    await wait(T.rise);
+
+                    slide.classList.add("active");
+                    $(".sk-layer", slide).classList.add("shimmer");
+                    await reason(b.reason); // skeleton shimmers while reasoning types
+                    await wait(RM ? 40 : T.shimmer * 0.35);
+
+                    const sk = $(".sk-layer", slide);
+                    sk.classList.remove("shimmer");
+                    sk.classList.add("hide");
+                    await CONTENT[b.type](slide, $(".content", slide));
+
+                    await wait(RM ? 60 : 80);
+                    slide.classList.remove("active");
+                    slide.classList.add("settled");
+                    await wait(T.settle);
+
+                    // shrink + slide into the filmstrip
+                    stepDone(i);
+                    slots[i].classList.remove("building");
+                    slots[i].classList.add("filled");
+                    slide.classList.remove("settled");
+                    slide.classList.add("parked");
+                    slide.style.transform = parkTransform(i);
+                    await wait(RM ? 0 : 120);
+                }
+
+                // ============================ INTAKE (pre-build) ============================
+                const PROMPT =
+                    "An investor pitch deck for Aldon — we turn idle commercial HVAC into virtual power plants. Raising a $6M seed, for climate + infra VCs. Bold but credible.";
+                const INTAKE_HTML =
+                    '<div class="ik-head">' +
+                    '<span class="ik-eyebrow">Compose · New deck</span>' +
+                    '<div class="ik-surface">' +
+                    '<button class="ik-seg on">Deck</button>' +
+                    '<button class="ik-seg">Doc</button>' +
+                    '<button class="ik-seg">Site</button>' +
+                    "</div>" +
+                    "</div>" +
+                    '<div class="ik-field">' +
+                    '<span class="ik-fieldlabel">Prompt</span>' +
+                    '<p class="ik-prompt"></p>' +
+                    "</div>" +
+                    '<div class="ik-chips">' +
+                    '<span class="ik-chip snap"><b>Goal</b>Pitch</span>' +
+                    '<span class="ik-chip snap"><b>Who</b>Investors</span>' +
+                    '<span class="ik-chip snap"><b>Tone</b>Bold</span>' +
+                    '<span class="ik-chip snap"><b>Length</b>Standard</span>' +
+                    "</div>" +
+                    '<div class="ik-context">' +
+                    '<div class="ik-ctxhead"><span class="ik-ctxlabel">＋ Add context</span><span class="ik-ground">grounding in your context</span></div>' +
+                    '<div class="ik-atts">' +
+                    '<div class="ik-att"><span class="ik-ico">📄</span><span class="ik-attname">aldon-onepager.pdf</span><span class="ik-attkind">Document</span><span class="ik-attbar"></span></div>' +
+                    '<div class="ik-att"><span class="ik-ico">🔗</span><span class="ik-attname">aldon.com</span><span class="ik-attkind">Website</span><span class="ik-attbar"></span></div>' +
+                    "</div>" +
+                    "</div>" +
+                    '<div class="ik-footer">' +
+                    '<span class="ik-hint">2 sources attached · ready to compose</span>' +
+                    '<button class="ik-generate"><span class="gdot"></span>Generate</button>' +
+                    "</div>";
+
+                async function intake() {
+                    const p = el("div", "intake-card");
+                    p.innerHTML = INTAKE_HTML;
+                    intakeLayer.appendChild(p);
+                    raf(() => p.classList.add("show"));
+                    await wait(RM ? 40 : T.rise + 120);
+
+                    await reason([{ t: "intake → " }, { t: "reading your brief", m: true }]);
+                    await typeSegs($(".ik-prompt", p), [{ t: PROMPT }], T.prompt, false);
+
+                    // auto-derived chips snap in
+                    for (const ch of p.querySelectorAll(".ik-chip")) {
+                        raf(() => ch.classList.add("in"));
+                        await wait(RM ? 0 : 95);
+                    }
+                    await wait(RM ? 0 : 150);
+
+                    // extra context: two attachments animate in + grounding cue
+                    await reason([
+                        { t: "grounding in your context — " },
+                        { t: "2 sources", m: true },
+                    ]);
+                    p.querySelector(".ik-ground").classList.add("on");
+                    for (const a of p.querySelectorAll(".ik-att")) {
+                        raf(() => a.classList.add("added"));
+                        await wait(RM ? 0 : 280);
+                    }
+                    await wait(RM ? 0 : 280);
+
+                    // Generate pulses, then presses → transition into the build
+                    const btn = $(".ik-generate", p);
+                    btn.classList.add("ready");
+                    await wait(RM ? 0 : 560);
+                    btn.classList.remove("ready");
+                    btn.classList.add("press");
+                    await reason([{ t: "generate → " }, { t: "composing 6 beats", m: true }]);
+                    await wait(RM ? 60 : 300);
+
+                    p.classList.add("exit");
+                    await wait(RM ? 0 : 400);
+                    p.remove();
+                }
+
+                // ---- reset for a fresh run ----
+                function reset() {
+                    slidesEl.innerHTML = "";
+                    intakeLayer.innerHTML = "";
+                    steps.forEach((s) => s.classList.remove("active", "done"));
+                    slots.forEach((s) => s.classList.remove("building", "filled"));
+                    reasonText.textContent = "";
+                }
+
+                // ============================ TIMELINE ============================
+                async function sequence() {
+                    await intake(); // INTAKE (~5s) → "Generate" pressed → transition into build
+                    // ---- existing build sequence (unchanged) ----
+                    await wait(T.boot);
+                    await reason([{ t: "Shaping the story — " }, { t: "6 beats", m: true }]);
+                    await wait(RM ? 80 : 300);
+                    for (let i = 0; i < N; i++) {
+                        await buildBeat(i);
+                    }
+                    await wait(T.hold);
+                    startRun(); // auto-replay
+                }
+
+                function startRun() {
+                    RUN = {}; // invalidate any prior run's pending waits
+                    reset();
+                    sequence().catch(() => {});
+                }
+
+                $("#replay").addEventListener("click", startRun);
+                startRun();
+            })();
+        </script>
+
+        <script>
+            (function () {
+                var p = new URLSearchParams(location.search).get("theme");
+                document.documentElement.className = p && /^t-[a-z]+$/.test(p) ? p : "t-studio";
+                addEventListener("message", function (e) {
+                    if (e.data && e.data.theme) document.documentElement.className = e.data.theme;
+                });
+            })();
+        </script>
+    </body>
+</html>

@@ -37,25 +37,18 @@ export const dot = (d: number): EngineNode => ({
     fill: { color: GHOST, radius: 99 },
 });
 
-export const gcol = (gap: number, children: EngineNode[]): EngineNode => ({
-    w: grow(),
-    h: fit(),
-    direction: "col",
-    gap,
-    children,
-});
-
-export const grow_ = (gap: number, children: EngineNode[]): EngineNode => ({
-    w: grow(),
-    h: fit(),
-    direction: "row",
-    gap,
-    children,
-});
-
 // --- auto-skeletonize: turn any element's layout output into a ghost ---
 
-function textBars(text: string, size: number): EngineNode[] {
+// Ghost palette — defaults to the editor's neutral tones; the live-build skeleton passes theme-derived
+// colors so the placeholder respects the active artifact theme (dark on dark, etc.).
+export interface GhostColors {
+    bar: string; // text/leaf placeholders
+    panel: string; // container/section backgrounds
+    line: string; // borders
+}
+const DEFAULT_GHOST: GhostColors = { bar: GHOST, panel: GHOST_PANEL, line: GHOST_LINE };
+
+function textBars(text: string, size: number, color: string): EngineNode[] {
     const h = Math.max(6, Math.round(size * 0.6));
     const len = text.trim().length || 6;
     const lines = len > 60 ? 3 : len > 20 ? 2 : 1;
@@ -66,13 +59,13 @@ function textBars(text: string, size: number): EngineNode[] {
         out.push({
             w: percent(frac),
             h: fixed(h),
-            fill: { color: GHOST, radius: Math.min(4, h / 2) },
+            fill: { color, radius: Math.min(4, h / 2) },
         });
     }
     return out;
 }
 
-export function skeletonize(node: EngineNode): EngineNode {
+export function skeletonize(node: EngineNode, colors: GhostColors = DEFAULT_GHOST): EngineNode {
     const base: EngineNode = {
         w: node.w,
         h: node.h,
@@ -88,27 +81,30 @@ export function skeletonize(node: EngineNode): EngineNode {
             ...base,
             direction: "col",
             gap: Math.max(6, Math.round(node.text.size * 0.4)),
-            children: textBars(node.text.text, node.text.size),
+            children: textBars(node.text.text, node.text.size, colors.bar),
         };
     }
-    if (node.image || node.surface) {
+    // a media LEAF (an image/surface element with no children) → a single ghost panel sized like it
+    if ((node.image || node.surface) && !node.children) {
         return {
             ...base,
             aspect: base.aspect ?? 16 / 9,
-            fill: { color: GHOST, radius: node.image?.radius ?? 8 },
+            fill: { color: colors.bar, radius: node.image?.radius ?? 8 },
         };
     }
+    // any container — INCLUDING a section that carries a background image — ghosts its panel and
+    // recurses into its children, so it keeps its real height + grid instead of collapsing to a 16:9 box.
     const out: EngineNode = { ...base };
-    if (node.fill) {
+    if (node.fill || node.image || node.surface) {
         out.fill = {
-            color: GHOST_PANEL,
-            radius: node.fill.radius,
-            border: node.fill.border
-                ? { color: GHOST_LINE, width: node.fill.border.width }
+            color: colors.panel,
+            radius: node.fill?.radius ?? node.image?.radius,
+            border: node.fill?.border
+                ? { color: colors.line, width: node.fill.border.width }
                 : undefined,
         };
     }
-    if (node.children) out.children = node.children.map(skeletonize);
+    if (node.children) out.children = node.children.map((c) => skeletonize(c, colors));
     return out;
 }
 

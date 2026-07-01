@@ -1,0 +1,1720 @@
+<!doctype html>
+<html lang="en" class="t-studio">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Galleo — Live Generation · Manuscript</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="stylesheet" href="../marketing/theme.css" />
+        <link
+            rel="preload"
+            as="image"
+            href="https://picsum.photos/seed/galleomanu/1200/800?grayscale"
+        />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            d: ["var(--fd)", "serif"],
+                            s: ["var(--fu)", "sans-serif"],
+                            m: ["var(--fm)", "monospace"],
+                        },
+                        colors: {
+                            paper: "var(--bg)",
+                            panel: "var(--surface)",
+                            ink: "var(--ink)",
+                            soft: "var(--soft)",
+                            mut: "var(--muted)",
+                            acc: "var(--accent)",
+                            line: "var(--line)",
+                        },
+                    },
+                },
+            };
+        </script>
+        <style>
+            /* ---------- base ---------- */
+            * {
+                box-sizing: border-box;
+                scrollbar-width: none;
+            }
+            *::-webkit-scrollbar {
+                display: none;
+                width: 0;
+                height: 0;
+            }
+            html,
+            body {
+                margin: 0;
+                padding: 0;
+                width: 1300px;
+                height: 812px;
+                overflow: hidden;
+                background: var(--bg);
+            }
+            body {
+                --e: cubic-bezier(0.2, 0.7, 0.2, 1);
+                color: var(--ink);
+                font-family: var(--fu), system-ui, sans-serif;
+                -webkit-font-smoothing: antialiased;
+                transition:
+                    background 0.5s var(--e),
+                    color 0.5s var(--e);
+            }
+            ::selection {
+                background: var(--accent);
+                color: var(--accent-ink);
+            }
+            .mono {
+                font-family: var(--fm), monospace;
+            }
+
+            /* ---------- stage ---------- */
+            #stage {
+                position: relative;
+                width: 1300px;
+                height: 812px;
+                overflow: hidden;
+                background: var(--bg);
+                transition: background 0.5s var(--e);
+            }
+
+            /* ---------- progress rule (very top) ---------- */
+            #progress {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 3px;
+                z-index: 6;
+                background: color-mix(in srgb, var(--ink) 8%, transparent);
+            }
+            #progress .fill {
+                height: 100%;
+                width: 0;
+                background: var(--accent);
+                box-shadow: 0 0 10px -1px color-mix(in srgb, var(--accent) 70%, transparent);
+                transition: width 0.65s var(--e);
+            }
+
+            /* ---------- scroll frame ---------- */
+            #frame {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 31px;
+                overflow-y: auto;
+                overflow-x: hidden;
+                scroll-behavior: smooth;
+            }
+
+            /* ---------- the sheet (document) ---------- */
+            #page {
+                position: relative;
+                width: 1040px;
+                margin: 36px auto 150px;
+                background: var(--surface);
+                color: var(--ink);
+                border: var(--border) solid var(--line);
+                border-radius: var(--radius);
+                box-shadow:
+                    0 28px 70px -34px color-mix(in srgb, var(--ink) 42%, transparent),
+                    var(--shadow);
+                padding: 54px 64px 72px;
+                opacity: 0;
+                transition:
+                    opacity 0.6s var(--e),
+                    background 0.5s var(--e),
+                    border-color 0.5s var(--e);
+            }
+            #page.in {
+                opacity: 1;
+            }
+
+            /* ---------- folio / masthead ---------- */
+            .masthead {
+                display: flex;
+                align-items: center;
+                gap: 9px;
+                font-family: var(--fm), monospace;
+                font-size: 0.6rem;
+                letter-spacing: 0.17em;
+                text-transform: uppercase;
+                color: var(--muted);
+                opacity: 0;
+                transform: translateY(-6px);
+                transition:
+                    opacity 0.55s var(--e),
+                    transform 0.55s var(--e);
+            }
+            .masthead.in {
+                opacity: 1;
+                transform: none;
+            }
+            .masthead .glyph {
+                display: grid;
+                place-items: center;
+                width: 20px;
+                height: 20px;
+                border-radius: calc(var(--radius) * 0.35);
+                background: var(--accent);
+                color: var(--accent-ink);
+                font-family: var(--fd), serif;
+                font-weight: 800;
+                font-size: 0.74rem;
+                letter-spacing: 0;
+            }
+            .masthead .sep {
+                opacity: 0.5;
+            }
+            .masthead .right {
+                margin-left: auto;
+                color: color-mix(in srgb, var(--muted) 85%, var(--ink));
+            }
+            .rule {
+                border: 0;
+                border-top: 1px solid var(--line);
+                margin: 15px 0 34px;
+            }
+
+            /* ---------- two-column body grid (reading column + margin) ---------- */
+            .body {
+                position: relative;
+                display: grid;
+                grid-template-columns: 1fr 250px;
+                column-gap: 46px;
+                align-items: start;
+            }
+            /* pre-printed ruled margin line, mid-gutter */
+            .marginrule {
+                position: absolute;
+                top: 2px;
+                bottom: 2px;
+                right: 273px;
+                width: 1px;
+                background: color-mix(in srgb, var(--ink) 9%, transparent);
+            }
+
+            .sec {
+                grid-column: 1;
+                min-width: 0;
+                margin-bottom: 34px;
+                opacity: 0;
+                transform: translateY(11px);
+                transition:
+                    opacity 0.55s var(--e),
+                    transform 0.55s var(--e);
+            }
+            .sec.in {
+                opacity: 1;
+                transform: none;
+            }
+            .sec-thesis {
+                margin-bottom: 40px;
+            }
+
+            /* ---------- type primitives ---------- */
+            .eyebrow {
+                font-family: var(--fm), monospace;
+                font-size: 0.6rem;
+                letter-spacing: 0.22em;
+                text-transform: uppercase;
+                color: var(--accent);
+                margin-bottom: 14px;
+            }
+            .thesis {
+                font-family: var(--fd), serif;
+                font-weight: var(--hw, 600);
+                letter-spacing: -0.018em;
+                line-height: 1.08;
+                font-size: 2.55rem;
+                margin: 0;
+                min-height: 1.1em;
+            }
+            .heading {
+                font-family: var(--fd), serif;
+                font-weight: var(--hw, 600);
+                letter-spacing: -0.012em;
+                line-height: 1.16;
+                font-size: 1.62rem;
+                margin: 0;
+                min-height: 1.2em;
+            }
+            .dek {
+                font-family: var(--fu), sans-serif;
+                font-size: 1.06rem;
+                line-height: 1.62;
+                color: var(--soft);
+                margin: 20px 0 0;
+                max-width: 38em;
+            }
+
+            .prose {
+                font-family: var(--fu), sans-serif;
+                font-size: 1.04rem;
+                line-height: 1.82;
+                color: var(--ink);
+                margin: 18px 0 0;
+                max-width: 40em;
+            }
+            .prose .ln {
+                display: block;
+            }
+            .ln {
+                opacity: 0;
+                transform: translateY(7px);
+                transition:
+                    opacity 0.5s var(--e),
+                    transform 0.5s var(--e);
+            }
+            .ln.in {
+                opacity: 1;
+                transform: none;
+            }
+
+            .dropcap {
+                float: left;
+                font-family: var(--fd), serif;
+                font-weight: var(--hw, 600);
+                font-size: 3.05em;
+                line-height: 0.82;
+                padding: 0.04em 0.12em 0 0;
+                color: var(--accent);
+            }
+
+            /* caret */
+            .caret {
+                display: inline-block;
+                width: 2px;
+                height: 1em;
+                background: var(--accent);
+                vertical-align: -0.12em;
+                margin-left: 2px;
+                border-radius: 1px;
+            }
+            .caret.big {
+                height: 0.84em;
+            }
+
+            /* ---------- figure plate (shift) ---------- */
+            .plate {
+                position: relative;
+                width: 100%;
+                aspect-ratio: 16/7;
+                margin-top: 24px;
+                border-radius: calc(var(--radius) * 0.65);
+                overflow: hidden;
+                background: color-mix(in srgb, currentColor 10%, transparent);
+                border: var(--border) solid color-mix(in srgb, currentColor 16%, transparent);
+            }
+            .plate img {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                filter: blur(15px) saturate(0.6);
+                transform: scale(1.05);
+                opacity: 0;
+                transition:
+                    filter 0.7s var(--e),
+                    transform 0.7s var(--e),
+                    opacity 0.7s var(--e);
+            }
+            .plate.dev img {
+                filter: blur(0) saturate(1);
+                transform: scale(1);
+                opacity: 1;
+            }
+            .plate .wash {
+                position: absolute;
+                inset: 0;
+                z-index: 1;
+                background: color-mix(in srgb, var(--accent) 32%, var(--surface));
+                transform: translateX(0);
+                opacity: 1;
+                transition:
+                    transform 0.7s var(--e),
+                    opacity 0.7s var(--e);
+            }
+            .plate.dev .wash {
+                transform: translateX(101%);
+                opacity: 0;
+            }
+            .platecap {
+                font-family: var(--fm), monospace;
+                font-size: 0.62rem;
+                letter-spacing: 0.06em;
+                color: var(--muted);
+                margin-top: 11px;
+                opacity: 0;
+                transform: translateY(5px);
+                transition:
+                    opacity 0.5s var(--e),
+                    transform 0.5s var(--e);
+            }
+            .platecap.in {
+                opacity: 1;
+                transform: none;
+            }
+
+            /* ---------- stat figure (proof) ---------- */
+            .stats {
+                display: flex;
+                align-items: stretch;
+                gap: 0;
+                margin: 26px 0 4px;
+                padding: 18px 0;
+                border-top: 1px solid var(--line);
+                border-bottom: 1px solid var(--line);
+            }
+            .stat {
+                flex: 1 1 0;
+                min-width: 0;
+                padding: 0 18px;
+                opacity: 0;
+                transform: translateY(9px);
+                transition:
+                    opacity 0.5s var(--e),
+                    transform 0.5s var(--e);
+            }
+            .stat:first-child {
+                padding-left: 2px;
+            }
+            .stat.in {
+                opacity: 1;
+                transform: none;
+            }
+            .sdiv {
+                flex: 0 0 1px;
+                align-self: stretch;
+                background: var(--line);
+                margin: 2px 0;
+            }
+            .snum {
+                display: block;
+                font-family: var(--fd), serif;
+                font-weight: var(--hw, 600);
+                font-size: 2.25rem;
+                line-height: 1;
+                letter-spacing: -0.02em;
+                color: var(--accent);
+            }
+            .slab {
+                display: block;
+                margin-top: 11px;
+                font-family: var(--fm), monospace;
+                font-size: 0.58rem;
+                letter-spacing: 0.07em;
+                text-transform: uppercase;
+                color: var(--muted);
+                line-height: 1.4;
+            }
+
+            /* ---------- pull-quote (momentum) ---------- */
+            .pullwrap {
+                margin-top: 24px;
+                padding-left: 22px;
+                border-left: 2px solid var(--accent);
+            }
+            .pull {
+                font-family: var(--fd), serif;
+                font-style: italic;
+                font-weight: 500;
+                font-size: 1.5rem;
+                line-height: 1.32;
+                letter-spacing: -0.01em;
+                margin: 0;
+                min-height: 1.3em;
+            }
+            .attrib {
+                display: block;
+                margin-top: 16px;
+                font-family: var(--fm), monospace;
+                font-size: 0.64rem;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: var(--muted);
+                opacity: 0;
+                transform: translateY(5px);
+                transition:
+                    opacity 0.45s var(--e),
+                    transform 0.45s var(--e);
+            }
+            .attrib.in {
+                opacity: 1;
+                transform: none;
+            }
+
+            /* ---------- signoff ---------- */
+            .signoff {
+                grid-column: 1;
+                display: flex;
+                align-items: baseline;
+                gap: 12px;
+                margin-top: 6px;
+                padding-top: 20px;
+                border-top: 1px solid var(--line);
+                opacity: 0;
+                transform: translateY(8px);
+                transition:
+                    opacity 0.55s var(--e),
+                    transform 0.55s var(--e);
+            }
+            .signoff.in {
+                opacity: 1;
+                transform: none;
+            }
+            .sig {
+                font-family: var(--fd), serif;
+                font-style: italic;
+                font-size: 1.04rem;
+                color: var(--soft);
+            }
+            .sig-r {
+                margin-left: auto;
+                font-family: var(--fm), monospace;
+                font-size: 0.6rem;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+
+            /* ---------- marginalia ---------- */
+            .note {
+                position: relative;
+                grid-column: 2;
+                align-self: start;
+                padding-top: 2px;
+                max-width: 230px;
+                opacity: 0;
+                transform: translateX(12px);
+                transition:
+                    opacity 0.55s var(--e),
+                    transform 0.55s var(--e);
+            }
+            .note.in {
+                opacity: 1;
+                transform: none;
+            }
+            .note .conn {
+                position: absolute;
+                left: -40px;
+                top: 8px;
+                height: 1.5px;
+                width: 36px;
+                background: var(--accent);
+                transform: scaleX(0);
+                transform-origin: right;
+                transition: transform 0.55s var(--e) 0.12s;
+            }
+            .note.in .conn {
+                transform: scaleX(1);
+            }
+            .nlabel {
+                display: block;
+                font-family: var(--fm), monospace;
+                font-size: 0.57rem;
+                letter-spacing: 0.13em;
+                text-transform: uppercase;
+                color: var(--accent);
+                line-height: 1.4;
+            }
+            .ntext {
+                display: block;
+                margin-top: 7px;
+                font-family: var(--fd), serif;
+                font-style: italic;
+                font-size: 0.96rem;
+                line-height: 1.46;
+                color: var(--muted);
+                min-height: 1.4em;
+            }
+
+            /* ---------- bottom status bar ---------- */
+            .statusbar {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                height: 31px;
+                z-index: 6;
+                display: flex;
+                align-items: center;
+                gap: 9px;
+                padding: 0 22px;
+                background: var(--bg);
+                border-top: 1px solid var(--line);
+                font-family: var(--fm), monospace;
+                font-size: 0.64rem;
+                letter-spacing: 0.05em;
+                color: var(--muted);
+                transition:
+                    background 0.5s var(--e),
+                    border-color 0.5s var(--e);
+            }
+            .statusbar .livedot {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: var(--accent);
+                flex: 0 0 auto;
+            }
+            .status-text {
+                min-width: 0;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .status-text .mono {
+                color: var(--accent);
+            }
+            .status-r {
+                margin-left: auto;
+                flex: 0 0 auto;
+                color: color-mix(in srgb, var(--muted) 80%, var(--ink));
+                opacity: 0.85;
+            }
+            .status-r b {
+                color: var(--accent);
+                font-weight: 500;
+            }
+
+            /* ---------- INTAKE · the commission ---------- */
+            #intake {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 31px;
+                z-index: 5;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 28px;
+                background: var(--bg);
+                transition: opacity 0.6s var(--e);
+            }
+            #intake.out {
+                opacity: 0;
+                pointer-events: none;
+            }
+
+            .ix-sheet {
+                position: relative;
+                width: 884px;
+                max-height: 100%;
+                overflow: hidden;
+                background: var(--surface);
+                color: var(--ink);
+                border: var(--border) solid var(--line);
+                border-radius: var(--radius);
+                box-shadow:
+                    0 28px 70px -34px color-mix(in srgb, var(--ink) 42%, transparent),
+                    var(--shadow);
+                padding: 34px 44px 28px;
+                opacity: 0;
+                transform: translateY(13px);
+                transition:
+                    opacity 0.6s var(--e),
+                    transform 0.6s var(--e),
+                    background 0.5s var(--e),
+                    border-color 0.5s var(--e);
+            }
+            .ix-sheet.in {
+                opacity: 1;
+                transform: none;
+            }
+            #intake.out .ix-sheet {
+                transform: translateY(-12px) scale(0.985);
+            }
+
+            .ix-folio {
+                display: flex;
+                align-items: center;
+                gap: 9px;
+                font-family: var(--fm), monospace;
+                font-size: 0.6rem;
+                letter-spacing: 0.17em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+            .ix-folio .glyph {
+                display: grid;
+                place-items: center;
+                width: 20px;
+                height: 20px;
+                border-radius: calc(var(--radius) * 0.35);
+                background: var(--accent);
+                color: var(--accent-ink);
+                font-family: var(--fd), serif;
+                font-weight: 800;
+                font-size: 0.74rem;
+                letter-spacing: 0;
+            }
+            .ix-folio .sep {
+                opacity: 0.5;
+            }
+            .ix-folio .right {
+                margin-left: auto;
+                color: var(--accent);
+            }
+
+            .ix-eyebrow {
+                font-family: var(--fm), monospace;
+                font-size: 0.57rem;
+                letter-spacing: 0.2em;
+                text-transform: uppercase;
+                color: var(--accent);
+                margin-bottom: 9px;
+            }
+
+            .ix-field {
+                margin-top: 18px;
+            }
+            .ix-prompt {
+                border: 1px solid var(--line);
+                border-radius: calc(var(--radius) * 0.55);
+                background: color-mix(in srgb, var(--bg) 55%, var(--surface));
+                padding: 15px 18px;
+                min-height: 78px;
+            }
+            .ix-prompt-text {
+                font-family: var(--fd), serif;
+                font-style: italic;
+                font-size: 1.18rem;
+                line-height: 1.5;
+                color: var(--ink);
+            }
+
+            .ix-row {
+                display: flex;
+                gap: 32px;
+                align-items: flex-start;
+                margin-top: 20px;
+            }
+            .ix-surface {
+                display: inline-flex;
+                border: 1px solid var(--line);
+                border-radius: 999px;
+                padding: 3px;
+                gap: 2px;
+                background: color-mix(in srgb, var(--bg) 55%, var(--surface));
+            }
+            .ix-surf {
+                font-family: var(--fu), sans-serif;
+                font-size: 0.82rem;
+                font-weight: 600;
+                padding: 7px 17px;
+                border-radius: 999px;
+                border: 0;
+                background: transparent;
+                color: var(--muted);
+                transition:
+                    background 0.3s var(--e),
+                    color 0.3s var(--e);
+            }
+            .ix-surf.on {
+                background: var(--accent);
+                color: var(--accent-ink);
+            }
+            .ix-col.grow {
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+            .ix-chips {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                padding-top: 1px;
+            }
+            .ix-chip {
+                font-family: var(--fm), monospace;
+                font-size: 0.63rem;
+                letter-spacing: 0.03em;
+                padding: 6px 11px;
+                border-radius: 999px;
+                border: 1px solid var(--line);
+                color: var(--soft);
+                background: var(--surface);
+                white-space: nowrap;
+                opacity: 0;
+                transform: translateY(7px) scale(0.96);
+                transition:
+                    opacity 0.4s var(--e),
+                    transform 0.4s var(--e);
+            }
+            .ix-chip.in {
+                opacity: 1;
+                transform: none;
+            }
+            .ix-chip b {
+                color: var(--accent);
+                font-weight: 500;
+                margin-right: 5px;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                font-size: 0.92em;
+            }
+
+            .ix-context {
+                margin-top: 22px;
+                border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+                border-radius: calc(var(--radius) * 0.6);
+                background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+                padding: 15px 18px;
+            }
+            .ix-context-head {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin-bottom: 13px;
+            }
+            .ix-context-head .ix-eyebrow {
+                margin-bottom: 0;
+            }
+            .ix-ground {
+                display: inline-flex;
+                align-items: center;
+                gap: 7px;
+                margin-left: auto;
+                font-family: var(--fm), monospace;
+                font-size: 0.6rem;
+                letter-spacing: 0.05em;
+                color: var(--accent);
+                opacity: 0;
+                transform: translateX(6px);
+                transition:
+                    opacity 0.45s var(--e),
+                    transform 0.45s var(--e);
+            }
+            .ix-ground.in {
+                opacity: 1;
+                transform: none;
+            }
+            .ix-ground .gdot {
+                width: 7px;
+                height: 7px;
+                border-radius: 50%;
+                background: var(--accent);
+            }
+
+            .ix-attachments {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 12px;
+                align-items: stretch;
+            }
+            .ix-attach {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                min-width: 228px;
+                border: 1px solid var(--line);
+                border-radius: calc(var(--radius) * 0.5);
+                background: var(--surface);
+                padding: 11px 14px;
+                opacity: 0;
+                transform: translateY(9px);
+                transition:
+                    opacity 0.45s var(--e),
+                    transform 0.45s var(--e);
+            }
+            .ix-attach.in {
+                opacity: 1;
+                transform: none;
+            }
+            .ix-attach-top {
+                display: flex;
+                align-items: center;
+                gap: 9px;
+            }
+            .ix-attach .ix-ic {
+                font-size: 1.02rem;
+                line-height: 1;
+            }
+            .ix-attach .ix-an {
+                font-family: var(--fu), sans-serif;
+                font-weight: 700;
+                font-size: 0.92rem;
+                color: var(--ink);
+            }
+            .ix-attach .ix-meta {
+                font-family: var(--fm), monospace;
+                font-size: 0.57rem;
+                letter-spacing: 0.04em;
+                color: var(--muted);
+            }
+            .ix-addmore {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 62px;
+                border: 1px dashed color-mix(in srgb, var(--ink) 24%, transparent);
+                border-radius: calc(var(--radius) * 0.5);
+                font-family: var(--fm), monospace;
+                font-size: 0.66rem;
+                color: var(--muted);
+            }
+
+            .ix-actions {
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                margin-top: 24px;
+                padding-top: 18px;
+                border-top: 1px solid var(--line);
+            }
+            .ix-hint {
+                font-family: var(--fm), monospace;
+                font-size: 0.61rem;
+                letter-spacing: 0.04em;
+                color: var(--muted);
+            }
+            .ix-generate {
+                margin-left: auto;
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                font-family: var(--fu), sans-serif;
+                font-weight: 700;
+                font-size: 0.96rem;
+                letter-spacing: 0.01em;
+                padding: 12px 24px;
+                border-radius: 999px;
+                border: 0;
+                cursor: pointer;
+                background: var(--accent);
+                color: var(--accent-ink);
+                transition:
+                    transform 0.18s var(--e),
+                    filter 0.2s var(--e),
+                    box-shadow 0.3s var(--e);
+            }
+            .ix-gen-arrow {
+                transition: transform 0.3s var(--e);
+            }
+            .ix-generate.press {
+                transform: scale(0.955);
+                filter: brightness(0.94);
+            }
+            .ix-generate.press .ix-gen-arrow {
+                transform: translateX(3px);
+            }
+
+            /* ---------- animation (gated) ---------- */
+            @media (prefers-reduced-motion: no-preference) {
+                .caret {
+                    animation: blink 1s steps(1) infinite;
+                }
+                .statusbar .livedot {
+                    animation: lpulse 1.5s var(--e) infinite;
+                }
+                .ix-ground .gdot {
+                    animation: lpulse 1.5s var(--e) infinite;
+                }
+                .ix-generate.ready {
+                    animation: genpulse 1.6s var(--e) infinite;
+                }
+                .ix-attach.in {
+                    animation: addflash 0.7s var(--e);
+                }
+                @keyframes blink {
+                    0%,
+                    49% {
+                        opacity: 1;
+                    }
+                    50%,
+                    100% {
+                        opacity: 0;
+                    }
+                }
+                @keyframes lpulse {
+                    0% {
+                        box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
+                    }
+                    70% {
+                        box-shadow: 0 0 0 6px transparent;
+                    }
+                    100% {
+                        box-shadow: 0 0 0 0 transparent;
+                    }
+                }
+                @keyframes genpulse {
+                    0% {
+                        box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 52%, transparent);
+                    }
+                    70% {
+                        box-shadow: 0 0 0 13px transparent;
+                    }
+                    100% {
+                        box-shadow: 0 0 0 0 transparent;
+                    }
+                }
+                @keyframes addflash {
+                    0% {
+                        box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 42%, transparent);
+                    }
+                    100% {
+                        box-shadow: 0 0 0 8px transparent;
+                    }
+                }
+            }
+            body.rm #frame {
+                scroll-behavior: auto;
+            }
+            body.rm .ln,
+            body.rm .sec,
+            body.rm .note,
+            body.rm .stat,
+            body.rm .plate img,
+            body.rm .plate .wash,
+            body.rm .attrib,
+            body.rm .platecap,
+            body.rm .signoff,
+            body.rm #page,
+            body.rm .masthead,
+            body.rm #intake,
+            body.rm .ix-sheet,
+            body.rm .ix-chip,
+            body.rm .ix-attach,
+            body.rm .ix-ground,
+            body.rm .ix-generate {
+                transition: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="stage">
+            <!-- progress rule -->
+            <div id="progress"><div class="fill" id="fill"></div></div>
+
+            <!-- scroll frame -->
+            <div id="frame">
+                <article id="page">
+                    <!-- masthead / folio -->
+                    <div class="masthead" id="masthead">
+                        <span class="glyph">G</span>
+                        <span>Northwind Energy</span><span class="sep">·</span>
+                        <span>Series Seed Memorandum</span>
+                        <span class="right">Confidential — June 2026</span>
+                    </div>
+                    <hr class="rule" />
+
+                    <div class="body">
+                        <div class="marginrule"></div>
+
+                        <!-- THESIS -->
+                        <section class="sec sec-thesis" id="s0">
+                            <div class="eyebrow">Prologue</div>
+                            <h1
+                                class="thesis"
+                                data-type="The grid was built for a century that's ending."
+                            ></h1>
+                            <p class="dek">
+                                <span class="ln"
+                                    >A memorandum on why the next decade of power belongs to
+                                    software —</span
+                                >
+                                <span class="ln"
+                                    >and on the small company building the layer it will run
+                                    on.</span
+                                >
+                            </p>
+                        </section>
+                        <aside class="note" id="n0">
+                            <span class="conn"></span>
+                            <span class="nlabel">← 00 · cold open</span>
+                            <span
+                                class="ntext"
+                                data-type="open on the thesis — let it land before any data."
+                            ></span>
+                        </aside>
+
+                        <!-- I · THE PROBLEM -->
+                        <section class="sec" id="s1">
+                            <div class="eyebrow">I · The problem</div>
+                            <h2
+                                class="heading"
+                                data-type="Demand is climbing. The wires aren't."
+                            ></h2>
+                            <p class="prose">
+                                <span class="ln"
+                                    ><span class="dropcap">F</span>or a hundred years the grid had
+                                    one job — to push power one way,</span
+                                >
+                                <span class="ln"
+                                    >from a few enormous plants outward to many small, patient
+                                    homes.</span
+                                >
+                                <span class="ln"
+                                    >That century is over: load is up nineteen percent in five
+                                    years,</span
+                                >
+                                <span class="ln"
+                                    >while almost no new transmission has been built since
+                                    2009.</span
+                                >
+                                <span class="ln"
+                                    >Every blackout, every curtailed wind farm, is a market it
+                                    cannot serve.</span
+                                >
+                            </p>
+                        </section>
+                        <aside class="note" id="n1">
+                            <span class="conn"></span>
+                            <span class="nlabel">← I · the problem</span>
+                            <span
+                                class="ntext"
+                                data-type="name the failing system plainly, then move on."
+                            ></span>
+                        </aside>
+
+                        <!-- II · THE SHIFT -->
+                        <section class="sec" id="s2">
+                            <div class="eyebrow">II · The shift</div>
+                            <h2 class="heading" data-type="Power is becoming software."></h2>
+                            <p class="prose">
+                                <span class="ln"
+                                    >Storage, sensors, and forecasting have turned the grid into a
+                                    market</span
+                                >
+                                <span class="ln"
+                                    >that now clears every few seconds, not every few years.</span
+                                >
+                                <span class="ln"
+                                    >The winners will not own the most copper — they will own the
+                                    layer</span
+                                >
+                                <span class="ln"
+                                    >that decides, moment to moment, where every electron should
+                                    go.</span
+                                >
+                            </p>
+                            <figure class="plate" id="plate">
+                                <img
+                                    alt="An instrumented substation at dusk"
+                                    src="https://picsum.photos/seed/galleomanu/1200/800?grayscale"
+                                />
+                                <div class="wash"></div>
+                            </figure>
+                            <figcaption class="platecap" id="platecap">
+                                fig. 1 — a substation at dusk, fully instrumented
+                            </figcaption>
+                        </section>
+                        <aside class="note" id="n2">
+                            <span class="conn"></span>
+                            <span class="nlabel">← II · the shift</span>
+                            <span
+                                class="ntext"
+                                data-type="the turn — describe what's arriving, not what broke."
+                            ></span>
+                        </aside>
+
+                        <!-- III · THE PROOF -->
+                        <section class="sec" id="s3">
+                            <div class="eyebrow">III · The proof</div>
+                            <h2
+                                class="heading"
+                                data-type="The pilots already pay for themselves."
+                            ></h2>
+                            <p class="prose">
+                                <span class="ln"
+                                    >Across three utility partners, our control layer delivered
+                                    what</span
+                                >
+                                <span class="ln"
+                                    >the incumbents could not — measured, audited, and paid
+                                    for.</span
+                                >
+                            </p>
+                            <figure class="stats" id="stats">
+                                <div class="stat">
+                                    <span class="snum" data-to="3.4" data-dec="1" data-suf="×"
+                                        >0.0×</span
+                                    ><span class="slab">capacity unlocked / node</span>
+                                </div>
+                                <div class="sdiv"></div>
+                                <div class="stat">
+                                    <span class="snum" data-to="128" data-dec="0">0</span
+                                    ><span class="slab">grids live by year-end</span>
+                                </div>
+                                <div class="sdiv"></div>
+                                <div class="stat">
+                                    <span class="snum" data-to="760" data-dec="0" data-pre="$"
+                                        >$0</span
+                                    ><span class="slab">saved / MWh shifted</span>
+                                </div>
+                            </figure>
+                        </section>
+                        <aside class="note" id="n3">
+                            <span class="conn"></span>
+                            <span class="nlabel">← III · the proof</span>
+                            <span
+                                class="ntext"
+                                data-type="ground it in the pilot numbers — let them count up."
+                            ></span>
+                        </aside>
+
+                        <!-- IV · MOMENTUM -->
+                        <section class="sec" id="s4">
+                            <div class="eyebrow">IV · Momentum</div>
+                            <h2 class="heading" data-type="The market has started to move."></h2>
+                            <p class="prose">
+                                <span class="ln"
+                                    >Three signed utilities, two more in procurement, and a
+                                    regulator</span
+                                >
+                                <span class="ln"
+                                    >now citing our dispatch model in its own filings.</span
+                                >
+                            </p>
+                            <div class="pullwrap">
+                                <blockquote
+                                    class="pull"
+                                    data-type="Northwind did in eight months what our utility couldn't do in eight years."
+                                ></blockquote>
+                                <span class="attrib" id="attrib"
+                                    >Dana Okafor · Grid Operations, Meridian Power</span
+                                >
+                            </div>
+                        </section>
+                        <aside class="note" id="n4">
+                            <span class="conn"></span>
+                            <span class="nlabel">← IV · momentum</span>
+                            <span
+                                class="ntext"
+                                data-type="let a customer say it — never us, here."
+                            ></span>
+                        </aside>
+
+                        <!-- V · THE ASK -->
+                        <section class="sec" id="s5">
+                            <div class="eyebrow">V · The ask</div>
+                            <h2 class="heading" data-type="We're raising a $6M seed."></h2>
+                            <p class="prose">
+                                <span class="ln"
+                                    >It funds the next eight grids, the controls team, and the
+                                    certification</span
+                                >
+                                <span class="ln"
+                                    >that turns quiet pilots into signed, multi-year
+                                    contracts.</span
+                                >
+                                <span class="ln"
+                                    >The grid for the next century will not be built from
+                                    copper.</span
+                                >
+                                <span class="ln"
+                                    >It will be written in code — and we intend to write it.</span
+                                >
+                            </p>
+                        </section>
+                        <aside class="note" id="n5">
+                            <span class="conn"></span>
+                            <span class="nlabel">← V · the ask</span>
+                            <span
+                                class="ntext"
+                                data-type="name the ask plainly — a single number, no hedging."
+                            ></span>
+                        </aside>
+
+                        <!-- signoff -->
+                        <div class="signoff" id="signoff">
+                            <span class="sig">— The Northwind Energy team</span>
+                            <span class="sig-r">drafted in Galleo</span>
+                        </div>
+                    </div>
+                </article>
+            </div>
+
+            <!-- ===================== INTAKE · the commission ===================== -->
+            <div id="intake">
+                <div class="ix-sheet" id="ixSheet">
+                    <div class="ix-folio">
+                        <span class="glyph">G</span>
+                        <span>Galleo</span><span class="sep">·</span><span>New commission</span>
+                        <span class="right">Doc surface</span>
+                    </div>
+                    <hr class="rule" style="margin: 14px 0 4px" />
+
+                    <!-- prompt -->
+                    <div class="ix-field">
+                        <div class="ix-eyebrow">The brief</div>
+                        <div class="ix-prompt">
+                            <span
+                                class="ix-prompt-text"
+                                data-type="A climate-tech investor memo for Aldon — we turn idle commercial HVAC into virtual power plants. Raising a $6M seed, for climate + infra VCs. Bold but credible."
+                            ></span>
+                        </div>
+                    </div>
+
+                    <!-- surface + auto-derived chips -->
+                    <div class="ix-row">
+                        <div class="ix-col">
+                            <div class="ix-eyebrow">Surface</div>
+                            <div class="ix-surface">
+                                <button class="ix-surf">Deck</button>
+                                <button class="ix-surf on">Doc</button>
+                                <button class="ix-surf">Site</button>
+                            </div>
+                        </div>
+                        <div class="ix-col grow">
+                            <div class="ix-eyebrow">Auto-derived</div>
+                            <div class="ix-chips">
+                                <span class="ix-chip"><b>Goal</b>Pitch</span>
+                                <span class="ix-chip"><b>Who</b>Investors</span>
+                                <span class="ix-chip"><b>Tone</b>Bold</span>
+                                <span class="ix-chip"><b>Length</b>Standard</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- extra context -->
+                    <div class="ix-context">
+                        <div class="ix-context-head">
+                            <span class="ix-eyebrow">Add context</span>
+                            <span class="ix-ground"
+                                ><span class="gdot"></span> grounding in your context</span
+                            >
+                        </div>
+                        <div class="ix-attachments">
+                            <div class="ix-attach" data-k="doc">
+                                <div class="ix-attach-top">
+                                    <span class="ix-ic">📄</span
+                                    ><span class="ix-an">aldon-onepager.pdf</span>
+                                </div>
+                                <span class="ix-meta">document · 2 pages</span>
+                            </div>
+                            <div class="ix-attach" data-k="web">
+                                <div class="ix-attach-top">
+                                    <span class="ix-ic">🔗</span
+                                    ><span class="ix-an">aldon.com</span>
+                                </div>
+                                <span class="ix-meta">website · homepage scanned</span>
+                            </div>
+                            <div class="ix-addmore">+ add</div>
+                        </div>
+                    </div>
+
+                    <!-- generate -->
+                    <div class="ix-actions">
+                        <span class="ix-hint">Doc · ~6 sections · grounded in 2 sources</span>
+                        <button class="ix-generate" id="ixGen">
+                            <span class="ix-gen-label">Generate</span
+                            ><span class="ix-gen-arrow">→</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- status bar -->
+            <div class="statusbar">
+                <span class="livedot"></span>
+                <span class="status-text" id="status"></span>
+                <span class="status-r">Galleo · <b>live composition</b></span>
+            </div>
+        </div>
+
+        <script>
+            (function () {
+                "use strict";
+                const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+                if (RM) document.body.classList.add("rm");
+
+                const $ = (s, r = document) => r.querySelector(s);
+                const el = (t, c) => {
+                    const e = document.createElement(t);
+                    if (c) e.className = c;
+                    return e;
+                };
+                const raf = (fn) => requestAnimationFrame(fn);
+
+                const frame = $("#frame");
+                const page = $("#page");
+                const fill = $("#fill");
+                const status = $("#status");
+
+                // ---- durations ----
+                const T = RM
+                    ? {
+                          boot: 140,
+                          hero: 0,
+                          head: 0,
+                          line: 0,
+                          note: 0,
+                          st: 0,
+                          dev: 120,
+                          count: 280,
+                          hold: 1200,
+                          beat: 40,
+                          ixIn: 70,
+                          ixType: 0,
+                          ixStep: 46,
+                          ixHold: 200,
+                          ixOut: 120,
+                      }
+                    : {
+                          boot: 380,
+                          hero: 34,
+                          head: 20,
+                          line: 150,
+                          note: 17,
+                          st: 15,
+                          dev: 660,
+                          count: 1000,
+                          hold: 1900,
+                          beat: 200,
+                          ixIn: 300,
+                          ixType: 12,
+                          ixStep: 120,
+                          ixHold: 430,
+                          ixOut: 620,
+                      };
+
+                // ---- run token: only the live run's waits resolve ----
+                let RUN = null;
+                function wait(ms) {
+                    const my = RUN;
+                    return new Promise((r) =>
+                        setTimeout(() => {
+                            if (my === RUN) r();
+                        }, ms),
+                    );
+                }
+
+                // ---- type-on across mono/plain segments (with caret) ----
+                async function typeSegs(node, segs, speed, big) {
+                    node.textContent = "";
+                    const caret = el("span", "caret" + (big ? " big" : ""));
+                    node.appendChild(caret);
+                    for (const seg of segs) {
+                        if (caret.parentNode !== node) return; // superseded (e.g. status re-typed) → bail
+                        const s = el("span", seg.m ? "mono" : null);
+                        node.insertBefore(s, caret);
+                        if (speed <= 0) {
+                            s.textContent = seg.t;
+                        } else {
+                            for (const ch of seg.t) {
+                                if (caret.parentNode !== node) return;
+                                s.append(ch);
+                                await wait(speed);
+                            }
+                        }
+                    }
+                    await wait(speed <= 0 ? 30 : 300);
+                    if (caret.parentNode === node) caret.remove();
+                }
+                // type a single element from its data-type string
+                function typeEl(elm, speed, big) {
+                    return typeSegs(elm, [{ t: elm.dataset.type }], speed, big);
+                }
+
+                // ---- reveal helpers ----
+                const show = (elm) => elm.classList.add("in");
+
+                async function streamLines(container) {
+                    const lines = [...container.querySelectorAll(".ln")];
+                    for (const ln of lines) {
+                        raf(() => ln.classList.add("in"));
+                        await wait(T.line);
+                    }
+                }
+
+                // fire-and-forget marginalia (cancellation-safe via RUN token)
+                async function revealNote(id) {
+                    const note = $("#" + id);
+                    show(note);
+                    await wait(T.note * 9);
+                    if (RUN) typeEl($(".ntext", note), T.note, false);
+                }
+
+                function countUp(node, o) {
+                    const my = RUN,
+                        start = performance.now(),
+                        dur = o.dur;
+                    const fmt = (v) => (o.pre || "") + v.toFixed(o.dec) + (o.suf || "");
+                    (function frame(now) {
+                        if (my !== RUN) return;
+                        const p = Math.min(1, (now - start) / dur);
+                        const e = 1 - Math.pow(1 - p, 3);
+                        node.textContent = fmt(o.to * e);
+                        if (p < 1) requestAnimationFrame(frame);
+                        else node.textContent = fmt(o.to);
+                    })(performance.now());
+                }
+
+                // ---- gentle auto-scroll within the frame ----
+                function scrollToEl(elm, off) {
+                    const fr = frame.getBoundingClientRect(),
+                        er = elm.getBoundingClientRect();
+                    const top = frame.scrollTop + (er.top - fr.top) - (off == null ? 140 : off);
+                    frame.scrollTo({ top: Math.max(0, top), behavior: RM ? "auto" : "smooth" });
+                }
+
+                // ---- progress + status ----
+                function prog(p) {
+                    fill.style.width = p + "%";
+                }
+                function setStatus(segs) {
+                    if (RUN) typeSegs(status, segs, T.st, false);
+                }
+
+                // ---- status copy (mono = technical tokens) ----
+                const ST = {
+                    plan: [{ t: "composing memorandum · " }, { t: "6 movements", m: true }],
+                    s0: [
+                        { t: "§ 00 " },
+                        { t: "cold-open", m: true },
+                        { t: " — setting the thesis" },
+                    ],
+                    s1: [
+                        { t: "§ I " },
+                        { t: "the-problem", m: true },
+                        { t: " — the grid that's ending" },
+                    ],
+                    s2: [
+                        { t: "§ II " },
+                        { t: "the-shift", m: true },
+                        { t: " — power becomes software" },
+                    ],
+                    s3: [
+                        { t: "§ III " },
+                        { t: "the-proof", m: true },
+                        { t: " — 3.4× · 128 · $760" },
+                    ],
+                    s4: [{ t: "§ IV " }, { t: "momentum", m: true }, { t: " — the market moves" }],
+                    s5: [{ t: "§ V " }, { t: "the-ask", m: true }, { t: " — $6M seed" }],
+                    end: [{ t: "memorandum complete · " }, { t: "looping", m: true }],
+                };
+
+                // ---- intake status copy ----
+                const IX = {
+                    open: [{ t: "new commission · " }, { t: "doc surface", m: true }],
+                    derive: [{ t: "reading the brief · " }, { t: "deriving intent", m: true }],
+                    ground: [{ t: "attaching context · " }, { t: "2 sources", m: true }],
+                    ready: [{ t: "grounded · " }, { t: "press generate", m: true }],
+                };
+
+                const STATS = [
+                    { to: 3.4, dec: 1, suf: "×" },
+                    { to: 128, dec: 0 },
+                    { to: 760, dec: 0, pre: "$" },
+                ];
+                const fmtStat = (o) => (o.pre || "") + (0).toFixed(o.dec) + (o.suf || "");
+
+                // ---- reset everything for a fresh run ----
+                function reset() {
+                    document.querySelectorAll("[data-type]").forEach((n) => {
+                        n.textContent = "";
+                    });
+                    document.querySelectorAll(".ln").forEach((n) => n.classList.remove("in"));
+                    document
+                        .querySelectorAll(".sec,.note,.stat")
+                        .forEach((n) => n.classList.remove("in"));
+                    ["masthead", "plate", "platecap", "attrib", "signoff", "page"].forEach((id) => {
+                        const n = $("#" + id) || $("." + id);
+                        if (n) n.classList.remove("in");
+                    });
+                    $("#plate").classList.remove("dev");
+                    const nums = [...document.querySelectorAll(".snum")];
+                    nums.forEach((n, i) => {
+                        n.textContent = fmtStat(STATS[i]);
+                    });
+                    status.textContent = "";
+                    prog(0);
+                    frame.scrollTop = 0;
+
+                    // ---- intake reset (snap overlay back, no reverse-fade) ----
+                    const ix = $("#intake");
+                    ix.style.transition = "none";
+                    ix.classList.remove("out");
+                    void ix.offsetWidth;
+                    ix.style.transition = "";
+                    $("#ixSheet").classList.remove("in");
+                    document
+                        .querySelectorAll(".ix-chip,.ix-attach")
+                        .forEach((n) => n.classList.remove("in"));
+                    $(".ix-ground").classList.remove("in");
+                    $("#ixGen").classList.remove("ready", "press");
+                }
+
+                // ============================ INTAKE (~5s) ============================
+                async function intake() {
+                    const gen = $("#ixGen");
+                    setStatus(IX.open);
+                    show($("#ixSheet")); // commission sheet writes in
+                    await wait(T.ixIn + 80);
+
+                    // 1 · the brief types on
+                    await typeEl($(".ix-prompt-text"), T.ixType, false);
+                    if (!RUN) return;
+                    await wait(T.ixStep);
+
+                    // 2 · intent auto-derived → chips settle in
+                    setStatus(IX.derive);
+                    for (const c of document.querySelectorAll(".ix-chip")) {
+                        show(c);
+                        await wait(T.ixStep * 0.7);
+                    }
+                    await wait(T.ixStep);
+
+                    // 3 · extra context → attachments arrive, grounding cue lights
+                    setStatus(IX.ground);
+                    for (const a of document.querySelectorAll(".ix-attach")) {
+                        show(a);
+                        await wait(T.ixStep * 1.35);
+                    }
+                    show($(".ix-ground"));
+                    await wait(T.ixStep * 1.4);
+
+                    // 4 · ready → Generate pulses, then presses
+                    setStatus(IX.ready);
+                    gen.classList.add("ready");
+                    await wait(T.ixHold);
+                    if (!RUN) return;
+                    gen.classList.add("press");
+                    await wait(180);
+                    gen.classList.remove("press");
+                    await wait(150);
+
+                    // transition into the build (overlay fades as the page begins to write)
+                    $("#intake").classList.add("out");
+                    await wait(Math.round(T.ixOut * 0.35));
+                }
+
+                // ============================ BUILD (unchanged) ============================
+                async function build() {
+                    await wait(T.boot);
+                    show(page);
+                    await wait(120);
+                    show($("#masthead"));
+                    setStatus(ST.plan);
+                    await wait(T.beat * 2);
+
+                    /* ---- THESIS ---- */
+                    prog(10);
+                    show($("#s0"));
+                    setStatus(ST.s0);
+                    frame.scrollTo({ top: 0, behavior: RM ? "auto" : "smooth" });
+                    await wait(T.beat);
+                    await typeEl($(".thesis", $("#s0")), T.hero, true);
+                    revealNote("n0");
+                    await streamLines($("#s0"));
+                    await wait(T.beat);
+
+                    /* ---- I · THE PROBLEM ---- */
+                    prog(28);
+                    show($("#s1"));
+                    setStatus(ST.s1);
+                    scrollToEl($("#s1"), 130);
+                    await wait(T.beat);
+                    await typeEl($(".heading", $("#s1")), T.head);
+                    revealNote("n1");
+                    await streamLines($("#s1"));
+                    await wait(T.beat);
+
+                    /* ---- II · THE SHIFT ---- */
+                    prog(46);
+                    show($("#s2"));
+                    setStatus(ST.s2);
+                    scrollToEl($("#s2"), 120);
+                    await wait(T.beat);
+                    await typeEl($(".heading", $("#s2")), T.head);
+                    revealNote("n2");
+                    await streamLines($("#s2"));
+                    // develop the plate
+                    scrollToEl($("#plate"), 230);
+                    await wait(T.beat);
+                    $("#plate").classList.add("dev");
+                    await wait(T.dev * 0.55);
+                    show($("#platecap"));
+                    await wait(T.dev * 0.5);
+
+                    /* ---- III · THE PROOF ---- */
+                    prog(63);
+                    show($("#s3"));
+                    setStatus(ST.s3);
+                    scrollToEl($("#s3"), 120);
+                    await wait(T.beat);
+                    await typeEl($(".heading", $("#s3")), T.head);
+                    revealNote("n3");
+                    await streamLines($("#s3"));
+                    // count the figures
+                    scrollToEl($("#stats"), 250);
+                    const stats = [...$("#stats").querySelectorAll(".stat")];
+                    for (let i = 0; i < stats.length; i++) {
+                        show(stats[i]);
+                        countUp(
+                            stats[i].querySelector(".snum"),
+                            Object.assign({ dur: T.count }, STATS[i]),
+                        );
+                        await wait(170);
+                    }
+                    await wait(T.count * 0.55);
+
+                    /* ---- IV · MOMENTUM ---- */
+                    prog(80);
+                    show($("#s4"));
+                    setStatus(ST.s4);
+                    scrollToEl($("#s4"), 130);
+                    await wait(T.beat);
+                    await typeEl($(".heading", $("#s4")), T.head);
+                    revealNote("n4");
+                    await streamLines($("#s4"));
+                    scrollToEl($(".pullwrap", $("#s4")), 250);
+                    await wait(T.beat * 0.6);
+                    await typeEl($(".pull", $("#s4")), Math.max(1, Math.round(T.head * 0.8)), true);
+                    show($("#attrib"));
+                    await wait(T.beat);
+
+                    /* ---- V · THE ASK ---- */
+                    prog(92);
+                    show($("#s5"));
+                    setStatus(ST.s5);
+                    scrollToEl($("#s5"), 130);
+                    await wait(T.beat);
+                    await typeEl($(".heading", $("#s5")), T.head);
+                    revealNote("n5");
+                    await streamLines($("#s5"));
+                    prog(100);
+                    scrollToEl($("#signoff"), 320);
+                    await wait(T.beat);
+                    show($("#signoff"));
+                    setStatus(ST.end);
+                }
+
+                // ============================ LOOP ============================
+                async function masterSequence() {
+                    await intake(); // ~5s commission → Generate pressed
+                    if (!RUN) return;
+                    await build(); // the existing build (unchanged)
+                    await wait(T.hold); // hold on the finished memo
+                    startRun(); // auto-replay → back to intake
+                }
+
+                function startRun() {
+                    RUN = {}; // invalidate any prior run's pending waits
+                    reset();
+                    masterSequence().catch(() => {});
+                }
+
+                startRun();
+            })();
+        </script>
+
+        <script>
+            (function () {
+                var p = new URLSearchParams(location.search).get("theme");
+                document.documentElement.className = p && /^t-[a-z]+$/.test(p) ? p : "t-studio";
+                addEventListener("message", function (e) {
+                    if (e.data && e.data.theme) document.documentElement.className = e.data.theme;
+                });
+            })();
+        </script>
+    </body>
+</html>

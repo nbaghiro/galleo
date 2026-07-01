@@ -10,7 +10,8 @@ import {
     primaryKey,
 } from "drizzle-orm/pg-core";
 
-// v1-core tables. Full 29-table model documented in docs/data-model.md.
+// The implemented schema — 13 tables. Documented in .docs/data-model.md (which also notes the
+// broader model deferred to when each feature lands).
 
 export const users = pgTable("users", {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -69,6 +70,7 @@ export const artifacts = pgTable("artifacts", {
     draftContent: jsonb("draft_content").notNull().default({}),
     publishedVersionId: uuid("published_version_id"),
     status: text("status").notNull().default("draft"),
+    trashedAt: timestamp("trashed_at"), // soft delete: null = live, set = in Trash
     createdBy: uuid("created_by").references(() => users.id),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -143,3 +145,37 @@ export const credits = pgTable("credits", {
     balanceAfter: integer("balance_after").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// One row per agent operation (generate | edit | section | chat). Every turn attaches to an artifact
+// (generate creates an empty one first), so the canvas is real from t=0 and patches stream into it.
+export const agentTurns = pgTable("agent_turns", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    artifactId: uuid("artifact_id")
+        .notNull()
+        .references(() => artifacts.id),
+    kind: text("kind").notNull(), // generate | edit | section | chat
+    input: jsonb("input").notNull(), // the TurnRequest input
+    status: text("status").notNull().default("pending"), // pending | running | done | error | canceled
+    patch: jsonb("patch"), // the composed Patch (history / undo)
+    reply: text("reply"), // chat/research answer, if any
+    error: text("error"),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Append-only event log per turn: the live SSE feed, the reconnect/replay source (resume from seq), and
+// the chat transcript — one table.
+export const agentEvents = pgTable(
+    "agent_events",
+    {
+        turnId: uuid("turn_id")
+            .notNull()
+            .references(() => agentTurns.id),
+        seq: integer("seq").notNull(), // monotonic within a turn
+        type: text("type").notNull(),
+        data: jsonb("data").notNull(),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+    },
+    (t) => [primaryKey({ columns: [t.turnId, t.seq] })],
+);

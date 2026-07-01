@@ -1,4 +1,5 @@
 import type { Component, JSX } from "solid-js";
+import { editorTokens } from "./editor";
 
 // Minimal line icons (24×24, currentColor) for the studio rail + chrome. Bars/fills opt out of stroke.
 const PATHS: Record<string, JSX.Element> = {
@@ -26,9 +27,33 @@ const PATHS: Record<string, JSX.Element> = {
     data: (
         <>
             <path d="M4 20h16" />
-            <rect x="6.4" y="12" width="2.8" height="6" rx="0.8" fill="currentColor" stroke="none" />
-            <rect x="10.6" y="8" width="2.8" height="10" rx="0.8" fill="currentColor" stroke="none" />
-            <rect x="14.8" y="14" width="2.8" height="4" rx="0.8" fill="currentColor" stroke="none" />
+            <rect
+                x="6.4"
+                y="12"
+                width="2.8"
+                height="6"
+                rx="0.8"
+                fill="currentColor"
+                stroke="none"
+            />
+            <rect
+                x="10.6"
+                y="8"
+                width="2.8"
+                height="10"
+                rx="0.8"
+                fill="currentColor"
+                stroke="none"
+            />
+            <rect
+                x="14.8"
+                y="14"
+                width="2.8"
+                height="4"
+                rx="0.8"
+                fill="currentColor"
+                stroke="none"
+            />
         </>
     ),
     interactive: <path d="M6 4l4.6 14 2.3-5.6L18.5 9.8z" />,
@@ -62,7 +87,31 @@ const PATHS: Record<string, JSX.Element> = {
             <path d="M9 4v16" />
         </>
     ),
+    present: <path d="M7 4.5 20 12 7 19.5z" fill="currentColor" stroke="none" />,
+    preview: (
+        <>
+            <path d="M15 3h6v6M21 3l-7.5 7.5" />
+            <path d="M9 21H3v-6M3 21l7.5-7.5" />
+        </>
+    ),
+    export: (
+        <>
+            <path d="M21 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19v-4.5" />
+            <path d="M12 3v12M7.5 10.5 12 15l4.5-4.5" />
+        </>
+    ),
+    chevron: <path d="M5.5 8.5 12 15l6.5-6.5" />,
+    sparkle: <path d="M12 4.5 13.5 10l5.5 1.5-5.5 1.5L12 18.5 10.5 13 5 11.5 10.5 10z" />,
 };
+
+// Icon line-weight/cap derive from the active artifact theme — heavier + square for bold/brutalist
+// themes, thin + round for refined ones — so the chrome icons match the deck's character.
+function iconStyle(): { sw: number; cap: "round" | "square"; join: "round" | "miter" } {
+    const t = editorTokens();
+    const sw = t.headingWeight >= 700 ? 2.2 : t.headingWeight <= 500 ? 1.5 : 1.8;
+    const round = t.radius >= 12;
+    return { sw, cap: round ? "round" : "square", join: round ? "round" : "miter" };
+}
 
 export const Icon: Component<{ name: string; size?: number }> = (props) => (
     <svg
@@ -71,9 +120,9 @@ export const Icon: Component<{ name: string; size?: number }> = (props) => (
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        stroke-width="1.7"
-        stroke-linecap="round"
-        stroke-linejoin="round"
+        stroke-width={iconStyle().sw}
+        stroke-linecap={iconStyle().cap}
+        stroke-linejoin={iconStyle().join}
         aria-hidden="true"
     >
         {PATHS[props.name]}

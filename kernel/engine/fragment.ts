@@ -11,7 +11,11 @@ function shiftY(c: RenderCommand, dy: number): RenderCommand {
     return { ...c, box: { ...c.box, y: c.box.y + dy } };
 }
 
-export function fragment(commands: RenderCommand[], totalHeight: number, pageHeight: number): RenderCommand[][] {
+export function fragment(
+    commands: RenderCommand[],
+    totalHeight: number,
+    pageHeight: number,
+): RenderCommand[][] {
     if (totalHeight <= pageHeight + EPS || pageHeight <= 0) return [commands.map((c) => c)];
 
     const sorted = [...commands].sort((a, b) => a.box.y - b.box.y);
