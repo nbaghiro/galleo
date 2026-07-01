@@ -2,15 +2,16 @@ import type { Align, EngineNode, MeasureText, Rect } from "@engine/node";
 import type { Region, RenderCommand } from "@engine/render-command";
 import type { Size } from "@model/content";
 
-// A laid-out node: the input node plus its resolved box. Built across three passes
-// (widths -> heights -> positions), then flattened to render commands.
-interface Laid {
+// The working node the box solver builds and mutates: a back-pointer to the immutable input
+// EngineNode plus its resolved box (x/y/w/h), filled in across three passes (widths -> heights ->
+// positions), then flattened to render commands. Internal to this module.
+interface LayoutNode {
     node: EngineNode;
     x: number;
     y: number;
     w: number;
     h: number;
-    children: Laid[];
+    children: LayoutNode[];
 }
 
 const padX = (n: EngineNode): number => (n.padding?.left ?? 0) + (n.padding?.right ?? 0);
@@ -60,10 +61,10 @@ function assignWidth(
     }
 }
 
-function layoutWidths(node: EngineNode, w: number, measure: MeasureText): Laid {
-    const laid: Laid = { node, x: 0, y: 0, w, h: 0, children: [] };
+function layoutWidths(node: EngineNode, w: number, measure: MeasureText): LayoutNode {
+    const ln: LayoutNode = { node, x: 0, y: 0, w, h: 0, children: [] };
     const kids = node.children ?? [];
-    if (kids.length === 0) return laid;
+    if (kids.length === 0) return ln;
 
     const contentW = Math.max(0, w - padX(node));
     if (isRow(node)) {
@@ -75,7 +76,7 @@ function layoutWidths(node: EngineNode, w: number, measure: MeasureText): Laid {
         const growEach = growCount > 0 ? Math.max(0, avail - fixedSum) / growCount : 0;
         kids.forEach((c, i) => {
             const cw = widths[i]! < 0 ? clamp(growEach, c.w) : widths[i]!;
-            laid.children.push(layoutWidths(c, cw, measure));
+            ln.children.push(layoutWidths(c, cw, measure));
         });
     } else {
         for (const c of kids) {
@@ -83,10 +84,10 @@ function layoutWidths(node: EngineNode, w: number, measure: MeasureText): Laid {
                 c.w.mode === "grow"
                     ? clamp(contentW, c.w)
                     : assignWidth(c, contentW, contentW, measure);
-            laid.children.push(layoutWidths(c, cw, measure));
+            ln.children.push(layoutWidths(c, cw, measure));
         }
     }
-    return laid;
+    return ln;
 }
 
 // --- pass 2: heights (text measured at its resolved width; grow shares leftover) ---
@@ -104,13 +105,13 @@ function resolveHeight(s: Size, assigned: number, intrinsic: number): number {
     }
 }
 
-function layoutHeights(laid: Laid, assignedH: number, measure: MeasureText): void {
-    const node = laid.node;
+function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText): void {
+    const node = ln.node;
     if (!node.children || node.children.length === 0) {
         let intrinsic = 0;
-        if (node.text) intrinsic = measure(node.text, laid.w).height;
-        else if (node.aspect) intrinsic = laid.w / node.aspect;
-        laid.h = resolveHeight(node.h, assignedH, intrinsic);
+        if (node.text) intrinsic = measure(node.text, ln.w).height;
+        else if (node.aspect) intrinsic = ln.w / node.aspect;
+        ln.h = resolveHeight(node.h, assignedH, intrinsic);
         return;
     }
 
@@ -120,8 +121,8 @@ function layoutHeights(laid: Laid, assignedH: number, measure: MeasureText): voi
         // then stretch to it. In a `fit` row that height is the tallest sibling (not the container) —
         // otherwise a `grow` bar would fill the unbounded measurement height.
         let maxH = 0;
-        const growKids: Laid[] = [];
-        for (const c of laid.children) {
+        const growKids: LayoutNode[] = [];
+        for (const c of ln.children) {
             if (c.node.h.mode === "grow") {
                 growKids.push(c);
                 continue;
@@ -134,15 +135,15 @@ function layoutHeights(laid: Laid, assignedH: number, measure: MeasureText): voi
             layoutHeights(c, crossH, measure);
             maxH = Math.max(maxH, c.h);
         }
-        laid.h = resolveHeight(node.h, assignedH, maxH + padY(node));
+        ln.h = resolveHeight(node.h, assignedH, maxH + padY(node));
         return;
     }
 
     // column
-    const gaps = (node.gap ?? 0) * Math.max(0, laid.children.length - 1);
-    const growKids: Laid[] = [];
+    const gaps = (node.gap ?? 0) * Math.max(0, ln.children.length - 1);
+    const growKids: LayoutNode[] = [];
     let used = gaps;
-    for (const c of laid.children) {
+    for (const c of ln.children) {
         if (c.node.h.mode === "grow") {
             growKids.push(c);
         } else {
@@ -153,8 +154,8 @@ function layoutHeights(laid: Laid, assignedH: number, measure: MeasureText): voi
     const growEach = growKids.length > 0 ? Math.max(0, contentH - used) / growKids.length : 0;
     for (const c of growKids) layoutHeights(c, growEach, measure);
 
-    const childrenH = laid.children.reduce((sum, c) => sum + c.h, 0) + gaps;
-    laid.h = resolveHeight(node.h, assignedH, childrenH + padY(node));
+    const childrenH = ln.children.reduce((sum, c) => sum + c.h, 0) + gaps;
+    ln.h = resolveHeight(node.h, assignedH, childrenH + padY(node));
 }
 
 // --- pass 3: positions (top-down) ---
@@ -166,34 +167,32 @@ function mainOffset(extra: number, align: Align | undefined): number {
     return 0;
 }
 
-function layoutPositions(laid: Laid, x: number, y: number): void {
-    laid.x = x;
-    laid.y = y;
-    const node = laid.node;
-    if (laid.children.length === 0) return;
+function layoutPositions(ln: LayoutNode, x: number, y: number): void {
+    ln.x = x;
+    ln.y = y;
+    const node = ln.node;
+    if (ln.children.length === 0) return;
 
     const cl = node.padding?.left ?? 0;
     const ct = node.padding?.top ?? 0;
-    const contentW = Math.max(0, laid.w - padX(node));
-    const contentH = Math.max(0, laid.h - padY(node));
+    const contentW = Math.max(0, ln.w - padX(node));
+    const contentH = Math.max(0, ln.h - padY(node));
     const gap = node.gap ?? 0;
 
     if (isRow(node)) {
         const totalW =
-            laid.children.reduce((s, c) => s + c.w, 0) +
-            gap * Math.max(0, laid.children.length - 1);
+            ln.children.reduce((s, c) => s + c.w, 0) + gap * Math.max(0, ln.children.length - 1);
         let cx = x + cl + mainOffset(contentW - totalW, node.alignX);
-        for (const c of laid.children) {
+        for (const c of ln.children) {
             const cy = y + ct + mainOffset(contentH - c.h, c.node.alignSelf ?? node.alignY);
             layoutPositions(c, cx, cy);
             cx += c.w + gap;
         }
     } else {
         const totalH =
-            laid.children.reduce((s, c) => s + c.h, 0) +
-            gap * Math.max(0, laid.children.length - 1);
+            ln.children.reduce((s, c) => s + c.h, 0) + gap * Math.max(0, ln.children.length - 1);
         let cy = y + ct + mainOffset(contentH - totalH, node.alignY);
-        for (const c of laid.children) {
+        for (const c of ln.children) {
             const cx = x + cl + mainOffset(contentW - c.w, c.node.alignSelf ?? node.alignX);
             layoutPositions(c, cx, cy);
             cy += c.h + gap;
@@ -203,16 +202,16 @@ function layoutPositions(laid: Laid, x: number, y: number): void {
 
 // --- flatten to render commands (background fill first, then children) ---
 
-function emit(laid: Laid, commands: RenderCommand[], regions: Region[]): void {
-    const { node } = laid;
-    const box: Rect = { x: laid.x, y: laid.y, w: laid.w, h: laid.h };
+function emit(ln: LayoutNode, commands: RenderCommand[], regions: Region[]): void {
+    const { node } = ln;
+    const box: Rect = { x: ln.x, y: ln.y, w: ln.w, h: ln.h };
     if (node.id) regions.push({ id: node.id, box });
     if (node.fill) commands.push({ kind: "rect", box, fill: node.fill, id: node.id });
     if (node.image) commands.push({ kind: "image", box, image: node.image, id: node.id });
     if (node.text) commands.push({ kind: "text", box, text: node.text, id: node.id });
     if (node.surface)
         commands.push({ kind: "surface", box, paint: node.surface.paint, id: node.id });
-    for (const c of laid.children) emit(c, commands, regions);
+    for (const c of ln.children) emit(c, commands, regions);
 }
 
 // Resolve a node tree into absolute-positioned paint commands + interaction regions (for nodes
@@ -222,11 +221,11 @@ export function layout(
     container: Rect,
     measure: MeasureText,
 ): { commands: RenderCommand[]; regions: Region[] } {
-    const laid = layoutWidths(node, container.w, measure);
-    layoutHeights(laid, container.h, measure);
-    layoutPositions(laid, container.x, container.y);
+    const ln = layoutWidths(node, container.w, measure);
+    layoutHeights(ln, container.h, measure);
+    layoutPositions(ln, container.x, container.y);
     const commands: RenderCommand[] = [];
     const regions: Region[] = [];
-    emit(laid, commands, regions);
+    emit(ln, commands, regions);
     return { commands, regions };
 }
