@@ -3,10 +3,10 @@ import { createSignal, For, onMount, Show } from "solid-js";
 import { resolveTheme } from "@themes/library";
 import { type ArtifactSummary } from "../data/api";
 import { formatLabel, relativeTime } from "../data/format";
-import { RestoreIcon, TrashIcon } from "../ui/icons";
+import { RestoreIcon, TrashIcon } from "../components/icons";
 import { emptyTrash, loadTrash, purgeArtifact, restoreFromTrash, trash } from "../data/library";
-import { ConfirmModal } from "../ui/ConfirmModal";
-import { Sidebar } from "../ui/Sidebar";
+import { ConfirmModal } from "../components/ConfirmModal";
+import { Sidebar } from "../components/Sidebar";
 
 const DANGER = "#C0392B";
 

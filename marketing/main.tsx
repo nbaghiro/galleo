@@ -4,6 +4,7 @@ import "./marketing.css";
 import { render } from "solid-js/web";
 import { resolveTheme } from "@themes/library";
 import { themeCssVars } from "@themes/theme";
+import { setFavicon } from "../app/theme/favicon";
 import { MarketingPage } from "./MarketingPage";
 
 // Standalone marketing entry. Apply the user's persisted app theme (same key the app + sign-in use), so
@@ -18,7 +19,9 @@ function read(): string {
 
 const root = document.getElementById("root");
 if (root) {
-    const vars = themeCssVars(resolveTheme(read()).tokens);
+    const tokens = resolveTheme(read()).tokens;
+    const vars = themeCssVars(tokens);
     for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+    setFavicon(tokens); // the theme-badge favicon — the same one the app uses
     render(() => <MarketingPage />, root);
 }

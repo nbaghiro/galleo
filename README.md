@@ -42,7 +42,7 @@ pnpm dev                      # the Vite app  → http://localhost:8600  (/ = ma
 
 | Command                                                 | What it does                                              |
 | ------------------------------------------------------- | --------------------------------------------------------- |
-| `pnpm dev`                                              | Vite dev server (marketing + app + playground)            |
+| `pnpm dev`                                              | Vite dev server (marketing + app)                         |
 | `pnpm build`                                            | production build → `dist/`                                |
 | `pnpm api` · `pnpm api:watch`                           | the backend API                                           |
 | `pnpm seed`                                             | seed the demo data                                        |

@@ -12,8 +12,8 @@ import {
     type ThemeDraft,
     updateCustomTheme,
 } from "../theme/custom-themes";
-import { PlusIcon } from "../ui/icons";
-import { SectionThumb } from "../ui/SectionThumb";
+import { PlusIcon } from "../components/icons";
+import { SectionThumb } from "../components/SectionThumb";
 import { appTheme, setAppTheme } from "../theme/theme";
 import { closeThemeDrawer, themeDrawerOpen } from "../theme/theme-drawer";
 import { THEME_SAMPLE } from "../theme/theme-sample";
@@ -26,7 +26,8 @@ const CARD_W = 166; // fixed so the engine preview fills the card exactly (2 per
 // hosts custom-theme create/edit (persisted to the workspace) inline.
 export const ThemeDrawer: Component = () => {
     const location = useLocation();
-    const inEditor = (): boolean => location.pathname.startsWith("/edit/");
+    // pathname carries the router base ("/app/edit/:id"), so match the segment anywhere, not the start.
+    const inEditor = (): boolean => location.pathname.includes("/edit/");
     const currentId = (): string => (inEditor() ? editor.artifact.theme : appTheme());
     const apply = (id: string): void => {
         if (inEditor()) {
@@ -69,15 +70,14 @@ export const ThemeDrawer: Component = () => {
 
     const card = (t: Theme, custom: boolean): JSX.Element => (
         <div class="group" style={{ width: `${CARD_W}px` }}>
-            <div class={`rounded-lg ${currentId() === t.id ? "ring-2 ring-accent" : ""}`}>
-                <SectionThumb
-                    section={THEME_SAMPLE}
-                    themeId={t.id}
-                    formatId="deck"
-                    width={CARD_W}
-                    onOpen={() => apply(t.id)}
-                />
-            </div>
+            <SectionThumb
+                section={THEME_SAMPLE}
+                themeId={t.id}
+                formatId="deck"
+                width={CARD_W}
+                selected={currentId() === t.id}
+                onOpen={() => apply(t.id)}
+            />
             <div class="mt-1.5 flex items-center gap-1.5">
                 <span
                     class="h-3 w-3 flex-none rounded"

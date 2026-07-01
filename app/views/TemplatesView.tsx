@@ -4,9 +4,9 @@ import { useNavigate } from "@solidjs/router";
 import { resolveTheme } from "@themes/library";
 import { api, type ApiTemplate } from "../data/api";
 import { formatLabel } from "../data/format";
-import { PreviewCanvas } from "../ui/PreviewCanvas";
-import { SectionThumb } from "../ui/SectionThumb";
-import { Sidebar } from "../ui/Sidebar";
+import { PreviewCanvas } from "../components/PreviewCanvas";
+import { SectionThumb } from "../components/SectionThumb";
+import { Sidebar } from "../components/Sidebar";
 import { appTheme } from "../theme/theme";
 
 export const TemplatesView: Component = () => {

@@ -29,7 +29,7 @@ function appSpaFallback(): Plugin {
 
 export default defineConfig({
     root: ".",
-    publicDir: abs("./app/public"),
+    publicDir: false, // the favicon is set dynamically by setFavicon(); no static public assets
     server: {
         port: 8600,
         strictPort: true,
@@ -62,7 +62,6 @@ export default defineConfig({
             input: {
                 marketing: abs("./index.html"),
                 app: abs("./app/index.html"),
-                playground: abs("./app/playground.html"),
             },
         },
     },

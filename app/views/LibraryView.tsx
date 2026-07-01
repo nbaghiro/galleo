@@ -7,8 +7,8 @@ import { type ArtifactSummary } from "../data/api";
 import { FORMAT_IDS, formatLabel, formatLabelPlural, relativeTime } from "../data/format";
 import { appTheme } from "../theme/theme";
 import { folders } from "../data/folders";
-import { ConfirmModal } from "../ui/ConfirmModal";
-import { DuplicateIcon, FolderIcon, SearchIcon, TrashIcon } from "../ui/icons";
+import { ConfirmModal } from "../components/ConfirmModal";
+import { DuplicateIcon, FolderIcon, SearchIcon, TrashIcon } from "../components/icons";
 import {
     contents,
     artifacts,
@@ -20,8 +20,8 @@ import {
     removeArtifact,
     setDraggingArtifact,
 } from "../data/library";
-import { SectionThumb } from "../ui/SectionThumb";
-import { Sidebar } from "../ui/Sidebar";
+import { SectionThumb } from "../components/SectionThumb";
+import { Sidebar } from "../components/Sidebar";
 
 export const LibraryView: Component = () => {
     const navigate = useNavigate();

@@ -118,8 +118,7 @@ depends only on `kernel`, never on a surface.
 
 ## app/ — the product SPA (served at `/app`)
 
-`main.tsx` (entry) · `App.tsx` (auth gate + router + mounts the theme drawer once) · `playground.tsx`
-(a standalone element catalog at `/playground.html`).
+`main.tsx` (entry) · `App.tsx` (auth gate + router + mounts the theme drawer once).
 
 ```
 data/      the backend client + client stores
@@ -130,7 +129,7 @@ theme/     the app + custom theme system
   theme.ts (the app-chrome theme) · custom-themes.ts (backend CRUD → registers into the kernel) ·
   theme-drawer.ts · theme-sample.ts · favicon.ts · ThemeDrawer.tsx (the singular switcher) ·
   ThemeBuilder.tsx (custom-theme token editor) · ThemePreview.tsx
-ui/        shared components — Sidebar · CreateModal · ConfirmModal · SectionThumb · PreviewCanvas · icons · Visual
+components/ shared components — Sidebar · CreateModal · ConfirmModal · SectionThumb · PreviewCanvas · icons · Visual
 generate/  the narrated AI-generation flow (a simulator today)
   session.ts (the generation store) · IntakeView · BuildView · BuildCanvas · SpotlightCanvas ·
   extraViews (HUD) · genView (direction registry) · GenViewPicker · typing

@@ -23,8 +23,8 @@ import {
     TemplatesIcon,
     ThemeIcon,
     TrashIcon,
-} from "../ui/icons";
-import { CreateModal } from "../ui/CreateModal";
+} from "../components/icons";
+import { CreateModal } from "../components/CreateModal";
 import { artifacts, draggingArtifact, moveArtifact, setDraggingArtifact } from "../data/library";
 import { openThemeDrawer } from "../theme/theme-drawer";
 
@@ -34,6 +34,8 @@ import { openThemeDrawer } from "../theme/theme-drawer";
 export const Sidebar: Component = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    // The router carries base="/app", so pathname is "/app/…"; strip it to compare route-relative.
+    const route = (): string => location.pathname.replace(/^\/app/, "") || "/";
     onMount(() => loadFolders());
     const [dragOver, setDragOver] = createSignal<string | null>(null); // folder id, or "root" for Library
     const [creatingParent, setCreatingParent] = createSignal<string | null | undefined>(undefined); // null=root, id=subfolder
@@ -162,7 +164,7 @@ export const Sidebar: Component = () => {
         const kids = (): ApiFolder[] => folders().filter((x) => x.parentId === np.f.id);
         const expanded = (): boolean => !collapsed().has(np.f.id);
         const count = (): number => artifacts().filter((d) => d.folderId === np.f.id).length;
-        const active = (): boolean => location.pathname === `/folder/${np.f.id}`;
+        const active = (): boolean => route() === `/folder/${np.f.id}`;
         return (
             <>
                 <Show
@@ -294,18 +296,13 @@ export const Sidebar: Component = () => {
                     <LibraryIcon />,
                     "Library",
                     "/",
-                    location.pathname === "/",
+                    route() === "/",
                     () => drop(null),
                     "root",
                 )}
-                {navItem(
-                    <TemplatesIcon />,
-                    "Templates",
-                    "/templates",
-                    location.pathname === "/templates",
-                )}
+                {navItem(<TemplatesIcon />, "Templates", "/templates", route() === "/templates")}
                 {navItem(<SharedIcon />, "Shared", null, false)}
-                {navItem(<TrashIcon />, "Trash", "/trash", location.pathname === "/trash")}
+                {navItem(<TrashIcon />, "Trash", "/trash", route() === "/trash")}
             </nav>
 
             {/* Folders */}

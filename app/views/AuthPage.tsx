@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { createSignal, Show } from "solid-js";
 import { login } from "../data/auth";
-import { Visual } from "../ui/Visual";
+import { Visual } from "../components/Visual";
 
 const field =
     "w-full rounded-lg border border-line bg-panel px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-muted focus:border-accent";

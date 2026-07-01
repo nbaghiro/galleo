@@ -21,6 +21,7 @@ export const SectionThumb: Component<{
     formatId: string;
     label?: string;
     width?: number;
+    selected?: boolean;
     onOpen: () => void;
 }> = (props) => {
     let wrap!: HTMLButtonElement;
@@ -55,7 +56,7 @@ export const SectionThumb: Component<{
             ref={wrap}
             onClick={props.onOpen}
             title={props.label}
-            class="relative flex-none cursor-pointer overflow-hidden rounded-lg"
+            class={`relative flex-none cursor-pointer overflow-hidden rounded-lg ${props.selected ? "ring-2 ring-accent" : ""}`}
             style={{
                 width: `${cw()}px`,
                 height: `${ch()}px`,

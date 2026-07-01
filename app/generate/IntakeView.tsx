@@ -6,10 +6,10 @@ import { themeCssVars } from "@themes/theme";
 import { api } from "../data/api";
 import { blankArtifact } from "../data/blank";
 import { FORMAT_IDS, formatLabel } from "../data/format";
-import { RefreshIcon, SparkleIcon } from "../ui/icons";
+import { RefreshIcon, SparkleIcon } from "../components/icons";
 import { appTheme } from "../theme/theme";
-import { Visual } from "../ui/Visual";
-import "../ui/visuals.css";
+import { Visual } from "../components/Visual";
+import "../components/visuals.css";
 import { GenViewPicker } from "./GenViewPicker";
 import { startSession, type Surface } from "./session";
 
