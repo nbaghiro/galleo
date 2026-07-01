@@ -1,0 +1,15 @@
+#!/bin/sh
+# Keep main green: run the same checks as CI before every commit.
+# (Wired up by `pnpm install` via the "prepare" script → git core.hooksPath = .githooks.)
+set -e
+
+echo "▸ prettier --check"
+pnpm exec prettier --check .
+
+echo "▸ eslint"
+pnpm lint
+
+echo "▸ typecheck"
+pnpm typecheck
+
+echo "✓ pre-commit checks passed"
