@@ -1,5 +1,4 @@
 import { createSignal } from "solid-js";
-import { readLS, writeLS } from "../data/persist";
 import { resolveTheme } from "@themes/library";
 import { themeCssVars } from "@themes/theme";
 import type { JSX } from "solid-js";
@@ -10,11 +9,23 @@ import type { JSX } from "solid-js";
 const KEY = "galleo:app-theme";
 const DEFAULT = "brut";
 
-export const [appTheme, setAppThemeSignal] = createSignal(readLS(KEY) || DEFAULT);
+// localStorage can throw when the browser blocks site storage — never let it break app boot.
+let stored: string | null = null;
+try {
+    stored = localStorage.getItem(KEY);
+} catch {
+    /* storage unavailable — fall back to the default */
+}
+
+export const [appTheme, setAppThemeSignal] = createSignal(stored || DEFAULT);
 
 export function setAppTheme(id: string): void {
     setAppThemeSignal(id);
-    writeLS(KEY, id);
+    try {
+        localStorage.setItem(KEY, id);
+    } catch {
+        /* storage unavailable — the choice lives in memory for this session */
+    }
 }
 
 // CSS variables for the active app theme — set on the app root so every child (sign-in included)

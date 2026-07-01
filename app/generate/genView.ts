@@ -1,5 +1,4 @@
 import { createSignal } from "solid-js";
-import { readLS, writeLS } from "../data/persist";
 
 // Hidden dev switch for trying generation-view DIRECTIONS in-app (no visible control — for fast
 // compare/contrast). The backtick (`) key (or ⌃⌥V) on the build screen opens a small picker; choosing a
@@ -23,8 +22,13 @@ export const GEN_VIEW_DESC: Record<GenView, string> = {
 const KEY = "galleo.genview";
 const isGenView = (v: string): v is GenView => (GEN_VIEWS as readonly string[]).includes(v);
 const stored = (): GenView => {
-    const v = readLS(KEY) ?? "";
-    return isGenView(v) ? v : "console";
+    try {
+        const v = localStorage.getItem(KEY) ?? "";
+        if (isGenView(v)) return v;
+    } catch {
+        /* storage unavailable */
+    }
+    return "console";
 };
 
 const [genView, setGenViewRaw] = createSignal<GenView>(stored());
@@ -32,5 +36,9 @@ export { genView };
 
 export function setGenView(v: GenView): void {
     setGenViewRaw(v);
-    writeLS(KEY, v);
+    try {
+        localStorage.setItem(KEY, v);
+    } catch {
+        /* storage unavailable */
+    }
 }

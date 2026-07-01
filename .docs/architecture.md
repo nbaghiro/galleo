@@ -124,8 +124,7 @@ depends only on `kernel`, never on a surface.
 ```
 data/      the backend client + client stores
   api.ts (typed client) · auth.ts (session state) · library.ts (the artifact list + content) · folders.ts ·
-  save.ts (debounced autosave) · format.ts (format labels + relativeTime) · persist.ts (safe localStorage) ·
-  blank.ts
+  save.ts (debounced autosave) · format.ts (format labels + relativeTime) · blank.ts
 views/     the routed pages — AuthPage · LibraryView · TemplatesView · TrashView · EditorView
 theme/     the app + custom theme system
   theme.ts (the app-chrome theme) · custom-themes.ts (backend CRUD → registers into the kernel) ·
