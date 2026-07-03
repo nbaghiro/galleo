@@ -2,6 +2,7 @@ import type { Component } from "solid-js";
 import { Show } from "solid-js";
 import { generateFromPrompt } from "./agent";
 import { agentOpen, editor, loadGenerated, setAgentOpen } from "../editor";
+import { Icon } from "../icons";
 
 // The agent: describe a deck → a starter artifact (local preview generator for now).
 export const AgentPanel: Component = () => {
@@ -20,7 +21,9 @@ export const AgentPanel: Component = () => {
                     class="w-[560px] rounded-2xl border border-line bg-panel p-5 shadow-2xl"
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div class="mb-1 text-[15px] font-semibold text-ink">✦ Galleo Agent</div>
+                    <div class="mb-1 flex items-center gap-1.5 text-[15px] font-semibold text-ink">
+                        <Icon name="sparkle" size={15} /> Galleo Agent
+                    </div>
                     <p class="mb-3 text-[13px] text-muted">
                         Describe the deck you want.{" "}
                         <span class="opacity-70">
@@ -45,10 +48,10 @@ export const AgentPanel: Component = () => {
                             Cancel
                         </button>
                         <button
-                            class="rounded-lg border border-accent bg-accent px-3 py-1.5 text-[12px] font-semibold text-onaccent"
+                            class="inline-flex items-center gap-1.5 rounded-lg border border-accent bg-accent px-3 py-1.5 text-[12px] font-semibold text-onaccent"
                             onClick={generate}
                         >
-                            ✦ Generate deck
+                            <Icon name="sparkle" size={14} /> Generate deck
                         </button>
                     </div>
                 </div>

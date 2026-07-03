@@ -2,41 +2,99 @@ import type { Component, JSX } from "solid-js";
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { setArtifactFormat } from "@elements/ops";
 import {
+    canRedo,
+    canUndo,
     commit,
     currentArtifactId,
     artifacts,
     editor,
     editorTheme,
     present,
+    redo,
+    renameArtifact,
     requestHome,
     requestSwitchArtifact,
     requestThemePicker,
     setAgentOpen,
+    undo,
 } from "../editor";
 import { exportDeckPng, exportPdfAuto, exportPrint } from "../canvas/export-pdf";
 import { Icon } from "../icons";
 
-const btnBase = "cursor-pointer rounded-lg border px-3 py-1.5 text-[12px] font-semibold";
+// One shared height for every topbar control (switchers + action buttons) so they always line up.
+const controlH = "h-8";
+const btnBase = `flex items-center cursor-pointer rounded-lg border px-3 text-[12px] font-semibold ${controlH}`;
 const btn = `${btnBase} border-line bg-canvas text-ink`;
 const btnAccent = `${btnBase} border-accent bg-accent text-onaccent`;
 
 const ArtifactMenu: Component = () => {
     const [open, setOpen] = createSignal(false);
+    const [renaming, setRenaming] = createSignal(false);
+    const [draft, setDraft] = createSignal("");
     const current = createMemo(
         () => artifacts().find((d) => d.id === currentArtifactId())?.title ?? "Untitled",
     );
+    let inputEl: HTMLInputElement | undefined;
+    const startRename = (): void => {
+        setOpen(false);
+        setDraft(current());
+        setRenaming(true);
+        queueMicrotask(() => {
+            inputEl?.focus();
+            inputEl?.select();
+        });
+    };
+    const commitRename = (): void => {
+        if (!renaming()) return;
+        renameArtifact(draft());
+        setRenaming(false);
+    };
 
     return (
         <div class="relative">
-            <button
-                class="flex items-center gap-1.5 text-[13px] text-muted hover:text-ink"
-                onClick={() => setOpen((o) => !o)}
+            <Show
+                when={renaming()}
+                fallback={
+                    <button
+                        class="flex items-center gap-1.5 text-[13px] text-muted hover:text-ink"
+                        title="Rename or switch artifact"
+                        onClick={() => setOpen((o) => !o)}
+                    >
+                        {current()} <Icon name="chevron" size={12} />
+                    </button>
+                }
             >
-                {current()} <Icon name="chevron" size={12} />
-            </button>
+                <input
+                    ref={(el) => (inputEl = el)}
+                    class="w-56 rounded-md border border-line bg-canvas px-2 py-1 text-[13px] font-semibold text-ink outline-none focus:border-accent"
+                    value={draft()}
+                    onInput={(e) => setDraft(e.currentTarget.value)}
+                    onBlur={commitRename}
+                    onKeyDown={(e) => {
+                        e.stopPropagation(); // don't leak ⌘Z/Escape to the canvas' global shortcuts
+                        if (e.key === "Enter") {
+                            e.preventDefault();
+                            commitRename();
+                        } else if (e.key === "Escape") {
+                            e.preventDefault();
+                            setRenaming(false);
+                        }
+                    }}
+                />
+            </Show>
             <Show when={open()}>
                 <div class="fixed inset-0 z-10" onClick={() => setOpen(false)} />
                 <div class="absolute left-0 z-20 mt-2 w-60 rounded-xl border border-line bg-panel p-1.5 shadow-xl">
+                    <button
+                        class="block w-full rounded-lg px-2.5 py-2 text-left text-[13px] text-soft hover:bg-canvas"
+                        onClick={startRename}
+                    >
+                        Rename…
+                    </button>
+                    <div class="my-1 h-px bg-line" />
+                    <div class="px-2.5 pb-1 pt-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+                        Switch to
+                    </div>
                     <For each={artifacts()}>
                         {(d) => (
                             <button
@@ -52,6 +110,23 @@ const ArtifactMenu: Component = () => {
                     </For>
                 </div>
             </Show>
+        </div>
+    );
+};
+
+// Small icon-only undo/redo, greyed when their stack is empty. Content edits, theme changes, format
+// switches and renames all share one stack (see editor.ts), so these step through everything.
+const HistoryButtons: Component = () => {
+    const cls =
+        "grid h-8 w-8 place-items-center rounded-lg text-soft transition-colors hover:bg-canvas hover:text-ink disabled:pointer-events-none disabled:opacity-30";
+    return (
+        <div class="flex items-center gap-0.5">
+            <button class={cls} disabled={!canUndo()} title="Undo (⌘Z)" onClick={undo}>
+                <Icon name="undo" size={15} />
+            </button>
+            <button class={cls} disabled={!canRedo()} title="Redo (⌘⇧Z)" onClick={redo}>
+                <Icon name="redo" size={15} />
+            </button>
         </div>
     );
 };
@@ -141,7 +216,9 @@ const ExportMenu: Component = () => {
 };
 
 const FormatSwitcher: Component = () => (
-    <div class="flex gap-0.5 rounded-lg border border-line bg-canvas p-0.5">
+    <div
+        class={`flex items-center gap-0.5 rounded-lg border border-line bg-canvas p-0.5 ${controlH}`}
+    >
         <For each={FORMATS}>
             {(f) => (
                 <button
@@ -165,6 +242,7 @@ export const Topbar: Component = () => (
             GALLEO
         </button>
         <ArtifactMenu />
+        <HistoryButtons />
         <span class="flex-1" />
         <FormatSwitcher />
         <ThemeMenu />

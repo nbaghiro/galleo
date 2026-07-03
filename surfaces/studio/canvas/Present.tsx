@@ -16,6 +16,7 @@ import {
 import { measureText } from "./measure";
 import { layoutSlide } from "./render";
 import { fitSlideContent, paintSectionStack } from "./stage";
+import { Icon } from "../icons";
 
 // Deck slide geometry (16:9). Each section is stretched to fill the slide.
 const SLIDE_W = 1280;
@@ -191,7 +192,7 @@ export const Present: Component = () => {
     });
 
     const total = (): number => editor.artifact.sections.length;
-    const chrome = "rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-colors";
+    const chrome = "grid h-7 w-7 flex-none place-items-center rounded-lg transition-colors";
     const hostStyle = createMemo(
         (): JSX.CSSProperties =>
             paged()
@@ -236,7 +237,7 @@ export const Present: Component = () => {
                             title="Previous (←)"
                             onClick={() => prevSlide()}
                         >
-                            ‹
+                            <Icon name="chevronLeft" size={16} />
                         </button>
                         <span class="px-1.5 font-mono text-[12px] tabular-nums">
                             {slideIndex() + 1} / {total()}
@@ -246,7 +247,7 @@ export const Present: Component = () => {
                             title="Next (→)"
                             onClick={() => nextSlide()}
                         >
-                            ›
+                            <Icon name="chevronRight" size={16} />
                         </button>
                         <span class="mx-1 h-4 w-px bg-white/15" />
                         <button
@@ -254,21 +255,21 @@ export const Present: Component = () => {
                             title="Overview (O)"
                             onClick={() => setOverview((v) => !v)}
                         >
-                            Grid
+                            <Icon name="grid" size={15} />
                         </button>
                         <button
                             class={`${chrome} hover:bg-white/10`}
                             title="Fullscreen (F)"
                             onClick={toggleFs}
                         >
-                            ⤢
+                            <Icon name="fullscreen" size={15} />
                         </button>
                         <button
                             class={`${chrome} hover:bg-white/10`}
                             title="Exit (Esc)"
                             onClick={() => exitPresent()}
                         >
-                            ✕
+                            <Icon name="close" size={15} />
                         </button>
                     </div>
                 </Show>
@@ -285,14 +286,14 @@ export const Present: Component = () => {
                             title="Fullscreen (F)"
                             onClick={toggleFs}
                         >
-                            ⤢
+                            <Icon name="fullscreen" size={15} />
                         </button>
                         <button
                             class={`${chrome} hover:bg-white/10`}
                             title="Exit (Esc)"
                             onClick={() => exitPresent()}
                         >
-                            ✕
+                            <Icon name="close" size={15} />
                         </button>
                     </div>
                 </Show>

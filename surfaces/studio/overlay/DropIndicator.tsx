@@ -1,48 +1,32 @@
 import type { Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
-import { cellRegionId } from "@model/address";
 import { drag } from "../editing/dnd";
-import { editorAccent, regions } from "../editor";
+import { editorAccent } from "../editor";
 
-// Lives inside the canvas stage (canvas coords): an accent ring on an empty target cell, or an accent
-// insertion line between items. Shows where the dragged element will land.
+// Lives inside the canvas stage (canvas coords). For a "between" drop (hovering an existing element) it
+// draws a thin accent insertion line at the target boundary. For a "reflow" drop (open space) it shows
+// nothing here — the ghost skeleton is painted inline in the preview artifact, which auto-sizes the
+// section around it.
 export const DropIndicator: Component = () => {
-    const cellBox = createMemo(() => {
+    const line = createMemo(() => {
         const t = drag()?.target;
-        if (!t) return null;
-        return regions().find((r) => r.id === cellRegionId(t.section, t.cell))?.box ?? null;
+        return t && !t.reflow ? t.slot : null;
     });
 
     return (
-        <>
-            <Show when={drag()?.target?.mode === "place" && cellBox()}>
-                {(b) => (
-                    <div
-                        class="pointer-events-none absolute rounded-[10px]"
-                        style={{
-                            left: `${b().x}px`,
-                            top: `${b().y}px`,
-                            width: `${b().w}px`,
-                            height: `${b().h}px`,
-                            "box-shadow": `0 0 0 2px ${editorAccent()}`,
-                        }}
-                    />
-                )}
-            </Show>
-            <Show when={drag()?.target?.mode === "insert" && cellBox()}>
-                {(b) => (
-                    <div
-                        class="pointer-events-none absolute rounded-full"
-                        style={{
-                            left: `${b().x + 10}px`,
-                            top: `${drag()?.target?.indicatorY ?? 0}px`,
-                            width: `${b().w - 20}px`,
-                            height: "3px",
-                            background: editorAccent(),
-                        }}
-                    />
-                )}
-            </Show>
-        </>
+        <Show when={line()}>
+            {(b) => (
+                <div
+                    class="pointer-events-none absolute rounded-full"
+                    style={{
+                        left: `${b().x}px`,
+                        top: `${b().y}px`,
+                        width: `${b().w}px`,
+                        height: `${b().h}px`,
+                        background: editorAccent(),
+                    }}
+                />
+            )}
+        </Show>
     );
 };

@@ -1,9 +1,10 @@
+import type { Rect, TextLeaf } from "@engine/node";
 import type { RenderCommand } from "@engine/render-command";
 import type { Section } from "@model/content";
 import type { Tokens } from "@themes/theme";
 import { resolveProfile } from "@engine/profile";
 import { canvasDrawContext } from "./dom-backend";
-import { measureText } from "./measure";
+import { CODE_BG, layoutRuns, measureText } from "./measure";
 import { layoutSlide } from "./render";
 
 // A Canvas render backend: draws a RenderCommand[] onto a 2D context. Mirrors the DOM backend so the
@@ -72,6 +73,54 @@ function drawImageFit(
     cx.restore();
 }
 
+// Paint a runs-carrying text leaf: word-wrap it (identical to the engine's measure), then draw each
+// styled fragment at its own x with its own font/color, plus drawn underline/strike and a code bg.
+// This is the export-fidelity path (PNG + rasterized-into-PDF), so per-run geometry must be exact.
+function drawRuns(cx: CanvasRenderingContext2D, t: TextLeaf, b: Rect): void {
+    const laid = layoutRuns(cx, t, b.w);
+    const baseColor = t.color ?? "#1a1a1a";
+    const lh = laid.lineHeight;
+    cx.textAlign = "left";
+    cx.textBaseline = "middle";
+    laid.lines.forEach((line, i) => {
+        const dx =
+            t.align === "center"
+                ? (b.w - line.width) / 2
+                : t.align === "end"
+                  ? b.w - line.width
+                  : 0;
+        const midY = b.y + i * lh + lh / 2;
+        for (const f of line.frags) {
+            const x = b.x + dx + f.x;
+            if (f.highlight || f.code) {
+                cx.fillStyle = f.highlight ?? CODE_BG;
+                cx.fillRect(x, midY - lh / 2, f.width, lh);
+            }
+            cx.font = f.font;
+            cx.fillStyle = f.color ?? baseColor;
+            cx.fillText(f.text, x, midY);
+            if (f.underline || f.strike) {
+                cx.strokeStyle = f.color ?? baseColor;
+                cx.lineWidth = Math.max(1, t.size * 0.06);
+                cx.setLineDash([]);
+                if (f.underline) {
+                    const uy = midY + t.size * 0.34;
+                    cx.beginPath();
+                    cx.moveTo(x, uy);
+                    cx.lineTo(x + f.width, uy);
+                    cx.stroke();
+                }
+                if (f.strike) {
+                    cx.beginPath();
+                    cx.moveTo(x, midY);
+                    cx.lineTo(x + f.width, midY);
+                    cx.stroke();
+                }
+            }
+        }
+    });
+}
+
 function drawCommands(
     cx: CanvasRenderingContext2D,
     commands: RenderCommand[],
@@ -113,6 +162,8 @@ function drawCommands(
         } else if (c.kind === "image") {
             const img = images.get(c.image.src);
             if (img) drawImageFit(cx, img, b, c.image.fit, c.image.radius, c.image.scrim);
+        } else if (c.kind === "text" && c.text.runs && c.text.runs.length > 0) {
+            drawRuns(cx, c.text, b);
         } else if (c.kind === "text") {
             const t = c.text;
             cx.font = `${t.weight ?? 400} ${t.size}px ${t.fontId}`;

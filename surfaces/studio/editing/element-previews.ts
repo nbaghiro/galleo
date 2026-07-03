@@ -40,6 +40,20 @@ const PREVIEWS: Record<string, string> = {
         <rect x="48" y="24" width="62" height="6" rx="3" fill="${ink}" opacity="0.8"/>
         <rect x="48" y="37" width="74" height="6" rx="3" fill="${muted}" opacity="0.7"/>`,
 
+    cards: `
+        <rect x="14" y="16" width="34" height="42" rx="6" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
+        <rect x="20" y="23" width="20" height="6" rx="3" fill="${ink}" opacity="0.8"/>
+        <rect x="20" y="34" width="22" height="4" rx="2" fill="${muted}" opacity="0.7"/>
+        <rect x="20" y="42" width="15" height="4" rx="2" fill="${muted}" opacity="0.5"/>
+        <rect x="53" y="16" width="34" height="42" rx="6" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
+        <rect x="59" y="23" width="20" height="6" rx="3" fill="${ink}" opacity="0.8"/>
+        <rect x="59" y="34" width="22" height="4" rx="2" fill="${muted}" opacity="0.7"/>
+        <rect x="59" y="42" width="15" height="4" rx="2" fill="${muted}" opacity="0.5"/>
+        <rect x="92" y="16" width="34" height="42" rx="6" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
+        <rect x="98" y="23" width="20" height="6" rx="3" fill="${ink}" opacity="0.8"/>
+        <rect x="98" y="34" width="22" height="4" rx="2" fill="${muted}" opacity="0.7"/>
+        <rect x="98" y="42" width="15" height="4" rx="2" fill="${muted}" opacity="0.5"/>`,
+
     code: `
         <rect x="13" y="13" width="114" height="46" rx="8" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
         <circle cx="24" cy="22" r="1.8" fill="${muted}" opacity="0.55"/>

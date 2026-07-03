@@ -31,11 +31,11 @@ export function generateFromPrompt(prompt: string, themeId: string): ArtifactCon
             section("g1", "full", {
                 a: cell(
                     group(
-                        t("GENERATED", "eyebrow"),
-                        t(cap, "display"),
+                        t("GENERATED", "label"),
+                        t(cap, "h1"),
                         t(
                             "A starting point — edit anything, switch the theme, or present it.",
-                            "lead",
+                            "subtitle",
                         ),
                     ),
                 ),
@@ -43,7 +43,7 @@ export function generateFromPrompt(prompt: string, themeId: string): ArtifactCon
             section("g2", "split-6040", {
                 a: cell(
                     group(
-                        t("01 — Overview", "eyebrow"),
+                        t("01 — Overview", "label"),
                         t("The big idea", "h2"),
                         t(
                             `Replace this with the core of ${title}. Galleo drafted the structure; you bring the substance.`,
@@ -65,7 +65,7 @@ export function generateFromPrompt(prompt: string, themeId: string): ArtifactCon
                 a: cell(img(`${seed}-2`, 1.05)),
                 b: cell(
                     group(
-                        t("02 — How it works", "eyebrow"),
+                        t("02 — How it works", "label"),
                         t("Three steps", "h2"),
                         bullets(
                             "Describe it — Galleo drafts the outline",
@@ -78,7 +78,7 @@ export function generateFromPrompt(prompt: string, themeId: string): ArtifactCon
             section("g6", "split-4060", {
                 a: empty,
                 b: cell(
-                    group(t("Next", "eyebrow"), t("Make it yours.", "h2"), button("Start editing")),
+                    group(t("Next", "label"), t("Make it yours.", "h2"), button("Start editing")),
                 ),
             }),
         ],

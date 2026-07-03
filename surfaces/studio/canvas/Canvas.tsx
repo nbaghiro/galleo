@@ -1,23 +1,36 @@
 import type { Region } from "@engine/render-command";
 import type { Target } from "@model/address";
+import type { Section } from "@model/content";
 import type { Component } from "solid-js";
 import { createEffect, createMemo, onCleanup, onMount } from "solid-js";
-import { getElementAt } from "@elements/ops";
+import { duplicateAt, duplicatedAddr, getElementAt, removeAt } from "@elements/ops";
 import { getElement } from "@elements/registry";
 import { resolveProfile } from "@engine/profile";
 import { elementRegionId, parentTarget, parseTarget, specificity } from "@model/address";
 import { backdropCss } from "./backdrop";
 import { paintSectionStack } from "./stage";
-import { applyDrop, computeDropTarget, drag, setDrag, startDrag } from "../editing/dnd";
+import {
+    applyDrop,
+    computeDropTarget,
+    drag,
+    previewDrop,
+    setDrag,
+    startDrag,
+} from "../editing/dnd";
+import { applyLiveEdit, liveEdit } from "../editing/manipulate";
 import {
     commit,
     currentArtifactId,
+    duplicateSectionAt,
     editing,
     editor,
     editorTokens,
     editSeq,
+    jumpToSection,
     leftOpen,
     redo,
+    removeSectionAt,
+    selection,
     setCanvasEl,
     setEditor,
     setHover,
@@ -27,12 +40,17 @@ import {
     startEditing,
     undo,
 } from "../editor";
+import { CellAdd } from "../overlay/CellAdd";
+import { ColumnDividers } from "../overlay/ColumnDividers";
+import { ContextBar } from "../overlay/ContextBar";
+import { ContextMenu, openContextMenu } from "../overlay/ContextMenu";
 import { DropIndicator } from "../overlay/DropIndicator";
-import { ElementOverlay } from "../overlay/ElementOverlay";
 import { Overlay } from "../overlay/Overlay";
+import { ResizeHandles } from "../overlay/ResizeHandles";
+import { SpacingHandles } from "../overlay/SpacingHandles";
 import { SectionActions } from "../overlay/SectionActions";
 import { SectionToolbar } from "../overlay/SectionToolbar";
-import { TextEditor } from "../editing/TextEditor";
+import { TextEditor } from "../editing/InlineTextEditor";
 
 const DRAG_THRESHOLD = 4;
 
@@ -51,7 +69,11 @@ export const Canvas: Component = () => {
     let liveRegions: Region[] = [];
     let pending: { target: Target | null; x: number; y: number } | null = null;
 
-    const draw = (): void => {
+    // `preview` (a modified copy of the sections) is painted while dragging: a ghost-spliced drop that
+    // auto-sizes the section (DnD, `track` off — hit-testing stays on the stable real layout so the drop
+    // target doesn't chase itself), or a live resize/column edit (`track` on — regions update so the
+    // handles follow the element as it resizes).
+    const draw = (preview?: Section[] | null, track = false): void => {
         if (!paintHost) return;
         // The panels float over the canvas; reserve their gutters so centered content clears them.
         const profile = resolveProfile(editor.artifact.format);
@@ -63,15 +85,17 @@ export const Canvas: Component = () => {
         const editId = editAddr ? elementRegionId(editAddr) : null;
         const { tops, regions, height } = paintSectionStack(
             paintHost,
-            editor.artifact.sections,
+            preview ?? editor.artifact.sections,
             profile,
             editorTokens(),
             { fullW, hideId: editId },
         );
         stageEl.style.height = `${height}px`;
         setEditor("sectionTops", tops);
-        liveRegions = regions;
-        setRegions(regions);
+        if (!preview || track) {
+            liveRegions = regions;
+            setRegions(regions);
+        }
     };
 
     const point = (e: { clientX: number; clientY: number }): [number, number] => {
@@ -95,12 +119,12 @@ export const Canvas: Component = () => {
     };
 
     const onPointerDown = (e: PointerEvent): void => {
-        if (drag() || editing()) return;
+        if (drag() || editing() || liveEdit()) return;
         pending = { target: hitTest(...point(e)), x: e.clientX, y: e.clientY };
     };
 
     const onPointerMove = (e: PointerEvent): void => {
-        if (drag() || editing()) return; // active drag is driven by the window listeners below
+        if (drag() || editing() || liveEdit()) return; // active drag/resize driven by window listeners
         if (
             pending?.target?.kind === "element" &&
             Math.hypot(e.clientX - pending.x, e.clientY - pending.y) > DRAG_THRESHOLD
@@ -116,15 +140,23 @@ export const Canvas: Component = () => {
     };
 
     const onPointerUp = (): void => {
-        if (drag() || editing() || !pending) return;
+        if (drag() || editing() || liveEdit() || !pending) return;
         const t = pending.target;
         const caret = { x: pending.x, y: pending.y };
         pending = null;
         setSelection(t);
-        // A clean click on text drops straight into editing, caret at the click point (drag = move).
-        if (t?.kind === "element" && getElementAt(editor.artifact, t.address)?.type === "text") {
-            startEditing(t.address, caret);
+        // A clean click on a rich-text element drops straight into editing, caret at the click point.
+        if (t?.kind === "element") {
+            const el = getElementAt(editor.artifact, t.address);
+            if (el && getElement(el.type)?.richText) startEditing(t.address, caret);
         }
+    };
+
+    const onContextMenu = (e: MouseEvent): void => {
+        e.preventDefault();
+        const t = hitTest(...point(e));
+        setSelection(t);
+        openContextMenu(e.clientX, e.clientY, t);
     };
 
     onMount(() => {
@@ -138,11 +170,52 @@ export const Canvas: Component = () => {
         document.fonts.addEventListener("loadingdone", onFonts);
         const onKey = (e: KeyboardEvent): void => {
             if (editing()) return; // the inline editor owns the keyboard while active
+            const el = document.activeElement as HTMLElement | null;
+            const typing =
+                !!el &&
+                (el.tagName === "INPUT" ||
+                    el.tagName === "TEXTAREA" ||
+                    el.tagName === "SELECT" ||
+                    el.isContentEditable);
+            const sel = selection();
             if (e.key === "Escape") setSelection((cur) => (cur ? parentTarget(cur) : null));
             else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
                 e.preventDefault();
                 if (e.shiftKey) redo();
                 else undo();
+            } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "y") {
+                e.preventDefault();
+                redo(); // Windows/alt redo
+            } else if (typing) {
+                return; // let inspector form fields own their keys (delete/backspace/etc.)
+            } else if ((e.key === "Delete" || e.key === "Backspace") && sel) {
+                e.preventDefault();
+                if (sel.kind === "element") {
+                    commit(removeAt(editor.artifact, sel.address));
+                    setSelection(null);
+                } else if (sel.kind === "section") {
+                    removeSectionAt(sel.section);
+                }
+            } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d" && sel) {
+                e.preventDefault();
+                if (sel.kind === "element") {
+                    commit(duplicateAt(editor.artifact, sel.address));
+                    setSelection({ kind: "element", address: duplicatedAddr(sel.address) });
+                } else if (sel.kind === "section") {
+                    duplicateSectionAt(sel.section);
+                }
+            } else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && sel?.kind === "section") {
+                e.preventDefault();
+                const secs = editor.artifact.sections;
+                const i = secs.findIndex((s) => s.id === sel.section);
+                const j = Math.max(
+                    0,
+                    Math.min(secs.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)),
+                );
+                if (j !== i) {
+                    setSelection({ kind: "section", section: secs[j]!.id });
+                    jumpToSection(j);
+                }
             }
         };
         window.addEventListener("keydown", onKey);
@@ -153,11 +226,27 @@ export const Canvas: Component = () => {
         });
     });
 
-    // editSeq() bumps on every edit; currentArtifactId() changes on load — either forces a redraw.
+    // The live preview painted mid-gesture: a resize/column edit (track on, so handles follow), or a
+    // reflow drop ghost (track off). Null when nothing is being manipulated.
+    const preview = createMemo<{ sections: Section[]; track: boolean } | null>(() => {
+        const edit = liveEdit();
+        if (edit) return { sections: applyLiveEdit(editor.artifact, edit).sections, track: true };
+        const d = drag();
+        if (d?.target?.reflow)
+            return {
+                sections: previewDrop(editor.artifact, d.target, d.payload).sections,
+                track: false,
+            };
+        return null;
+    });
+
+    // editSeq() bumps on every edit; currentArtifactId() changes on load; preview() tracks the active
+    // gesture — any of them forces a redraw (real artifact, or the live preview).
     createEffect(() => {
         editSeq();
         currentArtifactId();
-        draw();
+        const p = preview();
+        draw(p?.sections ?? null, p?.track ?? false);
     });
 
     // While a drag is active, the cursor lives anywhere on screen — track it on the window.
@@ -170,12 +259,12 @@ export const Canvas: Component = () => {
         };
         const up = (): void => {
             const d = drag();
+            setDrag(null); // clear first so the redraw effect paints the committed result, not the ghost
             if (d?.target) {
                 commit(applyDrop(editor.artifact, d.target, d.payload));
                 setSelection({ kind: "cell", section: d.target.section, cell: d.target.cell });
                 setHover(null);
             }
-            setDrag(null);
         };
         window.addEventListener("pointermove", move);
         window.addEventListener("pointerup", up);
@@ -206,17 +295,23 @@ export const Canvas: Component = () => {
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            onContextMenu={onContextMenu}
             onPointerLeave={() => !drag() && setHover(null)}
         >
             <div ref={stageEl} class="relative w-full">
                 <div ref={paintHost} class="absolute inset-0" />
                 <Overlay />
+                <ResizeHandles />
+                <SpacingHandles />
+                <ColumnDividers />
                 <DropIndicator />
                 <SectionActions />
                 <SectionToolbar />
-                <ElementOverlay />
+                <ContextBar />
+                <CellAdd />
                 <TextEditor />
             </div>
+            <ContextMenu />
         </main>
     );
 };

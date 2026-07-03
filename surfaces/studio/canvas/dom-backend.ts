@@ -1,7 +1,43 @@
-import type { DrawContext, DrawStyle, DrawTextStyle } from "@engine/node";
+import type { DrawContext, DrawStyle, DrawTextStyle, Run, TextLeaf } from "@engine/node";
 import type { RenderCommand } from "@engine/render-command";
+import { CODE_BG, MONO_FONT_STACK } from "./measure";
 
 // A DOM render backend: paints absolute-positioned divs from the engine's render commands.
+
+// Fill a text element with styled <span>s (one per run), letting the browser wrap them inside the
+// block just as a single text node would. The base font/size/color/align live on the container `el`;
+// each run only overrides what its marks set. Concatenated span text equals the plain string.
+function appendRuns(el: HTMLElement, runs: Run[]): void {
+    for (const run of runs) {
+        const span = document.createElement("span");
+        span.textContent = run.text;
+        if (run.bold) span.style.fontWeight = "700";
+        if (run.italic) span.style.fontStyle = "italic";
+        const deco = [run.underline ? "underline" : "", run.strike ? "line-through" : ""]
+            .filter(Boolean)
+            .join(" ");
+        if (deco) span.style.textDecorationLine = deco;
+        if (run.color) span.style.color = run.color;
+        if (run.code) {
+            span.style.fontFamily = MONO_FONT_STACK;
+            span.style.background = CODE_BG;
+            span.style.borderRadius = "3px";
+        }
+        if (run.highlight) span.style.background = run.highlight;
+        el.appendChild(span);
+    }
+}
+
+function paintText(el: HTMLElement, t: TextLeaf): void {
+    el.style.font = `${t.weight ?? 400} ${t.size}px ${t.fontId}`;
+    el.style.lineHeight = `${t.lineHeight ?? t.size * 1.35}px`;
+    el.style.color = t.color ?? "#1a1a1a";
+    el.style.textAlign = t.align ?? "start";
+    el.style.whiteSpace = t.wrap === "none" ? "pre" : "pre-wrap"; // honor \n hard breaks
+    el.style.overflow = "hidden";
+    if (t.runs && t.runs.length > 0) appendRuns(el, t.runs);
+    else el.textContent = t.text;
+}
 
 // Canvas implementation of the engine's backend-abstract DrawContext (for surface elements).
 export function canvasDrawContext(cx: CanvasRenderingContext2D): DrawContext {
@@ -92,14 +128,7 @@ export function paint(commands: RenderCommand[], host: HTMLElement): void {
             el.style.backgroundRepeat = "no-repeat";
             if (c.image.radius !== undefined) el.style.borderRadius = `${c.image.radius}px`;
         } else if (c.kind === "text") {
-            const t = c.text;
-            el.textContent = t.text;
-            el.style.font = `${t.weight ?? 400} ${t.size}px ${t.fontId}`;
-            el.style.lineHeight = `${t.lineHeight ?? t.size * 1.35}px`;
-            el.style.color = t.color ?? "#1a1a1a";
-            el.style.textAlign = t.align ?? "start";
-            el.style.whiteSpace = t.wrap === "none" ? "pre" : "pre-wrap"; // honor \n hard breaks
-            el.style.overflow = "hidden";
+            paintText(el, c.text);
         } else {
             const canvas = document.createElement("canvas");
             const dpr = window.devicePixelRatio || 1;

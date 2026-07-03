@@ -8,7 +8,7 @@ import { composeSection } from "@elements/compose";
 import { skeletonize } from "@elements/skeleton";
 import { layout } from "@engine/layout";
 import { DEFAULT_PROFILE } from "@engine/profile";
-import { fixed } from "@model/size";
+import { fixed, grow } from "@model/size";
 import { DEFAULT_THEME } from "@themes/library";
 import { mix } from "@themes/color";
 
@@ -65,9 +65,51 @@ export function layoutSectionSkeleton(
     return { commands, height: bottom(commands) };
 }
 
+// The first aspect-sized image leaf within a subtree (a column's image), whose height = width / aspect.
+function findAspectImage(n: EngineNode): EngineNode | null {
+    if (n.image && n.aspect !== undefined) return n;
+    for (const c of n.children ?? []) {
+        const found = findAspectImage(c);
+        if (found) return found;
+    }
+    return null;
+}
+
+// A deck slide only has to fit 16:9. A portrait image sized by its aspect can make its column taller than
+// the slide, forcing the whole slide to scale down (letterboxing the width). When a section overflows and
+// at least one column is NOT image-driven, convert the image columns to cover-fit (grow + crop) so the
+// section height is driven by the text, not the image. Returns the inner rows it changed (to grow later).
+function coverFitColumns(root: EngineNode): EngineNode[] {
+    const rows: EngineNode[] = [];
+    const collect = (n: EngineNode): void => {
+        if (n.direction === "row" && (n.children ?? []).some((c) => c.id?.startsWith("cell:")))
+            rows.push(n);
+        n.children?.forEach(collect);
+    };
+    collect(root);
+    const changed: EngineNode[] = [];
+    for (const row of rows) {
+        const cells = (row.children ?? []).filter((c) => c.id?.startsWith("cell:"));
+        const imageCells = cells.filter((c) => findAspectImage(c));
+        // Need a text column to set the height and an image column to convert; skip all-image rows.
+        if (cells.length < 2 || imageCells.length === 0 || imageCells.length === cells.length)
+            continue;
+        for (const cell of imageCells) {
+            const img = findAspectImage(cell)!;
+            cell.h = grow();
+            img.h = grow();
+            img.aspect = undefined;
+            if (img.image) img.image = { ...img.image, fit: "cover" };
+        }
+        changed.push(row);
+    }
+    return changed;
+}
+
 // Prepare a full-bleed slide node: drop corner radii/borders and stretch it to FILL the slide (content
-// centered), so a short section sizes up to the whole frame; a section taller than the slide keeps its
-// natural height (the caller scales it down). Returns the node + resolved height for a final layout pass.
+// centered). A short section sizes up to the whole frame. A taller text+image split cover-fits its image
+// column so it fills the 16:9 slide instead of scaling down; anything still too tall keeps its natural
+// height (the caller scales it down). Returns the node + resolved height for a final layout pass.
 function prepareSlideNode(
     section: Section,
     w: number,
@@ -79,7 +121,21 @@ function prepareSlideNode(
     const node = composeSection(section, ctxFor(w, theme, format));
     if (node.fill) node.fill = { ...node.fill, radius: 0, border: undefined };
     if (node.image) node.image = { ...node.image, radius: 0 };
-    const natural = bottom(layout(node, { x: 0, y: 0, w, h: 100000 }, measure).commands);
+    let natural = bottom(layout(node, { x: 0, y: 0, w, h: 100000 }, measure).commands);
+    if (natural > h) {
+        const rows = coverFitColumns(node);
+        if (rows.length) {
+            const covered = bottom(layout(node, { x: 0, y: 0, w, h: 100000 }, measure).commands);
+            if (covered <= h) {
+                // Fits once the image cover-fits → fill the slide height so the image covers it.
+                for (const row of rows) row.h = grow();
+                node.h = fixed(h);
+                node.alignY = "center";
+                return { node, targetH: h };
+            }
+            natural = Math.min(natural, covered); // still overflowing (long text) → less to scale down
+        }
+    }
     const targetH = Math.max(h, natural);
     node.h = fixed(targetH);
     node.alignY = "center";

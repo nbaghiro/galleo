@@ -1,12 +1,14 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
-import { listElements } from "@elements/registry";
-import { rightTab, selection, setRightTab } from "../editor";
+import { getElementAt } from "@elements/ops";
+import { getElement, listElements } from "@elements/registry";
+import { editor, rightTab, selection, setRightTab } from "../editor";
 import { Icon } from "../icons";
+import { ElementInspector } from "../overlay/ElementInspector";
 import { PaletteItem } from "../overlay/PaletteItem";
 import { SectionInspector } from "../overlay/SectionInspector";
 
-const HIDDEN = new Set(["group"]); // internal container, not a palette item
+const HIDDEN = new Set(["group", "__dropghost"]); // internal container + drop preview, not palette items
 const CAT_ORDER = [
     "text",
     "media",
@@ -39,12 +41,32 @@ export const Panel: Component = () => {
         const s = selection();
         return s?.kind === "section" ? s.section : null;
     });
+    const elementAddr = createMemo(() => {
+        const s = selection();
+        return s?.kind === "element" ? s.address : null;
+    });
+    // Elements edited entirely on the canvas skip the docked panel: rich-text (text) via the format bar,
+    // and containers (group/card) via resize/spacing/column handles + their controls on the ContextBar.
+    const elementInline = createMemo((): boolean => {
+        const a = elementAddr();
+        if (!a) return false;
+        const spec = getElement(getElementAt(editor.artifact, a)?.type ?? "");
+        return !!(spec?.richText || spec?.container);
+    });
+    const inspectorLabel = createMemo((): string | null => {
+        if (sectionId()) return "Section";
+        const a = elementAddr();
+        if (!a || elementInline()) return null;
+        const type = getElementAt(editor.artifact, a)?.type;
+        return (type && getElement(type)?.label) || "Element";
+    });
 
-    // Selecting a section opens the right inspector; elements are edited via the floating
-    // ElementOverlay anchored to the element, so they don't open this panel.
+    // Selecting a section or a non-inline element opens the deep inspector in the rail; the floating
+    // ContextBar handles the quick edits. Rich-text + container elements skip the panel entirely.
     createEffect(() => {
         const s = selection();
-        if (s?.kind === "section") setRightTab("inspector");
+        const showInspector = s?.kind === "section" || (s?.kind === "element" && !elementInline());
+        if (showInspector) setRightTab("inspector");
         else setRightTab((t) => (t === "inspector" ? null : t));
     });
 
@@ -66,7 +88,7 @@ export const Panel: Component = () => {
             class={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
                 rightTab() === id
                     ? "bg-accent text-onaccent"
-                    : "text-muted hover:bg-canvas hover:text-ink"
+                    : "text-soft hover:bg-canvas hover:text-ink"
             }`}
             onClick={() => setRightTab((t) => (t === id ? null : id))}
         >
@@ -108,10 +130,13 @@ export const Panel: Component = () => {
                             <Switch
                                 fallback={
                                     <p class="text-[13px] text-muted">
-                                        Select a section to edit it.
+                                        Select something to edit it.
                                     </p>
                                 }
                             >
+                                <Match when={!elementInline() && elementAddr()}>
+                                    {(a) => <ElementInspector address={a()} />}
+                                </Match>
                                 <Match when={sectionId()}>
                                     {(id) => <SectionInspector section={id()} />}
                                 </Match>
@@ -122,7 +147,7 @@ export const Panel: Component = () => {
             </Show>
 
             <div class="flex flex-col gap-1 self-center rounded-2xl border border-line bg-panel/95 p-1.5 shadow-2xl backdrop-blur-md">
-                <Show when={sectionId()}>{railBtn("inspector", "Section")}</Show>
+                <Show when={inspectorLabel()}>{(label) => railBtn("inspector", label())}</Show>
                 {railBtn("search", "Search")}
                 <For each={cats()}>{(c) => railBtn(c, CAT_LABEL[c] ?? c)}</For>
             </div>

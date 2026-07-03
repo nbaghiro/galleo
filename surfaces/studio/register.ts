@@ -4,6 +4,7 @@ import "@elements/text";
 import "@elements/image";
 import "@elements/card";
 import "@elements/group";
+import "@elements/dropghost";
 import "@elements/stat";
 import "@elements/bullets";
 import "@elements/button";

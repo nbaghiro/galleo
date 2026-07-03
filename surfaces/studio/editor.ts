@@ -50,9 +50,29 @@ export const [selection, setSelection] = createSignal<Target | null>(null, {
 });
 export const [hover, setHover] = createSignal<Target | null>(null, { equals: targetsEqual });
 
-// Snapshot history. Every structural edit goes through commit() so undo/redo work uniformly.
-const past: ArtifactContent[] = [];
-const future: ArtifactContent[] = [];
+// Snapshot history. Every edit — content OR host metadata (the artifact title) — goes through this, so a
+// single undo stack covers everything. A snapshot pairs the content tree with the title at that instant.
+interface DocSnapshot {
+    content: ArtifactContent;
+    title: string;
+}
+const past: DocSnapshot[] = [];
+const future: DocSnapshot[] = [];
+const HISTORY_CAP = 120; // bound the stacks so long sessions don't grow without limit
+
+// Bumped whenever the stacks change, so canUndo/canRedo drive the toolbar buttons reactively.
+const [historyTick, setHistoryTick] = createSignal(0);
+const bumpHistory = (): void => {
+    setHistoryTick((n) => n + 1);
+};
+export const canUndo = (): boolean => {
+    historyTick();
+    return past.length > 0;
+};
+export const canRedo = (): boolean => {
+    historyTick();
+    return future.length > 0;
+};
 
 // A monotonic edit counter the canvas reads to force a redraw on every edit, in ANY format — a
 // reliable trigger independent of fine-grained store-path tracking through the layout pipeline.
@@ -62,11 +82,42 @@ const bumpSeq = (): void => {
     setEditSeq((n) => n + 1);
 };
 
-export function commit(next: ArtifactContent): void {
-    past.push(editor.artifact);
+const snapshot = (): DocSnapshot => ({ content: editor.artifact, title: currentTitle() });
+
+// Coalescing: a continuous interaction (dragging a slider, scrubbing a color) commits many times but
+// should read as ONE undo step. Callers pass a stable `coalesce` key; consecutive commits with the same
+// key (within a short idle window) fold into the first entry instead of stacking new ones.
+let coalesceKey: string | null = null;
+let coalesceTimer = 0;
+const armCoalesce = (key: string): void => {
+    coalesceKey = key;
+    window.clearTimeout(coalesceTimer);
+    coalesceTimer = window.setTimeout(() => {
+        coalesceKey = null;
+    }, 500);
+};
+
+function pushPast(s: DocSnapshot): void {
+    past.push(s);
+    if (past.length > HISTORY_CAP) past.shift();
     future.length = 0;
+    coalesceKey = null;
+    bumpHistory();
+}
+
+export function commit(next: ArtifactContent, opts?: { coalesce?: string }): void {
+    const key = opts?.coalesce;
+    if (key && key === coalesceKey) {
+        // same interaction as the previous commit — update content, keep the single history entry
+        setEditor("artifact", next);
+        bumpSeq();
+        armCoalesce(key);
+        return;
+    }
+    pushPast(snapshot());
     setEditor("artifact", next);
     bumpSeq();
+    if (key) armCoalesce(key);
 }
 
 // --- theme preview (non-destructive "open in app theme") ---
@@ -84,11 +135,15 @@ export function startThemePreview(themeId: string): void {
     setPreviewingTheme(true);
 }
 
-// Promote the previewed theme to the artifact's saved theme (persists on the next autosave).
+// Promote the previewed theme to the artifact's saved theme (persists on the next autosave). Recorded as
+// a normal history step (against the pre-preview theme) so keeping a previewed theme is undoable.
 export function keepPreviewedTheme(): void {
     if (!previewingTheme()) return;
+    const prevTheme = savedThemeUnderPreview;
     savedThemeUnderPreview = null;
     setPreviewingTheme(false);
+    if (prevTheme !== null && prevTheme !== editor.artifact.theme)
+        pushPast({ content: { ...editor.artifact, theme: prevTheme }, title: currentTitle() });
     bumpSeq();
 }
 
@@ -112,17 +167,23 @@ export function themeForPersist(): string {
 export function undo(): void {
     const prev = past.pop();
     if (prev === undefined) return;
-    future.push(editor.artifact);
-    setEditor("artifact", prev);
+    coalesceKey = null;
+    future.push(snapshot());
+    setEditor("artifact", prev.content);
+    restoreTitle(prev.title);
     bumpSeq();
+    bumpHistory();
 }
 
 export function redo(): void {
     const next = future.pop();
     if (next === undefined) return;
-    past.push(editor.artifact);
-    setEditor("artifact", next);
+    coalesceKey = null;
+    past.push(snapshot());
+    setEditor("artifact", next.content);
+    restoreTitle(next.title);
     bumpSeq();
+    bumpHistory();
 }
 
 // Inline text editing: live keystrokes update the artifact WITHOUT touching history; one history
@@ -143,10 +204,8 @@ export function startEditing(addr: ElementAddress, caret?: { x: number; y: numbe
 }
 
 export function stopEditing(): void {
-    if (editBefore && editBefore !== editor.artifact) {
-        past.push(editBefore);
-        future.length = 0;
-    }
+    if (editBefore && editBefore !== editor.artifact)
+        pushPast({ content: editBefore, title: currentTitle() });
     editBefore = null;
     setEditing(null);
 }
@@ -164,6 +223,38 @@ export interface ArtifactSummary {
 }
 export const [artifacts, setArtifacts] = createSignal<ArtifactSummary[]>([]);
 export const [currentArtifactId, setCurrentArtifactId] = createSignal<string | null>(null);
+
+// The open artifact's title lives in this mirror (the app populates it + owns persistence). It's part of
+// every history snapshot, so a rename undoes/redoes right alongside content edits.
+export const currentTitle = (): string =>
+    artifacts().find((d) => d.id === currentArtifactId())?.title ?? "Untitled";
+
+function setTitleLocal(title: string): void {
+    const id = currentArtifactId();
+    setArtifacts((list) => list.map((d) => (d.id === id ? { ...d, title } : d)));
+}
+
+// The app registers how to persist a title (API write + syncing its library list). Studio-alone → no-op.
+let persistTitleHandler: ((id: string, title: string) => void) | null = null;
+export function onPersistTitle(fn: (id: string, title: string) => void): void {
+    persistTitleHandler = fn;
+}
+function restoreTitle(title: string): void {
+    if (title === currentTitle()) return;
+    setTitleLocal(title);
+    const id = currentArtifactId();
+    if (id) persistTitleHandler?.(id, title);
+}
+
+// Rename the open artifact — one undoable step; content is untouched, only the title + persistence move.
+export function renameArtifact(title: string): void {
+    const t = title.trim();
+    if (!t || t === currentTitle()) return;
+    pushPast(snapshot());
+    setTitleLocal(t);
+    const id = currentArtifactId();
+    if (id) persistTitleHandler?.(id, t);
+}
 
 let switchHandler: ((id: string) => void) | null = null;
 export function onSwitchArtifact(fn: (id: string) => void): void {
@@ -197,6 +288,7 @@ export function requestThemePicker(): void {
 export function loadArtifactContent(id: string, content: ArtifactContent): void {
     past.length = 0;
     future.length = 0;
+    coalesceKey = null;
     editBefore = null;
     setEditing(null);
     setSelection(null);
@@ -205,6 +297,7 @@ export function loadArtifactContent(id: string, content: ArtifactContent): void 
     setPreviewingTheme(false);
     setCurrentArtifactId(id);
     setEditor("artifact", content);
+    bumpHistory();
 }
 
 // --- section management ---
@@ -263,12 +356,14 @@ export const [agentOpen, setAgentOpen] = createSignal(false);
 export function loadGenerated(art: ArtifactContent): void {
     past.length = 0;
     future.length = 0;
+    coalesceKey = null;
     editBefore = null;
     setEditing(null);
     setSelection(null);
     setHover(null);
     setEditor("artifact", art);
     setAgentOpen(false);
+    bumpHistory();
 }
 
 export function jumpToSection(index: number): void {
