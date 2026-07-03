@@ -1,4 +1,4 @@
-import type { ArtifactContent } from "@model/content";
+import type { ArtifactContent } from "@model/artifact";
 import {
     bgImage,
     bullets,
@@ -14,7 +14,7 @@ import {
 } from "@model/authoring";
 
 export const fieldnotes: ArtifactContent = doc(
-    "sunrise",
+    "henna",
     [
         section(
             "s1",

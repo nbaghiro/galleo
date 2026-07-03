@@ -1,6 +1,6 @@
 import type { Align, EngineNode, MeasureText, Rect } from "@engine/node";
 import type { Region, RenderCommand } from "@engine/render-command";
-import type { Size } from "@model/content";
+import type { Size } from "@model/artifact";
 
 // The working node the box solver builds and mutates: a back-pointer to the immutable input
 // EngineNode plus its resolved box (x/y/w/h), filled in across three passes (widths -> heights ->
@@ -205,7 +205,8 @@ function layoutPositions(ln: LayoutNode, x: number, y: number): void {
 function emit(ln: LayoutNode, commands: RenderCommand[], regions: Region[]): void {
     const { node } = ln;
     const box: Rect = { x: ln.x, y: ln.y, w: ln.w, h: ln.h };
-    if (node.id) regions.push({ id: node.id, box });
+    if (node.id)
+        regions.push({ id: node.id, box, radius: node.fill?.radius ?? node.image?.radius });
     if (node.fill) commands.push({ kind: "rect", box, fill: node.fill, id: node.id });
     if (node.image) commands.push({ kind: "image", box, image: node.image, id: node.id });
     if (node.text) commands.push({ kind: "text", box, text: node.text, id: node.id });

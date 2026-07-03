@@ -1,12 +1,14 @@
-import type { ArtifactContent, Section } from "@model/content";
-import type { AgentEvent, Beat as PlanBeat, GenerateInput } from "@protocol/agent";
+import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
+import type { AgentEvent, Beat as PlanBeat, GenerateInput } from "@model/agent";
 import { createStore } from "solid-js/store";
-import { applyPatch } from "@protocol/agent";
+import { applyPatch } from "@model/agent";
+import { api } from "../data/api";
+import { DEMO_EXAMPLES, type DemoExample } from "./demo";
 
-// The live-generation session — a reactive store the intake + build screens subscribe to, driven by the
-// real backend agent pipeline. `startSession` POSTs a turn and reads its SSE stream of AgentEvents
-// (narration, plan, section status, content patches), populating this store live. The artifact is saved
-// server-side as it composes, so "open in editor" just navigates to the returned id.
+// The generation session — a reactive store the intake + build screens subscribe to. Two sources feed it,
+// both through the same `dispatch`: the real backend pipeline (`consume`, SSE), or a client-side demo that
+// replays a hand-built fixture (`simulate`). DEMO_MODE picks which — demo for now, so the product is
+// testable without the backend LLM. "Open in editor" persists the result and navigates to it.
 
 export type Surface = "deck" | "doc" | "web";
 
@@ -115,6 +117,7 @@ export function cancelSession(): void {
 }
 export function resetSession(): void {
     cancelSession();
+    demoArtifact = null;
     setGen({ ...initial, beats: [], sections: [], narration: [] });
 }
 
@@ -182,6 +185,126 @@ function dispatch(ev: AgentEvent, content: ArtifactContent): ArtifactContent {
     return content;
 }
 
+// ---------- demo mode (client-side only): replay a real hand-built fixture ----------
+// A switch to test the product without the backend LLM. `simulate` feeds `dispatch` synthetic events off a
+// matched fixture, so the build screen streams beautiful, believable output. Flip off to use `consume`.
+const DEMO_MODE: boolean = true;
+
+let demoArtifact: { content: ArtifactContent; title: string } | null = null;
+
+const ROLE_ARC = ["scene", "tension", "turn", "proof", "momentum", "close"];
+const roleFor = (i: number, n: number): string =>
+    i === 0
+        ? "scene"
+        : i >= n - 1
+          ? "close"
+          : (ROLE_ARC[Math.min(i, ROLE_ARC.length - 2)] ?? "proof");
+
+const childrenOf = (inst: ElementInstance): ElementInstance[] => {
+    const kids = (inst.data as Record<string, unknown> | undefined)?.children;
+    return Array.isArray(kids) ? (kids as ElementInstance[]) : [];
+};
+const firstText = (inst: ElementInstance | undefined): string | undefined => {
+    if (!inst) return undefined;
+    const d = inst.data as Record<string, unknown> | undefined;
+    if (inst.type === "text" && typeof d?.text === "string") return d.text;
+    for (const k of childrenOf(inst)) {
+        const found = firstText(k);
+        if (found) return found;
+    }
+    return undefined;
+};
+const hasImage = (inst: ElementInstance | undefined): boolean =>
+    !!inst && (inst.type === "image" || childrenOf(inst).some(hasImage));
+
+const sectionLabel = (s: Section, i: number): string => {
+    for (const c of Object.values(s.cells)) {
+        const txt = firstText(c.element);
+        if (txt) return txt;
+    }
+    return `Section ${i + 1}`;
+};
+const sectionHasImage = (s: Section): boolean =>
+    s.background?.kind === "image" || Object.values(s.cells).some((c) => hasImage(c.element));
+
+const wait = (ms: number, signal: AbortSignal): Promise<void> =>
+    new Promise((resolve, reject) => {
+        if (signal.aborted) return reject(new DOMException("aborted", "AbortError"));
+        const t = setTimeout(resolve, ms);
+        signal.addEventListener(
+            "abort",
+            () => {
+                clearTimeout(t);
+                reject(new DOMException("aborted", "AbortError"));
+            },
+            { once: true },
+        );
+    });
+
+function pickDemo(brief: Brief): DemoExample {
+    const exact = DEMO_EXAMPLES.find((d) => d.prompt.trim() === brief.prompt.trim());
+    if (exact) return exact;
+    const bySurface = DEMO_EXAMPLES.filter((d) => d.surface === brief.surface);
+    const pool = bySurface.length ? bySurface : DEMO_EXAMPLES;
+    return pool[Math.floor(Math.random() * pool.length)]!;
+}
+
+// Replay a hand-built fixture as if generated — plan, then reveal each section in turn, narrated + timed.
+async function simulate(brief: Brief, signal: AbortSignal): Promise<void> {
+    const demo = pickDemo(brief);
+    const art = demo.artifact;
+    demoArtifact = { content: art, title: demo.title };
+    setGen({ theme: art.theme, format: art.format }); // render in the fixture's own theme + format
+
+    let content: ArtifactContent = { format: art.format, theme: art.theme, sections: [] };
+    const n = art.sections.length;
+
+    content = dispatch(
+        { type: "narration", text: "Reading the brief", sub: clip(brief.prompt, 80) },
+        content,
+    );
+    await wait(700, signal);
+
+    const beats: PlanBeat[] = art.sections.map((s, i) => ({
+        id: s.id,
+        label: clip(sectionLabel(s, i), 40),
+        role: roleFor(i, n),
+        grid: s.grid,
+        image: sectionHasImage(s),
+    }));
+    content = dispatch({ type: "plan", beats }, content);
+    content = dispatch(
+        {
+            type: "narration",
+            text: "Planning the story arc",
+            mono: ` ${n} beats`,
+            sub: beats.map((b) => b.role).join("  →  "),
+        },
+        content,
+    );
+    await wait(650, signal);
+
+    for (let i = 0; i < n; i++) {
+        const s = art.sections[i]!;
+        const b = beats[i]!;
+        content = dispatch({ type: "section.status", id: s.id, status: "active" }, content);
+        content = dispatch({ type: "section.status", id: s.id, status: "writing" }, content);
+        content = dispatch({ type: "narration", text: b.label, mono: ` · ${b.role}` }, content);
+        await wait(340 + Math.floor(Math.random() * 320), signal);
+        if (b.image)
+            content = dispatch({ type: "section.status", id: s.id, status: "image" }, content);
+        content = dispatch({ type: "patch", ops: [{ op: "addSection", section: s }] }, content);
+        content = dispatch({ type: "section.status", id: s.id, status: "done" }, content);
+        content = dispatch(
+            { type: "narration", text: `${b.label} placed`, mono: ` ✓ ${i + 1}/${n}` },
+            content,
+        );
+        await wait(130, signal);
+    }
+
+    content = dispatch({ type: "turn.done", summary: `Composed ${n} sections` }, content);
+}
+
 async function consume(brief: Brief, signal: AbortSignal): Promise<void> {
     const input: GenerateInput = {
         prompt: brief.prompt,
@@ -227,22 +350,41 @@ async function consume(brief: Brief, signal: AbortSignal): Promise<void> {
 
 export async function startSession(brief: Brief): Promise<void> {
     resetSession();
-    abort = new AbortController();
+    const controller = new AbortController();
+    abort = controller;
     setGen({ phase: "building", brief, theme: brief.theme, format: brief.surface, error: "" });
     try {
-        await consume(brief, abort.signal);
+        await (DEMO_MODE ? simulate(brief, controller.signal) : consume(brief, controller.signal));
     } catch (e) {
-        if (!abort?.signal.aborted)
-            setGen({
-                phase: "error",
-                error: (e as Error)?.message?.includes("turn failed")
-                    ? "Couldn't reach the generator — is the API running?"
-                    : "Generation failed — try again.",
-            });
+        if (controller.signal.aborted) return; // canceled — leave the session as-is
+        setGen({
+            phase: "error",
+            error: DEMO_MODE
+                ? "Something went off-script — try again."
+                : (e as Error)?.message?.includes("turn failed")
+                  ? "Couldn't reach the generator — is the API running?"
+                  : "Generation failed — try again.",
+        });
     }
 }
 
-// The artifact is saved server-side as the turn composes — "open" just navigates to it.
+// "Open" persists the result and navigates to it. Demo mode saves the replayed fixture as a fresh artifact
+// (so it lands in the library + editor like a real one); the live pipeline already saved it server-side.
 export async function saveGenerated(): Promise<string | null> {
+    if (DEMO_MODE) {
+        if (!demoArtifact) return null;
+        try {
+            const { id } = await api.createArtifact({
+                title: demoArtifact.title,
+                formatId: demoArtifact.content.format,
+                themeId: demoArtifact.content.theme,
+                draftContent: demoArtifact.content,
+                folderId: null,
+            });
+            return id;
+        } catch {
+            return null;
+        }
+    }
     return gen.artifactId;
 }

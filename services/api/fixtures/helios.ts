@@ -1,4 +1,4 @@
-import type { ArtifactContent } from "@model/content";
+import type { ArtifactContent } from "@model/artifact";
 import {
     badge,
     bgImage,
@@ -20,7 +20,7 @@ import {
 } from "@model/authoring";
 
 export const helios: ArtifactContent = doc(
-    "signal",
+    "stark",
     [
         // 01 — Cover
         section(

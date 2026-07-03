@@ -1,4 +1,4 @@
-import type { ArtifactContent } from "@model/content";
+import type { ArtifactContent } from "@model/artifact";
 import type { Component } from "solid-js";
 import {
     createMemo,
@@ -46,31 +46,42 @@ import {
 import { SectionThumb } from "../components/SectionThumb";
 import { Sidebar } from "../components/Sidebar";
 
-// One faint skeleton artifact behind the empty state — three silhouettes (deck / doc / site) so the
-// backdrop hints at what a full library looks like. Purely decorative.
+// One skeleton artifact behind the empty state — four silhouettes (deck / doc / site / accent deck) so the
+// backdrop reads as a real library. Fills use `soft`/`accent` tints (mid-tones that stay legible on light
+// AND dark themes, unlike `line` which vanishes on dark). Purely decorative.
 const GhostCard: Component<{ variant: number }> = (p) => (
-    <div class="flex min-h-[140px] flex-col gap-2 rounded-xl border border-line bg-panel p-2.5">
+    <div class="flex min-h-[150px] flex-col gap-2.5 rounded-xl border border-soft/15 bg-panel p-3">
         <Switch>
             <Match when={p.variant === 0}>
-                {/* deck — one big cover */}
-                <div class="flex-1 rounded-md bg-line/70" />
-                <div class="h-1.5 w-2/3 rounded-full bg-line" />
+                {/* deck — a big cover + title */}
+                <div class="flex-1 rounded-lg bg-gradient-to-br from-soft/25 to-soft/6" />
+                <div class="h-2 w-3/4 rounded-full bg-soft/30" />
             </Match>
             <Match when={p.variant === 1}>
-                {/* doc — cover then text lines */}
-                <div class="h-6 rounded-md bg-line/70" />
-                <div class="flex-1" />
-                <div class="h-1.5 w-full rounded-full bg-line" />
-                <div class="h-1.5 w-full rounded-full bg-line" />
-                <div class="h-1.5 w-3/5 rounded-full bg-line" />
+                {/* doc — a header then body lines */}
+                <div class="h-7 rounded-lg bg-soft/18" />
+                <div class="flex flex-1 flex-col justify-center gap-1.5 py-1">
+                    <div class="h-1.5 w-full rounded-full bg-soft/16" />
+                    <div class="h-1.5 w-full rounded-full bg-soft/16" />
+                    <div class="h-1.5 w-5/6 rounded-full bg-soft/16" />
+                    <div class="h-1.5 w-2/3 rounded-full bg-soft/16" />
+                </div>
+                <div class="h-2 w-1/2 rounded-full bg-soft/28" />
             </Match>
             <Match when={p.variant === 2}>
-                {/* site — split cover */}
-                <div class="flex flex-1 gap-1.5">
-                    <div class="flex-1 rounded-md bg-line/70" />
-                    <div class="w-1/3 rounded-md bg-line/50" />
+                {/* site — a hero over a row of sections */}
+                <div class="flex-1 rounded-lg bg-gradient-to-br from-soft/22 to-soft/6" />
+                <div class="flex gap-1.5">
+                    <div class="h-7 flex-1 rounded-md bg-soft/14" />
+                    <div class="h-7 flex-1 rounded-md bg-soft/14" />
+                    <div class="h-7 flex-1 rounded-md bg-soft/14" />
                 </div>
-                <div class="h-1.5 w-1/2 rounded-full bg-line" />
+            </Match>
+            <Match when={p.variant === 3}>
+                {/* deck — a cover with a hint of the brand accent */}
+                <div class="flex-1 rounded-lg bg-gradient-to-br from-accent/30 to-accent/6" />
+                <div class="h-2 w-2/3 rounded-full bg-soft/30" />
+                <div class="h-1.5 w-2/5 rounded-full bg-soft/16" />
             </Match>
         </Switch>
     </div>
@@ -82,14 +93,14 @@ const EmptyLibrary: Component<{ onGenerate: () => void; onTemplates: () => void 
     <div class="relative flex min-h-[540px] items-center justify-center overflow-hidden px-6 py-16">
         <div
             aria-hidden="true"
-            class="pointer-events-none absolute inset-0 grid grid-cols-2 gap-5 p-8 opacity-50 sm:grid-cols-3 lg:grid-cols-4"
+            class="pointer-events-none absolute inset-0 grid grid-cols-2 gap-4 p-6 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
             style={{
                 "-webkit-mask-image":
-                    "radial-gradient(118% 82% at 50% 44%, transparent 30%, #000 74%)",
-                "mask-image": "radial-gradient(118% 82% at 50% 44%, transparent 30%, #000 74%)",
+                    "radial-gradient(115% 95% at 50% 46%, transparent 26%, #000 64%)",
+                "mask-image": "radial-gradient(115% 95% at 50% 46%, transparent 26%, #000 64%)",
             }}
         >
-            <Index each={Array.from({ length: 12 }, (_, i) => i % 3)}>
+            <Index each={Array.from({ length: 15 }, (_, i) => i % 4)}>
                 {(v) => <GhostCard variant={v()} />}
             </Index>
         </div>

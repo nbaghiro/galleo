@@ -11,4 +11,5 @@ export type RenderCommand =
 export interface Region {
     id: string;
     box: Rect;
+    radius?: number; // the corner radius this node actually painted (fill/image), so selection outlines match it
 }

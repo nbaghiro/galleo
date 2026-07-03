@@ -235,7 +235,10 @@ export const Field: Component<{
     const f = (): ControlField => props.field;
     const num = (): number => Number(props.value ?? f().min ?? 0);
     const str = (): string => String(props.value ?? "");
-    const control = (
+    // A thunk, not a shared element: each call mints its own node, so using it in multiple branches
+    // (compact/non-compact, Show fallback + children) never reuses one DOM node — reusing one silently
+    // drops the reactive inner content (e.g. AlignField's icons) from whichever branch actually mounts.
+    const control = (): JSX.Element => (
         <Switch
             fallback={
                 <TextField value={str()} placeholder={f().placeholder} onChange={props.onChange} />
@@ -287,13 +290,13 @@ export const Field: Component<{
             </Match>
         </Switch>
     );
-    if (!props.compact) return <FieldRow label={f().label}>{control}</FieldRow>;
+    if (!props.compact) return <FieldRow label={f().label}>{control()}</FieldRow>;
     // Compact (format bar) drops labels — a leading glyph names the control (e.g. columns) when set.
     return (
-        <Show when={f().icon} fallback={control}>
+        <Show when={f().icon} fallback={control()}>
             <span class="flex items-center gap-1 text-soft">
                 <Icon name={f().icon!} size={14} />
-                {control}
+                {control()}
             </span>
         </Show>
     );

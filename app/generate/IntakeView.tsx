@@ -12,6 +12,7 @@ import { Visual } from "../components/Visual";
 import "../components/visuals.css";
 import { Dropdown } from "@studio/controls/Dropdown";
 import { GenViewPicker } from "./GenViewPicker";
+import { DEMO_EXAMPLES } from "./demo";
 import { startSession, type Surface } from "./session";
 
 // The generation intake — one screen, not a wizard. A hero prompt that auto-derives editable chips,
@@ -29,101 +30,15 @@ const AUDIENCES = ["Investors", "Customers", "Team", "Executives", "Students", "
 const TONES = ["Bold", "Warm", "Technical", "Playful", "Formal", "Minimal"];
 const LENGTHS = ["Short", "Standard", "In-depth"];
 
-// clickable starters — fill the prompt + set the surface, chips auto-derive. Drawn from a pool so the
-// regenerate button can swap in a fresh set.
+// clickable starters — fill the prompt + set the surface, chips auto-derive. In demo mode these are the
+// hand-built fixtures (each prompt maps to a real artifact the replay reveals); shuffled so a refresh or
+// the regenerate button swaps in a fresh set.
 type Example = { surface: Surface; label: string; prompt: string };
-const EXAMPLE_POOL: Example[] = [
-    {
-        surface: "deck",
-        label: "Investor pitch",
-        prompt: "An investor pitch deck for Aldon — we turn idle commercial HVAC into virtual power plants. Raising a $6M seed, for climate + infra VCs. Bold but credible.",
-    },
-    {
-        surface: "web",
-        label: "Product launch",
-        prompt: "A launch page for Northwind — the AI copilot for field-service teams. Punchy and modern, with three feature highlights and a waitlist CTA.",
-    },
-    {
-        surface: "doc",
-        label: "Research report",
-        prompt: "A research report on the state of home electrification in 2026 — the cost curve, key findings, and three recommendations for utilities.",
-    },
-    {
-        surface: "deck",
-        label: "Sales one-pager",
-        prompt: "A one-page sales deck for Vellum Analytics — the problem, our approach, the proof, pricing, and the ask, aimed at a mid-market buyer.",
-    },
-    {
-        surface: "doc",
-        label: "Course outline",
-        prompt: "A course outline on practical prompt engineering for product managers — six modules with lessons and clear outcomes.",
-    },
-    {
-        surface: "web",
-        label: "Portfolio site",
-        prompt: "A portfolio site for a product designer — a bold editorial hero, four selected projects, and a contact section. Confident and minimal.",
-    },
-    {
-        surface: "deck",
-        label: "Conference talk",
-        prompt: "A conference talk deck on why most data teams stall at ML — a strong narrative, three hard lessons, and a memorable close.",
-    },
-    {
-        surface: "deck",
-        label: "Quarterly review",
-        prompt: "A quarterly business review deck — revenue, the wins, what slipped, and the plan for next quarter. For the leadership team.",
-    },
-    {
-        surface: "deck",
-        label: "Board update",
-        prompt: "A board update deck — traction, the key metrics, the risks, and the asks. Crisp and candid.",
-    },
-    {
-        surface: "deck",
-        label: "Brand strategy",
-        prompt: "A brand strategy deck for a craft coffee roaster — positioning, voice, the visual direction, and a rollout plan.",
-    },
-    {
-        surface: "doc",
-        label: "Product spec",
-        prompt: "A product spec for a team-scheduling feature — the problem, user stories, the proposed design, and open questions.",
-    },
-    {
-        surface: "doc",
-        label: "Whitepaper",
-        prompt: "A whitepaper on tokenized carbon credits — the mechanism, the market, and the risks, written for institutional readers.",
-    },
-    {
-        surface: "doc",
-        label: "Case study",
-        prompt: "A customer case study — the challenge, what we built, and the results in numbers. Warm and concrete.",
-    },
-    {
-        surface: "doc",
-        label: "Onboarding guide",
-        prompt: "An onboarding guide for new engineers — setup, a codebase tour, the conventions, and who to ask for what.",
-    },
-    {
-        surface: "web",
-        label: "SaaS landing",
-        prompt: "A landing page for a time-tracking SaaS — a clear hero, three benefits, social proof, and pricing. Clean and trustworthy.",
-    },
-    {
-        surface: "web",
-        label: "Event page",
-        prompt: "An event page for a design conference — the lineup, the schedule, the venue, and a ticket CTA. Energetic and modern.",
-    },
-    {
-        surface: "web",
-        label: "App marketing",
-        prompt: "A marketing site for a meditation app — a calm hero, the feature set, testimonials, and download CTAs.",
-    },
-    {
-        surface: "web",
-        label: "Agency site",
-        prompt: "A site for a creative agency — a striking hero, selected work, the services, and a contact section. Bold and editorial.",
-    },
-];
+const EXAMPLE_POOL: Example[] = DEMO_EXAMPLES.map((d) => ({
+    surface: d.surface,
+    label: d.label,
+    prompt: d.prompt,
+}));
 
 const shuffle = <T,>(a: readonly T[]): T[] => {
     const arr = a.slice();

@@ -1,4 +1,4 @@
-import type { ArtifactContent } from "@model/content";
+import type { ArtifactContent } from "@model/artifact";
 import {
     badge,
     bgImage,
@@ -21,7 +21,7 @@ import {
 } from "@model/authoring";
 
 export const aria: ArtifactContent = deck(
-    "noir",
+    "carbon",
     [
         section(
             "s1",
