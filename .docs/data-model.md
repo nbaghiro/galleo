@@ -3,7 +3,7 @@
 > Engine = **PostgreSQL + JSONB**: everything relational (auth, sharing, billing) gets foreign keys +
 > transactions; the one schema-flexible thing — the artifact **content tree** — lives in a `jsonb`
 > column. Binaries (images/video/fonts) live in object storage; tables hold only metadata + URLs.
-> The schema is `services/data/schema.ts` (Drizzle); the content shape is `element-system.md`.
+> The schema is `services/data/schema.ts` (Drizzle); the content shape is `rendering.md`.
 
 ---
 
@@ -71,7 +71,7 @@ embedded in the artifact's `draft_content` JSON.
 
 ## 4. The content JSON (`artifacts.draft_content` / `versions.content`)
 
-The whole tree is one `jsonb` document — an `ArtifactContent` (see `element-system.md`):
+The whole tree is one `jsonb` document — an `ArtifactContent` (see `rendering.md`):
 
 ```jsonc
 {
@@ -85,7 +85,7 @@ The whole tree is one `jsonb` document — an `ArtifactContent` (see `element-sy
                 "a": {
                     "element": {
                         "type": "text",
-                        "data": { "text": "Run the kitchen", "style": "display" },
+                        "data": { "text": "Run the kitchen", "style": "h1" },
                     },
                 },
                 "b": {

@@ -31,7 +31,7 @@ export).
 ```bash
 pnpm install
 cp .env.example .env          # set DATABASE_URL, SESSION_SECRET, ANTHROPIC_API_KEY
-pnpm db:push                  # create the schema (needs Postgres on :8602 — see .docs/ports.md)
+pnpm db:push                  # create the schema (needs Postgres on :8602 — see .docs/architecture.md)
 pnpm seed                     # demo workspace + artifacts (login: demo@galleo.app / demo1234)
 
 pnpm api                      # the Hono API  → http://localhost:8601
@@ -61,6 +61,6 @@ checks locally (wired up automatically by `pnpm install`).
 
 ## Docs
 
-Deep-dives live in [`.docs/`](.docs/) — start with [architecture](.docs/architecture.md), then the
-[layout engine](.docs/layout-engine.md), [element system](.docs/element-system.md), and
-[data model](.docs/data-model.md). Full index: [`.docs/README.md`](.docs/README.md).
+Deep-dives live in [`.docs/`](.docs/) — [product](.docs/product.md), [architecture](.docs/architecture.md),
+[rendering & elements](.docs/rendering.md), and [data model](.docs/data-model.md). Full index:
+[`.docs/README.md`](.docs/README.md).

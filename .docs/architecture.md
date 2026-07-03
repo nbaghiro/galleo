@@ -14,8 +14,8 @@ marketing/  a separate public build (served at /)
 ```
 
 Path aliases are directory aliases: `@model/*`→`kernel/model/*`, plus `@engine`, `@elements`, `@themes`,
-`@studio`. No `index.ts` barrels — every concept is a named file. (`services` import each other by
-relative path; the `kernel/agent` + `kernel/text` scaffolding has no alias until it's wired.)
+`@protocol`, `@studio`. No `index.ts` barrels — every concept is a named file. (`services` import each
+other by relative path; the `kernel/text` scaffolding has no alias until it's wired.)
 
 ---
 
@@ -31,7 +31,7 @@ format.ts      format id + kind helpers (deck | doc | web)
 authoring.ts   concise content-authoring DSL (t/img/section/group/deck/doc/web) — used by fixtures/templates + the agent
 ```
 
-**`engine/` — the layout + render core** (a custom, Clay-style, immediate-mode box solver — see `layout-engine.md`)
+**`engine/` — the layout + render core** (a custom, Clay-style, immediate-mode box solver — see `rendering.md`)
 
 ```
 layout.ts           the 3-pass solver: widths (top-down) → heights (bottom-up) → positions → laid-out boxes
@@ -41,7 +41,7 @@ profile.ts          format-as-view presets — the same artifact as a paged deck
 fragment.ts         pagination — slice a tall command flow into fixed-height pages (paged / PDF)
 ```
 
-**`elements/` — the element library + composer** (see `element-system.md`)
+**`elements/` — the element library + composer** (see `rendering.md`)
 
 ```
 element-spec.ts     the universal ElementSpec contract every element implements
@@ -54,7 +54,8 @@ walk.ts             walkElements — visit every element in a section (recursing
 text.ts             the text primitive — every role via a `style` (size/weight/font + a theme `tone`)
 + 18 element specs: image · card · group · stat · bullets · button · quote · divider · badge · callout
                     code · chart · table · diagram · gradient · spacer · embed · video
-                    (text + these 18 = the 19 side-effect-registered in surfaces/studio/register.ts)
+                    (text + these 18 = the 19 content elements side-effect-registered in register.ts)
+dropghost.ts        an internal, palette-hidden element — the live drop preview only (also registered)
 ```
 
 **`themes/` — themes as data** (see below)
@@ -65,11 +66,17 @@ library.ts     the curated 52-theme registry via mk() + resolveTheme() + registe
 color.ts       hex color utilities (hexToRgb · luminance · mix · mixWhite · hexA) shared by elements + studio
 ```
 
-**`text/` and `agent/` — scaffolding for planned features (not yet wired at runtime)**
+**`protocol/` — pure backend↔frontend wire contracts**
 
 ```
-text/model.ts · text/selection.ts   engine-native rich-text core (the current editor uses a simpler contenteditable overlay)
-agent/turn.ts · event.ts · patch.ts  the streamed agent protocol (the generation flow is a simulator today)
+protocol/api.ts     the HTTP DTOs shared by services/api + app/data/api (so the JSON shapes can't drift)
+protocol/agent.ts   the streamed agent protocol (turns · patches · events) — scaffolding; generation is a simulator today
+```
+
+**`text/` — engine-native rich-text core, scaffolding (not yet wired at runtime)**
+
+```
+text/model.ts · text/selection.ts   marks/runs + selection math (the current editor uses a simpler contenteditable overlay)
 ```
 
 ---
@@ -162,6 +169,22 @@ is why the editor, present mode, thumbnails, and export are pixel-identical. Dat
 ## Planned, not yet built
 
 `surfaces/present · publish · export` as standalone surfaces (present/export live inside studio today) ·
-the real agent pipeline (`kernel/agent` protocol + `services/agent` LLM, replacing the `app/generate`
+the real agent pipeline (`kernel/protocol/agent` + `services/agent` LLM, replacing the `app/generate`
 simulator) · engine-native rich text (`kernel/text`, replacing the contenteditable overlay) ·
 `services/queue` (background jobs).
+
+## Local dev & ports
+
+Galleo claims the **86xx** host-port block so it runs alongside the other `~/Documents/code` projects.
+Container-internal ports stay conventional (5432/6379/…); only host mappings use 86xx.
+
+| Port          | Service                             | Set in                           | Status   |
+| ------------- | ----------------------------------- | -------------------------------- | -------- |
+| **8600**      | Studio (Vite dev/preview)           | `vite.config.ts` (strictPort)    | active   |
+| **8601**      | Backend API (Hono)                  | `services/api`                   | active   |
+| **8602**      | Postgres (→ container 5432)         | `services/data` · `DATABASE_URL` | active   |
+| **8603**      | Redis / job queue (→ 6379)          | `services/queue`                 | reserved |
+| **8604–8605** | Object storage (MinIO S3 + console) | asset storage                    | reserved |
+| **8606**      | Preview / SSR (publish surface)     | `surfaces/publish`               | reserved |
+
+The cross-project registry of every sibling project's host ports lives at `clientbridge/.docs/ports.md`.

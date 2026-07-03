@@ -5,15 +5,18 @@ with high-fidelity export. Net-new, TypeScript.
 
 ## Read first
 
-- `.docs/architecture.md` — factual codebase map: what's in each package, the layering law, data flow.
-  Start here for "where does X live".
-- `.docs/layout-engine.md` · `.docs/element-system.md` · `.docs/data-model.md` — the core design specs.
-- `.docs/design/product-direction.md` — product framing.
+- `.docs/architecture.md` — factual codebase map: what's in each package, the layering law, data flow,
+  local ports. Start here for "where does X live".
+- `.docs/rendering.md` — the rendering core + element system (engine, format-as-view, compose, elements,
+  editing).
+- `.docs/data-model.md` — persistence (Postgres + the JSONB content tree).
+- `.docs/product.md` — product framing (what Galleo is, the "why").
 
 ## Structure (Kernel + Surfaces)
 
-- **`kernel/`** — pure, edge-safe core: `model engine elements themes` (+ `text`/`agent` scaffolding for
-  planned features). Imports **nothing** outside `kernel`.
+- **`kernel/`** — pure, edge-safe core: `model engine elements themes` + `protocol` (the pure
+  backend↔frontend wire contracts: REST DTOs + the agent protocol) and `text` scaffolding. Imports
+  **nothing** outside `kernel`.
 - **`surfaces/`** — ways to touch the kernel: `studio` (the editor, the only one built so far; present +
   export live inside it today). A surface **never** imports another surface.
 - **`services/`** — backend: `data` (Postgres + Drizzle) · `api` (Hono) · `auth` (+ `agent` scaffolding).
@@ -24,9 +27,9 @@ with high-fidelity export. Net-new, TypeScript.
 ## Conventions (enforced)
 
 - **No `index.ts` barrels.** Each concept is a named file (`engine/layout.ts`, `elements/element-spec.ts`).
-- **Path aliases** (directory aliases): `@model`, `@engine`, `@elements`, `@themes`, `@studio` (e.g.
-  `@model/content`). `services` use relative imports; the `kernel/agent`/`kernel/text` scaffolding has no
-  alias until it's wired.
+- **Path aliases** (directory aliases): `@model`, `@engine`, `@elements`, `@themes`, `@protocol`,
+  `@studio` (e.g. `@model/content`). Backend + frontend both import `@protocol`; `services` otherwise use
+  relative imports. The `kernel/text` scaffolding has no alias until it's wired.
 - **TS style:** 4-space indent, double quotes, semicolons, `printWidth` 100, **no `any`**, **no
   `console`** in app code. (ESLint + Prettier enforce these.)
 - **No build-phase/iteration numbers** in code comments or docstrings (plan docs are fine).
@@ -41,7 +44,8 @@ pnpm typecheck      pnpm lint      pnpm format
 pnpm db:generate    pnpm db:migrate
 ```
 
-Galleo owns the **86xx** host-port block (runs alongside the sibling apps). See `.docs/ports.md`.
+Galleo owns the **86xx** host-port block (runs alongside the sibling apps). See the ports table in
+`.docs/architecture.md`.
 
 ## Current state
 
@@ -57,8 +61,8 @@ structural ghost (`@elements/skeleton`). **19 elements** registered (`register.t
 The product SPA (`app/`, served at `/app`) wraps the studio: library / templates / trash / editor
 views, a backend (`services/api` Hono + `services/data` Postgres/Drizzle; artifact content lives in the
 `draft_content` jsonb), a singular theme drawer + custom-theme builder, and a narrated AI-generation
-flow — a **client-side simulator** today; the real agent pipeline (`kernel/agent` + `services/agent`)
-is scaffolded, not yet wired.
+flow — a **client-side simulator** today; the real agent pipeline (`kernel/protocol/agent` +
+`services/agent`) is scaffolded, not yet wired.
 
 ## Commits
 
