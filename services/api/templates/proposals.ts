@@ -35,11 +35,11 @@ export const projectProposal: ArtifactContent = deck(
             {
                 a: cell(
                     group(
-                        t("PROPOSAL · PREPARED FOR ATLAS COFFEE ROASTERS", "eyebrow"),
-                        t("A rebrand worth waking up for.", "display"),
+                        t("PROPOSAL · PREPARED FOR ATLAS COFFEE ROASTERS", "label"),
+                        t("A rebrand worth waking up for.", "h1"),
                         t(
                             "Foldwork — a brand & digital studio — on relaunching Atlas as a specialty-coffee name that travels. Prepared for the Atlas leadership team, June 2026.",
-                            "lead",
+                            "subtitle",
                         ),
                         badge("CONFIDENTIAL · v2"),
                     ),
@@ -50,7 +50,7 @@ export const projectProposal: ArtifactContent = deck(
         section("opportunity", "split-6040", {
             a: cell(
                 group(
-                    t("01 — The opportunity", "eyebrow"),
+                    t("01 — The opportunity", "label"),
                     t("Great coffee, hiding behind a tired bag.", "h2"),
                     t(
                         "Atlas has roasted exceptional coffee since 2014 and earned a loyal following across 60 wholesale cafes. But the brand hasn’t kept up with the cup. The packaging reads local-craft-2014, the site converts below category benchmarks, and the look fractures at every touchpoint. Meanwhile specialty-coffee DTC is growing 23% a year — and the shelf has never been more crowded.",
@@ -63,7 +63,7 @@ export const projectProposal: ArtifactContent = deck(
         section("goals", "full", {
             a: cell(
                 group(
-                    t("02 — What we heard", "eyebrow"),
+                    t("02 — What we heard", "label"),
                     t("Where you want to be in twelve months.", "h2"),
                     bullets(
                         "Triple direct-to-consumer revenue within twelve months",
@@ -92,7 +92,7 @@ export const projectProposal: ArtifactContent = deck(
             a: cell(img("atlas-roastery-craft", 1.05)),
             b: cell(
                 group(
-                    t("03 — Our approach", "eyebrow"),
+                    t("03 — Our approach", "label"),
                     t("Strategy first. Then a system, not a logo.", "h2"),
                     bullets(
                         "Roast notes, not buzzwords — language that actually sounds like you",
@@ -105,7 +105,7 @@ export const projectProposal: ArtifactContent = deck(
         section("deliverables", "three-up", {
             a: cell(
                 card(
-                    t("Brand Strategy", "title"),
+                    t("Brand Strategy", "h3"),
                     bullets(
                         "Positioning & messaging platform",
                         "Naming & voice guidelines",
@@ -115,7 +115,7 @@ export const projectProposal: ArtifactContent = deck(
             ),
             b: cell(
                 card(
-                    t("Visual Identity", "title"),
+                    t("Visual Identity", "h3"),
                     bullets(
                         "Logo system & wordmark",
                         "Packaging design across 3 core SKUs",
@@ -125,7 +125,7 @@ export const projectProposal: ArtifactContent = deck(
             ),
             c: cell(
                 card(
-                    t("Digital & Commerce", "title"),
+                    t("Digital & Commerce", "h3"),
                     bullets(
                         "Shopify storefront redesign",
                         "Subscription & checkout flow",
@@ -137,7 +137,7 @@ export const projectProposal: ArtifactContent = deck(
         section("timeline", "full", {
             a: cell(
                 group(
-                    t("04 — Timeline", "eyebrow"),
+                    t("04 — Timeline", "label"),
                     t("Twelve weeks, four milestones.", "h2"),
                     diagram("process", "Discovery, Strategy, Identity, Build, Launch", 180),
                     bullets(
@@ -153,21 +153,21 @@ export const projectProposal: ArtifactContent = deck(
             a: cell(
                 group(
                     img("foldwork-team-nora", 1),
-                    t("Nora Vance", "title"),
+                    t("Nora Vance", "h3"),
                     t("Creative Director", "caption"),
                 ),
             ),
             b: cell(
                 group(
                     img("foldwork-team-devin", 1),
-                    t("Devin Osei", "title"),
+                    t("Devin Osei", "h3"),
                     t("Brand Strategist", "caption"),
                 ),
             ),
             c: cell(
                 group(
                     img("foldwork-team-lina", 1),
-                    t("Lina Park", "title"),
+                    t("Lina Park", "h3"),
                     t("Design & Web Lead", "caption"),
                 ),
             ),
@@ -175,7 +175,7 @@ export const projectProposal: ArtifactContent = deck(
         section("investment", "full", {
             a: cell(
                 group(
-                    t("05 — Investment", "eyebrow"),
+                    t("05 — Investment", "label"),
                     t("A fixed-scope engagement.", "h2"),
                     table(
                         "Phase,Timeline,Investment\nDiscovery & Strategy,2 weeks,$16K\nVisual Identity,4 weeks,$34K\nWebsite & Build,5 weeks,$39K\nLaunch & Handover,1 week,$11K\nTotal,12 weeks,$100K",
@@ -191,7 +191,7 @@ export const projectProposal: ArtifactContent = deck(
             a: cell(img("foldwork-studio-work", 0.86)),
             b: cell(
                 group(
-                    t("06 — Why Foldwork", "eyebrow"),
+                    t("06 — Why Foldwork", "label"),
                     t("We make brands people taste before they read.", "h2"),
                     bullets(
                         "Specialty-only — 14 food & beverage brands launched",
@@ -219,11 +219,11 @@ export const projectProposal: ArtifactContent = deck(
             {
                 a: cell(
                     group(
-                        t("07 — Next steps", "eyebrow"),
+                        t("07 — Next steps", "label"),
                         t("Let’s get the first roast on.", "h2"),
                         t(
                             "If this resonates, we’ll schedule a 60-minute kickoff and hold a start date in July. This proposal is valid for 30 days.",
-                            "lead",
+                            "subtitle",
                         ),
                         button("Approve & schedule kickoff"),
                     ),
@@ -250,13 +250,13 @@ export const investorUpdate: ArtifactContent = doc(
             {
                 a: cell(
                     group(
-                        t("INVESTOR UPDATE · MAY 2026", "eyebrow"),
-                        t("Cadence", "display"),
+                        t("INVESTOR UPDATE · MAY 2026", "label"),
+                        t("Cadence", "h1"),
                         t(
                             "The billing engine for usage-based software. Another month of compounding — MRR up 16% to $248K, NRR holding at 124%, and Usage Studio now shipped to every customer.",
-                            "lead",
+                            "subtitle",
                         ),
-                        t("Elena Vossberg · Co-founder & CEO", "byline"),
+                        t("Elena Vossberg · Co-founder & CEO", "caption"),
                     ),
                 ),
             },
@@ -267,7 +267,7 @@ export const investorUpdate: ArtifactContent = doc(
                 callout(
                     "success",
                     group(
-                        t("TL;DR", "eyebrow"),
+                        t("TL;DR", "label"),
                         bullets(
                             "MRR grew 16% MoM to $248K (≈ $3.0M ARR)",
                             "14 net-new logos — our best month yet — at 1.1% logo churn",
@@ -287,7 +287,7 @@ export const investorUpdate: ArtifactContent = doc(
         section("growth", "split-6040", {
             a: cell(
                 group(
-                    t("Growth", "eyebrow"),
+                    t("Growth", "label"),
                     t("Six straight months of compounding.", "h2"),
                     t(
                         "Net revenue retention is doing the heavy lifting — existing customers expanding usage now drives 61% of new MRR. New-logo velocity is the other half, and it accelerated this month off the back of two enterprise wins.",
@@ -305,7 +305,7 @@ export const investorUpdate: ArtifactContent = doc(
         section("wins", "full", {
             a: cell(
                 group(
-                    t("Wins this month", "eyebrow"),
+                    t("Wins this month", "label"),
                     t("What went right.", "h2"),
                     bullets(
                         "Closed Northloop and Verge — our two largest contracts to date ($3.4K and $2.9K MRR)",
@@ -333,7 +333,7 @@ export const investorUpdate: ArtifactContent = doc(
         section("challenges", "full", {
             a: cell(
                 group(
-                    t("Challenges & lowlights", "eyebrow"),
+                    t("Challenges & lowlights", "label"),
                     t("What we’re watching.", "h2"),
                     t(
                         "Enterprise sales cycles are stretching — the SOC 2 deals are real but slow, averaging 71 days from first call to signature. We lost one SMB customer (Pinecrest, $2.1K MRR) to an in-house build, our first churn of that size. And a usage spike from two accounts pushed infra costs 22% over plan before we shipped autoscaling caps.",
@@ -352,7 +352,7 @@ export const investorUpdate: ArtifactContent = doc(
         section("metrics", "full", {
             a: cell(
                 group(
-                    t("By the numbers", "eyebrow"),
+                    t("By the numbers", "label"),
                     t("Key metrics.", "h2"),
                     table(
                         "Metric,April,May,Change\nMRR,$214K,$248K,+16%\nNet new logos,9,14,+5\nLogo churn,1.8%,1.1%,-0.7pt\nNRR,118%,124%,+6pt\nGross margin,71%,78%,+7pt\nCash runway,19 mo,21 mo,+2 mo",
@@ -364,7 +364,7 @@ export const investorUpdate: ArtifactContent = doc(
             a: cell(img("cadence-usage-studio", 1.2)),
             b: cell(
                 group(
-                    t("Product progress", "eyebrow"),
+                    t("Product progress", "label"),
                     t("Usage Studio is live.", "h2"),
                     t(
                         "Customers can now watch metered usage in real time, set anomaly alerts and forecast next-month revenue straight from live consumption. Adoption hit 64% of accounts in three weeks — it’s already the most-opened screen in the product and the top reason cited in deals we won this month.",
@@ -376,7 +376,7 @@ export const investorUpdate: ArtifactContent = doc(
         section("ask", "full", {
             a: cell(
                 group(
-                    t("The ask", "eyebrow"),
+                    t("The ask", "label"),
                     t("How you can help.", "h2"),
                     bullets(
                         "Intros to Series A leads in fintech infra or usage-based SaaS — we open the round in Q3",
@@ -396,9 +396,9 @@ export const investorUpdate: ArtifactContent = doc(
                     group(
                         t(
                             "Thank you — for the intros, the candidates and the patience. Reply to this update anytime; I read and answer every one.",
-                            "lead",
+                            "subtitle",
                         ),
-                        t("Elena Vossberg · Co-founder & CEO, Cadence · May 2026", "byline"),
+                        t("Elena Vossberg · Co-founder & CEO, Cadence · May 2026", "caption"),
                     ),
                 ),
             },

@@ -1,12 +1,25 @@
 import "dotenv/config";
 import { serve } from "@hono/node-server";
-import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNotNull, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { streamSSE } from "hono/streaming";
+import type { GenerateInput } from "@protocol/agent";
+import type {
+    ArtifactInput,
+    Cover,
+    FolderInput,
+    LoginBody,
+    SectionSummary,
+    ThemeInput,
+    User,
+} from "@protocol/api";
 import { db, schema } from "../data/client";
 import { verifyPassword } from "../auth/password";
 import { makeSession, readSession, SESSION_COOKIE } from "../auth/session";
+import { createGenerateTurn, streamGenerateTurn } from "../agent/turn";
+import type { Quality } from "../agent/models";
 import { TEMPLATES } from "./templates";
 
 const app = new Hono();
@@ -17,14 +30,7 @@ async function readJson<T>(c: Context): Promise<T> {
     return (await c.req.json().catch(() => ({}))) as T;
 }
 
-interface SessionUser {
-    id: string;
-    email: string;
-    name: string | null;
-    avatarUrl: string | null;
-}
-
-async function currentUser(token: string | undefined): Promise<SessionUser | null> {
+async function currentUser(token: string | undefined): Promise<User | null> {
     const uid = readSession(token);
     if (!uid) return null;
     const [u] = await db
@@ -42,11 +48,6 @@ async function currentUser(token: string | undefined): Promise<SessionUser | nul
 app.get("/health", (c) => c.json({ ok: true }));
 
 // --- auth ---
-interface LoginBody {
-    email?: string;
-    password?: string;
-}
-
 app.post("/auth/login", async (c) => {
     const { email, password } = await readJson<LoginBody>(c);
     if (!email || !password) return c.json({ error: "email and password are required" }, 400);
@@ -103,12 +104,7 @@ const walkRaw = (el: RawEl | undefined, visit: (el: RawEl) => void): void => {
     for (const ch of el.data?.children ?? []) walkRaw(ch, visit);
 };
 
-function coverOf(draft: unknown): {
-    eyebrow?: string;
-    title?: string;
-    sub?: string;
-    image?: string;
-} {
+function coverOf(draft: unknown): Cover {
     const d = draft as RawDraft;
     const sec = d.sections?.[0];
     if (!sec) return {};
@@ -123,33 +119,26 @@ function coverOf(draft: unknown): {
     const find = (...styles: string[]): string | undefined =>
         texts.find((t) => t.style && styles.includes(t.style))?.text;
     return {
-        eyebrow: find("eyebrow"),
-        title: find("display", "h2", "title", "stat"),
-        sub: find("lead", "body", "byline"),
+        eyebrow: find("label"),
+        title: find("h1", "h2", "h3"),
+        sub: find("subtitle", "body", "caption"),
         image,
     };
 }
 
 // A per-section summary for the library "filmstrip" — a short label + a coarse kind for each section,
 // so a layout can preview/navigate the document's structure without shipping the whole thing.
-function sectionsSummary(draft: unknown): { title?: string; kind: string }[] {
+function sectionsSummary(draft: unknown): SectionSummary[] {
     const d = draft as RawDraft;
     return (d.sections ?? []).map((sec, idx) => {
         let title: string | undefined;
-        let firstStyle: string | undefined;
         const kinds = new Set<string>();
         for (const cell of Object.values(sec.cells ?? {}))
             walkRaw(cell.element, (el) => {
                 if (el.type === "text" && el.data) {
                     const st = el.data.style;
-                    if (
-                        el.data.text &&
-                        !title &&
-                        st &&
-                        !["eyebrow", "caption", "byline"].includes(st)
-                    )
+                    if (el.data.text && !title && st && !["label", "caption"].includes(st))
                         title = el.data.text;
-                    if (!firstStyle && st) firstStyle = st;
                 }
                 if (el.type && !["text", "group", "card", "cell"].includes(el.type))
                     kinds.add(el.type);
@@ -167,8 +156,8 @@ function sectionsSummary(draft: unknown): { title?: string; kind: string }[] {
                 sec.background?.image
             )
                 kind = "media";
-            else if (firstStyle === "stat") kind = "stat";
-            else if (firstStyle === "quote") kind = "quote";
+            else if (kinds.has("stat")) kind = "stat";
+            else if (kinds.has("quote")) kind = "quote";
         }
         return { title: title?.slice(0, 64), kind };
     });
@@ -233,7 +222,7 @@ app.post("/folders", async (c) => {
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await firstWorkspaceId(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
-    const { name, parentId } = await readJson<{ name?: string; parentId?: string | null }>(c);
+    const { name, parentId } = await readJson<Partial<FolderInput>>(c);
     const [f] = await db
         .insert(schema.folders)
         .values({
@@ -253,7 +242,7 @@ app.post("/folders", async (c) => {
 app.patch("/folders/:id", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
-    const { name } = await readJson<{ name?: string }>(c);
+    const { name } = await readJson<Partial<FolderInput>>(c);
     if (!name || !name.trim()) return c.json({ error: "name required" }, 400);
     const [f] = await db
         .update(schema.folders)
@@ -297,12 +286,6 @@ app.delete("/folders/:id", async (c) => {
 });
 
 // --- themes (per-workspace custom themes; workspaceId null = built-in/system, never returned here) ---
-interface ThemeBody {
-    name?: string;
-    tokens?: unknown;
-    mood?: string | null;
-    isDark?: boolean;
-}
 const themeCols = {
     id: schema.themes.id,
     name: schema.themes.name,
@@ -328,7 +311,7 @@ app.post("/themes", async (c) => {
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await firstWorkspaceId(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
-    const body = await readJson<ThemeBody>(c);
+    const body = await readJson<Partial<ThemeInput>>(c);
     if (!body.tokens) return c.json({ error: "tokens required" }, 400);
     const [t] = await db
         .insert(schema.themes)
@@ -348,7 +331,7 @@ app.patch("/themes/:id", async (c) => {
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await firstWorkspaceId(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
-    const body = await readJson<ThemeBody>(c);
+    const body = await readJson<Partial<ThemeInput>>(c);
     const patch: Record<string, unknown> = {};
     if (body.name !== undefined) patch.name = body.name;
     if (body.tokens !== undefined) patch.tokens = body.tokens;
@@ -389,20 +372,12 @@ app.get("/templates", async (c) => {
     });
 });
 
-interface CreateBody {
-    title?: string;
-    formatId?: string;
-    themeId?: string;
-    draftContent?: unknown;
-    folderId?: string | null;
-}
-
 app.post("/artifacts", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await firstWorkspaceId(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
-    const body = await readJson<CreateBody>(c);
+    const body = await readJson<ArtifactInput>(c);
     const [a] = await db
         .insert(schema.artifacts)
         .values({
@@ -495,18 +470,10 @@ app.delete("/trash", async (c) => {
     return c.json({ ok: true });
 });
 
-interface ArtifactPatch {
-    title?: string;
-    themeId?: string;
-    formatId?: string;
-    draftContent?: unknown;
-    folderId?: string | null;
-}
-
 app.patch("/artifacts/:id", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
-    const body = await readJson<ArtifactPatch>(c);
+    const body = await readJson<ArtifactInput>(c);
     const patch: Record<string, unknown> = {};
     if (body.title !== undefined) patch.title = body.title;
     if (body.themeId !== undefined) patch.themeId = body.themeId;
@@ -529,6 +496,65 @@ app.patch("/artifacts/:id", async (c) => {
         .returning({ id: schema.artifacts.id, updatedAt: schema.artifacts.updatedAt });
     if (!a) return c.json({ error: "not found" }, 404);
     return c.json({ ok: true, updatedAt: a.updatedAt });
+});
+
+// --- agent turns (streamed over SSE) ---
+interface TurnBody {
+    kind?: string;
+    input?: GenerateInput;
+    quality?: Quality;
+}
+
+// Start a generate turn: creates a blank artifact + turn, then streams AgentEvents live as the pipeline
+// runs (each also persisted to agent_events). The first SSE frame carries { turnId, artifactId }.
+app.post("/turns", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await firstWorkspaceId(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+    const body = await readJson<TurnBody>(c);
+    if (body.kind !== "generate" || !body.input?.prompt) {
+        return c.json({ error: "a generate turn with input.prompt is required" }, 400);
+    }
+    const input = body.input;
+    const quality = body.quality;
+    const { turnId, artifactId } = await createGenerateTurn(input, ws, u.id);
+    return streamSSE(c, async (stream) => {
+        await stream.writeSSE({ event: "turn", data: JSON.stringify({ turnId, artifactId }) });
+        for await (const { seq, event } of streamGenerateTurn(turnId, artifactId, input, quality)) {
+            await stream.writeSSE({
+                id: String(seq),
+                event: event.type,
+                data: JSON.stringify(event),
+            });
+        }
+    });
+});
+
+// Replay a turn's persisted events (transcript / reconnect) from a seq cursor.
+app.get("/turns/:id/events", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const since = Number(c.req.query("since") ?? "0") || 0;
+    const rows = await db
+        .select()
+        .from(schema.agentEvents)
+        .where(
+            and(
+                eq(schema.agentEvents.turnId, c.req.param("id")),
+                gt(schema.agentEvents.seq, since),
+            ),
+        )
+        .orderBy(schema.agentEvents.seq);
+    return streamSSE(c, async (stream) => {
+        for (const r of rows) {
+            await stream.writeSSE({
+                id: String(r.seq),
+                event: r.type,
+                data: JSON.stringify(r.data),
+            });
+        }
+    });
 });
 
 const port = Number(process.env.API_PORT ?? 8601);

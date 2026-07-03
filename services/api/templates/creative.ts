@@ -23,11 +23,11 @@ export const resume: ArtifactContent = doc(
         section("r1", "split-6040", {
             a: cell(
                 group(
-                    t("PRODUCT DESIGNER", "eyebrow"),
-                    t("Elena Maris Vance", "display"),
+                    t("PRODUCT DESIGNER", "label"),
+                    t("Elena Maris Vance", "h1"),
                     t(
                         "Senior product designer shaping calm, durable software for teams that move fast.",
-                        "lead",
+                        "subtitle",
                     ),
                     t(
                         "San Francisco, CA · elena@vance.design · vance.design · in/elenavance",
@@ -40,10 +40,10 @@ export const resume: ArtifactContent = doc(
         section("r2", "full", {
             a: cell(
                 group(
-                    t("Summary", "eyebrow"),
+                    t("Summary", "label"),
                     t(
                         "I design end-to-end product experiences — from the first scrappy prototype to the pixels that ship — for tools people open every day. Nine years across fintech, developer platforms, and consumer health, most recently leading design for a payments product used by 40,000+ small businesses. I care about systems that scale, interfaces that disappear, and shipping work that actually makes it to production.",
-                        "lead",
+                        "subtitle",
                     ),
                 ),
             ),
@@ -56,8 +56,8 @@ export const resume: ArtifactContent = doc(
         section("r4", "split-4060", {
             a: cell(
                 group(
-                    t("Northwind", "title"),
-                    t("Lead Product Designer", "byline"),
+                    t("Northwind", "h3"),
+                    t("Lead Product Designer", "caption"),
                     t("2022 — Present · San Francisco", "caption"),
                 ),
             ),
@@ -72,8 +72,8 @@ export const resume: ArtifactContent = doc(
         section("r5", "split-4060", {
             a: cell(
                 group(
-                    t("Cadence Health", "title"),
-                    t("Senior Product Designer", "byline"),
+                    t("Cadence Health", "h3"),
+                    t("Senior Product Designer", "caption"),
                     t("2019 — 2022 · Remote", "caption"),
                 ),
             ),
@@ -88,8 +88,8 @@ export const resume: ArtifactContent = doc(
         section("r6", "split-4060", {
             a: cell(
                 group(
-                    t("Foglight Studio", "title"),
-                    t("Product Designer", "byline"),
+                    t("Foglight Studio", "h3"),
+                    t("Product Designer", "caption"),
                     t("2017 — 2019 · Portland", "caption"),
                 ),
             ),
@@ -103,7 +103,7 @@ export const resume: ArtifactContent = doc(
         section("r7", "three-up", {
             a: cell(
                 card(
-                    t("Craft", "eyebrow"),
+                    t("Craft", "label"),
                     bullets(
                         "Interaction & visual design",
                         "Prototyping (Figma, code)",
@@ -114,7 +114,7 @@ export const resume: ArtifactContent = doc(
             ),
             b: cell(
                 card(
-                    t("Method", "eyebrow"),
+                    t("Method", "label"),
                     bullets(
                         "Generative & evaluative research",
                         "Service blueprinting",
@@ -125,7 +125,7 @@ export const resume: ArtifactContent = doc(
             ),
             c: cell(
                 card(
-                    t("Tools", "eyebrow"),
+                    t("Tools", "label"),
                     bullets(
                         "Figma, Framer, Origami",
                         "HTML / CSS / React",
@@ -138,8 +138,8 @@ export const resume: ArtifactContent = doc(
         section("r8", "split-6040", {
             a: cell(
                 group(
-                    t("Selected projects", "eyebrow"),
-                    t("Aster Design System", "title"),
+                    t("Selected projects", "label"),
+                    t("Aster Design System", "h3"),
                     t(
                         "A single source of truth for four product teams — tokens, components, and usage guidelines that turned a fractured UI into one coherent voice. Documented, versioned, and adopted across web and mobile.",
                         "body",
@@ -155,15 +155,15 @@ export const resume: ArtifactContent = doc(
         section("r9", "two-col", {
             a: cell(
                 group(
-                    t("Education", "eyebrow"),
-                    t("Rhode Island School of Design", "title"),
-                    t("BFA, Graphic Design · 2013 — 2017", "byline"),
+                    t("Education", "label"),
+                    t("Rhode Island School of Design", "h3"),
+                    t("BFA, Graphic Design · 2013 — 2017", "caption"),
                     t("Senior thesis on type systems for data-dense interfaces.", "caption"),
                 ),
             ),
             b: cell(
                 group(
-                    t("Recognition", "eyebrow"),
+                    t("Recognition", "label"),
                     bullets(
                         "Core77 Design Award, Interaction — 2023",
                         'Speaker, Config 2022: "Design systems that survive reorgs"',
@@ -177,7 +177,7 @@ export const resume: ArtifactContent = doc(
                 callout(
                     "note",
                     group(
-                        t("What I value", "eyebrow"),
+                        t("What I value", "label"),
                         t(
                             "The best design work is quiet. I'd rather ship one flow that genuinely respects a person's time than ten features that demo well. I show up for the unglamorous middle — the edge cases, the empty states, the error copy — because that's where products earn trust. Always learning in public, always shipping.",
                             "body",
@@ -191,9 +191,9 @@ export const resume: ArtifactContent = doc(
                 group(
                     t(
                         "Open to senior and lead product design roles, full-time or fractional.",
-                        "lead",
+                        "subtitle",
                     ),
-                    t("elena@vance.design · vance.design · in/elenavance", "byline"),
+                    t("elena@vance.design · vance.design · in/elenavance", "caption"),
                 ),
             ),
         }),
@@ -210,11 +210,11 @@ export const portfolio: ArtifactContent = web(
             {
                 a: cell(
                     group(
-                        t("STUDIO HALVORSEN", "eyebrow"),
-                        t("Light, made deliberate.", "display"),
+                        t("STUDIO HALVORSEN", "label"),
+                        t("Light, made deliberate.", "h1"),
                         t(
                             "An independent design studio working at the edge of architecture, brand, and the objects in between — for people who believe a space should be felt before it's understood.",
-                            "lead",
+                            "subtitle",
                         ),
                     ),
                 ),
@@ -225,7 +225,7 @@ export const portfolio: ArtifactContent = web(
             a: cell(img("halvorsen-portrait-studio", 0.82)),
             b: cell(
                 group(
-                    t("Statement", "eyebrow"),
+                    t("Statement", "label"),
                     t("We design the pause before the room speaks.", "h2"),
                     t(
                         "Founded in Oslo, Studio Halvorsen makes interiors, identities, and objects that hold their composure. We start with restraint and remove until only what matters is left — then we make that one thing unforgettable. Sixteen years, three continents, one obsession with proportion.",
@@ -242,7 +242,7 @@ export const portfolio: ArtifactContent = web(
         section("p4", "full", {
             a: cell(
                 group(
-                    t("Selected work", "eyebrow"),
+                    t("Selected work", "label"),
                     t("A few rooms we're proud of.", "h2"),
                     t(
                         "Residential, hospitality, and retail — each a study in light, material, and the discipline of leaving things out.",
@@ -255,14 +255,14 @@ export const portfolio: ArtifactContent = web(
             a: cell(
                 card(
                     img("halvorsen-fjord-house-interior", 1.2),
-                    t("Fjord House", "title"),
+                    t("Fjord House", "h3"),
                     t("Private residence · Bergen · 2025", "caption"),
                 ),
             ),
             b: cell(
                 card(
                     img("halvorsen-amber-hotel-lobby", 1.2),
-                    t("Hotel Amber", "title"),
+                    t("Hotel Amber", "h3"),
                     t("28-room boutique hotel · Copenhagen · 2024", "caption"),
                 ),
             ),
@@ -271,21 +271,21 @@ export const portfolio: ArtifactContent = web(
             a: cell(
                 card(
                     img("halvorsen-glasshouse-cafe", 1),
-                    t("The Glasshouse", "title"),
+                    t("The Glasshouse", "h3"),
                     t("Café & roastery · Oslo", "caption"),
                 ),
             ),
             b: cell(
                 card(
                     img("halvorsen-marble-flagship-retail", 1),
-                    t("Marlowe Flagship", "title"),
+                    t("Marlowe Flagship", "h3"),
                     t("Retail identity · London", "caption"),
                 ),
             ),
             c: cell(
                 card(
                     img("halvorsen-linen-apartment", 1),
-                    t("Linen Apartment", "title"),
+                    t("Linen Apartment", "h3"),
                     t("Pied-à-terre · Paris", "caption"),
                 ),
             ),
@@ -293,7 +293,7 @@ export const portfolio: ArtifactContent = web(
         section("p7", "split-6040", {
             a: cell(
                 group(
-                    t("In focus", "eyebrow"),
+                    t("In focus", "label"),
                     badge("FEATURED"),
                     t("Hotel Amber.", "h2"),
                     t(
@@ -305,12 +305,12 @@ export const portfolio: ArtifactContent = web(
             b: cell(img("halvorsen-amber-detail-brass", 0.92)),
         }),
         section("p8", "full", {
-            a: cell(group(t("What we do", "eyebrow"), t("Three ways to work with us.", "h2"))),
+            a: cell(group(t("What we do", "label"), t("Three ways to work with us.", "h2"))),
         }),
         section("p9", "three-up", {
             a: cell(
                 card(
-                    t("Interiors", "title"),
+                    t("Interiors", "h3"),
                     t(
                         "Full-service interior architecture, from first sketch to the last switch plate. Residential and hospitality.",
                         "body",
@@ -319,7 +319,7 @@ export const portfolio: ArtifactContent = web(
             ),
             b: cell(
                 card(
-                    t("Identity", "title"),
+                    t("Identity", "h3"),
                     t(
                         "Brand systems for places and makers — naming, type, and the small printed things people keep.",
                         "body",
@@ -328,7 +328,7 @@ export const portfolio: ArtifactContent = web(
             ),
             c: cell(
                 card(
-                    t("Objects", "title"),
+                    t("Objects", "h3"),
                     t(
                         "Limited-run furniture and lighting, designed in-house and made with workshops we've known for years.",
                         "body",
@@ -350,11 +350,11 @@ export const portfolio: ArtifactContent = web(
             {
                 a: cell(
                     group(
-                        t("Let's begin", "eyebrow"),
+                        t("Let's begin", "label"),
                         t("Tell us about the space.", "h2"),
                         t(
                             "We take on a handful of projects a year so each one gets all of us. If you've got a room, a brand, or an idea that deserves restraint, we'd love to hear it.",
-                            "lead",
+                            "subtitle",
                         ),
                         button("Start a project"),
                     ),

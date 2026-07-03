@@ -29,12 +29,12 @@ export const lumen: ArtifactContent = web(
             {
                 a: cell(
                     group(
-                        t("DEEP WORK, ON DEMAND", "eyebrow"),
+                        t("DEEP WORK, ON DEMAND", "label"),
                         badge("NOW ON MACOS, WINDOWS, iOS & ANDROID"),
-                        t("Defend the hours that matter.", "display"),
+                        t("Defend the hours that matter.", "h1"),
                         t(
                             "Lumen blocks the noise, runs your focus sessions, and shows you exactly where your attention goes — so your best work stops getting interrupted.",
-                            "lead",
+                            "subtitle",
                         ),
                         group(button("Start focusing free"), button("Watch the 2-min tour")),
                         t("No card required · Free forever plan · Set up in 60 seconds", "caption"),
@@ -45,7 +45,7 @@ export const lumen: ArtifactContent = web(
             { background: bgImage("lumen-hero-quiet-desk-dawn", 0.58) },
         ),
         section("trusted-label", "full", {
-            a: cell(t("TRUSTED BY 200,000+ MAKERS, ENGINEERS & WRITERS WHO SHIP", "eyebrow")),
+            a: cell(t("TRUSTED BY 200,000+ MAKERS, ENGINEERS & WRITERS WHO SHIP", "label")),
         }),
         section("trusted-logos", "three-up", {
             a: cell(group(img("lumen-logo-northwind-labs", 1.6), t("Northwind Labs", "caption"))),
@@ -56,7 +56,7 @@ export const lumen: ArtifactContent = web(
             a: cell(img("lumen-cluttered-notifications-desk", 0.95)),
             b: cell(
                 group(
-                    t("THE PROBLEM", "eyebrow"),
+                    t("THE PROBLEM", "label"),
                     t("Your attention is under constant attack.", "h2"),
                     t(
                         "The average knowledge worker is interrupted every six minutes and needs twenty-three minutes to fully refocus. Notifications, open tabs, and 'quick' Slacks quietly drain the most valuable hours of your day.",
@@ -80,11 +80,11 @@ export const lumen: ArtifactContent = web(
         section("meet", "split-6040", {
             a: cell(
                 group(
-                    t("MEET LUMEN", "eyebrow"),
+                    t("MEET LUMEN", "label"),
                     t("One calm room for your hardest work.", "h2"),
                     t(
                         "Open Lumen, pick what you're working on, and start a session. We close the door — blocking the apps and sites that pull you away — run a gentle timer, and log every minute of real focus to a journal that's always yours.",
-                        "lead",
+                        "subtitle",
                     ),
                     button("See how it works"),
                 ),
@@ -94,11 +94,11 @@ export const lumen: ArtifactContent = web(
         section("features-intro", "full", {
             a: cell(
                 group(
-                    t("WHAT'S INSIDE", "eyebrow"),
+                    t("WHAT'S INSIDE", "label"),
                     t("Everything you need to protect your focus.", "h2"),
                     t(
                         "Three tools, one quiet workspace: block the distractions, run the session, and finally see where your attention actually goes.",
-                        "lead",
+                        "subtitle",
                     ),
                 ),
             ),
@@ -107,7 +107,7 @@ export const lumen: ArtifactContent = web(
             a: cell(
                 card(
                     img("lumen-feature-blocking-shield", 1),
-                    t("Distraction blocking", "title"),
+                    t("Distraction blocking", "h3"),
                     t(
                         "Block sites, apps, and notifications the moment a session starts — at the system level, across every device. Allowlists keep the few tools you truly need within reach.",
                         "body",
@@ -117,7 +117,7 @@ export const lumen: ArtifactContent = web(
             b: cell(
                 card(
                     img("lumen-feature-session-timer", 1),
-                    t("Focus sessions", "title"),
+                    t("Focus sessions", "h3"),
                     t(
                         "Run focused sprints with a calm timer and ambient soundscapes. Pause-proof tracking logs every minute of deep work, so your streak reflects reality.",
                         "body",
@@ -127,7 +127,7 @@ export const lumen: ArtifactContent = web(
             c: cell(
                 card(
                     img("lumen-feature-analytics-chart", 1),
-                    t("Focus analytics", "title"),
+                    t("Focus analytics", "h3"),
                     t(
                         "See your deep-work hours, peak times, and longest streaks. Weekly reviews show exactly where your attention went — and where it leaked.",
                         "body",
@@ -138,7 +138,7 @@ export const lumen: ArtifactContent = web(
         section("blocking", "split-6040", {
             a: cell(
                 group(
-                    t("DISTRACTION BLOCKING", "eyebrow"),
+                    t("DISTRACTION BLOCKING", "label"),
                     t("Silence the noise — at the system level.", "h2"),
                     t(
                         "Start a session and Lumen closes the door for you across every device. No willpower required, no browser extension to forget, no escape hatch unless you genuinely need one.",
@@ -158,7 +158,7 @@ export const lumen: ArtifactContent = web(
             a: cell(img("lumen-terminal-cli-focus", 1.05)),
             b: cell(
                 group(
-                    t("BUILT FOR BUILDERS", "eyebrow"),
+                    t("BUILT FOR BUILDERS", "label"),
                     t("Automate focus from your terminal.", "h2"),
                     t(
                         "Start a session, mute everything, and log deep work without leaving your editor. The Lumen CLI and API drop straight into the workflow you already have.",
@@ -173,11 +173,11 @@ export const lumen: ArtifactContent = web(
         section("how", "full", {
             a: cell(
                 group(
-                    t("HOW IT WORKS", "eyebrow"),
+                    t("HOW IT WORKS", "label"),
                     t("A simple loop that compounds.", "h2"),
                     t(
                         "No new system to learn. Four steps, repeated daily, quietly stack into your most productive weeks on record.",
-                        "lead",
+                        "subtitle",
                     ),
                     diagram("process", "Plan, Block, Focus, Review", 200),
                 ),
@@ -186,7 +186,7 @@ export const lumen: ArtifactContent = web(
         section("science", "split-6040", {
             a: cell(
                 group(
-                    t("THE SCIENCE", "eyebrow"),
+                    t("THE SCIENCE", "label"),
                     t("Focus is a muscle. Here's the proof.", "h2"),
                     t(
                         "We tracked 12,000 anonymized users through their first six weeks on Lumen. Average daily deep work — measured in real, uninterrupted minutes — climbs steadily as blocking becomes a habit instead of a decision.",
@@ -214,13 +214,13 @@ export const lumen: ArtifactContent = web(
         section("press", "three-up", {
             a: cell(
                 group(
-                    t("The Verge", "title"),
+                    t("The Verge", "h3"),
                     t("“The rare focus app that actually disappears into your day.”", "caption"),
                 ),
             ),
             b: cell(
                 group(
-                    t("Wired", "title"),
+                    t("Wired", "h3"),
                     t(
                         "“Finally, attention tracking that feels like a coach, not a cop.”",
                         "caption",
@@ -229,7 +229,7 @@ export const lumen: ArtifactContent = web(
             ),
             c: cell(
                 group(
-                    t("Fast Company", "title"),
+                    t("Fast Company", "h3"),
                     t("“The closest thing to a quiet office you can install.”", "caption"),
                 ),
             ),
@@ -238,7 +238,7 @@ export const lumen: ArtifactContent = web(
             a: cell(img("lumen-integrations-app-icons-grid", 1)),
             b: cell(
                 group(
-                    t("WORKS WITH YOUR STACK", "eyebrow"),
+                    t("WORKS WITH YOUR STACK", "label"),
                     t("Plays nicely with everything.", "h2"),
                     bullets(
                         "Google Calendar & Outlook — auto-schedule focus blocks",
@@ -252,11 +252,11 @@ export const lumen: ArtifactContent = web(
         section("pricing", "full", {
             a: cell(
                 group(
-                    t("PRICING", "eyebrow"),
+                    t("PRICING", "label"),
                     t("Start free. Upgrade when focus pays off.", "h2"),
                     t(
                         "Every plan includes unlimited sessions and core blocking. No card to try it, no surprises later.",
-                        "lead",
+                        "subtitle",
                     ),
                     table(
                         "Plan,Price,Best for,Includes\nFree,$0,Trying deep work for the first time,Unlimited sessions + core blocking\nPro,$9/mo,People who focus every single day,Full blocking, analytics & soundscapes\nTeams,$12/seat,Teams protecting shared focus time,Shared blocks, group reports & admin\nEnterprise,Custom,Orgs that need SSO & controls,SSO, SCIM, audit logs & SLA",
@@ -267,17 +267,17 @@ export const lumen: ArtifactContent = web(
         section("faq", "two-col", {
             a: cell(
                 group(
-                    t("Does Lumen really block apps?", "title"),
+                    t("Does Lumen really block apps?", "h3"),
                     t(
                         "Yes — it blocks distracting sites and desktop apps at the system level, with allowlists for the few tools you genuinely need open.",
                         "body",
                     ),
-                    t("Will I lose my data if I close it?", "title"),
+                    t("Will I lose my data if I close it?", "h3"),
                     t(
                         "Never. Every session syncs to the cloud, and your focus journal is always yours to export in one click.",
                         "body",
                     ),
-                    t("Can I use it with my team?", "title"),
+                    t("Can I use it with my team?", "h3"),
                     t(
                         "Teams plans add shared focus blocks, group analytics, and admin controls — without ever exposing anyone's personal session data.",
                         "body",
@@ -286,12 +286,12 @@ export const lumen: ArtifactContent = web(
             ),
             b: cell(
                 group(
-                    t("Is there really a free plan?", "title"),
+                    t("Is there really a free plan?", "h3"),
                     t(
                         "Always. The free plan includes unlimited sessions and core blocking, with no card required and no time limit.",
                         "body",
                     ),
-                    t("What if I need to be reachable?", "title"),
+                    t("What if I need to be reachable?", "h3"),
                     t(
                         "Set a list of people and apps that can always break through, and use one-tap bypass for the interruption that's genuinely urgent.",
                         "body",
@@ -312,9 +312,9 @@ export const lumen: ArtifactContent = web(
             {
                 a: cell(
                     group(
-                        t("READY WHEN YOU ARE", "eyebrow"),
-                        t("Protect your next deep hour.", "display"),
-                        t("Join 200,000+ people who do their best work with Lumen.", "lead"),
+                        t("READY WHEN YOU ARE", "label"),
+                        t("Protect your next deep hour.", "h1"),
+                        t("Join 200,000+ people who do their best work with Lumen.", "subtitle"),
                         button("Start focusing free"),
                     ),
                 ),
@@ -324,14 +324,14 @@ export const lumen: ArtifactContent = web(
         section("footer", "three-up", {
             a: cell(
                 group(
-                    t("Lumen", "title"),
+                    t("Lumen", "h3"),
                     t("The quiet your best work needs.", "caption"),
                     t("© 2026 Lumen Labs, Inc. · San Francisco & remote", "caption"),
                 ),
             ),
             b: cell(
                 group(
-                    t("PRODUCT", "eyebrow"),
+                    t("PRODUCT", "label"),
                     t("Features", "caption"),
                     t("Pricing", "caption"),
                     t("Integrations", "caption"),
@@ -341,7 +341,7 @@ export const lumen: ArtifactContent = web(
             ),
             c: cell(
                 group(
-                    t("COMPANY", "eyebrow"),
+                    t("COMPANY", "label"),
                     t("About", "caption"),
                     t("The focus blog", "caption"),
                     t("Careers", "caption"),

@@ -36,11 +36,11 @@ export const sponsorshipDeck: ArtifactContent = deck(
             {
                 a: cell(
                     group(
-                        t("HARBORLIGHT FESTIVAL 2026 · SPONSORSHIP PROSPECTUS", "eyebrow"),
-                        t("Three days on the water. One unforgettable summer.", "display"),
+                        t("HARBORLIGHT FESTIVAL 2026 · SPONSORSHIP PROSPECTUS", "label"),
+                        t("Three days on the water. One unforgettable summer.", "h1"),
                         t(
                             "Harborlight is Oakhaven’s flagship waterfront festival — three days of live music, regional food, and public art on the working piers. We’re inviting a small circle of partners to help us build the 2026 edition, and to reach the 65,000 people who’ll spend a long weekend with us.",
-                            "lead",
+                            "subtitle",
                         ),
                         badge("AUG 14–16, 2026 · PIER 9, OAKHAVEN"),
                     ),
@@ -53,7 +53,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
         section("property", "split-6040", {
             a: cell(
                 group(
-                    t("THE PROPERTY", "eyebrow"),
+                    t("THE PROPERTY", "label"),
                     t("A festival the whole region plans its summer around.", "h2"),
                     t(
                         "What started in 2014 as a single-stage block party on Pier 9 has grown into the largest open-air event on the Oakhaven calendar. Four stages, a 40-vendor food market, a juried art walk, and a free family programme run from Friday afternoon to Sunday night, all framed by the harbor and the city skyline behind it.",
@@ -72,7 +72,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
         section("audience", "three-up", {
             a: cell(
                 group(
-                    t("OUR AUDIENCE", "eyebrow"),
+                    t("OUR AUDIENCE", "label"),
                     stat("65K", "attendees across the three-day weekend"),
                 ),
             ),
@@ -93,7 +93,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
             ),
             b: cell(
                 group(
-                    t("REACH & ENGAGEMENT", "eyebrow"),
+                    t("REACH & ENGAGEMENT", "label"),
                     t("The crowd is only half the story.", "h2"),
                     t(
                         "Harborlight lives online long after the last set ends. Our channels and the attendee-generated wave around them turn a single weekend into a months-long conversation that your brand sits inside of.",
@@ -115,7 +115,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
             {
                 a: cell(
                     group(
-                        t("WHY PARTNER WITH US", "eyebrow"),
+                        t("WHY PARTNER WITH US", "label"),
                         t("A weekend of goodwill you can’t buy in a feed.", "h2"),
                         t(
                             "People arrive at Harborlight relaxed, generous, and ready to discover. That’s a context most marketing never gets near. Our partners don’t interrupt the experience — they make it better: shade and water on a hot pier, the charging lockers that save a night, the ferry that gets everyone home. Sponsorship here reads as hosting, not advertising, and the audience remembers who hosted them.",
@@ -133,7 +133,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
             a: cell(
                 card(
                     img("harborlight-brand-lounge", 1.4),
-                    t("Branded lounges", "title"),
+                    t("Branded lounges", "h3"),
                     t(
                         "Shaded waterfront decks with seating, charging, and your brand as the host of the calm.",
                         "caption",
@@ -143,7 +143,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
             b: cell(
                 card(
                     img("harborlight-sampling-booth", 1.4),
-                    t("Sampling & retail", "title"),
+                    t("Sampling & retail", "h3"),
                     t(
                         "Hand product to 65,000 people in the exact moment they’re open to trying something new.",
                         "caption",
@@ -153,7 +153,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
             c: cell(
                 card(
                     img("harborlight-stage-naming", 1.4),
-                    t("Stage & moment naming", "title"),
+                    t("Stage & moment naming", "h3"),
                     t(
                         "Put your name on a stage, the sunset set, or the after-dark fireworks over the harbor.",
                         "caption",
@@ -166,7 +166,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
         section("tiers", "full", {
             a: cell(
                 group(
-                    t("SPONSORSHIP TIERS", "eyebrow"),
+                    t("SPONSORSHIP TIERS", "label"),
                     t("Four ways in. One conversation to find your fit.", "h2"),
                     table(
                         "Tier,Investment,Availability,Headline benefit\nPresenting,$120K,1 partner,“Harborlight presented by” lockup across all assets\nStage,$60K,4 partners,Naming rights to a named stage + on-stage moments\nMarket,$28K,8 partners,Premium activation footprint in the food & art market\nCommunity,$9K,12 partners,Logo placement, tickets & a sampling table",
@@ -183,7 +183,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
         section("benefits", "split-6040", {
             a: cell(
                 group(
-                    t("WHAT SPONSORS GET", "eyebrow"),
+                    t("WHAT SPONSORS GET", "label"),
                     t("Reach, hospitality, and a story worth telling.", "h2"),
                     bullets(
                         "Logo & brand integration across stages, signage, app and the festival website",
@@ -209,7 +209,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
         section("results", "three-up", {
             a: cell(
                 group(
-                    t("PAST PARTNERS & RESULTS", "eyebrow"),
+                    t("PAST PARTNERS & RESULTS", "label"),
                     stat("3.1M", "branded impressions delivered for our 2025 presenting partner"),
                 ),
             ),
@@ -237,7 +237,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
             a: cell(img("harborlight-aerial-pier-map", 1.05)),
             b: cell(
                 group(
-                    t("THE ASK", "eyebrow"),
+                    t("THE ASK", "label"),
                     t("Let’s build your 2026 weekend.", "h2"),
                     t(
                         "Tiers are confirmed on a first-come basis and the presenting slot moves fast — we hold partner conversations through March and lock the roster by April 1. Send us your goals and we’ll come back with a tailored activation plan and a single, simple agreement.",
@@ -267,15 +267,15 @@ export const sow: ArtifactContent = doc(
             {
                 a: cell(
                     group(
-                        t("STATEMENT OF WORK · SOW-2026-014", "eyebrow"),
-                        t("Commerce Replatform & Returns Portal", "display"),
+                        t("STATEMENT OF WORK · SOW-2026-014", "label"),
+                        t("Commerce Replatform & Returns Portal", "h1"),
                         t(
                             "Prepared by Anvil & Oak Studio for Wexford Outdoor Co. This Statement of Work defines the scope, deliverables, timeline, and commercial terms for a twelve-week engagement to replatform wexfordoutdoor.com and ship a self-service returns experience.",
-                            "lead",
+                            "subtitle",
                         ),
                         t(
                             "Effective: July 6, 2026 · Master Services Agreement dated March 2, 2026",
-                            "byline",
+                            "caption",
                         ),
                     ),
                 ),
@@ -287,7 +287,7 @@ export const sow: ArtifactContent = doc(
         section("overview", "split-6040", {
             a: cell(
                 group(
-                    t("1 · PROJECT OVERVIEW", "eyebrow"),
+                    t("1 · PROJECT OVERVIEW", "label"),
                     t("Replatform the storefront, and stop returns from leaking revenue.", "h2"),
                     t(
                         "Wexford Outdoor Co. runs a high-traffic Shopify storefront on an aging custom theme that no longer keeps pace with its catalog or its peak-season load. Returns are handled by email and a shared inbox, which costs the support team an estimated 40 hours a week and frustrates customers.",
@@ -306,7 +306,7 @@ export const sow: ArtifactContent = doc(
         section("objectives", "full", {
             a: cell(
                 group(
-                    t("2 · OBJECTIVES", "eyebrow"),
+                    t("2 · OBJECTIVES", "label"),
                     t("What success looks like.", "h2"),
                     t(
                         "The engagement is considered successful when the following business outcomes are met within ninety days of launch:",
@@ -326,7 +326,7 @@ export const sow: ArtifactContent = doc(
         section("at-a-glance", "three-up", {
             a: cell(
                 group(
-                    t("AT A GLANCE", "eyebrow"),
+                    t("AT A GLANCE", "label"),
                     stat("12 wks", "engagement, kickoff to production launch"),
                 ),
             ),
@@ -347,7 +347,7 @@ export const sow: ArtifactContent = doc(
             ),
             b: cell(
                 group(
-                    t("3 · OUR APPROACH", "eyebrow"),
+                    t("3 · OUR APPROACH", "label"),
                     t("Five phases, weekly demos, no surprises.", "h2"),
                     t(
                         "We work in one-week iterations with a Friday demo and a shared backlog. Each phase ends in a reviewable artifact and a written sign-off, so scope and budget stay visible from day one.",
@@ -362,7 +362,7 @@ export const sow: ArtifactContent = doc(
         section("scope", "full", {
             a: cell(
                 group(
-                    t("4 · SCOPE OF WORK", "eyebrow"),
+                    t("4 · SCOPE OF WORK", "label"),
                     t("In scope.", "h2"),
                     t("Anvil & Oak will design, build, and deliver the following:", "body"),
                     bullets(
@@ -383,7 +383,7 @@ export const sow: ArtifactContent = doc(
                 callout(
                     "warn",
                     group(
-                        t("5 · OUT OF SCOPE", "eyebrow"),
+                        t("5 · OUT OF SCOPE", "label"),
                         t(
                             "To keep the timeline and fee firm, the following are explicitly excluded from this SOW and may be addressed under a separate change order:",
                             "body",
@@ -405,7 +405,7 @@ export const sow: ArtifactContent = doc(
         section("deliverables", "full", {
             a: cell(
                 group(
-                    t("6 · DELIVERABLES", "eyebrow"),
+                    t("6 · DELIVERABLES", "label"),
                     t("What you receive, and when.", "h2"),
                     table(
                         "Deliverable,Description,Format,Due\nD1 · Discovery brief,Technical audit, scope lock & architecture diagram,PDF + Figma,Week 2\nD2 · Design system,Component library & 18 responsive templates,Figma,Week 4\nD3 · Storefront,Production-ready headless build with CI/CD,Git repo + staging,Week 9\nD4 · Returns portal,Self-service returns & exchange flow,Git repo + staging,Week 10\nD5 · Launch package,Cutover plan, runbook & analytics dashboards,PDF + Looker,Week 12",
@@ -418,7 +418,7 @@ export const sow: ArtifactContent = doc(
         section("timeline", "full", {
             a: cell(
                 group(
-                    t("7 · TIMELINE & MILESTONES", "eyebrow"),
+                    t("7 · TIMELINE & MILESTONES", "label"),
                     t("A twelve-week path to launch.", "h2"),
                     diagram(
                         "process",
@@ -437,7 +437,7 @@ export const sow: ArtifactContent = doc(
         section("roles", "full", {
             a: cell(
                 group(
-                    t("8 · ROLES & RESPONSIBILITIES", "eyebrow"),
+                    t("8 · ROLES & RESPONSIBILITIES", "label"),
                     t("Who owns what.", "h2"),
                     table(
                         "Role,Name,Responsibility,Party\nEngagement lead,Dana Okonkwo,Scope, schedule & weekly status,Anvil & Oak\nTech lead,Marcus Vey,Architecture & code review,Anvil & Oak\nProduct designer,Lena Sørensen,Design system & UX,Anvil & Oak\nProduct owner,Tom Bryce,Decisions, approvals & content,Wexford\nIT liaison,Sara Whitlock,System access & integrations,Wexford",
@@ -454,7 +454,7 @@ export const sow: ArtifactContent = doc(
         section("pricing", "full", {
             a: cell(
                 group(
-                    t("9 · PRICING & PAYMENT TERMS", "eyebrow"),
+                    t("9 · PRICING & PAYMENT TERMS", "label"),
                     t("Fixed fee, billed against milestones.", "h2"),
                     table(
                         "Milestone,Trigger,Amount,Payment terms\nM1 · Kickoff,SOW execution,$37,200,Due on signing\nM2 · Design accepted,D2 sign-off,$46,500,Net 15\nM3 · Build complete,D3 sign-off,$55,800,Net 15\nM4 · UAT passed,D4 sign-off,$28,000,Net 15\nM5 · Launch,Production cutover,$18,500,Net 15\nTotal,,$186,000,",
@@ -471,7 +471,7 @@ export const sow: ArtifactContent = doc(
         section("assumptions", "full", {
             a: cell(
                 group(
-                    t("10 · ASSUMPTIONS & DEPENDENCIES", "eyebrow"),
+                    t("10 · ASSUMPTIONS & DEPENDENCIES", "label"),
                     t("What this plan relies on.", "h2"),
                     callout(
                         "info",
@@ -494,7 +494,7 @@ export const sow: ArtifactContent = doc(
         section("acceptance", "full", {
             a: cell(
                 group(
-                    t("11 · ACCEPTANCE", "eyebrow"),
+                    t("11 · ACCEPTANCE", "label"),
                     t("Authorization to proceed.", "h2"),
                     t(
                         "By signing below, the parties agree to the scope, deliverables, timeline, and commercial terms set out in this Statement of Work, governed by the Master Services Agreement dated March 2, 2026.",

@@ -1,60 +1,77 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { resolveModel, type Quality, type Role } from "./models";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createCohere } from "@ai-sdk/cohere";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createXai } from "@ai-sdk/xai";
+import { generateObject, generateText, streamText, type LanguageModel } from "ai";
+import type { z } from "zod";
+import { MODELS, resolveModel, type Provider, type Quality, type Role } from "./models";
 
-// Thin wrapper over the Anthropic SDK. Stages call complete()/structured() with a role; the model is
-// resolved from the registry. Adaptive thinking is on; structured() constrains output to a JSON schema.
-// The key is read from process.env.ANTHROPIC_API_KEY (loaded via dotenv in the API/worker entry).
+// The multi-provider LLM layer over the Vercel AI SDK: one `complete / structured / stream` API across
+// Anthropic, OpenAI, Google, xAI, and Cohere. Stages call it with a role (or an explicit model); the
+// registry resolves the key → a real provider model. Each provider is created with the key under OUR env
+// name (some SDK defaults differ — Google's is GOOGLE_GENERATIVE_AI_API_KEY), so all read from `.env`.
 
-let cached: Anthropic | null = null;
-function client(): Anthropic {
-    if (!process.env.ANTHROPIC_API_KEY) {
-        throw new Error("ANTHROPIC_API_KEY is not set — add it to .env");
-    }
-    cached ??= new Anthropic();
-    return cached;
+const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const google = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_API_KEY });
+const xai = createXai({ apiKey: process.env.XAI_API_KEY });
+const cohere = createCohere({ apiKey: process.env.COHERE_API_KEY });
+
+function model(key: string): LanguageModel {
+    const def = MODELS[key];
+    if (!def) throw new Error(`unknown model: ${key}`);
+    const byProvider: Record<Provider, LanguageModel> = {
+        anthropic: anthropic(def.id),
+        openai: openai(def.id),
+        google: google(def.id),
+        xai: xai(def.id),
+        cohere: cohere(def.id),
+    };
+    return byProvider[def.provider];
 }
 
-type Effort = "low" | "medium" | "high";
-
 export interface CallOpts {
-    role: Role;
+    model?: string; // explicit registry key — wins over role
+    role?: Role;
     quality?: Quality;
     system?: string;
     user: string;
     maxTokens?: number;
-    effort?: Effort;
 }
 
-const textOf = (blocks: Anthropic.ContentBlock[]): string =>
-    blocks.map((b) => (b.type === "text" ? b.text : "")).join("");
+const pick = (o: CallOpts): string =>
+    o.model ?? resolveModel(o.role ?? "chat", { quality: o.quality });
 
 // Plain text completion.
 export async function complete(opts: CallOpts): Promise<string> {
-    const msg = await client().messages.create({
-        model: resolveModel(opts.role, { quality: opts.quality }),
-        max_tokens: opts.maxTokens ?? 4096,
-        thinking: { type: "adaptive" },
-        ...(opts.effort ? { output_config: { effort: opts.effort } } : {}),
-        ...(opts.system ? { system: opts.system } : {}),
-        messages: [{ role: "user", content: opts.user }],
+    const { text } = await generateText({
+        model: model(pick(opts)),
+        system: opts.system,
+        prompt: opts.user,
+        maxOutputTokens: opts.maxTokens ?? 4096,
     });
-    return textOf(msg.content);
+    return text;
 }
 
-// JSON output constrained to `schema` (a JSON Schema) — the staged IR comes back already shaped.
-export async function structured<T>(
-    opts: CallOpts & { schema: Record<string, unknown> },
-): Promise<T> {
-    const msg = await client().messages.create({
-        model: resolveModel(opts.role, { quality: opts.quality }),
-        max_tokens: opts.maxTokens ?? 4096,
-        thinking: { type: "adaptive" },
-        output_config: {
-            format: { type: "json_schema", schema: opts.schema },
-            ...(opts.effort ? { effort: opts.effort } : {}),
-        },
-        ...(opts.system ? { system: opts.system } : {}),
-        messages: [{ role: "user", content: opts.user }],
+// Structured output constrained to a zod schema — the staged IR comes back already shaped + validated.
+export async function structured<T>(opts: CallOpts & { schema: z.ZodType<T> }): Promise<T> {
+    const { object } = await generateObject({
+        model: model(pick(opts)),
+        schema: opts.schema,
+        system: opts.system,
+        prompt: opts.user,
+        maxOutputTokens: opts.maxTokens ?? 4096,
     });
-    return JSON.parse(textOf(msg.content)) as T;
+    return object;
+}
+
+// Streaming text — for narrated writing (the pipeline forwards deltas as `narration` events).
+export function stream(opts: CallOpts): ReturnType<typeof streamText> {
+    return streamText({
+        model: model(pick(opts)),
+        system: opts.system,
+        prompt: opts.user,
+        maxOutputTokens: opts.maxTokens ?? 4096,
+    });
 }

@@ -30,12 +30,12 @@ export const terra: ArtifactContent = web(
             {
                 a: cell(
                     group(
-                        t("TERRA · SUSTAINABLE GOODS", "eyebrow"),
+                        t("TERRA · SUSTAINABLE GOODS", "label"),
                         badge("NEW — THE LOAM COLLECTION"),
-                        t("Beautiful things that return to the earth.", "display"),
+                        t("Beautiful things that return to the earth.", "h1"),
                         t(
                             "We design everyday objects — for the kitchen, the table, the bath — from single, plant-based materials. Built to last for years, and to compost in weeks. No plastic, no mystery coatings, no landfill.",
-                            "lead",
+                            "subtitle",
                         ),
                         button("Shop the collection"),
                     ),
@@ -48,7 +48,7 @@ export const terra: ArtifactContent = web(
         section("s2", "three-up", {
             a: cell(
                 group(
-                    t("Plastic-free, always", "title"),
+                    t("Plastic-free, always", "h3"),
                     t(
                         "Every order ships in molded pulp and paper tape — zero plastic anywhere in the box.",
                         "caption",
@@ -57,7 +57,7 @@ export const terra: ArtifactContent = web(
             ),
             b: cell(
                 group(
-                    t("Home-compostable", "title"),
+                    t("Home-compostable", "h3"),
                     t(
                         "Breaks down in a backyard bin in weeks — no 1,400°F industrial facility required.",
                         "caption",
@@ -66,7 +66,7 @@ export const terra: ArtifactContent = web(
             ),
             c: cell(
                 group(
-                    t("1% for the Planet", "title"),
+                    t("1% for the Planet", "h3"),
                     t(
                         "One percent of every sale funds soil and forest restoration, audited each year.",
                         "caption",
@@ -79,11 +79,11 @@ export const terra: ArtifactContent = web(
         section("s3", "full", {
             a: cell(
                 group(
-                    t("OUR PHILOSOPHY", "eyebrow"),
+                    t("OUR PHILOSOPHY", "label"),
                     t("Made to last. Made to return.", "h2"),
                     t(
                         "We design the opposite of disposable: objects good enough to keep for a decade — and honest enough to disappear in a season when you finally let them go.",
-                        "lead",
+                        "subtitle",
                     ),
                     t(
                         "Most “sustainable” goods are a compromise dressed up as a virtue — bamboo bonded with melamine, “plant-based” plastics that need an industrial furnace to break down, a recycling symbol that quietly means landfill. Terra began because the honest version didn’t exist: single-material objects, beautifully made, that you compost in your own garden into something that actually feeds the soil they came from.",
@@ -98,7 +98,7 @@ export const terra: ArtifactContent = web(
             a: cell(img("terra-flax-field-golden", 1.05)),
             b: cell(
                 group(
-                    t("WHY WE EXIST", "eyebrow"),
+                    t("WHY WE EXIST", "label"),
                     t("Borrowed from the earth, returned with care.", "h2"),
                     t(
                         "We don’t offset our way to better. Every Terra object is designed to give back more than it takes — from the regenerative farms our materials grow on to the compost bin each one ends up in. No micro-plastics shed in your sink, no mystery coatings, no landfill at the end of the line. Only soil.",
@@ -112,7 +112,7 @@ export const terra: ArtifactContent = web(
         section("s5", "full", {
             a: cell(
                 group(
-                    t("THE COLLECTION", "eyebrow"),
+                    t("THE COLLECTION", "label"),
                     t("Objects for the everyday.", "h2"),
                     t(
                         "Fourteen essentials for the kitchen, table, bath, and garden — each made from a single compostable material, built to last for years and to vanish in weeks. Quietly designed to be the best version of the thing you already reach for every day.",
@@ -127,21 +127,21 @@ export const terra: ArtifactContent = web(
             a: cell(
                 card(
                     img("terra-flax-tumbler", 1),
-                    t("The Daily Tumbler", "title"),
+                    t("The Daily Tumbler", "h3"),
                     t("Pressed flax husk · keeps coffee hot for 3 hours · $28", "caption"),
                 ),
             ),
             b: cell(
                 card(
                     img("terra-cane-bowl-set", 1),
-                    t("Everyday Bowl Set", "title"),
+                    t("Everyday Bowl Set", "h3"),
                     t("Sugarcane cane-resin · set of four · $36", "caption"),
                 ),
             ),
             c: cell(
                 card(
                     img("terra-beech-dish-brush", 1),
-                    t("Hearth Dish Brush", "title"),
+                    t("Hearth Dish Brush", "h3"),
                     t("Coppiced beech + agave bristle · replaceable head · $14", "caption"),
                 ),
             ),
@@ -152,21 +152,21 @@ export const terra: ArtifactContent = web(
             a: cell(
                 card(
                     img("terra-mycelium-planter", 1),
-                    t("Field Planter", "title"),
+                    t("Field Planter", "h3"),
                     t("Grown from mushroom mycelium · plant it, pot and all · $22", "caption"),
                 ),
             ),
             b: cell(
                 card(
                     img("terra-beech-bath-tray", 1),
-                    t("The Bath Tray", "title"),
+                    t("The Bath Tray", "h3"),
                     t("Oiled coppiced beechwood · for soap, stone & sponge · $32", "caption"),
                 ),
             ),
             c: cell(
                 card(
                     img("terra-flax-linen-napkins", 1),
-                    t("Table Linens", "title"),
+                    t("Table Linens", "h3"),
                     t("Belgian flax linen · set of four napkins · $40", "caption"),
                 ),
             ),
@@ -176,14 +176,14 @@ export const terra: ArtifactContent = web(
         section("s8", "split-6040", {
             a: cell(
                 group(
-                    t("NEW · THE LOAM COLLECTION", "eyebrow"),
+                    t("NEW · THE LOAM COLLECTION", "label"),
                     badge("BESTSELLER"),
                     t("The Loam Caddy.", "h2"),
                     t(
                         "Our countertop compost bin — grown, not molded, from mushroom mycelium and flax. It holds five days of kitchen scraps, seals tight against odor, and looks like something you’d actually leave out on the counter. When it finally wears out, bury it in the garden it helped grow.",
                         "body",
                     ),
-                    t("$48", "title"),
+                    t("$48", "h3"),
                     button("Shop the Loam Caddy"),
                 ),
             ),
@@ -195,7 +195,7 @@ export const terra: ArtifactContent = web(
             a: cell(img("terra-workshop-hands-pressing", 1.05)),
             b: cell(
                 group(
-                    t("MATERIALS & CRAFT", "eyebrow"),
+                    t("MATERIALS & CRAFT", "label"),
                     t("One material. Nothing hidden.", "h2"),
                     t(
                         "Every Terra object is made from a single, traceable, plant-based material — never a laminate, never a blend you can’t take apart. That’s harder to engineer and slower to make. It’s also the only way an object can return cleanly to the earth. We press flax husk into warm, durable forms; we grow mycelium into shape in seven days; we finish beech with nothing but plant oil.",
@@ -209,7 +209,7 @@ export const terra: ArtifactContent = web(
         section("s10", "full", {
             a: cell(
                 group(
-                    t("EVERY MATERIAL, AND WHERE IT ENDS UP", "eyebrow"),
+                    t("EVERY MATERIAL, AND WHERE IT ENDS UP", "label"),
                     table(
                         "Material,Source,Used in,End of life\nFlaxfoam,Belgian flax husk (a milling byproduct),Tumblers & bowls,Home compost in ~8 weeks\nMycopress,Regenerative mushroom mycelium,Planters & the Loam Caddy,Garden soil in ~45 days\nCane resin,Sugarcane bagasse,Bowl sets & crocks,Home compost in ~16 weeks\nCoppiced beech,FSC-certified beechwood,Brushes & trays,Compost or clean burn\nFlax linen,Belgian flax fibre,Napkins & aprons,Home compost in ~10 weeks",
                     ),
@@ -221,7 +221,7 @@ export const terra: ArtifactContent = web(
         section("s11", "full", {
             a: cell(
                 group(
-                    t("HOW IT’S MADE", "eyebrow"),
+                    t("HOW IT’S MADE", "label"),
                     t("From field to shelf, in five steps.", "h2"),
                     t(
                         "No assembly lines and no overseas freight. Each object moves through five hands in our own workshop before it’s allowed to ship.",
@@ -239,11 +239,11 @@ export const terra: ArtifactContent = web(
             {
                 a: cell(
                     group(
-                        t("IN THE WORKSHOP", "eyebrow"),
+                        t("IN THE WORKSHOP", "label"),
                         t("Slow made, by hand.", "h2"),
                         t(
                             "Everything is made in small batches in our Portland workshop by a team of fourteen makers who sign the bottom of what they build. No overseas freight, no warehouse full of guesswork — we make to the season, and we make it to keep.",
-                            "lead",
+                            "subtitle",
                         ),
                     ),
                 ),
@@ -262,7 +262,7 @@ export const terra: ArtifactContent = web(
         section("s14", "split-6040", {
             a: cell(
                 group(
-                    t("OUR IMPACT", "eyebrow"),
+                    t("OUR IMPACT", "label"),
                     t("Compost in, forests out.", "h2"),
                     t(
                         "For every order we fund tree-planting and soil restoration through 1% for the Planet. Here’s the cumulative count, in thousands of trees, since we opened our doors in 2022.",
@@ -277,7 +277,7 @@ export const terra: ArtifactContent = web(
         section("s15", "full", {
             a: cell(
                 group(
-                    t("THE STANDARDS WE HOLD", "eyebrow"),
+                    t("THE STANDARDS WE HOLD", "label"),
                     t("Proof, not promises.", "h2"),
                     t(
                         "We publish the receipts. Every product page lists its material, its independent lab results, and exactly how long it takes to break down — because “eco” should be something you can check, not something you’re asked to believe.",
@@ -321,13 +321,13 @@ export const terra: ArtifactContent = web(
         section("s17", "split-6040", {
             a: cell(
                 group(
-                    t("THE PEOPLE BEHIND IT", "eyebrow"),
+                    t("THE PEOPLE BEHIND IT", "label"),
                     t("Started by a designer and a soil scientist.", "h2"),
                     t(
                         "Terra began at a kitchen table in 2022, when Ada Mensah — an industrial designer tired of making things destined for landfill — teamed up with Joon Park, a soil scientist who could grow a planter out of mushrooms. Four years and fourteen products later, we’re still a small team in one workshop, making objects we’d want in our own homes and would be glad to give back to the ground.",
                         "body",
                     ),
-                    t("— Ada & Joon, founders", "byline"),
+                    t("— Ada & Joon, founders", "caption"),
                 ),
             ),
             b: cell(img("terra-founders-portrait-studio", 0.82)),
@@ -340,11 +340,11 @@ export const terra: ArtifactContent = web(
             {
                 a: cell(
                     group(
-                        t("STAY IN THE LOOP", "eyebrow"),
+                        t("STAY IN THE LOOP", "label"),
                         t("One good thing, every season.", "h2"),
                         t(
                             "Join 60,000 people getting first access to new objects, repair guides, and the occasional dispatch from the farm. No noise — four emails a year, and 10% off your first order to say hello.",
-                            "lead",
+                            "subtitle",
                         ),
                         button("Get 10% off your first order"),
                     ),
@@ -357,20 +357,20 @@ export const terra: ArtifactContent = web(
         section("s19", "three-up", {
             a: cell(
                 group(
-                    t("Terra", "title"),
+                    t("Terra", "h3"),
                     t("Beautiful things that return to the earth.", "caption"),
                     t("hello@terragoods.com", "caption"),
                 ),
             ),
             b: cell(
                 group(
-                    t("SHOP", "eyebrow"),
+                    t("SHOP", "label"),
                     bullets("Kitchen", "Table & dining", "Bath", "Garden", "Gift cards"),
                 ),
             ),
             c: cell(
                 group(
-                    t("COMPANY", "eyebrow"),
+                    t("COMPANY", "label"),
                     bullets("Our story", "Materials & impact", "Stockists", "Journal", "Careers"),
                 ),
             ),

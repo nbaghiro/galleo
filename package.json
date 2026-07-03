@@ -19,12 +19,20 @@
         "seed": "tsx services/api/seed.ts",
         "db:push": "drizzle-kit push",
         "db:generate": "drizzle-kit generate",
-        "db:migrate": "drizzle-kit migrate"
+        "db:migrate": "drizzle-kit migrate",
+        "agent:ping": "tsx services/agent/ping.ts",
+        "agent:gen": "tsx services/agent/generate-test.ts",
+        "agent:bench": "tsx services/agent/bench.ts"
     },
     "dependencies": {
-        "@anthropic-ai/sdk": "^0.107.0",
+        "@ai-sdk/anthropic": "^4.0.7",
+        "@ai-sdk/cohere": "^4.0.5",
+        "@ai-sdk/google": "^4.0.8",
+        "@ai-sdk/openai": "^4.0.7",
+        "@ai-sdk/xai": "^4.0.6",
         "@hono/node-server": "^2.0.6",
         "@solidjs/router": "^0.16.1",
+        "ai": "^7.0.14",
         "drizzle-orm": "^0.38.0",
         "hono": "^4.12.27",
         "pdf-lib": "^1.17.1",

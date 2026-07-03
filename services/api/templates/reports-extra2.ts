@@ -28,15 +28,15 @@ export const qbr: ArtifactContent = doc("manuscript", [
         {
             a: cell(
                 group(
-                    t("TESSERA · QUARTERLY BUSINESS REVIEW", "eyebrow"),
-                    t("Q2 FY2026 in Review", "display"),
+                    t("TESSERA · QUARTERLY BUSINESS REVIEW", "label"),
+                    t("Q2 FY2026 in Review", "h1"),
                     t(
                         "A strong quarter on revenue, a soft one on new logos, and a clear read on what to fix before Q3. The numbers, the wins, the misses — and the four decisions we need from this room.",
-                        "lead",
+                        "subtitle",
                     ),
                     t(
                         "Prepared by the Tessera leadership team · For the Board & Executive Staff · June 2026",
-                        "byline",
+                        "caption",
                     ),
                     badge("ARR $48.6M · NRR 119% · 612 CUSTOMERS"),
                 ),
@@ -53,11 +53,11 @@ export const qbr: ArtifactContent = doc("manuscript", [
     section("q2", "split-6040", {
         a: cell(
             group(
-                t("The quarter at a glance", "eyebrow"),
+                t("The quarter at a glance", "label"),
                 t("We beat plan on revenue and missed it on reach.", "h2"),
                 t(
                     "Q2 was our best revenue quarter ever and our slowest new-logo quarter in a year — at the same time. Existing customers expanded faster than we modeled, carrying net new ARR to 113% of plan. But the top of the funnel cooled: enterprise cycles stretched, the SDR class ramped slowly, and we closed 84 of the 95 new logos we forecast.",
-                    "lead",
+                    "subtitle",
                 ),
                 t(
                     "The shape of the business is healthy. The shape of the pipeline is the risk. This review walks the scorecard top to bottom, names what slipped without flinching, and ends with four asks that determine whether Q3 holds the line on growth.",
@@ -85,7 +85,7 @@ export const qbr: ArtifactContent = doc("manuscript", [
     section("q4", "full", {
         a: cell(
             group(
-                t("Scorecard", "eyebrow"),
+                t("Scorecard", "label"),
                 t("KPIs vs. targets", "h2"),
                 t(
                     "Six metrics define the quarter. Four beat or held; two missed. The pattern is consistent — anything driven by our installed base outperformed, and anything driven by new acquisition came in light.",
@@ -107,7 +107,7 @@ export const qbr: ArtifactContent = doc("manuscript", [
     section("q5", "split-6040", {
         a: cell(
             group(
-                t("Revenue & pipeline", "eyebrow"),
+                t("Revenue & pipeline", "label"),
                 t("ARR keeps compounding; coverage is thinning.", "h2"),
                 t(
                     "ARR crossed $48.6M, our sixth straight quarter of double-digit sequential growth, driven almost entirely by expansion. The concern sits one layer down: qualified pipeline entering Q3 is 3.2x of target, below our 4.0x guardrail. We are not short on revenue today — we are short on the future quarters' worth of it.",
@@ -136,7 +136,7 @@ export const qbr: ArtifactContent = doc("manuscript", [
         ),
         b: cell(
             group(
-                t("What went right", "eyebrow"),
+                t("What went right", "label"),
                 t("Four wins worth repeating", "h2"),
                 bullets(
                     "Closed Northwind Bank at $1.2M ARR — our largest new logo ever, and a reference account in financial services.",
@@ -165,12 +165,12 @@ export const qbr: ArtifactContent = doc("manuscript", [
     section("q8", "full", {
         a: cell(
             group(
-                t("What slipped", "eyebrow"),
+                t("What slipped", "label"),
                 t("Three things we missed — and why", "h2"),
                 callout(
                     "caution",
                     group(
-                        t("NEW-LOGO SHORTFALL", "eyebrow"),
+                        t("NEW-LOGO SHORTFALL", "label"),
                         t(
                             "We closed 84 of 95 forecast new logos. Two-thirds of the gap traces to enterprise deals slipping a quarter as security review queued behind our SOC 2 cycle; the rest to an SDR class that ramped roughly five weeks slower than the last. Neither is structural, but both are now in the Q3 plan as named risks.",
                             "body",
@@ -188,7 +188,7 @@ export const qbr: ArtifactContent = doc("manuscript", [
     section("q9", "split-6040", {
         a: cell(
             group(
-                t("Customer health", "eyebrow"),
+                t("Customer health", "label"),
                 t("Retention is strong; a few whales need watching.", "h2"),
                 t(
                     "Gross retention held at 94% and NPS climbed to 52, its highest reading since we began tracking it. Support CSAT sits at 4.6/5. The watch list is short but heavy: three accounts representing $2.1M of ARR are mid-renewal with new economic buyers, and all three are now under direct executive sponsorship.",
@@ -211,7 +211,7 @@ export const qbr: ArtifactContent = doc("manuscript", [
     section("q10", "full", {
         a: cell(
             group(
-                t("Looking ahead", "eyebrow"),
+                t("Looking ahead", "label"),
                 t("Priorities for Q3", "h2"),
                 t(
                     "One quarter, five moves. Each maps directly to a gap above — the plan is to fix what slipped without slowing what's working.",
@@ -231,7 +231,7 @@ export const qbr: ArtifactContent = doc("manuscript", [
     section("q11", "full", {
         a: cell(
             card(
-                t("The asks", "eyebrow"),
+                t("The asks", "label"),
                 t("Four decisions we need from this room", "h2"),
                 bullets(
                     "Approve six incremental enterprise AE hires, front-loaded into July to protect H2 capacity.",
@@ -251,7 +251,7 @@ export const qbr: ArtifactContent = doc("manuscript", [
             a: cell(
                 t(
                     "The business is compounding from the inside out — the work now is to make sure the next twelve months of new customers are as healthy as this quarter's revenue. We have the team, the product, and the plan. We need the four yeses above to run it.",
-                    "lead",
+                    "subtitle",
                 ),
             ),
         },
@@ -268,13 +268,13 @@ export const trendsReport: ArtifactContent = doc("mocha", [
         {
             a: cell(
                 group(
-                    t("INDUSTRY TRENDS REPORT · 2026", "eyebrow"),
-                    t("The Factory Wakes Up", "display"),
+                    t("INDUSTRY TRENDS REPORT · 2026", "label"),
+                    t("The Factory Wakes Up", "h1"),
                     t(
                         "For thirty years the industrial robot was a caged, single-purpose machine bolted to a floor. In 2026 it is becoming something else — cheaper, sighted, rentable, and increasingly able to share the room with people. This is the year automation stopped being a project and started being a default.",
-                        "lead",
+                        "subtitle",
                     ),
-                    t("Continuum Research · Automation & Robotics Practice · June 2026", "byline"),
+                    t("Continuum Research · Automation & Robotics Practice · June 2026", "caption"),
                     badge("420 MANUFACTURERS SURVEYED · 11 SECTORS · 19 COUNTRIES"),
                 ),
             ),
@@ -285,11 +285,11 @@ export const trendsReport: ArtifactContent = doc("mocha", [
     section("t2", "split-6040", {
         a: cell(
             group(
-                t("The landscape today", "eyebrow"),
+                t("The landscape today", "label"),
                 t("Automation crossed from the margins to the mainstream.", "h2"),
                 t(
                     "The story of industrial robotics used to be a story about cars — heavy arms welding chassis in a handful of giant plants. That era hasn't ended, but it has been overtaken. The fastest growth now comes from electronics, logistics, food, and metals, and from companies with under five hundred employees that could never have justified automation a decade ago.",
-                    "lead",
+                    "subtitle",
                 ),
                 t(
                     "Three forces are converging: hardware costs are falling, perception software has gotten good enough to handle mess, and new financing models have erased the upfront capital wall. Together they are pulling robots out of the cage and into the kind of work that used to be considered too varied, too delicate, or too small-batch to automate.",
@@ -317,7 +317,7 @@ export const trendsReport: ArtifactContent = doc("mocha", [
     section("t4", "split-6040", {
         a: cell(
             group(
-                t("Trend 01", "eyebrow"),
+                t("Trend 01", "label"),
                 t("Collaborative robots go mainstream", "h2"),
                 t(
                     "Cobots — robots designed to work safely alongside people without a cage — have moved from novelty to backbone. They install in days rather than months, cost a fraction of traditional cells, and don't require a safety guard or a dedicated operator. In 2020 they were one in twelve new installations; on our forecast they cross one in three by 2027.",
@@ -349,7 +349,7 @@ export const trendsReport: ArtifactContent = doc("mocha", [
         ),
         b: cell(
             group(
-                t("Trend 02", "eyebrow"),
+                t("Trend 02", "label"),
                 t("Perception gets a brain", "h2"),
                 t(
                     "The hardest problem in automation was never motion — it was sight. A robot that can only repeat a memorized path is useless the moment a part arrives at the wrong angle. AI-driven vision changed that. Modern perception stacks identify, orient, and grasp jumbled parts from a bin in real time, a task that defeated automation for thirty years.",
@@ -367,7 +367,7 @@ export const trendsReport: ArtifactContent = doc("mocha", [
     section("t6", "split-6040", {
         a: cell(
             group(
-                t("Trend 03", "eyebrow"),
+                t("Trend 03", "label"),
                 t("Robots without the capital expense", "h2"),
                 t(
                     "Robotics-as-a-Service is doing to automation what cloud did to servers. Instead of a six-figure purchase and a multi-year depreciation schedule, manufacturers rent capacity by the month — hardware, software, maintenance, and uptime guarantees bundled into a single operating-expense line. RaaS contracts signed grew more than tenfold in three years.",
@@ -393,12 +393,12 @@ export const trendsReport: ArtifactContent = doc("mocha", [
         {
             a: cell(
                 group(
-                    t("Trend 04", "eyebrow"),
+                    t("Trend 04", "label"),
                     t("The labor equation flips", "h2"),
                     stat("1.9M", "U.S. manufacturing jobs projected to go unfilled by 2030"),
                     t(
                         "For most of the last century automation was framed as a substitute for available labor. In 2026 it is increasingly a response to labor that simply isn't there. An aging workforce, tighter immigration, and a reshoring wave have left factories structurally short-staffed — and robots are filling the dull, dirty, and dangerous roles people no longer take. The political conversation about jobs is, on the factory floor, quietly inverting.",
-                        "lead",
+                        "subtitle",
                     ),
                 ),
             ),
@@ -409,7 +409,7 @@ export const trendsReport: ArtifactContent = doc("mocha", [
     section("t8", "split-6040", {
         a: cell(
             group(
-                t("Trend 05", "eyebrow"),
+                t("Trend 05", "label"),
                 t("Humanoids cross from demo to pilot", "h2"),
                 t(
                     "The most hyped category is also the least proven — but in 2026 it stopped being only a hype. General-purpose humanoid robots moved from staged demos to paid pilots inside real warehouses and plants, with announced deployments climbing from a handful in 2022 to roughly ninety this year. None are at scale, and the unit economics remain unproven.",
@@ -446,12 +446,12 @@ export const trendsReport: ArtifactContent = doc("mocha", [
     section("t10", "full", {
         a: cell(
             card(
-                t("What it means for you", "eyebrow"),
+                t("What it means for you", "label"),
                 t("Reading the trends as an operator", "h2"),
                 callout(
                     "tip",
                     group(
-                        t("THE PRACTICAL TAKEAWAY", "eyebrow"),
+                        t("THE PRACTICAL TAKEAWAY", "label"),
                         t(
                             "If you run operations, the cost of waiting just went up. The combination of cheap cobots, working perception, and rentable capacity means the first automatable station in your plant probably pays back inside a year — and your competitors are doing the math too.",
                             "body",
@@ -471,7 +471,7 @@ export const trendsReport: ArtifactContent = doc("mocha", [
     section("t11", "full", {
         a: cell(
             group(
-                t("The outlook", "eyebrow"),
+                t("The outlook", "label"),
                 t("Five predictions for the next five years", "h2"),
                 t(
                     "Where the curves above point, with our confidence stated plainly. We will grade ourselves against these in next year's edition.",
@@ -493,7 +493,7 @@ export const trendsReport: ArtifactContent = doc("mocha", [
         a: cell(
             group(
                 divider(),
-                t("Methodology", "eyebrow"),
+                t("Methodology", "label"),
                 t(
                     "This report draws on a survey of 420 manufacturing operations leaders across eleven sectors and nineteen countries, fielded in March–April 2026, supplemented by global robot shipment data, RaaS-provider contract figures, and forty in-depth interviews with plant managers and automation integrators. Forecasts represent our base case; ranges and full segment data are available in the data appendix.",
                     "body",
@@ -501,7 +501,7 @@ export const trendsReport: ArtifactContent = doc("mocha", [
                 button("Request the full data appendix"),
                 t(
                     "Continuum Research · Automation & Robotics Practice · Lead analyst: Dr. Elena Vasquez · © 2026",
-                    "byline",
+                    "caption",
                 ),
             ),
         ),

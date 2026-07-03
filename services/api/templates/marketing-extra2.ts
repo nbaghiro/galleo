@@ -30,12 +30,12 @@ export const agencySite: ArtifactContent = web(
             {
                 a: cell(
                     group(
-                        t("Counterform · Brand & digital studio", "eyebrow"),
+                        t("Counterform · Brand & digital studio", "label"),
                         badge("EST. 2015 · LISBON & NEW YORK"),
-                        t("We design brands that know how to behave.", "display"),
+                        t("We design brands that know how to behave.", "h1"),
                         t(
                             "A small studio for ambitious companies. We build identities, products, and the systems that hold them together — so the work still looks like itself on the fortieth screen, not just the first.",
-                            "lead",
+                            "subtitle",
                         ),
                         button("Start a project"),
                     ),
@@ -48,7 +48,7 @@ export const agencySite: ArtifactContent = web(
             a: cell(
                 card(
                     img("counterform-service-brand-identity", 1.6),
-                    t("Brand", "title"),
+                    t("Brand", "h3"),
                     t(
                         "Naming, identity, voice, and the guidelines that keep it all honest as you grow.",
                         "caption",
@@ -58,7 +58,7 @@ export const agencySite: ArtifactContent = web(
             b: cell(
                 card(
                     img("counterform-service-digital-product", 1.6),
-                    t("Digital", "title"),
+                    t("Digital", "h3"),
                     t(
                         "Websites and product interfaces — designed and built, from the first sketch to shipped code.",
                         "caption",
@@ -68,7 +68,7 @@ export const agencySite: ArtifactContent = web(
             c: cell(
                 card(
                     img("counterform-service-design-system", 1.6),
-                    t("Systems", "title"),
+                    t("Systems", "h3"),
                     t(
                         "Design systems, motion, and the components that let your team move fast without us in the room.",
                         "caption",
@@ -80,7 +80,7 @@ export const agencySite: ArtifactContent = web(
         section("s3", "full", {
             a: cell(
                 group(
-                    t("Selected work", "eyebrow"),
+                    t("Selected work", "label"),
                     t("A few things we’re proud of.", "h2"),
                     t(
                         "Eleven years, a hundred-odd launches, and a stubborn belief that the details are the work. A small selection below — the rest lives in the deck we’ll send once we’ve talked.",
@@ -94,21 +94,21 @@ export const agencySite: ArtifactContent = web(
             a: cell(
                 card(
                     img("counterform-work-meridian-bank-brand", 1.4),
-                    t("Meridian", "title"),
+                    t("Meridian", "h3"),
                     t("Brand & app for a challenger bank · 2025", "caption"),
                 ),
             ),
             b: cell(
                 card(
                     img("counterform-work-orchard-grocery-identity", 1.4),
-                    t("Orchard", "title"),
+                    t("Orchard", "h3"),
                     t("Identity & packaging for a grocery startup · 2024", "caption"),
                 ),
             ),
             c: cell(
                 card(
                     img("counterform-work-atlas-analytics-product", 1.4),
-                    t("Atlas", "title"),
+                    t("Atlas", "h3"),
                     t("Product design for an analytics platform · 2024", "caption"),
                 ),
             ),
@@ -118,14 +118,14 @@ export const agencySite: ArtifactContent = web(
             a: cell(
                 card(
                     img("counterform-work-novel-press-rebrand", 1.6),
-                    t("Novel Press", "title"),
+                    t("Novel Press", "h3"),
                     t("Full rebrand & site for an independent publisher · 2023", "caption"),
                 ),
             ),
             b: cell(
                 card(
                     img("counterform-work-tidal-energy-campaign", 1.6),
-                    t("Tidal", "title"),
+                    t("Tidal", "h3"),
                     t("Campaign & motion system for a clean-energy launch · 2023", "caption"),
                 ),
             ),
@@ -134,7 +134,7 @@ export const agencySite: ArtifactContent = web(
         section("s6", "full", {
             a: cell(
                 group(
-                    t("Our approach", "eyebrow"),
+                    t("Our approach", "label"),
                     t("Four phases, no surprises.", "h2"),
                     t(
                         "Every engagement runs the same clear arc, whether it’s a six-week sprint or a year-long build. You always know what we’re working on, why it matters, and what lands next.",
@@ -155,11 +155,11 @@ export const agencySite: ArtifactContent = web(
         section("s7", "full", {
             a: cell(
                 group(
-                    t("Clients", "eyebrow"),
+                    t("Clients", "label"),
                     t("In good company.", "h2"),
                     t(
                         "Meridian · Orchard · Atlas · Novel Press · Tidal · Halcyon · Cedarworks · Field Day · Northwind · Bright Coast · Mara Health · Postscript",
-                        "lead",
+                        "subtitle",
                     ),
                     t(
                         "From two-person seed startups to public companies rebuilding from the logo out — the constant is people who care how the thing actually works.",
@@ -198,21 +198,21 @@ export const agencySite: ArtifactContent = web(
             a: cell(
                 card(
                     img("counterform-team-sofia-marques", 1),
-                    t("Sofia Marques", "title"),
+                    t("Sofia Marques", "h3"),
                     t("Founder & Creative Director", "caption"),
                 ),
             ),
             b: cell(
                 card(
                     img("counterform-team-ravi-anand", 1),
-                    t("Ravi Anand", "title"),
+                    t("Ravi Anand", "h3"),
                     t("Design Director", "caption"),
                 ),
             ),
             c: cell(
                 card(
                     img("counterform-team-june-park", 1),
-                    t("June Park", "title"),
+                    t("June Park", "h3"),
                     t("Engineering Lead", "caption"),
                 ),
             ),
@@ -224,11 +224,11 @@ export const agencySite: ArtifactContent = web(
             {
                 a: cell(
                     group(
-                        t("Start a project", "eyebrow"),
+                        t("Start a project", "label"),
                         t("Tell us what you’re building.", "h2"),
                         t(
                             "A brand from scratch, a product that’s outgrown its first look, or a system to hold a fast-growing team together — whatever it is, we’d love to hear about it. We reply to every note within two days.",
-                            "lead",
+                            "subtitle",
                         ),
                         button("Start a project"),
                     ),
@@ -240,20 +240,20 @@ export const agencySite: ArtifactContent = web(
         section("s12", "three-up", {
             a: cell(
                 group(
-                    t("Counterform", "title"),
+                    t("Counterform", "h3"),
                     t("Brand & digital studio. Lisbon & New York.", "caption"),
                     t("hello@counterform.studio", "caption"),
                 ),
             ),
             b: cell(
                 group(
-                    t("STUDIO", "eyebrow"),
+                    t("STUDIO", "label"),
                     bullets("Work", "Services", "About", "Journal", "Careers"),
                 ),
             ),
             c: cell(
                 group(
-                    t("ELSEWHERE", "eyebrow"),
+                    t("ELSEWHERE", "label"),
                     bullets("Instagram", "Dribbble", "LinkedIn", "Read.cv", "Newsletter"),
                 ),
             ),
@@ -273,13 +273,13 @@ export const newsletter: ArtifactContent = doc(
             {
                 a: cell(
                     group(
-                        t("Common Ground · Issue No. 58", "eyebrow"),
-                        t("Common Ground", "display"),
+                        t("Common Ground · Issue No. 58", "label"),
+                        t("Common Ground", "h1"),
                         t(
                             "A fortnightly letter on cities, design, and the small things that make a place feel like home.",
-                            "lead",
+                            "subtitle",
                         ),
-                        t("Saturday, June 27, 2026 · edited by Lena Hartmann", "byline"),
+                        t("Saturday, June 27, 2026 · edited by Lena Hartmann", "caption"),
                     ),
                 ),
             },
@@ -289,11 +289,11 @@ export const newsletter: ArtifactContent = doc(
         section("s2", "full", {
             a: cell(
                 group(
-                    t("From the editor", "eyebrow"),
+                    t("From the editor", "label"),
                     t("Good morning from the square.", "h2"),
                     t(
                         "This issue nearly missed its deadline, because the street outside my window has been closed to cars for three weeks and I keep going down to sit in it. That’s the whole newsletter, really — the strange, immediate joy of a place suddenly built for people instead of through-traffic.",
-                        "lead",
+                        "subtitle",
                     ),
                     t(
                         "So this fortnight: a street that closed for the summer, a bench worth the detour, the economics of a well-lit evening, and a postcard from Ghent. As always, hit reply — the best half of this letter is the part you write back.",
@@ -306,7 +306,7 @@ export const newsletter: ArtifactContent = doc(
         section("s3", "split-6040", {
             a: cell(
                 group(
-                    t("The lead", "eyebrow"),
+                    t("The lead", "label"),
                     t("The street that closed for the summer.", "h2"),
                     t(
                         "In May the city did something quietly radical: it closed Rua das Flores to cars, put down forty planters and a few hundred chairs, and waited to see what would happen. What happened is that the street filled up — not with programming or events, just people doing the ordinary things people do when there’s finally room for them. Children drew on the cobbles. The café tripled its tables. An old man brought a folding chair and a newspaper and held court by the fountain every morning at nine.",
@@ -341,7 +341,7 @@ export const newsletter: ArtifactContent = doc(
             ),
             b: cell(
                 group(
-                    t("A bench worth sitting on.", "title"),
+                    t("A bench worth sitting on.", "h3"),
                     t(
                         "It sounds like nothing, but most public benches are designed to be looked at, not used — backless, armrest-less, deliberately uncomfortable so no one stays too long. The new ones along the harbour do the radical thing of being comfortable: a real back to lean on, armrests to push up from, and a tree planted to throw shade by August. The test of a city isn’t its monuments. It’s whether an eighty-year-old can find somewhere to rest between the bus and the front door.",
                         "body",
@@ -353,7 +353,7 @@ export const newsletter: ArtifactContent = doc(
         section("s5", "full", {
             a: cell(
                 group(
-                    t("The 8 p.m. economy.", "title"),
+                    t("The 8 p.m. economy.", "h3"),
                     t(
                         "A surprising line in this month’s council report: streets with warm, human-scale lighting see thirty percent more evening foot traffic than those lit by the usual orange floodlights — and, counter-intuitively, less crime. Light that makes a place feel watched-over rather than interrogated turns out to be the cheapest urban safety measure we have. The city is swapping two thousand fixtures this autumn. Watch the corners that used to empty at dusk.",
                         "body",
@@ -365,7 +365,7 @@ export const newsletter: ArtifactContent = doc(
         section("s6", "split-6040", {
             a: cell(
                 group(
-                    t("Field notes from Ghent.", "title"),
+                    t("Field notes from Ghent.", "h3"),
                     t(
                         "I spent last weekend in Ghent, which famously banned through-traffic from its medieval centre back in 2017 and has spent the years since being smug about it — deservedly. What strikes you isn’t the absence of cars; it’s the presence of everything else. Deliveries happen by cargo bike before ten. Children ride to school alone. The air, measurably, is cleaner. It isn’t a museum either — it’s loud and ordinary and full of teenagers. The lesson Ghent keeps trying to teach the rest of us: you don’t lose a city by slowing it down. You finally get to keep it.",
                         "body",
@@ -392,8 +392,8 @@ export const newsletter: ArtifactContent = doc(
         section("s8", "full", {
             a: cell(
                 group(
-                    t("From the mailbag", "eyebrow"),
-                    t("“Doesn’t pedestrianizing just push the traffic somewhere else?”", "title"),
+                    t("From the mailbag", "label"),
+                    t("“Doesn’t pedestrianizing just push the traffic somewhere else?”", "h3"),
                     t(
                         "It’s the first question every time, and the honest answer is: less than you’d think. The phenomenon is called traffic evaporation — when you remove road capacity, a measurable share of trips simply stop happening. People combine errands, walk the short ones, or shift the discretionary ones off the peak. Study after study finds that roughly a fifth of the displaced traffic just disappears. Cars, it turns out, are not water. They don’t have to go somewhere.",
                         "body",
@@ -411,7 +411,7 @@ export const newsletter: ArtifactContent = doc(
         section("s10", "full", {
             a: cell(
                 group(
-                    t("Worth your time", "eyebrow"),
+                    t("Worth your time", "label"),
                     t("Five things I saved this fortnight.", "h2"),
                     bullets(
                         "“The Death and Life of Great American Streets” — a long, generous reappraisal of Jane Jacobs at sixty.",
@@ -430,7 +430,7 @@ export const newsletter: ArtifactContent = doc(
                     divider(),
                     t(
                         "That’s the fortnight. I’ll be in the square if you need me — third chair from the fountain, the one with the newspaper. See you in two weeks. — Lena",
-                        "lead",
+                        "subtitle",
                     ),
                 ),
             ),
@@ -442,7 +442,7 @@ export const newsletter: ArtifactContent = doc(
                     divider(),
                     t(
                         "Common Ground is written every other Saturday by Lena Hartmann, a writer and former city planner in Lisbon. Forwarded this? Subscribe at commonground.letter. Reply to anything — it all reaches me.",
-                        "byline",
+                        "caption",
                     ),
                 ),
             ),

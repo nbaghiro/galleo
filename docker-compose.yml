@@ -1,4 +1,4 @@
-# Galleo local services. Host ports use the 86xx block (see docs/ports.md); container ports stay
+# Galleo local services. Host ports use the 86xx block (see .docs/architecture.md); container ports stay
 # conventional. Bring up with: docker compose up -d
 services:
     postgres:

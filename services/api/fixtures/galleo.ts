@@ -29,11 +29,11 @@ export const galleo: ArtifactContent = deck(
             {
                 a: cell(
                     group(
-                        t("GALLEO", "eyebrow"),
-                        t("Everyone can generate. We make it good.", "display"),
+                        t("GALLEO", "label"),
+                        t("Everyone can generate. We make it good.", "h1"),
                         t(
                             "Galleo is the taste-first content studio. Describe an idea once and it becomes a deck, a document, or a website — drafted in seconds, then polished into something you’d actually be proud to send.",
-                            "lead",
+                            "subtitle",
                         ),
                         badge("SEED ROUND · 2026"),
                     ),
@@ -46,7 +46,7 @@ export const galleo: ArtifactContent = deck(
         section("s2", "split-6040", {
             a: cell(
                 group(
-                    t("01 — The problem", "eyebrow"),
+                    t("01 — The problem", "label"),
                     t("AI made the first draft free. It also made the average one worse.", "h2"),
                     t(
                         "Generation collapsed the cost of a first draft to zero — and buried every audience under identical decks: the same five templates, the same stock photos, the same confident slop. The scarce thing was never words on a page. It was judgment — knowing what to cut, what to lead with, and how to make it land.",
@@ -61,7 +61,7 @@ export const galleo: ArtifactContent = deck(
         section("s3", "three-up", {
             a: cell(
                 group(
-                    t("THE COST", "eyebrow"),
+                    t("THE COST", "label"),
                     stat(
                         "78%",
                         "of knowledge workers start with AI — and ship it nearly untouched",
@@ -87,7 +87,7 @@ export const galleo: ArtifactContent = deck(
             a: cell(img("galleo-editor-canvas", 1.05)),
             b: cell(
                 group(
-                    t("02 — The product", "eyebrow"),
+                    t("02 — The product", "label"),
                     t("One canonical artifact. Every format is just a view.", "h2"),
                     t(
                         "Galleo holds your content as a single structured artifact — blocks, not slides. The same source renders as a full-screen deck, a scrollable document, or a published website, each composed by a real layout engine instead of a grid of templates.",
@@ -107,7 +107,7 @@ export const galleo: ArtifactContent = deck(
             a: cell(
                 card(
                     img("galleo-format-deck", 1.4),
-                    t("Deck", "title"),
+                    t("Deck", "h3"),
                     t(
                         "Present full-screen. Sections paginate into clean, on-brand slides.",
                         "caption",
@@ -117,14 +117,14 @@ export const galleo: ArtifactContent = deck(
             b: cell(
                 card(
                     img("galleo-format-doc", 1.4),
-                    t("Document", "title"),
+                    t("Document", "h3"),
                     t("The same blocks reflow into a readable, shareable document.", "caption"),
                 ),
             ),
             c: cell(
                 card(
                     img("galleo-format-site", 1.4),
-                    t("Website", "title"),
+                    t("Website", "h3"),
                     t("Publish a responsive, hosted page in a single click.", "caption"),
                 ),
             ),
@@ -134,7 +134,7 @@ export const galleo: ArtifactContent = deck(
         section("s7", "split-6040", {
             a: cell(
                 group(
-                    t("03 — How it works", "eyebrow"),
+                    t("03 — How it works", "label"),
                     t("Draft in seconds. Then live in the editor.", "h2"),
                     t(
                         "Describe what you need and Galleo composes a real first draft — structured, on-theme, image-aware. Then the actual work begins: you refine, reorder, and sharpen until it’s yours. Switch formats whenever you like; the content travels with you.",
@@ -157,7 +157,7 @@ export const galleo: ArtifactContent = deck(
             {
                 a: cell(
                     group(
-                        t("04 — The moat", "eyebrow"),
+                        t("04 — The moat", "label"),
                         t("Generation is a commodity. Judgment isn’t.", "h2"),
                         t(
                             "Every rival is racing to produce the draft faster. We’re building the surface where the draft becomes good — an agent with real editorial taste, a layout engine that holds composition under pressure, and controls that reward the person who cares how it looks. Models get cheaper every quarter. Taste compounds.",
@@ -174,7 +174,7 @@ export const galleo: ArtifactContent = deck(
         section("s9", "split-6040", {
             a: cell(
                 group(
-                    t("05 — Why now", "eyebrow"),
+                    t("05 — Why now", "label"),
                     t("The first draft just became free — for everyone, all at once.", "h2"),
                     t(
                         "The tools people learned in 2010 were built for a world where making the draft was the hard part. That world is gone. Content volume has exploded since 2022, attention hasn’t grown an inch, and the premium has shifted decisively from output to polish. Whoever owns the finishing surface owns the category.",
@@ -189,7 +189,7 @@ export const galleo: ArtifactContent = deck(
         section("s10", "three-up", {
             a: cell(
                 group(
-                    t("06 — Market", "eyebrow"),
+                    t("06 — Market", "label"),
                     stat("$48B", "spent on presentation + document software every year"),
                 ),
             ),
@@ -201,7 +201,7 @@ export const galleo: ArtifactContent = deck(
         section("s11", "split-6040", {
             a: cell(
                 group(
-                    t("07 — Traction", "eyebrow"),
+                    t("07 — Traction", "label"),
                     badge("NOW IN PAID BETA"),
                     t("Used hard by the teams we built it for.", "h2"),
                     t(
@@ -240,7 +240,7 @@ export const galleo: ArtifactContent = deck(
         section("s13", "full", {
             a: cell(
                 group(
-                    t("08 — Business model", "eyebrow"),
+                    t("08 — Business model", "label"),
                     t("Bottom-up SaaS with a free tier that does real work.", "h2"),
                     table(
                         "Plan,Price,Built for,The hook\nFree,$0,Individuals,One published artifact + the full editor\nPro,$20/mo,Founders & freelancers,Unlimited artifacts + custom domains\nTeam,$36/seat,Design-led teams,Brand kits + shared library + roles\nEnterprise,Custom,Brand governance at scale,SSO + audit log + dedicated support",
@@ -258,7 +258,7 @@ export const galleo: ArtifactContent = deck(
             a: cell(img("galleo-compete-grid", 0.82)),
             b: cell(
                 group(
-                    t("09 — Why we win", "eyebrow"),
+                    t("09 — Why we win", "label"),
                     t("Generators race to the draft. We own the finish.", "h2"),
                     bullets(
                         "One source becomes deck, doc, and site — competitors pick one format and stop",
@@ -274,7 +274,7 @@ export const galleo: ArtifactContent = deck(
         section("s15", "split-6040", {
             a: cell(
                 group(
-                    t("10 — Go-to-market", "eyebrow"),
+                    t("10 — Go-to-market", "label"),
                     t("Land with a designer. Expand to the org.", "h2"),
                     t(
                         "Galleo spreads the way the best tools do. One design-minded person makes something undeniably good, shares it, and the room asks how. Published artifacts are public by default — every page is a billboard. Self-serve converts the individual; brand kits and roles convert the team.",
@@ -296,21 +296,21 @@ export const galleo: ArtifactContent = deck(
             a: cell(
                 group(
                     img("galleo-team-mara", 1),
-                    t("Mara Okafor", "title"),
+                    t("Mara Okafor", "h3"),
                     t("CEO · early Figma, led template systems", "caption"),
                 ),
             ),
             b: cell(
                 group(
                     img("galleo-team-theo", 1),
-                    t("Theo Klein", "title"),
+                    t("Theo Klein", "h3"),
                     t("CTO · ex-Linear, built the sync engine", "caption"),
                 ),
             ),
             c: cell(
                 group(
                     img("galleo-team-su", 1),
-                    t("Su Lin", "title"),
+                    t("Su Lin", "h3"),
                     t("Head of Design · ex-Stripe brand", "caption"),
                 ),
             ),
@@ -320,7 +320,7 @@ export const galleo: ArtifactContent = deck(
         section("s17", "full", {
             a: cell(
                 group(
-                    t("11 — Roadmap", "eyebrow"),
+                    t("11 — Roadmap", "label"),
                     t("From editor to platform.", "h2"),
                     diagram(
                         "process",
@@ -335,7 +335,7 @@ export const galleo: ArtifactContent = deck(
         section("s18", "split-4060", {
             a: cell(
                 group(
-                    t("12 — The ask", "eyebrow"),
+                    t("12 — The ask", "label"),
                     t("Raising a $4M seed to own the finishing surface.", "h2"),
                     t(
                         "Eighteen months of runway to reach 10,000 paying seats, ship the publishing platform, and make taste the default. We’re looking for partners who care how things look.",
@@ -346,7 +346,7 @@ export const galleo: ArtifactContent = deck(
             ),
             b: cell(
                 group(
-                    t("Use of funds", "title"),
+                    t("Use of funds", "h3"),
                     bullets(
                         "50% — Product & the taste-first editor",
                         "30% — Publishing & hosting platform",
@@ -363,11 +363,11 @@ export const galleo: ArtifactContent = deck(
             {
                 a: cell(
                     group(
-                        t("THE VISION", "eyebrow"),
-                        t("A world where good is the default.", "display"),
+                        t("THE VISION", "label"),
+                        t("A world where good is the default.", "h1"),
                         t(
                             "When the draft is free, the only thing worth paying for is judgment. Galleo is where it lives — the place your best ideas go to become something you’re proud to send.",
-                            "lead",
+                            "subtitle",
                         ),
                         button("Let’s build it together"),
                     ),

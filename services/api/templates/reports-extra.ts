@@ -29,15 +29,15 @@ export const researchReport: ArtifactContent = doc(
             {
                 a: cell(
                     group(
-                        t("RESEARCH REPORT · THE STATE OF REMOTE WORK 2026", "eyebrow"),
-                        t("Where Work Lives Now", "display"),
+                        t("RESEARCH REPORT · THE STATE OF REMOTE WORK 2026", "label"),
+                        t("Where Work Lives Now", "h1"),
                         t(
                             "Six years after the office emptied, the question is no longer whether knowledge work can happen anywhere — it's where it happens best, and what that means for the people, places, and companies caught in between.",
-                            "lead",
+                            "subtitle",
                         ),
                         t(
                             "Northwind Institute for Work · Annual Survey, sixth edition · June 2026",
-                            "byline",
+                            "caption",
                         ),
                         badge("11,400 KNOWLEDGE WORKERS · 38 COUNTRIES · 6 INDUSTRIES"),
                     ),
@@ -48,11 +48,11 @@ export const researchReport: ArtifactContent = doc(
         section("s2", "split-6040", {
             a: cell(
                 group(
-                    t("Executive summary", "eyebrow"),
+                    t("Executive summary", "label"),
                     t("Hybrid won — but nobody agrees what it means.", "h2"),
                     t(
                         "The headline of 2026 is settlement, not revolution. The fully-remote surge has cooled and the return-to-office mandates have plateaued; what's left is a durable, messy middle. Fifty-four percent of knowledge workers now split their week between home and an office, and almost none of them define that split the same way.",
-                        "lead",
+                        "subtitle",
                     ),
                     t(
                         "Across 11,400 respondents we found that flexibility has become the single strongest predictor of retention — outranking pay growth for the first time in the survey's history. But the same flexibility that keeps people is quietly fragmenting how teams collaborate, mentor, and belong. The companies pulling ahead are not the most remote or the most in-person; they are the most deliberate.",
@@ -70,7 +70,7 @@ export const researchReport: ArtifactContent = doc(
             a: cell(img("research-survey-data-charts-desk", 1.05)),
             b: cell(
                 group(
-                    t("Methodology", "eyebrow"),
+                    t("Methodology", "label"),
                     t("How we ran the study", "h2"),
                     t(
                         "Between February and April 2026 the Northwind Institute surveyed 11,400 full-time knowledge workers and conducted 84 structured interviews with people leaders. Respondents span six industries — technology, finance, healthcare, media, professional services, and the public sector — across 38 countries, weighted to reflect each market's knowledge-economy workforce.",
@@ -89,11 +89,11 @@ export const researchReport: ArtifactContent = doc(
         section("s4", "full", {
             a: cell(
                 group(
-                    t("Key findings", "eyebrow"),
+                    t("Key findings", "label"),
                     t("Five things the data made clear", "h2"),
                     t(
                         "The numbers this year tell a coherent story: the location debate is over, the calendar debate has just begun. Here is what stood out across the five findings that follow.",
-                        "lead",
+                        "subtitle",
                     ),
                 ),
             ),
@@ -101,7 +101,7 @@ export const researchReport: ArtifactContent = doc(
         section("s5", "split-6040", {
             a: cell(
                 group(
-                    t("Finding 01 · Where work happens", "eyebrow"),
+                    t("Finding 01 · Where work happens", "label"),
                     t("The week is split, not the workforce", "h2"),
                     t(
                         "Hybrid is no longer a transitional state on the way back to the office — it is the destination. A majority now work in a blended pattern, while fully-remote roles held steady and fully-in-office work continued its slow decline. The interesting movement is inside hybrid: the median in-office stint fell from 3.0 days to 2.4.",
@@ -129,7 +129,7 @@ export const researchReport: ArtifactContent = doc(
             a: cell(img("modern-office-collaboration-space-bright", 1.05)),
             b: cell(
                 group(
-                    t("Finding 02 · The office's new job", "eyebrow"),
+                    t("Finding 02 · The office's new job", "label"),
                     t("Buildings became meeting rooms", "h2"),
                     t(
                         "When people come in, they come in to be together. The share of office time spent in scheduled collaboration jumped sharply, while solo desk work — the thing offices were built for — migrated home. The implication for real estate is stark: companies need less square footage but far more of it configured for groups.",
@@ -146,7 +146,7 @@ export const researchReport: ArtifactContent = doc(
             {
                 a: cell(
                     group(
-                        t("Finding 03 · The geography of talent", "eyebrow"),
+                        t("Finding 03 · The geography of talent", "label"),
                         quote(
                             "We stopped hiring from a forty-mile radius and started hiring from a forty-country one. Our best engineer last year lives three time zones from anyone she works with.",
                             "— Priya Raghunathan, VP of Engineering, interviewed for this report",
@@ -163,7 +163,7 @@ export const researchReport: ArtifactContent = doc(
         section("s9", "full", {
             a: cell(
                 group(
-                    t("Finding 04 · The trade-offs, side by side", "eyebrow"),
+                    t("Finding 04 · The trade-offs, side by side", "label"),
                     t("No model wins on every axis", "h2"),
                     t(
                         "When we hold output, retention, mentorship, and cost up against each other, each working model trades one strength for another. Hybrid leads on retention and balance; fully-remote leads on cost and reach; in-office still leads on early-career mentorship. There is no free lunch — only an honest choice about what a team needs most.",
@@ -180,8 +180,8 @@ export const researchReport: ArtifactContent = doc(
                 callout(
                     "warn",
                     group(
-                        t("Implications · The proximity gap", "eyebrow"),
-                        t("Mentorship is the quiet casualty", "title"),
+                        t("Implications · The proximity gap", "label"),
+                        t("Mentorship is the quiet casualty", "h3"),
                         t(
                             "The clearest warning in the data concerns people in their first three years of work. Junior staff in fully-remote roles reported 28% fewer informal coaching moments and were promoted, on average, four months later than in-office peers. Flexibility is a benefit the experienced enjoy and the inexperienced often pay for — unless mentorship is designed in on purpose.",
                             "body",
@@ -197,11 +197,11 @@ export const researchReport: ArtifactContent = doc(
             {
                 a: cell(
                     group(
-                        t("Recommendations", "eyebrow"),
+                        t("Recommendations", "label"),
                         t("What deliberate distributed work looks like", "h2"),
                         t(
                             "The companies thriving in 2026 treat flexibility as an operating model to be designed, not a perk to be granted. Five practices separated the leaders from the strugglers in our data.",
-                            "lead",
+                            "subtitle",
                         ),
                         bullets(
                             "Anchor days, not mandates — coordinate when teams overlap, don't police where they sit",
@@ -225,7 +225,7 @@ export const researchReport: ArtifactContent = doc(
                 group(
                     t(
                         "The office is no longer the workplace; it is one tool among several for doing work together. The organizations that say this out loud — and redesign around it — are quietly building the most resilient, far-reaching, and loyal teams we have measured in six years of this study.",
-                        "lead",
+                        "subtitle",
                     ),
                 ),
             ),
@@ -233,15 +233,15 @@ export const researchReport: ArtifactContent = doc(
         section("s13", "split-6040", {
             a: cell(
                 group(
-                    t("About the research", "eyebrow"),
-                    t("Northwind Institute for Work", "title"),
+                    t("About the research", "label"),
+                    t("Northwind Institute for Work", "h3"),
                     t(
                         "The Northwind Institute is an independent research body studying how work is changing. The State of Remote Work is its longest-running annual study, first published in 2021. This edition was authored by Dr. Lena Halvorsen and the Future of Work team, with fieldwork by Halden Research Partners. Full datasets and methodology notes are available at northwind.org/remote-2026.",
                         "body",
                     ),
                     t(
                         "© 2026 Northwind Institute for Work · Oslo & Toronto · CC BY-NC 4.0",
-                        "byline",
+                        "caption",
                     ),
                     button("Download the full dataset"),
                 ),
@@ -262,15 +262,15 @@ export const marketAnalysis: ArtifactContent = doc(
             {
                 a: cell(
                     group(
-                        t("MARKET ANALYSIS · 2026 OUTLOOK", "eyebrow"),
-                        t("Charging the Transition", "display"),
+                        t("MARKET ANALYSIS · 2026 OUTLOOK", "label"),
+                        t("Charging the Transition", "h1"),
                         t(
                             "The plug is the new pump. As electric vehicles cross from early adopters to the mainstream, the race to power them is becoming one of the decade's largest infrastructure build-outs — and one of its most contested markets.",
-                            "lead",
+                            "subtitle",
                         ),
                         t(
                             "Meridian Research · Global EV Infrastructure Practice · June 2026",
-                            "byline",
+                            "caption",
                         ),
                         badge("GLOBAL · PUBLIC + HOME CHARGING · 2026–2032 FORECAST"),
                     ),
@@ -281,11 +281,11 @@ export const marketAnalysis: ArtifactContent = doc(
         section("s2", "full", {
             a: cell(
                 group(
-                    t("The market at a glance", "eyebrow"),
+                    t("The market at a glance", "label"),
                     t("Three numbers that frame the sector", "h2"),
                     t(
                         "Before the segments and the players, start here: how big the market is, how fast it's growing, and how much hardware is already in the ground.",
-                        "lead",
+                        "subtitle",
                     ),
                 ),
             ),
@@ -298,7 +298,7 @@ export const marketAnalysis: ArtifactContent = doc(
         section("s4", "split-6040", {
             a: cell(
                 group(
-                    t("Market size & growth", "eyebrow"),
+                    t("Market size & growth", "label"),
                     t("A market compounding above 20% a year", "h2"),
                     t(
                         "The EV charging market has grown roughly fourfold since 2021 and shows no sign of slowing. Vehicle parc is the engine: every new EV on the road creates years of downstream demand for energy, hardware, and services. On our base case the market reaches $148B by 2032, with the steepest gains in DC fast charging and managed home charging.",
@@ -317,7 +317,7 @@ export const marketAnalysis: ArtifactContent = doc(
         section("s5", "full", {
             a: cell(
                 group(
-                    t("Segments", "eyebrow"),
+                    t("Segments", "label"),
                     t("Where the dollars sit, and where they're moving", "h2"),
                     t(
                         "The market splits along charging speed and location. Level 2 AC charging dominates by unit volume — it's what sits in homes and workplaces — but ultra-fast DC is capturing revenue share fastest as highway corridors and fleets electrify. Home charging, long an afterthought, is becoming a managed-energy business in its own right.",
@@ -335,7 +335,7 @@ export const marketAnalysis: ArtifactContent = doc(
             a: cell(
                 card(
                     img("ev-network-charging-hub-canopy", 1),
-                    t("Voltline Networks", "title"),
+                    t("Voltline Networks", "h3"),
                     t(
                         "The volume leader in public Level 2, with ~190k connectors and a software platform others license.",
                         "caption",
@@ -345,7 +345,7 @@ export const marketAnalysis: ArtifactContent = doc(
             b: cell(
                 card(
                     img("highway-fast-charging-corridor", 1),
-                    t("AmpGrid", "title"),
+                    t("AmpGrid", "h3"),
                     t(
                         "Pure-play ultra-fast operator betting on highway corridors and 350kW megawatt-ready sites.",
                         "caption",
@@ -355,7 +355,7 @@ export const marketAnalysis: ArtifactContent = doc(
             c: cell(
                 card(
                     img("automaker-proprietary-charging-stalls", 1),
-                    t("Hyperion (OEM)", "title"),
+                    t("Hyperion (OEM)", "h3"),
                     t(
                         "An automaker's captive network now opening to other brands — distribution as a moat.",
                         "caption",
@@ -367,7 +367,7 @@ export const marketAnalysis: ArtifactContent = doc(
             a: cell(img("ev-charging-operator-control-room", 1.05)),
             b: cell(
                 group(
-                    t("Competitive landscape", "eyebrow"),
+                    t("Competitive landscape", "label"),
                     t("Four ways players are trying to win", "h2"),
                     t(
                         "The field is crowded and consolidating at the same time. Differentiation is moving away from hardware — increasingly commoditized — and toward uptime, energy economics, and the driver experience.",
@@ -388,11 +388,11 @@ export const marketAnalysis: ArtifactContent = doc(
             {
                 a: cell(
                     group(
-                        t("Trends", "eyebrow"),
+                        t("Trends", "label"),
                         t("What's reshaping the next five years", "h2"),
                         t(
                             "Five forces are pulling the market forward and changing what a charging site is. The endpoint isn't a parking lot full of plugs — it's a distributed energy asset that happens to charge cars.",
-                            "lead",
+                            "subtitle",
                         ),
                         diagram(
                             "process",
@@ -409,8 +409,8 @@ export const marketAnalysis: ArtifactContent = doc(
                 callout(
                     "success",
                     group(
-                        t("Opportunities", "eyebrow"),
-                        t("Where the upside concentrates", "title"),
+                        t("Opportunities", "label"),
+                        t("Where the upside concentrates", "h3"),
                         bullets(
                             "Fleet & depot electrification — sticky, high-utilization contracts",
                             "Reliability-as-a-product for networks battling a trust deficit",
@@ -424,8 +424,8 @@ export const marketAnalysis: ArtifactContent = doc(
                 callout(
                     "caution",
                     group(
-                        t("Risks", "eyebrow"),
-                        t("What could stall the curve", "title"),
+                        t("Risks", "label"),
+                        t("What could stall the curve", "h3"),
                         bullets(
                             "Utilization risk — too many stalls chasing too few sessions early",
                             "Grid interconnection delays of 12–24 months in key metros",
@@ -452,7 +452,7 @@ export const marketAnalysis: ArtifactContent = doc(
         section("s11", "split-6040", {
             a: cell(
                 group(
-                    t("Outlook", "eyebrow"),
+                    t("Outlook", "label"),
                     t("Our base case: $148B and a flight to quality", "h2"),
                     t(
                         "We expect the market to keep compounding above 20% through 2032, but the easy growth phase is ending. As utilization matures, capital will reward operators with reliable hardware, smart energy stacks, and real network density — and punish those who built for subsidies rather than sessions. Expect consolidation to accelerate from 2027 as the long tail of sub-scale networks is acquired or shut.",
@@ -468,7 +468,7 @@ export const marketAnalysis: ArtifactContent = doc(
                 group(
                     t(
                         "Meridian Research is an independent technology and infrastructure research firm. This analysis draws on operator filings, our proprietary connector database, and 40 industry interviews. Full segment models and the bull/bear scenarios are available to subscribers at meridian.research/ev-2026.",
-                        "byline",
+                        "caption",
                     ),
                 ),
             ),

@@ -30,11 +30,11 @@ export const productLaunch: ArtifactContent = web(
             {
                 a: cell(
                     group(
-                        t("Introducing Aer One", "eyebrow"),
-                        t("The air you forgot you were breathing.", "display"),
+                        t("Introducing Aer One", "label"),
+                        t("The air you forgot you were breathing.", "h1"),
                         t(
                             "A whisper-quiet purifier that reads your room and clears it in minutes — no app to babysit, no filters you’ll forget to change.",
-                            "lead",
+                            "subtitle",
                         ),
                         button("Pre-order — $249"),
                     ),
@@ -46,7 +46,7 @@ export const productLaunch: ArtifactContent = web(
         section("s2", "split-6040", {
             a: cell(
                 group(
-                    t("The problem", "eyebrow"),
+                    t("The problem", "label"),
                     t("Indoor air is the pollution nobody talks about.", "h2"),
                     t(
                         "We spend 90% of our lives indoors, where the air can be up to five times more polluted than the street outside — cooking smoke, off-gassing furniture, pollen, pet dander, and the fine particles that slip past every cheap filter. Most purifiers either roar like a jet or quietly do nothing at all.",
@@ -72,7 +72,7 @@ export const productLaunch: ArtifactContent = web(
             a: cell(img("aer-device-on-floor", 1.05)),
             b: cell(
                 group(
-                    t("Meet Aer One", "eyebrow"),
+                    t("Meet Aer One", "label"),
                     t("Engineered to disappear into your home.", "h2"),
                     t(
                         "A single seamless aluminum shell, a fabric crown spun from recycled PET, and a glow ring that fades from amber to white as your air gets cleaner. It’s the first purifier we’ve made that people leave out on purpose.",
@@ -86,7 +86,7 @@ export const productLaunch: ArtifactContent = web(
         section("s5", "split-6040", {
             a: cell(
                 group(
-                    t("Intelligence", "eyebrow"),
+                    t("Intelligence", "label"),
                     badge("ON-DEVICE"),
                     t("It senses, then it acts.", "h2"),
                     t(
@@ -101,7 +101,7 @@ export const productLaunch: ArtifactContent = web(
         section("s6", "full", {
             a: cell(
                 group(
-                    t("How it works", "eyebrow"),
+                    t("How it works", "label"),
                     t("Four stages, one breath.", "h2"),
                     t(
                         "Air is pulled in from every direction, stripped of particles and gases, and returned cooler and cleaner than it came — a full pass every ninety seconds.",
@@ -116,7 +116,7 @@ export const productLaunch: ArtifactContent = web(
             a: cell(
                 card(
                     img("aer-filter-cartridge", 1),
-                    t("One-click filter", "title"),
+                    t("One-click filter", "h3"),
                     t(
                         "A magnetic cartridge swaps in five seconds — and the device tells you the exact day it’s due.",
                         "caption",
@@ -126,7 +126,7 @@ export const productLaunch: ArtifactContent = web(
             b: cell(
                 card(
                     img("aer-quiet-bedroom-night", 1),
-                    t("Sleep mode", "title"),
+                    t("Sleep mode", "h3"),
                     t(
                         "The glow ring dims to nothing and the fan drops below a whisper, so it works while you don’t hear it.",
                         "caption",
@@ -136,7 +136,7 @@ export const productLaunch: ArtifactContent = web(
             c: cell(
                 card(
                     img("aer-solar-panel-eco", 1),
-                    t("Built to last", "title"),
+                    t("Built to last", "h3"),
                     t(
                         "Repairable by design, a five-year warranty, and a shell spun from 100% recycled aluminum.",
                         "caption",
@@ -168,7 +168,7 @@ export const productLaunch: ArtifactContent = web(
         section("s9", "split-4060", {
             a: cell(
                 group(
-                    t("Measured, not marketed", "eyebrow"),
+                    t("Measured, not marketed", "label"),
                     t("From hazy to clear in twelve minutes.", "h2"),
                     t(
                         "Particulate count (PM2.5) in a sealed 400 sq ft room after a stovetop sear, sampled every two minutes. Lower is cleaner.",
@@ -182,7 +182,7 @@ export const productLaunch: ArtifactContent = web(
         section("s10", "full", {
             a: cell(
                 group(
-                    t("Pricing", "eyebrow"),
+                    t("Pricing", "label"),
                     t("One device, three ways to live with it.", "h2"),
                     table(
                         "Model,Coverage,Filter,Price\nAer One,Up to 400 sq ft,12-month HEPA + carbon,$249\nAer One Plus,Up to 650 sq ft,18-month HEPA + carbon,$329\nAer Care,Any model,Auto-shipped filters + warranty,$6/mo",
@@ -194,7 +194,7 @@ export const productLaunch: ArtifactContent = web(
         section("s11", "two-col", {
             a: cell(
                 group(
-                    t("Frequently asked", "eyebrow"),
+                    t("Frequently asked", "label"),
                     t("The honest answers.", "h2"),
                     bullets(
                         "Yes — it’s true HEPA, independently certified, not “HEPA-type”.",
@@ -220,11 +220,11 @@ export const productLaunch: ArtifactContent = web(
             {
                 a: cell(
                     group(
-                        t("Breathe better, starting now", "eyebrow"),
+                        t("Breathe better, starting now", "label"),
                         t("Your first clear breath ships in March.", "h2"),
                         t(
                             "Reserve yours today with a fully refundable $25 deposit and lock in launch pricing before it goes up.",
-                            "lead",
+                            "subtitle",
                         ),
                         button("Pre-order Aer One"),
                     ),
@@ -247,11 +247,11 @@ export const landingPage: ArtifactContent = web(
             {
                 a: cell(
                     group(
-                        t("Northwind Analytics", "eyebrow"),
-                        t("Your metrics, finally in one place.", "display"),
+                        t("Northwind Analytics", "label"),
+                        t("Your metrics, finally in one place.", "h1"),
                         t(
                             "Connect every tool your team already uses and watch a single, trustworthy dashboard build itself — no SQL, no data team, no waiting on a Monday report.",
-                            "lead",
+                            "subtitle",
                         ),
                         button("Start free — no card"),
                     ),
@@ -270,7 +270,7 @@ export const landingPage: ArtifactContent = web(
             a: cell(
                 group(
                     t("Trusted by fast-moving teams", "caption"),
-                    t("Lumen · Cedarworks · Haloway · Norrøn · Bellweather · Patchwork", "title"),
+                    t("Lumen · Cedarworks · Haloway · Norrøn · Bellweather · Patchwork", "h3"),
                 ),
             ),
         }),
@@ -279,7 +279,7 @@ export const landingPage: ArtifactContent = web(
             a: cell(
                 card(
                     img("northwind-connect-sources", 1),
-                    t("Connect in minutes", "title"),
+                    t("Connect in minutes", "h3"),
                     t(
                         "Forty native integrations — Stripe, Postgres, HubSpot, GA4 and more — live the moment you click connect.",
                         "caption",
@@ -289,7 +289,7 @@ export const landingPage: ArtifactContent = web(
             b: cell(
                 card(
                     img("northwind-ask-question", 1),
-                    t("Ask in plain English", "title"),
+                    t("Ask in plain English", "h3"),
                     t(
                         "Type “revenue by plan last quarter” and get a chart you can trust — and edit — in seconds.",
                         "caption",
@@ -299,7 +299,7 @@ export const landingPage: ArtifactContent = web(
             c: cell(
                 card(
                     img("northwind-team-share", 1),
-                    t("Share without friction", "title"),
+                    t("Share without friction", "h3"),
                     t(
                         "Dashboards, alerts, and weekly digests land where your team already works — Slack, email, or the wall TV.",
                         "caption",
@@ -315,7 +315,7 @@ export const landingPage: ArtifactContent = web(
                 a: cell(img("northwind-live-metrics-screen", 1.05)),
                 b: cell(
                     group(
-                        t("Live, not stale", "eyebrow"),
+                        t("Live, not stale", "label"),
                         badge("REAL-TIME"),
                         t("Numbers that move when your business does.", "h2"),
                         t(
@@ -332,7 +332,7 @@ export const landingPage: ArtifactContent = web(
         section("s6", "split-6040", {
             a: cell(
                 group(
-                    t("Why teams switch", "eyebrow"),
+                    t("Why teams switch", "label"),
                     t("Less time wrangling, more time deciding.", "h2"),
                     t(
                         "Average hours per week our customers spend building reports, before Northwind and after their first month.",
@@ -361,7 +361,7 @@ export const landingPage: ArtifactContent = web(
         section("s8", "full", {
             a: cell(
                 group(
-                    t("Pricing", "eyebrow"),
+                    t("Pricing", "label"),
                     t("Start free. Grow when you’re ready.", "h2"),
                     table(
                         "Plan,Best for,Data sources,Price\nFree,Side projects,3 sources,$0\nTeam,Growing startups,15 sources,$49/mo\nBusiness,Scaling companies,Unlimited,$199/mo\nEnterprise,Custom needs,Unlimited + SSO,Let’s talk",
@@ -373,7 +373,7 @@ export const landingPage: ArtifactContent = web(
         section("s9", "two-col", {
             a: cell(
                 group(
-                    t("Questions, answered", "eyebrow"),
+                    t("Questions, answered", "label"),
                     t("Everything before you sign up.", "h2"),
                     bullets(
                         "Free forever for three sources — no trial clock, no card.",

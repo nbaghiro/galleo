@@ -29,11 +29,11 @@ export const startupPitch: ArtifactContent = deck(
             {
                 a: cell(
                     group(
-                        t("MISE · SEED ROUND 2026", "eyebrow"),
-                        t("Run the kitchen, not the spreadsheet.", "display"),
+                        t("MISE · SEED ROUND 2026", "label"),
+                        t("Run the kitchen, not the spreadsheet.", "h1"),
                         t(
                             "Mise turns every restaurant's POS, invoices, and suppliers into one live system — forecasting prep, automating orders, and clawing back the margin that waste quietly eats.",
-                            "lead",
+                            "subtitle",
                         ),
                         badge("$4M SEED · LED BY ANDISON CAPITAL"),
                     ),
@@ -44,7 +44,7 @@ export const startupPitch: ArtifactContent = deck(
         section("s2", "split-6040", {
             a: cell(
                 group(
-                    t("01 — The problem", "eyebrow"),
+                    t("01 — The problem", "label"),
                     t("Restaurants run on 4% margins and 1990s tooling.", "h2"),
                     t(
                         "The average independent restaurant throws away 8% of everything it buys, orders by gut feel at 11pm, and learns it lost money a month too late. The back of house is the last part of the business still run on clipboards and group texts.",
@@ -71,7 +71,7 @@ export const startupPitch: ArtifactContent = deck(
             a: cell(img("mise-supplier-truck", 1.1)),
             b: cell(
                 group(
-                    t("02 — Why now", "eyebrow"),
+                    t("02 — Why now", "label"),
                     t("The kitchen's data finally left the building.", "h2"),
                     bullets(
                         "Cloud POS (Toast, Square) now expose item-level sales over API — the demand signal didn't exist five years ago",
@@ -85,7 +85,7 @@ export const startupPitch: ArtifactContent = deck(
             a: cell(img("mise-app-prep-list", 1.1)),
             b: cell(
                 group(
-                    t("03 — The product", "eyebrow"),
+                    t("03 — The product", "label"),
                     t("One screen the whole line actually opens.", "h2"),
                     bullets(
                         "Prep lists that predict tomorrow from last year, the weather, and tonight's reservations",
@@ -103,7 +103,7 @@ export const startupPitch: ArtifactContent = deck(
         section("s7", "full", {
             a: cell(
                 group(
-                    t("04 — How it works", "eyebrow"),
+                    t("04 — How it works", "label"),
                     t("Connect once. It runs every morning.", "h2"),
                     diagram(
                         "process",
@@ -116,7 +116,7 @@ export const startupPitch: ArtifactContent = deck(
         section("s8", "split-6040", {
             a: cell(
                 group(
-                    t("05 — Traction", "eyebrow"),
+                    t("05 — Traction", "label"),
                     t("Kitchens that don't want to give it back.", "h2"),
                     t(
                         "Live in 38 kitchens across 6 restaurant groups, with $2.1M in food orders run through Mise this quarter. Pilots cut food cost by an average of 310 basis points within 60 days.",
@@ -141,7 +141,7 @@ export const startupPitch: ArtifactContent = deck(
         section("s10", "full", {
             a: cell(
                 group(
-                    t("06 — Business model", "eyebrow"),
+                    t("06 — Business model", "label"),
                     t("Per-location SaaS, priced under the waste it kills.", "h2"),
                     table(
                         "Plan,Per location / mo,Built for\nLine,$249,Single independents\nKitchen,$399,Full-service & multi-station\nGroup,$329,Multi-unit groups (5+)\nEnterprise,Custom,Chains & franchisors",
@@ -152,7 +152,7 @@ export const startupPitch: ArtifactContent = deck(
         section("s11", "split-6040", {
             a: cell(
                 group(
-                    t("07 — Why we win", "eyebrow"),
+                    t("07 — Why we win", "label"),
                     t("Spreadsheets, distributor portals, and point tools.", "h2"),
                     bullets(
                         "Distributor portals (Sysco, US Foods) want you to buy more, not waste less",
@@ -167,21 +167,21 @@ export const startupPitch: ArtifactContent = deck(
             a: cell(
                 group(
                     img("mise-founder-dana", 1),
-                    t("Dana Reyes", "title"),
+                    t("Dana Reyes", "h3"),
                     t("CEO · ex-Toast, ran ops for 40 kitchens", "caption"),
                 ),
             ),
             b: cell(
                 group(
                     img("mise-founder-marcus", 1),
-                    t("Marcus Vallée", "title"),
+                    t("Marcus Vallée", "h3"),
                     t("CTO · ex-Flexport forecasting", "caption"),
                 ),
             ),
             c: cell(
                 group(
                     img("mise-founder-priya", 1),
-                    t("Priya Anand", "title"),
+                    t("Priya Anand", "h3"),
                     t("Head of Culinary · 12 years on the line", "caption"),
                 ),
             ),
@@ -193,7 +193,7 @@ export const startupPitch: ArtifactContent = deck(
                 a: empty,
                 b: cell(
                     group(
-                        t("08 — The ask", "eyebrow"),
+                        t("08 — The ask", "label"),
                         t("Raising $4M to put Mise in 1,000 kitchens.", "h2"),
                         t(
                             "Use of funds: supplier API coverage (40%), the forecasting & food-cost engine (35%), and a culinary-led go-to-market across the top 20 U.S. metros (25%). 24 months of runway to $4M ARR.",
@@ -219,11 +219,11 @@ export const salesDeck: ArtifactContent = deck(
             {
                 a: cell(
                     group(
-                        t("FLEETWISE · FOR OPERATIONS & MAINTENANCE LEADERS", "eyebrow"),
-                        t("Your trucks make money moving, not in the shop.", "display"),
+                        t("FLEETWISE · FOR OPERATIONS & MAINTENANCE LEADERS", "label"),
+                        t("Your trucks make money moving, not in the shop.", "h1"),
                         t(
                             "Fleetwise reads the telematics you already pay for and turns it into maintenance you do before the breakdown — cutting unplanned downtime, roadside failures, and the overtime that follows.",
-                            "lead",
+                            "subtitle",
                         ),
                         badge("TRUSTED BY 140+ FLEETS"),
                     ),
@@ -234,7 +234,7 @@ export const salesDeck: ArtifactContent = deck(
         section("f2", "split-6040", {
             a: cell(
                 group(
-                    t("The problem", "eyebrow"),
+                    t("The problem", "label"),
                     t("Every breakdown is a fire you find out about by phone.", "h2"),
                     t(
                         "Maintenance is still scheduled by odometer and gut. A water pump telematics flagged three weeks ago strands a driver on I-80 at 2am — now it's a tow, a missed delivery, a hotel, and a tech on overtime. The signal to prevent it was already in the truck.",
@@ -253,7 +253,7 @@ export const salesDeck: ArtifactContent = deck(
             a: cell(img("fleetwise-dashboard", 1.1)),
             b: cell(
                 group(
-                    t("The solution", "eyebrow"),
+                    t("The solution", "label"),
                     t("Fix it in the bay, on your schedule.", "h2"),
                     bullets(
                         "Predicts component failures 2–6 weeks out from the telematics you already run",
@@ -266,7 +266,7 @@ export const salesDeck: ArtifactContent = deck(
         section("f5", "full", {
             a: cell(
                 group(
-                    t("How it works", "eyebrow"),
+                    t("How it works", "label"),
                     t("Live in two weeks, no new hardware.", "h2"),
                     diagram(
                         "process",
@@ -279,7 +279,7 @@ export const salesDeck: ArtifactContent = deck(
         section("f6", "split-6040", {
             a: cell(
                 group(
-                    t("Case study · Meridian Freight", "eyebrow"),
+                    t("Case study · Meridian Freight", "label"),
                     t("A 320-truck carrier got its shop ahead of the road.", "h2"),
                     t(
                         "Meridian ran 18% unplanned downtime and a purely reactive shop. Twelve months on Fleetwise, planned maintenance went from 41% to 78% of all work — and roadside failures fell by more than half.",
@@ -314,7 +314,7 @@ export const salesDeck: ArtifactContent = deck(
         section("f9", "full", {
             a: cell(
                 group(
-                    t("Pricing", "eyebrow"),
+                    t("Pricing", "label"),
                     t("Priced per truck, under one day of downtime.", "h2"),
                     table(
                         "Plan,Per truck / mo,Includes\nCore,$29,Health scores & failure alerts\nShop,$39,+ Auto work orders & parts\nFleet,$34,Multi-depot, 100+ trucks\nEnterprise,Custom,Telematics integrations & SLA",
@@ -325,7 +325,7 @@ export const salesDeck: ArtifactContent = deck(
         section("f10", "split-6040", {
             a: cell(
                 group(
-                    t("Why now", "eyebrow"),
+                    t("Why now", "label"),
                     t("Margins are thin and parts lead times aren't shrinking.", "h2"),
                     t(
                         "Freight rates are soft, labor is tight, and a backordered part can ground a truck for a week. The fleets pulling ahead stopped reacting — predictive maintenance is now table stakes, and your telematics already carries the signal.",
@@ -342,7 +342,7 @@ export const salesDeck: ArtifactContent = deck(
                 a: empty,
                 b: cell(
                     group(
-                        t("Next steps", "eyebrow"),
+                        t("Next steps", "label"),
                         t("See your own fleet's risk in 30 minutes.", "h2"),
                         t(
                             "Send us read-only telematics access and we'll bring a free risk assessment of your top 25 vehicles to the next call — no install, no commitment.",

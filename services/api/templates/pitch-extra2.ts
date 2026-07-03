@@ -30,11 +30,11 @@ export const companyOverview: ArtifactContent = deck(
             {
                 a: cell(
                     group(
-                        t("FERNWOOD & CO.", "eyebrow"),
-                        t("Furniture made to outlast the trend that inspired it.", "display"),
+                        t("FERNWOOD & CO.", "label"),
+                        t("Furniture made to outlast the trend that inspired it.", "h1"),
                         t(
                             "We are a Portland design studio and workshop making contemporary furniture, lighting, and objects — drawn by hand, built by people, and meant to be handed down.",
-                            "lead",
+                            "subtitle",
                         ),
                         badge("EST. 2012 · PORTLAND, OREGON"),
                     ),
@@ -47,7 +47,7 @@ export const companyOverview: ArtifactContent = deck(
         section("c2", "split-6040", {
             a: cell(
                 group(
-                    t("WHAT WE DO", "eyebrow"),
+                    t("WHAT WE DO", "label"),
                     t(
                         "We design and build furniture for the spaces people actually live in.",
                         "h2",
@@ -66,7 +66,7 @@ export const companyOverview: ArtifactContent = deck(
             a: cell(img("fernwood-founders-bench", 1.05)),
             b: cell(
                 group(
-                    t("OUR STORY", "eyebrow"),
+                    t("OUR STORY", "label"),
                     t("It started with one stubborn bench.", "h2"),
                     t(
                         "In 2012, Mara and Elias Fernwood couldn't find a bench that would survive their kids, so they built one. Friends asked for theirs. A decade later, that same joinery holds up every piece we ship — now from a 12,000-square-foot workshop and a team of thirty makers.",
@@ -81,7 +81,7 @@ export const companyOverview: ArtifactContent = deck(
             a: cell(
                 card(
                     img("fernwood-seating", 1.4),
-                    t("Seating", "title"),
+                    t("Seating", "h3"),
                     t(
                         "Chairs, benches, and sofas with frames that are screwed, not stapled — and reupholstered, not replaced.",
                         "caption",
@@ -91,7 +91,7 @@ export const companyOverview: ArtifactContent = deck(
             b: cell(
                 card(
                     img("fernwood-tables", 1.4),
-                    t("Tables & casegoods", "title"),
+                    t("Tables & casegoods", "h3"),
                     t(
                         "Dining tables, desks, and storage in solid oak, walnut, and ash, finished by hand.",
                         "caption",
@@ -101,7 +101,7 @@ export const companyOverview: ArtifactContent = deck(
             c: cell(
                 card(
                     img("fernwood-lighting", 1.4),
-                    t("Lighting", "title"),
+                    t("Lighting", "h3"),
                     t(
                         "Pendants, sconces, and floor lamps in turned wood, blown glass, and brushed brass.",
                         "caption",
@@ -117,7 +117,7 @@ export const companyOverview: ArtifactContent = deck(
             {
                 a: cell(
                     group(
-                        t("OUR CRAFT", "eyebrow"),
+                        t("OUR CRAFT", "label"),
                         t("Real materials, joined to last a generation.", "h2"),
                         t(
                             "We work only in FSC-certified hardwoods, water-based finishes, and solid brass hardware — nothing veneered, nothing disposable. Each joint is cut to fit, each surface sanded through nine grits, and each piece signed by the maker who built it.",
@@ -134,7 +134,7 @@ export const companyOverview: ArtifactContent = deck(
         section("c6", "split-6040", {
             a: cell(
                 group(
-                    t("WHO WE SERVE", "eyebrow"),
+                    t("WHO WE SERVE", "label"),
                     t("Trusted by the people who care how a room feels.", "h2"),
                     t(
                         "Half our work is bespoke commissions for interior designers and architects; the rest furnishes hotels, restaurants, and workplaces that want pieces no one else will have.",
@@ -182,7 +182,7 @@ export const companyOverview: ArtifactContent = deck(
         section("c9", "split-6040", {
             a: cell(
                 group(
-                    t("HOW WE WORK", "eyebrow"),
+                    t("HOW WE WORK", "label"),
                     t("From sketch to your room in four steps.", "h2"),
                     t(
                         "Every commission moves through the same calm process — so you always know where your piece is and who is building it.",
@@ -203,21 +203,21 @@ export const companyOverview: ArtifactContent = deck(
             a: cell(
                 group(
                     img("fernwood-team-mara", 1),
-                    t("Mara Fernwood", "title"),
+                    t("Mara Fernwood", "h3"),
                     t("Founder & Creative Director", "caption"),
                 ),
             ),
             b: cell(
                 group(
                     img("fernwood-team-elias", 1),
-                    t("Elias Fernwood", "title"),
+                    t("Elias Fernwood", "h3"),
                     t("Founder & Head of Workshop", "caption"),
                 ),
             ),
             c: cell(
                 group(
                     img("fernwood-team-jun", 1),
-                    t("Jun Park", "title"),
+                    t("Jun Park", "h3"),
                     t("Design Lead · ex-Heath Ceramics", "caption"),
                 ),
             ),
@@ -228,7 +228,7 @@ export const companyOverview: ArtifactContent = deck(
             a: cell(img("fernwood-values-detail", 1.05)),
             b: cell(
                 group(
-                    t("WHAT WE BELIEVE", "eyebrow"),
+                    t("WHAT WE BELIEVE", "label"),
                     t("Make less. Make it last.", "h2"),
                     bullets(
                         "Repairable by design — we keep the parts and plans for everything we ship",
@@ -254,11 +254,11 @@ export const companyOverview: ArtifactContent = deck(
             {
                 a: cell(
                     group(
-                        t("GET IN TOUCH", "eyebrow"),
-                        t("Let's build something that lasts.", "display"),
+                        t("GET IN TOUCH", "label"),
+                        t("Let's build something that lasts.", "h1"),
                         t(
                             "Visit the workshop, start a commission, or join the trade program. We'd love to make something for your space.",
-                            "lead",
+                            "subtitle",
                         ),
                         button("hello@fernwoodco.com"),
                     ),
@@ -281,11 +281,11 @@ export const gtmPlan: ArtifactContent = deck(
             {
                 a: cell(
                     group(
-                        t("TIDEPOOL · GO-TO-MARKET PLAN", "eyebrow"),
-                        t("Launching the inventory brain for growing brands.", "display"),
+                        t("TIDEPOOL · GO-TO-MARKET PLAN", "label"),
+                        t("Launching the inventory brain for growing brands.", "h1"),
                         t(
                             "Our plan to take Tidepool — demand planning and inventory for multi-channel retail — from private beta to 1,000 paying brands in twelve months.",
-                            "lead",
+                            "subtitle",
                         ),
                         badge("GO-TO-MARKET PLAN · H2 2026"),
                     ),
@@ -298,7 +298,7 @@ export const gtmPlan: ArtifactContent = deck(
         section("g2", "split-6040", {
             a: cell(
                 group(
-                    t("THE OPPORTUNITY", "eyebrow"),
+                    t("THE OPPORTUNITY", "label"),
                     t("Growing brands are flying blind on inventory.", "h2"),
                     t(
                         "Once a brand sells across a website, three marketplaces, and a few wholesale accounts, spreadsheets stop working — and stockouts and overstock quietly eat the margin. The tools that solve it are built for the enterprise and priced out of reach. That gap is ours.",
@@ -322,7 +322,7 @@ export const gtmPlan: ArtifactContent = deck(
             a: cell(
                 card(
                     img("tidepool-dtc-brand", 1.4),
-                    t("DTC brands", "title"),
+                    t("DTC brands", "h3"),
                     t(
                         "$2M–$30M online sellers on Shopify juggling Amazon, TikTok Shop, and their own site.",
                         "caption",
@@ -332,7 +332,7 @@ export const gtmPlan: ArtifactContent = deck(
             b: cell(
                 card(
                     img("tidepool-multi-location", 1.4),
-                    t("Multi-location retail", "title"),
+                    t("Multi-location retail", "h3"),
                     t(
                         "3–20 store chains that need one source of truth across the floor and the stockroom.",
                         "caption",
@@ -342,7 +342,7 @@ export const gtmPlan: ArtifactContent = deck(
             c: cell(
                 card(
                     img("tidepool-wholesale", 1.4),
-                    t("Wholesale & distribution", "title"),
+                    t("Wholesale & distribution", "h3"),
                     t(
                         "Brands shipping to stockists who need to promise dates they can actually keep.",
                         "caption",
@@ -358,7 +358,7 @@ export const gtmPlan: ArtifactContent = deck(
             {
                 a: cell(
                     group(
-                        t("POSITIONING", "eyebrow"),
+                        t("POSITIONING", "label"),
                         t("The demand-planning brain built for brands, not the enterprise.", "h2"),
                         t(
                             "For operators at growing multi-channel brands who are tired of guessing, Tidepool is the inventory platform that forecasts demand, flags stockouts before they happen, and tells you exactly what to reorder — without an ERP project or a six-figure contract.",
@@ -382,7 +382,7 @@ export const gtmPlan: ArtifactContent = deck(
             a: cell(img("tidepool-funnel-dashboard", 1.05)),
             b: cell(
                 group(
-                    t("THE FUNNEL", "eyebrow"),
+                    t("THE FUNNEL", "label"),
                     t("How a curious operator becomes a paying brand.", "h2"),
                     t(
                         "We earn trust at the top with genuinely useful content, convert with a free plan that solves a real problem, and expand as a brand connects more channels.",
@@ -402,7 +402,7 @@ export const gtmPlan: ArtifactContent = deck(
             a: cell(
                 card(
                     img("tidepool-channel-content", 1.4),
-                    t("Content & SEO", "title"),
+                    t("Content & SEO", "h3"),
                     t(
                         "Operator-grade guides on demand planning that rank for the problems brands Google at 11pm.",
                         "caption",
@@ -412,7 +412,7 @@ export const gtmPlan: ArtifactContent = deck(
             b: cell(
                 card(
                     img("tidepool-channel-partners", 1.4),
-                    t("Platform partnerships", "title"),
+                    t("Platform partnerships", "h3"),
                     t(
                         "A featured Shopify app and co-marketing with 3PLs and agencies who already have the trust.",
                         "caption",
@@ -422,7 +422,7 @@ export const gtmPlan: ArtifactContent = deck(
             c: cell(
                 card(
                     img("tidepool-channel-community", 1.4),
-                    t("Community & events", "title"),
+                    t("Community & events", "h3"),
                     t(
                         "Founder dinners and an operators' Slack where our best customers sell the next ones.",
                         "caption",
@@ -435,7 +435,7 @@ export const gtmPlan: ArtifactContent = deck(
         section("g7", "full", {
             a: cell(
                 group(
-                    t("PRICING & PACKAGING", "eyebrow"),
+                    t("PRICING & PACKAGING", "label"),
                     t("Priced to land self-serve and grow with the brand.", "h2"),
                     table(
                         "Plan,Price,Built for,Key limits\nFree,$0,Single-channel sellers,1 channel · 500 SKUs · 90-day forecast\nGrowth,$149 / mo,Multi-channel DTC,Unlimited channels · 5k SKUs · reorder alerts\nPro,$399 / mo,Scaling & wholesale,Demand planning · POs · 3 seats\nEnterprise,Custom,Multi-entity brands,SSO · API · onboarding & SLAs",
@@ -452,7 +452,7 @@ export const gtmPlan: ArtifactContent = deck(
         section("g8", "full", {
             a: cell(
                 group(
-                    t("LAUNCH TIMELINE", "eyebrow"),
+                    t("LAUNCH TIMELINE", "label"),
                     t("Four phases from beta to GA.", "h2"),
                     diagram(
                         "process",
@@ -474,7 +474,7 @@ export const gtmPlan: ArtifactContent = deck(
         section("g10", "two-col", {
             a: cell(
                 group(
-                    t("FIRST 90 DAYS", "eyebrow"),
+                    t("FIRST 90 DAYS", "label"),
                     t("What we ship before launch.", "h2"),
                     bullets(
                         "Weeks 1–4 — Finalize Free/Growth packaging and the self-serve onboarding",
@@ -485,8 +485,8 @@ export const gtmPlan: ArtifactContent = deck(
             ),
             b: cell(
                 group(
-                    t("OWNERS", "eyebrow"),
-                    t("Who's accountable", "title"),
+                    t("OWNERS", "label"),
+                    t("Who's accountable", "h3"),
                     table(
                         "Workstream,Owner\nProduct & onboarding,Priya Anand\nContent & SEO,Tomas Lindqvist\nPartnerships,Renee Okoro\nCommunity & events,Dario Vella",
                     ),
@@ -501,11 +501,11 @@ export const gtmPlan: ArtifactContent = deck(
             {
                 a: cell(
                     group(
-                        t("NEXT STEPS", "eyebrow"),
-                        t("Greenlight the launch.", "display"),
+                        t("NEXT STEPS", "label"),
+                        t("Greenlight the launch.", "h1"),
                         t(
                             "Approve the plan and the H2 budget this week, and Tidepool ships to the waitlist on September 15.",
-                            "lead",
+                            "subtitle",
                         ),
                         button("Approve & kick off"),
                     ),

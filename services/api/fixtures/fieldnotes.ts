@@ -22,13 +22,13 @@ export const fieldnotes: ArtifactContent = doc(
             {
                 a: cell(
                     group(
-                        t("FIELD NOTES — A TRAVEL JOURNAL", "eyebrow"),
-                        t("Faroe Islands", "display"),
+                        t("FIELD NOTES — A TRAVEL JOURNAL", "label"),
+                        t("Faroe Islands", "h1"),
                         t(
                             "Two weeks adrift in the North Atlantic — eighteen islands, one sketchbook that never quite dried out.",
-                            "lead",
+                            "subtitle",
                         ),
-                        t("Words & sketches by Mara Okafor · 6–20 September 2026", "byline"),
+                        t("Words & sketches by Mara Okafor · 6–20 September 2026", "caption"),
                     ),
                 ),
             },
@@ -37,10 +37,10 @@ export const fieldnotes: ArtifactContent = doc(
         section("s2", "full", {
             a: cell(
                 group(
-                    t("The opening", "eyebrow"),
+                    t("The opening", "label"),
                     t(
                         "I came to draw the light and stayed for the weather, which here turns out to be the same thing.",
-                        "lead",
+                        "subtitle",
                     ),
                     t(
                         "Why the Faroes? Because the map runs out there. Eighteen specks of black basalt dropped between Iceland and Norway, stitched together by tunnels and ferries and a stubborn faith that the fog will lift. Nobody comes here by accident. You have to mean it.",
@@ -67,7 +67,7 @@ export const fieldnotes: ArtifactContent = doc(
         section("s4", "split-6040", {
             a: cell(
                 group(
-                    t("Day 1", "eyebrow"),
+                    t("Day 1", "label"),
                     t("Tórshavn", "h2"),
                     t(
                         "The overnight ferry let us out at dawn into a harbour the colour of pewter. Tórshavn is the smallest capital I have ever walked clean across in twenty minutes — turf roofs furred green with grass, timber tarred black as liquorice, and everywhere the smell of diesel and salt cod.",
@@ -85,7 +85,7 @@ export const fieldnotes: ArtifactContent = doc(
             a: cell(img("faroe-tinganes-turf-roofs", 1.05)),
             b: cell(
                 group(
-                    t("Still Day 1", "eyebrow"),
+                    t("Still Day 1", "label"),
                     t("Tinganes after dark", "h2"),
                     t(
                         "By evening the rain eased and the whole spit glowed — ox-blood timber, white window frames, roofs of living grass gone gold in the low sun. I sat on a wet bollard and drew the rooflines until the cold reached my drawing hand, which did not take long.",
@@ -110,7 +110,7 @@ export const fieldnotes: ArtifactContent = doc(
             a: cell(img("faroe-gasadalur-village-cliff", 1.05)),
             b: cell(
                 group(
-                    t("Day 3", "eyebrow"),
+                    t("Day 3", "label"),
                     t("Gásadalur", "h2"),
                     t(
                         "You used to reach Gásadalur on foot over the mountain, or by helicopter, or not at all. Now there is a tunnel bored through the rock, lit a sickly orange, and then suddenly the whole Atlantic falls off the edge of the village.",
@@ -137,7 +137,7 @@ export const fieldnotes: ArtifactContent = doc(
         section("s9", "split-6040", {
             a: cell(
                 group(
-                    t("Day 5", "eyebrow"),
+                    t("Day 5", "label"),
                     t("Saksun", "h2"),
                     t(
                         "Saksun is a tidal lagoon ringed by green cliffs and guarded by exactly one turf-roofed church. When the tide draws out you can walk the black sand all the way to the sea; when it comes back in, it does so faster than a polite person ought to have to run.",
@@ -183,7 +183,7 @@ export const fieldnotes: ArtifactContent = doc(
         section("s11", "split-6040", {
             a: cell(
                 group(
-                    t("Day 8", "eyebrow"),
+                    t("Day 8", "label"),
                     t("Mykines", "h2"),
                     t(
                         "The boat to Mykines runs only when the swell allows, which is to say rarely and without warning. We made it on the third attempt. The whole island is a single green ridge crowded with puffins who let you sit among them as though you were a slightly disappointing piece of furniture.",
@@ -200,7 +200,7 @@ export const fieldnotes: ArtifactContent = doc(
         section("s12", "full", {
             a: cell(
                 group(
-                    t("Field note", "eyebrow"),
+                    t("Field note", "label"),
                     t("Four seasons before lunch", "h2"),
                     t(
                         "Nothing I read prepared me for how fast the sky here changes its mind. A clear morning is not a promise; it is an opening offer.",
@@ -220,7 +220,7 @@ export const fieldnotes: ArtifactContent = doc(
             a: cell(img("faroe-kallur-lighthouse-ridge", 1.08)),
             b: cell(
                 group(
-                    t("Day 11", "eyebrow"),
+                    t("Day 11", "label"),
                     t("Kallur Lighthouse, Kalsoy", "h2"),
                     t(
                         "The walk out to Kallur is two hours of wet sheep track along a knife-edge ridge, the sea a thousand feet down on either side. Then the little white lighthouse appears, absurd and perfect at the end of the world, and you understand exactly why people risk the ferry for it.",
@@ -236,7 +236,7 @@ export const fieldnotes: ArtifactContent = doc(
         section("s14", "split-6040", {
             a: cell(
                 group(
-                    t("Day 13", "eyebrow"),
+                    t("Day 13", "label"),
                     t("Tjørnuvík", "h2"),
                     t(
                         "On my last full day I took the bus to Tjørnuvík, a black-sand cove at the top of Streymoy where you can watch the two sea stacks — the Giant and the Witch — stand petrified offshore, caught forever in the act of trying to drag the islands back to Iceland.",
@@ -272,7 +272,7 @@ export const fieldnotes: ArtifactContent = doc(
             a: cell(img("faroe-tunnel-road-coast", 1.05)),
             b: cell(
                 group(
-                    t("Practical notes", "eyebrow"),
+                    t("Practical notes", "label"),
                     t("Getting around", "h2"),
                     bullets(
                         "Rent a car — the sub-sea tunnels link the main islands and are worth every króna",
@@ -286,8 +286,8 @@ export const fieldnotes: ArtifactContent = doc(
         section("s18", "two-col", {
             a: cell(
                 group(
-                    t("Where to stay", "eyebrow"),
-                    t("A room with weather", "title"),
+                    t("Where to stay", "label"),
+                    t("A room with weather", "h3"),
                     bullets(
                         "Base yourself in Tórshavn — everything is a day-trip from there",
                         "A guesthouse with a kitchen beats a hotel; restaurants close early and far apart",
@@ -298,8 +298,8 @@ export const fieldnotes: ArtifactContent = doc(
             ),
             b: cell(
                 group(
-                    t("What to pack", "eyebrow"),
-                    t("Wear the wool", "title"),
+                    t("What to pack", "label"),
+                    t("Wear the wool", "h3"),
                     bullets(
                         "One good wool sweater — knitwear here is infrastructure, not a souvenir",
                         "Waterproof everything, then accept it still won't be enough",
@@ -315,13 +315,13 @@ export const fieldnotes: ArtifactContent = doc(
             {
                 a: cell(
                     group(
-                        t("Going home", "eyebrow"),
+                        t("Going home", "label"),
                         t("The last word belongs to the weather", "h2"),
                         t(
                             "The ferry pulled out at first light and Tórshavn folded back into its hills until it was just another grey smudge under a greyer sky. You do not bring the Faroes home with you. You bring back a sketchbook swollen with damp, a sweater that still smells of woodsmoke, and the particular silence of a place where the weather always, eventually, gets the last word.",
                             "body",
                         ),
-                        t("— Mara, on deck, somewhere past Suðuroy", "byline"),
+                        t("— Mara, on deck, somewhere past Suðuroy", "caption"),
                     ),
                 ),
             },

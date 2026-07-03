@@ -22,13 +22,13 @@ export const slowweb: ArtifactContent = doc("press", [
         {
             a: cell(
                 group(
-                    t("ESSAY · THE SLOW WEB", "eyebrow"),
-                    t("The Slow Web", "display"),
+                    t("ESSAY · THE SLOW WEB", "label"),
+                    t("The Slow Web", "h1"),
                     t(
                         "We made the internet fast enough to outrun our own attention. A case for building the other kind — calmer, smaller, made to be returned to.",
-                        "lead",
+                        "subtitle",
                     ),
-                    t("by Mara Okafor · 14 min read", "byline"),
+                    t("by Mara Okafor · 14 min read", "caption"),
                 ),
             ),
         },
@@ -40,7 +40,7 @@ export const slowweb: ArtifactContent = doc("press", [
             group(
                 t(
                     "We optimized the web for speed and called it progress. Pages now load in milliseconds; our attention lasts even less. Somewhere in the long race toward instant, we misplaced the part of the internet that was actually worth staying for.",
-                    "lead",
+                    "subtitle",
                 ),
                 t(
                     "The fast web is a slot machine. The slow web is a garden. One is engineered to capture you and meter you out to advertisers; the other simply asks to be tended. This essay is about that second kind — what it once looked like, why it thinned out, and how a few stubborn corners of the network are quietly growing it back.",
@@ -159,7 +159,7 @@ export const slowweb: ArtifactContent = doc("press", [
             callout(
                 "note",
                 group(
-                    t("A NOTE ON NOSTALGIA", "eyebrow"),
+                    t("A NOTE ON NOSTALGIA", "label"),
                     t(
                         "I’m not claiming the old web was better at everything; it plainly wasn’t. It was slower to search, harder to publish to, and frequently hideous. The argument here is narrower than nostalgia: in optimizing those real problems away, we quietly discarded something we hadn’t thought to value — and we can now choose, on purpose, to build it again.",
                         "body",
@@ -270,7 +270,7 @@ export const slowweb: ArtifactContent = doc("press", [
             a: cell(
                 t(
                     "Start a site nobody asked for. Subscribe to a letter that arrives once a month. Read one thing all the way to its end. The fast web will still be there when you get back, exactly as loud as you left it. The slow web only ever asks for the part of your attention you actually decide to give.",
-                    "lead",
+                    "subtitle",
                 ),
             ),
         },
@@ -283,7 +283,7 @@ export const slowweb: ArtifactContent = doc("press", [
                 divider(),
                 t(
                     "Mara Okafor writes about technology, attention, and the texture of everyday life from Lagos. She is a contributing editor at The Slow Web and writes the monthly newsletter Quiet Machines. This is the first essay in a series on building a calmer internet.",
-                    "byline",
+                    "caption",
                 ),
             ),
         ),
