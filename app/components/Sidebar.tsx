@@ -15,6 +15,8 @@ import {
 } from "../data/folders";
 import {
     ChevronRightIcon,
+    CloseIcon,
+    EditIcon,
     FolderFillIcon,
     LibraryIcon,
     PlusIcon,
@@ -239,7 +241,7 @@ export const Sidebar: Component = () => {
                                     setRenameName(np.f.name);
                                 }}
                             >
-                                ✎
+                                <EditIcon size={12} />
                             </button>
                             <button
                                 class="grid h-5 w-5 place-items-center rounded text-muted hover:text-ink"
@@ -250,7 +252,7 @@ export const Sidebar: Component = () => {
                                     removeFolder(np.f.id);
                                 }}
                             >
-                                ✕
+                                <CloseIcon size={12} />
                             </button>
                         </span>
                     </div>

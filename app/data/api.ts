@@ -1,59 +1,26 @@
-import type { ArtifactContent } from "@model/content";
-import type { Tokens } from "@themes/theme";
+import type {
+    Artifact,
+    ArtifactInput,
+    ArtifactSummary,
+    Folder,
+    Template,
+    Theme,
+    ThemeInput,
+    User,
+} from "@protocol/api";
 
-// Typed client over the backend (proxied at /api/* in dev → :8601). Cookies carry the session.
-
-export interface ApiUser {
-    id: string;
-    email: string;
-    name: string | null;
-    avatarUrl: string | null;
-}
-export interface ApiCover {
-    eyebrow?: string;
-    title?: string;
-    sub?: string;
-    image?: string;
-}
-export interface ApiSection {
-    title?: string;
-    kind: string;
-}
-export interface ArtifactSummary {
-    id: string;
-    title: string;
-    themeId: string;
-    formatId: string;
-    folderId?: string | null;
-    updatedAt: string;
-    trashedAt?: string | null;
-    cover?: ApiCover;
-    sections?: ApiSection[];
-}
-export interface ApiFolder {
-    id: string;
-    name: string;
-    parentId?: string | null;
-    createdAt: string;
-}
-export interface Artifact extends ArtifactSummary {
-    draftContent: ArtifactContent;
-}
-export interface ApiTemplate {
-    id: string;
-    name: string;
-    category: string;
-    description: string;
-    content: ArtifactContent;
-}
-export interface ApiTheme {
-    id: string;
-    name: string;
-    tokens: Tokens;
-    mood: string | null;
-    isDark: boolean;
-}
-type ThemeInput = { name: string; tokens: Tokens; mood: string | null; isDark: boolean };
+// Typed client over the backend (proxied at /api/* in dev → :8601). Cookies carry the session. The wire
+// shapes live in @protocol/api (shared with the backend); re-exported here under the app's names.
+export type {
+    User as ApiUser,
+    Cover as ApiCover,
+    SectionSummary as ApiSection,
+    ArtifactSummary,
+    Artifact,
+    Folder as ApiFolder,
+    Template as ApiTemplate,
+    Theme as ApiTheme,
+} from "@protocol/api";
 
 export class ApiError extends Error {
     constructor(
@@ -86,26 +53,18 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     return data as T;
 }
 
-type SavePatch = Partial<{
-    title: string;
-    themeId: string;
-    formatId: string;
-    draftContent: ArtifactContent;
-    folderId: string | null;
-}>;
-
 export const api = {
-    me: () => req<{ user: ApiUser }>("/me"),
+    me: () => req<{ user: User }>("/me"),
     login: (email: string, password: string) =>
-        req<{ user: ApiUser }>("/auth/login", {
+        req<{ user: User }>("/auth/login", {
             method: "POST",
             body: JSON.stringify({ email, password }),
         }),
     logout: () => req<{ ok: true }>("/auth/logout", { method: "POST" }),
     listArtifacts: () => req<{ artifacts: ArtifactSummary[] }>("/artifacts"),
-    listTemplates: () => req<{ templates: ApiTemplate[] }>("/templates"),
+    listTemplates: () => req<{ templates: Template[] }>("/templates"),
     getArtifact: (id: string) => req<{ artifact: Artifact }>(`/artifacts/${id}`),
-    createArtifact: (patch: SavePatch) =>
+    createArtifact: (patch: ArtifactInput) =>
         req<{ id: string }>("/artifacts", { method: "POST", body: JSON.stringify(patch) }),
     listTrash: () => req<{ artifacts: ArtifactSummary[] }>("/artifacts?trashed=1"),
     trashArtifact: (id: string) => req<{ ok: true }>(`/artifacts/${id}/trash`, { method: "POST" }),
@@ -113,7 +72,7 @@ export const api = {
         req<{ ok: true }>(`/artifacts/${id}/restore`, { method: "POST" }),
     deleteArtifact: (id: string) => req<{ ok: true }>(`/artifacts/${id}`, { method: "DELETE" }),
     emptyTrash: () => req<{ ok: true }>("/trash", { method: "DELETE" }),
-    saveArtifact: (id: string, patch: SavePatch) =>
+    saveArtifact: (id: string, patch: ArtifactInput) =>
         req<{ ok: true; updatedAt: string }>(`/artifacts/${id}`, {
             method: "PATCH",
             body: JSON.stringify(patch),
@@ -123,22 +82,22 @@ export const api = {
             method: "PATCH",
             body: JSON.stringify({ folderId }),
         }),
-    listFolders: () => req<{ folders: ApiFolder[] }>("/folders"),
+    listFolders: () => req<{ folders: Folder[] }>("/folders"),
     createFolder: (name: string, parentId?: string | null) =>
-        req<{ folder: ApiFolder }>("/folders", {
+        req<{ folder: Folder }>("/folders", {
             method: "POST",
             body: JSON.stringify({ name, parentId: parentId ?? null }),
         }),
     renameFolder: (id: string, name: string) =>
-        req<{ folder: ApiFolder }>(`/folders/${id}`, {
+        req<{ folder: Folder }>(`/folders/${id}`, {
             method: "PATCH",
             body: JSON.stringify({ name }),
         }),
     deleteFolder: (id: string) => req<{ ok: true }>(`/folders/${id}`, { method: "DELETE" }),
-    listThemes: () => req<{ themes: ApiTheme[] }>("/themes"),
+    listThemes: () => req<{ themes: Theme[] }>("/themes"),
     createTheme: (t: ThemeInput) =>
-        req<{ theme: ApiTheme }>("/themes", { method: "POST", body: JSON.stringify(t) }),
+        req<{ theme: Theme }>("/themes", { method: "POST", body: JSON.stringify(t) }),
     updateTheme: (id: string, t: Partial<ThemeInput>) =>
-        req<{ theme: ApiTheme }>(`/themes/${id}`, { method: "PATCH", body: JSON.stringify(t) }),
+        req<{ theme: Theme }>(`/themes/${id}`, { method: "PATCH", body: JSON.stringify(t) }),
     deleteTheme: (id: string) => req<{ ok: true }>(`/themes/${id}`, { method: "DELETE" }),
 };

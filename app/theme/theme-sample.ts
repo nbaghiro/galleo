@@ -18,9 +18,12 @@ export const THEME_SAMPLE: Section = {
     cells: {
         a: {
             element: group(
-                tx("Galleo · design system", "eyebrow"),
-                tx("A theme you can feel", "display"),
-                tx("One token set themes every surface — decks, docs, and sites alike.", "lead"),
+                tx("Galleo · design system", "label"),
+                tx("A theme you can feel", "h1"),
+                tx(
+                    "One token set themes every surface — decks, docs, and sites alike.",
+                    "subtitle",
+                ),
                 button("Get started"),
             ),
         },

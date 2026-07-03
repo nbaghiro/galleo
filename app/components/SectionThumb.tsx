@@ -1,6 +1,6 @@
 import type { Section } from "@model/content";
 import type { Component } from "solid-js";
-import { onCleanup, onMount } from "solid-js";
+import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { resolveProfile } from "@engine/profile";
 import { resolveTheme } from "@themes/library";
 import { paint } from "@studio/canvas/dom-backend";
@@ -22,26 +22,32 @@ export const SectionThumb: Component<{
     label?: string;
     width?: number;
     selected?: boolean;
-    onOpen: () => void;
+    onOpen: (e: MouseEvent) => void;
 }> = (props) => {
     let wrap!: HTMLButtonElement;
     let inner!: HTMLDivElement;
     const cw = (): number => props.width ?? DEFAULT_W;
     const ch = (): number => Math.round((cw() * 9) / 16);
 
+    // Lazy: paint only once scrolled near view. Then re-paints reactively if the theme / section /
+    // format changes (e.g. switching the app theme while previews are on screen) — paint() clears the
+    // host first, so a re-render simply replaces the content.
+    const [visible, setVisible] = createSignal(false);
     const render = (): void => {
+        if (!visible()) return;
         const theme = resolveTheme(props.themeId).tokens;
         const format = resolveProfile(props.formatId);
         const { commands, height } = layoutSlide(props.section, LW, SH, measureText, theme, format);
         inner.style.cssText = `width:${LW}px;height:${height}px;transform:scale(${cw() / LW});transform-origin:top left`;
         paint(commands, inner);
     };
+    createEffect(render);
 
     onMount(() => {
         const io = new IntersectionObserver(
             (entries) => {
                 if (entries.some((e) => e.isIntersecting)) {
-                    render();
+                    setVisible(true);
                     io.disconnect();
                 }
             },
@@ -56,12 +62,15 @@ export const SectionThumb: Component<{
             ref={wrap}
             onClick={props.onOpen}
             title={props.label}
-            class={`relative flex-none cursor-pointer overflow-hidden rounded-lg ${props.selected ? "ring-2 ring-accent" : ""}`}
+            class="relative flex-none cursor-pointer overflow-hidden rounded-lg"
             style={{
                 width: `${cw()}px`,
                 height: `${ch()}px`,
                 background: resolveTheme(props.themeId).tokens.bg,
-                "box-shadow": "0 1px 2px rgba(0,0,0,0.05)",
+                // ring lives in the inline box-shadow so it isn't overridden by the base shadow below
+                "box-shadow": props.selected
+                    ? "0 0 0 2px var(--color-accent), 0 1px 2px rgba(0,0,0,0.05)"
+                    : "0 1px 2px rgba(0,0,0,0.05)",
                 border: "1px solid var(--color-line)",
             }}
         >

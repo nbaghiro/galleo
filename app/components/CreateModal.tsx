@@ -1,6 +1,7 @@
 import type { Component, JSX } from "solid-js";
 import { For, onCleanup, onMount } from "solid-js";
-import { DeckIcon, DocIcon, SiteIcon, SparkleIcon } from "../components/icons";
+import { CloseIcon, DeckIcon, DocIcon, SiteIcon, SparkleIcon } from "../components/icons";
+import { overlayThemeVars } from "../theme/overlay-theme";
 
 // The "New artifact" create dialog — a centered modal (not a dropdown) that gives the AI flow a hero card
 // and keeps the three blank formats one click away. Rendered inside the themed app tree (fixed-position,
@@ -16,6 +17,7 @@ export const CreateModal: Component<{
     onGenerate: () => void;
     onBlank: (fmt: string) => void;
 }> = (props) => {
+    const themeVars = overlayThemeVars(); // stamped once at open (snapshot)
     let panel!: HTMLDivElement;
     onMount(() => {
         const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -35,7 +37,10 @@ export const CreateModal: Component<{
     });
 
     return (
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-6 text-ink">
+        <div
+            class="fixed inset-0 z-50 flex items-center justify-center p-6 text-ink"
+            style={themeVars}
+        >
             <div class="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={props.onClose} />
             <div
                 ref={panel}
@@ -52,7 +57,7 @@ export const CreateModal: Component<{
                         class="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
                         onClick={props.onClose}
                     >
-                        ✕
+                        <CloseIcon size={15} />
                     </button>
                 </div>
 

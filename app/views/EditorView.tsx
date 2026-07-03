@@ -9,6 +9,7 @@ import {
     keepPreviewedTheme,
     loadArtifactContent,
     onHome,
+    onPersistTitle,
     onSwitchArtifact,
     onThemePicker,
     previewingTheme,
@@ -17,6 +18,7 @@ import {
     startThemePreview,
 } from "@studio/editor";
 import { api } from "../data/api";
+import { renameArtifactById } from "../data/library";
 import { appTheme } from "../theme/theme";
 import { setFaviconOverride } from "../theme/favicon";
 import { flushAutosave, installAutosave } from "../data/save";
@@ -57,6 +59,7 @@ export const EditorView: Component = () => {
         onHome(() => flushAutosave().then(() => navigate("/")));
         onSwitchArtifact((id) => flushAutosave().then(() => navigate(`/edit/${id}`)));
         onThemePicker(() => openThemeDrawer());
+        onPersistTitle((id, title) => renameArtifactById(id, title));
         (async () => {
             try {
                 const { artifacts } = await api.listArtifacts();

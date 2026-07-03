@@ -49,12 +49,36 @@ export function moveArtifact(id: string, folderId: string | null): void {
     api.moveArtifact(id, folderId).catch(() => {});
 }
 
+// Rename an artifact — update the library list + persist the title. Also driven by editor undo/redo of a
+// rename (via the studio's onPersistTitle hook), so the library reflects renames done inside the editor.
+export function renameArtifactById(id: string, title: string): void {
+    setArtifacts(artifacts().map((d) => (d.id === id ? { ...d, title } : d)));
+    api.saveArtifact(id, { title }).catch(() => {});
+}
+
+// Batch move — many artifacts in/out of a folder at once (one reactive update, one API call each).
+export function moveArtifacts(ids: string[], folderId: string | null): void {
+    const set = new Set(ids);
+    setArtifacts(artifacts().map((d) => (set.has(d.id) ? { ...d, folderId } : d)));
+    for (const id of ids) api.moveArtifact(id, folderId).catch(() => {});
+}
+
 // Soft delete → move an artifact to Trash (recoverable). Optimistic: drop from the library, add to trash.
 export function removeArtifact(id: string): void {
     const doc = artifacts().find((d) => d.id === id);
     setArtifacts(artifacts().filter((d) => d.id !== id));
     if (doc) setTrash([{ ...doc, trashedAt: new Date().toISOString() }, ...trash()]);
     api.trashArtifact(id).catch(() => {});
+}
+
+// Batch soft-delete — move many artifacts to Trash at once (one reactive update, one API call each).
+export function removeArtifacts(ids: string[]): void {
+    const set = new Set(ids);
+    const now = new Date().toISOString();
+    const moved = artifacts().filter((d) => set.has(d.id));
+    setArtifacts(artifacts().filter((d) => !set.has(d.id)));
+    if (moved.length) setTrash([...moved.map((d) => ({ ...d, trashedAt: now })), ...trash()]);
+    for (const id of ids) api.trashArtifact(id).catch(() => {});
 }
 
 // Trash page state + actions.

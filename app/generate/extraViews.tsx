@@ -3,6 +3,7 @@ import { createEffect, createSignal, For, Show } from "solid-js";
 import { BuildCanvas } from "./BuildCanvas";
 import { doneBeats, gen } from "./session";
 import { reduced, TypingLine } from "./typing";
+import { ChevronUpIcon, CloseIcon } from "../components/icons";
 
 // ── HUD: full-bleed canvas + viewfinder brackets + a frosted-glass widget (beat segments + narration) ──
 export const HudCanvas: Component = () => {
@@ -43,7 +44,9 @@ const HudHandle: Component<{ onOpen: () => void }> = (props) => {
             <span>
                 · beat {done()}/{gen.beats.length}
             </span>
-            <span class="text-accent">▴</span>
+            <span class="text-accent">
+                <ChevronUpIcon size={12} />
+            </span>
         </button>
     );
 };
@@ -80,7 +83,7 @@ const HudSegs: Component<{ onClose: () => void }> = (props) => {
                         title="Hide"
                         onClick={props.onClose}
                     >
-                        ✕
+                        <CloseIcon size={13} />
                     </button>
                 </span>
             </div>

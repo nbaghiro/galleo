@@ -8,6 +8,7 @@ import { fitSlideContent } from "@studio/canvas/stage";
 import { BuildCanvas } from "./BuildCanvas";
 import { gen, placedSections, type SectionSlot } from "./session";
 import { reduced } from "./typing";
+import { ChevronUpIcon, CloseIcon } from "../components/icons";
 
 // SPOTLIGHT: the SAME live build canvas as every direction (each section narrates + skeletons in as it's
 // generated), lit by an accent beam — with a centered storyboard filmstrip below where the composing
@@ -40,7 +41,10 @@ const StripHandle: Component<{ onOpen: () => void }> = (props) => (
         title="Show storyboard"
         onClick={props.onOpen}
     >
-        <span class="text-accent">▴</span> Show storyboard
+        <span class="text-accent">
+            <ChevronUpIcon size={13} />
+        </span>{" "}
+        Show storyboard
         <span class="text-soft">
             · {placedSections().length}/{gen.sections.length || "—"} sections
         </span>
@@ -72,7 +76,7 @@ const StoryStrip: Component<{ onClose: () => void }> = (props) => {
                 title="Hide storyboard"
                 onClick={props.onClose}
             >
-                ✕
+                <CloseIcon size={14} />
             </button>
             <div class="flex items-center justify-center gap-2 px-4 pt-2.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
                 <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" /> Storyboard

@@ -4,6 +4,7 @@ import { useNavigate } from "@solidjs/router";
 import { resolveTheme } from "@themes/library";
 import { api, type ApiTemplate } from "../data/api";
 import { formatLabel } from "../data/format";
+import { CloseIcon } from "../components/icons";
 import { PreviewCanvas } from "../components/PreviewCanvas";
 import { SectionThumb } from "../components/SectionThumb";
 import { Sidebar } from "../components/Sidebar";
@@ -180,11 +181,11 @@ export const TemplatesView: Component = () => {
                                         {using() === t().id ? "Creating…" : "Use template →"}
                                     </button>
                                     <button
-                                        class="grid h-9 w-9 place-items-center rounded-lg text-[15px] text-muted hover:bg-canvas hover:text-ink"
+                                        class="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
                                         title="Close"
                                         onClick={() => setPreview(null)}
                                     >
-                                        ✕
+                                        <CloseIcon size={16} />
                                     </button>
                                 </div>
                             </header>

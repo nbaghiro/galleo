@@ -1,10 +1,11 @@
 import type { Theme, Tokens } from "@themes/theme";
 import type { Component, JSX } from "solid-js";
-import { createEffect, createSignal, For } from "solid-js";
+import { createEffect, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import type { ThemeDraft } from "../theme/custom-themes";
 import { ThemePreview } from "../theme/ThemePreview";
 import { luminance } from "@themes/color";
+import { Dropdown } from "@studio/controls/Dropdown";
 
 const DISPLAY_FONTS = [
     "Fraunces",
@@ -144,22 +145,16 @@ export const ThemeBuilder: Component<{
         label: string,
         list: string[],
     ): JSX.Element => (
-        <label class="flex items-center gap-2.5 py-1">
+        <div class="flex items-center gap-2.5 py-1">
             <span class="w-[88px] flex-none text-[12.5px] text-soft">{label}</span>
-            <select
-                class="min-w-0 flex-1 rounded-md border border-line bg-canvas px-2 py-1 text-[12px] text-ink"
-                value={tk[key]}
-                onChange={(e) => setTk(key, e.currentTarget.value)}
-            >
-                <For each={list}>
-                    {(f) => (
-                        <option value={f} style={{ "font-family": `'${f}'` }}>
-                            {f}
-                        </option>
-                    )}
-                </For>
-            </select>
-        </label>
+            <div class="min-w-0 flex-1">
+                <Dropdown
+                    value={tk[key]}
+                    options={list.map((f) => ({ label: f, value: f, font: f }))}
+                    onChange={(v) => setTk(key, v)}
+                />
+            </div>
+        </div>
     );
 
     const heading = (label: string): JSX.Element => (
@@ -210,18 +205,16 @@ export const ThemeBuilder: Component<{
                 {heading("Shape")}
                 {rangeField("radius", "Radius", 0, 28, 1, "px")}
                 {rangeField("border", "Border", 0, 4, 1, "px")}
-                <label class="flex items-center gap-2.5 py-1">
+                <div class="flex items-center gap-2.5 py-1">
                     <span class="w-[88px] flex-none text-[12.5px] text-soft">Shadow</span>
-                    <select
-                        class="min-w-0 flex-1 rounded-md border border-line bg-canvas px-2 py-1 text-[12px] text-ink"
-                        value={shadowPreset()}
-                        onChange={(e) => setShadowPreset(e.currentTarget.value)}
-                    >
-                        <For each={SHADOW_PRESETS}>
-                            {(o) => <option value={o[0]}>{o[1]}</option>}
-                        </For>
-                    </select>
-                </label>
+                    <div class="min-w-0 flex-1">
+                        <Dropdown
+                            value={shadowPreset()}
+                            options={SHADOW_PRESETS.map((o) => ({ value: o[0], label: o[1] }))}
+                            onChange={setShadowPreset}
+                        />
+                    </div>
+                </div>
                 <label class="flex items-center gap-2.5 py-1">
                     <span class="w-[88px] flex-none text-[12.5px] text-soft">Image scrim</span>
                     <input

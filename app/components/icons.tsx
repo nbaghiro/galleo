@@ -166,6 +166,57 @@ export const ChevronRightIcon: Component<P> = (p) => (
     </Ico>
 );
 
+export const ChevronLeftIcon: Component<P> = (p) => (
+    <Ico size={p.size}>
+        <polyline points="15 6 9 12 15 18" />
+    </Ico>
+);
+
+export const ChevronDownIcon: Component<P> = (p) => (
+    <Ico size={p.size}>
+        <polyline points="6 9 12 15 18 9" />
+    </Ico>
+);
+
+export const ChevronUpIcon: Component<P> = (p) => (
+    <Ico size={p.size}>
+        <polyline points="6 15 12 9 18 15" />
+    </Ico>
+);
+
+export const CloseIcon: Component<P> = (p) => (
+    <Ico size={p.size}>
+        <path d="M6 6 18 18M18 6 6 18" />
+    </Ico>
+);
+
+export const EditIcon: Component<P> = (p) => (
+    <Ico size={p.size}>
+        <path d="M13.5 6.5 17.5 10.5M4 20l1-4L15 6l3 3L8 19z" />
+    </Ico>
+);
+
+export const MoreIcon: Component<P> = (p) => (
+    <Ico size={p.size}>
+        <circle cx="5.5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+        <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+        <circle cx="18.5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    </Ico>
+);
+
+export const CheckIcon: Component<P> = (p) => (
+    <Ico size={p.size}>
+        <polyline points="5 12.5 10 17 19 7" />
+    </Ico>
+);
+
+export const ArrowUpRightIcon: Component<P> = (p) => (
+    <Ico size={p.size}>
+        <line x1="7" y1="17" x2="17" y2="7" />
+        <polyline points="9 7 17 7 17 15" />
+    </Ico>
+);
+
 export const ThemeIcon: Component<P> = (p) => (
     <Ico size={p.size}>
         <circle cx="13.5" cy="6.5" r="1.1" fill="currentColor" stroke="none" />

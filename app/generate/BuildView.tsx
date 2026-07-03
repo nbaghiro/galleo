@@ -13,7 +13,13 @@ import {
 import { useNavigate } from "@solidjs/router";
 import { resolveTheme } from "@themes/library";
 import { themeCssVars } from "@themes/theme";
-import { SparkleIcon } from "../components/icons";
+import {
+    CheckIcon,
+    ChevronLeftIcon,
+    ChevronUpIcon,
+    CloseIcon,
+    SparkleIcon,
+} from "../components/icons";
 import { BuildCanvas } from "./BuildCanvas";
 import { HudCanvas } from "./extraViews";
 import { genView } from "./genView";
@@ -138,7 +144,7 @@ const ConsoleBody: Component = () => {
                         title="Hide console"
                         onClick={() => setOpen(false)}
                     >
-                        ✕
+                        <CloseIcon size={15} />
                     </button>
                     <BeatStrip />
                     <StatusRow />
@@ -156,7 +162,10 @@ const ConsoleHandle: Component<{ onOpen: () => void }> = (props) => {
             class="flex flex-none items-center gap-3 border-t-2 border-accent/55 bg-panel px-5 py-2.5 text-left font-mono text-[11px] text-muted transition hover:text-ink"
             onClick={props.onOpen}
         >
-            <span class="text-accent">▴</span> Show console
+            <span class="text-accent">
+                <ChevronUpIcon size={13} />
+            </span>{" "}
+            Show console
             <span class="text-soft">
                 <span class="text-accent">galleo@agent</span> ·{" "}
                 {gen.phase === "done" ? "complete" : gen.phase === "error" ? "error" : "streaming"}{" "}
@@ -287,7 +296,7 @@ const RailBody: Component = () => {
                             title="Hide rail"
                             onClick={() => setOpen(false)}
                         >
-                            ✕
+                            <CloseIcon size={14} />
                         </button>
                     </div>
                     <div class="flex flex-none flex-col border-b border-line px-4 py-3">
@@ -328,7 +337,9 @@ const RailHandle: Component<{ onOpen: () => void }> = (props) => {
             title="Show rail"
             onClick={props.onOpen}
         >
-            <span class="text-[13px] text-accent">‹</span>
+            <span class="text-accent">
+                <ChevronLeftIcon size={14} />
+            </span>
             <span class="font-mono text-[10px] uppercase tracking-[0.16em] [writing-mode:vertical-rl]">
                 Director's rail · {done()}/{gen.beats.length}
             </span>
@@ -349,7 +360,7 @@ const BeatDot: Component<{ status: string }> = (props) => (
                   : "border-line text-transparent"
         }`}
     >
-        ✓
+        <CheckIcon size={11} />
     </span>
 );
 

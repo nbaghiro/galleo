@@ -8,6 +8,7 @@ import {
     genView,
     setGenView,
 } from "./genView";
+import { CheckIcon } from "../components/icons";
 
 // The hidden generation-view picker — drop it inside the intake + build screens (it inherits their theme).
 // Open with the backtick (`) key, or ⌃` / ⌃⌥V even while a field is focused. Choose a direction
@@ -105,7 +106,7 @@ export const GenViewPicker: Component = () => {
                                                 : "border-line text-muted"
                                         }`}
                                     >
-                                        {v === genView() ? "✓" : i() + 1}
+                                        {v === genView() ? <CheckIcon size={13} /> : i() + 1}
                                     </span>
                                     <span class="min-w-0 flex-1">
                                         <span class="block text-[13px] font-semibold text-ink">

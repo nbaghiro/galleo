@@ -1,6 +1,6 @@
 import type { Theme } from "@themes/theme";
 import type { Component, JSX } from "solid-js";
-import { createEffect, createSignal, For, Show } from "solid-js";
+import { createEffect, createSignal, For, Show, untrack } from "solid-js";
 import { useLocation } from "@solidjs/router";
 import { setArtifactTheme } from "@elements/ops";
 import { resolveTheme, THEME_LIST } from "@themes/library";
@@ -12,9 +12,10 @@ import {
     type ThemeDraft,
     updateCustomTheme,
 } from "../theme/custom-themes";
-import { PlusIcon } from "../components/icons";
+import { CloseIcon, EditIcon, PlusIcon } from "../components/icons";
 import { SectionThumb } from "../components/SectionThumb";
 import { appTheme, setAppTheme } from "../theme/theme";
+import { editorThemeCssVars } from "../theme/overlay-theme";
 import { closeThemeDrawer, themeDrawerOpen } from "../theme/theme-drawer";
 import { THEME_SAMPLE } from "../theme/theme-sample";
 import { ThemeBuilder } from "../theme/ThemeBuilder";
@@ -39,6 +40,14 @@ export const ThemeDrawer: Component = () => {
     const [mode, setMode] = createSignal<"browse" | "build">("browse");
     const [editing, setEditing] = createSignal<Theme | null>(null);
     const [busy, setBusy] = createSignal(false);
+
+    // Over the editor, adopt the artifact theme so the drawer matches the studio it floats over —
+    // snapshotted on open (untracked) so it doesn't restyle while you browse/preview themes.
+    const [themeVars, setThemeVars] = createSignal<JSX.CSSProperties>();
+    createEffect(() => {
+        if (themeDrawerOpen())
+            setThemeVars(untrack(() => (inEditor() ? editorThemeCssVars() : undefined)));
+    });
 
     // always reopen on the browse list
     createEffect(() => {
@@ -93,14 +102,14 @@ export const ThemeDrawer: Component = () => {
                             title="Edit theme"
                             onClick={() => startEdit(t)}
                         >
-                            ✎
+                            <EditIcon size={13} />
                         </button>
                         <button
                             class="grid h-5 w-5 place-items-center rounded text-muted hover:text-ink"
                             title="Delete theme"
                             onClick={() => removeCustomTheme(t.id)}
                         >
-                            ✕
+                            <CloseIcon size={13} />
                         </button>
                     </span>
                 </Show>
@@ -111,7 +120,10 @@ export const ThemeDrawer: Component = () => {
     return (
         <Show when={themeDrawerOpen()}>
             <div class="fixed inset-0 z-40 bg-black/30" onClick={() => closeThemeDrawer()} />
-            <aside class="theme-drawer-enter fixed right-0 top-0 z-50 flex h-full w-[392px] flex-col border-l border-line bg-panel text-ink shadow-2xl">
+            <aside
+                class="theme-drawer-enter fixed right-0 top-0 z-50 flex h-full w-[392px] flex-col border-l border-line bg-panel text-ink shadow-2xl"
+                style={themeVars()}
+            >
                 <header class="flex flex-none items-center gap-2 border-b border-line px-4 py-3">
                     <div class="min-w-0 flex-1">
                         <div class="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
@@ -130,7 +142,7 @@ export const ThemeDrawer: Component = () => {
                         title="Close"
                         onClick={() => closeThemeDrawer()}
                     >
-                        ✕
+                        <CloseIcon size={15} />
                     </button>
                 </header>
 

@@ -6,10 +6,11 @@ import { themeCssVars } from "@themes/theme";
 import { api } from "../data/api";
 import { blankArtifact } from "../data/blank";
 import { FORMAT_IDS, formatLabel } from "../data/format";
-import { RefreshIcon, SparkleIcon } from "../components/icons";
+import { ArrowUpRightIcon, RefreshIcon, SparkleIcon } from "../components/icons";
 import { appTheme } from "../theme/theme";
 import { Visual } from "../components/Visual";
 import "../components/visuals.css";
+import { Dropdown } from "@studio/controls/Dropdown";
 import { GenViewPicker } from "./GenViewPicker";
 import { startSession, type Surface } from "./session";
 
@@ -266,18 +267,17 @@ export const IntakeView: Component = () => {
         options: string[];
         onPick: (v: string) => void;
     }) => (
-        <label class="inline-flex items-center gap-1.5 rounded-full border border-line bg-canvas py-1.5 pl-3 pr-1.5 text-[12.5px] text-soft">
+        <div class="inline-flex items-center gap-1.5 rounded-full border border-line bg-canvas py-1.5 pl-3 pr-1.5 text-[12.5px] text-soft">
             <span class="font-mono text-[10px] uppercase tracking-[0.1em] text-muted">
                 {p.label}
             </span>
-            <select
-                class="cursor-pointer rounded-full bg-panel px-2 py-1 text-[12px] font-semibold text-ink outline-none"
+            <Dropdown
+                compact
                 value={p.value}
-                onChange={(e) => p.onPick(e.currentTarget.value)}
-            >
-                <For each={p.options}>{(o) => <option value={o}>{o}</option>}</For>
-            </select>
-        </label>
+                options={p.options.map((o) => ({ label: o, value: o }))}
+                onChange={p.onPick}
+            />
+        </div>
     );
 
     return (
@@ -398,8 +398,8 @@ export const IntakeView: Component = () => {
                                     <span class="font-mono text-[9.5px] uppercase tracking-[0.12em] text-accent">
                                         {formatLabel(e.surface)}
                                     </span>
-                                    <span class="text-[13px] text-muted transition group-hover:text-accent">
-                                        ↗
+                                    <span class="text-muted transition group-hover:text-accent">
+                                        <ArrowUpRightIcon size={14} />
                                     </span>
                                 </div>
                                 <div class="text-[13.5px] font-semibold text-ink">{e.label}</div>
