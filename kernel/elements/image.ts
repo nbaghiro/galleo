@@ -27,6 +27,7 @@ export const imageElement: ElementSpec<ImageData> = {
         aspect: data.aspect ?? 1.5,
         image: { src: data.src, fit: data.fit ?? "cover", radius: data.radius },
     }),
+    resize: { aspect: { min: 0.4, max: 2.6 } },
     controls: [
         { key: "src", label: "Source URL", control: "text", placeholder: "https://…" },
         {
@@ -37,15 +38,6 @@ export const imageElement: ElementSpec<ImageData> = {
                 { label: "Cover", value: "cover" },
                 { label: "Contain", value: "contain" },
             ],
-        },
-        {
-            key: "aspect",
-            label: "Aspect (w / h)",
-            control: "slider",
-            min: 0.4,
-            max: 2.6,
-            step: 0.05,
-            group: "Frame",
         },
         {
             key: "radius",

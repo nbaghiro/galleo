@@ -35,10 +35,11 @@ function withChildren(inst: ElementInstance, children: ElementInstance[]): Eleme
     return { ...inst, data: spec.container.withChildren(inst.data, children) };
 }
 
-function wrapGroup(children: ElementInstance[]): ElementInstance {
+function wrapGroup(children: ElementInstance[], direction: "row" | "col" = "col"): ElementInstance {
     const g = getElement("group");
     if (!g?.container) throw new Error("group element not registered");
-    return { type: "group", data: g.container.withChildren(g.create(), children) };
+    const data = g.container.withChildren(g.create(), children) as Record<string, unknown>;
+    return { type: "group", data: { ...data, direction } };
 }
 
 export function getElementAt(
@@ -63,13 +64,15 @@ export function setCellElement(
 }
 
 // Insert at top-level index within a cell, wrapping a lone non-container element into a group so the
-// cell can hold several elements.
+// cell can hold several elements. `direction` sets the wrap orientation (row = side-by-side, col =
+// stacked) when a lone element gets wrapped; inserting into an existing container keeps its own layout.
 export function insertInCell(
     art: ArtifactContent,
     section: Id,
     cell: string,
     index: number,
     element: ElementInstance,
+    direction: "row" | "col" = "col",
 ): ArtifactContent {
     return mapSection(art, section, (s) => {
         const current = s.cells[cell]?.element;
@@ -82,7 +85,7 @@ export function insertInCell(
         }
         const next = [current];
         next.splice(clamp(index, 1), 0, element);
-        return putCell(s, cell, { element: wrapGroup(next) });
+        return putCell(s, cell, { element: wrapGroup(next, direction) });
     });
 }
 
@@ -101,6 +104,41 @@ export function removeAt(art: ArtifactContent, addr: ElementAddress): ArtifactCo
         }
         return s; // deeper nesting: not handled yet
     });
+}
+
+// Duplicate the element at `addr`, inserting the copy as its next sibling. A lone top-level element is
+// wrapped with its copy into a group (a cell holds one element); a container child is spliced in place.
+export function duplicateAt(art: ArtifactContent, addr: ElementAddress): ArtifactContent {
+    const inst = getElementAt(art, addr);
+    if (!inst) return art;
+    const clone = structuredClone(inst);
+    if (addr.path.length === 0) {
+        return mapSection(art, addr.section, (s) => {
+            const current = s.cells[addr.cell]?.element;
+            return current ? putCell(s, addr.cell, { element: wrapGroup([current, clone]) }) : s;
+        });
+    }
+    const parentPath = addr.path.slice(0, -1);
+    const idx = addr.path[addr.path.length - 1]!;
+    return updateElementAt(
+        art,
+        { section: addr.section, cell: addr.cell, path: parentPath },
+        (parent) => {
+            const kids = childrenOf(parent);
+            if (!kids) return parent;
+            const next = [...kids];
+            next.splice(idx + 1, 0, clone);
+            return withChildren(parent, next);
+        },
+    );
+}
+
+// The address the duplicate lands at (its new sibling slot), so callers can reselect the copy.
+export function duplicatedAddr(addr: ElementAddress): ElementAddress {
+    if (addr.path.length === 0) return { ...addr, path: [1] };
+    const path = [...addr.path];
+    path[path.length - 1] = path[path.length - 1]! + 1;
+    return { ...addr, path };
 }
 
 function updateInTree(
@@ -147,7 +185,16 @@ export function setElementLayout(
 }
 
 export function setSectionGrid(art: ArtifactContent, section: Id, grid: string): ArtifactContent {
-    return mapSection(art, section, (s) => ({ ...s, grid }));
+    // Changing the grid preset invalidates any custom column fractions (different cell count).
+    return mapSection(art, section, (s) => ({ ...s, grid, widths: undefined }));
+}
+
+export function setSectionWidths(
+    art: ArtifactContent,
+    section: Id,
+    widths: number[],
+): ArtifactContent {
+    return mapSection(art, section, (s) => ({ ...s, widths }));
 }
 
 export function setSectionBackground(

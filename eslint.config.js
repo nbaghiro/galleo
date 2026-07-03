@@ -11,6 +11,7 @@ export default tseslint.config(
             "scripts/**",
             "*.config.*",
             ".docs/**",
+            ".claude/**",
         ],
     },
     ...tseslint.configs.recommended,

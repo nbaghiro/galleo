@@ -15,15 +15,45 @@ interface GroupData {
     gap?: number;
     align?: Align; // cross-axis (across the flow)
     distribute?: Align; // main-axis (along the flow)
+    columns?: number; // >1 → arrange children as an N-column grid (the engine has no wrap, so we chunk)
 }
 
+const chunk = <T>(arr: T[], n: number): T[][] => {
+    const out: T[][] = [];
+    for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+    return out;
+};
+
 const arrange = (d: GroupData, _ctx: LayoutCtx, kids: EngineNode[]): EngineNode => {
+    const gap = d.gap ?? 14;
+    const cols = Math.max(1, Math.min(6, Math.round(Number(d.columns ?? 1))));
+    if (cols > 1) {
+        return {
+            w: grow(),
+            h: fit(),
+            direction: "col",
+            gap,
+            children: chunk(kids, cols).map((row): EngineNode => {
+                const cells = [...row];
+                // Pad short final rows so columns stay aligned across rows.
+                while (cells.length < cols) cells.push({ w: grow(), h: fit() });
+                return {
+                    w: grow(),
+                    h: fit(),
+                    direction: "row",
+                    gap,
+                    alignY: d.align ?? "start",
+                    children: cells,
+                };
+            }),
+        };
+    }
     const dir = d.direction ?? "col";
     return {
         w: grow(),
         h: fit(),
         direction: dir,
-        gap: d.gap ?? 14,
+        gap,
         alignX: dir === "row" ? d.distribute : d.align,
         alignY: dir === "row" ? d.align : d.distribute,
         children: kids,
@@ -50,25 +80,34 @@ export const groupElement: ElementSpec<GroupData> = {
         arrange,
         withChildren: (d, children) => ({ ...d, children }),
     },
+    bar: ["columns", "direction", "align", "distribute"],
+    spacing: { gap: { key: "gap", min: 0, max: 48, def: 14 } },
     controls: [
+        {
+            key: "columns",
+            label: "Columns",
+            control: "segmented",
+            icon: "columns", // leading glyph names the numeric picker on the bar
+            options: [1, 2, 3, 4, 5, 6].map((n) => ({ label: `${n} columns`, value: String(n) })),
+        },
         {
             key: "direction",
             label: "Direction",
             control: "segmented",
             options: [
-                { label: "Stack", value: "col" },
-                { label: "Row", value: "row" },
+                { label: "Stack", value: "col", icon: "stack" },
+                { label: "Row", value: "row", icon: "row" },
             ],
+            visibleWhen: (d) => Number(d.columns ?? 1) <= 1,
         },
-        { key: "gap", label: "Gap", control: "slider", min: 0, max: 48, step: 2, unit: "px" },
         {
             key: "align",
             label: "Align",
             control: "segmented",
             options: [
-                { label: "Start", value: "start" },
-                { label: "Center", value: "center" },
-                { label: "End", value: "end" },
+                { label: "Align start", value: "start", icon: "alignItemsStart" },
+                { label: "Align center", value: "center", icon: "alignItemsCenter" },
+                { label: "Align end", value: "end", icon: "alignItemsEnd" },
             ],
         },
         {
@@ -76,10 +115,11 @@ export const groupElement: ElementSpec<GroupData> = {
             label: "Distribute",
             control: "segmented",
             options: [
-                { label: "Start", value: "start" },
-                { label: "Center", value: "center" },
-                { label: "End", value: "end" },
+                { label: "Distribute start", value: "start", icon: "distStart" },
+                { label: "Distribute center", value: "center", icon: "distCenter" },
+                { label: "Distribute end", value: "end", icon: "distEnd" },
             ],
+            visibleWhen: (d) => Number(d.columns ?? 1) <= 1,
         },
     ],
     skeleton: (): EngineNode => ({

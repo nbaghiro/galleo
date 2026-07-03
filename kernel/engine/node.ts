@@ -54,6 +54,21 @@ export interface Measured {
 // Injected into the engine so the kernel stays pure (no DOM). Wraps `text` at `maxWidth`.
 export type MeasureText = (leaf: TextLeaf, maxWidth: number) => Measured;
 
+// A styled run: a contiguous slice of a text leaf that overrides some inline styles. Runs inherit the
+// leaf's base font/size; each flag only turns a style ON (never off), matching how inline marks stack.
+// The render-facing form of the rich-text model (`kernel/text/model.ts` flattens marks into these).
+export interface Run {
+    text: string;
+    bold?: boolean;
+    italic?: boolean;
+    underline?: boolean;
+    strike?: boolean;
+    code?: boolean;
+    color?: string; // per-run text color (hex)
+    link?: string; // href (carried for hit-testing/editing; not painted as a style here)
+    highlight?: string; // background color (hex)
+}
+
 export interface TextLeaf {
     text: string;
     fontId: string;
@@ -63,6 +78,10 @@ export interface TextLeaf {
     color?: string;
     align?: Align;
     wrap: "words" | "none";
+    // Optional styled runs. When present, the leaf paints as this sequence (each run inheriting the
+    // base font/size and overriding weight/style/color/etc). Absent → the plain `text` path, unchanged.
+    // The concatenation of all `runs[].text` equals `text`.
+    runs?: Run[];
 }
 
 export interface ImageLeaf {

@@ -22,6 +22,7 @@
             "@engine/*": ["kernel/engine/*"],
             "@elements/*": ["kernel/elements/*"],
             "@themes/*": ["kernel/themes/*"],
+            "@protocol/*": ["kernel/protocol/*"],
             "@studio/*": ["surfaces/studio/*"]
         }
     },

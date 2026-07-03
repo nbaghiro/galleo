@@ -31,7 +31,7 @@ export const statElement: ElementSpec<StatData> = {
     tier: "smart",
     create: () => ({
         children: [
-            { type: "text", data: { text: "30s", style: "stat" } },
+            { type: "text", data: { text: "30s", style: "h1" } },
             { type: "text", data: { text: "prompt → first draft", style: "caption" } },
         ],
     }),

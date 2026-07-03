@@ -13,19 +13,28 @@ export const t = (text: string, style: string): ElementInstance => ({
     data: { text, style },
 });
 
-export const img = (seed: string, aspect: number, radius = 14): ElementInstance => ({
+// `seedOrSrc` is a full image URL when it starts with http (e.g. a resolved Unsplash photo); otherwise
+// it's a seed for a deterministic placeholder — so fixtures keep working and the agent can pass real URLs.
+export const img = (seedOrSrc: string, aspect: number, radius = 14): ElementInstance => ({
     type: "image",
-    data: { src: `https://picsum.photos/seed/${seed}/1100/900`, aspect, radius, fit: "cover" },
+    data: {
+        src: seedOrSrc.startsWith("http")
+            ? seedOrSrc
+            : `https://picsum.photos/seed/${seedOrSrc}/1100/900`,
+        aspect,
+        radius,
+        fit: "cover",
+    },
 });
 
 export const stat = (value: string, label: string): ElementInstance => ({
     type: "stat",
-    data: { children: [t(value, "stat"), t(label, "caption")] },
+    data: { children: [t(value, "h1"), t(label, "caption")] },
 });
 
 export const quote = (text: string, by: string): ElementInstance => ({
     type: "quote",
-    data: { children: [t(text, "title"), t(by, "byline")] },
+    data: { children: [t(text, "h3"), t(by, "caption")] },
 });
 
 export const bullets = (...items: string[]): ElementInstance => ({
@@ -58,9 +67,11 @@ export const section = (
     opts?: { background?: SectionBackground; bleed?: boolean },
 ): Section => ({ id, grid, cells, ...opts });
 
-export const bgImage = (seed: string, scrim = 0.5): SectionBackground => ({
+export const bgImage = (seedOrSrc: string, scrim = 0.5): SectionBackground => ({
     kind: "image",
-    image: `https://picsum.photos/seed/${seed}/1700/1100`,
+    image: seedOrSrc.startsWith("http")
+        ? seedOrSrc
+        : `https://picsum.photos/seed/${seedOrSrc}/1700/1100`,
     scrim,
 });
 

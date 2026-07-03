@@ -84,6 +84,7 @@ export const chartElement: ElementSpec<ChartData> = {
         h: fixed(d.height ?? 240),
         surface: { paint: (g, box) => drawChart(g, box, d, ctx.theme) },
     }),
+    resize: { height: { key: "height", min: 160, max: 420, step: 10 } },
     controls: [
         {
             key: "kind",
@@ -96,16 +97,6 @@ export const chartElement: ElementSpec<ChartData> = {
             ],
         },
         { key: "values", label: "Values", control: "text", placeholder: "12, 19, 7, 23" },
-        {
-            key: "height",
-            label: "Height",
-            control: "slider",
-            min: 160,
-            max: 420,
-            step: 10,
-            unit: "px",
-            group: "Frame",
-        },
     ],
     skeleton: (): EngineNode => ({
         w: grow(),

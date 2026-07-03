@@ -14,17 +14,8 @@ export const spacerElement: ElementSpec<SpacerData> = {
     tier: "primitive",
     create: () => ({ height: 32 }),
     layout: (d: SpacerData, _ctx: LayoutCtx): EngineNode => ({ w: grow(), h: fixed(d.height) }),
-    controls: [
-        {
-            key: "height",
-            label: "Height",
-            control: "slider",
-            min: 8,
-            max: 240,
-            step: 4,
-            unit: "px",
-        },
-    ],
+    resize: { width: false, height: { key: "height", min: 8, max: 240, step: 4 } },
+    controls: [],
     skeleton: (): EngineNode => ({
         w: grow(),
         h: fixed(22),

@@ -112,6 +112,7 @@ export const diagramElement: ElementSpec<DiagramData> = {
         h: fixed(d.height ?? 200),
         surface: { paint: (g, box) => draw(g, box, d, ctx.theme) },
     }),
+    resize: { height: { key: "height", min: 140, max: 420, step: 10 } },
     controls: [
         {
             key: "kind",
@@ -125,16 +126,6 @@ export const diagramElement: ElementSpec<DiagramData> = {
             ],
         },
         { key: "items", label: "Steps (comma-sep)", control: "text", placeholder: "A, B, C" },
-        {
-            key: "height",
-            label: "Height",
-            control: "slider",
-            min: 140,
-            max: 420,
-            step: 10,
-            unit: "px",
-            group: "Frame",
-        },
     ],
     skeleton: (): EngineNode => ({
         w: grow(),

@@ -14,7 +14,7 @@ import { luminance, mixWhite } from "@themes/color";
 // (so the engine can report their geometry for selection + drop-targets). Containers recurse here so
 // nested elements get addressable paths.
 
-const GUTTER = 14;
+export const GUTTER = 14; // per-cell padding — a top-level element's content width is cellW - 2*GUTTER
 const pad = (n: number) => ({ top: n, right: n, bottom: n, left: n });
 
 function emptyCell(ctx: LayoutCtx): EngineNode {
@@ -144,6 +144,9 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
     const cctx: LayoutCtx = { ...ctx, theme: contentTheme };
 
     const tmpl = TEMPLATES[section.grid] ?? fallbackTemplate;
+    // Custom column fractions (from a divider drag) override the preset when they match the cell count.
+    const custom =
+        section.widths && section.widths.length === tmpl.cells.length ? section.widths : null;
     const cells = tmpl.cells.map((cellKey, i): EngineNode => {
         const inst = section.cells[cellKey]?.element;
         const content = inst
@@ -151,7 +154,7 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
             : emptyCell(cctx);
         return {
             id: cellRegionId(section.id, cellKey),
-            w: tmpl.widths[i] ?? grow(),
+            w: custom ? percent(custom[i]!) : (tmpl.widths[i] ?? grow()),
             h: fit(),
             padding: pad(GUTTER),
             direction: "col",

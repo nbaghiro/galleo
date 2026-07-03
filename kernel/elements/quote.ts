@@ -31,8 +31,8 @@ export const quoteElement: ElementSpec<QuoteData> = {
     tier: "smart",
     create: () => ({
         children: [
-            { type: "text", data: { text: "Taste is the only moat left.", style: "title" } },
-            { type: "text", data: { text: "— the thesis", style: "byline" } },
+            { type: "text", data: { text: "Taste is the only moat left.", style: "h3" } },
+            { type: "text", data: { text: "— the thesis", style: "caption" } },
         ],
     }),
     layout: (d, ctx) => arrange(d, ctx, compose(d, ctx)),

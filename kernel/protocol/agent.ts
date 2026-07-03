@@ -6,10 +6,56 @@ import type {
     SectionBackground,
 } from "@model/content";
 
-// A Patch is the unit of change an agent turn produces — an ordered list of structural ops on an
-// ArtifactContent. Generate streams `addSection`s; regenerate-a-section is one `replaceSection`; edit-a-
-// block is one `replaceElement`. The same model powers streaming (apply ops as they arrive), surgical
-// edits, history, and undo (every op has a structural inverse). Pure: no IO, no engine.
+// The AI agent protocol — the single contract shared across the boundary: the runtime (services/agent)
+// emits it, the event log persists it, and the studio Console + canvas consume it. Pure (no IO, no
+// engine). Swapping the client-side simulator for the real LLM runtime changes nothing on the client,
+// because both speak exactly this. Not yet wired — scaffolding pinned ahead of its consumers.
+
+// --- turns: what the client asks the agent to do ---
+
+export type TurnKind = "generate" | "edit" | "section" | "chat";
+export type Surface = "deck" | "doc" | "web";
+
+export interface GenerateInput {
+    prompt: string;
+    surface: Surface;
+    theme: string;
+    goal?: string;
+    audience?: string;
+    tone?: string;
+    length?: string;
+    contextRefs?: string[]; // ids of attached context (doc/url) in the artifact's ContextPack
+}
+
+export interface EditInput {
+    instruction: string; // a whole-artifact revision ("make it punchier", "add a competition slide")
+}
+
+export interface SectionInput {
+    instruction: string;
+    sectionId: string;
+    cell?: string; // narrow to one element/block within the section
+}
+
+export interface ChatInput {
+    message: string; // conversational turn; may research + propose a patch, or just reply
+}
+
+export type TurnRequest =
+    | { kind: "generate"; input: GenerateInput }
+    | { kind: "edit"; input: EditInput }
+    | { kind: "section"; input: SectionInput }
+    | { kind: "chat"; input: ChatInput };
+
+export type TurnStatus = "pending" | "running" | "done" | "error" | "canceled";
+
+export const isKind = (k: string): k is TurnKind =>
+    k === "generate" || k === "edit" || k === "section" || k === "chat";
+
+// --- patches: the ordered structural ops an agent turn produces ---
+// Generate streams `addSection`s; regenerate-a-section is one `replaceSection`; edit-a-block is one
+// `replaceElement`. The same model powers streaming, surgical edits, history, and undo (every op has a
+// structural inverse).
 
 export type PatchOp =
     | { op: "setMeta"; theme?: string; format?: string; background?: SectionBackground | null }
@@ -85,4 +131,44 @@ export function applyPatch(content: ArtifactContent, patch: Patch): ArtifactCont
     let next: ArtifactContent = { ...content, sections: cloneSections(content.sections) };
     for (const op of patch) next = applyOp(next, op);
     return next;
+}
+
+// --- events: the streamed protocol the runtime emits + the client consumes ---
+
+export type Phase =
+    | "intake"
+    | "spine"
+    | "outline"
+    | "plan"
+    | "build"
+    | "edit"
+    | "research"
+    | "compose"
+    | "done";
+
+export type SectionStatus = "queued" | "active" | "writing" | "image" | "done";
+
+export interface Beat {
+    id: string;
+    label: string;
+    role: string;
+    grid?: string; // planned layout id — lets the client shape a section skeleton before content lands
+    image?: boolean; // carries a prominent image (drives the sourcing step + ghost)
+}
+
+export type AgentEvent =
+    | { type: "turn.start"; kind: TurnKind }
+    | { type: "phase"; name: Phase }
+    | { type: "narration"; text: string; mono?: string; sub?: string } // the Console terminal lines
+    | { type: "plan"; beats: Beat[] }
+    | { type: "section.status"; id: string; status: SectionStatus }
+    | { type: "patch"; ops: Patch } // apply to the canvas as it streams
+    | { type: "reply"; text: string } // chat/research answer
+    | { type: "turn.done"; summary?: string }
+    | { type: "error"; message: string };
+
+// A persisted event = an AgentEvent plus its monotonic sequence in the turn's log (the SSE resume cursor).
+export interface LoggedEvent {
+    seq: number;
+    event: AgentEvent;
 }

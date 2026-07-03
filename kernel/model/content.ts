@@ -46,6 +46,7 @@ export interface SectionBackground {
 export interface Section {
     id: Id;
     grid: string; // grid template id, e.g. "split-6040"
+    widths?: number[]; // custom column fractions (per grid cell, summing to 1) — overrides the preset
     cells: Record<string, Cell>;
     background?: SectionBackground;
     bleed?: boolean; // full-bleed (edge-to-edge) vs a contained card
