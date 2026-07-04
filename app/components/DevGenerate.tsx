@@ -1,16 +1,14 @@
 import type { Component } from "solid-js";
 import { createSignal, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { api } from "../data/api";
+import { startSession, type Surface } from "../generate/session";
 import { SparkleIcon } from "./icons";
 
-// Dev-only: trigger the REAL generation pipeline (plan → write → images), not the client-side simulator,
-// straight from the UI — so prompt tuning happens in the browser instead of `pnpm agent:gen`. Mounted
-// behind `import.meta.env.DEV` and backed by the dev-only /dev/generate route. Generates (~20s), then
-// opens the new artifact in the editor.
+// Dev-only: kick off the REAL streaming generation (direction → plan → per-section + images via
+// /api/turns) and drop into the narrated build view, so the artifact fills in section by section — not
+// the client-side simulator. Mounted behind import.meta.env.DEV. Same pipeline as `pnpm agent:gen`.
 
-const SURFACES = ["deck", "doc", "web"] as const;
-const QUALITIES = ["auto", "fast", "balanced", "best"] as const;
+const SURFACES: Surface[] = ["deck", "doc", "web"];
 const field =
     "rounded-md border border-line bg-canvas px-2 py-1.5 text-[12px] text-ink outline-none focus:border-accent";
 
@@ -18,28 +16,27 @@ export const DevGenerate: Component = () => {
     const navigate = useNavigate();
     const [open, setOpen] = createSignal(false);
     const [prompt, setPrompt] = createSignal("");
-    const [surface, setSurface] = createSignal<(typeof SURFACES)[number]>("deck");
+    const [surface, setSurface] = createSignal<Surface>("deck");
     const [theme, setTheme] = createSignal("studio");
-    const [quality, setQuality] = createSignal<(typeof QUALITIES)[number]>("balanced");
-    const [busy, setBusy] = createSignal(false);
-    const [error, setError] = createSignal<string | null>(null);
 
-    const run = async (): Promise<void> => {
-        if (!prompt().trim() || busy()) return;
-        setBusy(true);
-        setError(null);
-        try {
-            const { id } = await api.devGenerate({
+    const run = (): void => {
+        if (!prompt().trim()) return;
+        // Fire the real streaming session (it manages its own error state, never rejects), then jump to
+        // the build view — it renders the artifact filling in section by section as events arrive.
+        startSession(
+            {
                 prompt: prompt().trim(),
                 surface: surface(),
                 theme: theme().trim() || "studio",
-                quality: quality(),
-            });
-            navigate(`/edit/${id}`);
-        } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
-            setBusy(false);
-        }
+                goal: "",
+                audience: "",
+                tone: "",
+                length: "",
+            },
+            { demo: false },
+        );
+        setOpen(false);
+        navigate("/generate");
     };
 
     return (
@@ -50,7 +47,7 @@ export const DevGenerate: Component = () => {
                     <button
                         onClick={() => setOpen(true)}
                         class="flex items-center gap-1.5 rounded-lg border border-line bg-panel px-3 py-2 text-[12px] text-soft shadow-lg transition-colors hover:text-ink"
-                        title="Dev: run the real generation pipeline"
+                        title="Dev: run the real streaming generation pipeline"
                     >
                         <SparkleIcon size={14} /> dev gen
                     </button>
@@ -74,56 +71,38 @@ export const DevGenerate: Component = () => {
                         placeholder="Brief… e.g. a launch site for an indie synth-pop album, moody + late-night"
                         class={`w-full resize-y leading-snug ${field}`}
                         value={prompt()}
-                        disabled={busy()}
                         onInput={(e) => setPrompt(e.currentTarget.value)}
+                        onKeyDown={(e) => {
+                            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run();
+                        }}
                     />
-                    <div class="mt-2 grid grid-cols-3 gap-1.5">
+                    <div class="mt-2 flex gap-1.5">
                         <select
-                            class={field}
+                            class={`flex-1 ${field}`}
                             value={surface()}
-                            disabled={busy()}
-                            onChange={(e) =>
-                                setSurface(e.currentTarget.value as (typeof SURFACES)[number])
-                            }
+                            onChange={(e) => setSurface(e.currentTarget.value as Surface)}
                         >
                             {SURFACES.map((s) => (
                                 <option value={s}>{s}</option>
                             ))}
                         </select>
                         <input
-                            class={field}
+                            class={`flex-1 ${field}`}
                             value={theme()}
-                            disabled={busy()}
                             placeholder="theme"
                             onInput={(e) => setTheme(e.currentTarget.value)}
                         />
-                        <select
-                            class={field}
-                            value={quality()}
-                            disabled={busy()}
-                            onChange={(e) =>
-                                setQuality(e.currentTarget.value as (typeof QUALITIES)[number])
-                            }
-                        >
-                            {QUALITIES.map((qq) => (
-                                <option value={qq}>{qq}</option>
-                            ))}
-                        </select>
                     </div>
                     <button
-                        onClick={() => run()}
-                        disabled={busy() || !prompt().trim()}
+                        onClick={run}
+                        disabled={!prompt().trim()}
                         class="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-2 text-[12px] font-semibold text-onaccent transition-opacity disabled:opacity-50"
                     >
-                        <SparkleIcon size={14} /> {busy() ? "Generating…" : "Generate"}
+                        <SparkleIcon size={14} /> Generate
                     </button>
-                    <Show when={error()}>
-                        <p class="mt-2 text-[11px]" style={{ color: "#e5674f" }}>
-                            {error()}
-                        </p>
-                    </Show>
                     <p class="mt-2 text-[10px] leading-snug text-muted">
-                        Real pipeline (~20s) → opens in the editor. Dev-only.
+                        Streams the real pipeline section by section, then opens in the editor.
+                        Dev-only.
                     </p>
                 </div>
             </Show>

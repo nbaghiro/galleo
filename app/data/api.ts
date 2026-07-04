@@ -61,9 +61,6 @@ export const api = {
     getArtifact: (id: string) => req<{ artifact: Artifact }>(`/artifacts/${id}`),
     createArtifact: (patch: ArtifactInput) =>
         req<{ id: string }>("/artifacts", { method: "POST", body: JSON.stringify(patch) }),
-    // Dev-only: run the real generation pipeline and return the new artifact id (route only exists in dev).
-    devGenerate: (input: { prompt: string; surface?: string; theme?: string; quality?: string }) =>
-        req<{ id: string }>("/dev/generate", { method: "POST", body: JSON.stringify(input) }),
     listTrash: () => req<{ artifacts: ArtifactSummary[] }>("/artifacts?trashed=1"),
     trashArtifact: (id: string) => req<{ ok: true }>(`/artifacts/${id}/trash`, { method: "POST" }),
     restoreArtifact: (id: string) =>

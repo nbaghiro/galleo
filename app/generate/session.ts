@@ -189,6 +189,9 @@ function dispatch(ev: AgentEvent, content: ArtifactContent): ArtifactContent {
 // A switch to test the product without the backend LLM. `simulate` feeds `dispatch` synthetic events off a
 // matched fixture, so the build screen streams beautiful, believable output. Flip off to use `consume`.
 const DEMO_MODE: boolean = true;
+// The mode the CURRENT session ran in — a session may override DEMO_MODE (the dev flow forces the real
+// pipeline). `saveGenerated` reads it: demo replays are saved client-side, live turns already persisted.
+let sessionDemo = DEMO_MODE;
 
 let demoArtifact: { content: ArtifactContent; title: string } | null = null;
 
@@ -348,18 +351,22 @@ async function consume(brief: Brief, signal: AbortSignal): Promise<void> {
     }
 }
 
-export async function startSession(brief: Brief): Promise<void> {
+// `opts.demo` overrides DEMO_MODE for this session — the dev flow forces the real streaming pipeline
+// (`consume` → /api/turns) while the product stays on the demo replay until it's flipped on for everyone.
+export async function startSession(brief: Brief, opts?: { demo?: boolean }): Promise<void> {
     resetSession();
+    const demo = opts?.demo ?? DEMO_MODE;
+    sessionDemo = demo;
     const controller = new AbortController();
     abort = controller;
     setGen({ phase: "building", brief, theme: brief.theme, format: brief.surface, error: "" });
     try {
-        await (DEMO_MODE ? simulate(brief, controller.signal) : consume(brief, controller.signal));
+        await (demo ? simulate(brief, controller.signal) : consume(brief, controller.signal));
     } catch (e) {
         if (controller.signal.aborted) return; // canceled — leave the session as-is
         setGen({
             phase: "error",
-            error: DEMO_MODE
+            error: demo
                 ? "Something went off-script — try again."
                 : (e as Error)?.message?.includes("turn failed")
                   ? "Couldn't reach the generator — is the API running?"
@@ -371,7 +378,7 @@ export async function startSession(brief: Brief): Promise<void> {
 // "Open" persists the result and navigates to it. Demo mode saves the replayed fixture as a fresh artifact
 // (so it lands in the library + editor like a real one); the live pipeline already saved it server-side.
 export async function saveGenerated(): Promise<string | null> {
-    if (DEMO_MODE) {
+    if (sessionDemo) {
         if (!demoArtifact) return null;
         try {
             const { id } = await api.createArtifact({
