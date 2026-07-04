@@ -49,6 +49,6 @@ drag-and-drop, direct-manipulation sizing, inline text); ~20 elements; the theme
 builder; a narrated AI-generation flow (simulated); a Hono/Postgres backend with a library, templates,
 folders, trash, and autosave.
 
-**Planned:** the real LLM generation pipeline (`kernel/protocol/agent` + `services/agent`); standalone
+**Planned:** a real LLM generation backend for the `@model/agent` protocol (generation is a client-side simulator today); standalone
 present / publish / export surfaces (present + PDF/PNG live inside the studio today); sharing &
 publishing (immutable versions, public links); engine-native rich text; PPTX export.

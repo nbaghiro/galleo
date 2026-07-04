@@ -23,7 +23,7 @@ embedded in the artifact's `draft_content` JSON.
 
 ---
 
-## 3. The tables (13, as implemented in `services/data/schema.ts`)
+## 3. The tables (11, as implemented in `services/data/schema.ts`)
 
 ### Identity & tenancy
 
@@ -52,10 +52,8 @@ embedded in the artifact's `draft_content` JSON.
 
 ### AI agent (schema present; the runtime is still the `app/generate` simulator)
 
-| Table            | Purpose                                                                                     | Key columns                                                                                                                       |
-| ---------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| **agent_turns**  | one row per agent operation                                                                 | `artifact_id`, `kind` (generate\|edit\|section\|chat), `input` (jsonb), `status`, `patch` (jsonb), `reply`, `error`, `created_by` |
-| **agent_events** | append-only event log per turn (SSE feed + replay + transcript; composite pk `turn_id,seq`) | `turn_id`, `seq`, `type`, `data` (jsonb)                                                                                          |
+| Table | Purpose | Key columns |
+| ----- | ------- | ----------- |
 
 ### Billing
 
@@ -122,8 +120,7 @@ The whole tree is one `jsonb` document — an `ArtifactContent` (see `rendering.
 workspaces ─┬─< members >─ users
             ├─< folders ─< artifacts ─┬─< versions
             │                         ├─< shares            (subject = user | link | workspace)
-            │                         ├─< links
-            │                         └─< agent_turns ─< agent_events
+            │                         └─< links
             ├─< themes · assets
             └─< credits
 users ─< artifacts.created_by

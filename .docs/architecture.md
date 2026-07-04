@@ -109,10 +109,10 @@ auth/    auth.ts (scrypt password hashing + signed-cookie session)
 api/     server.ts (the Hono API: /auth · /artifacts · /folders · /themes · /templates)
          seed.ts (idempotent demo seed) · fixtures.ts + fixtures/* (7 demo artifacts, one file each) ·
          templates.ts (registry) + templates/* (one file per category: creative · marketing · pitch · proposals · reports)
-agent/   the real multi-provider LLM pipeline: pipeline.ts (parallel section writers) · turn.ts (one LLM turn) ·
-         llm.ts (Vercel AI SDK + the model registry / resolveModel) · images.ts (Unsplash resolver) ·
-         ping.ts · bench.ts · generate-test.ts (standalone `tsx` dev/latency scripts). Built + benchmarked; the live product still runs the app/generate simulator.
 ```
+
+There is no backend generation service — generation is a **client-side simulator** (`app/generate`, replaying
+hand-built fixtures). A real LLM pipeline that implements the `@model/agent` protocol is future work.
 
 The seed fixtures + the template library are plain content built with `@model/authoring`; `services`
 depends only on `kernel`, never on a surface.
@@ -165,9 +165,9 @@ is why the editor, present mode, thumbnails, and export are pixel-identical. Dat
 ## Planned, not yet built
 
 `surfaces/present · publish · export` as standalone surfaces (present/export live inside studio today) ·
-wiring the real agent pipeline (`@model/agent` protocol + `services/agent` LLM) into the live product,
-replacing the `app/generate` simulator · engine-native rich text (`@model/text`, replacing the
-contenteditable overlay) · `services/queue` (background jobs).
+a real LLM generation backend implementing the `@model/agent` protocol (replacing the `app/generate`
+simulator) · engine-native rich text (`@model/text`, replacing the contenteditable overlay) ·
+`services/queue` (background jobs).
 
 ## Local dev & ports
 
