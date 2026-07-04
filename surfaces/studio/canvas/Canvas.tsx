@@ -44,6 +44,7 @@ import { ColumnDividers, ResizeHandles, SpacingHandles } from "../select/handles
 import { ContextBar } from "../panels/format-bar";
 import { Overlay, SectionActions, SectionToolbar } from "../select/selection";
 import { TextEditor } from "../editing/text-editor";
+import { VideoEmbeds } from "./embeds";
 
 const DRAG_THRESHOLD = 4;
 
@@ -293,6 +294,7 @@ export const Canvas: Component = () => {
         >
             <div ref={stageEl} class="relative w-full">
                 <div ref={paintHost} class="absolute inset-0" />
+                <VideoEmbeds />
                 <Overlay />
                 <ResizeHandles />
                 <SpacingHandles />
