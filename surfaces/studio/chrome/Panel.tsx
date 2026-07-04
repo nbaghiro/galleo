@@ -4,9 +4,8 @@ import { getElementAt } from "@elements/ops";
 import { getElement, listElements } from "@elements/spec";
 import { editor, rightTab, selection, setRightTab } from "../editor";
 import { Icon } from "../icons";
-import { ElementInspector } from "../overlay/ElementInspector";
-import { PaletteItem } from "../overlay/PaletteItem";
-import { SectionInspector } from "../overlay/SectionInspector";
+import { ElementInspector, SectionInspector } from "../panels/inspectors";
+import { PaletteItem } from "../insert/insert";
 
 const HIDDEN = new Set(["group", "__dropghost"]); // internal container + drop preview, not palette items
 const CAT_ORDER = [

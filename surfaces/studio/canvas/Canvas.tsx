@@ -40,16 +40,10 @@ import {
     startEditing,
     undo,
 } from "../editor";
-import { CellAdd } from "../overlay/CellAdd";
-import { ColumnDividers } from "../overlay/ColumnDividers";
-import { ContextBar } from "../overlay/ContextBar";
-import { ContextMenu, openContextMenu } from "../overlay/ContextMenu";
-import { DropIndicator } from "../overlay/DropIndicator";
-import { Overlay } from "../overlay/Overlay";
-import { ResizeHandles } from "../overlay/ResizeHandles";
-import { SpacingHandles } from "../overlay/SpacingHandles";
-import { SectionActions } from "../overlay/SectionActions";
-import { SectionToolbar } from "../overlay/SectionToolbar";
+import { CellAdd, ContextMenu, openContextMenu, DropIndicator } from "../insert/insert";
+import { ColumnDividers, ResizeHandles, SpacingHandles } from "../select/handles";
+import { ContextBar } from "../panels/format-bar";
+import { Overlay, SectionActions, SectionToolbar } from "../select/selection";
 import { TextEditor } from "../editing/InlineTextEditor";
 
 const DRAG_THRESHOLD = 4;

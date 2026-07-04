@@ -1,10 +1,9 @@
-import type { JSX } from "solid-js";
-import type { Component } from "solid-js";
+import type { JSX, Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
 import { themeCssVars } from "@themes/theme";
 import { AgentPanel } from "./agent/AgentPanel";
 import { Canvas } from "./canvas/Canvas";
-import { DragGhost } from "./overlay/DragGhost";
+import { DragGhost } from "./insert/insert";
 import { editorTokens, leftOpen, setLeftOpen } from "./editor";
 import { Icon } from "./icons";
 import { Minimap } from "./chrome/Minimap";
