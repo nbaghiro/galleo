@@ -14,9 +14,10 @@ with high-fidelity export. Net-new, TypeScript.
 
 ## Structure (Kernel + Surfaces)
 
-- **`kernel/`** — pure, edge-safe core: `model engine elements themes` + `protocol` (the pure
-  backend↔frontend wire contracts: REST DTOs + the agent protocol) and `text` scaffolding. Imports
-  **nothing** outside `kernel`.
+- **`kernel/`** — pure, edge-safe core: `model engine elements themes`. Imports **nothing** outside
+  `kernel`. `model/` is **per-entity** — each type sits with its own wire DTOs: `artifact` (the content
+  tree + its REST shapes), `agent` (the streamed generation protocol), `workspace` (user/folder/
+  template + their DTOs), `text` (rich-text scaffolding), plus `target`/`size`/`format`/`authoring`.
 - **`surfaces/`** — ways to touch the kernel: `studio` (the editor, the only one built so far; present +
   export live inside it today). A surface **never** imports another surface.
 - **`services/`** — backend: `data` (Postgres + Drizzle) · `api` (Hono) · `auth` (+ `agent` scaffolding).
@@ -27,9 +28,9 @@ with high-fidelity export. Net-new, TypeScript.
 ## Conventions (enforced)
 
 - **No `index.ts` barrels.** Each concept is a named file (`engine/layout.ts`, `elements/element-spec.ts`).
-- **Path aliases** (directory aliases): `@model`, `@engine`, `@elements`, `@themes`, `@protocol`,
-  `@studio` (e.g. `@model/content`). Backend + frontend both import `@protocol`; `services` otherwise use
-  relative imports. The `kernel/text` scaffolding has no alias until it's wired.
+- **Path aliases** (directory aliases): `@model`, `@engine`, `@elements`, `@themes`, `@studio`
+  (e.g. `@model/artifact`). Backend + frontend both import the shared wire shapes from `@model` +
+  `@themes`; `services` otherwise use relative imports.
 - **TS style:** 4-space indent, double quotes, semicolons, `printWidth` 100, **no `any`**, **no
   `console`** in app code. (ESLint + Prettier enforce these.)
 - **No build-phase/iteration numbers** in code comments or docstrings (plan docs are fine).
@@ -55,13 +56,14 @@ The kernel engine (`kernel/engine/layout.ts`, Clay-style 3-pass solver) drives a
 (`editing/TextEditor.tsx`). State in `editor.ts` (Solid store); paint helpers in `render.ts`; engine
 output paints into refs via `dom-backend.ts` (a 2D-canvas backend mirrors it for Present + PDF/PNG
 export). Sections compose via `@elements/templates` + `@elements/compose`; every element has a
-structural ghost (`@elements/skeleton`). **19 elements** registered (`register.ts`); format-as-view
+structural ghost (`skeletonize` in `@elements/spec`). **20 elements** register via `register.ts`'s five
+category imports (19 content elements + the internal drop-preview); format-as-view
 (`engine/profile` + `fragment`) is built, so one artifact renders as deck / doc / web.
 
 The product SPA (`app/`, served at `/app`) wraps the studio: library / templates / trash / editor
 views, a backend (`services/api` Hono + `services/data` Postgres/Drizzle; artifact content lives in the
 `draft_content` jsonb), a singular theme drawer + custom-theme builder, and a narrated AI-generation
-flow — a **client-side simulator** today; the real agent pipeline (`kernel/protocol/agent` +
+flow — a **client-side simulator** today; the real agent pipeline (`@model/agent` protocol +
 `services/agent`) is scaffolded, not yet wired.
 
 ## Commits

@@ -14,18 +14,22 @@ marketing/  a separate public build (served at /)
 ```
 
 Path aliases are directory aliases: `@model/*`→`kernel/model/*`, plus `@engine`, `@elements`, `@themes`,
-`@protocol`, `@studio`. No `index.ts` barrels — every concept is a named file. (`services` import each
-other by relative path; the `kernel/text` scaffolding has no alias until it's wired.)
+`@studio`. No `index.ts` barrels — every concept is a named file. (`services` import each other by
+relative path.)
 
 ---
 
 ## kernel/ — the core (pure TS, no DOM, no framework)
 
-**`model/` — the content contract**
+**`model/` — the content contract, per-entity** (each type sits with its own wire DTOs, so the JSON
+shapes shared with the backend can't drift from the type they describe)
 
 ```
-content.ts     ArtifactContent → Section → Cell → ElementInstance (the shared data shape; draft_content jsonb IS this)
-address.ts     stable addressing of selectable entities (section/cell/element paths) + Region ids
+artifact.ts    ArtifactContent → Section → Cell → ElementInstance (draft_content jsonb IS this) + its REST DTOs (ArtifactSummary · Cover · ArtifactInput)
+agent.ts       the streamed agent protocol (turns · patches · events · applyPatch) — scaffolding; generation is a simulator today
+workspace.ts   User · Folder · Template + their create/update DTOs (LoginBody · FolderInput)
+text.ts        engine-native rich-text core — marks/runs + selection math (scaffolding; the editor uses a contenteditable overlay today)
+target.ts      stable addressing of selectable entities (section/cell/element paths) → Target + Region ids
 size.ts        Clay-style Size constructors: fit / grow / percent / fixed
 format.ts      format id + kind helpers (deck | doc | web)
 authoring.ts   concise content-authoring DSL (t/img/section/group/deck/doc/web) — used by fixtures/templates + the agent
@@ -34,49 +38,33 @@ authoring.ts   concise content-authoring DSL (t/img/section/group/deck/doc/web) 
 **`engine/` — the layout + render core** (a custom, Clay-style, immediate-mode box solver — see `rendering.md`)
 
 ```
-layout.ts           the 3-pass solver: widths (top-down) → heights (bottom-up) → positions → laid-out boxes
-node.ts             EngineNode (the layout-tree input) + the backend-abstract Graphics API self-drawn elements use
-render-command.ts   RenderCommand (paint instructions: rect/text/image/surface) + Region (the box of every id'd node)
-profile.ts          format-as-view presets — the same artifact as a paged deck, a doc, or a web page
-fragment.ts         pagination — slice a tall command flow into fixed-height pages (paged / PDF)
+layout.ts    the 3-pass solver (widths top-down → heights bottom-up → positions → laid-out boxes) + pagination (fragment: slice a tall command flow into fixed-height pages)
+node.ts      EngineNode (the layout-tree input) · the backend-abstract Graphics API self-drawn elements use · RenderCommand (rect/text/image/surface) + Region (the box + corner radius of every id'd node)
+profile.ts   format-as-view presets — the same artifact as a paged deck, a doc, or a web page
 ```
 
-**`elements/` — the element library + composer** (see `rendering.md`)
+**`elements/` — the element library + composer** (grouped by the element's own `category`; see `rendering.md`)
 
 ```
-element-spec.ts     the universal ElementSpec contract every element implements
-registry.ts         register / getElement / listElements
-compose.ts          Section → EngineNode tree (tags Region ids; applies onDark tokens over dark backgrounds)
-templates.ts        the section grids (per-cell width specs: full / split-6040 / two-col / …)
-skeleton.ts         structural ghosts (palette previews + drop/skeleton states)
-ops.ts              pure, immutable content ops (insert/move/remove/duplicate section, setArtifactTheme, …)
-walk.ts             walkElements — visit every element in a section (recursing group children)
-text.ts             the text primitive — every role via a `style` (size/weight/font + a theme `tone`)
-+ 18 element specs: image · card · group · stat · bullets · button · quote · divider · badge · callout
-                    code · chart · table · diagram · gradient · spacer · embed · video
-                    (text + these 18 = the 19 content elements side-effect-registered in register.ts)
-dropghost.ts        an internal, palette-hidden element — the live drop preview only (also registered)
+spec.ts        the framework: ElementSpec/SectionSpec contract · register/getElement/listElements · walkElements · skeletonize (structural ghosts + drop/skeleton states)
+text.ts        text · bullets · callout · code · quote
+media.ts       image · video
+data.ts        chart · diagram · table · stat
+containers.ts  card · group
+chrome.ts      button · badge · embed · gradient · divider · spacer · dropghost (an internal, palette-hidden drop preview)
+compose.ts     Section → EngineNode tree (tags Region ids; applies onDark tokens over dark backgrounds)
+templates.ts   the section grids (per-cell width specs: full / split-6040 / two-col / …) + presets
+ops.ts         pure, immutable content ops (insert/move/remove/duplicate section, setArtifactTheme, …)
 ```
+
+The five category files (text/media/data/containers/chrome) side-effect-register **20 elements** — 19
+content elements + the internal drop-preview — via `surfaces/studio/register.ts`.
 
 **`themes/` — themes as data** (see below)
 
 ```
-theme.ts       Tokens (the semantic token set) + themeCssVars() + fontStack()
-library.ts     the curated 52-theme registry via mk() + resolveTheme() + registerThemes() (custom themes)
-color.ts       hex color utilities (hexToRgb · luminance · mix · mixWhite · hexA) shared by elements + studio
-```
-
-**`protocol/` — pure backend↔frontend wire contracts**
-
-```
-protocol/api.ts     the HTTP DTOs shared by services/api + app/data/api (so the JSON shapes can't drift)
-protocol/agent.ts   the streamed agent protocol (turns · patches · events) — scaffolding; generation is a simulator today
-```
-
-**`text/` — engine-native rich-text core, scaffolding (not yet wired at runtime)**
-
-```
-text/model.ts · text/selection.ts   marks/runs + selection math (the current editor uses a simpler contenteditable overlay)
+theme.ts     Tokens (the semantic token set) · themeCssVars() · fontStack() · the wire DTOs (ThemeSummary · ThemeInput) · color math (hexToRgb · luminance · mix · mixWhite · hexA)
+library.ts   the curated 52-theme registry via mk() + resolveTheme() + registerThemes() (custom themes)
 ```
 
 ---
@@ -115,7 +103,9 @@ data/    schema.ts (the Drizzle/Postgres schema — see data-model.md) · client
 auth/    password.ts (scrypt) · session.ts (signed-cookie session)
 api/     server.ts (the Hono API: /auth · /artifacts · /folders · /themes · /templates)
          seed.ts (idempotent demo seed) · fixtures.ts + fixtures/* (7 demo artifacts) · templates.ts + templates/* (starter templates)
-agent/   llm.ts (Anthropic SDK wrapper) · models.ts (model registry) — the real LLM backend, designed, not yet wired
+agent/   the real multi-provider LLM pipeline: pipeline.ts (parallel section writers) · turn.ts (one LLM turn) ·
+         llm.ts (Vercel AI SDK) · models.ts (registry + resolveModel) · images.ts (Unsplash resolver) ·
+         ping.ts · bench.ts · generate-test.ts (dev/latency helpers). Built + benchmarked; the live product still runs the app/generate simulator.
 ```
 
 The seed fixtures + the template library are plain content built with `@model/authoring`; `services`
@@ -137,9 +127,9 @@ theme/     the app + custom theme system
   theme-drawer.ts · theme-sample.ts · favicon.ts · ThemeDrawer.tsx (the singular switcher) ·
   ThemeBuilder.tsx (custom-theme token editor) · ThemePreview.tsx
 components/ shared components — Sidebar · CreateModal · ConfirmModal · SectionThumb · PreviewCanvas · icons · Visual
-generate/  the narrated AI-generation flow (a simulator today)
-  session.ts (the generation store) · IntakeView · BuildView · BuildCanvas · SpotlightCanvas ·
-  extraViews (HUD) · genView (direction registry) · GenViewPicker · typing
+generate/  the narrated AI-generation flow (a client-side simulator today)
+  session.ts (the generation store) · demo.ts (example prompts → hand-built fixtures, swapped per refresh) ·
+  IntakeView · BuildView · BuildCanvas · SpotlightCanvas · extraViews (HUD) · genView (direction registry) · GenViewPicker · typing
 ```
 
 `EditorView.tsx` is the bridge: it fetches an artifact from the API, hands its content to the studio
@@ -169,9 +159,9 @@ is why the editor, present mode, thumbnails, and export are pixel-identical. Dat
 ## Planned, not yet built
 
 `surfaces/present · publish · export` as standalone surfaces (present/export live inside studio today) ·
-the real agent pipeline (`kernel/protocol/agent` + `services/agent` LLM, replacing the `app/generate`
-simulator) · engine-native rich text (`kernel/text`, replacing the contenteditable overlay) ·
-`services/queue` (background jobs).
+wiring the real agent pipeline (`@model/agent` protocol + `services/agent` LLM) into the live product,
+replacing the `app/generate` simulator · engine-native rich text (`@model/text`, replacing the
+contenteditable overlay) · `services/queue` (background jobs).
 
 ## Local dev & ports
 

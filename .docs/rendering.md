@@ -114,7 +114,7 @@ registry-driven, so **adding an element is adding a spec — zero engine changes
    resolves the box, the element paints into it through a backend-abstract `DrawContext` (canvas in the
    editor, vector for export). Used by charts and diagrams.
 
-**Skeletons** (`skeleton.ts`) — every element has a structural ghost (bars/blocks/pills) shown in the
+**Skeletons** (`skeletonize` in `elements/spec.ts`) — every element has a structural ghost (bars/blocks/pills) shown in the
 palette and as the live drop preview; auto-derived from `layout(create())` unless the spec overrides it.
 Because it's real engine output, previews can't drift from the element.
 
@@ -147,7 +147,7 @@ content ops.
 
 Continuous formats (doc/web) skip pagination on screen. Paged formats need it:
 
-- **Fragmentation** (`engine/fragment.ts`) — slice a tall command flow into page-height chunks, breaking
+- **Fragmentation** (`fragment` in `engine/layout.ts`) — slice a tall command flow into page-height chunks, breaking
   at a clean edge and never through a block ("good, not optimal" greedy).
 - **Deck slides** (`studio/canvas/render.ts`) — each section is fit to the 1280×720 frame: short sections
   stretch to fill and center; a text+image split whose image would overflow cover-fits the image column
