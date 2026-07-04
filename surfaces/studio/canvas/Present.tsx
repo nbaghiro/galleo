@@ -2,7 +2,7 @@ import type { Section } from "@model/artifact";
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { resolveProfile } from "@engine/profile";
-import { backdropCss } from "./backdrop";
+import { backdropCss, fitSlideContent, paintSectionStack } from "./backends";
 import {
     editor,
     editorTokens,
@@ -13,9 +13,7 @@ import {
     setSlideIndex,
     slideIndex,
 } from "../editor";
-import { measureText } from "./measure";
-import { layoutSlide } from "./render";
-import { fitSlideContent, paintSectionStack } from "./stage";
+import { measureText, layoutSlide } from "./render";
 import { Icon } from "../icons";
 
 // Deck slide geometry (16:9). Each section is stretched to fill the slide.

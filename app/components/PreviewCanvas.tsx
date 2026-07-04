@@ -3,9 +3,8 @@ import type { Component } from "solid-js";
 import { createEffect } from "solid-js";
 import { resolveProfile } from "@engine/profile";
 import { resolveTheme } from "@themes/library";
-import { backdropCss } from "@studio/canvas/backdrop";
+import { backdropCss, paintSectionStack } from "@studio/canvas/backends";
 import { SECTION_GAP } from "@studio/canvas/render";
-import { paintSectionStack } from "@studio/canvas/stage";
 
 // Read-only render of an artifact in a chosen format — the SAME continuous canvas the studio editor
 // uses (deck = wide cards with gaps, doc = reading column, web = full-bleed bands), at each section's

@@ -3,9 +3,8 @@ import type { Component } from "solid-js";
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { resolveProfile } from "@engine/profile";
 import { resolveTheme } from "@themes/library";
-import { paint } from "@studio/canvas/dom-backend";
-import { measureText } from "@studio/canvas/measure";
-import { layoutSlide } from "@studio/canvas/render";
+import { paint } from "@studio/canvas/backends";
+import { measureText, layoutSlide } from "@studio/canvas/render";
 
 // Real engine-rendered preview of one section, in the artifact's true format + theme — the exact
 // layout/text/images. Every section uses one uniform 16:9 frame (deck/doc/site alike) so the

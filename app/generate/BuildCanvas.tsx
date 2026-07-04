@@ -3,10 +3,13 @@ import type { Component } from "solid-js";
 import { createEffect, createSignal, For, on, onMount, Show } from "solid-js";
 import { resolveProfile } from "@engine/profile";
 import { resolveTheme } from "@themes/library";
-import { backdropCss } from "@studio/canvas/backdrop";
-import { paint } from "@studio/canvas/dom-backend";
-import { measureText } from "@studio/canvas/measure";
-import { layoutSection, layoutSectionSkeleton, SECTION_GAP } from "@studio/canvas/render";
+import { backdropCss, paint } from "@studio/canvas/backends";
+import {
+    measureText,
+    layoutSection,
+    layoutSectionSkeleton,
+    SECTION_GAP,
+} from "@studio/canvas/render";
 import { activeStatus, gen, placedSections } from "./session";
 
 // The live-build canvas: the SAME engine paint the editor uses. Finished sections are rendered with a

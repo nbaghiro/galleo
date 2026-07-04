@@ -2,9 +2,8 @@ import type { Tokens } from "@themes/theme";
 import type { Component } from "solid-js";
 import { createEffect } from "solid-js";
 import { resolveProfile } from "@engine/profile";
-import { paint } from "@studio/canvas/dom-backend";
-import { measureText } from "@studio/canvas/measure";
-import { layoutSlide } from "@studio/canvas/render";
+import { paint } from "@studio/canvas/backends";
+import { measureText, layoutSlide } from "@studio/canvas/render";
 import { THEME_SAMPLE } from "../theme/theme-sample";
 
 // Live, engine-rendered theme preview — the real layout/paint pipeline (same as SectionThumb), but
