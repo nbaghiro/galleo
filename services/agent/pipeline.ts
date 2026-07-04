@@ -14,6 +14,7 @@ import {
     stat,
     t,
 } from "@model/authoring";
+import { resolveProfile } from "@engine/profile";
 import { structured } from "./llm";
 import type { Quality } from "./llm";
 import { resolveImage, resolveImages } from "./images";
@@ -200,7 +201,11 @@ function sectionIssues(content: SectionContentT): string[] {
     return [...new Set(out)];
 }
 
-async function buildSection(beat: PlanBeatT, content: SectionContentT): Promise<Section> {
+async function buildSection(
+    beat: PlanBeatT,
+    content: SectionContentT,
+    surface: string,
+): Promise<Section> {
     // Safety net for the writer's most common miss: it emits a heading but leaves the text empty. Fill the
     // first empty heading from the beat headline — the section keeps the writer's placement + level and
     // always shows its title. (toElement drops any remaining empty ones.)
@@ -212,8 +217,11 @@ async function buildSection(beat: PlanBeatT, content: SectionContentT): Promise<
         }
     }
     const keys = GRID_CELLS[beat.grid] ?? ["a"];
-    // A full-bleed beat with an image is a hero — the image is the section background, text sits over it.
+    // A full + image beat is a hero — the image becomes the section background, text sits over it. Only
+    // BLEED it (edge-to-edge, no card frame) in continuous formats (doc/web); in a deck it stays a
+    // contained slide with a background image like the other slides — a bled deck cover reads as a web band.
     const hero = beat.grid === "full" && beat.image;
+    const bleed = hero && resolveProfile(surface).kind === "continuous";
 
     // Resolve every image to a real photo — inline elements + the hero background, all in parallel.
     const norm = (e: ElementIRT): string => (e.query ?? beat.headline).trim() || "abstract texture";
@@ -242,7 +250,7 @@ async function buildSection(beat: PlanBeatT, content: SectionContentT): Promise<
         beat.id,
         beat.grid,
         cells,
-        hero ? { background: bgImage(bgUrl ?? slug(beat.headline), 0.55), bleed: true } : undefined,
+        hero ? { background: bgImage(bgUrl ?? slug(beat.headline), 0.55), bleed } : undefined,
     );
 }
 
@@ -347,7 +355,7 @@ export async function runGenerate(
             }
             opts?.debug?.section?.(beat, content);
             if (beat.image) emit({ type: "section.status", id: beat.id, status: "image" });
-            const sec = await buildSection(beat, content);
+            const sec = await buildSection(beat, content, input.surface);
             sections[i] = sec;
             emit({
                 type: "patch",
