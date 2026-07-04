@@ -117,6 +117,18 @@ export function canvasDrawContext(cx: CanvasRenderingContext2D): DrawContext {
     };
 }
 
+// The DOM paint replaces every node on each draw (host.replaceChildren below), which cancels an in-flight
+// background-image fetch. A persistent Image() per URL keeps the browser fetching to completion + caches
+// it, so re-paints (fonts loading, resize) don't reset large images to blank — the background resolves
+// from cache the moment it lands. Not cleared: the browser dedupes the bytes and the map stays small.
+const warmed = new Map<string, HTMLImageElement>();
+function warmImage(src: string): void {
+    if (!src || warmed.has(src)) return;
+    const im = new Image();
+    im.src = src;
+    warmed.set(src, im);
+}
+
 export function paint(commands: RenderCommand[], host: HTMLElement): void {
     host.replaceChildren();
     host.style.position = "relative";
@@ -140,6 +152,7 @@ export function paint(commands: RenderCommand[], host: HTMLElement): void {
             }
             if (c.fill?.shadow) el.style.boxShadow = c.fill.shadow;
         } else if (c.kind === "image") {
+            warmImage(c.image.src);
             const scrim = c.image.scrim;
             const url = `url("${c.image.src}")`;
             el.style.backgroundImage = scrim
