@@ -43,7 +43,7 @@ import { CellAdd, ContextMenu, openContextMenu, DropIndicator } from "../insert/
 import { ColumnDividers, ResizeHandles, SpacingHandles } from "../select/handles";
 import { ContextBar } from "../panels/format-bar";
 import { Overlay, SectionActions, SectionToolbar } from "../select/selection";
-import { TextEditor } from "../editing/InlineTextEditor";
+import { TextEditor } from "../editing/text-editor";
 
 const DRAG_THRESHOLD = 4;
 
