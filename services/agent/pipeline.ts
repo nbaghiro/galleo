@@ -118,7 +118,8 @@ CRITICAL — every element MUST carry its own content, or you must omit that ele
 
 Fill exactly the cells of the beat's grid. Placement:
 - Cover (grid "full", image): cell a = eyebrow, then an h1 heading (the title), then a lead paragraph (a SUPPORTING subtitle — not a repeat of the title), optional badge. Do NOT add an image element (the section already has a background image).
-- Split / two-col: the text cell = eyebrow + h2 (or h3) heading + a paragraph or bullets; the other cell = exactly one image element.
+- Split (split-6040 / split-4060): one cell = eyebrow + h2/h3 heading + a paragraph or bullets; the OTHER cell = exactly one image element (ALWAYS include the image — a split is text beside a picture).
+- two-col: two parallel text ideas — each cell = a short h3 heading + a paragraph (no image).
 - three-up: each cell = one stat (value + label), or a small h3 heading + short paragraph.
 Write real, specific, confident copy for THIS brief — punchy headlines, 1–3 sentence paragraphs, concrete numbers. No lorem, no placeholders, no "[insert …]".`;
 
@@ -223,6 +224,16 @@ async function buildSection(
     const hero = beat.grid === "full" && beat.image;
     const bleed = hero && resolveProfile(surface).kind === "continuous";
 
+    // Split grids are text beside a picture. If the writer produced no image (it sometimes fills BOTH
+    // cells with text instead), consolidate the text into the wide cell and place an image in the 40%
+    // cell — so a split is never two text columns or half-blank. (three-up = stats, two-col = two text.)
+    if (beat.grid.startsWith("split") && !content.elements.some((e) => e.kind === "image")) {
+        const imgCell = beat.grid === "split-4060" ? "a" : "b"; // the 40% side holds the picture
+        const textCell = imgCell === "a" ? "b" : "a";
+        for (const e of content.elements) if (e.cell === imgCell) e.cell = textCell;
+        content.elements.push({ cell: imgCell, kind: "image", query: beat.headline });
+    }
+
     // Resolve every image to a real photo — inline elements + the hero background, all in parallel.
     const norm = (e: ElementIRT): string => (e.query ?? beat.headline).trim() || "abstract texture";
     const [imgUrls, bgUrl] = await Promise.all([
@@ -303,6 +314,12 @@ export async function runGenerate(
             maxTokens: 2000,
         });
         opts?.debug?.outline?.(outline);
+        // The first beat is always the cover — force a full image hero even if the planner didn't mark
+        // it, so an artifact never opens on a bare, image-less title section.
+        if (outline.beats[0]) {
+            outline.beats[0].grid = "full";
+            outline.beats[0].image = true;
+        }
         const n = outline.beats.length;
         const beats: Beat[] = outline.beats.map((b) => ({
             id: b.id,
