@@ -2,7 +2,7 @@ import type { Rect } from "@engine/node";
 import type { Component } from "solid-js";
 import { createMemo, For, Show } from "solid-js";
 import { fallbackTemplate, TEMPLATES } from "@elements/templates";
-import { cellRegionId } from "@model/address";
+import { cellRegionId } from "@model/target";
 import { applyLiveEdit, liveEdit, setLiveEdit } from "../editing/manipulate";
 import { commit, editor, editorAccent, regions, selection, stageEl } from "../editor";
 

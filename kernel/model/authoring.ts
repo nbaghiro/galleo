@@ -4,7 +4,7 @@ import type {
     ElementInstance,
     Section,
     SectionBackground,
-} from "@model/content";
+} from "@model/artifact";
 
 // Concise builders for authoring demo artifacts (real content, full element variety).
 

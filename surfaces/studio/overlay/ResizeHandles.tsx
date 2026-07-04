@@ -1,10 +1,10 @@
-import type { ElementLayout } from "@model/content";
+import type { ElementLayout } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createMemo, For, Show } from "solid-js";
 import { GUTTER } from "@elements/compose";
 import { getElementAt } from "@elements/ops";
 import { getElement } from "@elements/registry";
-import { cellRegionId, elementRegionId, parentTarget, regionId } from "@model/address";
+import { cellRegionId, elementRegionId, parentTarget, regionId } from "@model/target";
 import { applyLiveEdit, liveEdit, setLiveEdit } from "../editing/manipulate";
 import { commit, editor, editorAccent, regions, selection, stageEl } from "../editor";
 

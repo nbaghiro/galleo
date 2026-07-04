@@ -1,4 +1,4 @@
-import type { Size } from "@model/content";
+import type { Size } from "@model/artifact";
 
 // Sizing constructors (Clay-style): fit to content, grow to fill, percent of parent, fixed px.
 

@@ -1,7 +1,7 @@
-import type { ElementAddress } from "@model/address";
+import type { ElementAddress } from "@model/target";
 import type { Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
-import { elementRegionId } from "@model/address";
+import { elementRegionId } from "@model/target";
 import { getElementAt, removeAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/registry";
 import { commit, editor, setSelection } from "../editor";

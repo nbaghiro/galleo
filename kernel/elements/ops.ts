@@ -1,4 +1,4 @@
-import type { ElementAddress } from "@model/address";
+import type { ElementAddress } from "@model/target";
 import type {
     ArtifactContent,
     Cell,
@@ -7,7 +7,7 @@ import type {
     Id,
     Section,
     SectionBackground,
-} from "@model/content";
+} from "@model/artifact";
 import { getElement } from "@elements/registry";
 
 // Pure, immutable content ops over an artifact. Container traversal/editing goes through the

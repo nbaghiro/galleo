@@ -1,4 +1,4 @@
-import type { ArtifactContent } from "@model/content";
+import type { ArtifactContent } from "@model/artifact";
 import { eventInvite, photoEssay } from "./templates/creative-extra2";
 import { coverLetter, personalSite } from "./templates/creative-extra";
 import { portfolio, resume } from "./templates/creative";

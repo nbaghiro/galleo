@@ -1,12 +1,12 @@
 import type { Region } from "@engine/render-command";
-import type { Target } from "@model/address";
-import type { Section } from "@model/content";
+import type { Target } from "@model/target";
+import type { Section } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createEffect, createMemo, onCleanup, onMount } from "solid-js";
 import { duplicateAt, duplicatedAddr, getElementAt, removeAt } from "@elements/ops";
 import { getElement } from "@elements/registry";
 import { resolveProfile } from "@engine/profile";
-import { elementRegionId, parentTarget, parseTarget, specificity } from "@model/address";
+import { elementRegionId, parentTarget, parseTarget, specificity } from "@model/target";
 import { backdropCss } from "./backdrop";
 import { paintSectionStack } from "./stage";
 import {

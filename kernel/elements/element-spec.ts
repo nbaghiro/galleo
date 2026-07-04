@@ -1,5 +1,5 @@
 import type { EngineNode, Rect } from "@engine/node";
-import type { ElementInstance } from "@model/content";
+import type { ElementInstance } from "@model/artifact";
 import type { FormatDescriptor } from "@model/format";
 import type { Tokens } from "@themes/theme";
 

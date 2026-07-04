@@ -69,3 +69,22 @@ export function themeCssVars(t: Tokens): Record<string, string> {
         "--hw": String(t.headingWeight),
     };
 }
+
+// --- wire DTOs (theme's HTTP shapes, shared backend ↔ frontend) ---
+// `ThemeSummary` is the lightweight theme record sent over the wire (distinct from the full `Theme`
+// above, which carries the library metadata); `ThemeInput` is the create/update body for custom themes.
+
+export interface ThemeSummary {
+    id: string;
+    name: string;
+    tokens: Tokens;
+    mood: string | null;
+    isDark: boolean;
+}
+
+export interface ThemeInput {
+    name: string;
+    tokens: Tokens;
+    mood: string | null;
+    isDark: boolean;
+}

@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import type { MarkType } from "../../../kernel/text/model";
+import type { MarkType } from "@model/text";
 
 // Shared bridge between the active inline text field (which owns the contenteditable) and the format
 // bar in the ContextBar. The field registers a mark-op handler and publishes the live selection, the

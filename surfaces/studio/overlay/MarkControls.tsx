@@ -1,6 +1,6 @@
 import type { Component, JSX } from "solid-js";
 import { createSignal, For, Show } from "solid-js";
-import type { MarkType } from "../../../kernel/text/model";
+import type { MarkType } from "@model/text";
 import { editorTokens } from "../editor";
 import { ColorPicker, highlightSwatches, textColorSwatches } from "../controls/ColorPicker";
 import {

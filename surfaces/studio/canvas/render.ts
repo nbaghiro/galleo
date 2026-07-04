@@ -1,7 +1,7 @@
 import type { LayoutCtx } from "@elements/element-spec";
 import type { EngineNode, MeasureText } from "@engine/node";
 import type { Region, RenderCommand } from "@engine/render-command";
-import type { Section } from "@model/content";
+import type { Section } from "@model/artifact";
 import type { FormatDescriptor } from "@model/format";
 import type { Tokens } from "@themes/theme";
 import { composeSection } from "@elements/compose";

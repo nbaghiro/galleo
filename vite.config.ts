@@ -52,7 +52,6 @@ export default defineConfig({
             "@engine": abs("./kernel/engine"),
             "@elements": abs("./kernel/elements"),
             "@themes": abs("./kernel/themes"),
-            "@protocol": abs("./kernel/protocol"),
             "@studio": abs("./surfaces/studio"),
         },
     },

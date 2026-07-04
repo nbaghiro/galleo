@@ -1,17 +1,17 @@
-import type { ElementAddress } from "@model/address";
+import type { ElementAddress } from "@model/target";
 import type { Component, JSX } from "solid-js";
 import { createMemo, onCleanup, onMount, Show } from "solid-js";
 import { sectionContentTokens } from "@elements/compose";
 import { getElementAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/registry";
-import { elementRegionId } from "@model/address";
-import type { Mark, MarkType } from "../../../kernel/text/model";
+import { elementRegionId } from "@model/target";
+import type { Mark, MarkType } from "@model/text";
 import {
     activeMarks as computeActiveMarks,
     applyMark as addMark,
     removeMark,
     toggleMark,
-} from "../../../kernel/text/model";
+} from "@model/text";
 import {
     editCaret,
     editing,

@@ -1,4 +1,4 @@
-import type { ArtifactContent } from "@model/content";
+import type { ArtifactContent } from "@model/artifact";
 import { createSignal } from "solid-js";
 import { api, type ArtifactSummary } from "../data/api";
 

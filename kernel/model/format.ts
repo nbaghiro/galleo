@@ -1,4 +1,4 @@
-import type { Id } from "@model/content";
+import type { Id } from "@model/artifact";
 
 export type FormatKind = "paged" | "continuous";
 

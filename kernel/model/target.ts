@@ -1,4 +1,4 @@
-import type { Id } from "@model/content";
+import type { Id } from "@model/artifact";
 
 // Stable addressing of selectable entities within an artifact. The engine tags geometry regions with
 // these ids; the editor parses them back into targets for selection, overlays, and content ops.

@@ -1,5 +1,7 @@
-// Galleo content model — the shared contract every package and app depends on.
-// One artifact is a tree of sections -> cells -> elements. Element `data` stays schema-flexible.
+// The artifact, end to end — its content tree and the wire shapes that describe it. One artifact is a
+// tree of sections → cells → elements; each element's `data` stays schema-flexible (its ElementSpec reads
+// it). The DTOs at the bottom are the HTTP shapes the backend + frontend share, colocated with the type
+// they summarize so they can never drift from it. Pure types (+ nothing else). The shared floor.
 
 export type Id = string;
 
@@ -57,4 +59,46 @@ export interface ArtifactContent {
     theme: Id;
     sections: Section[];
     background?: SectionBackground; // document-level backdrop behind all sections
+}
+
+// --- wire DTOs (the artifact's HTTP shapes, shared backend ↔ frontend) ---
+
+// A tiny cover snippet pulled from an artifact's first section, so the library can preview it.
+export interface Cover {
+    eyebrow?: string;
+    title?: string;
+    sub?: string;
+    image?: string;
+}
+
+// A per-section filmstrip entry: a short label + a coarse kind.
+export interface SectionSummary {
+    title?: string;
+    kind: string;
+}
+
+export interface ArtifactSummary {
+    id: string;
+    title: string;
+    themeId: string;
+    formatId: string;
+    folderId?: string | null;
+    updatedAt: string;
+    trashedAt?: string | null;
+    cover?: Cover;
+    sections?: SectionSummary[];
+}
+
+// The full artifact record: its metadata (summary) plus the editable content.
+export interface Artifact extends ArtifactSummary {
+    draftContent: ArtifactContent;
+}
+
+// Create or patch an artifact — every field optional (a create supplies most, an autosave a subset).
+export interface ArtifactInput {
+    title?: string;
+    themeId?: string;
+    formatId?: string;
+    draftContent?: ArtifactContent;
+    folderId?: string | null;
 }

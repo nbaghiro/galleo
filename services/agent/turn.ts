@@ -1,5 +1,5 @@
-import type { AgentEvent, GenerateInput, PatchOp } from "@protocol/agent";
-import type { ArtifactContent } from "@model/content";
+import type { AgentEvent, GenerateInput, PatchOp } from "@model/agent";
+import type { ArtifactContent } from "@model/artifact";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../data/client";
 import { runGenerate, type GenerateResult } from "./pipeline";

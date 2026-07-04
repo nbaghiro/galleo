@@ -1,5 +1,5 @@
-import type { AgentEvent, Beat, GenerateInput } from "@protocol/agent";
-import type { ArtifactContent, Cell, ElementInstance, Section } from "@model/content";
+import type { AgentEvent, Beat, GenerateInput } from "@model/agent";
+import type { ArtifactContent, Cell, ElementInstance, Section } from "@model/artifact";
 import { z } from "zod";
 import {
     badge,

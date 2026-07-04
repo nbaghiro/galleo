@@ -5,16 +5,10 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { streamSSE } from "hono/streaming";
-import type { GenerateInput } from "@protocol/agent";
-import type {
-    ArtifactInput,
-    Cover,
-    FolderInput,
-    LoginBody,
-    SectionSummary,
-    ThemeInput,
-    User,
-} from "@protocol/api";
+import type { GenerateInput } from "@model/agent";
+import type { ArtifactInput, Cover, SectionSummary } from "@model/artifact";
+import type { FolderInput, LoginBody, User } from "@model/workspace";
+import type { ThemeInput } from "@themes/theme";
 import { db, schema } from "../data/client";
 import { verifyPassword } from "../auth/password";
 import { makeSession, readSession, SESSION_COOKIE } from "../auth/session";

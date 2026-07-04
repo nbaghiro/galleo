@@ -1,4 +1,4 @@
-import type { ElementInstance } from "@model/content";
+import type { ElementInstance } from "@model/artifact";
 
 // One-click "smart layout" inserts — pre-built structures assembled from normal, freely-editable
 // elements (a group grid of styled cards). Not element types: the picker inserts the built instance,

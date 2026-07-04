@@ -1,4 +1,4 @@
-import type { SectionBackground } from "@model/content";
+import type { SectionBackground } from "@model/artifact";
 import type { Tokens } from "@themes/theme";
 
 // CSS `background` value for a document/section backdrop: image+scrim, gradient, color, or theme bg.

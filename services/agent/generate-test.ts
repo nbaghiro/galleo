@@ -1,5 +1,5 @@
 import "dotenv/config";
-import type { AgentEvent, GenerateInput } from "@protocol/agent";
+import type { AgentEvent, GenerateInput } from "@model/agent";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../data/client";
 import { runGenerate } from "./pipeline";

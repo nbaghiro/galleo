@@ -1,11 +1,11 @@
 import type { ElementSpec, LayoutCtx } from "@elements/element-spec";
 import type { EngineNode, TextLeaf } from "@engine/node";
 import type { ColorToken, FontRole } from "@themes/theme";
-import type { Mark } from "../text/model";
+import type { Mark } from "@model/text";
 import { register } from "@elements/registry";
 import { fit, grow } from "@model/size";
 import { fontStack } from "@themes/theme";
-import { toRuns } from "../text/model";
+import { toRuns } from "@model/text";
 
 type TextStyle =
     // Familiar doc-ladder labels backed by semantic keys (Title=h1, Heading=h2, Subheading=h3) — the

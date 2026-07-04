@@ -1,4 +1,4 @@
-import type { ArtifactContent } from "@model/content";
+import type { ArtifactContent } from "@model/artifact";
 
 // A minimal starting artifact for "create new" — one empty section the user fills in the editor.
 export function blankArtifact(format: string, theme = "studio"): ArtifactContent {

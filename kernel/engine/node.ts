@@ -1,4 +1,4 @@
-import type { BoxInsets, Size } from "@model/content";
+import type { BoxInsets, Size } from "@model/artifact";
 
 export interface Rect {
     x: number;
@@ -56,7 +56,7 @@ export type MeasureText = (leaf: TextLeaf, maxWidth: number) => Measured;
 
 // A styled run: a contiguous slice of a text leaf that overrides some inline styles. Runs inherit the
 // leaf's base font/size; each flag only turns a style ON (never off), matching how inline marks stack.
-// The render-facing form of the rich-text model (`kernel/text/model.ts` flattens marks into these).
+// The render-facing form of the rich-text model (`/text` flattens marks into these).
 export interface Run {
     text: string;
     bold?: boolean;

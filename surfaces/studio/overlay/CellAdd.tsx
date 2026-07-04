@@ -1,5 +1,5 @@
 import type { Rect } from "@engine/node";
-import type { ElementInstance } from "@model/content";
+import type { ElementInstance } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createMemo, createSignal, Show } from "solid-js";
 import { setCellElement } from "@elements/ops";

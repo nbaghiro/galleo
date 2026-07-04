@@ -1,4 +1,4 @@
-import type { Section } from "@model/content";
+import type { Section } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createEffect, createSignal, For, on, onMount, Show } from "solid-js";
 import { resolveProfile } from "@engine/profile";

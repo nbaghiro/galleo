@@ -4,7 +4,7 @@ import type {
     ElementInstance,
     Section,
     SectionBackground,
-} from "@model/content";
+} from "@model/artifact";
 
 // The AI agent protocol — the single contract shared across the boundary: the runtime (services/agent)
 // emits it, the event log persists it, and the studio Console + canvas consume it. Pure (no IO, no

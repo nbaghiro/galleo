@@ -1,4 +1,4 @@
-import type { Target } from "@model/address";
+import type { Target } from "@model/target";
 import type { Component, JSX } from "solid-js";
 import { createSignal, For, Show } from "solid-js";
 import { duplicateAt, duplicatedAddr, removeAt } from "@elements/ops";

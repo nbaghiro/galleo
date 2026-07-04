@@ -1,4 +1,4 @@
-import type { SectionBackground } from "@model/content";
+import type { SectionBackground } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createMemo, For } from "solid-js";
 import { setSectionBackground, setSectionBleed, setSectionGrid } from "@elements/ops";

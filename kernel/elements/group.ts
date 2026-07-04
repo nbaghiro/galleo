@@ -1,6 +1,6 @@
 import type { ElementSpec, LayoutCtx } from "@elements/element-spec";
 import type { EngineNode } from "@engine/node";
-import type { ElementInstance } from "@model/content";
+import type { ElementInstance } from "@model/artifact";
 import { getElement, register } from "@elements/registry";
 import { bar } from "@elements/skeleton";
 import { fit, grow } from "@model/size";

@@ -1,7 +1,7 @@
-import type { Target } from "@model/address";
+import type { Target } from "@model/target";
 import type { Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
-import { sectionRegionId } from "@model/address";
+import { sectionRegionId } from "@model/target";
 import { addSectionAfter, hover, regions, setAgentOpen, setSelection } from "../editor";
 import { Icon } from "../icons";
 

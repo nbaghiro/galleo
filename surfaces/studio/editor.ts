@@ -1,11 +1,11 @@
 import type { Region } from "@engine/render-command";
-import type { ElementAddress, Target } from "@model/address";
-import type { ArtifactContent, Section } from "@model/content";
+import type { ElementAddress, Target } from "@model/target";
+import type { ArtifactContent, Section } from "@model/artifact";
 import { createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import type { Theme, Tokens } from "@themes/theme";
 import { duplicateSection, insertSection, moveSection, removeSection } from "@elements/ops";
-import { targetsEqual } from "@model/address";
+import { targetsEqual } from "@model/target";
 import { resolveTheme } from "@themes/library";
 
 // The editor's reactive state: the open artifact + computed section offsets, the current selection /

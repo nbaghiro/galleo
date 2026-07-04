@@ -1,4 +1,4 @@
-import type { Section } from "@model/content";
+import type { Section } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createEffect } from "solid-js";
 import { paint } from "./dom-backend";

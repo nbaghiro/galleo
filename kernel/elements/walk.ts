@@ -1,4 +1,4 @@
-import type { ElementInstance, Section } from "@model/content";
+import type { ElementInstance, Section } from "@model/artifact";
 
 // Visit every element in a section — each cell's element, then recursively any group children —
 // depth-first in cell order. The single place the content tree's element traversal lives.

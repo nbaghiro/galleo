@@ -1,4 +1,4 @@
-import type { ArtifactContent } from "@model/content";
+import type { ArtifactContent } from "@model/artifact";
 import { aria } from "./fixtures/aria";
 import { fieldnotes } from "./fixtures/fieldnotes";
 import { galleo } from "./fixtures/galleo";

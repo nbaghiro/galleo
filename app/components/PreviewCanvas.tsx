@@ -1,4 +1,4 @@
-import type { ArtifactContent } from "@model/content";
+import type { ArtifactContent } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createEffect } from "solid-js";
 import { resolveProfile } from "@engine/profile";

@@ -1,4 +1,4 @@
-import type { ElementInstance, Section } from "@model/content";
+import type { ElementInstance, Section } from "@model/artifact";
 
 // One small cover section used to preview a theme (in drawer cards + the builder) — enough content to
 // read a theme's surfaces, ink, accent, fonts, and heading weight at a glance.

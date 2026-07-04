@@ -1,6 +1,6 @@
 import type { Rect, TextLeaf } from "@engine/node";
 import type { RenderCommand } from "@engine/render-command";
-import type { Section } from "@model/content";
+import type { Section } from "@model/artifact";
 import type { Tokens } from "@themes/theme";
 import { resolveProfile } from "@engine/profile";
 import { canvasDrawContext } from "./dom-backend";

@@ -1,4 +1,4 @@
-import type { Size } from "@model/content";
+import type { Size } from "@model/artifact";
 import { grow, percent } from "@model/size";
 
 // Predefined section layouts as per-cell width specs. compose() builds the cell boxes (and tags them

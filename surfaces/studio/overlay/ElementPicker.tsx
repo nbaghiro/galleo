@@ -1,4 +1,4 @@
-import type { ElementInstance } from "@model/content";
+import type { ElementInstance } from "@model/artifact";
 import type { Component, JSX } from "solid-js";
 import { For } from "solid-js";
 import { PRESETS } from "@elements/presets";

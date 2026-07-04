@@ -1,26 +1,21 @@
-import type {
-    Artifact,
-    ArtifactInput,
-    ArtifactSummary,
-    Folder,
-    Template,
-    Theme,
-    ThemeInput,
-    User,
-} from "@protocol/api";
+import type { Artifact, ArtifactInput, ArtifactSummary } from "@model/artifact";
+import type { Folder, Template, User } from "@model/workspace";
+import type { ThemeSummary as Theme, ThemeInput } from "@themes/theme";
 
 // Typed client over the backend (proxied at /api/* in dev → :8601). Cookies carry the session. The wire
-// shapes live in @protocol/api (shared with the backend); re-exported here under the app's names.
+// shapes live in @model (shared with the backend); re-exported here under the app's names.
 export type {
-    User as ApiUser,
     Cover as ApiCover,
     SectionSummary as ApiSection,
     ArtifactSummary,
     Artifact,
+} from "@model/artifact";
+export type {
+    User as ApiUser,
     Folder as ApiFolder,
     Template as ApiTemplate,
-    Theme as ApiTheme,
-} from "@protocol/api";
+} from "@model/workspace";
+export type { ThemeSummary as ApiTheme } from "@themes/theme";
 
 export class ApiError extends Error {
     constructor(

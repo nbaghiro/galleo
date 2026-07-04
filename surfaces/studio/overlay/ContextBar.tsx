@@ -2,7 +2,7 @@ import type { Rect } from "@engine/node";
 import type { ControlField } from "@elements/element-spec";
 import type { Component, JSX } from "solid-js";
 import { createMemo, For, Show } from "solid-js";
-import { elementRegionId } from "@model/address";
+import { elementRegionId } from "@model/target";
 import {
     duplicateAt,
     duplicatedAddr,

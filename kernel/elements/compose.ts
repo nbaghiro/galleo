@@ -1,11 +1,11 @@
 import type { LayoutCtx } from "@elements/element-spec";
 import type { EngineNode } from "@engine/node";
-import type { ElementAddress } from "@model/address";
-import type { ElementInstance, ElementLayout, Section, SectionBackground } from "@model/content";
+import type { ElementAddress } from "@model/target";
+import type { ElementInstance, ElementLayout, Section, SectionBackground } from "@model/artifact";
 import type { Tokens } from "@themes/theme";
 import { getElement } from "@elements/registry";
 import { fallbackTemplate, TEMPLATES } from "@elements/templates";
-import { cellRegionId, elementRegionId, sectionRegionId } from "@model/address";
+import { cellRegionId, elementRegionId, sectionRegionId } from "@model/target";
 import { fit, grow, percent } from "@model/size";
 import { fontStack } from "@themes/theme";
 import { luminance, mixWhite } from "@themes/color";
