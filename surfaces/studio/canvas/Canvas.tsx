@@ -37,6 +37,7 @@ import {
     setSelection,
     setStageEl,
     startEditing,
+    stopEditing,
     undo,
 } from "../editor";
 import { CellAdd, ContextMenu, openContextMenu, DropIndicator } from "../insert/insert";
@@ -113,7 +114,9 @@ export const Canvas: Component = () => {
     };
 
     const onPointerDown = (e: PointerEvent): void => {
-        if (drag() || editing() || liveEdit()) return;
+        // In-editor clicks are stopped by the editor overlay, so any pointerdown that reaches here while
+        // editing is an OUTSIDE click — record it so release can commit the current edit and act on it.
+        if (drag() || liveEdit()) return;
         pending = { target: hitTest(...point(e)), x: e.clientX, y: e.clientY };
     };
 
@@ -134,12 +137,15 @@ export const Canvas: Component = () => {
     };
 
     const onPointerUp = (): void => {
-        if (drag() || editing() || liveEdit() || !pending) return;
+        if (drag() || liveEdit() || !pending) return;
         const t = pending.target;
         const caret = { x: pending.x, y: pending.y };
         pending = null;
+        // Clicking away from the active editor commits it first (its blur usually already has; this is the
+        // idempotent fallback), then selection + edit-start run exactly as for a fresh click — so clicking
+        // another text element while editing switches straight into editing it, caret at the click point.
+        if (editing()) stopEditing();
         setSelection(t);
-        // A clean click on a rich-text element drops straight into editing, caret at the click point.
         if (t?.kind === "element") {
             const el = getElementAt(editor.artifact, t.address);
             if (el && getElement(el.type)?.richText) startEditing(t.address, caret);

@@ -211,6 +211,10 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
                 // Keep editing alive when focus moves into the format bar (e.g. the link URL input).
                 const rt = e.relatedTarget as HTMLElement | null;
                 if (rt?.closest("[data-galleo-toolbar]")) return;
+                // If editing already switched to another element (clicking a different text element), this
+                // is a stale blur from the outgoing field — don't cancel the incoming edit.
+                const cur = editing();
+                if (cur && elementRegionId(cur) !== elementRegionId(props.address)) return;
                 stopEditing();
             }}
             onPointerDown={(e) => e.stopPropagation()}
