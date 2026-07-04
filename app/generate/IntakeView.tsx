@@ -4,14 +4,13 @@ import { useNavigate } from "@solidjs/router";
 import { resolveTheme, THEME_LIST } from "@themes/library";
 import { themeCssVars } from "@themes/theme";
 import { api } from "../data/api";
-import { blankArtifact } from "../data/blank";
-import { FORMAT_IDS, formatLabel } from "../data/format";
+import { blankArtifact, FORMAT_IDS, formatLabel } from "../data/library";
 import { ArrowUpRightIcon, RefreshIcon, SparkleIcon } from "../components/icons";
 import { appTheme } from "../theme/theme";
-import { Visual } from "../components/Visual";
+import { Visual } from "../components/previews";
 import "../components/visuals.css";
 import { Dropdown } from "@studio/controls/Dropdown";
-import { GenViewPicker } from "./GenViewPicker";
+import { GenViewPicker } from "./gen-view";
 import { DEMO_EXAMPLES } from "./demo";
 import { startSession, type Surface } from "./session";
 

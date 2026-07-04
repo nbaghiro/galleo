@@ -2,10 +2,17 @@ import type { Component } from "solid-js";
 import { createSignal, For, onMount, Show } from "solid-js";
 import { resolveTheme } from "@themes/library";
 import { type ArtifactSummary } from "../data/api";
-import { formatLabel, relativeTime } from "../data/format";
+import {
+    formatLabel,
+    relativeTime,
+    emptyTrash,
+    loadTrash,
+    purgeArtifact,
+    restoreFromTrash,
+    trash,
+} from "../data/library";
 import { RestoreIcon, TrashIcon } from "../components/icons";
-import { emptyTrash, loadTrash, purgeArtifact, restoreFromTrash, trash } from "../data/library";
-import { ConfirmModal } from "../components/ConfirmModal";
+import { ConfirmModal } from "../components/modals";
 import { Sidebar } from "../components/Sidebar";
 
 const DANGER = "#C0392B";

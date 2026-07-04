@@ -1,13 +1,7 @@
+// The generation view-direction registry + its picker + the typing-animation primitives.
+
 import type { Component } from "solid-js";
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import {
-    GEN_VIEW_DESC,
-    GEN_VIEW_LABEL,
-    GEN_VIEWS,
-    type GenView,
-    genView,
-    setGenView,
-} from "./genView";
+import { createSignal, For, onCleanup, onMount, Show, createEffect } from "solid-js";
 import { CheckIcon } from "../components/icons";
 
 // The hidden generation-view picker — drop it inside the intake + build screens (it inherits their theme).
@@ -130,6 +124,83 @@ export const GenViewPicker: Component = () => {
                     </div>
                 </div>
             </Show>
+        </>
+    );
+};
+
+// Hidden dev switch for trying generation-view DIRECTIONS in-app (no visible control — for fast
+// compare/contrast). The backtick (`) key (or ⌃⌥V) on the build screen opens a small picker; choosing a
+// direction switches it + flashes a confirmation. Persisted to localStorage so it survives reloads + the
+// next generation. Switching mid-build also works, since every direction reads the same session store.
+export const GEN_VIEWS = ["console", "rail", "spotlight", "hud"] as const;
+export type GenView = (typeof GEN_VIEWS)[number];
+export const GEN_VIEW_LABEL: Record<GenView, string> = {
+    console: "Console",
+    rail: "Director's rail",
+    spotlight: "Spotlight",
+    hud: "HUD",
+};
+export const GEN_VIEW_DESC: Record<GenView, string> = {
+    console: "Canvas over a docked terminal",
+    rail: "Canvas + a right rail of beats",
+    spotlight: "Spotlit slide + storyboard strip",
+    hud: "Full-bleed canvas + a glass HUD",
+};
+
+const KEY = "galleo.genview";
+const isGenView = (v: string): v is GenView => (GEN_VIEWS as readonly string[]).includes(v);
+const stored = (): GenView => {
+    try {
+        const v = localStorage.getItem(KEY) ?? "";
+        if (isGenView(v)) return v;
+    } catch {
+        /* storage unavailable */
+    }
+    return "console";
+};
+
+const [genView, setGenViewRaw] = createSignal<GenView>(stored());
+export { genView };
+
+export function setGenView(v: GenView): void {
+    setGenViewRaw(v);
+    try {
+        localStorage.setItem(KEY, v);
+    } catch {
+        /* storage unavailable */
+    }
+}
+
+export const reduced = (): boolean =>
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+
+// Types the active line on, char by char — shared by every generation direction's narration.
+export const TypingLine: Component<{ text: string }> = (props) => {
+    const [n, setN] = createSignal(0);
+    let timer = 0;
+    createEffect(() => {
+        const text = props.text;
+        setN(0);
+        window.clearInterval(timer);
+        if (reduced()) {
+            setN(text.length);
+            return;
+        }
+        timer = window.setInterval(() => {
+            setN((v) => {
+                if (v >= text.length) {
+                    window.clearInterval(timer);
+                    return v;
+                }
+                return v + 1;
+            });
+        }, 18);
+    });
+    onCleanup(() => window.clearInterval(timer));
+    return (
+        <>
+            {props.text.slice(0, n())}
+            <span class="ml-px animate-pulse text-accent">▋</span>
         </>
     );
 };

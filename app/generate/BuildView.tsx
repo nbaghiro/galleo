@@ -20,13 +20,9 @@ import {
     CloseIcon,
     SparkleIcon,
 } from "../components/icons";
-import { BuildCanvas } from "./BuildCanvas";
-import { HudCanvas } from "./extraViews";
-import { genView } from "./genView";
-import { GenViewPicker } from "./GenViewPicker";
+import { BuildCanvas, HudCanvas, SpotlightCanvas } from "./build-canvases";
+import { genView, GenViewPicker, reduced, TypingLine } from "./gen-view";
 import { cancelSession, doneBeats, gen, resetSession, saveGenerated } from "./session";
-import { SpotlightCanvas } from "./SpotlightCanvas";
-import { reduced, TypingLine } from "./typing";
 
 // The narrated live build. The artifact materializes in a shared canvas (BuildCanvas); the chrome around
 // it is the generation DIRECTION (Console / Director's rail / Spotlight), chosen by a hidden switch

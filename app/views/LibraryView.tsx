@@ -15,22 +15,11 @@ import { useNavigate, useParams } from "@solidjs/router";
 import { resolveTheme } from "@themes/library";
 import { fontStack } from "@themes/theme";
 import { type ArtifactSummary } from "../data/api";
-import { FORMAT_IDS, formatLabel, formatLabelPlural, relativeTime } from "../data/format";
-import { appTheme } from "../theme/theme";
-import { folders } from "../data/folders";
-import { ConfirmModal } from "../components/ConfirmModal";
 import {
-    CheckIcon,
-    ChevronDownIcon,
-    CloseIcon,
-    DuplicateIcon,
-    FolderIcon,
-    MoreIcon,
-    SearchIcon,
-    SparkleIcon,
-    TrashIcon,
-} from "../components/icons";
-import {
+    FORMAT_IDS,
+    formatLabel,
+    formatLabelPlural,
+    relativeTime,
     contents,
     artifacts,
     artifactsLoaded,
@@ -43,7 +32,21 @@ import {
     removeArtifacts,
     setDraggingArtifact,
 } from "../data/library";
-import { SectionThumb } from "../components/SectionThumb";
+import { appTheme } from "../theme/theme";
+import { folders } from "../data/folders";
+import { ConfirmModal } from "../components/modals";
+import {
+    CheckIcon,
+    ChevronDownIcon,
+    CloseIcon,
+    DuplicateIcon,
+    FolderIcon,
+    MoreIcon,
+    SearchIcon,
+    SparkleIcon,
+    TrashIcon,
+} from "../components/icons";
+import { SectionThumb } from "../components/previews";
 import { Sidebar } from "../components/Sidebar";
 
 // One skeleton artifact behind the empty state — four silhouettes (deck / doc / site / accent deck) so the

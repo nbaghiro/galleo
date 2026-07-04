@@ -3,10 +3,9 @@ import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { resolveTheme } from "@themes/library";
 import { api, type ApiTemplate } from "../data/api";
-import { formatLabel } from "../data/format";
+import { formatLabel } from "../data/library";
 import { CloseIcon } from "../components/icons";
-import { PreviewCanvas } from "../components/PreviewCanvas";
-import { SectionThumb } from "../components/SectionThumb";
+import { PreviewCanvas, SectionThumb } from "../components/previews";
 import { Sidebar } from "../components/Sidebar";
 import { appTheme } from "../theme/theme";
 

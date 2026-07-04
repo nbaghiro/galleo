@@ -4,7 +4,7 @@ import "./marketing.css";
 import { render } from "solid-js/web";
 import { resolveTheme } from "@themes/library";
 import { themeCssVars } from "@themes/theme";
-import { setFavicon } from "../app/theme/favicon";
+import { setFavicon } from "../app/theme/theme";
 import { MarketingPage } from "./MarketingPage";
 
 // Standalone marketing entry. Apply the user's persisted app theme (same key the app + sign-in use), so

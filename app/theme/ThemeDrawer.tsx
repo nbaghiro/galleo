@@ -13,11 +13,15 @@ import {
     updateCustomTheme,
 } from "../theme/custom-themes";
 import { CloseIcon, EditIcon, PlusIcon } from "../components/icons";
-import { SectionThumb } from "../components/SectionThumb";
-import { appTheme, setAppTheme } from "../theme/theme";
-import { editorThemeCssVars } from "../theme/overlay-theme";
-import { closeThemeDrawer, themeDrawerOpen } from "../theme/theme-drawer";
-import { THEME_SAMPLE } from "../theme/theme-sample";
+import { SectionThumb } from "../components/previews";
+import {
+    appTheme,
+    setAppTheme,
+    editorThemeCssVars,
+    closeThemeDrawer,
+    themeDrawerOpen,
+    THEME_SAMPLE,
+} from "../theme/theme";
 import { ThemeBuilder } from "../theme/ThemeBuilder";
 
 const CARD_W = 166; // fixed so the engine preview fills the card exactly (2 per row fit any scrollbar)

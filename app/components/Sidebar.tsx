@@ -3,8 +3,14 @@ import { createSignal, For, onMount, Show } from "solid-js";
 import { useLocation, useNavigate } from "@solidjs/router";
 import { api, type ApiFolder } from "../data/api";
 import { logout, user } from "../data/auth";
-import { blankArtifact } from "../data/blank";
-import { formatLabel } from "../data/format";
+import {
+    blankArtifact,
+    formatLabel,
+    artifacts,
+    draggingArtifact,
+    moveArtifact,
+    setDraggingArtifact,
+} from "../data/library";
 import {
     addFolder,
     folderColor,
@@ -26,9 +32,8 @@ import {
     ThemeIcon,
     TrashIcon,
 } from "../components/icons";
-import { CreateModal } from "../components/CreateModal";
-import { artifacts, draggingArtifact, moveArtifact, setDraggingArtifact } from "../data/library";
-import { openThemeDrawer } from "../theme/theme-drawer";
+import { CreateModal } from "../components/modals";
+import { openThemeDrawer } from "../theme/theme";
 
 // Shared, route-aware app sidebar (Library / Templates / Folders…) + workspace, create menu, theme,
 // and sign-out. Built on the theme tokens so it recolors with the app theme. Folders are drop targets:
