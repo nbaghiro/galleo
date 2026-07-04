@@ -109,8 +109,14 @@ The FIRST beat is the cover: grid "full", image true. Vary grids across the rest
 
 const WRITER_SYSTEM = `You are the writer for Galleo. Given the brief, the outline, and ONE beat, write that section's content as a flat "elements" list — each element carries a "cell" (a/b/c, per the beat's grid) plus its kind + fields.
 Element kinds: eyebrow (tiny label), heading (level h1 for a hero, h2 for a section title, h3 for a sub), paragraph (lead=true for one large intro line, false for body), bullets (3–5 crisp items), stat (value + label), quote (text + by), image (query + aspect ~1.3–1.6), button (CTA label), badge.
+
+CRITICAL — every element MUST carry its own content, or you must omit that element entirely:
+- A heading's "text" is the VISIBLE TITLE of the section. ALWAYS fill it (realize the beat's headline direction as a real title). NEVER emit a heading with empty text, and NEVER put the title into a paragraph instead of the heading.
+- A stat MUST have BOTH a "value" (e.g. "80M", "3×", "$4.2K", "No.1") and a "label". Never emit a stat without a concrete value.
+- bullets MUST have non-empty "items"; paragraph / eyebrow / quote / button / badge MUST have non-empty "text".
+
 Fill exactly the cells of the beat's grid. Placement:
-- Cover (grid "full", image): cell a = eyebrow, then an h1 heading, then a lead paragraph, optional badge. Do NOT add an image element (the section already has a background image).
+- Cover (grid "full", image): cell a = eyebrow, then an h1 heading (the title), then a lead paragraph (a SUPPORTING subtitle — not a repeat of the title), optional badge. Do NOT add an image element (the section already has a background image).
 - Split / two-col: the text cell = eyebrow + h2 (or h3) heading + a paragraph or bullets; the other cell = exactly one image element.
 - three-up: each cell = one stat (value + label), or a small h3 heading + short paragraph.
 Write real, specific, confident copy for THIS brief — punchy headlines, 1–3 sentence paragraphs, concrete numbers. No lorem, no placeholders, no "[insert …]".`;
@@ -146,30 +152,65 @@ const slug = (s: string): string =>
         .replace(/^-+|-+$/g, "")
         .slice(0, 40) || "galleo";
 
+const has = (s?: string): boolean => !!s && s.trim().length > 0;
+
 function toElement(e: ElementIRT): ElementInstance | null {
     switch (e.kind) {
         case "eyebrow":
-            return e.text ? t(e.text, "label") : null;
+            return has(e.text) ? t(e.text!.trim(), "label") : null;
         case "heading":
-            return e.text ? t(e.text, e.level ?? "h2") : null;
+            return has(e.text) ? t(e.text!.trim(), e.level ?? "h2") : null;
         case "paragraph":
-            return e.text ? t(e.text, e.lead ? "subtitle" : "body") : null;
-        case "bullets":
-            return e.items?.length ? bullets(...e.items) : null;
+            return has(e.text) ? t(e.text!.trim(), e.lead ? "subtitle" : "body") : null;
+        case "bullets": {
+            const items = (e.items ?? []).map((s) => s.trim()).filter(Boolean);
+            return items.length ? bullets(...items) : null;
+        }
         case "stat":
-            return stat(e.value ?? "", e.label ?? "");
+            // Drop a stat the model left blank rather than painting an empty tile.
+            return has(e.value) || has(e.label)
+                ? stat((e.value ?? "").trim(), (e.label ?? "").trim())
+                : null;
         case "quote":
-            return e.text ? quote(e.text, e.by ?? "") : null;
+            return has(e.text) ? quote(e.text!.trim(), e.by ?? "") : null;
         case "button":
-            return button(e.text ?? "Learn more");
+            return button(has(e.text) ? e.text!.trim() : "Learn more");
         case "badge":
-            return e.text ? badge(e.text) : null;
+            return has(e.text) ? badge(e.text!.trim()) : null;
         default:
             return null; // image is resolved in buildSection (needs an async photo lookup)
     }
 }
 
+// Reasons a section would render blank — the model omitting an element's (optional) text / value / items
+// is the dominant failure mode. A non-empty list triggers one corrective retry before we backfill.
+function sectionIssues(content: SectionContentT): string[] {
+    const out: string[] = [];
+    for (const e of content.elements) {
+        if (e.kind === "heading" && !has(e.text)) out.push("a heading has no text");
+        else if (
+            (e.kind === "paragraph" || e.kind === "eyebrow" || e.kind === "quote") &&
+            !has(e.text)
+        )
+            out.push(`a ${e.kind} has no text`);
+        else if (e.kind === "stat" && !has(e.value)) out.push("a stat has no value");
+        else if (e.kind === "bullets" && !(e.items ?? []).some(has))
+            out.push("bullets have no items");
+    }
+    return [...new Set(out)];
+}
+
 async function buildSection(beat: PlanBeatT, content: SectionContentT): Promise<Section> {
+    // Safety net for the writer's most common miss: it emits a heading but leaves the text empty. Fill the
+    // first empty heading from the beat headline — the section keeps the writer's placement + level and
+    // always shows its title. (toElement drops any remaining empty ones.)
+    let filledHeading = false;
+    for (const e of content.elements) {
+        if (e.kind === "heading" && !has(e.text) && !filledHeading) {
+            e.text = beat.headline;
+            filledHeading = true;
+        }
+    }
     const keys = GRID_CELLS[beat.grid] ?? ["a"];
     // A full-bleed beat with an image is a hero — the image is the section background, text sits over it.
     const hero = beat.grid === "full" && beat.image;
@@ -284,7 +325,7 @@ export async function runGenerate(
         let placed = 0;
         await mapPool(outline.beats, WRITER_CONCURRENCY, async (beat, i) => {
             emit({ type: "section.status", id: beat.id, status: "writing" });
-            const content = await structured<SectionContentT>({
+            let content = await structured<SectionContentT>({
                 role: "writer",
                 quality,
                 schema: SectionContent,
@@ -292,6 +333,18 @@ export async function runGenerate(
                 user: sectionPrompt(input, outline, beat),
                 maxTokens: 1800,
             });
+            // One corrective retry when the writer left required content empty — rewrite the whole section.
+            const probs = sectionIssues(content);
+            if (probs.length) {
+                content = await structured<SectionContentT>({
+                    role: "writer",
+                    quality,
+                    schema: SectionContent,
+                    system: WRITER_SYSTEM,
+                    user: `${sectionPrompt(input, outline, beat)}\n\nYour previous attempt was rejected — ${probs.join("; ")}. Rewrite the WHOLE section: every heading must include its visible title text, every stat its value + label, every bullet a non-empty item. Emit NO empty elements.`,
+                    maxTokens: 1800,
+                });
+            }
             opts?.debug?.section?.(beat, content);
             if (beat.image) emit({ type: "section.status", id: beat.id, status: "image" });
             const sec = await buildSection(beat, content);
