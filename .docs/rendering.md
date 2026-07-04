@@ -123,7 +123,7 @@ heading/body/label role is a `style`), `image`, `card`, `group`, `stat`, `bullet
 `divider`, `badge`, `callout`, `code`, `chart`, `table`, `diagram`, `gradient`, `spacer`, `embed`,
 `video` — plus an internal, palette-hidden `dropghost` used only as the live drop preview.
 
-## 6. Selection & direct manipulation (`surfaces/studio/overlay`)
+## 6. Selection & direct manipulation (`surfaces/studio/select`)
 
 The engine emits every id'd node's box as a `Region`, so the whole editing UI is positioned from real
 geometry:
@@ -157,10 +157,10 @@ Continuous formats (doc/web) skip pagination on screen. Paged formats need it:
 
 One `RenderCommand[]` → multiple serializers:
 
-- **DOM** (`dom-backend.ts`) — absolutely-positioned divs, used for editing (so text selection /
+- **DOM** (`canvas/backends.ts`) — absolutely-positioned divs, used for editing (so text selection /
   contenteditable work).
-- **2D canvas** (`canvas-backend.ts`) — mirrors the DOM output; reused for Present and PDF/PNG export, so
-  _what you edit is what you export_.
+- **2D canvas** (also `canvas/backends.ts`) — mirrors the DOM output; reused for Present and PDF/PNG export,
+  so _what you edit is what you export_.
 
 ## 9. Status & deferred
 

@@ -72,23 +72,28 @@ library.ts   the curated 52-theme registry via mk() + resolveTheme() + registerT
 ## surfaces/studio/ — the editor (the only surface built so far)
 
 Pure editor UI on top of the kernel. `Studio.tsx` (shell) · `editor.ts` (the reactive store +
-`editorTokens`/`editorTheme`/`editorAccent` selectors) · `register.ts` (registers every element into the
-kernel registry) · `icons.tsx`.
+`editorTokens`/`editorTheme`/`editorAccent` selectors) · `register.ts` (side-effect module that
+registers every element into the kernel registry; `app/main.tsx` imports it before mount) · `icons.tsx`.
+The `select`/`panels`/`insert` folders group the canvas overlays by the **interaction** they serve, not
+by where they paint.
 
 ```
 canvas/    the paint pipeline
-  Canvas.tsx · render.ts (kernel layout → render commands) · stage.ts (the shared section-stack painter +
-  slide-fit framing, reused by Canvas/Present/preview) · dom-backend.ts (paints absolute divs) ·
-  canvas-backend.ts (2D-canvas mirror) · measure.ts (canvas text measurement injected into the engine,
-  keeping the kernel DOM-free) · backdrop.ts · Present.tsx (16:9 slide geometry) · Thumb.tsx · export-pdf.ts
-
-overlay/   selection · inspectors · drag affordances (canvas-coordinate overlays)
-  Overlay.tsx · ElementOverlay.tsx · ElementInspector.tsx · SectionInspector.tsx · SectionActions.tsx ·
-  SectionToolbar.tsx · DropIndicator.tsx · DragGhost.tsx · PaletteItem.tsx
-
+  Canvas.tsx · Present.tsx (16:9 slide geometry) · Thumb.tsx · export-pdf.ts ·
+  render.ts (kernel layout → render commands + canvas text measurement, keeping the kernel DOM-free) ·
+  backends.ts (the DOM + 2D-canvas drawers, section backdrops, and the shared section-stack painter)
+select/    direct manipulation on the canvas
+  selection.tsx (selection outline + section actions/toolbar) · handles.tsx (resize · spacing · column-divider handles)
+panels/    property-editing UI
+  format-bar.tsx (the floating contextual control bar + rich-text mark controls) · inspectors.tsx (element + section)
+insert/    adding content
+  insert.tsx (cell-add · element picker · palette item · context menu · drag/drop ghosts) · element-previews.ts (theme-driven SVG previews)
+editing/   interaction logic
+  text-editor.tsx (the contenteditable inline editor + its marks/runs model) · text-format.ts (mark helpers shared with the format bar) ·
+  manipulate.ts (live drag-edit state, shared by Canvas + the handles) · dnd.ts (drag-and-drop)
+controls/  the shared input kit — fields.tsx (the schema-driven ControlField dispatcher, used by both inspectors and the format bar) · Dropdown.tsx · ColorPicker.tsx
 chrome/    Topbar.tsx (doc menu · format · theme · present · export · generate) · Panel.tsx (element palette) · Minimap.tsx
-agent/     AgentPanel.tsx + agent.ts (a local, deterministic preview generator — stand-in for the real LLM)
-editing/   TextEditor.tsx (inline text editing via a contenteditable overlay) · dnd.ts · element-previews.ts
+agent/     AgentPanel.tsx (the generate panel + its local, deterministic preview generator — a stand-in for the real LLM)
 ```
 
 The studio surface talks to the app through inversion-of-control handlers on `editor.ts`
@@ -144,7 +149,7 @@ store, runs the studio with autosave, and registers the IoC handlers.
 ## How it composes (data flow)
 
 ```
-edit:     app/EditorView → @studio (editor store) → kernel compose+engine → render commands → studio/canvas/dom-backend
+edit:     app/EditorView → @studio (editor store) → kernel compose+engine → render commands → studio/canvas/backends
 load/save: app/EditorView + app/data/save → services/api → services/data (artifacts.draft_content jsonb)
 present:  studio Topbar "Present" → studio/canvas/Present (kernel engine, slide geometry)
 export:   studio Topbar → studio/canvas/export-pdf (kernel engine + canvas backend → PDF/PNG)
