@@ -50,11 +50,6 @@ embedded in the artifact's `draft_content` JSON.
 | **shares** | who can view/edit an artifact (ACL) | `artifact_id`, `subject_type` (user\|link\|workspace), `subject_id`, `role`               |
 | **links**  | public / published link             | `artifact_id`, `slug` (unique), `visibility`, `password`, `published_version_id→versions` |
 
-### AI agent (schema present; the runtime is still the `app/generate` simulator)
-
-| Table | Purpose | Key columns |
-| ----- | ------- | ----------- |
-
 ### Billing
 
 | Table       | Purpose          | Key columns                                        |
