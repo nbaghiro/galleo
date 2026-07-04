@@ -249,6 +249,10 @@ async function buildSection(
     const hero = beat.grid === "full" && beat.image;
     const bleed = hero && resolveProfile(surface).kind === "continuous";
 
+    // A hero's image IS the section background, so drop any inline image the writer added on the cover — it
+    // duplicates the background and fights the text over it. Heroes = background image + text, nothing else.
+    if (hero) content.elements = content.elements.filter((e) => e.kind !== "image");
+
     // Resolve every image to a real photo — inline elements + the hero background, all in parallel. The
     // hero query uses the shared art direction so the cover matches the rest of the piece's visual world.
     const norm = (e: ElementIRT): string =>
