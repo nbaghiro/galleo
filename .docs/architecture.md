@@ -105,12 +105,13 @@ The studio surface talks to the app through inversion-of-control handlers on `ed
 
 ```
 data/    schema.ts (the Drizzle/Postgres schema — see data-model.md) · client.ts (the DB client)
-auth/    password.ts (scrypt) · session.ts (signed-cookie session)
+auth/    auth.ts (scrypt password hashing + signed-cookie session)
 api/     server.ts (the Hono API: /auth · /artifacts · /folders · /themes · /templates)
-         seed.ts (idempotent demo seed) · fixtures.ts + fixtures/* (7 demo artifacts) · templates.ts + templates/* (starter templates)
+         seed.ts (idempotent demo seed) · fixtures.ts + fixtures/* (7 demo artifacts, one file each) ·
+         templates.ts (registry) + templates/* (one file per category: creative · marketing · pitch · proposals · reports)
 agent/   the real multi-provider LLM pipeline: pipeline.ts (parallel section writers) · turn.ts (one LLM turn) ·
-         llm.ts (Vercel AI SDK) · models.ts (registry + resolveModel) · images.ts (Unsplash resolver) ·
-         ping.ts · bench.ts · generate-test.ts (dev/latency helpers). Built + benchmarked; the live product still runs the app/generate simulator.
+         llm.ts (Vercel AI SDK + the model registry / resolveModel) · images.ts (Unsplash resolver) ·
+         ping.ts · bench.ts · generate-test.ts (standalone `tsx` dev/latency scripts). Built + benchmarked; the live product still runs the app/generate simulator.
 ```
 
 The seed fixtures + the template library are plain content built with `@model/authoring`; `services`
@@ -124,17 +125,17 @@ depends only on `kernel`, never on a surface.
 
 ```
 data/      the backend client + client stores
-  api.ts (typed client) · auth.ts (session state) · library.ts (the artifact list + content) · folders.ts ·
-  save.ts (debounced autosave) · format.ts (format labels + relativeTime) · blank.ts
+  api.ts (typed client) · auth.ts (session state) · library.ts (artifact list + content, + blank-artifact factory + format labels/relativeTime) ·
+  folders.ts · save.ts (debounced autosave)
 views/     the routed pages — AuthPage · LibraryView · TemplatesView · TrashView · EditorView
 theme/     the app + custom theme system
-  theme.ts (the app-chrome theme) · custom-themes.ts (backend CRUD → registers into the kernel) ·
-  theme-drawer.ts · theme-sample.ts · favicon.ts · ThemeDrawer.tsx (the singular switcher) ·
-  ThemeBuilder.tsx (custom-theme token editor) · ThemePreview.tsx
-components/ shared components — Sidebar · CreateModal · ConfirmModal · SectionThumb · PreviewCanvas · icons · Visual
+  theme.ts (app-chrome theme + drawer state + favicon + overlay tokens + the sample artifact) ·
+  custom-themes.ts (backend CRUD → registers into the kernel) · ThemeDrawer.tsx (the singular switcher) ·
+  ThemeBuilder.tsx (custom-theme token editor + its live ThemePreview)
+components/ shared components — Sidebar · icons · modals.tsx (create + confirm) · previews.tsx (Visual · SectionThumb · PreviewCanvas)
 generate/  the narrated AI-generation flow (a client-side simulator today)
   session.ts (the generation store) · demo.ts (example prompts → hand-built fixtures, swapped per refresh) ·
-  IntakeView · BuildView · BuildCanvas · SpotlightCanvas · extraViews (HUD) · genView (direction registry) · GenViewPicker · typing
+  IntakeView · BuildView · build-canvases.tsx (the live-build canvas + spotlight + HUD variants) · gen-view.tsx (direction registry + picker + typing)
 ```
 
 `EditorView.tsx` is the bridge: it fetches an artifact from the API, hands its content to the studio
