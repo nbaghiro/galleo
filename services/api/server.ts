@@ -1,18 +1,14 @@
 import "dotenv/config";
 import { serve } from "@hono/node-server";
-import { and, desc, eq, gt, isNotNull, isNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { streamSSE } from "hono/streaming";
-import type { GenerateInput } from "@model/agent";
 import type { ArtifactInput, Cover, SectionSummary } from "@model/artifact";
 import type { FolderInput, LoginBody, User } from "@model/workspace";
 import type { ThemeInput } from "@themes/theme";
 import { db, schema } from "../data/client";
 import { verifyPassword, makeSession, readSession, SESSION_COOKIE } from "../auth/auth";
-import { createGenerateTurn, streamGenerateTurn } from "../agent/turn";
-import type { Quality } from "../agent/llm";
 import { TEMPLATES } from "./templates";
 
 const app = new Hono();
@@ -489,65 +485,6 @@ app.patch("/artifacts/:id", async (c) => {
         .returning({ id: schema.artifacts.id, updatedAt: schema.artifacts.updatedAt });
     if (!a) return c.json({ error: "not found" }, 404);
     return c.json({ ok: true, updatedAt: a.updatedAt });
-});
-
-// --- agent turns (streamed over SSE) ---
-interface TurnBody {
-    kind?: string;
-    input?: GenerateInput;
-    quality?: Quality;
-}
-
-// Start a generate turn: creates a blank artifact + turn, then streams AgentEvents live as the pipeline
-// runs (each also persisted to agent_events). The first SSE frame carries { turnId, artifactId }.
-app.post("/turns", async (c) => {
-    const u = await currentUser(getCookie(c, SESSION_COOKIE));
-    if (!u) return c.json({ error: "unauthorized" }, 401);
-    const ws = await firstWorkspaceId(u.id);
-    if (!ws) return c.json({ error: "no workspace" }, 400);
-    const body = await readJson<TurnBody>(c);
-    if (body.kind !== "generate" || !body.input?.prompt) {
-        return c.json({ error: "a generate turn with input.prompt is required" }, 400);
-    }
-    const input = body.input;
-    const quality = body.quality;
-    const { turnId, artifactId } = await createGenerateTurn(input, ws, u.id);
-    return streamSSE(c, async (stream) => {
-        await stream.writeSSE({ event: "turn", data: JSON.stringify({ turnId, artifactId }) });
-        for await (const { seq, event } of streamGenerateTurn(turnId, artifactId, input, quality)) {
-            await stream.writeSSE({
-                id: String(seq),
-                event: event.type,
-                data: JSON.stringify(event),
-            });
-        }
-    });
-});
-
-// Replay a turn's persisted events (transcript / reconnect) from a seq cursor.
-app.get("/turns/:id/events", async (c) => {
-    const u = await currentUser(getCookie(c, SESSION_COOKIE));
-    if (!u) return c.json({ error: "unauthorized" }, 401);
-    const since = Number(c.req.query("since") ?? "0") || 0;
-    const rows = await db
-        .select()
-        .from(schema.agentEvents)
-        .where(
-            and(
-                eq(schema.agentEvents.turnId, c.req.param("id")),
-                gt(schema.agentEvents.seq, since),
-            ),
-        )
-        .orderBy(schema.agentEvents.seq);
-    return streamSSE(c, async (stream) => {
-        for (const r of rows) {
-            await stream.writeSSE({
-                id: String(r.seq),
-                event: r.type,
-                data: JSON.stringify(r.data),
-            });
-        }
-    });
 });
 
 const port = Number(process.env.API_PORT ?? 8601);

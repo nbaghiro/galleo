@@ -15,7 +15,6 @@ import { useNavigate, useParams } from "@solidjs/router";
 import { resolveTheme } from "@themes/library";
 import { fontStack } from "@themes/theme";
 import { type ArtifactSummary } from "../data/api";
-import { DevGenerate } from "../components/DevGenerate";
 import {
     FORMAT_IDS,
     formatLabel,
@@ -782,10 +781,6 @@ export const LibraryView: Component = () => {
                         />
                     );
                 }}
-            </Show>
-
-            <Show when={import.meta.env.DEV}>
-                <DevGenerate />
             </Show>
         </div>
     );

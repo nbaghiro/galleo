@@ -1,14 +1,13 @@
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
-import type { AgentEvent, Beat as PlanBeat, GenerateInput } from "@model/agent";
+import type { AgentEvent, Beat as PlanBeat } from "@model/agent";
 import { createStore } from "solid-js/store";
 import { applyPatch } from "@model/agent";
 import { api } from "../data/api";
 import { DEMO_EXAMPLES, type DemoExample } from "./demo";
 
-// The generation session — a reactive store the intake + build screens subscribe to. Two sources feed it,
-// both through the same `dispatch`: the real backend pipeline (`consume`, SSE), or a client-side demo that
-// replays a hand-built fixture (`simulate`). DEMO_MODE picks which — demo for now, so the product is
-// testable without the backend LLM. "Open in editor" persists the result and navigates to it.
+// The generation session — a reactive store the intake + build screens subscribe to. A client-side
+// simulator (`simulate`) replays a hand-built fixture as a stream of AgentEvents through `dispatch`, so
+// the build screen fills in section by section. "Open in editor" persists the result and navigates to it.
 
 export type Surface = "deck" | "doc" | "web";
 
@@ -57,7 +56,6 @@ interface SessionState {
     narration: Narration[];
     activeSection: string | null;
     finalContent: ArtifactContent | null;
-    artifactId: string | null; // the server-saved artifact for this turn
     error: string;
 }
 
@@ -71,7 +69,6 @@ const initial: SessionState = {
     narration: [],
     activeSection: null,
     finalContent: null,
-    artifactId: null,
     error: "",
 };
 
@@ -119,17 +116,6 @@ export function resetSession(): void {
     cancelSession();
     demoArtifact = null;
     setGen({ ...initial, beats: [], sections: [], narration: [] });
-}
-
-// Parse one SSE frame ("event: …\n data: …") into its event name + data payload.
-function parseFrame(frame: string): { event?: string; data?: string } {
-    let event: string | undefined;
-    const data: string[] = [];
-    for (const line of frame.split("\n")) {
-        if (line.startsWith("event:")) event = line.slice(6).trim();
-        else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
-    }
-    return { event, data: data.length ? data.join("\n") : undefined };
 }
 
 // Apply one AgentEvent to the store; returns the accumulating artifact content.
@@ -186,13 +172,8 @@ function dispatch(ev: AgentEvent, content: ArtifactContent): ArtifactContent {
 }
 
 // ---------- demo mode (client-side only): replay a real hand-built fixture ----------
-// A switch to test the product without the backend LLM. `simulate` feeds `dispatch` synthetic events off a
-// matched fixture, so the build screen streams beautiful, believable output. Flip off to use `consume`.
-const DEMO_MODE: boolean = true;
-// The mode the CURRENT session ran in — a session may override DEMO_MODE (the dev flow forces the real
-// pipeline). `saveGenerated` reads it: demo replays are saved client-side, live turns already persisted.
-let sessionDemo = DEMO_MODE;
-
+// The fixture picked for the current session — replayed section by section, and saved as a real artifact
+// when the user opens it. `simulate` feeds `dispatch` synthetic events off a matched, hand-built fixture.
 let demoArtifact: { content: ArtifactContent; title: string } | null = null;
 
 const ROLE_ARC = ["scene", "tension", "turn", "proof", "momentum", "close"];
@@ -308,90 +289,33 @@ async function simulate(brief: Brief, signal: AbortSignal): Promise<void> {
     content = dispatch({ type: "turn.done", summary: `Composed ${n} sections` }, content);
 }
 
-async function consume(brief: Brief, signal: AbortSignal): Promise<void> {
-    const input: GenerateInput = {
-        prompt: brief.prompt,
-        surface: brief.surface,
-        theme: brief.theme,
-        goal: brief.goal || undefined,
-        audience: brief.audience || undefined,
-        tone: brief.tone || undefined,
-        length: brief.length || undefined,
-    };
-    const res = await fetch("/api/turns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ kind: "generate", input, quality: "auto" }),
-        signal,
-    });
-    if (!res.ok || !res.body) throw new Error(`turn failed (${res.status})`);
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = "";
-    let content: ArtifactContent = { format: brief.surface, theme: brief.theme, sections: [] };
-    for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        let i = buf.indexOf("\n\n");
-        while (i >= 0) {
-            const { event, data } = parseFrame(buf.slice(0, i));
-            buf = buf.slice(i + 2);
-            if (data) {
-                if (event === "turn") {
-                    setGen("artifactId", (JSON.parse(data) as { artifactId: string }).artifactId);
-                } else {
-                    content = dispatch(JSON.parse(data) as AgentEvent, content);
-                }
-            }
-            i = buf.indexOf("\n\n");
-        }
-    }
-}
-
-// `opts.demo` overrides DEMO_MODE for this session — the dev flow forces the real streaming pipeline
-// (`consume` → /api/turns) while the product stays on the demo replay until it's flipped on for everyone.
-export async function startSession(brief: Brief, opts?: { demo?: boolean }): Promise<void> {
+export async function startSession(brief: Brief): Promise<void> {
     resetSession();
-    const demo = opts?.demo ?? DEMO_MODE;
-    sessionDemo = demo;
     const controller = new AbortController();
     abort = controller;
     setGen({ phase: "building", brief, theme: brief.theme, format: brief.surface, error: "" });
     try {
-        await (demo ? simulate(brief, controller.signal) : consume(brief, controller.signal));
-    } catch (e) {
+        await simulate(brief, controller.signal);
+    } catch {
         if (controller.signal.aborted) return; // canceled — leave the session as-is
-        setGen({
-            phase: "error",
-            error: demo
-                ? "Something went off-script — try again."
-                : (e as Error)?.message?.includes("turn failed")
-                  ? "Couldn't reach the generator — is the API running?"
-                  : "Generation failed — try again.",
-        });
+        setGen({ phase: "error", error: "Something went off-script — try again." });
     }
 }
 
-// "Open" persists the result and navigates to it. Demo mode saves the replayed fixture as a fresh artifact
-// (so it lands in the library + editor like a real one); the live pipeline already saved it server-side.
+// "Open" persists the replayed fixture as a fresh artifact (so it lands in the library + editor like a
+// real one) and returns its id to navigate to.
 export async function saveGenerated(): Promise<string | null> {
-    if (sessionDemo) {
-        if (!demoArtifact) return null;
-        try {
-            const { id } = await api.createArtifact({
-                title: demoArtifact.title,
-                formatId: demoArtifact.content.format,
-                themeId: demoArtifact.content.theme,
-                draftContent: demoArtifact.content,
-                folderId: null,
-            });
-            return id;
-        } catch {
-            return null;
-        }
+    if (!demoArtifact) return null;
+    try {
+        const { id } = await api.createArtifact({
+            title: demoArtifact.title,
+            formatId: demoArtifact.content.format,
+            themeId: demoArtifact.content.theme,
+            draftContent: demoArtifact.content,
+            folderId: null,
+        });
+        return id;
+    } catch {
+        return null;
     }
-    return gen.artifactId;
 }
