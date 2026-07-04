@@ -106,10 +106,19 @@ function resolveHeight(s: Size, assigned: number, intrinsic: number): number {
 
 function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText): void {
     const node = ln.node;
+    // Aspect-ratio boxes size their height from width/aspect regardless of content — a video's play
+    // button or an image's overlay caption is a child, but the box must still hold its 16:9 (etc). Any
+    // children are laid out within the resolved box and placed via align.
+    if (node.aspect) {
+        ln.h = resolveHeight(node.h, assignedH, ln.w / node.aspect);
+        const inner = Math.max(0, ln.h - padY(node));
+        for (const c of ln.children) layoutHeights(c, inner, measure);
+        return;
+    }
+
     if (!node.children || node.children.length === 0) {
         let intrinsic = 0;
         if (node.text) intrinsic = measure(node.text, ln.w).height;
-        else if (node.aspect) intrinsic = ln.w / node.aspect;
         ln.h = resolveHeight(node.h, assignedH, intrinsic);
         return;
     }
