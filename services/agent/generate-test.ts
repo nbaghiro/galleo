@@ -5,7 +5,7 @@ import type { AgentEvent, GenerateInput } from "@model/agent";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../data/client";
 import { runGenerate } from "./pipeline";
-import type { OutlineT, PlanBeatT, SectionContentT, SectionElementT } from "./pipeline";
+import type { DirectionT, OutlineT, PlanBeatT, SectionContentT, SectionElementT } from "./pipeline";
 import type { Quality } from "./llm";
 
 // One-off generation harness for debugging the prompts — the real pipeline (plan → write → images →
@@ -81,6 +81,14 @@ async function main(): Promise<void> {
     const result = await runGenerate(brief, printEvent, {
         quality,
         debug: {
+            direction: (d: DirectionT) => {
+                w(`\n▸ direction`);
+                w(`  subject : ${d.subject}`);
+                w(`  world   : ${d.world}`);
+                w(`  audience: ${d.audience}`);
+                w(`  tone    : ${d.tone}`);
+                w(`  art dir : ${d.artDirection}`);
+            },
             outline: (o: OutlineT) => {
                 outline = o;
                 w(`\n▸ outline: "${o.title}"`);

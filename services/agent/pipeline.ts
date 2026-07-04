@@ -90,6 +90,17 @@ const Outline = z.object({
 });
 export type OutlineT = z.infer<typeof Outline>;
 
+// Stage 0 — the creative direction a design lead commits to before any writing. Grounding every later
+// stage in these specifics is what makes the piece feel real instead of generic.
+const Direction = z.object({
+    subject: z.string(), // the ONE concrete subject, specifically named
+    world: z.string(), // invented specifics writers draw from: names · dates · numbers · places
+    audience: z.string(),
+    tone: z.string(),
+    artDirection: z.string(), // the shared photographic vocabulary for every image
+});
+export type DirectionT = z.infer<typeof Direction>;
+
 // --- prompts ---
 
 const SURFACE_WORD: Record<string, string> = { deck: "deck", doc: "document", web: "web page" };
@@ -102,26 +113,50 @@ const ROLE_TITLE: Record<string, string> = {
     close: "The ask",
 };
 
-const PLANNER_SYSTEM = `You are the planner for Galleo, which turns a brief into a polished, well-designed artifact.
-Produce an outline: a short title and 5–8 beats forming a story arc (scene → tension → turn → proof → momentum → close).
-Each beat: a stable id (s1, s2, …), a narrative role, a punchy headline, a one-line intent, a layout grid, and whether it carries a prominent image.
-Grids: "full" (full-bleed cover/statement), "split-6040" / "split-4060" (text + image side by side), "two-col" (two ideas), "three-up" (three stats/features).
-The FIRST beat is the cover: grid "full", image true. Vary grids across the rest; use "three-up" where there are stats/features. Be specific to the brief — no generic filler.`;
+const DIRECTION_SYSTEM = `You are the creative director at a top design studio, handed an ambiguous brief. Before any writing, commit to a concrete creative direction so the piece feels real and specific — never generic.
+Decide:
+- subject: the ONE concrete subject, named specifically. If the brief is generic, INVENT a real-sounding name / brand / person — never "Your Company" or "the product".
+- world: the specific invented facts every section will use — proper nouns, dates, numbers, places, product names. Be concrete, e.g. "Founded in Lisbon, 2019 · 80M streams · three albums · sold out the Roundhouse". This is the source of truth writers draw from.
+- audience: who it's for, in a phrase.
+- tone: the voice, in a few words (e.g. "late-night, intimate, confident").
+- artDirection: the photographic vocabulary shared by EVERY image — subject matter, mood, palette (e.g. "wet asphalt at night, neon reflections, fog, cool blues"). One coherent visual world.
+Invent boldly and specifically. A great direction makes the rest write itself.`;
 
-const WRITER_SYSTEM = `You are the writer for Galleo. Given the brief, the outline, and ONE beat, write that section's content as a flat "elements" list — each element carries a "cell" (a/b/c, per the beat's grid) plus its kind + fields.
-Element kinds: eyebrow (tiny label), heading (level h1 for a hero, h2 for a section title, h3 for a sub), paragraph (lead=true for one large intro line, false for body), bullets (3–5 crisp items), stat (value + label), quote (text + by), image (query + aspect ~1.3–1.6), button (CTA label), badge.
+const PLANNER_SYSTEM = `You are the design lead. Given the brief and the creative direction, architect the piece as a story: a short title and 5–8 beats forming an arc (scene → tension → turn → proof → momentum → close).
+Each beat: a stable id (s1, s2, …), a narrative role, a punchy headline drawn from the direction's WORLD (use its specifics), a one-line intent, a layout grid, and whether it carries a prominent image.
+Grids: "full" (full-bleed cover/statement), "split-6040" / "split-4060" (text beside an image), "two-col" (two parallel text ideas), "three-up" (three stats/features).
+The FIRST beat is ALWAYS the cover: grid "full", image true. Vary grids across the rest. Use "three-up" ONLY where there are three real stats/features, and "two-col" ONLY for two genuinely parallel ideas — otherwise prefer a split (text + image) or full. Every headline must be specific to the direction — no generic filler.`;
 
-CRITICAL — every element MUST carry its own content, or you must omit that element entirely:
-- A heading's "text" is the VISIBLE TITLE of the section. ALWAYS fill it (realize the beat's headline direction as a real title). NEVER emit a heading with empty text, and NEVER put the title into a paragraph instead of the heading.
-- A stat MUST have BOTH a "value" (e.g. "80M", "3×", "$4.2K", "No.1") and a "label". Never emit a stat without a concrete value.
-- bullets MUST have non-empty "items"; paragraph / eyebrow / quote / button / badge MUST have non-empty "text".
+const WRITER_SYSTEM = `You are the writer. Given the brief, the creative direction, the outline, and ONE beat, write that section as a flat "elements" list — each element carries a "cell" (a/b/c, per the beat's grid) plus its kind + fields. Draw every specific (names, numbers, places) from the direction's WORLD.
+Element kinds: eyebrow (tiny label), heading (level h1 hero / h2 section title / h3 sub), paragraph (lead=true for one large intro line), bullets (3–5 crisp items), stat (value + label), quote (text + by), image (query + aspect ~1.4), button (CTA label), badge.
 
-Fill exactly the cells of the beat's grid. Placement:
-- Cover (grid "full", image): cell a = eyebrow, then an h1 heading (the title), then a lead paragraph (a SUPPORTING subtitle — not a repeat of the title), optional badge. Do NOT add an image element (the section already has a background image).
-- Split (split-6040 / split-4060): one cell = eyebrow + h2/h3 heading + a paragraph or bullets; the OTHER cell = exactly one image element (ALWAYS include the image — a split is text beside a picture).
+Every element MUST carry its content, or omit it: a heading's "text" is the visible title (never empty, never dumped into a paragraph); a stat has BOTH value + label; bullets / paragraph / eyebrow / quote / button / badge are non-empty. Image "query" MUST match the direction's art direction, so every photo shares one visual world.
+
+Placement per grid:
+- full cover: cell a = eyebrow, an h1 heading (the title), a lead paragraph (a SUPPORTING subtitle, not the title again), optional badge. NO image element (the section already has a background image).
+- split-6040 / split-4060: one cell = eyebrow + h2/h3 heading + a paragraph or bullets; the OTHER cell = exactly one image element (ALWAYS include it — a split is text beside a picture).
 - two-col: two parallel text ideas — each cell = a short h3 heading + a paragraph (no image).
 - three-up: each cell = one stat (value + label), or a small h3 heading + short paragraph.
-Write real, specific, confident copy for THIS brief — punchy headlines, 1–3 sentence paragraphs, concrete numbers. No lorem, no placeholders, no "[insert …]".`;
+
+Example — a split-6040 whose direction world says "Ember Lane · Huila, Colombia · the Ruiz family · roasting since 2016":
+{ "elements": [
+  { "cell": "a", "kind": "eyebrow", "text": "SINGLE ORIGIN" },
+  { "cell": "a", "kind": "heading", "level": "h2", "text": "Grown at 1,900m in Huila, Colombia" },
+  { "cell": "a", "kind": "paragraph", "text": "Ember Lane buys the Ruiz family's whole February harvest and roasts it light enough to taste the plum and cane sugar underneath." },
+  { "cell": "b", "kind": "image", "query": "colombian coffee farm mountainside morning fog", "aspect": 1.4 }
+] }
+
+Write real, specific, confident copy — punchy headlines, 1–3 sentence paragraphs, concrete numbers. No lorem, no placeholders.`;
+
+const directionText = (d: DirectionT): string =>
+    [
+        `Creative direction:`,
+        `- Subject: ${d.subject}`,
+        `- World (use these specifics): ${d.world}`,
+        `- Audience: ${d.audience}`,
+        `- Tone: ${d.tone}`,
+        `- Art direction (all images): ${d.artDirection}`,
+    ].join("\n");
 
 const briefPrompt = (b: GenerateInput): string =>
     [
@@ -135,9 +170,16 @@ const briefPrompt = (b: GenerateInput): string =>
         .filter(Boolean)
         .join("\n");
 
-const sectionPrompt = (b: GenerateInput, outline: OutlineT, beat: PlanBeatT): string =>
+const sectionPrompt = (
+    b: GenerateInput,
+    d: DirectionT,
+    outline: OutlineT,
+    beat: PlanBeatT,
+): string =>
     [
         briefPrompt(b),
+        ``,
+        directionText(d),
         ``,
         `Outline: ${outline.beats.map((x) => `${x.id}(${x.role})`).join(" → ")}`,
         `Write beat ${beat.id} — role "${beat.role}", grid "${beat.grid}", ${beat.image ? "with" : "no"} image.`,
@@ -184,37 +226,20 @@ function toElement(e: ElementIRT): ElementInstance | null {
     }
 }
 
-// Reasons a section would render blank — the model omitting an element's (optional) text / value / items
-// is the dominant failure mode. A non-empty list triggers one corrective retry before we backfill.
-function sectionIssues(content: SectionContentT): string[] {
-    const out: string[] = [];
-    for (const e of content.elements) {
-        if (e.kind === "heading" && !has(e.text)) out.push("a heading has no text");
-        else if (
-            (e.kind === "paragraph" || e.kind === "eyebrow" || e.kind === "quote") &&
-            !has(e.text)
-        )
-            out.push(`a ${e.kind} has no text`);
-        else if (e.kind === "stat" && !has(e.value)) out.push("a stat has no value");
-        else if (e.kind === "bullets" && !(e.items ?? []).some(has))
-            out.push("bullets have no items");
-    }
-    return [...new Set(out)];
-}
-
 async function buildSection(
     beat: PlanBeatT,
     content: SectionContentT,
     surface: string,
+    direction: DirectionT,
 ): Promise<Section> {
-    // Safety net for the writer's most common miss: it emits a heading but leaves the text empty. Fill the
-    // first empty heading from the beat headline — the section keeps the writer's placement + level and
-    // always shows its title. (toElement drops any remaining empty ones.)
-    let filledHeading = false;
+    // Titles come from the plan: the writer reliably places the heading (right cell + level) but often
+    // leaves its text empty, so fill the first empty heading from the beat headline. The planner owns the
+    // title; the writer owns the body. (Not a per-case patch — a fixed division of labor.)
+    let titled = false;
     for (const e of content.elements) {
-        if (e.kind === "heading" && !has(e.text) && !filledHeading) {
+        if (e.kind === "heading" && !has(e.text) && !titled) {
             e.text = beat.headline;
-            filledHeading = true;
+            titled = true;
         }
     }
     const keys = GRID_CELLS[beat.grid] ?? ["a"];
@@ -224,25 +249,16 @@ async function buildSection(
     const hero = beat.grid === "full" && beat.image;
     const bleed = hero && resolveProfile(surface).kind === "continuous";
 
-    // Split grids are text beside a picture. If the writer produced no image (it sometimes fills BOTH
-    // cells with text instead), consolidate the text into the wide cell and place an image in the 40%
-    // cell — so a split is never two text columns or half-blank. (three-up = stats, two-col = two text.)
-    if (beat.grid.startsWith("split") && !content.elements.some((e) => e.kind === "image")) {
-        const imgCell = beat.grid === "split-4060" ? "a" : "b"; // the 40% side holds the picture
-        const textCell = imgCell === "a" ? "b" : "a";
-        for (const e of content.elements) if (e.cell === imgCell) e.cell = textCell;
-        content.elements.push({ cell: imgCell, kind: "image", query: beat.headline });
-    }
-
-    // Resolve every image to a real photo — inline elements + the hero background, all in parallel.
-    const norm = (e: ElementIRT): string => (e.query ?? beat.headline).trim() || "abstract texture";
+    // Resolve every image to a real photo — inline elements + the hero background, all in parallel. The
+    // hero query uses the shared art direction so the cover matches the rest of the piece's visual world.
+    const norm = (e: ElementIRT): string =>
+        (e.query ?? direction.artDirection).trim() || "abstract texture";
+    const heroQuery = `${direction.artDirection} ${beat.headline}`.trim() || direction.subject;
     const [imgUrls, bgUrl] = await Promise.all([
         resolveImages(content.elements.filter((e) => e.kind === "image").map(norm), {
             orientation: "landscape",
         }),
-        hero
-            ? resolveImage(beat.headline, { width: 1700, height: 1100 })
-            : Promise.resolve(undefined),
+        hero ? resolveImage(heroQuery, { width: 1700, height: 1100 }) : Promise.resolve(undefined),
     ]);
     const imgSrc = (e: ElementIRT): string => imgUrls.get(norm(e)) ?? slug(`${beat.id}-${norm(e)}`);
 
@@ -290,6 +306,7 @@ export interface GenerateResult {
 // Optional taps for the debug harness — see the raw LLM IR (before it's mapped to elements), which is
 // what you tune the prompts against. The app flow ignores these.
 export interface GenerateDebug {
+    direction?: (direction: DirectionT) => void;
     outline?: (outline: OutlineT) => void;
     section?: (beat: PlanBeatT, content: SectionContentT) => void;
 }
@@ -302,24 +319,30 @@ export async function runGenerate(
     const quality = opts?.quality;
     emit({ type: "turn.start", kind: "generate" });
     try {
-        // 1) plan
+        // 0) direction — the design lead reads the ambiguous brief and commits to a concrete world.
         emit({ type: "phase", name: "outline" });
         emit({ type: "narration", text: "Reading the brief", sub: input.prompt.slice(0, 80) });
+        const direction = await structured<DirectionT>({
+            role: "planner",
+            quality,
+            schema: Direction,
+            system: DIRECTION_SYSTEM,
+            user: briefPrompt(input),
+            maxTokens: 1200,
+        });
+        opts?.debug?.direction?.(direction);
+        emit({ type: "narration", text: "Creative direction", sub: direction.subject });
+
+        // 1) plan — architect the story, grounded in the direction.
         const outline = await structured<OutlineT>({
             role: "planner",
             quality,
             schema: Outline,
             system: PLANNER_SYSTEM,
-            user: briefPrompt(input),
+            user: `${briefPrompt(input)}\n\n${directionText(direction)}`,
             maxTokens: 2000,
         });
         opts?.debug?.outline?.(outline);
-        // The first beat is always the cover — force a full image hero even if the planner didn't mark
-        // it, so an artifact never opens on a bare, image-less title section.
-        if (outline.beats[0]) {
-            outline.beats[0].grid = "full";
-            outline.beats[0].image = true;
-        }
         const n = outline.beats.length;
         const beats: Beat[] = outline.beats.map((b) => ({
             id: b.id,
@@ -350,29 +373,17 @@ export async function runGenerate(
         let placed = 0;
         await mapPool(outline.beats, WRITER_CONCURRENCY, async (beat, i) => {
             emit({ type: "section.status", id: beat.id, status: "writing" });
-            let content = await structured<SectionContentT>({
+            const content = await structured<SectionContentT>({
                 role: "writer",
                 quality,
                 schema: SectionContent,
                 system: WRITER_SYSTEM,
-                user: sectionPrompt(input, outline, beat),
+                user: sectionPrompt(input, direction, outline, beat),
                 maxTokens: 1800,
             });
-            // One corrective retry when the writer left required content empty — rewrite the whole section.
-            const probs = sectionIssues(content);
-            if (probs.length) {
-                content = await structured<SectionContentT>({
-                    role: "writer",
-                    quality,
-                    schema: SectionContent,
-                    system: WRITER_SYSTEM,
-                    user: `${sectionPrompt(input, outline, beat)}\n\nYour previous attempt was rejected — ${probs.join("; ")}. Rewrite the WHOLE section: every heading must include its visible title text, every stat its value + label, every bullet a non-empty item. Emit NO empty elements.`,
-                    maxTokens: 1800,
-                });
-            }
             opts?.debug?.section?.(beat, content);
             if (beat.image) emit({ type: "section.status", id: beat.id, status: "image" });
-            const sec = await buildSection(beat, content, input.surface);
+            const sec = await buildSection(beat, content, input.surface, direction);
             sections[i] = sec;
             emit({
                 type: "patch",
