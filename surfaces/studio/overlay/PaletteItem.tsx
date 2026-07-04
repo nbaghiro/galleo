@@ -1,5 +1,5 @@
 import type { Component } from "solid-js";
-import { getElement } from "@elements/registry";
+import { getElement } from "@elements/spec";
 import { startDrag } from "../editing/dnd";
 import { previewSvg } from "../editing/element-previews";
 

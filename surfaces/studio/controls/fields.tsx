@@ -1,4 +1,4 @@
-import type { ControlField } from "@elements/element-spec";
+import type { ControlField } from "@elements/spec";
 import type { Component, JSX } from "solid-js";
 import { createMemo, For, Match, Show, Switch } from "solid-js";
 import { editorTokens } from "../editor";

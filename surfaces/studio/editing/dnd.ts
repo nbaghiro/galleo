@@ -2,9 +2,9 @@ import type { Rect, Region } from "@engine/node";
 import type { ElementAddress } from "@model/target";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import { createSignal } from "solid-js";
-import { DROP_GHOST } from "@elements/dropghost";
+import { DROP_GHOST } from "@elements/chrome";
 import { getElementAt, insertInCell, removeAt, setCellElement } from "@elements/ops";
-import { getElement } from "@elements/registry";
+import { getElement } from "@elements/spec";
 
 // Pointer-based drag-and-drop. The drag signal carries what's being dragged, the cursor position
 // (for the floating ghost), and the live drop target. Geometry comes from engine regions, so drop

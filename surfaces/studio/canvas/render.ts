@@ -1,10 +1,10 @@
-import type { LayoutCtx } from "@elements/element-spec";
+import type { LayoutCtx } from "@elements/spec";
 import type { EngineNode, MeasureText, Region, RenderCommand } from "@engine/node";
 import type { Section } from "@model/artifact";
 import type { FormatDescriptor } from "@model/format";
 import type { Tokens } from "@themes/theme";
 import { composeSection } from "@elements/compose";
-import { skeletonize } from "@elements/skeleton";
+import { skeletonize } from "@elements/spec";
 import { layout } from "@engine/layout";
 import { DEFAULT_PROFILE } from "@engine/profile";
 import { fixed, grow } from "@model/size";

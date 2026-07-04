@@ -1,8 +1,8 @@
 import type { ElementInstance } from "@model/artifact";
 import type { Component, JSX } from "solid-js";
 import { For } from "solid-js";
-import { PRESETS } from "@elements/presets";
-import { getElement } from "@elements/registry";
+import { PRESETS } from "@elements/templates";
+import { getElement } from "@elements/spec";
 import { previewSvg } from "../editing/element-previews";
 
 // A compact insert picker: smart-layout presets first, then the common element types. Each entry builds

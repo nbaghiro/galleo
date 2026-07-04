@@ -3,7 +3,7 @@ import type { Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
 import { elementRegionId } from "@model/target";
 import { getElementAt, removeAt, updateDataAt } from "@elements/ops";
-import { getElement } from "@elements/registry";
+import { getElement } from "@elements/spec";
 import { commit, editor, setSelection } from "../editor";
 import { PanelHeader, SchemaFields } from "../controls/fields";
 

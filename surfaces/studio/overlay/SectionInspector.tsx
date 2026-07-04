@@ -2,7 +2,7 @@ import type { SectionBackground } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createMemo, For } from "solid-js";
 import { setSectionBackground, setSectionBleed, setSectionGrid } from "@elements/ops";
-import { SECTION_CONTROLS } from "@elements/section-spec";
+import { SECTION_CONTROLS } from "@elements/spec";
 import { TEMPLATE_LABELS, TEMPLATES } from "@elements/templates";
 import { commit, editor, editorTokens } from "../editor";
 import { Group, PanelHeader, SchemaFields } from "../controls/fields";

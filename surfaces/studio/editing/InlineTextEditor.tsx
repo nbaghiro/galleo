@@ -3,7 +3,7 @@ import type { Component, JSX } from "solid-js";
 import { createMemo, onCleanup, onMount, Show } from "solid-js";
 import { sectionContentTokens } from "@elements/compose";
 import { getElementAt, updateDataAt } from "@elements/ops";
-import { getElement } from "@elements/registry";
+import { getElement } from "@elements/spec";
 import { elementRegionId } from "@model/target";
 import type { Mark, MarkType } from "@model/text";
 import {

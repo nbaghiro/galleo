@@ -3,7 +3,7 @@ import type { Component } from "solid-js";
 import { createMemo, For, Show } from "solid-js";
 import { GUTTER } from "@elements/compose";
 import { getElementAt } from "@elements/ops";
-import { getElement } from "@elements/registry";
+import { getElement } from "@elements/spec";
 import { cellRegionId, elementRegionId, parentTarget, regionId } from "@model/target";
 import { applyLiveEdit, liveEdit, setLiveEdit } from "../editing/manipulate";
 import { commit, editor, editorAccent, regions, selection, stageEl } from "../editor";

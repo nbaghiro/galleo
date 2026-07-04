@@ -8,7 +8,7 @@ import type {
     Section,
     SectionBackground,
 } from "@model/artifact";
-import { getElement } from "@elements/registry";
+import { getElement } from "@elements/spec";
 
 // Pure, immutable content ops over an artifact. Container traversal/editing goes through the
 // `container` contract (children/withChildren), so they work for any container, not just groups.

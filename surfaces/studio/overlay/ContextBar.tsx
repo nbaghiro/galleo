@@ -1,5 +1,5 @@
 import type { Rect } from "@engine/node";
-import type { ControlField } from "@elements/element-spec";
+import type { ControlField } from "@elements/spec";
 import type { Component, JSX } from "solid-js";
 import { createMemo, For, Show } from "solid-js";
 import { elementRegionId } from "@model/target";
@@ -11,7 +11,7 @@ import {
     setElementLayout,
     updateDataAt,
 } from "@elements/ops";
-import { getElement } from "@elements/registry";
+import { getElement } from "@elements/spec";
 import { commit, editing, editor, regions, selection, setSelection, stageEl } from "../editor";
 import { drag } from "../editing/dnd";
 import { Field } from "../controls/fields";

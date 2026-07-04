@@ -1,7 +1,7 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
 import { getElementAt } from "@elements/ops";
-import { getElement, listElements } from "@elements/registry";
+import { getElement, listElements } from "@elements/spec";
 import { editor, rightTab, selection, setRightTab } from "../editor";
 import { Icon } from "../icons";
 import { ElementInspector } from "../overlay/ElementInspector";
