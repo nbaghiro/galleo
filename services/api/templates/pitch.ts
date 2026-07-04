@@ -1,3 +1,5 @@
+// The pitch template set (all variants — un-sharded from the size-split -extra/-extra2 files).
+
 import type { ArtifactContent } from "@model/artifact";
 import {
     badge,
@@ -17,6 +19,7 @@ import {
     stat,
     t,
     table,
+    card,
 } from "@model/authoring";
 
 // Seed-stage startup pitch deck — Mise, an operating system for the restaurant back of house.
@@ -356,4 +359,873 @@ export const salesDeck: ArtifactContent = deck(
         ),
     ],
     bgImage("fleetwise-cover-ambient", 0.35),
+);
+
+// Series A deck — Switchboard, the AI front desk for home-services businesses.
+export const seriesA: ArtifactContent = deck(
+    "indigo",
+    [
+        section(
+            "a1",
+            "full",
+            {
+                a: cell(
+                    group(
+                        t("SWITCHBOARD · SERIES A · 2026", "label"),
+                        t("Never miss the call that pays the bills.", "h1"),
+                        t(
+                            "Switchboard is the AI front desk for home-services businesses — answering every call and text in seconds, booking the job, and keeping the schedule full, around the clock.",
+                            "subtitle",
+                        ),
+                        badge("$18M SERIES A · LED BY MERIDIAN VENTURES"),
+                    ),
+                ),
+            },
+            { background: bgImage("switchboard-dispatch-cover", 0.55) },
+        ),
+        section("a2", "split-6040", {
+            a: cell(
+                group(
+                    t("01 — Why now", "label"),
+                    t("Voice AI finally crossed the line a caller can't hear.", "h2"),
+                    t(
+                        "The trades still run on the phone — and owners on a roof or under a sink miss roughly one call in four. Until 2024, an AI that answered was obviously a robot. Today Switchboard books the job, and the customer never knows they weren't talking to the front desk.",
+                        "body",
+                    ),
+                ),
+            ),
+            b: cell(img("switchboard-tech-on-call", 0.82)),
+        }),
+        section(
+            "a3",
+            "full",
+            {
+                a: cell(
+                    quote(
+                        "Every missed call is a job that went to the next plumber on Google. We just pick up.",
+                        "— the Switchboard thesis",
+                    ),
+                ),
+            },
+            { background: bgImage("switchboard-night-shift", 0.6) },
+        ),
+        section("a4", "three-up", {
+            a: cell(stat("2,400", "businesses on Switchboard")),
+            b: cell(stat("$6.8M", "ARR · up 3.1× YoY")),
+            c: cell(stat("$140M", "in jobs booked for customers")),
+        }),
+        section("a5", "split-6040", {
+            a: cell(
+                group(
+                    t("02 — What we've proven", "label"),
+                    t("Revenue that compounds with every booked job.", "h2"),
+                    t(
+                        "Live across 2,400 contractors in 38 states, Switchboard answered 1.9 million calls last quarter and turned a third of them into booked work. Owners don't churn — they add their second location and switch on texting and scheduling on their own.",
+                        "body",
+                    ),
+                    callout(
+                        "success",
+                        t(
+                            "132% net revenue retention — accounts grow faster than we can sell to them.",
+                            "body",
+                        ),
+                    ),
+                ),
+            ),
+            b: cell(chart("line", "0.4, 0.9, 1.8, 3.1, 4.9, 6.8", 240)),
+        }),
+        section("a6", "split-4060", {
+            a: cell(img("switchboard-dashboard", 1.1)),
+            b: cell(
+                group(
+                    t("03 — The product", "label"),
+                    t("One front desk that never sleeps.", "h2"),
+                    bullets(
+                        "Answers every call and text in under two seconds, in English or Spanish",
+                        "Books the job straight into the calendar — with address, photos, and the right crew",
+                        "Texts the customer a confirmation, a reminder, and a review request",
+                        "Hands off to a human the moment it should, with the full call summary",
+                    ),
+                ),
+            ),
+        }),
+        section("a7", "split-6040", {
+            a: cell(
+                group(
+                    t("04 — The wedge", "label"),
+                    t("We land on the call they're already losing.", "h2"),
+                    t(
+                        "Switchboard starts with after-hours and overflow calls — the clearest ROI in the business and nothing to rip out. Once an owner sees jobs booked while they slept, we expand into texting, scheduling, follow-ups, and payments, until we're the whole front office.",
+                        "body",
+                    ),
+                ),
+            ),
+            b: cell(img("switchboard-after-hours", 0.82)),
+        }),
+        section("a8", "full", {
+            a: cell(
+                group(
+                    t("05 — Go-to-market", "label"),
+                    t("A self-serve funnel with a field-sales motor.", "h2"),
+                    diagram(
+                        "process",
+                        "Owner signs up online, Number ports in minutes, Books the first job same day, Switches on text & scheduling, Refers their trade network",
+                        180,
+                    ),
+                ),
+            ),
+        }),
+        section("a9", "full", {
+            a: cell(
+                group(
+                    t("06 — Unit economics", "label"),
+                    t("Payback under three months — and still improving.", "h2"),
+                    table(
+                        "Metric,Today,Series B target\nAverage revenue / account,$236 / mo,$340 / mo\nGross margin,79%,84%\nCAC payback,2.8 months,2.0 months\nNet revenue retention,132%,140%\nAnnual logo churn,9%,6%",
+                    ),
+                ),
+            ),
+        }),
+        section("a10", "three-up", {
+            a: cell(
+                group(
+                    img("switchboard-founder-dana", 1),
+                    t("Dana Whitfield", "h3"),
+                    t("CEO · ex-ServiceTitan, scaled 3,000 contractors", "caption"),
+                ),
+            ),
+            b: cell(
+                group(
+                    img("switchboard-founder-amir", 1),
+                    t("Amir Hassan", "h3"),
+                    t("CTO · ex-Google speech, built real-time voice", "caption"),
+                ),
+            ),
+            c: cell(
+                group(
+                    img("switchboard-founder-lena", 1),
+                    t("Lena Ortiz", "h3"),
+                    t("Head of Revenue · ex-Jobber, 0→$30M", "caption"),
+                ),
+            ),
+        }),
+        section("a11", "two-col", {
+            a: cell(
+                group(
+                    t("07 — The raise", "label"),
+                    t("Raising $18M to reach 10,000 businesses.", "h2"),
+                    t(
+                        "Use of funds: deepen the voice and scheduling product (40%), build a category-leading field and partner sales motion (35%), and expand into the next five trades (25%). 24 months of runway to $25M ARR.",
+                        "body",
+                    ),
+                    button("dana@switchboard.ai"),
+                ),
+            ),
+            b: cell(
+                group(
+                    t("Milestones", "label"),
+                    bullets(
+                        "Q3 — Spanish-first voice and SMS go GA",
+                        "Q4 — 5,000 businesses, $12M ARR",
+                        "Q2 '27 — Payments & invoicing live",
+                        "Q4 '27 — 10,000 businesses, $25M ARR",
+                    ),
+                ),
+            ),
+        }),
+        section(
+            "a12",
+            "full",
+            {
+                a: cell(
+                    group(
+                        t("08 — Vision", "label"),
+                        t(
+                            "The operating system for the businesses that show up at your door.",
+                            "h1",
+                        ),
+                        t(
+                            "Eight million tradespeople run the physical economy off a phone and a paper calendar. Switchboard starts by answering the call — and ends up running the whole business behind it.",
+                            "subtitle",
+                        ),
+                    ),
+                ),
+            },
+            { background: bgImage("switchboard-vision-truck", 0.5) },
+        ),
+    ],
+    bgImage("switchboard-cover-ambient", 0.35),
+);
+
+// Product demo deck — Sift, customer-feedback intelligence for product teams.
+export const productDemo: ArtifactContent = deck(
+    "signal",
+    [
+        section(
+            "p1",
+            "full",
+            {
+                a: cell(
+                    group(
+                        t("SIFT · PRODUCT TOUR", "label"),
+                        t("Turn every customer signal into your next release.", "h1"),
+                        t(
+                            "Sift pulls feedback from support tickets, sales calls, reviews, and surveys into one place — then tells your product team what to build next, and exactly who asked for it.",
+                            "subtitle",
+                        ),
+                        badge("A FIVE-MINUTE TOUR"),
+                    ),
+                ),
+            },
+            { background: bgImage("sift-product-cover", 0.55) },
+        ),
+        section("p2", "two-col", {
+            a: cell(
+                group(
+                    t("Who it's for", "label"),
+                    t("Built for the people who own the roadmap.", "h2"),
+                    t(
+                        "Product managers, support leaders, and founders at growing B2B software companies — anyone who has to decide what's worth building when every customer is asking for something different.",
+                        "body",
+                    ),
+                ),
+            ),
+            b: cell(img("sift-pm-team", 1.0)),
+        }),
+        section("p3", "split-4060", {
+            a: cell(img("sift-scattered-feedback", 1.1)),
+            b: cell(
+                group(
+                    t("Before Sift", "label"),
+                    t("Feedback lives everywhere. Decisions live on a hunch.", "h2"),
+                    bullets(
+                        "Requests scattered across Zendesk, Slack, Gong, and a spreadsheet nobody updates",
+                        "The loudest customer wins — not the most important one",
+                        "No way to prove what's actually driving churn or expansion",
+                    ),
+                    callout(
+                        "warn",
+                        t(
+                            "The average team burns a full day a week just collating feedback — before a single decision gets made.",
+                            "body",
+                        ),
+                    ),
+                ),
+            ),
+        }),
+        section("p4", "split-4060", {
+            a: cell(img("sift-unified-inbox", 1.1)),
+            b: cell(
+                group(
+                    t("The tour · 01", "label"),
+                    t("Every signal lands in one inbox.", "h2"),
+                    bullets(
+                        "Connect your tools once — Sift streams in tickets, calls, reviews, and survey replies automatically",
+                        "Each item carries the account, plan, and revenue it came from",
+                        "Nothing to forward, tag, or copy-paste ever again",
+                    ),
+                ),
+            ),
+        }),
+        section("p5", "split-6040", {
+            a: cell(
+                group(
+                    t("The tour · 02", "label"),
+                    t("Sift reads it so your team doesn't have to.", "h2"),
+                    bullets(
+                        "Every piece of feedback is summarized, sentiment-scored, and sorted into themes automatically",
+                        "Duplicate requests merge into one, with a running count and the revenue behind them",
+                        'Ask in plain English — "what are enterprise accounts frustrated by?" — and get the answer with receipts',
+                    ),
+                ),
+            ),
+            b: cell(img("sift-ai-themes", 0.82)),
+        }),
+        section("p6", "split-4060", {
+            a: cell(img("sift-insights-dashboard", 1.1)),
+            b: cell(
+                group(
+                    t("The tour · 03", "label"),
+                    t("Watch the themes that matter move week over week.", "h2"),
+                    bullets(
+                        "Top themes ranked by reach, revenue at risk, and momentum",
+                        "Filter to any segment — plan, region, ARR band, or lifecycle stage",
+                        "Spot a spike the day it starts, not in next quarter's QBR",
+                    ),
+                ),
+            ),
+        }),
+        section("p7", "split-6040", {
+            a: cell(
+                group(
+                    t("The tour · 04", "label"),
+                    t("Close the loop without leaving Sift.", "h2"),
+                    bullets(
+                        "Turn a theme into a roadmap item and push it to Jira or Linear in a click",
+                        "When it ships, Sift messages every customer who asked",
+                        "Reopen rates drop and renewal calls get a lot friendlier",
+                    ),
+                ),
+            ),
+            b: cell(img("sift-close-the-loop", 0.82)),
+        }),
+        section("p8", "three-up", {
+            a: cell(stat("9 hrs", "saved per PM, every week")),
+            b: cell(stat("3.4×", "more feedback reviewed")),
+            c: cell(stat("28%", "faster from request to release")),
+        }),
+        section(
+            "p9",
+            "full",
+            {
+                a: cell(
+                    quote(
+                        "We stopped arguing about the roadmap in meetings. Now we just open Sift and the answer's already there.",
+                        "— Priya Nair, VP Product, Northwind Software",
+                    ),
+                ),
+            },
+            { background: bgImage("sift-customer-office", 0.6) },
+        ),
+        section("p10", "three-up", {
+            a: cell(card(t("Support", "h3"), t("Zendesk · Intercom · Front · Help Scout", "body"))),
+            b: cell(
+                card(t("Sales & calls", "h3"), t("Gong · Salesforce · HubSpot · Slack", "body")),
+            ),
+            c: cell(
+                card(
+                    t("Voice of customer", "h3"),
+                    t("G2 · App Store · Typeform · NPS surveys", "body"),
+                ),
+            ),
+        }),
+        section("p11", "full", {
+            a: cell(
+                group(
+                    t("Pricing", "label"),
+                    t("Starts free. Scales with your team, not your ticket volume.", "h2"),
+                    table(
+                        "Plan,Price,Built for\nFree,$0,Up to 1k feedback items / mo\nTeam,$99 / mo,Growing product teams\nBusiness,$399 / mo,Multiple products & segments\nEnterprise,Custom,SSO · security review · SLAs",
+                    ),
+                ),
+            ),
+        }),
+        section(
+            "p12",
+            "full",
+            {
+                a: cell(
+                    group(
+                        t("Get started", "label"),
+                        t("Stop guessing. Start shipping what customers actually asked for.", "h1"),
+                        t(
+                            "Connect your first source in under ten minutes — free for your first 1,000 pieces of feedback, no credit card.",
+                            "subtitle",
+                        ),
+                        button("Start free"),
+                    ),
+                ),
+            },
+            { background: bgImage("sift-get-started-cover", 0.55) },
+        ),
+    ],
+    bgImage("sift-cover-ambient", 0.35),
+);
+
+// Company overview — Fernwood & Co., a Portland furniture & lighting studio.
+export const companyOverview: ArtifactContent = deck(
+    "couture",
+    [
+        // ── Cover ────────────────────────────────────────────────────────────
+        section(
+            "c1",
+            "full",
+            {
+                a: cell(
+                    group(
+                        t("FERNWOOD & CO.", "label"),
+                        t("Furniture made to outlast the trend that inspired it.", "h1"),
+                        t(
+                            "We are a Portland design studio and workshop making contemporary furniture, lighting, and objects — drawn by hand, built by people, and meant to be handed down.",
+                            "subtitle",
+                        ),
+                        badge("EST. 2012 · PORTLAND, OREGON"),
+                    ),
+                ),
+            },
+            { background: bgImage("fernwood-workshop-cover", 0.55) },
+        ),
+
+        // ── What we do ───────────────────────────────────────────────────────
+        section("c2", "split-6040", {
+            a: cell(
+                group(
+                    t("WHAT WE DO", "label"),
+                    t(
+                        "We design and build furniture for the spaces people actually live in.",
+                        "h2",
+                    ),
+                    t(
+                        "From a single dining table to the seating for a 200-room hotel, every Fernwood piece is designed in-house and made to order in our Southeast Portland workshop. No middlemen, no warehouse of the same chair — just considered work, built to last.",
+                        "body",
+                    ),
+                ),
+            ),
+            b: cell(img("fernwood-dining-table", 0.82)),
+        }),
+
+        // ── Our story ────────────────────────────────────────────────────────
+        section("c3", "split-4060", {
+            a: cell(img("fernwood-founders-bench", 1.05)),
+            b: cell(
+                group(
+                    t("OUR STORY", "label"),
+                    t("It started with one stubborn bench.", "h2"),
+                    t(
+                        "In 2012, Mara and Elias Fernwood couldn't find a bench that would survive their kids, so they built one. Friends asked for theirs. A decade later, that same joinery holds up every piece we ship — now from a 12,000-square-foot workshop and a team of thirty makers.",
+                        "body",
+                    ),
+                ),
+            ),
+        }),
+
+        // ── What we make ─────────────────────────────────────────────────────
+        section("c4", "three-up", {
+            a: cell(
+                card(
+                    img("fernwood-seating", 1.4),
+                    t("Seating", "h3"),
+                    t(
+                        "Chairs, benches, and sofas with frames that are screwed, not stapled — and reupholstered, not replaced.",
+                        "caption",
+                    ),
+                ),
+            ),
+            b: cell(
+                card(
+                    img("fernwood-tables", 1.4),
+                    t("Tables & casegoods", "h3"),
+                    t(
+                        "Dining tables, desks, and storage in solid oak, walnut, and ash, finished by hand.",
+                        "caption",
+                    ),
+                ),
+            ),
+            c: cell(
+                card(
+                    img("fernwood-lighting", 1.4),
+                    t("Lighting", "h3"),
+                    t(
+                        "Pendants, sconces, and floor lamps in turned wood, blown glass, and brushed brass.",
+                        "caption",
+                    ),
+                ),
+            ),
+        }),
+
+        // ── Our craft (feature background) ───────────────────────────────────
+        section(
+            "c5",
+            "full",
+            {
+                a: cell(
+                    group(
+                        t("OUR CRAFT", "label"),
+                        t("Real materials, joined to last a generation.", "h2"),
+                        t(
+                            "We work only in FSC-certified hardwoods, water-based finishes, and solid brass hardware — nothing veneered, nothing disposable. Each joint is cut to fit, each surface sanded through nine grits, and each piece signed by the maker who built it.",
+                            "body",
+                        ),
+                        button("Tour the workshop"),
+                    ),
+                ),
+            },
+            { background: bgImage("fernwood-craft-joinery", 0.6) },
+        ),
+
+        // ── Who we serve ─────────────────────────────────────────────────────
+        section("c6", "split-6040", {
+            a: cell(
+                group(
+                    t("WHO WE SERVE", "label"),
+                    t("Trusted by the people who care how a room feels.", "h2"),
+                    t(
+                        "Half our work is bespoke commissions for interior designers and architects; the rest furnishes hotels, restaurants, and workplaces that want pieces no one else will have.",
+                        "body",
+                    ),
+                    bullets(
+                        "Interior designers & architects — a trade program with to-the-trade pricing",
+                        "Hospitality — hotels, restaurants, and members' clubs",
+                        "Workplace — studios and offices that have outgrown the catalog",
+                        "Private clients — heirloom commissions, made to measure",
+                    ),
+                    t(
+                        "Selected clients · The Hoxton · Roman and Williams · Studio McGee · Ace Hotel",
+                        "caption",
+                    ),
+                ),
+            ),
+            b: cell(img("fernwood-hotel-lobby", 0.82)),
+        }),
+
+        // ── Testimonials ─────────────────────────────────────────────────────
+        section("c7", "two-col", {
+            a: cell(
+                quote(
+                    "Fernwood is the only shop I trust with a lobby. The pieces arrive better than the drawings, every time.",
+                    "Dahlia Reyes · Principal, Reyes + Co. Interiors",
+                ),
+            ),
+            b: cell(
+                quote(
+                    "Five years and forty covers a night, and our Fernwood chairs haven't loosened a single joint.",
+                    "Marco Bélanger · Owner, Cafe Mistral",
+                ),
+            ),
+        }),
+
+        // ── By the numbers ───────────────────────────────────────────────────
+        section("c8", "three-up", {
+            a: cell(stat("8,400", "pieces built and shipped since 2012")),
+            b: cell(stat("30", "makers, finishers, and designers on the bench")),
+            c: cell(stat("25 yrs", "structural warranty on every frame")),
+        }),
+
+        // ── How we work ──────────────────────────────────────────────────────
+        section("c9", "split-6040", {
+            a: cell(
+                group(
+                    t("HOW WE WORK", "label"),
+                    t("From sketch to your room in four steps.", "h2"),
+                    t(
+                        "Every commission moves through the same calm process — so you always know where your piece is and who is building it.",
+                        "body",
+                    ),
+                    diagram(
+                        "process",
+                        "Design & quote, Hand-cut joinery, Finish & sign, White-glove delivery",
+                        180,
+                    ),
+                ),
+            ),
+            b: cell(img("fernwood-finishing-bench", 0.9)),
+        }),
+
+        // ── The team ─────────────────────────────────────────────────────────
+        section("c10", "three-up", {
+            a: cell(
+                group(
+                    img("fernwood-team-mara", 1),
+                    t("Mara Fernwood", "h3"),
+                    t("Founder & Creative Director", "caption"),
+                ),
+            ),
+            b: cell(
+                group(
+                    img("fernwood-team-elias", 1),
+                    t("Elias Fernwood", "h3"),
+                    t("Founder & Head of Workshop", "caption"),
+                ),
+            ),
+            c: cell(
+                group(
+                    img("fernwood-team-jun", 1),
+                    t("Jun Park", "h3"),
+                    t("Design Lead · ex-Heath Ceramics", "caption"),
+                ),
+            ),
+        }),
+
+        // ── Our values ───────────────────────────────────────────────────────
+        section("c11", "split-4060", {
+            a: cell(img("fernwood-values-detail", 1.05)),
+            b: cell(
+                group(
+                    t("WHAT WE BELIEVE", "label"),
+                    t("Make less. Make it last.", "h2"),
+                    bullets(
+                        "Repairable by design — we keep the parts and plans for everything we ship",
+                        "Local first — we mill, build, and finish under one Portland roof",
+                        "Fair work — a living wage and a real bench for every maker",
+                        "Honest materials — solid wood and metal, or we don't use it",
+                    ),
+                    callout(
+                        "success",
+                        t(
+                            "Carbon-measured since 2021 — every piece ships climate-neutral, and our offcuts heat the shop.",
+                            "body",
+                        ),
+                    ),
+                ),
+            ),
+        }),
+
+        // ── Get in touch (feature background) ─────────────────────────────────
+        section(
+            "c12",
+            "full",
+            {
+                a: cell(
+                    group(
+                        t("GET IN TOUCH", "label"),
+                        t("Let's build something that lasts.", "h1"),
+                        t(
+                            "Visit the workshop, start a commission, or join the trade program. We'd love to make something for your space.",
+                            "subtitle",
+                        ),
+                        button("hello@fernwoodco.com"),
+                    ),
+                ),
+            },
+            { background: bgImage("fernwood-showroom-light", 0.55) },
+        ),
+    ],
+    bgImage("fernwood-ambient", 0.34),
+);
+
+// Go-to-market plan — Tidepool, demand planning & inventory for growing brands.
+export const gtmPlan: ArtifactContent = deck(
+    "swiss",
+    [
+        // ── Cover ────────────────────────────────────────────────────────────
+        section(
+            "g1",
+            "full",
+            {
+                a: cell(
+                    group(
+                        t("TIDEPOOL · GO-TO-MARKET PLAN", "label"),
+                        t("Launching the inventory brain for growing brands.", "h1"),
+                        t(
+                            "Our plan to take Tidepool — demand planning and inventory for multi-channel retail — from private beta to 1,000 paying brands in twelve months.",
+                            "subtitle",
+                        ),
+                        badge("GO-TO-MARKET PLAN · H2 2026"),
+                    ),
+                ),
+            },
+            { background: bgImage("tidepool-warehouse-cover", 0.55) },
+        ),
+
+        // ── The opportunity ──────────────────────────────────────────────────
+        section("g2", "split-6040", {
+            a: cell(
+                group(
+                    t("THE OPPORTUNITY", "label"),
+                    t("Growing brands are flying blind on inventory.", "h2"),
+                    t(
+                        "Once a brand sells across a website, three marketplaces, and a few wholesale accounts, spreadsheets stop working — and stockouts and overstock quietly eat the margin. The tools that solve it are built for the enterprise and priced out of reach. That gap is ours.",
+                        "body",
+                    ),
+                ),
+            ),
+            b: cell(
+                group(
+                    chart("bar", "12, 19, 31, 48, 72, 104", 240),
+                    t(
+                        "US mid-market brands adopting inventory software, 2021–2026 (thousands)",
+                        "caption",
+                    ),
+                ),
+            ),
+        }),
+
+        // ── Target segments ──────────────────────────────────────────────────
+        section("g3", "three-up", {
+            a: cell(
+                card(
+                    img("tidepool-dtc-brand", 1.4),
+                    t("DTC brands", "h3"),
+                    t(
+                        "$2M–$30M online sellers on Shopify juggling Amazon, TikTok Shop, and their own site.",
+                        "caption",
+                    ),
+                ),
+            ),
+            b: cell(
+                card(
+                    img("tidepool-multi-location", 1.4),
+                    t("Multi-location retail", "h3"),
+                    t(
+                        "3–20 store chains that need one source of truth across the floor and the stockroom.",
+                        "caption",
+                    ),
+                ),
+            ),
+            c: cell(
+                card(
+                    img("tidepool-wholesale", 1.4),
+                    t("Wholesale & distribution", "h3"),
+                    t(
+                        "Brands shipping to stockists who need to promise dates they can actually keep.",
+                        "caption",
+                    ),
+                ),
+            ),
+        }),
+
+        // ── Positioning (feature background) ─────────────────────────────────
+        section(
+            "g4",
+            "full",
+            {
+                a: cell(
+                    group(
+                        t("POSITIONING", "label"),
+                        t("The demand-planning brain built for brands, not the enterprise.", "h2"),
+                        t(
+                            "For operators at growing multi-channel brands who are tired of guessing, Tidepool is the inventory platform that forecasts demand, flags stockouts before they happen, and tells you exactly what to reorder — without an ERP project or a six-figure contract.",
+                            "body",
+                        ),
+                        callout(
+                            "info",
+                            t(
+                                "Where the big platforms need a consultant and six months, Tidepool is live in an afternoon and pays for itself the first time it prevents a stockout.",
+                                "body",
+                            ),
+                        ),
+                    ),
+                ),
+            },
+            { background: bgImage("tidepool-positioning-shelves", 0.6) },
+        ),
+
+        // ── The funnel ───────────────────────────────────────────────────────
+        section("g5", "split-4060", {
+            a: cell(img("tidepool-funnel-dashboard", 1.05)),
+            b: cell(
+                group(
+                    t("THE FUNNEL", "label"),
+                    t("How a curious operator becomes a paying brand.", "h2"),
+                    t(
+                        "We earn trust at the top with genuinely useful content, convert with a free plan that solves a real problem, and expand as a brand connects more channels.",
+                        "body",
+                    ),
+                    diagram(
+                        "funnel",
+                        "Discover via search & community, Free plan sign-up, Connect a channel, Convert to paid, Expand seats & SKUs",
+                        220,
+                    ),
+                ),
+            ),
+        }),
+
+        // ── Channels ─────────────────────────────────────────────────────────
+        section("g6", "three-up", {
+            a: cell(
+                card(
+                    img("tidepool-channel-content", 1.4),
+                    t("Content & SEO", "h3"),
+                    t(
+                        "Operator-grade guides on demand planning that rank for the problems brands Google at 11pm.",
+                        "caption",
+                    ),
+                ),
+            ),
+            b: cell(
+                card(
+                    img("tidepool-channel-partners", 1.4),
+                    t("Platform partnerships", "h3"),
+                    t(
+                        "A featured Shopify app and co-marketing with 3PLs and agencies who already have the trust.",
+                        "caption",
+                    ),
+                ),
+            ),
+            c: cell(
+                card(
+                    img("tidepool-channel-community", 1.4),
+                    t("Community & events", "h3"),
+                    t(
+                        "Founder dinners and an operators' Slack where our best customers sell the next ones.",
+                        "caption",
+                    ),
+                ),
+            ),
+        }),
+
+        // ── Pricing & packaging ──────────────────────────────────────────────
+        section("g7", "full", {
+            a: cell(
+                group(
+                    t("PRICING & PACKAGING", "label"),
+                    t("Priced to land self-serve and grow with the brand.", "h2"),
+                    table(
+                        "Plan,Price,Built for,Key limits\nFree,$0,Single-channel sellers,1 channel · 500 SKUs · 90-day forecast\nGrowth,$149 / mo,Multi-channel DTC,Unlimited channels · 5k SKUs · reorder alerts\nPro,$399 / mo,Scaling & wholesale,Demand planning · POs · 3 seats\nEnterprise,Custom,Multi-entity brands,SSO · API · onboarding & SLAs",
+                    ),
+                    t(
+                        "Land on Free or Growth self-serve, convert to Pro as channels and SKUs grow, Enterprise for multi-entity brands.",
+                        "caption",
+                    ),
+                ),
+            ),
+        }),
+
+        // ── Launch timeline ──────────────────────────────────────────────────
+        section("g8", "full", {
+            a: cell(
+                group(
+                    t("LAUNCH TIMELINE", "label"),
+                    t("Four phases from beta to GA.", "h2"),
+                    diagram(
+                        "process",
+                        "Private beta · 40 brands, Open beta · pricing live, Public launch · Shopify feature, Scale · paid channels on",
+                        180,
+                    ),
+                ),
+            ),
+        }),
+
+        // ── Goals & KPIs ─────────────────────────────────────────────────────
+        section("g9", "three-up", {
+            a: cell(stat("1,000", "paying brands by Q2 '27")),
+            b: cell(stat("$3.6M", "ARR target in the first year")),
+            c: cell(stat("< 4 mo", "CAC payback, blended across channels")),
+        }),
+
+        // ── First 90 days & owners ───────────────────────────────────────────
+        section("g10", "two-col", {
+            a: cell(
+                group(
+                    t("FIRST 90 DAYS", "label"),
+                    t("What we ship before launch.", "h2"),
+                    bullets(
+                        "Weeks 1–4 — Finalize Free/Growth packaging and the self-serve onboarding",
+                        "Weeks 5–8 — Ship the Shopify app listing and three cornerstone guides",
+                        "Weeks 9–12 — Open beta to the waitlist and stand up the operators' community",
+                    ),
+                ),
+            ),
+            b: cell(
+                group(
+                    t("OWNERS", "label"),
+                    t("Who's accountable", "h3"),
+                    table(
+                        "Workstream,Owner\nProduct & onboarding,Priya Anand\nContent & SEO,Tomas Lindqvist\nPartnerships,Renee Okoro\nCommunity & events,Dario Vella",
+                    ),
+                ),
+            ),
+        }),
+
+        // ── Next steps (feature background) ──────────────────────────────────
+        section(
+            "g11",
+            "full",
+            {
+                a: cell(
+                    group(
+                        t("NEXT STEPS", "label"),
+                        t("Greenlight the launch.", "h1"),
+                        t(
+                            "Approve the plan and the H2 budget this week, and Tidepool ships to the waitlist on September 15.",
+                            "subtitle",
+                        ),
+                        button("Approve & kick off"),
+                    ),
+                ),
+            },
+            { background: bgImage("tidepool-launch-horizon", 0.55) },
+        ),
+    ],
+    bgImage("tidepool-ambient", 0.34),
 );

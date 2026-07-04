@@ -1,7 +1,6 @@
 import "dotenv/config";
 import { z } from "zod";
-import { structured } from "./llm";
-import { MODELS } from "./models";
+import { structured, MODELS } from "./llm";
 
 // Latency benchmark: how fast does each model return a real, schema-constrained section write? This is the
 // hot path of the generate pipeline (one call per section), so its speed drives total generation time.

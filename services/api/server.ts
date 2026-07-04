@@ -10,10 +10,9 @@ import type { ArtifactInput, Cover, SectionSummary } from "@model/artifact";
 import type { FolderInput, LoginBody, User } from "@model/workspace";
 import type { ThemeInput } from "@themes/theme";
 import { db, schema } from "../data/client";
-import { verifyPassword } from "../auth/password";
-import { makeSession, readSession, SESSION_COOKIE } from "../auth/session";
+import { verifyPassword, makeSession, readSession, SESSION_COOKIE } from "../auth/auth";
 import { createGenerateTurn, streamGenerateTurn } from "../agent/turn";
-import type { Quality } from "../agent/models";
+import type { Quality } from "../agent/llm";
 import { TEMPLATES } from "./templates";
 
 const app = new Hono();

@@ -1,19 +1,44 @@
 import type { ArtifactContent } from "@model/artifact";
-import { eventInvite, photoEssay } from "./templates/creative-extra2";
-import { coverLetter, personalSite } from "./templates/creative-extra";
-import { portfolio, resume } from "./templates/creative";
-import { agencySite, newsletter } from "./templates/marketing-extra2";
-import { eventPage, waitlistPage } from "./templates/marketing-extra";
-import { landingPage, productLaunch } from "./templates/marketing";
-import { companyOverview, gtmPlan } from "./templates/pitch-extra2";
-import { productDemo, seriesA } from "./templates/pitch-extra";
-import { salesDeck, startupPitch } from "./templates/pitch";
-import { sow, sponsorshipDeck } from "./templates/proposals-extra2";
-import { boardDeck, businessProposal } from "./templates/proposals-extra";
-import { investorUpdate, projectProposal } from "./templates/proposals";
-import { qbr, trendsReport } from "./templates/reports-extra2";
-import { marketAnalysis, researchReport } from "./templates/reports-extra";
-import { annualReport, caseStudy } from "./templates/reports";
+import {
+    eventInvite,
+    photoEssay,
+    coverLetter,
+    personalSite,
+    portfolio,
+    resume,
+} from "./templates/creative";
+import {
+    agencySite,
+    newsletter,
+    eventPage,
+    waitlistPage,
+    landingPage,
+    productLaunch,
+} from "./templates/marketing";
+import {
+    companyOverview,
+    gtmPlan,
+    productDemo,
+    seriesA,
+    salesDeck,
+    startupPitch,
+} from "./templates/pitch";
+import {
+    sow,
+    sponsorshipDeck,
+    boardDeck,
+    businessProposal,
+    investorUpdate,
+    projectProposal,
+} from "./templates/proposals";
+import {
+    qbr,
+    trendsReport,
+    marketAnalysis,
+    researchReport,
+    annualReport,
+    caseStudy,
+} from "./templates/reports";
 
 // Starter templates — realistic, comprehensive example artifacts across categories. The Templates page
 // groups these by category; "Use template" stamps a copy into the workspace.

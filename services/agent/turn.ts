@@ -3,7 +3,7 @@ import type { ArtifactContent } from "@model/artifact";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../data/client";
 import { runGenerate, type GenerateResult } from "./pipeline";
-import type { Quality } from "./models";
+import type { Quality } from "./llm";
 
 // The turn runtime that bridges the pipeline (a synchronous event emitter) to a stream (SSE) + the DB.
 // A generate turn creates a blank artifact upfront (agent_turns.artifact_id is NOT NULL, and it gives the

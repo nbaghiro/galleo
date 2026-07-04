@@ -1,6 +1,5 @@
 import "dotenv/config";
-import { complete } from "./llm";
-import { MODELS } from "./models";
+import { complete, MODELS } from "./llm";
 
 // Smoke test: can we actually reach each provider's API with the configured key + a real model id? One
 // representative model per provider. Run: `pnpm agent:ping`.

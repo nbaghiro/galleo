@@ -15,7 +15,7 @@ import {
     t,
 } from "@model/authoring";
 import { structured } from "./llm";
-import type { Quality } from "./models";
+import type { Quality } from "./llm";
 import { resolveImage, resolveImages } from "./images";
 
 // The generate pipeline: a brief → a real ArtifactContent, produced in stages (plan → per-section write)

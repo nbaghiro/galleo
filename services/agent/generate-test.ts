@@ -3,7 +3,7 @@ import type { AgentEvent, GenerateInput } from "@model/agent";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../data/client";
 import { runGenerate } from "./pipeline";
-import type { Quality } from "./models";
+import type { Quality } from "./llm";
 
 // End-to-end pipeline test: `pnpm agent:gen [prompt…]` (env: GALLEO_SURFACE, GALLEO_THEME, GALLEO_QUALITY).
 // Runs a generate turn, streams the events, then saves the artifact to the demo workspace so it opens in
