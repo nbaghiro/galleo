@@ -1,4 +1,4 @@
-import type { RenderCommand, Region } from "@engine/render-command";
+import type { RenderCommand, Region } from "@engine/node";
 import type { Section } from "@model/artifact";
 import type { FormatDescriptor } from "@model/format";
 import type { Tokens } from "@themes/theme";

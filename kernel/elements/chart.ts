@@ -4,7 +4,7 @@ import type { Tokens } from "@themes/theme";
 import { register } from "@elements/registry";
 import { GHOST } from "@elements/skeleton";
 import { fit, fixed, grow } from "@model/size";
-import { hexA } from "@themes/color";
+import { hexA } from "@themes/theme";
 
 type ChartKind = "bar" | "line" | "pie";
 

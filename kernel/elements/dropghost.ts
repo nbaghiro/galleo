@@ -3,7 +3,7 @@ import type { EngineNode } from "@engine/node";
 import { getElement, register } from "@elements/registry";
 import { skeletonize } from "@elements/skeleton";
 import { fit, grow } from "@model/size";
-import { mix } from "@themes/color";
+import { mix } from "@themes/theme";
 
 // The palette-hidden type inserted into a *preview* artifact while dragging over open space.
 export const DROP_GHOST = "__dropghost";

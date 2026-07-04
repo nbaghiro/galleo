@@ -1,6 +1,6 @@
-import type { RenderCommand } from "@engine/render-command";
+import type { RenderCommand } from "@engine/node";
 import { PDFDocument } from "pdf-lib";
-import { fragment } from "@engine/fragment";
+import { fragment } from "@engine/layout";
 import { resolveProfile } from "@engine/profile";
 import { renderSlide, renderToCanvas } from "./canvas-backend";
 import { paint } from "./dom-backend";

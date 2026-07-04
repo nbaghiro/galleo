@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { For, Show } from "solid-js";
 import type { Tokens } from "@themes/theme";
-import { luminance, mix, mixWhite } from "@themes/color";
+import { luminance, mix, mixWhite } from "@themes/theme";
 
 // The one color-selection UI, shared by the inline text-format popovers (mark color + highlight) and the
 // inspector's `color` fields. It renders a row of caller-supplied swatches, a native color well + hex

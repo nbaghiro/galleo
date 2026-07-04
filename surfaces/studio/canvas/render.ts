@@ -1,6 +1,5 @@
 import type { LayoutCtx } from "@elements/element-spec";
-import type { EngineNode, MeasureText } from "@engine/node";
-import type { Region, RenderCommand } from "@engine/render-command";
+import type { EngineNode, MeasureText, Region, RenderCommand } from "@engine/node";
 import type { Section } from "@model/artifact";
 import type { FormatDescriptor } from "@model/format";
 import type { Tokens } from "@themes/theme";
@@ -10,7 +9,7 @@ import { layout } from "@engine/layout";
 import { DEFAULT_PROFILE } from "@engine/profile";
 import { fixed, grow } from "@model/size";
 import { DEFAULT_THEME } from "@themes/library";
-import { mix } from "@themes/color";
+import { mix } from "@themes/theme";
 
 // Imperative bridge: kernel layout → render commands. Components paint these into refs; the engine
 // stays the single source of geometry (the framework never lays out content).

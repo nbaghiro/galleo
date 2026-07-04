@@ -1,4 +1,4 @@
-import type { Region } from "@engine/render-command";
+import type { Region } from "@engine/node";
 import type { Target } from "@model/target";
 import type { Component } from "solid-js";
 import { createMemo, Show } from "solid-js";

@@ -7,8 +7,7 @@ import { getElement } from "@elements/registry";
 import { fallbackTemplate, TEMPLATES } from "@elements/templates";
 import { cellRegionId, elementRegionId, sectionRegionId } from "@model/target";
 import { fit, grow, percent } from "@model/size";
-import { fontStack } from "@themes/theme";
-import { luminance, mixWhite } from "@themes/color";
+import { fontStack, luminance, mixWhite } from "@themes/theme";
 
 // Compose one Section into an EngineNode tree, tagging section / cell / element nodes with region ids
 // (so the engine can report their geometry for selection + drop-targets). Containers recurse here so

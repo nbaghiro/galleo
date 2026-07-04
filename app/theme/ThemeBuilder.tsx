@@ -4,7 +4,7 @@ import { createEffect, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import type { ThemeDraft } from "../theme/custom-themes";
 import { ThemePreview } from "../theme/ThemePreview";
-import { luminance } from "@themes/color";
+import { luminance } from "@themes/theme";
 import { Dropdown } from "@studio/controls/Dropdown";
 
 const DISPLAY_FONTS = [

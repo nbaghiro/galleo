@@ -1,4 +1,4 @@
-import type { Region } from "@engine/render-command";
+import type { Region } from "@engine/node";
 import type { ElementAddress, Target } from "@model/target";
 import type { ArtifactContent, Section } from "@model/artifact";
 import { createSignal } from "solid-js";

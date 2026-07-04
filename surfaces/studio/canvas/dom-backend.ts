@@ -1,5 +1,11 @@
-import type { DrawContext, DrawStyle, DrawTextStyle, Run, TextLeaf } from "@engine/node";
-import type { RenderCommand } from "@engine/render-command";
+import type {
+    DrawContext,
+    DrawStyle,
+    DrawTextStyle,
+    Run,
+    TextLeaf,
+    RenderCommand,
+} from "@engine/node";
 import { CODE_BG, MONO_FONT_STACK } from "./measure";
 
 // A DOM render backend: paints absolute-positioned divs from the engine's render commands.
