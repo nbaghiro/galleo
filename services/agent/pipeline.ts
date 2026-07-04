@@ -64,13 +64,14 @@ const ElementIR = z.object({
     query: z.string().optional(), // image search phrase
     aspect: z.number().optional(), // image width/height
 });
-type ElementIRT = z.infer<typeof ElementIR>;
+export type ElementIRT = z.infer<typeof ElementIR>;
 
 // One flat list of elements, each tagged with its cell — so ElementIR (9 optionals) is inlined ONCE, not
 // per cell (Anthropic's constrained-output caps a schema at 24 optional params).
 const SectionElement = ElementIR.extend({ cell: CellKey });
+export type SectionElementT = z.infer<typeof SectionElement>;
 const SectionContent = z.object({ elements: z.array(SectionElement) });
-type SectionContentT = z.infer<typeof SectionContent>;
+export type SectionContentT = z.infer<typeof SectionContent>;
 
 const PlanBeat = z.object({
     id: z.string(), // stable section id (s1, s2, …)
@@ -80,13 +81,13 @@ const PlanBeat = z.object({
     grid: Grid,
     image: z.boolean(), // carries a prominent image
 });
-type PlanBeatT = z.infer<typeof PlanBeat>;
+export type PlanBeatT = z.infer<typeof PlanBeat>;
 
 const Outline = z.object({
     title: z.string(),
     beats: z.array(PlanBeat).min(3).max(9),
 });
-type OutlineT = z.infer<typeof Outline>;
+export type OutlineT = z.infer<typeof Outline>;
 
 // --- prompts ---
 
@@ -226,10 +227,17 @@ export interface GenerateResult {
     title: string;
 }
 
+// Optional taps for the debug harness — see the raw LLM IR (before it's mapped to elements), which is
+// what you tune the prompts against. The app flow ignores these.
+export interface GenerateDebug {
+    outline?: (outline: OutlineT) => void;
+    section?: (beat: PlanBeatT, content: SectionContentT) => void;
+}
+
 export async function runGenerate(
     input: GenerateInput,
     emit: Emit,
-    opts?: { quality?: Quality },
+    opts?: { quality?: Quality; debug?: GenerateDebug },
 ): Promise<GenerateResult> {
     const quality = opts?.quality;
     emit({ type: "turn.start", kind: "generate" });
@@ -245,6 +253,7 @@ export async function runGenerate(
             user: briefPrompt(input),
             maxTokens: 2000,
         });
+        opts?.debug?.outline?.(outline);
         const n = outline.beats.length;
         const beats: Beat[] = outline.beats.map((b) => ({
             id: b.id,
@@ -283,6 +292,7 @@ export async function runGenerate(
                 user: sectionPrompt(input, outline, beat),
                 maxTokens: 1800,
             });
+            opts?.debug?.section?.(beat, content);
             if (beat.image) emit({ type: "section.status", id: beat.id, status: "image" });
             const sec = await buildSection(beat, content);
             sections[i] = sec;

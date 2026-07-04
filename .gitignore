@@ -5,3 +5,6 @@ dist/
 .env.*
 !.env.example
 .DS_Store
+
+# one-off generation debug output (pnpm agent:gen)
+/.gen/
