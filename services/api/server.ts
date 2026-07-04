@@ -12,6 +12,7 @@ import type { ThemeInput } from "@themes/theme";
 import { db, schema } from "../data/client";
 import { verifyPassword, makeSession, readSession, SESSION_COOKIE } from "../auth/auth";
 import { createGenerateTurn, streamGenerateTurn } from "../agent/turn";
+import { runGenerate } from "../agent/pipeline";
 import type { Quality } from "../agent/llm";
 import { TEMPLATES } from "./templates";
 
@@ -549,6 +550,39 @@ app.get("/turns/:id/events", async (c) => {
         }
     });
 });
+
+// Dev-only: run the REAL generate pipeline synchronously (mirrors `pnpm agent:gen`) and return the new
+// artifact id, so a dev UI can trigger it and open the result. Not registered in production; the app's
+// normal narrated flow uses the streamed /turns endpoint (or the client-side simulator).
+if (process.env.NODE_ENV !== "production") {
+    app.post("/dev/generate", async (c) => {
+        const u = await currentUser(getCookie(c, SESSION_COOKIE));
+        if (!u) return c.json({ error: "unauthorized" }, 401);
+        const ws = await firstWorkspaceId(u.id);
+        if (!ws) return c.json({ error: "no workspace" }, 400);
+        const body = await readJson<GenerateInput & { quality?: Quality }>(c);
+        if (!body.prompt?.trim()) return c.json({ error: "prompt is required" }, 400);
+        const input: GenerateInput = {
+            prompt: body.prompt.trim(),
+            surface: body.surface ?? "deck",
+            theme: body.theme ?? "studio",
+        };
+        const result = await runGenerate(input, () => {}, { quality: body.quality });
+        const [a] = await db
+            .insert(schema.artifacts)
+            .values({
+                workspaceId: ws,
+                title: result.title,
+                formatId: result.content.format,
+                themeId: result.content.theme,
+                draftContent: result.content,
+                createdBy: u.id,
+            })
+            .returning({ id: schema.artifacts.id });
+        if (!a) return c.json({ error: "create failed" }, 500);
+        return c.json({ id: a.id });
+    });
+}
 
 const port = Number(process.env.API_PORT ?? 8601);
 serve({ fetch: app.fetch, port });
