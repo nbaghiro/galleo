@@ -5,7 +5,7 @@ import type { Component } from "solid-js";
 import { createEffect, createSignal, For, on, onMount, Show } from "solid-js";
 import { resolveProfile } from "@engine/profile";
 import { resolveTheme } from "@themes/library";
-import { backdropCss, paint, fitSlideContent } from "@render/backends";
+import { backdropCss, paint, fitSlideContent } from "@canvas/backends";
 import {
     measureText,
     layoutSection,
@@ -13,7 +13,7 @@ import {
     SECTION_GAP,
     layoutSlide,
     layoutSlideSkeleton,
-} from "@render/commands";
+} from "@canvas/commands";
 import { activeStatus, gen, placedSections, type SectionSlot, doneBeats } from "./session";
 import { reduced, TypingLine } from "./gen-view";
 import { ChevronUpIcon, CloseIcon } from "../components/icons";

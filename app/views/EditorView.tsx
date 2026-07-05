@@ -2,7 +2,7 @@ import type { Component } from "solid-js";
 import { createEffect, createSignal, on, onCleanup, onMount, Show } from "solid-js";
 import { useNavigate, useParams, useSearchParams } from "@solidjs/router";
 import { resolveTheme } from "@themes/library";
-import { Studio } from "@studio/Studio";
+import { Studio } from "@editor/Studio";
 import {
     editor,
     endThemePreview,
@@ -16,7 +16,7 @@ import {
     previewSavedTheme,
     setArtifacts,
     startThemePreview,
-} from "@studio/editor";
+} from "@editor/editor";
 import { api } from "../data/api";
 import { renameArtifactById } from "../data/library";
 import { appTheme, setFaviconOverride, openThemeDrawer } from "../theme/theme";

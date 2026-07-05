@@ -3,8 +3,8 @@ import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { resolveProfile } from "@engine/profile";
 import { resolveTheme } from "@themes/library";
-import { backdropCss, paintSectionStack } from "@render/backends";
-import { slideElement, SLIDE_W, SLIDE_H } from "@render/present";
+import { backdropCss, paintSectionStack } from "@canvas/backends";
+import { slideElement, SLIDE_W, SLIDE_H } from "@canvas/present";
 
 // Standalone present surface — a chrome-free, full-screen render of an artifact, driven purely by the
 // content (no editor). deck → one 16:9 slide per section with keyboard nav; doc/web → the sections stacked

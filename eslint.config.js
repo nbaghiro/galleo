@@ -30,24 +30,14 @@ export default tseslint.config(
                     zones: [
                         {
                             target: "./kernel",
-                            from: ["./surfaces", "./services", "./render", "./app"],
-                            message: "kernel must not depend on surfaces, services, render, or app",
+                            from: ["./canvas", "./editor", "./services", "./app"],
+                            message: "kernel must not depend on canvas, editor, services, or app",
                         },
                         {
-                            target: "./render",
-                            from: ["./surfaces", "./services", "./app"],
+                            target: "./canvas",
+                            from: ["./editor", "./services", "./app"],
                             message:
-                                "render (shared paint layer) must not depend on a surface, services, or app",
-                        },
-                        {
-                            target: "./surfaces/studio",
-                            from: ["./surfaces/present", "./surfaces/publish"],
-                            message: "a surface must not import another surface",
-                        },
-                        {
-                            target: "./surfaces/present",
-                            from: ["./surfaces/studio", "./surfaces/publish"],
-                            message: "a surface must not import another surface",
+                                "canvas (render) must not depend on the editor, services, or app",
                         },
                     ],
                 },

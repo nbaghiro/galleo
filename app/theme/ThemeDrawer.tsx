@@ -4,7 +4,7 @@ import { createEffect, createSignal, For, Show, untrack } from "solid-js";
 import { useLocation } from "@solidjs/router";
 import { setArtifactTheme } from "@elements/ops";
 import { resolveTheme, THEME_LIST } from "@themes/library";
-import { commit, editor, endThemePreview } from "@studio/editor";
+import { commit, editor, endThemePreview } from "@editor/editor";
 import {
     customThemes,
     removeCustomTheme,

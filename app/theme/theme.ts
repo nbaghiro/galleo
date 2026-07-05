@@ -6,7 +6,7 @@ import { themeCssVars } from "@themes/theme";
 import type { JSX } from "solid-js";
 import type { Tokens } from "@themes/theme";
 import { useLocation } from "@solidjs/router";
-import { editorTokens } from "@studio/editor";
+import { editorTokens } from "@editor/editor";
 import type { ElementInstance, Section } from "@model/artifact";
 
 // The app-chrome theme (auth, library, settings…) — distinct from a deck's artifact theme. Persisted

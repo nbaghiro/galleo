@@ -19,7 +19,7 @@ import {
     setAgentOpen,
     undo,
 } from "../editor";
-import { exportDeckPng, exportPdfAuto, exportPrint } from "@render/export";
+import { exportDeckPng, exportPdfAuto, exportPrint } from "@canvas/export";
 import { Icon } from "../icons";
 
 // One shared height for every topbar control (switchers + action buttons) so they always line up.

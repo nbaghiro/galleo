@@ -2,7 +2,7 @@ import type { ArtifactContent } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createResource, Show } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
-import { Present } from "@present/Present";
+import { Present } from "@canvas/present-view";
 import { api } from "../data/api";
 
 // The /present/:id route — fetches the artifact and hands its content to the standalone present surface.

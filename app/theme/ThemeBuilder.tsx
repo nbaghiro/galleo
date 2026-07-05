@@ -6,10 +6,10 @@ import { createEffect, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import type { ThemeDraft } from "../theme/custom-themes";
 import { luminance } from "@themes/theme";
-import { Dropdown } from "@studio/controls/Dropdown";
+import { Dropdown } from "@editor/controls/Dropdown";
 import { resolveProfile } from "@engine/profile";
-import { paint } from "@render/backends";
-import { measureText, layoutSlide } from "@render/commands";
+import { paint } from "@canvas/backends";
+import { measureText, layoutSlide } from "@canvas/commands";
 import { THEME_SAMPLE } from "../theme/theme";
 
 const DISPLAY_FONTS = [

@@ -1,5 +1,5 @@
 import { createEffect, on, onCleanup, untrack } from "solid-js";
-import { currentArtifactId, editor, editSeq, themeForPersist } from "@studio/editor";
+import { currentArtifactId, editor, editSeq, themeForPersist } from "@editor/editor";
 import { api } from "../data/api";
 
 // Smart autosave: coalesce a burst of edits into a single PATCH so we don't bombard the API.

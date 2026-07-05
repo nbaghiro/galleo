@@ -1,9 +1,9 @@
 import type { Section } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createEffect } from "solid-js";
-import { paint } from "@render/backends";
+import { paint } from "@canvas/backends";
 import { editorTokens, jumpToSection } from "../editor";
-import { measureText, layoutSection } from "@render/commands";
+import { measureText, layoutSection } from "@canvas/commands";
 
 const THUMB_LAYOUT_WIDTH = 760; // lay out realistically, then scale to fit the rail
 

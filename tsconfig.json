@@ -22,10 +22,9 @@
             "@engine/*": ["kernel/engine/*"],
             "@elements/*": ["kernel/elements/*"],
             "@themes/*": ["kernel/themes/*"],
-            "@render/*": ["render/*"],
-            "@studio/*": ["surfaces/studio/*"],
-            "@present/*": ["surfaces/present/*"]
+            "@canvas/*": ["canvas/*"],
+            "@editor/*": ["editor/*"]
         }
     },
-    "include": ["kernel", "render", "surfaces", "services", "app", "*.ts"]
+    "include": ["kernel", "canvas", "editor", "services", "app", "*.ts"]
 }

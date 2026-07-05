@@ -52,9 +52,8 @@ export default defineConfig({
             "@engine": abs("./kernel/engine"),
             "@elements": abs("./kernel/elements"),
             "@themes": abs("./kernel/themes"),
-            "@render": abs("./render"),
-            "@studio": abs("./surfaces/studio"),
-            "@present": abs("./surfaces/present"),
+            "@canvas": abs("./canvas"),
+            "@editor": abs("./editor"),
         },
     },
     build: {
