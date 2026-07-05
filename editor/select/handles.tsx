@@ -10,7 +10,7 @@ import { cellRegionId, elementRegionId, parentTarget, regionId } from "@model/ta
 import { applyLiveEdit, liveEdit, setLiveEdit } from "../editing/manipulate";
 import { commit, editor, editorAccent, regions, selection, stageEl } from "../editor";
 import type { Rect } from "@engine/node";
-import { fallbackTemplate, TEMPLATES } from "@elements/templates";
+import { fallbackTemplate, TEMPLATES } from "@elements/compose";
 
 // The selection border IS the resize affordance — a thin drag zone along each edge (right = width,
 // bottom = height/aspect, corner = both), highlighted on hover. An edge only appears when resizing that

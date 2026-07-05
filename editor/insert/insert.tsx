@@ -18,7 +18,7 @@ import {
     editorAccent,
 } from "../editor";
 import { Icon } from "../icons";
-import { PRESETS } from "@elements/templates";
+import { PRESETS } from "@elements/compose";
 import { getElement } from "@elements/spec";
 import { previewSvg } from "./element-previews";
 import { startDrag, drag } from "../editing/dnd";

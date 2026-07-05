@@ -12,8 +12,8 @@ import {
 import type { Section, ArtifactContent } from "@model/artifact";
 import { resolveProfile } from "@engine/profile";
 import { resolveTheme } from "@themes/library";
-import { paint, backdropCss, paintSectionStack } from "@canvas/backends";
-import { measureText, layoutSlide, SECTION_GAP } from "@canvas/commands";
+import { paint, backdropCss, paintSectionStack } from "@canvas/render/backends";
+import { measureText, layoutSlide, SECTION_GAP } from "@canvas/render/commands";
 
 // Themeable abstract motion for the sign-in panel — colored from --color-accent (see visuals.css).
 // Cycles through a curated set (crossfading); pass `viz` to pin a single one.

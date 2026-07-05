@@ -12,8 +12,8 @@ import {
 import { useNavigate, useParams } from "@solidjs/router";
 import { resolveProfile } from "@engine/profile";
 import { resolveTheme } from "@themes/library";
-import { backdropCss, paintSectionStack } from "@canvas/backends";
-import { slideElement, SLIDE_W, SLIDE_H } from "@canvas/present";
+import { backdropCss, paintSectionStack } from "@canvas/render/backends";
+import { slideElement, SLIDE_W, SLIDE_H } from "@canvas/render/present";
 import { api } from "../data/api";
 
 // The standalone present surface — a chrome-free, full-screen render of an artifact driven purely by its

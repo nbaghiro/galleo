@@ -26,7 +26,7 @@ import {
     setArtifactLive,
     stopEditing,
 } from "../editor";
-import { ctxFor } from "@canvas/commands";
+import { ctxFor } from "@canvas/render/commands";
 import {
     registerTextField,
     setActiveMarks,

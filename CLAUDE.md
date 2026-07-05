@@ -17,7 +17,7 @@ with high-fidelity export. Net-new, TypeScript.
 - **`model/`** (`@model`, `@themes`) — the pure, edge-safe contract. Imports **nothing** outside `model`.
   Per-entity: each type sits with its own wire DTOs — `artifact` (the content tree + its REST shapes),
   `agent` (the streamed generation protocol), `workspace` (user/folder/template + their DTOs), `text`
-  (rich-text core + the render-facing `Run`), plus `target`/`size`/`format`/`authoring` and `themes/`.
+  (rich-text core + the render-facing `Run`), plus `target`/`geometry` (sizing + format profiles)/`authoring` and `themes/`.
 - **`canvas/`** (`@canvas`, `@engine`, `@elements`) — the paint layer: the layout engine + element
   library + DOM / 2D-canvas / PDF backends + present-slide geometry + export. **Pure TS** — framework-
   and editor-free; imports only `model`. (The Solid present _surface_ that wraps it lives in `app`.)
@@ -26,7 +26,7 @@ with high-fidelity export. Net-new, TypeScript.
 - **`services/`** — backend: `data` (Postgres + Drizzle) · `api` (Hono) · `auth` · `queue`; depends only on `model`.
 - **`app/`** — the product SPA (served at `/app`): library, templates, generation, theme drawer, wrapping the editor.
 - **Frontend = SolidJS + Vite + Tailwind v4.** `model` + `canvas` stay framework-free; the engine paints
-  render commands imperatively into refs (`@canvas/backends`) — Solid only owns shell + state.
+  render commands imperatively into refs (`@canvas/render/backends`) — Solid only owns shell + state.
 
 ## Conventions (enforced)
 
@@ -57,8 +57,8 @@ The layout engine (`canvas/engine/layout.ts`, Clay-style 3-pass solver) drives a
 `editor/Studio.tsx` shell = `Topbar` · `Minimap` (live `Thumb`s) · `Canvas` (continuous section stack) ·
 `Panel` (element palette), with selection + inspectors + drag-drop (`select/`·`panels/`·`insert/`) and
 inline text editing (`editing/text-editor.tsx`). State in `editor.ts` (Solid store); painting is the
-`@canvas` layer — the engine's commands paint into refs (`@canvas/backends`, with a 2D-canvas
-mirror for Present + PDF/PNG export). Sections compose via `@elements/templates` + `@elements/compose`; every element has a
+`@canvas` layer — the engine's commands paint into refs (`@canvas/render/backends`, with a 2D-canvas
+mirror for Present + PDF/PNG export). Sections compose via `@elements/compose`; every element has a
 structural ghost (`skeletonize` in `@elements/spec`). **20 elements** register via `editor/register.ts`'s five
 category imports (19 content elements + the internal drop-preview); format-as-view
 (`@engine/profile` + `fragment`) is built, so one artifact renders as deck / doc / web.

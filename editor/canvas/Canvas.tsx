@@ -7,7 +7,7 @@ import { duplicateAt, duplicatedAddr, getElementAt, removeAt } from "@elements/o
 import { getElement } from "@elements/spec";
 import { resolveProfile } from "@engine/profile";
 import { elementRegionId, parentTarget, parseTarget, specificity } from "@model/target";
-import { backdropCss, paintSectionStack } from "@canvas/backends";
+import { backdropCss, paintSectionStack } from "@canvas/render/backends";
 import {
     applyDrop,
     computeDropTarget,

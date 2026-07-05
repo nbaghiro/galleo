@@ -16,7 +16,7 @@ import { getElement, SECTION_CONTROLS } from "@elements/spec";
 import { commit, editor, setSelection, editorTokens } from "../editor";
 import { PanelHeader, SchemaFields, Group } from "../controls/fields";
 import type { SectionBackground } from "@model/artifact";
-import { TEMPLATE_LABELS, TEMPLATES } from "@elements/templates";
+import { TEMPLATE_LABELS, TEMPLATES } from "@elements/compose";
 
 // The docked inspector for a selected element: its schema-driven data controls. Spatial properties
 // (width/height resize, cross-axis align, container gap/padding) are manipulated directly on the canvas

@@ -68,7 +68,7 @@ dimensions are data, a custom size or a draggable/resizable canvas is a data cha
 
 `composeSection` turns a `Section` into an engine tree:
 
-- **Grid.** The section's `grid` names a template (`templates.ts`: `full` / `split-6040` / `split-4060` /
+- **Grid.** The section's `grid` names a template (`compose.ts`: `full` / `split-6040` / `split-4060` /
   `two-col` / `three-up`) whose per-cell width specs become the columns; a section's custom `widths`
   (from a column-divider drag) override the preset.
 - **Recursion.** Container elements (`group`, `card`) recurse through the same composer, so nested
@@ -158,9 +158,9 @@ Continuous formats (doc/web) skip pagination on screen. Paged formats need it:
 
 One `RenderCommand[]` → multiple serializers:
 
-- **DOM** (`canvas/backends.ts`) — absolutely-positioned divs, used for editing (so text selection /
+- **DOM** (`canvas/render/backends.ts`) — absolutely-positioned divs, used for editing (so text selection /
   contenteditable work).
-- **2D canvas** (also `canvas/backends.ts`) — mirrors the DOM output; reused for Present and PDF/PNG export,
+- **2D canvas** (also `canvas/render/backends.ts`) — mirrors the DOM output; reused for Present and PDF/PNG export,
   so _what you edit is what you export_.
 
 ## 9. Status & deferred

@@ -38,8 +38,7 @@ agent.ts       the streamed agent protocol (turns · patches · events · applyP
 workspace.ts   User · Folder · Template + their create/update DTOs (LoginBody · FolderInput)
 text.ts        rich-text core — marks/runs + selection math + the render-facing Run type (canvas re-exports Run for its backends)
 target.ts      stable addressing of selectable entities (section/cell/element paths) → Target + Region ids
-size.ts        Clay-style Size constructors: fit / grow / percent / fixed
-format.ts      format id + kind helpers (deck | doc | web)
+geometry.ts    the dimensional contract: Size (+ fit/grow/percent/fixed constructors), box insets, per-instance ElementLayout, and the deck/doc/web format profiles
 authoring.ts   concise content-authoring DSL (t/img/section/group/deck/doc/web) — used by fixtures/templates + the agent
 ```
 
@@ -56,7 +55,8 @@ library.ts   the curated 52-theme registry via mk() + resolveTheme() + registerT
 
 Everything that turns a `model` artifact into pixels, framework- and editor-free. Imports only `model`.
 This is what makes the editor, thumbnails, present mode, and export pixel-identical: they are all the
-same engine output aimed at a different backend.
+same engine output aimed at a different backend. Three sub-layers, each its own folder: `engine/` (the
+geometry solver) → `elements/` (the library + composer) → `render/` (the DOM/2D/PDF paint backends).
 
 **`engine/` — the layout + render core** (a custom, Clay-style, immediate-mode box solver — see `rendering.md`)
 
@@ -75,15 +75,14 @@ media.ts       image · video
 data.ts        chart · diagram · table · stat
 containers.ts  card · group
 chrome.ts      button · badge · embed · gradient · divider · spacer · dropghost (an internal, palette-hidden drop preview)
-compose.ts     Section → EngineNode tree (tags Region ids; applies onDark tokens over dark backgrounds)
-templates.ts   the section grids (per-cell width specs: full / split-6040 / two-col / …) + presets
+compose.ts     Section → EngineNode tree (tags Region ids; applies onDark tokens over dark backgrounds) + the section-grid templates (full / split-6040 / two-col / …) + smart-layout presets it lays out
 ops.ts         pure, immutable content ops (insert/move/remove/duplicate section, setArtifactTheme, …)
 ```
 
 The five category files (text/media/data/containers/chrome) side-effect-register **20 elements** — 19
 content elements + the internal drop-preview — via `editor/register.ts`.
 
-**render backends + geometry** (the paint pipeline + slide/page geometry + export — pure TS, no framework)
+**`render/` — the paint backends** (the pipeline + slide/page geometry + export — pure TS, no framework)
 
 ```
 commands.ts   engine layout → RenderCommand[] + canvas text measurement (keeps the model DOM-free)
@@ -172,10 +171,10 @@ store, runs the studio with autosave, and registers the IoC handlers.
 ## How it composes (data flow)
 
 ```
-edit:      app/EditorView → @editor (store) → @canvas compose+engine → render commands → @canvas/backends
+edit:      app/EditorView → @editor (store) → @canvas compose+engine → render commands → @canvas/render/backends
 load/save: app/EditorView + app/data/save → services/api → services/data (artifacts.draft_content jsonb)
 present:   editor Topbar (in-editor overlay) OR /present/:id (app PresentView) → @canvas (slide geometry)
-export:    editor Topbar → @canvas/export(artifact, tokens) → PDF / PNG / print
+export:    editor Topbar → @canvas/render/export(artifact, tokens) → PDF / PNG / print
 themes:    app theme drawer → setAppTheme / setArtifactTheme → @themes resolveTheme → the same engine re-paints
 generate:  app/generate (simulator) → the shared BuildCanvas (@canvas engine) → save → open in the editor
 ```
@@ -187,7 +186,7 @@ why the editor, present mode, thumbnails, and export are pixel-identical. Data f
 ## Planned, not yet built
 
 A public read-only publish viewer over `@canvas` (present + export are already standalone — the
-`PresentView` surface + `@canvas/export`) · a real LLM generation backend implementing the `@model/agent`
+`PresentView` surface + `@canvas/render/export`) · a real LLM generation backend implementing the `@model/agent`
 protocol (replacing the `app/generate` simulator) · engine-native rich text driving the editor directly
 from `@model/text` (replacing the contenteditable overlay) · `services/queue` (background jobs).
 

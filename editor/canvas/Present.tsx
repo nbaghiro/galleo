@@ -1,8 +1,8 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { resolveProfile } from "@engine/profile";
-import { backdropCss, paintSectionStack } from "@canvas/backends";
-import { slideElement, SLIDE_W, SLIDE_H } from "@canvas/present";
+import { backdropCss, paintSectionStack } from "@canvas/render/backends";
+import { slideElement, SLIDE_W, SLIDE_H } from "@canvas/render/present";
 import {
     editor,
     editorTokens,
