@@ -44,4 +44,8 @@ export interface FormatDescriptor {
     tokenScale: number;
     splitMinWidth: number;
     paginate: "always" | "export" | "never";
+    group?: string; // picker grouping: "Presentation" | "Document" | "Web" | "Custom"
+    icon?: string; // Icon name for the format pickers
+    fullBleed?: boolean; // content fills the frame edge-to-edge (generalizes the id === "web" checks)
+    frame?: boolean; // the editor renders each section at the page frame (fixed-frame editing)
 }

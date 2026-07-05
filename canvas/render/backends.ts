@@ -21,7 +21,7 @@ import {
 } from "./commands";
 import type { Section, SectionBackground } from "@model/artifact";
 import type { Tokens } from "@themes/theme";
-import { resolveProfile } from "@engine/profile";
+import { pagedSize, resolveProfile } from "@engine/profile";
 import type { FormatDescriptor } from "@model/geometry";
 
 // A DOM render backend: paints absolute-positioned divs from the engine's render commands.
@@ -508,6 +508,7 @@ interface SectionCacheEntry {
     theme: Tokens;
     profileId: string;
     hideKey: string;
+    frameKey: string; // frame dims for a framed format ("" when unframed) — a flex resize invalidates
     layer: HTMLElement;
     regions: Region[]; // section-local (offset into stage coords per draw)
     height: number;
@@ -532,6 +533,8 @@ export function paintSectionStack(
     opts: { fullW: number; startY?: number; hideId?: string | null; cache?: SectionStackCache },
 ): { tops: number[]; regions: Region[]; height: number } {
     const web = profile.id === "web";
+    const framed = (profile.frame ?? false) && !web; // flex: render each section at its page frame
+    const { w: pgw, h: pgh } = pagedSize(profile);
     const gap = profile.kind === "continuous" ? 0 : SECTION_GAP; // doc/web merge seamlessly
     const contentW = Math.min(opts.fullW - 64, profile.maxContentWidth ?? 1080);
     const cache = opts.cache;
@@ -546,6 +549,8 @@ export function paintSectionStack(
         const bleed = (section.bleed ?? false) || web;
         const layoutW = bleed ? opts.fullW : contentW;
         const x = bleed ? 0 : Math.round((opts.fullW - contentW) / 2);
+        const frameH = framed ? Math.round((layoutW * pgh) / pgw) : 0;
+        const frameKey = framed ? `${pgw}x${pgh}` : "";
         // hideId (the inline-edited element's text) only affects its own section, so only that section's
         // cache key carries it — starting/ending an edit repaints one section, not the whole stack.
         const hideKey = opts.hideId?.startsWith(`el:${section.id}:`) ? opts.hideId : "";
@@ -557,11 +562,14 @@ export function paintSectionStack(
             prev.layoutW === layoutW &&
             prev.theme === theme &&
             prev.profileId === profile.id &&
-            prev.hideKey === hideKey
+            prev.hideKey === hideKey &&
+            prev.frameKey === frameKey
         ) {
             entry = prev; // unchanged — reuse the laid-out, painted layer as-is
         } else {
-            const res = layoutSection(section, layoutW, measureText, theme, profile);
+            const res = framed
+                ? layoutSlide(section, layoutW, frameH, measureText, theme, profile)
+                : layoutSection(section, layoutW, measureText, theme, profile);
             const commands = hideKey
                 ? res.commands.filter((c) => !(c.kind === "text" && c.id === hideKey))
                 : res.commands;
@@ -575,6 +583,7 @@ export function paintSectionStack(
                 theme,
                 profileId: profile.id,
                 hideKey,
+                frameKey,
                 layer,
                 regions: res.regions,
                 height: res.height,
@@ -585,6 +594,10 @@ export function paintSectionStack(
         entry.layer.style.top = `${y}px`;
         entry.layer.style.width = `${layoutW}px`;
         entry.layer.style.height = `${entry.height}px`;
+        // A framed (flex) page reads as a distinct card in the stack.
+        entry.layer.style.borderRadius = framed ? "8px" : "";
+        entry.layer.style.overflow = framed ? "hidden" : "";
+        entry.layer.style.boxShadow = framed ? "0 6px 28px rgba(0,0,0,0.12)" : "";
         layers.push(entry.layer);
         for (const r of entry.regions)
             regions.push({

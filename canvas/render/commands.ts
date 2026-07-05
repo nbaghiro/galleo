@@ -151,7 +151,8 @@ function prepareSlideNode(
     return { node, targetH };
 }
 
-// A presentation slide: the section full-bleed, stretched to fill the frame (content centered).
+// A presentation slide: the section full-bleed, stretched to fill the frame (content centered). Returns
+// regions too, so fixed-frame editing (paintSectionStack's frame branch) can hit-test framed pages.
 export function layoutSlide(
     section: Section,
     w: number,
@@ -159,10 +160,10 @@ export function layoutSlide(
     measure: MeasureText,
     theme: Tokens = DEFAULT_THEME.tokens,
     format: FormatDescriptor = DEFAULT_PROFILE,
-): { commands: RenderCommand[]; height: number } {
+): { commands: RenderCommand[]; height: number; regions: Region[] } {
     const { node, targetH } = prepareSlideNode(section, w, h, measure, theme, format);
-    const { commands } = layout(node, { x: 0, y: 0, w, h: targetH }, measure);
-    return { commands, height: targetH };
+    const { commands, regions } = layout(node, { x: 0, y: 0, w, h: targetH }, measure);
+    return { commands, height: targetH, regions };
 }
 
 // The same slide as a structural ghost — the "generating" state at slide geometry (Spotlight strip).

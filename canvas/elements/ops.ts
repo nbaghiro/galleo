@@ -253,3 +253,8 @@ export function setArtifactTheme(art: ArtifactContent, theme: Id): ArtifactConte
 export function setArtifactFormat(art: ArtifactContent, format: Id): ArtifactContent {
     return { ...art, format };
 }
+
+// Set the custom page size (honored for the `flex` format). Rounded to whole pixels.
+export function setPageSize(art: ArtifactContent, width: number, height: number): ArtifactContent {
+    return { ...art, page: { width: Math.round(width), height: Math.round(height) } };
+}

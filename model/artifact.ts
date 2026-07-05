@@ -42,6 +42,7 @@ export interface ArtifactContent {
     theme: Id;
     sections: Section[];
     background?: SectionBackground; // document-level backdrop behind all sections
+    page?: { width: number; height: number }; // custom page size (honored for the `flex` format)
 }
 
 // --- wire DTOs (the artifact's HTTP shapes, shared backend ↔ frontend) ---
@@ -70,6 +71,7 @@ export interface ArtifactSummary {
     trashedAt?: string | null;
     cover?: Cover;
     sections?: SectionSummary[];
+    page?: { width: number; height: number }; // custom page size, for true-aspect library thumbnails
 }
 
 // The full artifact record: its metadata (summary) plus the editable content.
