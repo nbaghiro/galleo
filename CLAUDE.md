@@ -66,7 +66,7 @@ category imports (19 content elements + the internal drop-preview); format-as-vi
 The product SPA (`app/`, served at `/app`) wraps the studio: library / templates / trash / editor
 views, a backend (`services/` Hono + Postgres/Drizzle; artifact content lives in the
 `draft_content` jsonb), a singular theme drawer + custom-theme builder, and a narrated AI-generation
-flow that is a **client-side simulator** (`app/generate`, replaying hand-built fixtures section by
+flow that is a **client-side simulator** (`app/views/generate`, replaying hand-built fixtures section by
 section). A real backend LLM pipeline for the `@model/agent` protocol is future work.
 
 ## Commits

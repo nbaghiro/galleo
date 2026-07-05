@@ -136,7 +136,7 @@ api/           the routers, one per resource, each a Hono sub-app carrying its o
 queue/         reserved — background jobs (not yet built)
 ```
 
-There is no backend generation service — generation is a **client-side simulator** (`app/generate`,
+There is no backend generation service — generation is a **client-side simulator** (`app/views/generate`,
 replaying hand-built demos). A real LLM pipeline that implements the `@model/agent` protocol is future
 work. The seed demos + the template library are plain content built with `@model/authoring`; `services`
 depends only on `model`, never on canvas, editor, or app.
@@ -145,22 +145,17 @@ depends only on `model`, never on canvas, editor, or app.
 
 ## app/ — the product SPA (served at `/app`)
 
-`main.tsx` (entry) · `App.tsx` (auth gate + router + mounts the theme drawer once). The shell around the
+`main.tsx` (entry) · `App.tsx` (auth gate + router + mounts the theme drawer once) · `api.ts` (the typed
+backend client) · `theme.ts` (the whole app + custom theme system in one file). The shell around the
 editor: library, templates, trash, generation, sharing, theming.
 
 ```
-data/      the backend client + client stores
-  api.ts (typed client) · auth.ts (session state) · library.ts (artifact list + content, + blank-artifact factory + format labels/relativeTime) ·
-  folders.ts · save.ts (debounced autosave)
-views/     the routed pages — AuthPage · LibraryView · TemplatesView · TrashView · EditorView · PresentView (the standalone /present/:id present surface — the `Present` Solid view painting through @canvas)
-theme/     the app + custom theme system
-  theme.ts (app-chrome theme + drawer state + favicon + overlay tokens + the sample artifact) ·
-  custom-themes.ts (backend CRUD → registers into the theme registry) · ThemeDrawer.tsx (the singular switcher) ·
-  ThemeBuilder.tsx (custom-theme token editor + its live ThemePreview)
-components/ shared components — Sidebar · icons · modals.tsx (create + confirm) · previews.tsx (Visual · SectionThumb · PreviewCanvas)
-generate/  the narrated AI-generation flow (a client-side simulator today)
-  session.ts (the generation store) · demo.ts (example prompts → hand-built fixtures, swapped per refresh) ·
-  IntakeView · BuildView · build-canvases.tsx (the live-build canvas + spotlight + HUD variants) · gen-view.tsx (direction registry + picker + typing)
+api.ts       the typed backend client (root — the one wire boundary)
+theme.ts     the app + custom theme system: app-chrome theme + drawer state + favicon + overlay tokens + the sample artifact, and the custom-theme backend CRUD that registers into the @themes registry
+stores/      the client stores, one per entity — auth.ts (session state) · library.ts (artifact list/content + blank-artifact factory + format labels) · folders.ts · save.ts (debounced autosave)
+components/   general reusable UI — Sidebar · icons · modals.tsx (create + confirm) · previews.tsx (Visual · SectionThumb · PreviewCanvas) · ThemeDrawer.tsx (the singular switcher) · ThemeBuilder.tsx (custom-theme token editor + live preview)
+views/       the routed pages — AuthPage · LibraryView · TemplatesView · TrashView · EditorView · PresentView (the standalone /present/:id surface, painting through @canvas), plus feature subfolders:
+  generate/  the narrated AI-generation flow (a client-side simulator today) — IntakeView · BuildView · build-canvases.tsx (live-build canvas + spotlight + HUD variants) · gen-view.tsx (direction registry + picker + typing) · session.ts (the store) · demo.ts (example prompts → hand-built demos)
 ```
 
 `EditorView.tsx` is the bridge: it fetches an artifact from the API, hands its content to the editor
@@ -176,7 +171,7 @@ store, runs the studio with autosave, and registers the IoC handlers.
 
 ```
 edit:      app/EditorView → @editor (store) → @canvas compose+engine → render commands → @canvas/render/backends
-load/save: app/EditorView + app/data/save → services/server (api routers) → services/schema (artifacts.draft_content jsonb)
+load/save: app/EditorView + app/stores/save → services/server (api routers) → services/schema (artifacts.draft_content jsonb)
 present:   editor Topbar (in-editor overlay) OR /present/:id (app PresentView) → @canvas (slide geometry)
 export:    editor Topbar → @canvas/render/export(artifact, tokens) → PDF / PNG / print
 themes:    app theme drawer → setAppTheme / setArtifactTheme → @themes resolveTheme → the same engine re-paints
@@ -191,7 +186,7 @@ why the editor, present mode, thumbnails, and export are pixel-identical. Data f
 
 A public read-only publish viewer over `@canvas` (present + export are already standalone — the
 `PresentView` surface + `@canvas/render/export`) · a real LLM generation backend implementing the `@model/agent`
-protocol (replacing the `app/generate` simulator) · engine-native rich text driving the editor directly
+protocol (replacing the `app/views/generate` simulator) · engine-native rich text driving the editor directly
 from `@model/text` (replacing the contenteditable overlay) · `services/queue` (background jobs).
 
 ## Local dev & ports
