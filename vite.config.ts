@@ -54,6 +54,7 @@ export default defineConfig({
             "@themes": abs("./kernel/themes"),
             "@render": abs("./render"),
             "@studio": abs("./surfaces/studio"),
+            "@present": abs("./surfaces/present"),
         },
     },
     build: {

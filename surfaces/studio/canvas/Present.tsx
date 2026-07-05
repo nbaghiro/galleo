@@ -1,8 +1,8 @@
-import type { Section } from "@model/artifact";
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { resolveProfile } from "@engine/profile";
-import { backdropCss, fitSlideContent, paintSectionStack } from "@render/backends";
+import { backdropCss, paintSectionStack } from "@render/backends";
+import { slideElement, SLIDE_W, SLIDE_H } from "@render/present";
 import {
     editor,
     editorTokens,
@@ -13,12 +13,8 @@ import {
     setSlideIndex,
     slideIndex,
 } from "../editor";
-import { measureText, layoutSlide } from "@render/commands";
 import { Icon } from "../icons";
 
-// Deck slide geometry (16:9). Each section is stretched to fill the slide.
-const SLIDE_W = 1280;
-const SLIDE_H = 720;
 const MINI_W = 250;
 
 // Full-screen render of the finished artifact, chrome-free, in its target format:
@@ -32,29 +28,11 @@ export const Present: Component = () => {
     const profile = createMemo(() => resolveProfile(editor.artifact.format));
     const paged = createMemo(() => profile().kind === "paged");
 
-    // --- deck: one section → a 1280×720 slide (taller sections scale down to fit) ---
-    const buildSlide = (section: Section): HTMLDivElement => {
-        const tk = theme();
-        const { commands, height } = layoutSlide(
-            section,
-            SLIDE_W,
-            SLIDE_H,
-            measureText,
-            tk,
-            profile(),
-        );
-        const content = fitSlideContent(commands, height, SLIDE_W, SLIDE_H);
-        const slide = document.createElement("div");
-        slide.style.cssText = `position:relative;width:${SLIDE_W}px;height:${SLIDE_H}px;overflow:hidden;background:${tk.bg}`;
-        slide.appendChild(content);
-        return slide;
-    };
-
     const renderCurrent = (): void => {
         if (!host) return;
         const section = editor.artifact.sections[slideIndex()];
         if (!section) return;
-        const slide = buildSlide(section);
+        const slide = slideElement(section, theme(), profile());
         const k = Math.min((window.innerWidth - 24) / SLIDE_W, (window.innerHeight - 24) / SLIDE_H);
         slide.style.transform = `scale(${k})`;
         slide.style.transformOrigin = "center center";
@@ -69,7 +47,7 @@ export const Present: Component = () => {
         grid.style.cssText = `display:grid;grid-template-columns:repeat(auto-fill,minmax(${MINI_W}px,1fr));gap:18px;padding:48px;width:100%;max-width:1280px;margin:0 auto;align-content:start`;
         const s = MINI_W / SLIDE_W;
         editor.artifact.sections.forEach((section, i) => {
-            const slide = buildSlide(section);
+            const slide = slideElement(section, theme(), profile());
             slide.style.transform = `scale(${s})`;
             slide.style.transformOrigin = "top left";
             const cell = document.createElement("button");

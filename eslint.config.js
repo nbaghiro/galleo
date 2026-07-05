@@ -41,12 +41,12 @@ export default tseslint.config(
                         },
                         {
                             target: "./surfaces/studio",
-                            from: [
-                                "./surfaces/present",
-                                "./surfaces/publish",
-                                "./surfaces/export",
-                                "./surfaces/agent",
-                            ],
+                            from: ["./surfaces/present", "./surfaces/publish"],
+                            message: "a surface must not import another surface",
+                        },
+                        {
+                            target: "./surfaces/present",
+                            from: ["./surfaces/studio", "./surfaces/publish"],
                             message: "a surface must not import another surface",
                         },
                     ],

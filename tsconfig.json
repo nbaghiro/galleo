@@ -23,7 +23,8 @@
             "@elements/*": ["kernel/elements/*"],
             "@themes/*": ["kernel/themes/*"],
             "@render/*": ["render/*"],
-            "@studio/*": ["surfaces/studio/*"]
+            "@studio/*": ["surfaces/studio/*"],
+            "@present/*": ["surfaces/present/*"]
         }
     },
     "include": ["kernel", "render", "surfaces", "services", "app", "*.ts"]
