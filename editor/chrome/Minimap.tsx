@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { createSignal, For, Show } from "solid-js";
 import { addSectionAfter, editor, moveSectionBy, setLeftOpen } from "../editor";
-import { Thumb } from "../canvas/Thumb";
+import { Thumb } from "../canvas/Canvas";
 import { Icon } from "../icons";
 
 // Floating left rail: a live thumbnail per section; click to jump-scroll, drag the grip to reorder.

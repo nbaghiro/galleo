@@ -1,13 +1,14 @@
 // Direct-manipulation drag handles: resize, spacing/padding, and column-divider handles on the selected node.
 
 import type { ElementLayout } from "@model/geometry";
+import type { ElementAddress } from "@model/target";
+import type { ArtifactContent } from "@model/artifact";
 import type { Component } from "solid-js";
-import { createMemo, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
 import { GUTTER } from "@elements/compose";
-import { getElementAt } from "@elements/ops";
+import { getElementAt, setElementLayout, setSectionWidths, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { cellRegionId, elementRegionId, parentTarget, regionId } from "@model/target";
-import { applyLiveEdit, liveEdit, setLiveEdit } from "./manipulate";
 import { commit, editor, editorAccent, regions, selection, stageEl } from "../editor";
 import type { Rect } from "@engine/node";
 import { fallbackTemplate, TEMPLATES } from "@elements/compose";
@@ -401,3 +402,32 @@ export const ColumnDividers: Component = () => {
         </Show>
     );
 };
+
+// A live, uncommitted direct-manipulation edit (resize / column-drag / spacing) driven by a canvas
+// handle. The canvas paints `applyLiveEdit(artifact, edit)` while a handle is dragged so the layout
+// reflows in real time; the same op is committed on release. One signal covers every handle kind.
+export type LiveEdit =
+    | {
+          kind: "element";
+          address: ElementAddress;
+          layoutPatch?: Partial<ElementLayout>; // width / cross-axis (ElementLayout)
+          dataPatch?: Record<string, unknown>; // height / aspect / gap / padding (element data)
+      }
+    | { kind: "columns"; section: string; widths: number[] };
+
+export const [liveEdit, setLiveEdit] = createSignal<LiveEdit | null>(null);
+
+export function applyLiveEdit(art: ArtifactContent, edit: LiveEdit): ArtifactContent {
+    if (edit.kind === "columns") return setSectionWidths(art, edit.section, edit.widths);
+    const inst = getElementAt(art, edit.address);
+    if (!inst) return art;
+    let out = art;
+    if (edit.layoutPatch)
+        out = setElementLayout(out, edit.address, { ...(inst.layout ?? {}), ...edit.layoutPatch });
+    if (edit.dataPatch)
+        out = updateDataAt(out, edit.address, {
+            ...(inst.data as Record<string, unknown>),
+            ...edit.dataPatch,
+        });
+    return out;
+}

@@ -28,7 +28,7 @@ import { drag } from "../insert/dnd";
 import { Field } from "./fields";
 import { Icon } from "../icons";
 import type { MarkType } from "@model/text";
-import { ColorPicker, highlightSwatches, textColorSwatches } from "./ColorPicker";
+import { ColorPicker, highlightSwatches, textColorSwatches } from "./widgets";
 import {
     activeMarks,
     activeValues,

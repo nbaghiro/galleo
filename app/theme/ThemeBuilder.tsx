@@ -6,7 +6,7 @@ import { createEffect, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import type { ThemeDraft } from "../theme/custom-themes";
 import { luminance } from "@themes/theme";
-import { Dropdown } from "@editor/inspect/Dropdown";
+import { Dropdown } from "@editor/inspect/widgets";
 import { resolveProfile } from "@engine/profile";
 import { paint } from "@canvas/render/backends";
 import { measureText, layoutSlide } from "@canvas/render/commands";

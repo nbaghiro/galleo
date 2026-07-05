@@ -101,19 +101,16 @@ not here — it paints through these backends but is a framework component, so i
 The SolidJS studio: pure editor UI on top of `model` + `canvas`. `Studio.tsx` (shell) · `editor.ts`
 (the reactive store + `editorTokens`/`editorTheme`/`editorAccent` selectors) · `register.ts` (side-effect
 module that registers every element into the registry; `app/main.tsx` imports it before mount) ·
-`icons.tsx`. The `select`/`panels`/`insert` folders group the canvas overlays by the **interaction**
-they serve, not by where they paint.
+`icons.tsx`. The folders are grouped by **feature** — each owns its own interaction state (drag, live-edit,
+mark helpers) rather than pooling them in a shared "editing" bucket.
 
 ```
-canvas/    the Solid components over the render backends — Canvas.tsx (live editing canvas) · Present.tsx (in-editor present overlay, over @canvas) · Thumb.tsx
-select/    direct manipulation — selection.tsx (selection outline + section actions/toolbar) · handles.tsx (resize · spacing · column-divider handles)
-panels/    property-editing UI — format-bar.tsx (the floating contextual control bar + rich-text mark controls) · inspectors.tsx (element + section)
-insert/    adding content — insert.tsx (cell-add · element picker · palette item · context menu · drag/drop ghosts) · element-previews.ts (theme-driven SVG previews)
-editing/   interaction logic — text-editor.tsx (the contenteditable inline editor + its marks/runs model) · text-format.ts (mark helpers shared with the format bar) ·
-           manipulate.ts (live drag-edit state, shared by Canvas + the handles) · dnd.ts (drag-and-drop)
-controls/  the shared input kit — fields.tsx (the schema-driven ControlField dispatcher, used by both inspectors and the format bar) · Dropdown.tsx · ColorPicker.tsx
-chrome/    Topbar.tsx (doc menu · format · theme · present · export · generate) · Panel.tsx (element palette) · Minimap.tsx
-agent/     AgentPanel.tsx (the generate panel + its local, deterministic preview generator — a stand-in for the real LLM)
+canvas/    the Solid components over the render backends — Canvas.tsx (live editing canvas + the Minimap section Thumb) · Present.tsx (in-editor present overlay, over @canvas) · embeds.tsx (live media players)
+select/    selection + direct manipulation — selection.tsx (outline + section actions/toolbar) · handles.tsx (resize · spacing · column-divider handles + the live-edit state they drive)
+inspect/   property editing + its input kit — fields.tsx (the schema-driven ControlField dispatcher) · widgets.tsx (Dropdown + ColorPicker) · format-bar.tsx (floating contextual bar + rich-text marks) · inspectors.tsx (element + section)
+insert/    adding content — insert.tsx (cell-add · element picker/palette · context menu · drag ghosts · theme-driven SVG previews) · dnd.ts (drag-and-drop)
+text/      inline text editing — text-editor.tsx (the contenteditable overlay + its marks/runs model) · text-format.ts (mark helpers shared with the format bar)
+chrome/    the frame — Topbar.tsx (doc menu · format · theme · present · export · generate) · Panel.tsx (element palette) · Minimap.tsx · AgentPanel.tsx (the generate panel + its local deterministic preview generator)
 ```
 
 The editor talks to the app through inversion-of-control handlers on `editor.ts`
