@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { createSignal, For, onMount, Show } from "solid-js";
 import { resolveTheme } from "@themes/library";
-import { type ArtifactSummary } from "../data/api";
+import { type ArtifactSummary } from "../api";
 import {
     formatLabel,
     relativeTime,
@@ -10,7 +10,7 @@ import {
     purgeArtifact,
     restoreFromTrash,
     trash,
-} from "../data/library";
+} from "../stores/library";
 import { RestoreIcon, TrashIcon } from "../components/icons";
 import { ConfirmModal } from "../components/modals";
 import { Sidebar } from "../components/Sidebar";

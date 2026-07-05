@@ -1,7 +1,7 @@
 import { createSignal } from "solid-js";
 import type { Theme, Tokens } from "@themes/theme";
 import { registerThemes } from "@themes/library";
-import { api, type ApiTheme } from "../data/api";
+import { api, type ApiTheme } from "../api";
 
 // User-created themes for the workspace — loaded from the backend, registered with the @themes
 // registry so they resolve by id like built-ins (in artifacts AND previews), and listed in the theme

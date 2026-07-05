@@ -14,7 +14,7 @@ import {
 import { useNavigate, useParams } from "@solidjs/router";
 import { resolveTheme } from "@themes/library";
 import { fontStack } from "@themes/theme";
-import { type ArtifactSummary } from "../data/api";
+import { type ArtifactSummary } from "../api";
 import {
     FORMAT_IDS,
     formatLabel,
@@ -31,9 +31,9 @@ import {
     removeArtifact,
     removeArtifacts,
     setDraggingArtifact,
-} from "../data/library";
+} from "../stores/library";
 import { appTheme } from "../theme/theme";
-import { folders } from "../data/folders";
+import { folders } from "../stores/folders";
 import { ConfirmModal } from "../components/modals";
 import {
     CheckIcon,

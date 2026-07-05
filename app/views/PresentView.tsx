@@ -14,7 +14,7 @@ import { resolveProfile } from "@engine/profile";
 import { resolveTheme } from "@themes/library";
 import { backdropCss, paintSectionStack } from "@canvas/render/backends";
 import { slideElement, SLIDE_W, SLIDE_H } from "@canvas/render/present";
-import { api } from "../data/api";
+import { api } from "../api";
 
 // The standalone present surface — a chrome-free, full-screen render of an artifact driven purely by its
 // content (no editor). deck → one 16:9 slide per section with keyboard nav; doc/web → the sections stacked

@@ -17,10 +17,10 @@ import {
     setArtifacts,
     startThemePreview,
 } from "@editor/editor";
-import { api } from "../data/api";
-import { renameArtifactById } from "../data/library";
+import { api } from "../api";
+import { renameArtifactById } from "../stores/library";
 import { appTheme, setFaviconOverride, openThemeDrawer } from "../theme/theme";
-import { flushAutosave, installAutosave } from "../data/save";
+import { flushAutosave, installAutosave } from "../stores/save";
 
 // One route per open artifact (/edit/:id). Loads it, runs the studio with autosave, and routes the
 // studio's wordmark (home) + doc switcher back through the router — flushing the current doc first.

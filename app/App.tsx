@@ -2,7 +2,7 @@ import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, onMount, Show } from "solid-js";
 import { Route, Router } from "@solidjs/router";
 import { resolveTheme } from "@themes/library";
-import { authReady, bootstrap, user } from "./data/auth";
+import { authReady, bootstrap, user } from "./stores/auth";
 import { customThemes, loadCustomThemes } from "./theme/custom-themes";
 import { faviconOverride, setFavicon, appTheme, appThemeVars } from "./theme/theme";
 import { AuthPage } from "./views/AuthPage";

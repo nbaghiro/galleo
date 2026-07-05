@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { api, type ApiUser } from "../data/api";
+import { api, type ApiUser } from "../api";
 
 // Session state for the app. bootstrap() runs once at startup to restore an existing session.
 export const [user, setUser] = createSignal<ApiUser | null>(null);

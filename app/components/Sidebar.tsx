@@ -1,8 +1,8 @@
 import type { Component, JSX } from "solid-js";
 import { createSignal, For, onMount, Show } from "solid-js";
 import { useLocation, useNavigate } from "@solidjs/router";
-import { api, type ApiFolder } from "../data/api";
-import { logout, user } from "../data/auth";
+import { api, type ApiFolder } from "../api";
+import { logout, user } from "../stores/auth";
 import {
     blankArtifact,
     formatLabel,
@@ -10,7 +10,7 @@ import {
     draggingArtifact,
     moveArtifact,
     setDraggingArtifact,
-} from "../data/library";
+} from "../stores/library";
 import {
     addFolder,
     folderColor,
@@ -18,7 +18,7 @@ import {
     loadFolders,
     removeFolder,
     renameFolderById,
-} from "../data/folders";
+} from "../stores/folders";
 import {
     ChevronRightIcon,
     CloseIcon,

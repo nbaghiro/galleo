@@ -2,7 +2,7 @@ import type { ArtifactContent, ElementInstance, Section } from "@model/artifact"
 import type { AgentEvent, Beat as PlanBeat } from "@model/agent";
 import { createStore } from "solid-js/store";
 import { applyPatch } from "@model/agent";
-import { api } from "../data/api";
+import { api } from "../api";
 import { DEMO_EXAMPLES, type DemoExample } from "./demo";
 
 // The generation session — a reactive store the intake + build screens subscribe to. A client-side

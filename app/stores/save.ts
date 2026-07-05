@@ -1,6 +1,6 @@
 import { createEffect, on, onCleanup, untrack } from "solid-js";
 import { currentArtifactId, editor, editSeq, themeForPersist } from "@editor/editor";
-import { api } from "../data/api";
+import { api } from "../api";
 
 // Smart autosave: coalesce a burst of edits into a single PATCH so we don't bombard the API.
 //  · debounce ~1.2s after the last edit

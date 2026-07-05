@@ -1,6 +1,6 @@
 import type { Component } from "solid-js";
 import { createSignal, Show } from "solid-js";
-import { login } from "../data/auth";
+import { login } from "../stores/auth";
 import { Visual } from "../components/previews";
 
 const field =

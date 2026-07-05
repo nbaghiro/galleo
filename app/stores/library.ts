@@ -2,7 +2,7 @@
 
 import type { ArtifactContent } from "@model/artifact";
 import { createSignal } from "solid-js";
-import { api, type ArtifactSummary } from "../data/api";
+import { api, type ArtifactSummary } from "../api";
 import { PROFILES } from "@engine/profile";
 
 // Shared library state — artifacts + their full content (for thumbnails) live here so a folder move from the
