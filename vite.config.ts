@@ -48,10 +48,10 @@ export default defineConfig({
     plugins: [solid(), tailwindcss(), appSpaFallback()],
     resolve: {
         alias: {
-            "@model": abs("./kernel/model"),
-            "@engine": abs("./kernel/engine"),
-            "@elements": abs("./kernel/elements"),
-            "@themes": abs("./kernel/themes"),
+            "@model": abs("./model"),
+            "@engine": abs("./canvas/engine"),
+            "@elements": abs("./canvas/elements"),
+            "@themes": abs("./model/themes"),
             "@canvas": abs("./canvas"),
             "@editor": abs("./editor"),
         },

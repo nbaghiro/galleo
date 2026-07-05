@@ -1,7 +1,8 @@
 import tseslint from "typescript-eslint";
 import importPlugin from "eslint-plugin-import";
 
-// Boundary rules (Kernel + Surfaces): the kernel stays pure; surfaces never import each other.
+// Boundary law (model · canvas · editor · app): each layer may only reach the ones beneath it.
+// model (pure contract) ← canvas (render) ← editor (edit) ← app (shell); services sees only model.
 export default tseslint.config(
     {
         ignores: [
@@ -29,15 +30,22 @@ export default tseslint.config(
                 {
                     zones: [
                         {
-                            target: "./kernel",
+                            target: "./model",
                             from: ["./canvas", "./editor", "./services", "./app"],
-                            message: "kernel must not depend on canvas, editor, services, or app",
+                            message:
+                                "model is the pure contract — it must not depend on canvas, editor, services, or app",
                         },
                         {
                             target: "./canvas",
                             from: ["./editor", "./services", "./app"],
                             message:
-                                "canvas (render) must not depend on the editor, services, or app",
+                                "canvas (render) may depend on model only — not editor, services, or app",
+                        },
+                        {
+                            target: "./services",
+                            from: ["./canvas", "./editor", "./app"],
+                            message:
+                                "services (backend) may depend on model only — not canvas, editor, or app",
                         },
                     ],
                 },

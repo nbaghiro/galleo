@@ -18,13 +18,13 @@
         "forceConsistentCasingInFileNames": true,
         "baseUrl": ".",
         "paths": {
-            "@model/*": ["kernel/model/*"],
-            "@engine/*": ["kernel/engine/*"],
-            "@elements/*": ["kernel/elements/*"],
-            "@themes/*": ["kernel/themes/*"],
+            "@model/*": ["model/*"],
+            "@engine/*": ["canvas/engine/*"],
+            "@elements/*": ["canvas/elements/*"],
+            "@themes/*": ["model/themes/*"],
             "@canvas/*": ["canvas/*"],
             "@editor/*": ["editor/*"]
         }
     },
-    "include": ["kernel", "canvas", "editor", "services", "app", "*.ts"]
+    "include": ["model", "canvas", "editor", "services", "app", "*.ts"]
 }

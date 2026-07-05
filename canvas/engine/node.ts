@@ -1,4 +1,5 @@
 import type { BoxInsets, Size } from "@model/artifact";
+import type { Run } from "@model/text";
 
 export interface Rect {
     x: number;
@@ -54,20 +55,9 @@ export interface Measured {
 // Injected into the engine so the kernel stays pure (no DOM). Wraps `text` at `maxWidth`.
 export type MeasureText = (leaf: TextLeaf, maxWidth: number) => Measured;
 
-// A styled run: a contiguous slice of a text leaf that overrides some inline styles. Runs inherit the
-// leaf's base font/size; each flag only turns a style ON (never off), matching how inline marks stack.
-// The render-facing form of the rich-text model (`/text` flattens marks into these).
-export interface Run {
-    text: string;
-    bold?: boolean;
-    italic?: boolean;
-    underline?: boolean;
-    strike?: boolean;
-    code?: boolean;
-    color?: string; // per-run text color (hex)
-    link?: string; // href (carried for hit-testing/editing; not painted as a style here)
-    highlight?: string; // background color (hex)
-}
+// The styled run type lives with the rich-text model (`@model/text`, which flattens marks into runs);
+// the engine consumes it and re-exports it for the render backends.
+export type { Run };
 
 export interface TextLeaf {
     text: string;

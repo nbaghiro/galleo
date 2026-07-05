@@ -1,7 +1,20 @@
 // Engine-native rich-text core. The engine owns text layout everywhere; a hidden contenteditable is
 // only an input/IME sink. Latin-first, desktop-first to start.
 
-import type { Run } from "@engine/node";
+// A styled run: a contiguous slice of a text leaf that overrides some inline styles. Runs inherit the
+// leaf's base font/size; each flag only turns a style ON (never off). The render-facing form of the
+// rich-text model — `toRuns` flattens marks into these, and the engine paints them.
+export interface Run {
+    text: string;
+    bold?: boolean;
+    italic?: boolean;
+    underline?: boolean;
+    strike?: boolean;
+    code?: boolean;
+    color?: string; // per-run text color (hex)
+    link?: string; // href (carried for hit-testing/editing; not painted as a style here)
+    highlight?: string; // background color (hex)
+}
 
 export type MarkType = "b" | "i" | "u" | "s" | "code" | "link" | "color" | "hl";
 
