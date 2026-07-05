@@ -1,23 +1,26 @@
 import type { RenderCommand } from "@engine/node";
+import type { ArtifactContent } from "@model/artifact";
+import type { Tokens } from "@themes/theme";
 import { PDFDocument } from "pdf-lib";
 import { fragment } from "@engine/layout";
 import { resolveProfile } from "@engine/profile";
-import { renderSlide, renderToCanvas, paint } from "@render/backends";
-import { editor, editorTokens } from "../editor";
-import { measureText, layoutSection } from "@render/commands";
+import { renderSlide, renderToCanvas, paint } from "./backends";
+import { measureText, layoutSection } from "./commands";
+
+// Export an artifact to PDF / PNG / print — editor-free: every entry point takes the artifact + its
+// resolved theme tokens, so the studio, a present surface, or a publish page can all export the same way.
 
 const PRINT_W = 1100;
-
 // Slide geometry (matches Present) + the PDF page size in points (13.33in × 7.5in widescreen).
 const SLIDE_W = 1280;
 const SLIDE_H = 720;
 const SCALE = 2; // raster supersampling for crisp output
 const PAGE_W = 960;
 const PAGE_H = 540;
-
-function tokens() {
-    return editorTokens();
-}
+// A4 page geometry (points) for the continuous Document format.
+const A4_W = 595;
+const A4_H = 842;
+const DOC_MARGIN = 48;
 
 async function canvasPng(canvas: HTMLCanvasElement): Promise<Uint8Array> {
     const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/png"));
@@ -35,10 +38,9 @@ function download(bytes: Uint8Array | string, filename: string, type: string): v
 
 // Pixel-perfect PDF: each section is rendered to a 16:9 slide canvas (exact fonts, gradients,
 // rounded cards, charts) and embedded as a PDF page. (Selectable-text vector layer is the next step.)
-async function exportPdf(): Promise<void> {
-    const tk = tokens();
+async function exportSlidePdf(artifact: ArtifactContent, tk: Tokens): Promise<void> {
     const pdf = await PDFDocument.create();
-    for (const section of editor.artifact.sections) {
+    for (const section of artifact.sections) {
         const { canvas } = await renderSlide(section, tk, { w: SLIDE_W, h: SLIDE_H, scale: SCALE });
         const img = await pdf.embedPng(await canvasPng(canvas));
         const page = pdf.addPage([PAGE_W, PAGE_H]);
@@ -47,21 +49,15 @@ async function exportPdf(): Promise<void> {
     download(await pdf.save(), "galleo.pdf", "application/pdf");
 }
 
-// A4 page geometry (points) for the continuous Document format.
-const A4_W = 595;
-const A4_H = 842;
-const DOC_MARGIN = 48;
-
 // Document/continuous → paginated A4 PDF: lay out all sections in a reading column, then fragment the
 // flow into page-height chunks (engine/fragment) and render each as a page.
-async function exportDocPdf(): Promise<void> {
-    const tk = tokens();
+async function exportDocPdf(artifact: ArtifactContent, tk: Tokens): Promise<void> {
     const docProfile = resolveProfile("doc");
     const layoutW = docProfile.maxContentWidth ?? 744;
 
     const all: RenderCommand[] = [];
     let y = 0;
-    for (const section of editor.artifact.sections) {
+    for (const section of artifact.sections) {
         const { commands, height } = layoutSection(section, layoutW, measureText, tk, docProfile);
         for (const c of commands) all.push({ ...c, box: { ...c.box, y: c.box.y + y } });
         y += height; // continuous: sections merge seamlessly
@@ -88,16 +84,15 @@ async function exportDocPdf(): Promise<void> {
 }
 
 // Format-aware PDF: deck → 16:9 slide pages; doc/web → paginated A4.
-export function exportPdfAuto(): Promise<void> {
-    return resolveProfile(editor.artifact.format).kind === "continuous"
-        ? exportDocPdf()
-        : exportPdf();
+export function exportPdfAuto(artifact: ArtifactContent, tk: Tokens): Promise<void> {
+    return resolveProfile(artifact.format).kind === "continuous"
+        ? exportDocPdf(artifact, tk)
+        : exportSlidePdf(artifact, tk);
 }
 
 // Export the whole deck as one tall PNG (all slides stacked).
-export async function exportDeckPng(): Promise<void> {
-    const tk = tokens();
-    const sections = editor.artifact.sections;
+export async function exportDeckPng(artifact: ArtifactContent, tk: Tokens): Promise<void> {
+    const sections = artifact.sections;
     const out = document.createElement("canvas");
     out.width = SLIDE_W * SCALE;
     out.height = SLIDE_H * SCALE * sections.length;
@@ -116,13 +111,12 @@ export async function exportDeckPng(): Promise<void> {
 
 // Continuous → paper, via the browser print dialog. Best for the Document format. (#galleo-print is
 // shown only in @media print — see studio.css.)
-export function exportPrint(): void {
-    const theme = tokens();
-    const width = resolveProfile(editor.artifact.format).maxContentWidth ?? PRINT_W;
+export function exportPrint(artifact: ArtifactContent, theme: Tokens): void {
+    const width = resolveProfile(artifact.format).maxContentWidth ?? PRINT_W;
     const container = document.createElement("div");
     container.id = "galleo-print";
 
-    for (const section of editor.artifact.sections) {
+    for (const section of artifact.sections) {
         const { commands, height } = layoutSection(section, width, measureText, theme);
         const page = document.createElement("div");
         page.style.cssText = `position:relative;width:${width}px;height:${height}px;background:${theme.bg};break-after:page;page-break-after:always`;

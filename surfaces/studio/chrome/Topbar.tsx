@@ -9,6 +9,7 @@ import {
     artifacts,
     editor,
     editorTheme,
+    editorTokens,
     present,
     redo,
     renameArtifact,
@@ -18,7 +19,7 @@ import {
     setAgentOpen,
     undo,
 } from "../editor";
-import { exportDeckPng, exportPdfAuto, exportPrint } from "../canvas/export-pdf";
+import { exportDeckPng, exportPdfAuto, exportPrint } from "@render/export";
 import { Icon } from "../icons";
 
 // One shared height for every topbar control (switchers + action buttons) so they always line up.
@@ -206,9 +207,9 @@ const ExportMenu: Component = () => {
             <Show when={open()}>
                 <div class="fixed inset-0 z-10" onClick={() => setOpen(false)} />
                 <div class="absolute right-0 z-20 mt-2 w-52 rounded-xl border border-line bg-panel p-1.5 shadow-xl">
-                    {item("PDF", exportPdfAuto)}
-                    {item("PNG — deck", exportDeckPng)}
-                    {item("Print…", exportPrint)}
+                    {item("PDF", () => exportPdfAuto(editor.artifact, editorTokens()))}
+                    {item("PNG — deck", () => exportDeckPng(editor.artifact, editorTokens()))}
+                    {item("Print…", () => exportPrint(editor.artifact, editorTokens()))}
                 </div>
             </Show>
         </div>
