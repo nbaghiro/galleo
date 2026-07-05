@@ -11,7 +11,7 @@
 model/      the pure contract — content model, themes, protocols, authoring DSL (edge-safe, no DOM, no framework)
 canvas/     the paint layer — layout engine + element library + DOM/2D/PDF backends + present geometry + export (pure TS, no framework)
 editor/     the editing UI — the SolidJS studio (selection, inspectors, inline text, drag-drop) over model + canvas
-services/   the backend — data (Postgres/Drizzle) · api (Hono) · auth · queue; depends only on model
+services/   the backend (Hono + Postgres/Drizzle) — schema · auth · a thin server + per-resource routers in api/ + seed/demos/templates content; depends only on model
 app/        the product SPA (served at /app) — library, templates, generation, theme drawer, wrapping the editor
 marketing/  a separate public build (served at /)
 ```
@@ -39,7 +39,7 @@ workspace.ts   User · Folder · Template + their create/update DTOs (LoginBody 
 text.ts        rich-text core — marks/runs + selection math + the render-facing Run type (canvas re-exports Run for its backends)
 target.ts      stable addressing of selectable entities (section/cell/element paths) → Target + Region ids
 geometry.ts    the dimensional contract: Size (+ fit/grow/percent/fixed constructors), box insets, per-instance ElementLayout, and the deck/doc/web format profiles
-authoring.ts   concise content-authoring DSL (t/img/section/group/deck/doc/web) — used by fixtures/templates + the agent
+authoring.ts   concise content-authoring DSL (t/img/section/group/deck/doc/web) — used by demos/templates + the agent
 ```
 
 **`themes/` — themes as data** (`@themes`; pure color math + a registry, no DOM)
@@ -120,19 +120,26 @@ The editor talks to the app through inversion-of-control handlers on `editor.ts`
 
 ## services/ — the backend (depends only on `model`)
 
+The programs live at the root; `api/` holds the routers; the rest is seed + template **content**.
+
 ```
-data/    schema.ts (the Drizzle/Postgres schema — see data-model.md) · client.ts (the DB client)
-auth/    auth.ts (scrypt password hashing + signed-cookie session)
-api/     server.ts (the Hono API: /auth · /artifacts · /folders · /themes · /templates)
-         seed.ts (idempotent demo seed) · fixtures.ts + fixtures/* (7 demo artifacts, one file each) ·
-         templates.ts (registry) + templates/* (one file per category: creative · marketing · pitch · proposals · reports)
-queue/   reserved — background jobs (not yet built)
+schema.ts      the Drizzle/Postgres schema (11 tables — see data-model.md) + the lazy DB handle (db)
+auth.ts        scrypt password hashing + signed-cookie session
+server.ts      the entrypoint — a thin Hono app: /health + mounts every api/ router, then listens
+seed.ts        idempotent demo seed (a script, run via `pnpm seed`); owns the demo registry inline
+demos/         7 fully-authored demo artifacts (deck/doc/web), one file each — seed content, not test fixtures
+templates.ts   the starter-template registry (TEMPLATES) — served by the /templates route + used by seed
+templates/     the template content, one file per category: creative · marketing · pitch · proposals · reports
+api/           the routers, one per resource, each a Hono sub-app carrying its own full paths:
+               context.ts (readJson · currentUser · firstWorkspaceId) · session.ts (/auth · /me) ·
+               artifacts.ts (/artifacts + /trash, + library cover/filmstrip) · folders.ts · themes.ts · templates.ts (/templates)
+queue/         reserved — background jobs (not yet built)
 ```
 
 There is no backend generation service — generation is a **client-side simulator** (`app/generate`,
-replaying hand-built fixtures). A real LLM pipeline that implements the `@model/agent` protocol is
-future work. The seed fixtures + the template library are plain content built with `@model/authoring`;
-`services` depends only on `model`, never on canvas, editor, or app.
+replaying hand-built demos). A real LLM pipeline that implements the `@model/agent` protocol is future
+work. The seed demos + the template library are plain content built with `@model/authoring`; `services`
+depends only on `model`, never on canvas, editor, or app.
 
 ---
 
@@ -169,7 +176,7 @@ store, runs the studio with autosave, and registers the IoC handlers.
 
 ```
 edit:      app/EditorView → @editor (store) → @canvas compose+engine → render commands → @canvas/render/backends
-load/save: app/EditorView + app/data/save → services/api → services/data (artifacts.draft_content jsonb)
+load/save: app/EditorView + app/data/save → services/server (api routers) → services/schema (artifacts.draft_content jsonb)
 present:   editor Topbar (in-editor overlay) OR /present/:id (app PresentView) → @canvas (slide geometry)
 export:    editor Topbar → @canvas/render/export(artifact, tokens) → PDF / PNG / print
 themes:    app theme drawer → setAppTheme / setArtifactTheme → @themes resolveTheme → the same engine re-paints
@@ -192,13 +199,13 @@ from `@model/text` (replacing the contenteditable overlay) · `services/queue` (
 Galleo claims the **86xx** host-port block so it runs alongside the other `~/Documents/code` projects.
 Container-internal ports stay conventional (5432/6379/…); only host mappings use 86xx.
 
-| Port          | Service                             | Set in                           | Status   |
-| ------------- | ----------------------------------- | -------------------------------- | -------- |
-| **8600**      | Studio (Vite dev/preview)           | `vite.config.ts` (strictPort)    | active   |
-| **8601**      | Backend API (Hono)                  | `services/api`                   | active   |
-| **8602**      | Postgres (→ container 5432)         | `services/data` · `DATABASE_URL` | active   |
-| **8603**      | Redis / job queue (→ 6379)          | `services/queue`                 | reserved |
-| **8604–8605** | Object storage (MinIO S3 + console) | asset storage                    | reserved |
-| **8606**      | Preview / SSR (publish viewer)      | `app` publish view               | reserved |
+| Port          | Service                             | Set in                             | Status   |
+| ------------- | ----------------------------------- | ---------------------------------- | -------- |
+| **8600**      | Studio (Vite dev/preview)           | `vite.config.ts` (strictPort)      | active   |
+| **8601**      | Backend API (Hono)                  | `services/server`                  | active   |
+| **8602**      | Postgres (→ container 5432)         | `services/schema` · `DATABASE_URL` | active   |
+| **8603**      | Redis / job queue (→ 6379)          | `services/queue`                   | reserved |
+| **8604–8605** | Object storage (MinIO S3 + console) | asset storage                      | reserved |
+| **8606**      | Preview / SSR (publish viewer)      | `app` publish view                 | reserved |
 
 The cross-project registry of every sibling project's host ports lives at `clientbridge/.docs/ports.md`.

@@ -23,7 +23,7 @@ with high-fidelity export. Net-new, TypeScript.
   and editor-free; imports only `model`. (The Solid present _surface_ that wraps it lives in `app`.)
 - **`editor/`** (`@editor`) — the SolidJS studio: selection, inspectors, inline text, drag-drop over
   `model` + `canvas`. `register.ts` side-effect-registers the elements.
-- **`services/`** — backend: `data` (Postgres + Drizzle) · `api` (Hono) · `auth` · `queue`; depends only on `model`.
+- **`services/`** — backend (Hono + Postgres/Drizzle), depends only on `model`: `schema.ts` + `auth.ts` + a thin `server.ts` mounting per-resource routers in `api/`; `seed.ts` + `demos/` + `templates/` are seed content.
 - **`app/`** — the product SPA (served at `/app`): library, templates, generation, theme drawer, wrapping the editor.
 - **Frontend = SolidJS + Vite + Tailwind v4.** `model` + `canvas` stay framework-free; the engine paints
   render commands imperatively into refs (`@canvas/render/backends`) — Solid only owns shell + state.
@@ -64,7 +64,7 @@ category imports (19 content elements + the internal drop-preview); format-as-vi
 (`@engine/profile` + `fragment`) is built, so one artifact renders as deck / doc / web.
 
 The product SPA (`app/`, served at `/app`) wraps the studio: library / templates / trash / editor
-views, a backend (`services/api` Hono + `services/data` Postgres/Drizzle; artifact content lives in the
+views, a backend (`services/` Hono + Postgres/Drizzle; artifact content lives in the
 `draft_content` jsonb), a singular theme drawer + custom-theme builder, and a narrated AI-generation
 flow that is a **client-side simulator** (`app/generate`, replaying hand-built fixtures section by
 section). A real backend LLM pipeline for the `@model/agent` protocol is future work.

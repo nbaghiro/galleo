@@ -3,7 +3,7 @@
 > Engine = **PostgreSQL + JSONB**: everything relational (auth, sharing, billing) gets foreign keys +
 > transactions; the one schema-flexible thing — the artifact **content tree** — lives in a `jsonb`
 > column. Binaries (images/video/fonts) live in object storage; tables hold only metadata + URLs.
-> The schema is `services/data/schema.ts` (Drizzle); the content shape is `rendering.md`.
+> The schema is `services/schema.ts` (Drizzle); the content shape is `rendering.md`.
 
 ---
 
@@ -23,7 +23,7 @@ embedded in the artifact's `draft_content` JSON.
 
 ---
 
-## 3. The tables (11, as implemented in `services/data/schema.ts`)
+## 3. The tables (11, as implemented in `services/schema.ts`)
 
 ### Identity & tenancy
 
