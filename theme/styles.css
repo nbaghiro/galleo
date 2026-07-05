@@ -5,7 +5,7 @@
 @import "tailwindcss";
 @source "../app/**/*.{ts,tsx,html}";
 @source "../surfaces/studio/**/*.{ts,tsx,html}";
-@source "../marketing/**/*.{ts,tsx,html}";
+@source "../website/**/*.{ts,tsx,html}";
 
 @theme {
     --color-canvas: #f4f0e8;

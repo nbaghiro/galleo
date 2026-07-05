@@ -7,9 +7,9 @@ import solid from "vite-plugin-solid";
 const abs = (p: string): string => fileURLToPath(new URL(p, import.meta.url));
 
 // Single domain, two builds. The repo root is the Vite root so each entry sits at its public URL:
-//   /         → index.html      → the marketing site (standalone, not the product SPA)
+//   /         → index.html      → the website site (standalone, not the product SPA)
 //   /app/*    → app/index.html  → the product SPA (SolidJS Router base "/app")
-// In dev one server serves both; in prod the host routes / → marketing, /app/* → the app. This
+// In dev one server serves both; in prod the host routes / → website, /app/* → the app. This
 // middleware gives the app SPA its client-side fallback in dev (/app/<anything> → app/index.html).
 function appSpaFallback(): Plugin {
     return {
@@ -61,7 +61,7 @@ export default defineConfig({
         emptyOutDir: true,
         rollupOptions: {
             input: {
-                marketing: abs("./index.html"),
+                website: abs("./index.html"),
                 app: abs("./app/index.html"),
             },
         },

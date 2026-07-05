@@ -276,7 +276,7 @@ export const Sidebar: Component = () => {
 
     return (
         <aside class="flex w-[230px] flex-none flex-col gap-1 border-r border-line bg-panel px-3 py-4 text-ink">
-            {/* the marketing site is a separate build at "/" (outside the app's /app router base), so this is
+            {/* the website is a separate build at "/" (outside the app's /app router base), so this is
                 a real navigation, not a router link */}
             <a
                 href="/"

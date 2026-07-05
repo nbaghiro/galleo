@@ -1,10 +1,10 @@
 import type { Accessor, Component, JSX } from "solid-js";
 import { For, Show } from "solid-js";
 
-// Public landing page — the standalone marketing build (served at "/"). It is NOT part of the product
+// Public landing page — the standalone website build (served at "/"). It is NOT part of the product
 // SPA; its CTAs link across to the app at /app/. Theme-aware via the persisted app theme (applied to the
-// root in main.tsx), so it matches whatever design the user last selected. Styles live in marketing.css
-// (scoped under `.mkt`); inverted `band-ink` sections flip on dark themes via the ink/canvas tokens.
+// root in main.tsx), so it matches whatever design the user last selected. Styles live in website.css
+// (scoped under `.web`); inverted `band-ink` sections flip on dark themes via the ink/canvas tokens.
 
 // ---------- content ----------
 const announceItems = [
@@ -269,7 +269,7 @@ const Strip: Component<{ text: string; sep?: string }> = (props) => (
 );
 
 // Self-duplicating marquee: the group is rendered twice (the second copy is aria-hidden) so the
-// `mk-mq` keyframe can translateX(-50%) for a seamless infinite loop.
+// `web-mq` keyframe can translateX(-50%) for a seamless infinite loop.
 function Marquee<T>(props: {
     items: readonly T[];
     speed: string;
@@ -325,8 +325,8 @@ const Wordmark: Component = () => (
     </a>
 );
 
-export const MarketingPage: Component = () => (
-    <div class="mkt h-full w-full overflow-y-auto bg-canvas font-body text-ink">
+export const WebsitePage: Component = () => (
+    <div class="web h-full w-full overflow-y-auto bg-canvas font-body text-ink">
         {/* 0 · announcement marquee */}
         <Marquee
             items={announceItems}

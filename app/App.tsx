@@ -26,7 +26,7 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => (
     </>
 );
 
-// The product SPA — served under /app (the public marketing site is a separate build at /). Auth gate:
+// The product SPA — served under /app (the public website is a separate build at /). Auth gate:
 // restore the session + apply the app theme, then either sign-in or the routed app. The Router carries
 // base="/app" so all in-app links/routes resolve under /app/*.
 export const App: Component = () => {

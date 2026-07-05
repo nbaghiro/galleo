@@ -18,7 +18,7 @@ the kernel imports nothing outside itself, and no surface imports another surfac
 - **`surfaces/`** — ways to touch the kernel: `studio` (the editor; present + export live inside it today).
 - **`services/`** — the backend: `data` (Postgres + Drizzle) · `api` (Hono) · `auth`.
 - **`app/`** — the product SPA (served at `/app`): library, editor, templates, theming, generation flow.
-- **`marketing/`** — the public landing build (served at `/`).
+- **`website/`** — the public landing build (served at `/`).
 
 Concrete render backends (DOM / 2D-canvas / PDF) live **with their surface**, never in the kernel — so
 the core stays framework-free and the _same_ engine output drives every target (edit, present, thumbnail,
@@ -35,14 +35,14 @@ pnpm db:push                  # create the schema (needs Postgres on :8602 — s
 pnpm seed                     # demo workspace + artifacts (login: demo@galleo.app / demo1234)
 
 pnpm api                      # the Hono API  → http://localhost:8601
-pnpm dev                      # the Vite app  → http://localhost:8600  (/ = marketing, /app = product)
+pnpm dev                      # the Vite app  → http://localhost:8600  (/ = website, /app = product)
 ```
 
 ## Commands
 
 | Command                                                 | What it does                                              |
 | ------------------------------------------------------- | --------------------------------------------------------- |
-| `pnpm dev`                                              | Vite dev server (marketing + app)                         |
+| `pnpm dev`                                              | Vite dev server (website + app)                           |
 | `pnpm build`                                            | production build → `dist/`                                |
 | `pnpm api` · `pnpm api:watch`                           | the backend API                                           |
 | `pnpm seed`                                             | seed the demo data                                        |

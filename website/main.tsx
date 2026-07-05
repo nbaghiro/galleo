@@ -1,14 +1,14 @@
 /* @refresh reload */
 import "../theme/styles.css";
-import "./marketing.css";
+import "./website.css";
 import { render } from "solid-js/web";
 import { resolveTheme } from "@themes/library";
 import { themeCssVars } from "@themes/theme";
 import { setFavicon } from "../app/theme";
-import { MarketingPage } from "./MarketingPage";
+import { WebsitePage } from "./WebsitePage";
 
-// Standalone marketing entry. Apply the user's persisted app theme (same key the app + sign-in use), so
-// the landing matches the design they last selected. Read once — the marketing site is not a switcher.
+// Standalone website entry. Apply the user's persisted app theme (same key the app + sign-in use), so
+// the landing matches the design they last selected. Read once — the website site is not a switcher.
 function read(): string {
     try {
         return localStorage.getItem("galleo:app-theme") || "studio";
@@ -23,5 +23,5 @@ if (root) {
     const vars = themeCssVars(tokens);
     for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
     setFavicon(tokens); // the theme-badge favicon — the same one the app uses
-    render(() => <MarketingPage />, root);
+    render(() => <WebsitePage />, root);
 }

@@ -13,7 +13,7 @@ canvas/     the paint layer — layout engine + element library + DOM/2D/PDF bac
 editor/     the editing UI — the SolidJS studio (selection, inspectors, inline text, drag-drop) over model + canvas
 services/   the backend (Hono + Postgres/Drizzle) — schema · auth · a thin server + per-resource routers in api/ + seed/demos/templates content; depends only on model
 app/        the product SPA (served at /app) — library, templates, generation, theme drawer, wrapping the editor
-marketing/  a separate public build (served at /)
+website/    a separate public build (served at /)
 ```
 
 Path aliases are directory aliases: `@model/*`→`model/*`, `@themes`→`model/themes`, `@engine`→
@@ -160,7 +160,7 @@ views/       the routed pages — AuthPage · LibraryView · TemplatesView · Tr
 `EditorView.tsx` is the bridge: it fetches an artifact from the API, hands its content to the editor
 store, runs the studio with autosave, and registers the IoC handlers.
 
-## marketing/ — the public landing build (served at `/`), separate from the product SPA.
+## website/ — the public landing build (served at `/`), separate from the product SPA.
 
 `theme/styles.css` (root) — the shared Tailwind `@theme` tokens every layer reads.
 
