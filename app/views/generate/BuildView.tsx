@@ -19,7 +19,7 @@ import {
     ChevronUpIcon,
     CloseIcon,
     SparkleIcon,
-} from "../components/icons";
+} from "../../components/icons";
 import { BuildCanvas, HudCanvas, SpotlightCanvas } from "./build-canvases";
 import { genView, GenViewPicker, reduced, TypingLine } from "./gen-view";
 import { cancelSession, doneBeats, gen, resetSession, saveGenerated } from "./session";

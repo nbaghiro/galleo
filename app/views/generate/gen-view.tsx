@@ -2,7 +2,7 @@
 
 import type { Component } from "solid-js";
 import { createSignal, For, onCleanup, onMount, Show, createEffect } from "solid-js";
-import { CheckIcon } from "../components/icons";
+import { CheckIcon } from "../../components/icons";
 
 // The hidden generation-view picker — drop it inside the intake + build screens (it inherits their theme).
 // Open with the backtick (`) key, or ⌃` / ⌃⌥V even while a field is focused. Choose a direction

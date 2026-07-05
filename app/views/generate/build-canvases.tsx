@@ -16,7 +16,7 @@ import {
 } from "@canvas/render/commands";
 import { activeStatus, gen, placedSections, type SectionSlot, doneBeats } from "./session";
 import { reduced, TypingLine } from "./gen-view";
-import { ChevronUpIcon, CloseIcon } from "../components/icons";
+import { ChevronUpIcon, CloseIcon } from "../../components/icons";
 
 // The live-build canvas: the SAME engine paint the editor uses. Finished sections are rendered with a
 // keyed <For> over the reactive placed list — Solid mounts exactly one block per finished section (keyed

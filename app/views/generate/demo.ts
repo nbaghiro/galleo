@@ -1,11 +1,11 @@
 import type { ArtifactContent } from "@model/artifact";
-import { aria } from "../../services/demos/aria";
-import { fieldnotes } from "../../services/demos/fieldnotes";
-import { galleo } from "../../services/demos/galleo";
-import { helios } from "../../services/demos/helios";
-import { lumen } from "../../services/demos/lumen";
-import { slowweb } from "../../services/demos/slowweb";
-import { terra } from "../../services/demos/terra";
+import { aria } from "../../../services/demos/aria";
+import { fieldnotes } from "../../../services/demos/fieldnotes";
+import { galleo } from "../../../services/demos/galleo";
+import { helios } from "../../../services/demos/helios";
+import { lumen } from "../../../services/demos/lumen";
+import { slowweb } from "../../../services/demos/slowweb";
+import { terra } from "../../../services/demos/terra";
 import type { Surface } from "./session";
 
 // The demo generation set: each example prompt is paired with a real, hand-built artifact (the same
