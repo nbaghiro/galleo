@@ -7,8 +7,8 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type { ArtifactInput, Cover, SectionSummary } from "@model/artifact";
 import type { FolderInput, LoginBody, User } from "@model/workspace";
 import type { ThemeInput } from "@themes/theme";
-import { db, schema } from "../data/client";
-import { verifyPassword, makeSession, readSession, SESSION_COOKIE } from "../auth/auth";
+import { db, schema } from "../schema";
+import { verifyPassword, makeSession, readSession, SESSION_COOKIE } from "../auth";
 import { TEMPLATES } from "./templates";
 
 const app = new Hono();

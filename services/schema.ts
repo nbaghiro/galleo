@@ -9,9 +9,11 @@ import {
     jsonb,
     primaryKey,
 } from "drizzle-orm/pg-core";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 
-// The implemented schema — 11 tables. Documented in .docs/data-model.md (which also notes the
-// broader model deferred to when each feature lands).
+// The data layer — the implemented schema (11 tables) plus the live DB handle. Documented in
+// .docs/data-model.md (which also notes the broader model deferred to when each feature lands).
 
 export const users = pgTable("users", {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -145,3 +147,27 @@ export const credits = pgTable("credits", {
     balanceAfter: integer("balance_after").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// The live DB handle. `postgres(url)` is lazy — it connects on the first query, not at import — and the
+// entrypoints (server/seed) + drizzle.config load dotenv before this module, so importing it for
+// `drizzle-kit generate` stays connection-free. The schema object powers Drizzle's relational queries.
+export const schema = {
+    users,
+    workspaces,
+    members,
+    folders,
+    artifacts,
+    versions,
+    themes,
+    assets,
+    shares,
+    links,
+    credits,
+};
+
+const url = process.env.DATABASE_URL;
+if (url === undefined || url === "") {
+    throw new Error("DATABASE_URL is not set");
+}
+
+export const db = drizzle(postgres(url), { schema });

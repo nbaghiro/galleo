@@ -1,8 +1,8 @@
 import "dotenv/config";
 import type { ArtifactContent } from "@model/artifact";
 import { eq } from "drizzle-orm";
-import { db, schema } from "../data/client";
-import { hashPassword } from "../auth/auth";
+import { db, schema } from "../schema";
+import { hashPassword } from "../auth";
 import { DEMOS } from "./fixtures";
 import { TEMPLATES } from "./templates";
 
