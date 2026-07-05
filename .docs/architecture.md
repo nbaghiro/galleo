@@ -1,21 +1,24 @@
 # Galleo — Codebase Structure
 
 > A factual map of the codebase as it is. The dependency law is absolute and ESLint-enforced:
-> **`kernel` imports nothing outside `kernel`; a surface depends on the kernel (+ services) but never
-> on another surface; `services` and `app` depend on `kernel`, never the reverse.** Concrete,
-> environment-specific render backends (DOM / canvas / PDF) live with their surface, never in the kernel.
+> **`kernel` imports nothing outside `kernel`; `render` imports only the kernel; a surface depends on
+> `kernel` + `render` (+ services) but never on another surface; `services` and `app` depend on `kernel`,
+> never the reverse.** The concrete DOM / canvas / PDF render backends live in the shared `render/` layer
+> (framework- and editor-free), so any surface — studio, present, a future publish page — paints the same way.
 
 ```
 kernel/     the pure, edge-safe core — the content model, layout engine, elements, themes
-surfaces/   ways to touch the core — studio (the editor)
+render/     the shared paint layer — turns kernel render-commands into DOM / 2D-canvas / PDF (no framework, no editor)
+surfaces/   ways to touch the core — studio (the editor) · present (standalone slideshow viewer)
 services/   the backend — data (Postgres/Drizzle) · api (Hono) · auth
-app/        the product SPA (served at /app) — composes the studio + backend
+app/        the product SPA (served at /app) — composes the surfaces + backend
 marketing/  a separate public build (served at /)
 ```
 
 Path aliases are directory aliases: `@model/*`→`kernel/model/*`, plus `@engine`, `@elements`, `@themes`,
-`@studio`. No `index.ts` barrels — every concept is a named file. (`services` import each other by
-relative path.)
+`@render`, `@studio`, `@present`. No `index.ts` barrels — every concept is a named file. (`services`
+import each other by relative path.) Dependency direction: `kernel ← render ← surfaces ← app`; render
+imports only the kernel, a surface never imports another surface.
 
 ---
 
@@ -69,19 +72,31 @@ library.ts   the curated 52-theme registry via mk() + resolveTheme() + registerT
 
 ---
 
-## surfaces/studio/ — the editor (the only surface built so far)
+## render/ — the shared paint layer (`@render`)
 
-Pure editor UI on top of the kernel. `Studio.tsx` (shell) · `editor.ts` (the reactive store +
+Framework- and editor-free. Turns the kernel engine's output into pixels, so every surface paints
+identically. Imports only the kernel.
+
+```
+commands.ts   kernel layout → RenderCommand[] + canvas text measurement (keeps the kernel DOM-free)
+backends.ts   the DOM drawer (absolute divs) + the 2D-canvas mirror + section backdrops + the section-stack painter
+present.ts    slideElement() — one section as a self-contained 1280×720 slide (shared by both present UIs)
+export.ts     exportPdfAuto / exportDeckPng / exportPrint — parameterized by (artifact, tokens), no editor
+```
+
+---
+
+## surfaces/studio/ — the editor (the main surface)
+
+Pure editor UI on top of the kernel + `@render`. `Studio.tsx` (shell) · `editor.ts` (the reactive store +
 `editorTokens`/`editorTheme`/`editorAccent` selectors) · `register.ts` (side-effect module that
 registers every element into the kernel registry; `app/main.tsx` imports it before mount) · `icons.tsx`.
 The `select`/`panels`/`insert` folders group the canvas overlays by the **interaction** they serve, not
 by where they paint.
 
 ```
-canvas/    the paint pipeline
-  Canvas.tsx · Present.tsx (16:9 slide geometry) · Thumb.tsx · export-pdf.ts ·
-  render.ts (kernel layout → render commands + canvas text measurement, keeping the kernel DOM-free) ·
-  backends.ts (the DOM + 2D-canvas drawers, section backdrops, and the shared section-stack painter)
+canvas/    the paint pipeline (the render backends now live in @render; these are the Solid components)
+  Canvas.tsx (live editing canvas) · Present.tsx (in-editor present overlay, over @render) · Thumb.tsx
 select/    direct manipulation on the canvas
   selection.tsx (selection outline + section actions/toolbar) · handles.tsx (resize · spacing · column-divider handles)
 panels/    property-editing UI
@@ -98,6 +113,15 @@ agent/     AgentPanel.tsx (the generate panel + its local, deterministic preview
 
 The studio surface talks to the app through inversion-of-control handlers on `editor.ts`
 (`onHome`/`onSwitchArtifact`/`onThemePicker`), so it never imports `app/`.
+
+---
+
+## surfaces/present/ — the standalone slideshow surface (`@present`)
+
+`Present.tsx` — a chrome-free, full-screen render of an artifact driven purely by its content (no editor):
+deck → one 16:9 slide per section with keyboard nav; doc/web → the sections stacked + scrollable. Paints
+via `@render` (so it never imports the studio), manages its own slide state, and is reachable at the app
+route `/present/:id` (`app/views/PresentView.tsx` fetches the artifact and hands it in).
 
 ---
 
@@ -150,10 +174,10 @@ store, runs the studio with autosave, and registers the IoC handlers.
 ## How it composes (data flow)
 
 ```
-edit:     app/EditorView → @studio (editor store) → kernel compose+engine → render commands → studio/canvas/backends
+edit:     app/EditorView → @studio (editor store) → kernel compose+engine → render commands → @render/backends
 load/save: app/EditorView + app/data/save → services/api → services/data (artifacts.draft_content jsonb)
-present:  studio Topbar "Present" → studio/canvas/Present (kernel engine, slide geometry)
-export:   studio Topbar → studio/canvas/export-pdf (kernel engine + canvas backend → PDF/PNG)
+present:  studio Topbar (in-editor overlay) OR /present/:id (standalone surface) → @render (slide geometry)
+export:   studio Topbar → @render/export(artifact, tokens) → PDF / PNG / print
 themes:   app theme drawer → setAppTheme / setArtifactTheme → kernel resolveTheme → the same engine re-paints
 generate: app/generate (simulator) → the shared BuildCanvas (kernel engine) → save → open in the editor
 ```
@@ -164,10 +188,10 @@ is why the editor, present mode, thumbnails, and export are pixel-identical. Dat
 
 ## Planned, not yet built
 
-`surfaces/present · publish · export` as standalone surfaces (present/export live inside studio today) ·
-a real LLM generation backend implementing the `@model/agent` protocol (replacing the `app/generate`
-simulator) · engine-native rich text (`@model/text`, replacing the contenteditable overlay) ·
-`services/queue` (background jobs).
+`surfaces/publish` — a public read-only viewer over `@render` (present + export are already standalone:
+`surfaces/present` + `@render/export`) · a real LLM generation backend implementing the `@model/agent`
+protocol (replacing the `app/generate` simulator) · engine-native rich text (`@model/text`, replacing the
+contenteditable overlay) · `services/queue` (background jobs).
 
 ## Local dev & ports
 
