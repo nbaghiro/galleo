@@ -2,9 +2,9 @@ import type { RenderCommand } from "@engine/node";
 import { PDFDocument } from "pdf-lib";
 import { fragment } from "@engine/layout";
 import { resolveProfile } from "@engine/profile";
-import { renderSlide, renderToCanvas, paint } from "./backends";
+import { renderSlide, renderToCanvas, paint } from "@render/backends";
 import { editor, editorTokens } from "../editor";
-import { measureText, layoutSection } from "./render";
+import { measureText, layoutSection } from "@render/commands";
 
 const PRINT_W = 1100;
 

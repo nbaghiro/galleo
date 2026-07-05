@@ -18,7 +18,7 @@ import {
     layoutSlide,
     layoutSection,
     SECTION_GAP,
-} from "./render";
+} from "./commands";
 import type { Section, SectionBackground } from "@model/artifact";
 import type { Tokens } from "@themes/theme";
 import { resolveProfile } from "@engine/profile";

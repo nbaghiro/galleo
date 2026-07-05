@@ -8,8 +8,8 @@ import type { ThemeDraft } from "../theme/custom-themes";
 import { luminance } from "@themes/theme";
 import { Dropdown } from "@studio/controls/Dropdown";
 import { resolveProfile } from "@engine/profile";
-import { paint } from "@studio/canvas/backends";
-import { measureText, layoutSlide } from "@studio/canvas/render";
+import { paint } from "@render/backends";
+import { measureText, layoutSlide } from "@render/commands";
 import { THEME_SAMPLE } from "../theme/theme";
 
 const DISPLAY_FONTS = [
