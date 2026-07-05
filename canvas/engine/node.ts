@@ -52,7 +52,7 @@ export interface Measured {
     height: number;
 }
 
-// Injected into the engine so the kernel stays pure (no DOM). Wraps `text` at `maxWidth`.
+// Injected into the engine so it stays pure (no DOM). Wraps `text` at `maxWidth`.
 export type MeasureText = (leaf: TextLeaf, maxWidth: number) => Measured;
 
 // The styled run type lives with the rich-text model (`@model/text`, which flattens marks into runs);

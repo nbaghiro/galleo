@@ -21,7 +21,7 @@ import { fixed, grow } from "@model/size";
 import { DEFAULT_THEME } from "@themes/library";
 import { mix } from "@themes/theme";
 
-// Imperative bridge: kernel layout → render commands. Components paint these into refs; the engine
+// Imperative bridge: engine layout → render commands. Components paint these into refs; the engine
 // stays the single source of geometry (the framework never lays out content).
 
 export const SECTION_GAP = 22;
@@ -192,7 +192,7 @@ export function layoutNode(
     return { commands, height: bottom(commands) };
 }
 
-// Canvas-based text measurement injected into the engine (keeps the kernel DOM-free).
+// Canvas-based text measurement injected into the engine (keeps the engine DOM-free).
 
 // Shared inline-code treatment (kept identical across measure + both backends so widths agree).
 export const MONO_FONT_STACK = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";

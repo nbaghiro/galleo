@@ -90,7 +90,7 @@ export interface ThemeInput {
 }
 
 // --- color math ---
-// Small color utilities shared by the kernel element library and the studio render layer. All operate
+// Small color utilities shared by the element library and the canvas render layer. All operate
 // on `#rrggbb` (or `#rgb` shorthand) hex strings.
 
 export function hexToRgb(hex: string): [number, number, number] {

@@ -766,7 +766,7 @@ export const DEFAULT_THEME = THEME_LIST[0]!;
 export const THEMES: Record<string, Theme> = Object.fromEntries(THEME_LIST.map((t) => [t.id, t]));
 
 // User-created themes, loaded from the backend by the app and registered here so resolveTheme can
-// surface them by id exactly like a built-in — without the kernel doing any IO. The app replaces the
+// surface them by id exactly like a built-in — without the model doing any IO. The app replaces the
 // whole set whenever its custom-theme store changes.
 let CUSTOM: Record<string, Theme> = {};
 export function registerThemes(themes: Theme[]): void {

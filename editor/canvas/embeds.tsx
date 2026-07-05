@@ -5,7 +5,7 @@ import type { ElementAddress } from "@model/target";
 import { elementRegionId } from "@model/target";
 import { editor, regions, selection } from "../editor";
 
-// Live media players overlaid on the kernel-painted placeholders in the editing canvas. The kernel is
+// Live media players overlaid on the engine-painted placeholders in the editing canvas. The engine is
 // DOM-free — it paints a static poster (reused for present + PDF/PNG export); here in the DOM editor we
 // mount a real <iframe>/<video> at each video element's region so the video actually plays. The overlay
 // is click-through until the element is selected, so selection + drag still work; once selected the

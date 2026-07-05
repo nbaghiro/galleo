@@ -80,7 +80,7 @@ export interface ElementSpec<Data = unknown> {
     create: () => Data;
     layout: (data: Data, ctx: LayoutCtx) => EngineNode;
     controls: ControlField[];
-    // Studio-only editing affordances (inert for layout/present/export — read solely by surfaces/studio):
+    // Studio-only editing affordances (inert for layout/present/export — read solely by the editor):
     richText?: boolean; // primary text supports inline marks → marks-aware editor + inline mark bar
     bar?: string[]; // control keys (from `controls`) to surface in the on-canvas format bar
     // Direct-manipulation resize on the canvas (drag handles on the selection box). Width is a universal

@@ -8,8 +8,8 @@ import { slideElement, SLIDE_W, SLIDE_H } from "@canvas/present";
 
 // Standalone present surface — a chrome-free, full-screen render of an artifact, driven purely by the
 // content (no editor). deck → one 16:9 slide per section with keyboard nav; doc/web → the sections stacked
-// and scrollable. Reachable at /present/:id. Shares slide geometry + paint with @render, so it never
-// imports the studio (a surface must not import another surface).
+// and scrollable. Reachable at /present/:id. Shares slide geometry + paint with the @canvas backends,
+// so it stays editor-free (canvas must not import the editor).
 
 const svg = (d: string): JSX.Element => (
     <svg

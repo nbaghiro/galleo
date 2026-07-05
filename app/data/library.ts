@@ -148,9 +148,9 @@ export function blankArtifact(format: string, theme = "studio"): ArtifactContent
     };
 }
 
-// Format helpers shared across the app UI. The ordered id set is derived from the kernel's PROFILES so
+// Format helpers shared across the app UI. The ordered id set is derived from the engine's PROFILES so
 // the app never restates it; the display labels live here because "Site" (for `web`) is a UI/product
-// term, not the kernel's format name ("Web").
+// term, not the engine's format name ("Web").
 
 export const FORMAT_IDS = Object.keys(PROFILES); // ["deck", "doc", "web"]
 
