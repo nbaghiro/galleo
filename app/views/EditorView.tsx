@@ -19,7 +19,7 @@ import {
 } from "@editor/editor";
 import { api } from "../api";
 import { renameArtifactById } from "../stores/library";
-import { appTheme, setFaviconOverride, openThemeDrawer } from "../theme/theme";
+import { appTheme, setFaviconOverride, openThemeDrawer } from "../theme";
 import { flushAutosave, installAutosave } from "../stores/save";
 
 // One route per open artifact (/edit/:id). Loads it, runs the studio with autosave, and routes the

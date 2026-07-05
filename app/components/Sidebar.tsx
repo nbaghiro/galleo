@@ -33,7 +33,7 @@ import {
     TrashIcon,
 } from "../components/icons";
 import { CreateModal } from "../components/modals";
-import { openThemeDrawer } from "../theme/theme";
+import { openThemeDrawer } from "../theme";
 
 // Shared, route-aware app sidebar (Library / Templates / Folders…) + workspace, create menu, theme,
 // and sign-out. Built on the theme tokens so it recolors with the app theme. Folders are drop targets:

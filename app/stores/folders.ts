@@ -1,7 +1,7 @@
 import { createSignal } from "solid-js";
 import { resolveTheme } from "@themes/library";
 import { api, type ApiFolder } from "../api";
-import { appTheme } from "../theme/theme";
+import { appTheme } from "../theme";
 
 // Shared folder state — the sidebar lists/creates them, the library filters by them.
 const [folders, setFolders] = createSignal<ApiFolder[]>([]);

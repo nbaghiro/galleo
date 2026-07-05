@@ -11,7 +11,7 @@ import {
     saveCustomTheme,
     type ThemeDraft,
     updateCustomTheme,
-} from "../theme/custom-themes";
+} from "../theme";
 import { CloseIcon, EditIcon, PlusIcon } from "../components/icons";
 import { SectionThumb } from "../components/previews";
 import {
@@ -21,8 +21,8 @@ import {
     closeThemeDrawer,
     themeDrawerOpen,
     THEME_SAMPLE,
-} from "../theme/theme";
-import { ThemeBuilder } from "../theme/ThemeBuilder";
+} from "../theme";
+import { ThemeBuilder } from "./ThemeBuilder";
 
 const CARD_W = 166; // fixed so the engine preview fills the card exactly (2 per row fit any scrollbar)
 

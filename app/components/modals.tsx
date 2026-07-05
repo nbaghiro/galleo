@@ -3,7 +3,7 @@
 import type { Component, JSX } from "solid-js";
 import { For, onCleanup, onMount } from "solid-js";
 import { CloseIcon, DeckIcon, DocIcon, SiteIcon, SparkleIcon } from "../components/icons";
-import { overlayThemeVars } from "../theme/theme";
+import { overlayThemeVars } from "../theme";
 
 // The "New artifact" create dialog — a centered modal (not a dropdown) that gives the AI flow a hero card
 // and keeps the three blank formats one click away. Rendered inside the themed app tree (fixed-position,

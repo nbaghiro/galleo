@@ -32,7 +32,7 @@ import {
     removeArtifacts,
     setDraggingArtifact,
 } from "../stores/library";
-import { appTheme } from "../theme/theme";
+import { appTheme } from "../theme";
 import { folders } from "../stores/folders";
 import { ConfirmModal } from "../components/modals";
 import {

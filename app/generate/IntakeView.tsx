@@ -6,7 +6,7 @@ import { themeCssVars } from "@themes/theme";
 import { api } from "../api";
 import { blankArtifact, FORMAT_IDS, formatLabel } from "../stores/library";
 import { ArrowUpRightIcon, RefreshIcon, SparkleIcon } from "../components/icons";
-import { appTheme } from "../theme/theme";
+import { appTheme } from "../theme";
 import { Visual } from "../components/previews";
 import "../components/visuals.css";
 import { Dropdown } from "@editor/inspect/widgets";

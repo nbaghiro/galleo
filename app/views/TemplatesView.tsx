@@ -7,7 +7,7 @@ import { formatLabel } from "../stores/library";
 import { CloseIcon } from "../components/icons";
 import { PreviewCanvas, SectionThumb } from "../components/previews";
 import { Sidebar } from "../components/Sidebar";
-import { appTheme } from "../theme/theme";
+import { appTheme } from "../theme";
 
 export const TemplatesView: Component = () => {
     const navigate = useNavigate();

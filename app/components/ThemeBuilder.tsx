@@ -4,13 +4,13 @@ import type { Theme, Tokens } from "@themes/theme";
 import type { Component, JSX } from "solid-js";
 import { createEffect, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
-import type { ThemeDraft } from "../theme/custom-themes";
+import type { ThemeDraft } from "../theme";
 import { luminance } from "@themes/theme";
 import { Dropdown } from "@editor/inspect/widgets";
 import { resolveProfile } from "@engine/profile";
 import { paint } from "@canvas/render/backends";
 import { measureText, layoutSlide } from "@canvas/render/commands";
-import { THEME_SAMPLE } from "../theme/theme";
+import { THEME_SAMPLE } from "../theme";
 
 const DISPLAY_FONTS = [
     "Fraunces",

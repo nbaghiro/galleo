@@ -3,8 +3,8 @@ import { createEffect, createMemo, onMount, Show } from "solid-js";
 import { Route, Router } from "@solidjs/router";
 import { resolveTheme } from "@themes/library";
 import { authReady, bootstrap, user } from "./stores/auth";
-import { customThemes, loadCustomThemes } from "./theme/custom-themes";
-import { faviconOverride, setFavicon, appTheme, appThemeVars } from "./theme/theme";
+import { customThemes, loadCustomThemes } from "./theme";
+import { faviconOverride, setFavicon, appTheme, appThemeVars } from "./theme";
 import { AuthPage } from "./views/AuthPage";
 import { EditorView } from "./views/EditorView";
 import { BuildView } from "./generate/BuildView";
@@ -12,7 +12,7 @@ import { IntakeView } from "./generate/IntakeView";
 import { LibraryView } from "./views/LibraryView";
 import { PresentView } from "./views/PresentView";
 import { TemplatesView } from "./views/TemplatesView";
-import { ThemeDrawer } from "./theme/ThemeDrawer";
+import { ThemeDrawer } from "./components/ThemeDrawer";
 import { TrashView } from "./views/TrashView";
 
 // Router root layout — wraps every route so the singular theme drawer is mounted once (inside router
