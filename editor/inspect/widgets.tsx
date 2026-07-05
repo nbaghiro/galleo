@@ -325,3 +325,140 @@ export function highlightSwatches(t: Tokens): ColorSwatch[] {
     const toward = luminance(t.surface) < 0.5 ? 0.52 : 0.66;
     return [t.accent, ...HL_HUES].map((hue) => ({ color: mix(hue, t.surface, toward) }));
 }
+
+// ── ColorPopover ─────────────────────────────────────────────────────────────
+// The shared color control as a popup: a compact swatch trigger that opens a portaled, theme-matched
+// panel (positioned like the Dropdown menu) with quick swatches, a native well, and an editable hex —
+// so any custom color is reachable. Used wherever the app picks a color (inspector, theme editor).
+export const ColorPopover: Component<{
+    value?: string;
+    swatches?: ColorSwatch[];
+    onChange: (value: string | undefined) => void;
+    clearLabel?: string;
+}> = (props) => {
+    const [open, setOpen] = createSignal(false);
+    const [rect, setRect] = createSignal<Rect | null>(null);
+    const [vars, setVars] = createSignal<Record<string, string>>({});
+    let trigger!: HTMLButtonElement;
+
+    const openMenu = (): void => {
+        const r = trigger.getBoundingClientRect();
+        const estH = 190;
+        const up = r.bottom + estH > window.innerHeight && r.top > estH;
+        setRect({ left: r.left, top: up ? r.top - 4 : r.bottom + 4, width: r.width, up });
+        setVars(readThemeVars(trigger));
+        setOpen(true);
+    };
+
+    createEffect(() => {
+        if (!open()) return;
+        const onKey = (e: KeyboardEvent): void => {
+            if (e.key === "Escape") setOpen(false);
+        };
+        window.addEventListener("keydown", onKey);
+        onCleanup(() => window.removeEventListener("keydown", onKey));
+    });
+
+    const pick = (v: string | undefined): void => {
+        props.onChange(v);
+        setOpen(false);
+    };
+
+    return (
+        <>
+            <button
+                ref={trigger}
+                type="button"
+                class="flex items-center gap-2 rounded-md border border-line bg-canvas px-1.5 py-1 transition-colors hover:border-accent"
+                onClick={() => (open() ? setOpen(false) : openMenu())}
+            >
+                <span
+                    class="h-4 w-4 flex-none rounded"
+                    style={{
+                        background: props.value ?? "transparent",
+                        "box-shadow": "inset 0 0 0 1px rgba(0,0,0,.15)",
+                    }}
+                />
+                <span class="font-mono text-[10px] text-muted">
+                    {props.value?.toUpperCase() ?? "—"}
+                </span>
+            </button>
+            <Show when={open() && rect()}>
+                {(r) => (
+                    <Portal>
+                        <div
+                            data-galleo-toolbar="true"
+                            class="fixed inset-0 z-[70]"
+                            onPointerDown={() => setOpen(false)}
+                        />
+                        <div
+                            data-galleo-toolbar="true"
+                            class="fixed z-[71] w-[228px] rounded-lg border border-line bg-panel p-2.5 font-body text-ink shadow-2xl"
+                            style={{
+                                ...vars(),
+                                left: `${Math.max(8, Math.min(r().left, window.innerWidth - 240))}px`,
+                                ...(r().up
+                                    ? { bottom: `${window.innerHeight - r().top}px` }
+                                    : { top: `${r().top}px` }),
+                            }}
+                        >
+                            <Show when={props.swatches?.length}>
+                                <div class="mb-2.5 flex flex-wrap gap-1.5">
+                                    <For each={props.swatches}>
+                                        {(s) => (
+                                            <button
+                                                type="button"
+                                                title={s.label ?? s.color}
+                                                onClick={() => pick(s.color)}
+                                                class={`h-6 w-6 rounded-full border transition ${
+                                                    props.value === s.color
+                                                        ? "border-accent ring-2 ring-accent/40"
+                                                        : "border-line hover:scale-110"
+                                                }`}
+                                                style={{ background: s.color }}
+                                            />
+                                        )}
+                                    </For>
+                                </div>
+                            </Show>
+                            <div class="flex items-center gap-2">
+                                <label class="relative h-8 w-10 flex-none cursor-pointer overflow-hidden rounded border border-line">
+                                    <span
+                                        class="block h-full w-full"
+                                        style={{ background: props.value ?? "#000" }}
+                                    />
+                                    <input
+                                        type="color"
+                                        class="absolute inset-0 cursor-pointer opacity-0"
+                                        value={isHex(props.value) ? props.value : "#000000"}
+                                        onInput={(e) => props.onChange(e.currentTarget.value)}
+                                    />
+                                </label>
+                                <input
+                                    type="text"
+                                    class="min-w-0 flex-1 rounded-md border border-line bg-canvas px-2 py-1.5 font-mono text-[12px] text-ink outline-none focus:border-accent"
+                                    value={props.value ?? ""}
+                                    placeholder="#rrggbb"
+                                    spellcheck={false}
+                                    onInput={(e) => {
+                                        const v = e.currentTarget.value.trim();
+                                        if (isHex(v)) props.onChange(v);
+                                    }}
+                                />
+                            </div>
+                            <Show when={props.clearLabel}>
+                                <button
+                                    type="button"
+                                    class="mt-2 w-full rounded-md py-1 text-[11px] font-semibold text-muted hover:text-ink"
+                                    onClick={() => pick(undefined)}
+                                >
+                                    {props.clearLabel}
+                                </button>
+                            </Show>
+                        </div>
+                    </Portal>
+                )}
+            </Show>
+        </>
+    );
+};

@@ -43,7 +43,7 @@ export function themeDemo(tk: Tokens): Section[] {
                     ),
                 ),
             },
-            { background: bgImage("meridian-theme-hero", tk.scrim ?? 0.45), bleed: true },
+            { background: bgImage("meridian-theme-hero", tk.scrim ?? 0.45) },
         ),
 
         // Intro — ink / soft / muted, display + body fonts, heading weight.
@@ -189,7 +189,7 @@ export function themeDemo(tk: Tokens): Section[] {
                     ),
                 ),
             },
-            { background: { kind: "color", color: tk.accent }, bleed: true },
+            { background: { kind: "color", color: tk.accent } },
         ),
     ];
 }

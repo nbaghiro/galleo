@@ -3,7 +3,7 @@ import type { Component, JSX } from "solid-js";
 import { createMemo, For, Match, Show, Switch } from "solid-js";
 import { editorTokens } from "../editor";
 import { Icon } from "../icons";
-import { ColorPicker, Dropdown, type ColorSwatch } from "./widgets";
+import { ColorPopover, Dropdown, type ColorSwatch } from "./widgets";
 
 // The shared studio control kit. One home for every inspector/toolbar input so the element inspector,
 // section inspector, and (future) cell/page inspectors + contextual toolbars all look and behave the
@@ -212,7 +212,7 @@ export const ColorField: Component<{
         ];
     });
     return (
-        <ColorPicker
+        <ColorPopover
             value={props.value}
             swatches={swatches()}
             onChange={props.onChange}

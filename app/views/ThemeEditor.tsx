@@ -7,7 +7,7 @@ import { luminance } from "@themes/theme";
 import { resolveTheme } from "@themes/library";
 import { resolveProfile } from "@engine/profile";
 import { paintSectionStack } from "@canvas/render/backends";
-import { Dropdown } from "@editor/inspect/widgets";
+import { ColorPopover, Dropdown, type ColorSwatch } from "@editor/inspect/widgets";
 import { ChevronLeftIcon } from "../components/icons";
 import {
     appTheme,
@@ -106,6 +106,7 @@ export const ThemeEditor: Component = () => {
     const [name, setName] = createSignal(isNew() ? "Custom theme" : seed.name);
     const [format, setFormat] = createSignal("web");
     const [shadowPreset, setShadowPreset] = createSignal(inferShadow(seed.tokens.shadow));
+    const [tag, setTag] = createSignal(isNew() ? "custom" : seed.tag);
     const [busy, setBusy] = createSignal(false);
     const [width, setWidth] = createSignal(900);
 
@@ -148,7 +149,7 @@ export const ThemeEditor: Component = () => {
         const draft: ThemeDraft = {
             name: name().trim() || "Custom theme",
             tokens: { ...tk },
-            tag: "custom",
+            tag: tag().trim() || "custom",
             dark: luminance(tk.bg) < 0.5,
         };
         const saved = isNew() ? await saveCustomTheme(draft) : await updateCustomTheme(id(), draft);
@@ -160,17 +161,26 @@ export const ThemeEditor: Component = () => {
     };
 
     // ── control fields ──
+    // The other seven tokens as quick swatches, so a color can reuse another role on-palette.
+    const paletteSwatches = (): ColorSwatch[] => [
+        { label: "Canvas", color: tk.bg },
+        { label: "Surface", color: tk.surface },
+        { label: "Ink", color: tk.ink },
+        { label: "Soft", color: tk.soft },
+        { label: "Muted", color: tk.muted },
+        { label: "Accent", color: tk.accent },
+        { label: "On accent", color: tk.onAccent },
+        { label: "Line", color: tk.line },
+    ];
     const colorField = (key: keyof Tokens, label: string): JSX.Element => (
-        <label class="flex items-center gap-2.5 py-1">
-            <input
-                type="color"
-                class="h-7 w-9 flex-none cursor-pointer rounded-md border border-line bg-transparent p-0"
-                value={String(tk[key]).toLowerCase()}
-                onInput={(e) => setTk(key, e.currentTarget.value)}
+        <div class="flex items-center justify-between gap-2.5 py-1">
+            <span class="text-[12.5px] text-soft">{label}</span>
+            <ColorPopover
+                value={String(tk[key])}
+                swatches={paletteSwatches()}
+                onChange={(v) => v && setTk(key, v)}
             />
-            <span class="flex-1 text-[12.5px] text-soft">{label}</span>
-            <span class="font-mono text-[10px] text-muted">{String(tk[key]).toUpperCase()}</span>
-        </label>
+        </div>
     );
 
     const rangeField = (
@@ -251,51 +261,69 @@ export const ThemeEditor: Component = () => {
                 </header>
 
                 <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
-                    {heading("Color")}
-                    {colorField("bg", "Canvas")}
-                    {colorField("surface", "Surface")}
-                    {colorField("ink", "Ink")}
-                    {colorField("soft", "Soft text")}
-                    {colorField("muted", "Muted")}
-                    {colorField("accent", "Accent")}
-                    {colorField("onAccent", "On accent")}
-                    {colorField("line", "Line")}
-
-                    {heading("Type")}
-                    {fontField("fontDisplay", "Display", DISPLAY_FONTS)}
-                    {fontField("fontBody", "Body", BODY_FONTS)}
-                    {fontField("fontMono", "Mono", MONO_FONTS)}
-                    {rangeField("headingWeight", "Weight", 300, 900, 100, "")}
-
-                    {heading("Shape")}
-                    {rangeField("radius", "Radius", 0, 28, 1, "px")}
-                    {rangeField("border", "Border", 0, 4, 1, "px")}
-                    <div class="flex items-center gap-2.5 py-1">
-                        <span class="w-[84px] flex-none text-[12.5px] text-soft">Shadow</span>
-                        <div class="min-w-0 flex-1">
-                            <Dropdown
-                                value={shadowPreset()}
-                                options={SHADOW_PRESETS.map((o) => ({ value: o[0], label: o[1] }))}
-                                onChange={setShadowPreset}
+                    <div class="mx-auto w-full max-w-[300px]">
+                        {heading("Details")}
+                        <div class="flex items-center justify-between gap-2.5 py-1">
+                            <span class="text-[12.5px] text-soft">Style tag</span>
+                            <input
+                                class="w-[150px] rounded-md border border-line bg-canvas px-2 py-1 text-[12px] text-ink outline-none focus:border-accent"
+                                value={tag()}
+                                placeholder="editorial, cyber…"
+                                onInput={(e) => setTag(e.currentTarget.value)}
                             />
                         </div>
+
+                        {heading("Color")}
+                        {colorField("bg", "Canvas")}
+                        {colorField("surface", "Surface")}
+                        {colorField("ink", "Ink")}
+                        {colorField("soft", "Soft text")}
+                        {colorField("muted", "Muted")}
+                        {colorField("accent", "Accent")}
+                        {colorField("onAccent", "On accent")}
+                        {colorField("line", "Line")}
+
+                        {heading("Type")}
+                        {fontField("fontDisplay", "Display", DISPLAY_FONTS)}
+                        {fontField("fontBody", "Body", BODY_FONTS)}
+                        {fontField("fontMono", "Mono", MONO_FONTS)}
+                        {rangeField("headingWeight", "Weight", 300, 900, 100, "")}
+
+                        {heading("Shape")}
+                        {rangeField("radius", "Radius", 0, 28, 1, "px")}
+                        {rangeField("border", "Border", 0, 4, 1, "px")}
+                        <div class="flex items-center gap-2.5 py-1">
+                            <span class="w-[84px] flex-none text-[12.5px] text-soft">Shadow</span>
+                            <div class="min-w-0 flex-1">
+                                <Dropdown
+                                    value={shadowPreset()}
+                                    options={SHADOW_PRESETS.map((o) => ({
+                                        value: o[0],
+                                        label: o[1],
+                                    }))}
+                                    onChange={setShadowPreset}
+                                />
+                            </div>
+                        </div>
+                        <label class="flex items-center gap-2.5 py-1">
+                            <span class="w-[84px] flex-none text-[12.5px] text-soft">
+                                Image scrim
+                            </span>
+                            <input
+                                type="range"
+                                class="min-w-0 flex-1"
+                                style={{ "accent-color": "var(--color-accent)" }}
+                                min={0}
+                                max={90}
+                                step={5}
+                                value={Math.round((tk.scrim ?? 0.45) * 100)}
+                                onInput={(e) => setTk("scrim", Number(e.currentTarget.value) / 100)}
+                            />
+                            <span class="w-10 flex-none text-right font-mono text-[10px] text-muted">
+                                {Math.round((tk.scrim ?? 0.45) * 100)}%
+                            </span>
+                        </label>
                     </div>
-                    <label class="flex items-center gap-2.5 py-1">
-                        <span class="w-[84px] flex-none text-[12.5px] text-soft">Image scrim</span>
-                        <input
-                            type="range"
-                            class="min-w-0 flex-1"
-                            style={{ "accent-color": "var(--color-accent)" }}
-                            min={0}
-                            max={90}
-                            step={5}
-                            value={Math.round((tk.scrim ?? 0.45) * 100)}
-                            onInput={(e) => setTk("scrim", Number(e.currentTarget.value) / 100)}
-                        />
-                        <span class="w-10 flex-none text-right font-mono text-[10px] text-muted">
-                            {Math.round((tk.scrim ?? 0.45) * 100)}%
-                        </span>
-                    </label>
                 </div>
             </aside>
 
