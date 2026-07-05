@@ -50,5 +50,5 @@ builder; a narrated AI-generation flow (simulated); a Hono/Postgres backend with
 folders, trash, and autosave.
 
 **Planned:** a real LLM generation backend for the `@model/agent` protocol (generation is a client-side
-simulator today); a public **publish** viewer (present + PDF/PNG export are already standalone in
-`canvas/`); sharing & publishing (immutable versions, public links); engine-native rich text; PPTX export.
+simulator today); a public **publish** viewer (the present view + PDF/PNG export are already standalone);
+sharing & publishing (immutable versions, public links); engine-native rich text; PPTX export.

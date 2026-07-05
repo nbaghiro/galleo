@@ -19,8 +19,8 @@ with high-fidelity export. Net-new, TypeScript.
   `agent` (the streamed generation protocol), `workspace` (user/folder/template + their DTOs), `text`
   (rich-text core + the render-facing `Run`), plus `target`/`size`/`format`/`authoring` and `themes/`.
 - **`canvas/`** (`@canvas`, `@engine`, `@elements`) — the paint layer: the layout engine + element
-  library + DOM / 2D-canvas / PDF backends + present-slide geometry + export + the standalone present
-  surface. Framework- and editor-free; imports only `model`.
+  library + DOM / 2D-canvas / PDF backends + present-slide geometry + export. **Pure TS** — framework-
+  and editor-free; imports only `model`. (The Solid present _surface_ that wraps it lives in `app`.)
 - **`editor/`** (`@editor`) — the SolidJS studio: selection, inspectors, inline text, drag-drop over
   `model` + `canvas`. `register.ts` side-effect-registers the elements.
 - **`services/`** — backend: `data` (Postgres + Drizzle) · `api` (Hono) · `auth` · `queue`; depends only on `model`.

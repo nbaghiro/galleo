@@ -3,13 +3,13 @@
 > A factual map of the codebase as it is. The dependency law is absolute and ESLint-enforced:
 > **`model` imports nothing outside `model`; `canvas` imports only `model`; `editor` depends on
 > `model` + `canvas`; `app` sits on top of everything; `services` (the backend) depends only on
-> `model`.** The concrete DOM / 2D-canvas / PDF render backends and the standalone viewing modes
-> (present) live in `canvas/` — editor-free — so the editor, thumbnails, present, and export all
-> paint the same way.
+> `model`.** The concrete DOM / 2D-canvas / PDF render backends + slide/page geometry live in `canvas/`
+> — pure TS, no framework — so the editor, thumbnails, present, and export all paint the same way. The
+> Solid views that wrap them (the editor, the standalone present surface) live in `editor/` and `app/`.
 
 ```
 model/      the pure contract — content model, themes, protocols, authoring DSL (edge-safe, no DOM, no framework)
-canvas/     the paint layer — layout engine + element library + DOM/2D/PDF backends + present geometry + export (no editor)
+canvas/     the paint layer — layout engine + element library + DOM/2D/PDF backends + present geometry + export (pure TS, no framework)
 editor/     the editing UI — the SolidJS studio (selection, inspectors, inline text, drag-drop) over model + canvas
 services/   the backend — data (Postgres/Drizzle) · api (Hono) · auth · queue; depends only on model
 app/        the product SPA (served at /app) — library, templates, generation, theme drawer, wrapping the editor
@@ -83,19 +83,17 @@ ops.ts         pure, immutable content ops (insert/move/remove/duplicate section
 The five category files (text/media/data/containers/chrome) side-effect-register **20 elements** — 19
 content elements + the internal drop-preview — via `editor/register.ts`.
 
-**render backends + standalone modes** (the paint pipeline and the editor-free viewing surfaces)
+**render backends + geometry** (the paint pipeline + slide/page geometry + export — pure TS, no framework)
 
 ```
-commands.ts       engine layout → RenderCommand[] + canvas text measurement (keeps the model DOM-free)
-backends.ts       the DOM drawer (absolute divs) + the 2D-canvas mirror + section backdrops + the section-stack painter
-present.ts        slideElement() — one section as a self-contained 1280×720 slide (shared by both present UIs)
-export.ts         exportPdfAuto / exportDeckPng / exportPrint — parameterized by (artifact, tokens), no editor
-present-view.tsx  the standalone slideshow surface (`Present`) — chrome-free full-screen render driven purely by content, no editor; mounted at /present/:id
+commands.ts   engine layout → RenderCommand[] + canvas text measurement (keeps the model DOM-free)
+backends.ts   the DOM drawer (absolute divs) + the 2D-canvas mirror + section backdrops + the section-stack painter
+present.ts    slideElement() — one section as a self-contained 1280×720 slide (shared by the in-editor present overlay + the standalone /present view)
+export.ts     exportPdfAuto / exportDeckPng / exportPrint — parameterized by (artifact, tokens), no editor
 ```
 
-`present-view.tsx` is a Solid component but imports **no editor code** — deck → one 16:9 slide per
-section with keyboard nav; doc/web → the sections stacked + scrollable. `app/views/PresentView.tsx`
-fetches the artifact and hands it in.
+The standalone present **surface** (the chrome-free full-screen Solid view) lives in `app/views/PresentView.tsx`,
+not here — it paints through these backends but is a framework component, so it sits with the app.
 
 ---
 
@@ -151,7 +149,7 @@ editor: library, templates, trash, generation, sharing, theming.
 data/      the backend client + client stores
   api.ts (typed client) · auth.ts (session state) · library.ts (artifact list + content, + blank-artifact factory + format labels/relativeTime) ·
   folders.ts · save.ts (debounced autosave)
-views/     the routed pages — AuthPage · LibraryView · TemplatesView · TrashView · EditorView · PresentView (/present/:id, over @canvas)
+views/     the routed pages — AuthPage · LibraryView · TemplatesView · TrashView · EditorView · PresentView (the standalone /present/:id present surface — the `Present` Solid view painting through @canvas)
 theme/     the app + custom theme system
   theme.ts (app-chrome theme + drawer state + favicon + overlay tokens + the sample artifact) ·
   custom-themes.ts (backend CRUD → registers into the theme registry) · ThemeDrawer.tsx (the singular switcher) ·
@@ -176,7 +174,7 @@ store, runs the studio with autosave, and registers the IoC handlers.
 ```
 edit:      app/EditorView → @editor (store) → @canvas compose+engine → render commands → @canvas/backends
 load/save: app/EditorView + app/data/save → services/api → services/data (artifacts.draft_content jsonb)
-present:   editor Topbar (in-editor overlay) OR /present/:id (@canvas/present-view) → @canvas (slide geometry)
+present:   editor Topbar (in-editor overlay) OR /present/:id (app PresentView) → @canvas (slide geometry)
 export:    editor Topbar → @canvas/export(artifact, tokens) → PDF / PNG / print
 themes:    app theme drawer → setAppTheme / setArtifactTheme → @themes resolveTheme → the same engine re-paints
 generate:  app/generate (simulator) → the shared BuildCanvas (@canvas engine) → save → open in the editor
@@ -188,11 +186,10 @@ why the editor, present mode, thumbnails, and export are pixel-identical. Data f
 
 ## Planned, not yet built
 
-A public read-only publish viewer over `@canvas` (present + export are already standalone: `present-view.tsx`
-
-- `@canvas/export`) · a real LLM generation backend implementing the `@model/agent` protocol (replacing the
-  `app/generate` simulator) · engine-native rich text driving the editor directly from `@model/text` (replacing
-  the contenteditable overlay) · `services/queue` (background jobs).
+A public read-only publish viewer over `@canvas` (present + export are already standalone — the
+`PresentView` surface + `@canvas/export`) · a real LLM generation backend implementing the `@model/agent`
+protocol (replacing the `app/generate` simulator) · engine-native rich text driving the editor directly
+from `@model/text` (replacing the contenteditable overlay) · `services/queue` (background jobs).
 
 ## Local dev & ports
 
