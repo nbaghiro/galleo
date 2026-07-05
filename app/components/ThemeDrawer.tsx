@@ -1,17 +1,11 @@
 import type { Theme } from "@themes/theme";
 import type { Component, JSX } from "solid-js";
 import { createEffect, createSignal, For, Show, untrack } from "solid-js";
-import { useLocation } from "@solidjs/router";
+import { useLocation, useNavigate } from "@solidjs/router";
 import { setArtifactTheme } from "@elements/ops";
 import { resolveTheme, THEME_LIST } from "@themes/library";
 import { commit, editor, endThemePreview } from "@editor/editor";
-import {
-    customThemes,
-    removeCustomTheme,
-    saveCustomTheme,
-    type ThemeDraft,
-    updateCustomTheme,
-} from "../theme";
+import { customThemes, removeCustomTheme } from "../theme";
 import { CloseIcon, EditIcon, PlusIcon } from "../components/icons";
 import { SectionThumb } from "../components/previews";
 import {
@@ -22,7 +16,6 @@ import {
     themeDrawerOpen,
     THEME_SAMPLE,
 } from "../theme";
-import { ThemeBuilder } from "./ThemeBuilder";
 
 const CARD_W = 166; // fixed so the engine preview fills the card exactly (2 per row fit any scrollbar)
 
@@ -41,9 +34,7 @@ export const ThemeDrawer: Component = () => {
         } else setAppTheme(id);
     };
 
-    const [mode, setMode] = createSignal<"browse" | "build">("browse");
-    const [editing, setEditing] = createSignal<Theme | null>(null);
-    const [busy, setBusy] = createSignal(false);
+    const navigate = useNavigate();
 
     // Over the editor, adopt the artifact theme so the drawer matches the studio it floats over —
     // snapshotted on open (untracked) so it doesn't restyle while you browse/preview themes.
@@ -53,32 +44,14 @@ export const ThemeDrawer: Component = () => {
             setThemeVars(untrack(() => (inEditor() ? editorThemeCssVars() : undefined)));
     });
 
-    // always reopen on the browse list
-    createEffect(() => {
-        if (!themeDrawerOpen()) {
-            setMode("browse");
-            setEditing(null);
-        }
-    });
-
+    // Custom-theme create/edit happens in the full-screen editor (/theme/:id); the drawer just navigates.
     const startNew = (): void => {
-        setEditing(null);
-        setMode("build");
+        closeThemeDrawer();
+        navigate("/theme/new");
     };
     const startEdit = (t: Theme): void => {
-        setEditing(t);
-        setMode("build");
-    };
-    const onSave = async (draft: ThemeDraft): Promise<void> => {
-        setBusy(true);
-        const ed = editing();
-        const saved = ed ? await updateCustomTheme(ed.id, draft) : await saveCustomTheme(draft);
-        setBusy(false);
-        if (saved) {
-            apply(saved.id);
-            setMode("browse");
-            setEditing(null);
-        }
+        closeThemeDrawer();
+        navigate(`/theme/${t.id}`);
     };
 
     const card = (t: Theme, custom: boolean): JSX.Element => (
@@ -134,11 +107,7 @@ export const ThemeDrawer: Component = () => {
                             {inEditor() ? "This artifact" : "App theme"}
                         </div>
                         <div class="truncate text-[14px] font-semibold text-ink">
-                            {mode() === "build"
-                                ? editing()
-                                    ? "Edit theme"
-                                    : "New theme"
-                                : resolveTheme(currentId()).name}
+                            {resolveTheme(currentId()).name}
                         </div>
                     </div>
                     <button
@@ -150,52 +119,39 @@ export const ThemeDrawer: Component = () => {
                     </button>
                 </header>
 
-                <Show
-                    when={mode() === "browse"}
-                    fallback={
-                        <ThemeBuilder
-                            base={resolveTheme(currentId())}
-                            edit={editing() ?? undefined}
-                            busy={busy()}
-                            onSave={onSave}
-                            onCancel={() => setMode("browse")}
-                        />
-                    }
-                >
-                    <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-                        <div class="mb-2 flex items-center justify-between">
-                            <span class="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
-                                My themes
-                            </span>
-                            <Show when={customThemes().length}>
-                                <span class="font-mono text-[9px] text-accent">synced</span>
-                            </Show>
-                        </div>
-                        <div class="flex flex-wrap gap-3">
-                            <button
-                                class="flex aspect-[16/9] flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line text-muted hover:border-accent hover:text-accent"
-                                style={{ width: `${CARD_W}px` }}
-                                onClick={startNew}
-                            >
-                                <PlusIcon size={16} />
-                                <span class="text-[11.5px] font-medium">New theme</span>
-                            </button>
-                            <For each={customThemes()}>{(t) => card(t, true)}</For>
-                        </div>
-
-                        <div class="mb-2 mt-5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
-                            Built-in
-                        </div>
-                        <div class="flex flex-wrap gap-3">
-                            <For each={THEME_LIST}>{(t) => card(t, false)}</For>
-                        </div>
-
-                        <p class="mt-4 text-[11px] leading-relaxed text-muted">
-                            Custom themes are saved to your workspace and appear in the picker
-                            everywhere — exactly like a built-in.
-                        </p>
+                <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+                    <div class="mb-2 flex items-center justify-between">
+                        <span class="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+                            My themes
+                        </span>
+                        <Show when={customThemes().length}>
+                            <span class="font-mono text-[9px] text-accent">synced</span>
+                        </Show>
                     </div>
-                </Show>
+                    <div class="flex flex-wrap gap-3">
+                        <button
+                            class="flex aspect-[16/9] flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line text-muted hover:border-accent hover:text-accent"
+                            style={{ width: `${CARD_W}px` }}
+                            onClick={startNew}
+                        >
+                            <PlusIcon size={16} />
+                            <span class="text-[11.5px] font-medium">New theme</span>
+                        </button>
+                        <For each={customThemes()}>{(t) => card(t, true)}</For>
+                    </div>
+
+                    <div class="mb-2 mt-5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+                        Built-in
+                    </div>
+                    <div class="flex flex-wrap gap-3">
+                        <For each={THEME_LIST}>{(t) => card(t, false)}</For>
+                    </div>
+
+                    <p class="mt-4 text-[11px] leading-relaxed text-muted">
+                        Custom themes are saved to your workspace and appear in the picker
+                        everywhere — exactly like a built-in.
+                    </p>
+                </div>
             </aside>
         </Show>
     );

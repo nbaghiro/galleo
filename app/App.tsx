@@ -13,6 +13,7 @@ import { LibraryView } from "./views/LibraryView";
 import { PresentView } from "./views/PresentView";
 import { TemplatesView } from "./views/TemplatesView";
 import { ThemeDrawer } from "./components/ThemeDrawer";
+import { ThemeEditor } from "./views/ThemeEditor";
 import { TrashView } from "./views/TrashView";
 
 // Router root layout — wraps every route so the singular theme drawer is mounted once (inside router
@@ -65,6 +66,7 @@ export const App: Component = () => {
                         <Route path="/new" component={IntakeView} />
                         <Route path="/generate" component={BuildView} />
                         <Route path="/edit/:id" component={EditorView} />
+                        <Route path="/theme/:id" component={ThemeEditor} />
                         <Route path="/present/:id" component={PresentView} />
                     </Router>
                 </Show>
