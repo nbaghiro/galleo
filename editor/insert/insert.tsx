@@ -21,7 +21,7 @@ import { Icon } from "../icons";
 import { PRESETS } from "@elements/compose";
 import { getElement } from "@elements/spec";
 import { previewSvg } from "./element-previews";
-import { startDrag, drag } from "../editing/dnd";
+import { startDrag, drag } from "./dnd";
 import type { Target } from "@model/target";
 
 // The empty-cell affordance: a centered "+ Add element" that opens the shared picker and drops the

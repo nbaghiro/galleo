@@ -14,7 +14,7 @@ import {
 } from "@elements/ops";
 import { getElement, SECTION_CONTROLS } from "@elements/spec";
 import { commit, editor, setSelection, editorTokens } from "../editor";
-import { PanelHeader, SchemaFields, Group } from "../controls/fields";
+import { PanelHeader, SchemaFields, Group } from "./fields";
 import type { SectionBackground } from "@model/artifact";
 import { TEMPLATE_LABELS, TEMPLATES } from "@elements/compose";
 

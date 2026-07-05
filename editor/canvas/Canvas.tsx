@@ -8,15 +8,8 @@ import { getElement } from "@elements/spec";
 import { resolveProfile } from "@engine/profile";
 import { elementRegionId, parentTarget, parseTarget, specificity } from "@model/target";
 import { backdropCss, paintSectionStack } from "@canvas/render/backends";
-import {
-    applyDrop,
-    computeDropTarget,
-    drag,
-    previewDrop,
-    setDrag,
-    startDrag,
-} from "../editing/dnd";
-import { applyLiveEdit, liveEdit } from "../editing/manipulate";
+import { applyDrop, computeDropTarget, drag, previewDrop, setDrag, startDrag } from "../insert/dnd";
+import { applyLiveEdit, liveEdit } from "../select/manipulate";
 import {
     commit,
     currentArtifactId,
@@ -42,9 +35,9 @@ import {
 } from "../editor";
 import { CellAdd, ContextMenu, openContextMenu, DropIndicator } from "../insert/insert";
 import { ColumnDividers, ResizeHandles, SpacingHandles } from "../select/handles";
-import { ContextBar } from "../panels/format-bar";
+import { ContextBar } from "../inspect/format-bar";
 import { Overlay, SectionActions, SectionToolbar } from "../select/selection";
-import { TextEditor } from "../editing/text-editor";
+import { TextEditor } from "../text/text-editor";
 import { VideoEmbeds } from "./embeds";
 
 const DRAG_THRESHOLD = 4;

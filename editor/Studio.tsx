@@ -1,7 +1,7 @@
 import type { JSX, Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
 import { themeCssVars } from "@themes/theme";
-import { AgentPanel } from "./agent/AgentPanel";
+import { AgentPanel } from "./chrome/AgentPanel";
 import { Canvas } from "./canvas/Canvas";
 import { DragGhost } from "./insert/insert";
 import { editorTokens, leftOpen, setLeftOpen } from "./editor";

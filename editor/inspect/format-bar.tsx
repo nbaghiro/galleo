@@ -24,11 +24,11 @@ import {
     stageEl,
     editorTokens,
 } from "../editor";
-import { drag } from "../editing/dnd";
-import { Field } from "../controls/fields";
+import { drag } from "../insert/dnd";
+import { Field } from "./fields";
 import { Icon } from "../icons";
 import type { MarkType } from "@model/text";
-import { ColorPicker, highlightSwatches, textColorSwatches } from "../controls/ColorPicker";
+import { ColorPicker, highlightSwatches, textColorSwatches } from "./ColorPicker";
 import {
     activeMarks,
     activeValues,
@@ -36,7 +36,7 @@ import {
     setTextMark,
     textSelection,
     toggleTextMark,
-} from "../editing/text-format";
+} from "../text/text-format";
 
 // The floating quick-action toolbar above a selected element — the "format bar". Its inline controls are
 // spec-driven: an element declares `bar` (control keys) + `richText` (marks); the studio renders those

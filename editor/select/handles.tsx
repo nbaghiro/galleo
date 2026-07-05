@@ -7,7 +7,7 @@ import { GUTTER } from "@elements/compose";
 import { getElementAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { cellRegionId, elementRegionId, parentTarget, regionId } from "@model/target";
-import { applyLiveEdit, liveEdit, setLiveEdit } from "../editing/manipulate";
+import { applyLiveEdit, liveEdit, setLiveEdit } from "./manipulate";
 import { commit, editor, editorAccent, regions, selection, stageEl } from "../editor";
 import type { Rect } from "@engine/node";
 import { fallbackTemplate, TEMPLATES } from "@elements/compose";
