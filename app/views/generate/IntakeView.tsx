@@ -9,7 +9,7 @@ import { ArrowUpRightIcon, RefreshIcon, SparkleIcon } from "../../components/ico
 import { appTheme } from "../../theme";
 import { Visual } from "../../components/previews";
 import "../../components/visuals.css";
-import { Dropdown } from "@editor/inspect/widgets";
+import { Dropdown } from "../../components/widgets";
 import { GenViewPicker } from "./gen-view";
 import { DEMO_EXAMPLES } from "./demo";
 import { startSession, type Surface } from "./session";

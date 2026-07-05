@@ -7,7 +7,7 @@ import { luminance } from "@themes/theme";
 import { resolveTheme } from "@themes/library";
 import { resolveProfile } from "@engine/profile";
 import { paintSectionStack } from "@canvas/render/backends";
-import { ColorPopover, Dropdown, type ColorSwatch } from "@editor/inspect/widgets";
+import { ColorPopover, Dropdown, type ColorSwatch } from "../components/widgets";
 import { ChevronLeftIcon } from "../components/icons";
 import {
     appTheme,
