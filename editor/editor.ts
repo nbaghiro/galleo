@@ -2,7 +2,6 @@ import type { Region } from "@engine/node";
 import type { ElementAddress, Target } from "@model/target";
 import type { ArtifactContent, Section } from "@model/artifact";
 import { createSignal } from "solid-js";
-import { createStore } from "solid-js/store";
 import type { Theme, Tokens } from "@themes/theme";
 import { duplicateSection, insertSection, moveSection, removeSection } from "@elements/ops";
 import { targetsEqual } from "@model/target";
@@ -11,24 +10,36 @@ import { resolveTheme } from "@themes/library";
 // The editor's reactive state: the open artifact + computed section offsets, the current selection /
 // hover target, and the geometry regions the canvas reports (in canvas-content coordinates).
 
-interface EditorState {
-    artifact: ArtifactContent;
-    sectionTops: number[];
-}
-
-// The store starts on a blank artifact; the app replaces it via loadArtifactContent once the real one
-// is fetched from the backend. (Persistence + the doc library are the API's job — the studio no longer
-// hardcodes demo fixtures or its own localStorage layer.)
+// The blank starting artifact; the app replaces it via loadArtifactContent once the real one is fetched
+// from the backend. (Persistence + the doc library are the API's job — the studio no longer hardcodes
+// demo fixtures or its own localStorage layer.)
 const EMPTY_ARTIFACT: ArtifactContent = {
     format: "deck",
     theme: "studio",
     sections: [{ id: "s-1", grid: "full", cells: { a: {} } }],
 };
 
-export const [editor, setEditor] = createStore<EditorState>({
-    artifact: EMPTY_ARTIFACT,
-    sectionTops: [],
-});
+// The open artifact is an immutable value in a plain signal: every write REPLACES the whole tree (content
+// ops return a fresh tree with structural sharing), so it is never mutated in place. That is what makes
+// undo correct — a history snapshot is just the value, and past values are never touched again.
+const [content, setContent] = createSignal<ArtifactContent>(EMPTY_ARTIFACT);
+export { content };
+
+// Painted section-top offsets — transient geometry the canvas reports, not undoable.
+const [sectionTops, setSectionTops] = createSignal<number[]>([]);
+export { sectionTops, setSectionTops };
+
+// Read facade: `editor.artifact` / `editor.sectionTops` stay reactive (each getter calls its signal, so a
+// read tracks it). Because `.artifact` returns the immutable value, ops built from `editor.artifact` are
+// built from immutable data — history-safe by construction.
+export const editor = {
+    get artifact(): ArtifactContent {
+        return content();
+    },
+    get sectionTops(): number[] {
+        return sectionTops();
+    },
+};
 
 // The resolved theme for the open artifact — the single place the studio derives its theme from the
 // artifact's theme id (reactive: reads editor.artifact.theme).
@@ -82,7 +93,7 @@ const bumpSeq = (): void => {
     setEditSeq((n) => n + 1);
 };
 
-const snapshot = (): DocSnapshot => ({ content: editor.artifact, title: currentTitle() });
+const snapshot = (): DocSnapshot => ({ content: content(), title: currentTitle() });
 
 // Coalescing: a continuous interaction (dragging a slider, scrubbing a color) commits many times but
 // should read as ONE undo step. Callers pass a stable `coalesce` key; consecutive commits with the same
@@ -109,13 +120,13 @@ export function commit(next: ArtifactContent, opts?: { coalesce?: string }): voi
     const key = opts?.coalesce;
     if (key && key === coalesceKey) {
         // same interaction as the previous commit — update content, keep the single history entry
-        setEditor("artifact", next);
+        setContent(next);
         bumpSeq();
         armCoalesce(key);
         return;
     }
     pushPast(snapshot());
-    setEditor("artifact", next);
+    setContent(next);
     bumpSeq();
     if (key) armCoalesce(key);
 }
@@ -129,9 +140,9 @@ export { previewingTheme };
 let savedThemeUnderPreview: string | null = null;
 
 export function startThemePreview(themeId: string): void {
-    if (themeId === editor.artifact.theme) return;
-    savedThemeUnderPreview = editor.artifact.theme;
-    setEditor("artifact", "theme", themeId);
+    if (themeId === content().theme) return;
+    savedThemeUnderPreview = content().theme;
+    setContent({ ...content(), theme: themeId });
     setPreviewingTheme(true);
 }
 
@@ -142,14 +153,15 @@ export function keepPreviewedTheme(): void {
     const prevTheme = savedThemeUnderPreview;
     savedThemeUnderPreview = null;
     setPreviewingTheme(false);
-    if (prevTheme !== null && prevTheme !== editor.artifact.theme)
-        pushPast({ content: { ...editor.artifact, theme: prevTheme }, title: currentTitle() });
+    if (prevTheme !== null && prevTheme !== content().theme)
+        pushPast({ content: { ...content(), theme: prevTheme }, title: currentTitle() });
     bumpSeq();
 }
 
 // Drop the preview and restore the saved theme in the live editor (on revert / editor exit).
 export function endThemePreview(): void {
-    if (savedThemeUnderPreview !== null) setEditor("artifact", "theme", savedThemeUnderPreview);
+    if (savedThemeUnderPreview !== null)
+        setContent({ ...content(), theme: savedThemeUnderPreview });
     savedThemeUnderPreview = null;
     setPreviewingTheme(false);
 }
@@ -161,7 +173,7 @@ export function previewSavedTheme(): string | null {
 
 // The theme id autosave must write: the real saved theme while previewing, else the live one.
 export function themeForPersist(): string {
-    return savedThemeUnderPreview ?? editor.artifact.theme;
+    return savedThemeUnderPreview ?? content().theme;
 }
 
 export function undo(): void {
@@ -169,7 +181,7 @@ export function undo(): void {
     if (prev === undefined) return;
     coalesceKey = null;
     future.push(snapshot());
-    setEditor("artifact", prev.content);
+    setContent(prev.content);
     restoreTitle(prev.title);
     bumpSeq();
     bumpHistory();
@@ -180,7 +192,7 @@ export function redo(): void {
     if (next === undefined) return;
     coalesceKey = null;
     past.push(snapshot());
-    setEditor("artifact", next.content);
+    setContent(next.content);
     restoreTitle(next.title);
     bumpSeq();
     bumpHistory();
@@ -211,7 +223,7 @@ export function stopEditing(): void {
 }
 
 export function setArtifactLive(next: ArtifactContent): void {
-    setEditor("artifact", next);
+    setContent(next);
     bumpSeq();
 }
 
@@ -285,7 +297,7 @@ export function requestThemePicker(): void {
 
 // Load an artifact (fetched from the API) into the editor. Resets transient state; does NOT bump
 // editSeq, so it won't trigger an autosave — the canvas redraws because it also tracks currentArtifactId.
-export function loadArtifactContent(id: string, content: ArtifactContent): void {
+export function loadArtifactContent(id: string, art: ArtifactContent): void {
     past.length = 0;
     future.length = 0;
     coalesceKey = null;
@@ -296,7 +308,7 @@ export function loadArtifactContent(id: string, content: ArtifactContent): void 
     savedThemeUnderPreview = null;
     setPreviewingTheme(false);
     setCurrentArtifactId(id);
-    setEditor("artifact", content);
+    setContent(art);
     bumpHistory();
 }
 
@@ -361,7 +373,7 @@ export function loadGenerated(art: ArtifactContent): void {
     setEditing(null);
     setSelection(null);
     setHover(null);
-    setEditor("artifact", art);
+    setContent(art);
     setAgentOpen(false);
     bumpHistory();
 }

@@ -374,7 +374,7 @@ export function layoutRuns(
     };
 }
 
-export const measureText = (leaf: TextLeaf, maxWidth: number): Measured => {
+const measureUncached = (leaf: TextLeaf, maxWidth: number): Measured => {
     const cx = getCtx();
     const lineHeight = leaf.lineHeight ?? leaf.size * 1.35;
 
@@ -418,3 +418,49 @@ export const measureText = (leaf: TextLeaf, maxWidth: number): Measured => {
     }
     return { width: Math.min(widest, maxWidth), height: lines * lineHeight };
 };
+
+// Memoized text measurement: measureUncached runs a Canvas measureText per word and is called for every
+// leaf on every layout, and the same (text, font, size, width) recurs constantly across redraws. Key on
+// the metric-affecting inputs only (bold/italic/code change a run's advance; a width-independent measure
+// collapses its maxWidth). Cleared on font load, below.
+const measureCache = new Map<string, Measured>();
+const MEASURE_CACHE_CAP = 6000;
+
+function measureKey(leaf: TextLeaf, maxWidth: number): string {
+    const mw = leaf.wrap === "none" || !Number.isFinite(maxWidth) ? "*" : maxWidth;
+    const base = `${leaf.size};${leaf.weight ?? 400};${leaf.lineHeight ?? 0};${leaf.wrap};${mw};${leaf.fontId}`;
+    if (leaf.runs && leaf.runs.length > 0) {
+        let r = "";
+        for (const run of leaf.runs)
+            r += `${run.bold ? 1 : 0}${run.italic ? 1 : 0}${run.code ? 1 : 0}${run.text}`;
+        return `${base} R${r}`;
+    }
+    return `${base} ${leaf.text}`;
+}
+
+export function clearMeasureCache(): void {
+    measureCache.clear();
+}
+
+export const measureText = (leaf: TextLeaf, maxWidth: number): Measured => {
+    const key = measureKey(leaf, maxWidth);
+    const hit = measureCache.get(key);
+    if (hit) return hit;
+    const result = measureUncached(leaf, maxWidth);
+    if (measureCache.size >= MEASURE_CACHE_CAP) {
+        // FIFO-evict the oldest quarter (Map preserves insertion order) — cheap and occasional.
+        let n = MEASURE_CACHE_CAP >> 2;
+        for (const k of measureCache.keys()) {
+            measureCache.delete(k);
+            if (--n <= 0) break;
+        }
+    }
+    measureCache.set(key, result);
+    return result;
+};
+
+// Fonts load after first paint; until then leaves measure with a fallback face. Drop the cache on font
+// load so the next layout re-measures with real metrics (all consumers share this one cache).
+if (typeof document !== "undefined" && document.fonts) {
+    document.fonts.addEventListener("loadingdone", clearMeasureCache);
+}

@@ -3,7 +3,7 @@ import { createMemo, Show } from "solid-js";
 import { themeCssVars } from "@themes/theme";
 import { AgentPanel } from "./chrome/AgentPanel";
 import { Canvas } from "./canvas/Canvas";
-import { DragGhost } from "./insert/insert";
+import { DragGhost } from "./canvas/insert";
 import { editorTokens, leftOpen, setLeftOpen } from "./editor";
 import { Icon } from "./icons";
 import { Minimap } from "./chrome/Minimap";

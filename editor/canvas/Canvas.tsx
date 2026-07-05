@@ -1,15 +1,20 @@
-import type { Region } from "@engine/node";
+import type { Region, Rect } from "@engine/node";
 import type { Target } from "@model/target";
 import type { Section } from "@model/artifact";
 import type { Component } from "solid-js";
-import { createEffect, createMemo, onCleanup, onMount } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { duplicateAt, duplicatedAddr, getElementAt, removeAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { resolveProfile } from "@engine/profile";
 import { elementRegionId, parentTarget, parseTarget, specificity } from "@model/target";
-import { backdropCss, paint, paintSectionStack } from "@canvas/render/backends";
+import {
+    backdropCss,
+    createSectionStackCache,
+    paint,
+    paintSectionStack,
+} from "@canvas/render/backends";
 import { measureText, layoutSection } from "@canvas/render/commands";
-import { applyDrop, computeDropTarget, drag, previewDrop, setDrag, startDrag } from "../insert/dnd";
+import { applyDrop, computeDropTarget, drag, previewDrop, setDrag, startDrag } from "./dnd";
 import { applyLiveEdit, liveEdit } from "../select/handles";
 import {
     commit,
@@ -25,16 +30,16 @@ import {
     removeSectionAt,
     selection,
     setCanvasEl,
-    setEditor,
     setHover,
     setRegions,
+    setSectionTops,
     setSelection,
     setStageEl,
     startEditing,
     stopEditing,
     undo,
 } from "../editor";
-import { CellAdd, ContextMenu, openContextMenu, DropIndicator } from "../insert/insert";
+import { CellAdd, ContextMenu, openContextMenu, DropIndicator } from "./insert";
 import { ColumnDividers, ResizeHandles, SpacingHandles } from "../select/handles";
 import { ContextBar } from "../inspect/format-bar";
 import { Overlay, SectionActions, SectionToolbar } from "../select/selection";
@@ -56,7 +61,14 @@ export const Canvas: Component = () => {
     let paintHost!: HTMLDivElement;
 
     let liveRegions: Region[] = [];
+    // Hit-test data derived once per draw (parseTarget + specificity precomputed), so a hover mousemove
+    // is a numeric box test over this array instead of re-parsing every region id on every move.
+    let liveHits: { target: Target; spec: number; box: Rect }[] = [];
     let pending: { target: Target | null; x: number; y: number } | null = null;
+
+    // Per-host layout+paint cache: unchanged sections reuse their laid-out layer across redraws, so a
+    // gesture frame / keystroke re-lays-out only the one section that changed (see paintSectionStack).
+    const stackCache = createSectionStackCache();
 
     // `preview` (a modified copy of the sections) is painted while dragging: a ghost-spliced drop that
     // auto-sizes the section (DnD, `track` off — hit-testing stays on the stable real layout so the drop
@@ -68,7 +80,6 @@ export const Canvas: Component = () => {
         const profile = resolveProfile(editor.artifact.format);
         const padL = leftOpen() ? PANEL_L : RAIL_GAP;
         const fullW = Math.max(360, (scrollEl.clientWidth || 800) - padL - RAIL_R);
-        paintHost.replaceChildren();
         // suppress the painted text of the element being edited — only the live overlay shows it
         const editAddr = editing();
         const editId = editAddr ? elementRegionId(editAddr) : null;
@@ -77,14 +88,35 @@ export const Canvas: Component = () => {
             preview ?? editor.artifact.sections,
             profile,
             editorTokens(),
-            { fullW, hideId: editId },
+            { fullW, hideId: editId, cache: stackCache },
         );
         stageEl.style.height = `${height}px`;
-        setEditor("sectionTops", tops);
+        setSectionTops(tops);
         if (!preview || track) {
             liveRegions = regions;
             setRegions(regions);
+            const hits: { target: Target; spec: number; box: Rect }[] = [];
+            for (const r of regions) {
+                const t = parseTarget(r.id);
+                if (t) hits.push({ target: t, spec: specificity(t), box: r.box });
+            }
+            liveHits = hits;
         }
+    };
+
+    // Coalesce draw triggers to one paint per animation frame (a gesture fires many moves per frame); the
+    // latest queued state wins.
+    let rafId = 0;
+    let queued: { sections: Section[] | null; track: boolean } | null = null;
+    const scheduleDraw = (sections: Section[] | null, track: boolean): void => {
+        queued = { sections, track };
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+            rafId = 0;
+            const q = queued;
+            queued = null;
+            if (q) draw(q.sections, q.track);
+        });
     };
 
     const point = (e: { clientX: number; clientY: number }): [number, number] => {
@@ -95,13 +127,12 @@ export const Canvas: Component = () => {
     const hitTest = (px: number, py: number): Target | null => {
         let best: Target | null = null;
         let bestSpec = -1;
-        for (const r of liveRegions) {
-            const b = r.box;
+        for (const h of liveHits) {
+            const b = h.box;
             if (px < b.x || px > b.x + b.w || py < b.y || py > b.y + b.h) continue;
-            const t = parseTarget(r.id);
-            if (t && specificity(t) > bestSpec) {
-                bestSpec = specificity(t);
-                best = t;
+            if (h.spec > bestSpec) {
+                bestSpec = h.spec;
+                best = h.target;
             }
         }
         return best;
@@ -156,10 +187,15 @@ export const Canvas: Component = () => {
     onMount(() => {
         setCanvasEl(scrollEl);
         setStageEl(stageEl);
-        const ro = new ResizeObserver(() => draw());
+        const ro = new ResizeObserver(() => scheduleDraw(null, false));
         ro.observe(scrollEl);
-        // Web fonts arrive after first paint — re-measure once they (or a theme's font) finish loading.
-        const onFonts = (): void => draw();
+        // Web fonts arrive after first paint — the shared measure cache self-invalidates on font load
+        // (commands.ts); drop the per-section layer cache too so the next draw re-lays-out with the real
+        // metrics instead of the fallback-face ones.
+        const onFonts = (): void => {
+            stackCache.entries.clear();
+            scheduleDraw(null, false);
+        };
         document.fonts.ready.then(onFonts);
         document.fonts.addEventListener("loadingdone", onFonts);
         const onKey = (e: KeyboardEvent): void => {
@@ -217,6 +253,7 @@ export const Canvas: Component = () => {
             ro.disconnect();
             document.fonts.removeEventListener("loadingdone", onFonts);
             window.removeEventListener("keydown", onKey);
+            if (rafId) cancelAnimationFrame(rafId);
         });
     });
 
@@ -234,13 +271,16 @@ export const Canvas: Component = () => {
         return null;
     });
 
-    // editSeq() bumps on every edit; currentArtifactId() changes on load; preview() tracks the active
-    // gesture — any of them forces a redraw (real artifact, or the live preview).
+    // The draw runs later in a rAF (outside tracking), so every dep that must force a repaint is read
+    // here synchronously — omitting one silently stops it from triggering redraws.
     createEffect(() => {
         editSeq();
         currentArtifactId();
+        leftOpen();
+        editing();
+        editorTokens();
         const p = preview();
-        draw(p?.sections ?? null, p?.track ?? false);
+        scheduleDraw(p?.sections ?? null, p?.track ?? false);
     });
 
     // While a drag is active, the cursor lives anywhere on screen — track it on the window.
@@ -314,11 +354,33 @@ export const Canvas: Component = () => {
 // ── section thumbnail (rendered in the Minimap rail) ──
 const THUMB_LAYOUT_WIDTH = 760; // lay out realistically, then scale to fit the rail
 
-export const Thumb: Component<{ section: Section; index: number }> = (props) => {
+export const Thumb: Component<{
+    section: Section;
+    index: number;
+    root?: () => HTMLElement | undefined;
+}> = (props) => {
     let wrap!: HTMLButtonElement;
     let inner!: HTMLDivElement;
+    // Defer layout until the thumbnail scrolls near the rail — laying out every section up front (and
+    // again on each theme change) is wasted for thumbs never viewed. Once seen, stay painted.
+    const [seen, setSeen] = createSignal(false);
+
+    onMount(() => {
+        const io = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((e) => e.isIntersecting)) {
+                    setSeen(true);
+                    io.disconnect();
+                }
+            },
+            { root: props.root?.() ?? null, rootMargin: "300px 0px" },
+        );
+        io.observe(wrap);
+        onCleanup(() => io.disconnect());
+    });
 
     createEffect(() => {
+        if (!seen()) return;
         const w = wrap.clientWidth || 150;
         const scale = w / THUMB_LAYOUT_WIDTH;
         const theme = editorTokens();
@@ -341,7 +403,7 @@ export const Thumb: Component<{ section: Section; index: number }> = (props) => 
             <button
                 ref={wrap}
                 onClick={() => jumpToSection(props.index)}
-                class="relative block min-w-0 flex-1 cursor-pointer overflow-hidden rounded-lg border border-line bg-canvas p-0 hover:border-accent"
+                class="relative block min-h-[80px] min-w-0 flex-1 cursor-pointer overflow-hidden rounded-lg border border-line bg-canvas p-0 hover:border-accent"
             >
                 <div ref={inner} />
             </button>

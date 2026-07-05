@@ -129,57 +129,83 @@ function warmImage(src: string): void {
     warmed.set(src, im);
 }
 
+// Apply one render command to an absolutely-positioned <div>. Shared by paint() and paintReconcile() so
+// the editor and every export/present path draw a command identically.
+function applyCommand(el: HTMLElement, c: RenderCommand): void {
+    el.style.position = "absolute";
+    el.style.left = `${c.box.x}px`;
+    el.style.top = `${c.box.y}px`;
+    el.style.width = `${c.box.w}px`;
+    el.style.height = `${c.box.h}px`;
+    el.style.boxSizing = "border-box";
+    if (c.kind === "rect") {
+        const g = c.fill?.gradient;
+        if (g) el.style.background = `linear-gradient(${g.angle ?? 135}deg, ${g.from}, ${g.to})`;
+        else if (c.fill?.color) el.style.background = c.fill.color;
+        if (c.fill?.radius !== undefined) el.style.borderRadius = `${c.fill.radius}px`;
+        if (c.fill?.border) {
+            const b = c.fill.border;
+            el.style.border = `${b.width}px ${b.style ?? "solid"} ${b.color}`;
+        }
+        if (c.fill?.shadow) el.style.boxShadow = c.fill.shadow;
+    } else if (c.kind === "image") {
+        warmImage(c.image.src);
+        const scrim = c.image.scrim;
+        const url = `url("${c.image.src}")`;
+        el.style.backgroundImage = scrim
+            ? `linear-gradient(rgba(0,0,0,${scrim}), rgba(0,0,0,${scrim})), ${url}`
+            : url;
+        el.style.backgroundSize = c.image.fit;
+        el.style.backgroundPosition = "center";
+        el.style.backgroundRepeat = "no-repeat";
+        if (c.image.radius !== undefined) el.style.borderRadius = `${c.image.radius}px`;
+    } else if (c.kind === "text") {
+        paintText(el, c.text);
+    } else {
+        const canvas = document.createElement("canvas");
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.max(1, Math.round(c.box.w * dpr));
+        canvas.height = Math.max(1, Math.round(c.box.h * dpr));
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+        const cx = canvas.getContext("2d");
+        if (cx) {
+            cx.scale(dpr, dpr);
+            c.paint(canvasDrawContext(cx), { x: 0, y: 0, w: c.box.w, h: c.box.h });
+        }
+        el.appendChild(canvas);
+    }
+}
+
 export function paint(commands: RenderCommand[], host: HTMLElement): void {
     host.replaceChildren();
     host.style.position = "relative";
     for (const c of commands) {
         const el = document.createElement("div");
-        el.style.position = "absolute";
-        el.style.left = `${c.box.x}px`;
-        el.style.top = `${c.box.y}px`;
-        el.style.width = `${c.box.w}px`;
-        el.style.height = `${c.box.h}px`;
-        el.style.boxSizing = "border-box";
-        if (c.kind === "rect") {
-            const g = c.fill?.gradient;
-            if (g)
-                el.style.background = `linear-gradient(${g.angle ?? 135}deg, ${g.from}, ${g.to})`;
-            else if (c.fill?.color) el.style.background = c.fill.color;
-            if (c.fill?.radius !== undefined) el.style.borderRadius = `${c.fill.radius}px`;
-            if (c.fill?.border) {
-                const b = c.fill.border;
-                el.style.border = `${b.width}px ${b.style ?? "solid"} ${b.color}`;
-            }
-            if (c.fill?.shadow) el.style.boxShadow = c.fill.shadow;
-        } else if (c.kind === "image") {
-            warmImage(c.image.src);
-            const scrim = c.image.scrim;
-            const url = `url("${c.image.src}")`;
-            el.style.backgroundImage = scrim
-                ? `linear-gradient(rgba(0,0,0,${scrim}), rgba(0,0,0,${scrim})), ${url}`
-                : url;
-            el.style.backgroundSize = c.image.fit;
-            el.style.backgroundPosition = "center";
-            el.style.backgroundRepeat = "no-repeat";
-            if (c.image.radius !== undefined) el.style.borderRadius = `${c.image.radius}px`;
-        } else if (c.kind === "text") {
-            paintText(el, c.text);
-        } else {
-            const canvas = document.createElement("canvas");
-            const dpr = window.devicePixelRatio || 1;
-            canvas.width = Math.max(1, Math.round(c.box.w * dpr));
-            canvas.height = Math.max(1, Math.round(c.box.h * dpr));
-            canvas.style.width = "100%";
-            canvas.style.height = "100%";
-            const cx = canvas.getContext("2d");
-            if (cx) {
-                cx.scale(dpr, dpr);
-                c.paint(canvasDrawContext(cx), { x: 0, y: 0, w: c.box.w, h: c.box.h });
-            }
-            el.appendChild(canvas);
-        }
+        applyCommand(el, c);
         host.appendChild(el);
     }
+}
+
+// Repaint `host` in place, reusing child <div>s slot-for-slot (only the per-section cache repaints the
+// same host, for the one section that changed). A reused slot is reset first so a kind change can't
+// inherit the old styling; a tag mismatch or shortfall makes a fresh node, and extras are dropped.
+function paintReconcile(host: HTMLElement, commands: RenderCommand[]): void {
+    const nodes = host.childNodes;
+    for (let i = 0; i < commands.length; i++) {
+        let el = nodes[i] as HTMLElement | undefined;
+        if (!el || el.nodeType !== 1 || el.tagName !== "DIV") {
+            const fresh = document.createElement("div");
+            if (nodes[i]) host.replaceChild(fresh, nodes[i]!);
+            else host.appendChild(fresh);
+            el = fresh;
+        } else {
+            el.style.cssText = "";
+            el.replaceChildren();
+        }
+        applyCommand(el, commands[i]!);
+    }
+    while (host.childNodes.length > commands.length) host.removeChild(host.lastChild!);
 }
 
 // A Canvas render backend: draws a RenderCommand[] onto a 2D context. Mirrors the DOM backend so the
@@ -472,45 +498,105 @@ export function backdropCss(bg: SectionBackground | undefined, tokens: Tokens): 
     return tokens.bg;
 }
 
+// Per-host cache for the section stack. Content ops keep the object identity of sections they don't touch
+// (see `ops`), so keying on (section, layoutW, theme, profile, hide-target) lets a redraw reuse the layer
+// of every unchanged section and re-lay-out only the one that changed. Opt-in (only the studio canvas
+// holds one); one cache per host — a cached layer is a live DOM node owned by its host.
+interface SectionCacheEntry {
+    section: Section;
+    layoutW: number;
+    theme: Tokens;
+    profileId: string;
+    hideKey: string;
+    layer: HTMLElement;
+    regions: Region[]; // section-local (offset into stage coords per draw)
+    height: number;
+}
+export interface SectionStackCache {
+    entries: Map<string, SectionCacheEntry>;
+}
+export function createSectionStackCache(): SectionStackCache {
+    return { entries: new Map() };
+}
+
 // Paint a vertical stack of sections into `host` — deck = centered content columns with gaps, doc/web =
 // seamless full-bleed bands. Each section is laid out by the engine and painted into an absolutely-
-// positioned layer. Returns the per-section top offsets, the hit-test regions (in stage coords), and the
-// total height (incl. the trailing gap). Callers own the host element, its clearing, and any background —
-// this is only the loop the studio canvas, present view, and read-only preview share.
+// positioned layer, and `host`'s children are replaced with the current layers. Returns the per-section
+// top offsets, the hit-test regions (in stage coords), and the total height (incl. the trailing gap).
+// Shared by the studio canvas, present view, and read-only preview.
 export function paintSectionStack(
     host: HTMLElement,
     sections: Section[],
     profile: FormatDescriptor,
     theme: Tokens,
-    opts: { fullW: number; startY?: number; hideId?: string | null },
+    opts: { fullW: number; startY?: number; hideId?: string | null; cache?: SectionStackCache },
 ): { tops: number[]; regions: Region[]; height: number } {
     const web = profile.id === "web";
     const gap = profile.kind === "continuous" ? 0 : SECTION_GAP; // doc/web merge seamlessly
     const contentW = Math.min(opts.fullW - 64, profile.maxContentWidth ?? 1080);
+    const cache = opts.cache;
     const tops: number[] = [];
     const regions: Region[] = [];
+    const layers: HTMLElement[] = [];
+    const live = new Set<string>();
     let y = opts.startY ?? 0;
+
     for (const section of sections) {
+        live.add(section.id);
         const bleed = (section.bleed ?? false) || web;
         const layoutW = bleed ? opts.fullW : contentW;
         const x = bleed ? 0 : Math.round((opts.fullW - contentW) / 2);
-        const res = layoutSection(section, layoutW, measureText, theme, profile);
-        const commands = opts.hideId
-            ? res.commands.filter((c) => !(c.kind === "text" && c.id === opts.hideId))
-            : res.commands;
-        const layer = document.createElement("div");
-        layer.style.cssText = `left:${x}px;top:${y}px;width:${layoutW}px;height:${res.height}px`;
-        paint(commands, layer);
-        layer.style.position = "absolute"; // paint() forces relative; keep layers out of flow
-        host.appendChild(layer);
-        for (const r of res.regions)
+        // hideId (the inline-edited element's text) only affects its own section, so only that section's
+        // cache key carries it — starting/ending an edit repaints one section, not the whole stack.
+        const hideKey = opts.hideId?.startsWith(`el:${section.id}:`) ? opts.hideId : "";
+        const prev = cache?.entries.get(section.id);
+        let entry: SectionCacheEntry;
+        if (
+            prev &&
+            prev.section === section &&
+            prev.layoutW === layoutW &&
+            prev.theme === theme &&
+            prev.profileId === profile.id &&
+            prev.hideKey === hideKey
+        ) {
+            entry = prev; // unchanged — reuse the laid-out, painted layer as-is
+        } else {
+            const res = layoutSection(section, layoutW, measureText, theme, profile);
+            const commands = hideKey
+                ? res.commands.filter((c) => !(c.kind === "text" && c.id === hideKey))
+                : res.commands;
+            const layer = prev?.layer ?? document.createElement("div");
+            if (cache) paintReconcile(layer, commands);
+            else paint(commands, layer);
+            layer.style.position = "absolute"; // paint() forces relative; keep layers out of flow
+            entry = {
+                section,
+                layoutW,
+                theme,
+                profileId: profile.id,
+                hideKey,
+                layer,
+                regions: res.regions,
+                height: res.height,
+            };
+            cache?.entries.set(section.id, entry);
+        }
+        entry.layer.style.left = `${x}px`;
+        entry.layer.style.top = `${y}px`;
+        entry.layer.style.width = `${layoutW}px`;
+        entry.layer.style.height = `${entry.height}px`;
+        layers.push(entry.layer);
+        for (const r of entry.regions)
             regions.push({
                 id: r.id,
                 box: { x: r.box.x + x, y: r.box.y + y, w: r.box.w, h: r.box.h },
             });
         tops.push(y);
-        y += res.height + gap;
+        y += entry.height + gap;
     }
+    if (cache)
+        for (const id of [...cache.entries.keys()]) if (!live.has(id)) cache.entries.delete(id);
+    host.replaceChildren(...layers);
     return { tops, regions, height: y };
 }
 

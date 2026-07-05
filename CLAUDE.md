@@ -55,7 +55,7 @@ Galleo owns the **86xx** host-port block (runs alongside the sibling apps). See 
 
 The layout engine (`canvas/engine/layout.ts`, Clay-style 3-pass solver) drives a **SolidJS** studio:
 `editor/Studio.tsx` shell = `Topbar` · `Minimap` (live `Thumb`s) · `Canvas` (continuous section stack) ·
-`Panel` (element palette), with selection + inspectors + drag-drop (feature folders `select/`·`inspect/`·`insert/`) and
+`Panel` (element palette), with selection + inspectors + drag-drop (feature folders `select/`·`inspect/`·`canvas/`) and
 inline text editing (`text/text-editor.tsx`). State in `editor.ts` (Solid store); painting is the
 `@canvas` layer — the engine's commands paint into refs (`@canvas/render/backends`, with a 2D-canvas
 mirror for Present + PDF/PNG export). Sections compose via `@elements/compose`; every element has a

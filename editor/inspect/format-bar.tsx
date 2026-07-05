@@ -24,7 +24,7 @@ import {
     stageEl,
     editorTokens,
 } from "../editor";
-import { drag } from "../insert/dnd";
+import { drag } from "../canvas/dnd";
 import { Field } from "./fields";
 import { Icon } from "../icons";
 import type { MarkType } from "@model/text";

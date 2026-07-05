@@ -105,10 +105,9 @@ module that registers every element into the registry; `app/main.tsx` imports it
 mark helpers) rather than pooling them in a shared "editing" bucket.
 
 ```
-canvas/    the Solid components over the render backends — Canvas.tsx (live editing canvas + the Minimap section Thumb) · Present.tsx (in-editor present overlay, over @canvas) · embeds.tsx (live media players)
+canvas/    the editing canvas + everything overlaid on / driving it — Canvas.tsx (live editing canvas + the Minimap section Thumb) · Present.tsx (in-editor present overlay) · embeds.tsx (live media players) · insert.tsx (cell-add · element picker/palette · context menu · drag ghosts · theme SVG previews) · dnd.ts (drag-and-drop engine)
 select/    selection + direct manipulation — selection.tsx (outline + section actions/toolbar) · handles.tsx (resize · spacing · column-divider handles + the live-edit state they drive)
 inspect/   property editing + its input kit — fields.tsx (the schema-driven ControlField dispatcher) · widgets.tsx (Dropdown + ColorPicker) · format-bar.tsx (floating contextual bar + rich-text marks) · inspectors.tsx (element + section)
-insert/    adding content — insert.tsx (cell-add · element picker/palette · context menu · drag ghosts · theme-driven SVG previews) · dnd.ts (drag-and-drop)
 text/      inline text editing — text-editor.tsx (the contenteditable overlay + its marks/runs model) · text-format.ts (mark helpers shared with the format bar)
 chrome/    the frame — Topbar.tsx (doc menu · format · theme · present · export · generate) · Panel.tsx (element palette) · Minimap.tsx · AgentPanel.tsx (the generate panel + its local deterministic preview generator)
 ```
