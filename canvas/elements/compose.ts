@@ -1,12 +1,13 @@
 import type { LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import type { ElementAddress } from "@model/target";
-import type { ElementInstance, ElementLayout, Section, SectionBackground } from "@model/artifact";
+import type { ElementInstance, Section, SectionBackground } from "@model/artifact";
+import type { ElementLayout } from "@model/geometry";
 import type { Tokens } from "@themes/theme";
 import { getElement } from "@elements/spec";
 import { fallbackTemplate, TEMPLATES } from "@elements/templates";
 import { cellRegionId, elementRegionId, sectionRegionId } from "@model/target";
-import { fit, grow, percent } from "@model/size";
+import { fit, grow, percent } from "@model/geometry";
 import { fontStack, luminance, mixWhite } from "@themes/theme";
 
 // Compose one Section into an EngineNode tree, tagging section / cell / element nodes with region ids

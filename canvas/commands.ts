@@ -11,13 +11,13 @@ import type {
     TextLeaf,
 } from "@engine/node";
 import type { Section } from "@model/artifact";
-import type { FormatDescriptor } from "@model/format";
+import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes/theme";
 import { composeSection } from "@elements/compose";
 import { skeletonize } from "@elements/spec";
 import { layout } from "@engine/layout";
 import { DEFAULT_PROFILE } from "@engine/profile";
-import { fixed, grow } from "@model/size";
+import { fixed, grow } from "@model/geometry";
 import { DEFAULT_THEME } from "@themes/library";
 import { mix } from "@themes/theme";
 

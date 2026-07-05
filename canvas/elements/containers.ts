@@ -2,7 +2,7 @@ import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
 import { getElement, register, bar, GHOST_LINE, GHOST_PANEL } from "@elements/spec";
-import { fit, fixed, grow } from "@model/size";
+import { fit, fixed, grow } from "@model/geometry";
 
 type CardStyle = "solid" | "outline" | "sideline" | "topline" | "plain";
 

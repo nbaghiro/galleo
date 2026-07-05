@@ -1,5 +1,6 @@
-import type { Size, ElementInstance } from "@model/artifact";
-import { grow, percent } from "@model/size";
+import type { ElementInstance } from "@model/artifact";
+import type { Size } from "@model/geometry";
+import { grow, percent } from "@model/geometry";
 
 // Predefined section layouts as per-cell width specs. compose() builds the cell boxes (and tags them
 // for selection); spacing is via per-cell padding so widths sum to the full width without gap math.

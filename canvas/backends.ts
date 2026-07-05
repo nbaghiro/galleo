@@ -22,7 +22,7 @@ import {
 import type { Section, SectionBackground } from "@model/artifact";
 import type { Tokens } from "@themes/theme";
 import { resolveProfile } from "@engine/profile";
-import type { FormatDescriptor } from "@model/format";
+import type { FormatDescriptor } from "@model/geometry";
 
 // A DOM render backend: paints absolute-positioned divs from the engine's render commands.
 

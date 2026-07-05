@@ -1,5 +1,5 @@
 import type { Align, EngineNode, MeasureText, Rect, Region, RenderCommand } from "@engine/node";
-import type { Size } from "@model/artifact";
+import type { Size } from "@model/geometry";
 
 // The working node the box solver builds and mutates: a back-pointer to the immutable input
 // EngineNode plus its resolved box (x/y/w/h), filled in across three passes (widths -> heights ->

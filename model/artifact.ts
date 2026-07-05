@@ -2,28 +2,11 @@
 // tree of sections → cells → elements; each element's `data` stays schema-flexible (its ElementSpec reads
 // it). The DTOs at the bottom are the HTTP shapes the backend + frontend share, colocated with the type
 // they summarize so they can never drift from it. Pure types (+ nothing else). The shared floor.
+// (Sizing/layout primitives live in `@model/geometry`.)
+
+import type { ElementLayout } from "@model/geometry";
 
 export type Id = string;
-
-export type Size =
-    | { mode: "fit"; min?: number; max?: number }
-    | { mode: "grow"; min?: number; max?: number }
-    | { mode: "percent"; value: number }
-    | { mode: "fixed"; value: number };
-
-export interface BoxInsets {
-    top: number;
-    right: number;
-    bottom: number;
-    left: number;
-}
-
-// Per-instance layout (how an element sits in its parent row/column) — independent of element data.
-export interface ElementLayout {
-    width?: "fit" | "fill" | { pct: number }; // fit content · grow to fill · percent of the row
-    height?: "fit" | "fill"; // fit content · stretch to the row's cross-height (match a sibling column)
-    align?: "start" | "center" | "end"; // self cross-axis alignment
-}
 
 // A registered content component instance; `data` is interpreted by its ElementSpec.
 export interface ElementInstance {

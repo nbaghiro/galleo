@@ -1,7 +1,7 @@
 import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import { register, pill, getElement, skeletonize } from "@elements/spec";
-import { fit, fixed, grow } from "@model/size";
+import { fit, fixed, grow } from "@model/geometry";
 import { fontStack, mix } from "@themes/theme";
 
 interface ButtonData {

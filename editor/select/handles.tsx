@@ -1,6 +1,6 @@
 // Direct-manipulation drag handles: resize, spacing/padding, and column-divider handles on the selected node.
 
-import type { ElementLayout } from "@model/artifact";
+import type { ElementLayout } from "@model/geometry";
 import type { Component } from "solid-js";
 import { createMemo, For, Show } from "solid-js";
 import { GUTTER } from "@elements/compose";

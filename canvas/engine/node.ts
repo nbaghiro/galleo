@@ -1,4 +1,4 @@
-import type { BoxInsets, Size } from "@model/artifact";
+import type { BoxInsets, Size } from "@model/geometry";
 import type { Run } from "@model/text";
 
 export interface Rect {

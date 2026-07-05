@@ -3,7 +3,7 @@ import type { EngineNode, TextLeaf } from "@engine/node";
 import type { ColorToken, FontRole, Tokens } from "@themes/theme";
 import type { Mark } from "@model/text";
 import { register, getElement } from "@elements/spec";
-import { fit, grow, fixed } from "@model/size";
+import { fit, grow, fixed } from "@model/geometry";
 import { fontStack } from "@themes/theme";
 import { toRuns } from "@model/text";
 

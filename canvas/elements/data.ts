@@ -2,7 +2,7 @@ import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { DrawContext, EngineNode, Rect } from "@engine/node";
 import type { Tokens } from "@themes/theme";
 import { register, GHOST, getElement } from "@elements/spec";
-import { fit, fixed, grow, percent } from "@model/size";
+import { fit, fixed, grow, percent } from "@model/geometry";
 import { hexA, fontStack } from "@themes/theme";
 
 type ChartKind = "bar" | "line" | "pie";

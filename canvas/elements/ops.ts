@@ -3,11 +3,11 @@ import type {
     ArtifactContent,
     Cell,
     ElementInstance,
-    ElementLayout,
     Id,
     Section,
     SectionBackground,
 } from "@model/artifact";
+import type { ElementLayout } from "@model/geometry";
 import { getElement } from "@elements/spec";
 
 // Pure, immutable content ops over an artifact. Container traversal/editing goes through the

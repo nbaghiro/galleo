@@ -4,9 +4,9 @@
 
 import type { EngineNode, Rect } from "@engine/node";
 import type { ElementInstance, Section } from "@model/artifact";
-import type { FormatDescriptor } from "@model/format";
+import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes/theme";
-import { fit, fixed, grow, percent } from "@model/size";
+import { fit, fixed, grow, percent } from "@model/geometry";
 
 const registry = new Map<string, ElementSpec>();
 

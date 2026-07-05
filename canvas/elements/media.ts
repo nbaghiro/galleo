@@ -1,7 +1,7 @@
 import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import { register } from "@elements/spec";
-import { fit, grow } from "@model/size";
+import { fit, grow } from "@model/geometry";
 
 interface ImageData {
     src: string;

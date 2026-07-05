@@ -1,5 +1,6 @@
 import type { ElementAddress } from "@model/target";
-import type { ArtifactContent, ElementLayout } from "@model/artifact";
+import type { ArtifactContent } from "@model/artifact";
+import type { ElementLayout } from "@model/geometry";
 import { createSignal } from "solid-js";
 import { getElementAt, setElementLayout, setSectionWidths, updateDataAt } from "@elements/ops";
 

@@ -1,4 +1,4 @@
-import type { FormatDescriptor } from "@model/format";
+import type { FormatDescriptor } from "@model/geometry";
 
 // Format-as-view presets. The same artifact lays out as a deck (paged slides), a document
 // (continuous reading column, paginated only on export), or a web page (full-bleed, fills width).
