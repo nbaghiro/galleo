@@ -1,6 +1,7 @@
 import type { Component, JSX } from "solid-js";
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { setArtifactFormat } from "@elements/ops";
+import { setArtifactFormat, setPageSize } from "@elements/ops";
+import { FLEX_PRESETS, pagedSize, profileFor } from "@engine/profile";
 import {
     canRedo,
     canUndo,
@@ -164,7 +165,11 @@ const FORMATS = [
     { id: "deck", label: "Deck" },
     { id: "doc", label: "Doc" },
     { id: "web", label: "Web" },
+    { id: "flex", label: "Flex" },
 ];
+
+// Paged (deck/flex) → "Present"; continuous (doc/web) → "Preview".
+const isPaged = (): boolean => profileFor(editor.artifact).kind === "paged";
 
 const ExportMenu: Component = () => {
     const [open, setOpen] = createSignal(false);
@@ -233,6 +238,72 @@ const FormatSwitcher: Component = () => (
     </div>
 );
 
+// Custom page-size control for the `flex` format: W × H inputs, an orientation swap, and preset sizes.
+// Each write commits through the shared history (coalesced, so a burst reads as one undo step).
+const DimensionBar: Component = () => {
+    const dims = createMemo(() => pagedSize(profileFor(editor.artifact)));
+    const setDim = (w: number, h: number): void =>
+        commit(setPageSize(editor.artifact, w, h), { coalesce: "page-size" });
+    const [open, setOpen] = createSignal(false);
+    const num =
+        "w-[52px] bg-transparent text-center text-[12px] font-semibold text-ink outline-none [appearance:textfield]";
+    return (
+        <div
+            class={`flex items-center gap-1 rounded-lg border border-line bg-canvas px-1.5 ${controlH}`}
+        >
+            <input
+                type="number"
+                class={num}
+                value={dims().w}
+                onChange={(e) => setDim(parseInt(e.currentTarget.value, 10) || dims().w, dims().h)}
+            />
+            <span class="text-[11px] text-muted">×</span>
+            <input
+                type="number"
+                class={num}
+                value={dims().h}
+                onChange={(e) => setDim(dims().w, parseInt(e.currentTarget.value, 10) || dims().h)}
+            />
+            <button
+                class="grid h-6 w-6 place-items-center rounded text-[13px] text-muted hover:text-ink"
+                title="Swap orientation"
+                onClick={() => setDim(dims().h, dims().w)}
+            >
+                ⇄
+            </button>
+            <div class="relative">
+                <button
+                    class="rounded px-1.5 py-0.5 text-[11px] font-semibold text-accent hover:bg-canvas"
+                    onClick={() => setOpen((o) => !o)}
+                >
+                    Presets
+                </button>
+                <Show when={open()}>
+                    <div class="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+                    <div class="absolute right-0 z-20 mt-2 w-48 rounded-xl border border-line bg-panel p-1.5 shadow-xl">
+                        <For each={FLEX_PRESETS}>
+                            {(p) => (
+                                <button
+                                    class="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-[12.5px] text-soft hover:bg-canvas"
+                                    onClick={() => {
+                                        setDim(p.width, p.height);
+                                        setOpen(false);
+                                    }}
+                                >
+                                    <span>{p.label}</span>
+                                    <span class="font-mono text-[10px] text-muted">
+                                        {p.width}×{p.height}
+                                    </span>
+                                </button>
+                            )}
+                        </For>
+                    </div>
+                </Show>
+            </div>
+        </div>
+    );
+};
+
 export const Topbar: Component = () => (
     <header class="relative z-30 flex items-center gap-3.5 border-b border-line bg-panel px-[18px]">
         <button
@@ -246,11 +317,14 @@ export const Topbar: Component = () => (
         <HistoryButtons />
         <span class="flex-1" />
         <FormatSwitcher />
+        <Show when={editor.artifact.format === "flex"}>
+            <DimensionBar />
+        </Show>
         <ThemeMenu />
         <button class={btn} onClick={() => present()}>
             <span class="inline-flex items-center gap-1.5">
-                <Icon name={editor.artifact.format === "deck" ? "present" : "preview"} size={14} />
-                {editor.artifact.format === "deck" ? "Present" : "Preview"}
+                <Icon name={isPaged() ? "present" : "preview"} size={14} />
+                {isPaged() ? "Present" : "Preview"}
             </span>
         </button>
         <ExportMenu />

@@ -5,7 +5,7 @@ import type { Component } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { duplicateAt, duplicatedAddr, getElementAt, removeAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
-import { resolveProfile } from "@engine/profile";
+import { profileFor } from "@engine/profile";
 import { elementRegionId, parentTarget, parseTarget, specificity } from "@model/target";
 import {
     backdropCss,
@@ -77,7 +77,8 @@ export const Canvas: Component = () => {
     const draw = (preview?: Section[] | null, track = false): void => {
         if (!paintHost) return;
         // The panels float over the canvas; reserve their gutters so centered content clears them.
-        const profile = resolveProfile(editor.artifact.format);
+        // profileFor overlays the flex artifact's custom page size onto the base profile.
+        const profile = profileFor(editor.artifact);
         const padL = leftOpen() ? PANEL_L : RAIL_GAP;
         const fullW = Math.max(360, (scrollEl.clientWidth || 800) - padL - RAIL_R);
         // suppress the painted text of the element being edited — only the live overlay shows it

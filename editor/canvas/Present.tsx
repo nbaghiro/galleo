@@ -1,8 +1,8 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
-import { resolveProfile } from "@engine/profile";
+import { pagedSize, profileFor } from "@engine/profile";
 import { backdropCss, paintSectionStack } from "@canvas/render/backends";
-import { slideElement, SLIDE_W, SLIDE_H } from "@canvas/render/present";
+import { slideElement } from "@canvas/render/present";
 import {
     editor,
     editorTokens,
@@ -25,15 +25,16 @@ export const Present: Component = () => {
     let host!: HTMLDivElement;
     const [overview, setOverview] = createSignal(false);
     const theme = createMemo(() => editorTokens());
-    const profile = createMemo(() => resolveProfile(editor.artifact.format));
+    const profile = createMemo(() => profileFor(editor.artifact));
     const paged = createMemo(() => profile().kind === "paged");
 
     const renderCurrent = (): void => {
         if (!host) return;
         const section = editor.artifact.sections[slideIndex()];
         if (!section) return;
+        const { w, h } = pagedSize(profile());
         const slide = slideElement(section, theme(), profile());
-        const k = Math.min((window.innerWidth - 24) / SLIDE_W, (window.innerHeight - 24) / SLIDE_H);
+        const k = Math.min((window.innerWidth - 24) / w, (window.innerHeight - 24) / h);
         slide.style.transform = `scale(${k})`;
         slide.style.transformOrigin = "center center";
         slide.style.borderRadius = "4px";
@@ -45,13 +46,14 @@ export const Present: Component = () => {
         const tk = theme();
         const grid = document.createElement("div");
         grid.style.cssText = `display:grid;grid-template-columns:repeat(auto-fill,minmax(${MINI_W}px,1fr));gap:18px;padding:48px;width:100%;max-width:1280px;margin:0 auto;align-content:start`;
-        const s = MINI_W / SLIDE_W;
+        const { w: pw, h: ph } = pagedSize(profile());
+        const s = MINI_W / pw;
         editor.artifact.sections.forEach((section, i) => {
             const slide = slideElement(section, theme(), profile());
             slide.style.transform = `scale(${s})`;
             slide.style.transformOrigin = "top left";
             const cell = document.createElement("button");
-            cell.style.cssText = `position:relative;width:${MINI_W}px;height:${SLIDE_H * s}px;overflow:hidden;border-radius:9px;border:2px solid ${i === slideIndex() ? tk.accent : tk.line};cursor:pointer;background:${tk.bg};padding:0`;
+            cell.style.cssText = `position:relative;width:${MINI_W}px;height:${ph * s}px;overflow:hidden;border-radius:9px;border:2px solid ${i === slideIndex() ? tk.accent : tk.line};cursor:pointer;background:${tk.bg};padding:0`;
             cell.appendChild(slide);
             const num = document.createElement("span");
             num.textContent = String(i + 1);
