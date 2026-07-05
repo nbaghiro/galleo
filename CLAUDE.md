@@ -12,30 +12,32 @@ with high-fidelity export. Net-new, TypeScript.
 - `.docs/data-model.md` — persistence (Postgres + the JSONB content tree).
 - `.docs/product.md` — product framing (what Galleo is, the "why").
 
-## Structure (Kernel + Surfaces)
+## Structure (model · canvas · editor · app)
 
-- **`kernel/`** — pure, edge-safe core: `model engine elements themes`. Imports **nothing** outside
-  `kernel`. `model/` is **per-entity** — each type sits with its own wire DTOs: `artifact` (the content
-  tree + its REST shapes), `agent` (the streamed generation protocol), `workspace` (user/folder/
-  template + their DTOs), `text` (rich-text scaffolding), plus `target`/`size`/`format`/`authoring`.
-- **`render/`** (`@render`) — the shared paint layer: kernel render-commands → DOM / 2D-canvas / PDF, plus
-  present-slide geometry + export. Framework- and editor-free; imports only the kernel.
-- **`surfaces/`** — ways to touch the kernel + `@render`: `studio` (the editor) and `present` (a standalone
-  slideshow surface at `/present/:id`). A surface **never** imports another surface.
-- **`services/`** — backend: `data` (Postgres + Drizzle) · `api` (Hono) · `auth`.
-- **Studio frontend = SolidJS + Vite + Tailwind v4.** The kernel stays framework-free; the engine
-  paints render commands imperatively into refs (`@render/backends`) — Solid only owns shell + state.
+- **`model/`** (`@model`, `@themes`) — the pure, edge-safe contract. Imports **nothing** outside `model`.
+  Per-entity: each type sits with its own wire DTOs — `artifact` (the content tree + its REST shapes),
+  `agent` (the streamed generation protocol), `workspace` (user/folder/template + their DTOs), `text`
+  (rich-text core + the render-facing `Run`), plus `target`/`size`/`format`/`authoring` and `themes/`.
+- **`canvas/`** (`@canvas`, `@engine`, `@elements`) — the paint layer: the layout engine + element
+  library + DOM / 2D-canvas / PDF backends + present-slide geometry + export + the standalone present
+  surface. Framework- and editor-free; imports only `model`.
+- **`editor/`** (`@editor`) — the SolidJS studio: selection, inspectors, inline text, drag-drop over
+  `model` + `canvas`. `register.ts` side-effect-registers the elements.
+- **`services/`** — backend: `data` (Postgres + Drizzle) · `api` (Hono) · `auth` · `queue`; depends only on `model`.
+- **`app/`** — the product SPA (served at `/app`): library, templates, generation, theme drawer, wrapping the editor.
+- **Frontend = SolidJS + Vite + Tailwind v4.** `model` + `canvas` stay framework-free; the engine paints
+  render commands imperatively into refs (`@canvas/backends`) — Solid only owns shell + state.
 
 ## Conventions (enforced)
 
-- **No `index.ts` barrels.** Each concept is a named file (`engine/layout.ts`, `elements/element-spec.ts`).
-- **Path aliases** (directory aliases): `@model`, `@engine`, `@elements`, `@themes`, `@render`, `@studio`,
-  `@present` (e.g. `@model/artifact`). Backend + frontend both import the shared wire shapes from `@model` +
+- **No `index.ts` barrels.** Each concept is a named file (`engine/layout.ts`, `elements/spec.ts`).
+- **Path aliases** (directory aliases): `@model`, `@themes`, `@engine`, `@elements`, `@canvas`, `@editor`
+  (e.g. `@model/artifact`). Backend + frontend both import the shared wire shapes from `@model` +
   `@themes`; `services` otherwise use relative imports.
 - **TS style:** 4-space indent, double quotes, semicolons, `printWidth` 100, **no `any`**, **no
   `console`** in app code. (ESLint + Prettier enforce these.)
 - **No build-phase/iteration numbers** in code comments or docstrings (plan docs are fine).
-- **Boundaries** (ESLint): kernel ⇏ render/surfaces/services/app; render ⇏ surfaces/services/app; surface ⇏ surface.
+- **Boundaries** (ESLint): model ⇏ canvas/editor/services/app; canvas ⇏ editor/services/app; services ⇏ canvas/editor/app.
 
 ## Commands
 
@@ -51,15 +53,15 @@ Galleo owns the **86xx** host-port block (runs alongside the sibling apps). See 
 
 ## Current state
 
-The kernel engine (`kernel/engine/layout.ts`, Clay-style 3-pass solver) drives a **SolidJS** studio:
-`Studio.tsx` shell = `Topbar` · `Minimap` (live `Thumb`s) · `Canvas` (continuous section stack) ·
+The layout engine (`canvas/engine/layout.ts`, Clay-style 3-pass solver) drives a **SolidJS** studio:
+`editor/Studio.tsx` shell = `Topbar` · `Minimap` (live `Thumb`s) · `Canvas` (continuous section stack) ·
 `Panel` (element palette), with selection + inspectors + drag-drop (`select/`·`panels/`·`insert/`) and
 inline text editing (`editing/text-editor.tsx`). State in `editor.ts` (Solid store); painting is the
-shared `@render` layer — the engine's commands paint into refs (`@render/backends`, with a 2D-canvas
+`@canvas` layer — the engine's commands paint into refs (`@canvas/backends`, with a 2D-canvas
 mirror for Present + PDF/PNG export). Sections compose via `@elements/templates` + `@elements/compose`; every element has a
-structural ghost (`skeletonize` in `@elements/spec`). **20 elements** register via `register.ts`'s five
+structural ghost (`skeletonize` in `@elements/spec`). **20 elements** register via `editor/register.ts`'s five
 category imports (19 content elements + the internal drop-preview); format-as-view
-(`engine/profile` + `fragment`) is built, so one artifact renders as deck / doc / web.
+(`@engine/profile` + `fragment`) is built, so one artifact renders as deck / doc / web.
 
 The product SPA (`app/`, served at `/app`) wraps the studio: library / templates / trash / editor
 views, a backend (`services/api` Hono + `services/data` Postgres/Drizzle; artifact content lives in the

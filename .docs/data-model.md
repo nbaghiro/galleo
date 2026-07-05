@@ -95,7 +95,7 @@ The whole tree is one `jsonb` document — an `ArtifactContent` (see `rendering.
 
 - **`format`** is a profile id (`deck`/`doc`/`web`) — the same tree renders three ways.
 - **`theme`** is either a built-in theme id or a workspace `themes.id`; the app registers custom themes
-  into the kernel registry so `resolveTheme` finds either.
+  into the `@themes` registry so `resolveTheme` finds either.
 - Images currently store a **raw URL** in `src` (stable `asset:` references are a future refinement).
 - **Live editing** writes `artifacts.draft_content` (debounced autosave, `app/data/save.ts`);
   **saving/publishing a version** copies it into an immutable `versions` row, and

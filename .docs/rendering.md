@@ -1,8 +1,9 @@
 # Galleo — Rendering & Elements
 
-> How content becomes pixels. Two layers, both pure and both in `kernel/`: a custom **Clay-style layout
-> engine** (geometry) and the **element system** (content blocks that compile down to it). Concrete paint
-> backends live with the studio. Companion to `architecture.md` (the file map) and `data-model.md`.
+> How content becomes pixels. Two pure, editor-free layers in `canvas/`: a custom **Clay-style layout
+> engine** (geometry) and the **element system** (content blocks that compile down to it). The concrete
+> DOM / 2D-canvas / PDF paint backends live alongside them in `canvas/`. Companion to `architecture.md`
+> (the file map) and `data-model.md`.
 
 ## 1. The core bet
 
@@ -21,10 +22,10 @@ Why this shape:
 - **Constraints-down / sizes-up** (Flutter/Clay) resolves every box to absolute `x/y/w/h` in O(n) — so
   **export fidelity is a free byproduct**: what the editor lays out is exactly what export serializes.
 - **Pure TS, not WASM** — the `MeasureText` callback fires per text node; a JS↔WASM boundary per call is
-  the classic perf killer, so the port calls Canvas `measureText` directly and keeps the kernel DOM-free
+  the classic perf killer, so the port calls Canvas `measureText` directly and keeps the layout engine DOM-free
   by _injecting_ the measure function.
 
-## 2. The engine (`kernel/engine`)
+## 2. The engine (`canvas/engine`)
 
 **Input** — an `EngineNode` tree (`node.ts`): each node has `w`/`h` (a `Size`: `fit`/`grow`/`percent`/
 `fixed`), optional `aspect`, `direction` (row/col), `padding`, `gap`, `alignX`/`alignY`/`alignSelf`, and
@@ -49,7 +50,7 @@ carrying an `id`) — paint and hit-testing are separate outputs.
 in the editor and in every export, or exports drift from the screen. The editor uses Canvas 2D
 `measureText`; export reuses the same canvas measurement; theme fonts are bundled so both agree.
 
-## 3. Format-as-view (`kernel/engine/profile.ts`)
+## 3. Format-as-view (`canvas/engine/profile.ts`)
 
 The three "modes" are three **format profiles** fed to the same engine:
 
@@ -63,7 +64,7 @@ A profile carries `kind`, width/height, `maxContentWidth`, `tokenScale` (a type/
 deck reads big and a doc reads dense — _styling_, never content), and pagination policy. Because
 dimensions are data, a custom size or a draggable/resizable canvas is a data change, not new layout code.
 
-## 4. Compose — Section → EngineNode (`kernel/elements/compose.ts`)
+## 4. Compose — Section → EngineNode (`canvas/elements/compose.ts`)
 
 `composeSection` turns a `Section` into an engine tree:
 
@@ -78,7 +79,7 @@ dimensions are data, a custom size or a draggable/resizable canvas is a data cha
   `el:…`), so the engine reports its box for selection + overlays.
 - **Contrast.** Over a dark section background, content tokens flip to a light-on-dark set.
 
-## 5. The element system (`kernel/elements`)
+## 5. The element system (`canvas/elements`)
 
 Every block — from a `divider` to a `chart` — is one registry entry implementing **`ElementSpec`**:
 
@@ -118,12 +119,12 @@ registry-driven, so **adding an element is adding a spec — zero engine changes
 palette and as the live drop preview; auto-derived from `layout(create())` unless the spec overrides it.
 Because it's real engine output, previews can't drift from the element.
 
-**Registered today (`surfaces/studio/register.ts`):** `text` (the typographic primitive — every
+**Registered today (`editor/register.ts`):** `text` (the typographic primitive — every
 heading/body/label role is a `style`), `image`, `card`, `group`, `stat`, `bullets`, `button`, `quote`,
 `divider`, `badge`, `callout`, `code`, `chart`, `table`, `diagram`, `gradient`, `spacer`, `embed`,
 `video` — plus an internal, palette-hidden `dropghost` used only as the live drop preview.
 
-## 6. Selection & direct manipulation (`surfaces/studio/select`)
+## 6. Selection & direct manipulation (`editor/select`)
 
 The engine emits every id'd node's box as a `Region`, so the whole editing UI is positioned from real
 geometry:
@@ -167,6 +168,6 @@ One `RenderCommand[]` → multiple serializers:
 **Built:** the engine, all three format views, compose + the template grid, the full element contract
 with skeletons + direct-manipulation sizing, DOM + canvas backends, PDF/PNG export, deck present.
 
-**Deferred by design:** engine-native rich text (`kernel/text` is scaffolded; the editor uses a
+**Deferred by design:** engine-native rich text (`@model/text` is scaffolded; the editor uses a
 contenteditable overlay today); general/non-template grid + bento spanning; PPTX export (PowerPoint
 re-flows text — fundamentally approximate); relayout-boundary caching (not needed at current scale).
