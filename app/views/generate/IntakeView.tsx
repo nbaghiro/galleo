@@ -13,6 +13,7 @@ import { Dropdown } from "@editor/inspect/widgets";
 import { GenViewPicker } from "./gen-view";
 import { DEMO_EXAMPLES } from "./demo";
 import { startSession, type Surface } from "./session";
+import { spendGenerationCredit } from "../../stores/billing";
 
 // The generation intake — one screen, not a wizard. A hero prompt that auto-derives editable chips,
 // example-prompt starters, a surface + theme choice, and an optional context note, over an ambient
@@ -145,8 +146,13 @@ export const IntakeView: Component = () => {
     const rootStyle = createMemo(() => themeCssVars(resolveTheme(theme()).tokens));
     const canGo = createMemo(() => prompt().trim().length > 4);
 
-    const generate = (): void => {
+    const generate = async (): Promise<void> => {
         if (!canGo()) return;
+        // Reserve an AI credit up front — out of allowance → send them to upgrade instead of generating.
+        if (!(await spendGenerationCredit())) {
+            navigate("/pricing");
+            return;
+        }
         const pk = picks();
         startSession({
             prompt: note().trim() ? `${prompt().trim()}\n\n${note().trim()}` : prompt().trim(),

@@ -2,9 +2,10 @@ import { Hono } from "hono";
 import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import type { ArtifactInput, Cover, SectionSummary } from "@model/artifact";
+import { isUnlimited, limitsFor } from "@model/billing";
 import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
-import { currentUser, firstWorkspaceId, readJson } from "./context";
+import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
 
 // Artifact + Trash routes: list, create, read, patch (autosave), soft-delete/restore, and permanent
 // delete. The library list rows carry a lightweight cover + section filmstrip derived from the draft.
@@ -125,13 +126,31 @@ artifacts.get("/artifacts", async (c) => {
 artifacts.post("/artifacts", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
-    const ws = await firstWorkspaceId(u.id);
+    const ws = await currentWorkspace(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
+    // Plan gate: the free tier caps the number of live artifacts.
+    const cap = limitsFor(ws.plan).maxArtifacts;
+    if (!isUnlimited(cap)) {
+        const live = await db
+            .select({ id: schema.artifacts.id })
+            .from(schema.artifacts)
+            .where(
+                and(eq(schema.artifacts.workspaceId, ws.id), isNull(schema.artifacts.trashedAt)),
+            );
+        if (live.length >= cap)
+            return c.json(
+                {
+                    error: `Your plan is limited to ${cap} artifacts — upgrade for unlimited.`,
+                    upgrade: true,
+                },
+                402,
+            );
+    }
     const body = await readJson<ArtifactInput>(c);
     const [a] = await db
         .insert(schema.artifacts)
         .values({
-            workspaceId: ws,
+            workspaceId: ws.id,
             title: body.title ?? "Untitled",
             formatId: body.formatId ?? "deck",
             themeId: body.themeId ?? "studio",

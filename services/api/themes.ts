@@ -2,9 +2,10 @@ import { Hono } from "hono";
 import { and, eq } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import type { ThemeInput } from "@themes/theme";
+import { limitsFor } from "@model/billing";
 import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
-import { currentUser, firstWorkspaceId, readJson } from "./context";
+import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
 
 // Per-workspace custom-theme routes (workspaceId null = built-in/system, never returned here): list,
 // create, patch, delete.
@@ -33,14 +34,23 @@ themes.get("/themes", async (c) => {
 themes.post("/themes", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
-    const ws = await firstWorkspaceId(u.id);
+    const ws = await currentWorkspace(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
+    // Plan gate: custom themes are a paid feature.
+    if (!limitsFor(ws.plan).customThemes)
+        return c.json(
+            {
+                error: "Custom themes are a Pro feature — upgrade to create your own.",
+                upgrade: true,
+            },
+            402,
+        );
     const body = await readJson<Partial<ThemeInput>>(c);
     if (!body.tokens) return c.json({ error: "tokens required" }, 400);
     const [t] = await db
         .insert(schema.themes)
         .values({
-            workspaceId: ws,
+            workspaceId: ws.id,
             name: (body.name ?? "Custom theme").trim() || "Custom theme",
             tokens: body.tokens,
             mood: body.mood ?? null,

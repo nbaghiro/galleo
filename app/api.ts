@@ -1,6 +1,18 @@
 import type { Artifact, ArtifactInput, ArtifactSummary } from "@model/artifact";
 import type { Folder, Template, User } from "@model/workspace";
 import type { ThemeSummary as Theme, ThemeInput } from "@themes/theme";
+import type { Plan, PlanId } from "@model/billing";
+
+// The GET /billing response — the workspace's plan + live usage + the plan catalog the pricing page renders.
+export interface BillingState {
+    plan: PlanId;
+    status: string;
+    periodEnd: string | null;
+    credits: { used: number; limit: number; perGeneration: number };
+    usage: { artifacts: number; maxArtifacts: number };
+    catalog: Plan[];
+    stripeReady: boolean;
+}
 
 // Typed client over the backend (proxied at /api/* in dev → :8601). Cookies carry the session. The wire
 // shapes live in @model (shared with the backend); re-exported here under the app's names.
@@ -95,4 +107,16 @@ export const api = {
     updateTheme: (id: string, t: Partial<ThemeInput>) =>
         req<{ theme: Theme }>(`/themes/${id}`, { method: "PATCH", body: JSON.stringify(t) }),
     deleteTheme: (id: string) => req<{ ok: true }>(`/themes/${id}`, { method: "DELETE" }),
+    getBilling: () => req<BillingState>("/billing"),
+    checkout: (plan: PlanId) =>
+        req<{ url: string }>("/billing/checkout", {
+            method: "POST",
+            body: JSON.stringify({ plan }),
+        }),
+    portal: () => req<{ url: string }>("/billing/portal", { method: "POST" }),
+    spendCredits: (amount?: number) =>
+        req<{ remaining: number }>("/billing/spend", {
+            method: "POST",
+            body: JSON.stringify({ amount }),
+        }),
 };

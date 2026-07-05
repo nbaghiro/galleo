@@ -11,6 +11,7 @@ import { BuildView } from "./views/generate/BuildView";
 import { IntakeView } from "./views/generate/IntakeView";
 import { LibraryView } from "./views/LibraryView";
 import { PresentView } from "./views/PresentView";
+import { PricingView } from "./views/PricingView";
 import { TemplatesView } from "./views/TemplatesView";
 import { ThemeDrawer } from "./components/ThemeDrawer";
 import { ThemeEditor } from "./views/ThemeEditor";
@@ -63,6 +64,7 @@ export const App: Component = () => {
                         <Route path="/folder/:id" component={LibraryView} />
                         <Route path="/templates" component={TemplatesView} />
                         <Route path="/trash" component={TrashView} />
+                        <Route path="/pricing" component={PricingView} />
                         <Route path="/new" component={IntakeView} />
                         <Route path="/generate" component={BuildView} />
                         <Route path="/edit/:id" component={EditorView} />

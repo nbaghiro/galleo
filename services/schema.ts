@@ -31,7 +31,14 @@ export const workspaces = pgTable("workspaces", {
     ownerId: uuid("owner_id")
         .notNull()
         .references(() => users.id),
-    plan: text("plan").notNull().default("free"),
+    plan: text("plan").notNull().default("free"), // free | pro | business (see @model/billing)
+    // --- billing (Stripe) ---
+    stripeCustomerId: text("stripe_customer_id"),
+    stripeSubscriptionId: text("stripe_subscription_id"),
+    planStatus: text("plan_status").notNull().default("active"), // active | past_due | canceled
+    planPeriodEnd: timestamp("plan_period_end"),
+    aiCreditsUsed: integer("ai_credits_used").notNull().default(0),
+    creditsResetAt: timestamp("credits_reset_at").notNull().defaultNow(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

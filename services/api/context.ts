@@ -36,3 +36,23 @@ export async function firstWorkspaceId(userId: string): Promise<string | null> {
         .where(eq(schema.members.userId, userId));
     return ms[0]?.ws ?? null;
 }
+
+// The full workspace row (plan + billing + credits) — for the routes that gate on entitlements, not just
+// scope by id. Also rolls the monthly credit window over lazily on read: once the reset date passes,
+// zero the used counter and push the window a month out, so free/paid allowances refill without a cron.
+export async function currentWorkspace(userId: string) {
+    const wsId = await firstWorkspaceId(userId);
+    if (!wsId) return null;
+    const [ws] = await db.select().from(schema.workspaces).where(eq(schema.workspaces.id, wsId));
+    if (!ws) return null;
+    if (ws.creditsResetAt.getTime() <= Date.now()) {
+        const next = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        await db
+            .update(schema.workspaces)
+            .set({ aiCreditsUsed: 0, creditsResetAt: next })
+            .where(eq(schema.workspaces.id, ws.id));
+        ws.aiCreditsUsed = 0;
+        ws.creditsResetAt = next;
+    }
+    return ws;
+}

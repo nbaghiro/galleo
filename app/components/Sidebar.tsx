@@ -3,6 +3,7 @@ import { createSignal, For, onMount, Show } from "solid-js";
 import { useLocation, useNavigate } from "@solidjs/router";
 import { api, type ApiFolder } from "../api";
 import { logout, user } from "../stores/auth";
+import { billing, loadBilling } from "../stores/billing";
 import {
     blankArtifact,
     formatLabel,
@@ -41,6 +42,7 @@ import { openThemeDrawer } from "../theme";
 export const Sidebar: Component = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    onMount(loadBilling);
     // The router carries base="/app", so pathname is "/app/…"; strip it to compare route-relative.
     const route = (): string => location.pathname.replace(/^\/app/, "") || "/";
     onMount(() => loadFolders());
@@ -337,18 +339,35 @@ export const Sidebar: Component = () => {
                 </Show>
             </div>
 
-            <div class="mt-3 flex-none rounded-xl border border-line bg-canvas p-3">
-                <div class="flex items-center justify-between text-[11.5px] font-semibold text-soft">
-                    <span>Free plan</span>
-                    <span class="font-mono text-muted">9 / 12</span>
-                </div>
-                <div class="my-2 h-1.5 overflow-hidden rounded-full bg-line">
-                    <div class="h-full rounded-full bg-accent" style={{ width: "75%" }} />
-                </div>
-                <a class="cursor-pointer text-[11.5px] font-semibold text-accent">
-                    Upgrade for unlimited →
-                </a>
-            </div>
+            <Show when={billing()}>
+                {(b) => (
+                    <div class="mt-3 flex-none rounded-xl border border-line bg-canvas p-3">
+                        <div class="flex items-center justify-between text-[11.5px] font-semibold text-soft">
+                            <span class="capitalize">{b().plan} plan</span>
+                            <span class="font-mono text-muted">
+                                {b().usage.artifacts}
+                                {b().usage.maxArtifacts < 0 ? "" : ` / ${b().usage.maxArtifacts}`}
+                            </span>
+                        </div>
+                        <Show when={b().usage.maxArtifacts > 0}>
+                            <div class="my-2 h-1.5 overflow-hidden rounded-full bg-line">
+                                <div
+                                    class="h-full rounded-full bg-accent"
+                                    style={{
+                                        width: `${Math.min(100, (b().usage.artifacts / b().usage.maxArtifacts) * 100)}%`,
+                                    }}
+                                />
+                            </div>
+                        </Show>
+                        <a
+                            class="mt-1 block cursor-pointer text-[11.5px] font-semibold text-accent"
+                            onClick={() => navigate("/pricing")}
+                        >
+                            {b().plan === "free" ? "Upgrade for unlimited →" : "Manage plan →"}
+                        </a>
+                    </div>
+                )}
+            </Show>
             <div class="mt-3 flex items-center gap-2.5 border-t border-line pt-3">
                 <span class="grid h-8 w-8 flex-none place-items-center rounded-lg bg-accent text-[12px] font-bold text-onaccent">
                     {(user()?.name ?? user()?.email ?? "U").charAt(0).toUpperCase()}
