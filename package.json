@@ -16,7 +16,7 @@
         "preapi": "bash scripts/ensure-db.sh",
         "api": "tsx services/api/server.ts",
         "api:watch": "tsx watch services/api/server.ts",
-        "seed": "tsx services/api/seed.ts",
+        "seed": "tsx services/seed.ts",
         "db:push": "drizzle-kit push",
         "db:generate": "drizzle-kit generate",
         "db:migrate": "drizzle-kit migrate"

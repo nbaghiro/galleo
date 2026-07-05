@@ -1,10 +1,34 @@
 import "dotenv/config";
 import type { ArtifactContent } from "@model/artifact";
 import { eq } from "drizzle-orm";
-import { db, schema } from "../schema";
-import { hashPassword } from "../auth";
-import { DEMOS } from "./fixtures";
+import { db, schema } from "./schema";
+import { hashPassword } from "./auth";
 import { TEMPLATES } from "./templates";
+import { aria } from "./demos/aria";
+import { fieldnotes } from "./demos/fieldnotes";
+import { galleo } from "./demos/galleo";
+import { helios } from "./demos/helios";
+import { lumen } from "./demos/lumen";
+import { slowweb } from "./demos/slowweb";
+import { terra } from "./demos/terra";
+
+// The seed demos — 7 fully-authored artifacts (deck / doc / web), one file each under demos/. Each ships
+// its own theme + a real narrative so the demo library exercises the editor, themes, and every format
+// with comprehensive, image-rich content. (These are seed content, not test fixtures.)
+interface Demo {
+    id: string;
+    title: string;
+    artifact: ArtifactContent;
+}
+const DEMOS: Demo[] = [
+    { id: "galleo", title: "Galleo — Seed deck", artifact: galleo },
+    { id: "aria", title: "Aria — Album launch", artifact: aria },
+    { id: "terra", title: "Terra — Brand site", artifact: terra },
+    { id: "lumen", title: "Lumen — Product launch", artifact: lumen },
+    { id: "slowweb", title: "The Slow Web — Essay", artifact: slowweb },
+    { id: "helios", title: "Helios — Climate report", artifact: helios },
+    { id: "fieldnotes", title: "Field Notes — Faroe Islands", artifact: fieldnotes },
+];
 
 // Idempotent seed: a demo user (with a password) + workspace + a realistic, organized library
 // (folders with linked artifacts + a few loose at the root), so the demo account simulates real usage.
