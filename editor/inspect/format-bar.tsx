@@ -4,7 +4,8 @@ import type { Rect } from "@engine/node";
 import type { ControlField } from "@elements/spec";
 import type { Component, JSX } from "solid-js";
 import { createMemo, For, Show, createSignal } from "solid-js";
-import { elementRegionId } from "@model/target";
+import { cellRegionId, elementRegionId, parentTarget, regionId } from "@model/target";
+import { GUTTER } from "@elements/compose";
 import {
     duplicateAt,
     duplicatedAddr,
@@ -25,7 +26,7 @@ import {
     editorTokens,
 } from "../editor";
 import { drag } from "../canvas/dnd";
-import { Field } from "./fields";
+import { Field, SliderRow } from "./fields";
 import { Icon } from "../icons";
 import type { MarkType } from "@model/text";
 import { ColorPicker, highlightSwatches, textColorSwatches } from "./widgets";
@@ -42,6 +43,7 @@ import {
 // spec-driven: an element declares `bar` (control keys) + `richText` (marks); the studio renders those
 // compactly here. Universal duplicate/delete apply to every element. Studio-only — never present/export.
 const BAR_GAP = 10;
+const DEFAULT_RADIUS = 12; // shown on the universal radius slider before it's explicitly set
 
 export const ContextBar: Component = () => {
     const addr = createMemo(() => {
@@ -92,8 +94,45 @@ export const ContextBar: Component = () => {
                 : undefined;
         commit(updateDataAt(editor.artifact, a, { ...data(), [key]: value }), { coalesce });
     };
-    // Cross-axis self-align (how the element sits in its cell) — universal, moved off the panel.
+    // Cross-axis self-align (how the element sits in its cell) — universal, moved off the panel. Only
+    // meaningful when the element is narrower than its cell (there's room to slide it); a full-width
+    // element has nowhere to go, so the buttons would be no-ops — hide them then (mirrors the width
+    // resize handle only appearing when there's horizontal slack).
+    // Universal corner radius — offered for any framed element (fill/image). Written to ElementLayout
+    // (like width + align), so it rounds the element's frame regardless of type. Unset falls back to a
+    // neutral default for display; the element keeps painting its own default radius until this is set.
+    const radius = createMemo((): number => {
+        const set = inst()?.layout?.radius;
+        if (set !== undefined) return set;
+        // Unset → show the radius the element actually painted (its theme-derived default), so the
+        // slider reads true instead of jumping when first touched.
+        const a = addr();
+        const painted = a ? regions().find((r) => r.id === elementRegionId(a))?.radius : undefined;
+        return painted ?? DEFAULT_RADIUS;
+    });
+    const setRadius = (n: number): void => {
+        const a = addr();
+        if (!a) return;
+        commit(setElementLayout(editor.artifact, a, { ...(inst()?.layout ?? {}), radius: n }), {
+            coalesce: `bar:${elementRegionId(a)}:radius`,
+        });
+    };
     const align = createMemo((): string => inst()?.layout?.align ?? "start");
+    const canAlign = createMemo((): boolean => {
+        const a = addr();
+        const b = box();
+        if (!a || !b) return false;
+        const topLevel = a.path.length === 0;
+        const parent = topLevel ? null : parentTarget({ kind: "element", address: a });
+        const parentBox = topLevel
+            ? regions().find((r) => r.id === cellRegionId(a.section, a.cell))?.box
+            : parent
+              ? regions().find((r) => r.id === regionId(parent))?.box
+              : undefined;
+        if (!parentBox) return false;
+        const contentW = topLevel ? parentBox.w - 2 * GUTTER : parentBox.w;
+        return b.w < contentW - 6;
+    });
     const setAlign = (v: "start" | "center" | "end"): void => {
         const a = addr();
         if (a)
@@ -145,22 +184,40 @@ export const ContextBar: Component = () => {
                         </For>
                         {sep()}
                     </Show>
+                    <Show when={spec()?.frame}>
+                        <span class="flex items-center gap-1.5 pl-1 pr-0.5 text-soft">
+                            <Icon name="corner" size={14} />
+                            <span class="w-[74px]">
+                                <SliderRow
+                                    value={radius()}
+                                    min={0}
+                                    max={40}
+                                    step={1}
+                                    unit="px"
+                                    onChange={setRadius}
+                                />
+                            </span>
+                        </span>
+                        {sep()}
+                    </Show>
                     <Show when={editing() && spec()?.richText}>
                         <MarkControls />
                         {sep()}
                     </Show>
-                    <For each={ALIGNS}>
-                        {([v, ic]) => (
-                            <button
-                                class={iconBtn(align() === v)}
-                                title={`Align ${v}`}
-                                onClick={() => setAlign(v)}
-                            >
-                                <Icon name={ic} size={15} />
-                            </button>
-                        )}
-                    </For>
-                    {sep()}
+                    <Show when={canAlign()}>
+                        <For each={ALIGNS}>
+                            {([v, ic]) => (
+                                <button
+                                    class={iconBtn(align() === v)}
+                                    title={`Align ${v}`}
+                                    onClick={() => setAlign(v)}
+                                >
+                                    <Icon name={ic} size={15} />
+                                </button>
+                            )}
+                        </For>
+                        {sep()}
+                    </Show>
                     <button class={iconBtn(false)} title="Duplicate" onClick={dup}>
                         <Icon name="duplicate" size={15} />
                     </button>

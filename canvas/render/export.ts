@@ -36,12 +36,45 @@ function download(bytes: Uint8Array | string, filename: string, type: string): v
     setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
+// Export options threaded from the caller's plan (@model/billing). `brand` stamps the free-tier Galleo
+// mark onto each exported surface; paid plans (removeBranding) pass brand:false for a clean export.
+export interface ExportOptions {
+    brand?: boolean;
+}
+
+// The free-tier watermark. Drawn bottom-right on each raster surface (a slide/page/PNG band) with a soft
+// shadow so it reads on both light and dark slides. Coordinates are in device pixels (already scaled).
+function stampBrand(
+    cx: CanvasRenderingContext2D,
+    right: number,
+    bottom: number,
+    scale: number,
+): void {
+    const pad = 18 * scale;
+    cx.save();
+    cx.font = `600 ${13 * scale}px system-ui, -apple-system, sans-serif`;
+    cx.textAlign = "right";
+    cx.textBaseline = "bottom";
+    cx.globalAlpha = 0.6;
+    cx.shadowColor = "rgba(0,0,0,0.5)";
+    cx.shadowBlur = 5 * scale;
+    cx.fillStyle = "#ffffff";
+    cx.fillText("Made with Galleo", right - pad, bottom - pad);
+    cx.restore();
+}
+
 // Pixel-perfect PDF: each section is rendered to a 16:9 slide canvas (exact fonts, gradients,
 // rounded cards, charts) and embedded as a PDF page. (Selectable-text vector layer is the next step.)
-async function exportSlidePdf(artifact: ArtifactContent, tk: Tokens): Promise<void> {
+async function exportSlidePdf(
+    artifact: ArtifactContent,
+    tk: Tokens,
+    brand: boolean,
+): Promise<void> {
     const pdf = await PDFDocument.create();
     for (const section of artifact.sections) {
         const { canvas } = await renderSlide(section, tk, { w: SLIDE_W, h: SLIDE_H, scale: SCALE });
+        const cx = canvas.getContext("2d");
+        if (brand && cx) stampBrand(cx, canvas.width, canvas.height, SCALE);
         const img = await pdf.embedPng(await canvasPng(canvas));
         const page = pdf.addPage([PAGE_W, PAGE_H]);
         page.drawImage(img, { x: 0, y: 0, width: PAGE_W, height: PAGE_H });
@@ -51,7 +84,7 @@ async function exportSlidePdf(artifact: ArtifactContent, tk: Tokens): Promise<vo
 
 // Document/continuous → paginated A4 PDF: lay out all sections in a reading column, then fragment the
 // flow into page-height chunks (engine/fragment) and render each as a page.
-async function exportDocPdf(artifact: ArtifactContent, tk: Tokens): Promise<void> {
+async function exportDocPdf(artifact: ArtifactContent, tk: Tokens, brand: boolean): Promise<void> {
     const docProfile = resolveProfile("doc");
     const layoutW = docProfile.maxContentWidth ?? 744;
 
@@ -71,6 +104,8 @@ async function exportDocPdf(artifact: ArtifactContent, tk: Tokens): Promise<void
     const pdf = await PDFDocument.create();
     for (const pageCmds of pages) {
         const canvas = await renderToCanvas(pageCmds, layoutW, pageContentPxH, tk.bg, SCALE);
+        const cx = canvas.getContext("2d");
+        if (brand && cx) stampBrand(cx, canvas.width, canvas.height, SCALE);
         const img = await pdf.embedPng(await canvasPng(canvas));
         const page = pdf.addPage([A4_W, A4_H]);
         page.drawImage(img, {
@@ -84,14 +119,23 @@ async function exportDocPdf(artifact: ArtifactContent, tk: Tokens): Promise<void
 }
 
 // Format-aware PDF: deck → 16:9 slide pages; doc/web → paginated A4.
-export function exportPdfAuto(artifact: ArtifactContent, tk: Tokens): Promise<void> {
+export function exportPdfAuto(
+    artifact: ArtifactContent,
+    tk: Tokens,
+    opts?: ExportOptions,
+): Promise<void> {
+    const brand = opts?.brand ?? false;
     return resolveProfile(artifact.format).kind === "continuous"
-        ? exportDocPdf(artifact, tk)
-        : exportSlidePdf(artifact, tk);
+        ? exportDocPdf(artifact, tk, brand)
+        : exportSlidePdf(artifact, tk, brand);
 }
 
 // Export the whole deck as one tall PNG (all slides stacked).
-export async function exportDeckPng(artifact: ArtifactContent, tk: Tokens): Promise<void> {
+export async function exportDeckPng(
+    artifact: ArtifactContent,
+    tk: Tokens,
+    opts?: ExportOptions,
+): Promise<void> {
     const sections = artifact.sections;
     const out = document.createElement("canvas");
     out.width = SLIDE_W * SCALE;
@@ -105,6 +149,7 @@ export async function exportDeckPng(artifact: ArtifactContent, tk: Tokens): Prom
             scale: SCALE,
         });
         cx.drawImage(canvas, 0, i * SLIDE_H * SCALE);
+        if (opts?.brand) stampBrand(cx, out.width, (i + 1) * SLIDE_H * SCALE, SCALE);
     }
     download(await canvasPng(out), "galleo-deck.png", "image/png");
 }

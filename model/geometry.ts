@@ -28,6 +28,7 @@ export interface ElementLayout {
     width?: "fit" | "fill" | { pct: number }; // fit content · grow to fill · percent of the row
     height?: "fit" | "fill"; // fit content · stretch to the row's cross-height (match a sibling column)
     align?: "start" | "center" | "end"; // self cross-axis alignment
+    radius?: number; // corner radius override applied to the element's frame (fill/image) — universal
 }
 
 // --- format profiles: the deck / doc / web modes and the page geometry each imposes ---

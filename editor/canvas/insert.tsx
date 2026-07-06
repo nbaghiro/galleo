@@ -354,6 +354,30 @@ const PREVIEWS: Record<string, string> = {
         <circle cx="70" cy="36" r="13" fill="${accent}"/>
         <path d="M65 29 L65 43 L78 36 Z" fill="${onaccent}"/>`,
 
+    gif: `
+        <rect x="13" y="12" width="114" height="48" rx="8" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
+        <circle cx="37" cy="27" r="6" fill="${accent}"/>
+        <path d="M20 58 L43 40 L61 53 L61 58 Z" fill="${ink}" opacity="0.2"/>
+        <path d="M55 58 L87 34 L115 58 Z" fill="${ink}" opacity="0.28"/>
+        <rect x="90" y="16.5" width="29" height="15" rx="4" fill="${accent}"/>
+        <text x="104.5" y="27.5" font-family="ui-monospace, monospace" font-size="9.5" font-weight="800" fill="${onaccent}" text-anchor="middle">GIF</text>`,
+
+    illustration: `
+        <rect x="13" y="12" width="114" height="48" rx="8" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
+        <circle cx="44" cy="37" r="12" fill="${accent}" opacity="0.85"/>
+        <rect x="60" y="26" width="22" height="22" rx="4" fill="${ink}" opacity="0.22"/>
+        <path d="M90 48 L102 27 L114 48 Z" fill="${accent}" opacity="0.55"/>`,
+
+    sticker: `
+        <circle cx="70" cy="36" r="22" fill="${accent}" stroke="${surface}" stroke-width="3.5"/>
+        <circle cx="62" cy="31" r="2.6" fill="${onaccent}"/>
+        <circle cx="78" cy="31" r="2.6" fill="${onaccent}"/>
+        <path d="M60 42 Q70 50 80 42" stroke="${onaccent}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
+
+    icon: `
+        <path d="M66 14 L70.5 29 L70.5 29 Q71.5 32 74.5 33 L89 37 L74.5 41 Q71.5 42 70.5 45 L66 60 L61.5 45 Q60.5 42 57.5 41 L43 37 L57.5 33 Q60.5 32 61.5 29 Z" fill="${accent}"/>
+        <path d="M92 18 v8 M88 22 h8" stroke="${accent}" stroke-width="2.4" stroke-linecap="round" opacity="0.8"/>`,
+
     stat: `
         <text x="14" y="42" font-family="ui-sans-serif, system-ui, sans-serif" font-size="30" font-weight="800" fill="${accent}">98%</text>
         <rect x="15" y="52" width="74" height="6" rx="3" fill="${muted}" opacity="0.7"/>`,
@@ -603,6 +627,48 @@ const PREVIEWS: Record<string, string> = {
         <rect x="20" y="33" width="84" height="7" rx="3" fill="${muted}" opacity="0.6"/>
         <rect x="20" y="44" width="92" height="7" rx="3" fill="${muted}" opacity="0.5"/>
         <rect x="20" y="55" width="58" height="7" rx="3" fill="${muted}" opacity="0.4"/>`,
+
+    feature: `
+        <rect x="14" y="15" width="22" height="22" rx="6" fill="${accent}" opacity="0.16"/>
+        <path d="M25 19l1.6 4.4L31 25l-4.4 1.6L25 31l-1.6-4.4L19 25l4.4-1.6z" fill="${accent}"/>
+        <rect x="14" y="45" width="70" height="7" rx="3" fill="${ink}" opacity="0.8"/>
+        <rect x="14" y="56" width="104" height="5" rx="2.5" fill="${muted}" opacity="0.6"/>`,
+
+    profile: `
+        <circle cx="70" cy="26" r="13" fill="${surface}" stroke="${accent}" stroke-width="1.6"/>
+        <circle cx="70" cy="22" r="4.5" fill="${muted}"/>
+        <path d="M61 33a9 9 0 0 1 18 0z" fill="${muted}"/>
+        <rect x="50" y="46" width="40" height="6" rx="3" fill="${ink}" opacity="0.8"/>
+        <rect x="57" y="56" width="26" height="4.5" rx="2.2" fill="${muted}" opacity="0.6"/>`,
+
+    testimonial: `
+        <rect x="14" y="14" width="100" height="6" rx="3" fill="${ink}" opacity="0.7"/>
+        <rect x="14" y="24" width="76" height="6" rx="3" fill="${ink}" opacity="0.5"/>
+        <circle cx="24" cy="50" r="10" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
+        <circle cx="24" cy="47" r="4" fill="${muted}"/>
+        <path d="M17 57a7 7 0 0 1 14 0z" fill="${muted}"/>
+        <rect x="40" y="45" width="42" height="5" rx="2.5" fill="${ink}" opacity="0.75"/>
+        <rect x="40" y="54" width="30" height="4" rx="2" fill="${muted}" opacity="0.6"/>`,
+
+    pricing: `
+        <rect x="30" y="8" width="80" height="56" rx="8" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
+        <rect x="38" y="15" width="24" height="4.5" rx="2" fill="${accent}"/>
+        <rect x="38" y="24" width="34" height="9" rx="3" fill="${ink}" opacity="0.85"/>
+        <rect x="38" y="39" width="46" height="4" rx="2" fill="${muted}" opacity="0.6"/>
+        <rect x="38" y="46" width="40" height="4" rx="2" fill="${muted}" opacity="0.5"/>
+        <rect x="38" y="54" width="34" height="7" rx="3.5" fill="${accent}"/>`,
+
+    cta: `
+        <rect x="10" y="12" width="120" height="48" rx="9" fill="${accent}" opacity="0.1"/>
+        <rect x="34" y="22" width="72" height="7" rx="3.5" fill="${ink}" opacity="0.85"/>
+        <rect x="44" y="33" width="52" height="4.5" rx="2.2" fill="${muted}" opacity="0.7"/>
+        <rect x="52" y="43" width="36" height="9" rx="4.5" fill="${accent}"/>`,
+
+    faq: `
+        <rect x="14" y="14" width="70" height="7" rx="3" fill="${ink}" opacity="0.85"/>
+        <rect x="14" y="25" width="108" height="5" rx="2.5" fill="${muted}" opacity="0.6"/>
+        <rect x="14" y="41" width="60" height="7" rx="3" fill="${ink}" opacity="0.85"/>
+        <rect x="14" y="52" width="98" height="5" rx="2.5" fill="${muted}" opacity="0.6"/>`,
 };
 
 const FALLBACK = `<rect x="20" y="20" width="100" height="32" rx="7" fill="${muted}" opacity="0.25"/>`;
