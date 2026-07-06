@@ -2,6 +2,7 @@ import type { Component } from "solid-js";
 import { createEffect, createSignal, on, onCleanup, onMount, Show } from "solid-js";
 import { useNavigate, useParams, useSearchParams } from "@solidjs/router";
 import { resolveTheme } from "@themes/library";
+import { limitsFor } from "@model/billing";
 import { Studio } from "@editor/Studio";
 import {
     editor,
@@ -13,14 +14,17 @@ import {
     onPersistTitle,
     onSwitchArtifact,
     onThemePicker,
+    onUpgrade,
     previewingTheme,
     previewSavedTheme,
     setArtifacts,
+    setEntitlements,
     startThemePreview,
 } from "@editor/editor";
 import { api } from "../api";
 import { openMediaPicker } from "../media";
 import { renameArtifactById } from "../stores/library";
+import { billing, loadBilling } from "../stores/billing";
 import { appTheme, setFaviconOverride, openThemeEditor } from "../theme";
 import { flushAutosave, installAutosave } from "../stores/save";
 
@@ -37,6 +41,13 @@ export const EditorView: Component = () => {
 
     // reflect the open artifact's theme in the browser-tab favicon; revert to the app theme on exit
     createEffect(() => setFaviconOverride(editor.artifact.theme));
+
+    // Push the workspace plan's export entitlements into the studio so its Export menu gates paid formats
+    // and keeps/strips the Galleo mark. Defaults to Free until billing loads (most-restrictive is safe).
+    createEffect(() => {
+        const { exportFormats, removeBranding } = limitsFor(billing()?.plan);
+        setEntitlements({ exportFormats, removeBranding });
+    });
     onCleanup(() => setFaviconOverride(null));
     // never leave a preview dangling on the in-memory artifact when leaving the editor
     onCleanup(() => endThemePreview());
@@ -61,6 +72,8 @@ export const EditorView: Component = () => {
         onThemePicker(() => openThemeEditor());
         onMediaPicker((req) => openMediaPicker(req));
         onPersistTitle((id, title) => renameArtifactById(id, title));
+        onUpgrade(() => navigate("/pricing"));
+        void loadBilling();
         (async () => {
             try {
                 const { artifacts } = await api.listArtifacts();

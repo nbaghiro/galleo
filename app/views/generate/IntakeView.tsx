@@ -148,12 +148,12 @@ export const IntakeView: Component = () => {
 
     const generate = async (): Promise<void> => {
         if (!canGo()) return;
-        // Reserve an AI credit up front — out of allowance → send them to upgrade instead of generating.
-        if (!(await spendGenerationCredit())) {
+        const pk = picks();
+        // Reserve credits up front, priced by the chosen length — out of allowance → send them to upgrade.
+        if (!(await spendGenerationCredit({ length: pk.length }))) {
             navigate("/pricing");
             return;
         }
-        const pk = picks();
         startSession({
             prompt: note().trim() ? `${prompt().trim()}\n\n${note().trim()}` : prompt().trim(),
             surface: surface(),

@@ -1,6 +1,7 @@
 import type { Region } from "@engine/node";
 import type { ElementAddress, Target } from "@model/target";
 import type { ArtifactContent, Section } from "@model/artifact";
+import type { PlanLimits } from "@model/billing";
 import type { IconPick, MediaKind } from "@model/media";
 import { createSignal } from "solid-js";
 import type { Theme, Tokens } from "@themes/theme";
@@ -61,6 +62,17 @@ export const [selection, setSelection] = createSignal<Target | null>(null, {
     equals: targetsEqual,
 });
 export const [hover, setHover] = createSignal<Target | null>(null, { equals: targetsEqual });
+
+// Export entitlements — the app pushes these from the workspace plan (@model/billing limits) so the
+// export menu can gate paid formats and keep/strip the Galleo mark. The editor stays app-free (data in,
+// no import back into app); defaults are the most-restrictive Free set, so a studio with no host still
+// gates correctly rather than leaking paid exports.
+export type ExportEntitlements = Pick<PlanLimits, "exportFormats" | "removeBranding">;
+const [entitlements, setEntitlements] = createSignal<ExportEntitlements>({
+    exportFormats: ["png"],
+    removeBranding: false,
+});
+export { entitlements, setEntitlements };
 
 // Snapshot history. Every edit — content OR host metadata (the artifact title) — goes through this, so a
 // single undo stack covers everything. A snapshot pairs the content tree with the title at that instant.
@@ -284,6 +296,16 @@ export function onHome(fn: () => void): void {
 }
 export function requestHome(): void {
     homeHandler?.();
+}
+
+// The app registers a handler so a locked export (a paid format on the Free plan) can send the user to
+// the pricing page. No-op when the studio runs without an app host.
+let upgradeHandler: (() => void) | null = null;
+export function onUpgrade(fn: () => void): void {
+    upgradeHandler = fn;
+}
+export function requestUpgrade(): void {
+    upgradeHandler?.();
 }
 
 // The app registers a handler so the studio's theme control can open the app-level theme drawer

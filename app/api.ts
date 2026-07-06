@@ -2,6 +2,8 @@ import type { Artifact, ArtifactInput, ArtifactSummary } from "@model/artifact";
 import type { Folder, Template, User } from "@model/workspace";
 import type { ThemeSummary as Theme, ThemeInput } from "@themes/theme";
 import type { Plan, PlanId } from "@model/billing";
+import type { AiActionId, AiActionInfo, MeterParams } from "@model/ai-actions";
+import type { Usage } from "@model/credits";
 import type {
     IconPick,
     IconSearchResponse,
@@ -27,6 +29,7 @@ export interface BillingState {
     credits: { used: number; limit: number; perGeneration: number };
     usage: { artifacts: number; maxArtifacts: number };
     catalog: Plan[];
+    aiActions: AiActionInfo[]; // per-action credit costs ("what a credit buys")
     stripeReady: boolean;
 }
 
@@ -157,9 +160,14 @@ export const api = {
             body: JSON.stringify({ plan }),
         }),
     portal: () => req<{ url: string }>("/billing/portal", { method: "POST" }),
-    spendCredits: (amount?: number) =>
+    spendCredits: (body?: {
+        amount?: number;
+        action?: AiActionId;
+        meter?: MeterParams;
+        usage?: Usage;
+    }) =>
         req<{ remaining: number }>("/billing/spend", {
             method: "POST",
-            body: JSON.stringify({ amount }),
+            body: JSON.stringify(body ?? {}),
         }),
 };

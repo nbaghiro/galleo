@@ -10,12 +10,14 @@ import {
     editor,
     editorTheme,
     editorTokens,
+    entitlements,
     present,
     redo,
     renameArtifact,
     requestHome,
     requestSwitchArtifact,
     requestThemePicker,
+    requestUpgrade,
     setAgentOpen,
     undo,
 } from "../editor";
@@ -169,6 +171,10 @@ const FORMATS = [
 const ExportMenu: Component = () => {
     const [open, setOpen] = createSignal(false);
     const [busy, setBusy] = createSignal(false);
+    // The workspace plan decides which formats are unlocked and whether exports carry the Galleo mark.
+    const allows = (f: "png" | "pdf" | "print"): boolean =>
+        entitlements().exportFormats.includes(f);
+    const brand = (): boolean => !entitlements().removeBranding;
     const run = async (fn: () => void | Promise<void>): Promise<void> => {
         setOpen(false);
         setBusy(true);
@@ -178,14 +184,36 @@ const ExportMenu: Component = () => {
             setBusy(false);
         }
     };
-    const item = (label: string, fn: () => void | Promise<void>): JSX.Element => (
-        <button
-            class="block w-full rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-canvas"
-            onClick={() => run(fn)}
-        >
-            {label}
-        </button>
-    );
+    // A menu row: unlocked → runs the export; locked (a paid format on the current plan) → a muted row
+    // tagged "Pro" that sends the user to the pricing page instead.
+    const item = (
+        label: string,
+        format: "png" | "pdf" | "print",
+        fn: () => void | Promise<void>,
+    ): JSX.Element =>
+        allows(format) ? (
+            <button
+                class="block w-full rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-canvas"
+                onClick={() => run(fn)}
+            >
+                {label}
+            </button>
+        ) : (
+            <button
+                class="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[13px] text-muted hover:bg-canvas"
+                onClick={() => {
+                    setOpen(false);
+                    requestUpgrade();
+                }}
+            >
+                <span class="inline-flex items-center gap-1.5">
+                    <Icon name="lock" size={12} /> {label}
+                </span>
+                <span class="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent">
+                    Pro
+                </span>
+            </button>
+        );
     return (
         <div class="relative">
             <button class={btn} disabled={busy()} onClick={() => !busy() && setOpen((o) => !o)}>
@@ -207,9 +235,13 @@ const ExportMenu: Component = () => {
             <Show when={open()}>
                 <div class="fixed inset-0 z-10" onClick={() => setOpen(false)} />
                 <div class="absolute right-0 z-20 mt-2 w-52 rounded-xl border border-line bg-panel p-1.5 shadow-xl">
-                    {item("PDF", () => exportPdfAuto(editor.artifact, editorTokens()))}
-                    {item("PNG — deck", () => exportDeckPng(editor.artifact, editorTokens()))}
-                    {item("Print…", () => exportPrint(editor.artifact, editorTokens()))}
+                    {item("PDF", "pdf", () =>
+                        exportPdfAuto(editor.artifact, editorTokens(), { brand: brand() }),
+                    )}
+                    {item("PNG — deck", "png", () =>
+                        exportDeckPng(editor.artifact, editorTokens(), { brand: brand() }),
+                    )}
+                    {item("Print…", "print", () => exportPrint(editor.artifact, editorTokens()))}
                 </div>
             </Show>
         </div>

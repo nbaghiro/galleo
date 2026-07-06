@@ -2,6 +2,7 @@ import type { Component } from "solid-js";
 import { createMemo, For, onMount, Show } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import type { PlanId } from "@model/billing";
+import { AI_ACTION_LIST, costRange, isMetered, typicalCost } from "@model/ai-actions";
 import { CheckIcon } from "../components/icons";
 import { Sidebar } from "../components/Sidebar";
 import { billing, loadBilling, openPortal, startCheckout } from "../stores/billing";
@@ -22,6 +23,12 @@ export const PricingView: Component = () => {
         if (!c || c.limit <= 0) return 0;
         return Math.min(100, Math.round((c.used / c.limit) * 100));
     });
+
+    // "≈N/mo" — how many of an action this workspace's monthly credit allowance buys.
+    const perMonth = (cost: number): number | null => {
+        const limit = b()?.credits.limit ?? 0;
+        return limit > 0 ? Math.floor(limit / cost) : null;
+    };
 
     const pick = (plan: PlanId): void => {
         if (plan === "free") openPortal().catch(() => {});
@@ -176,6 +183,67 @@ export const PricingView: Component = () => {
                             }}
                         </For>
                     </div>
+
+                    {/* what a credit buys — every AI action mapped to its credit cost */}
+                    <section class="mt-12">
+                        <h2 class="text-[16px] font-bold tracking-[-0.01em]">
+                            What your credits buy
+                        </h2>
+                        <p class="mt-0.5 text-[13px] text-muted">
+                            Every AI action draws from your monthly credits — bigger jobs cost more.
+                        </p>
+                        <div class="mt-4 overflow-hidden rounded-xl border border-line bg-panel">
+                            <For each={AI_ACTION_LIST}>
+                                {(a, i) => {
+                                    const r = costRange(a.id);
+                                    const cost = r.min === r.max ? `${r.min}` : `${r.min}–${r.max}`;
+                                    return (
+                                        <div
+                                            class={`flex items-center gap-3 px-4 py-2.5 ${
+                                                i() > 0 ? "border-t border-line" : ""
+                                            }`}
+                                        >
+                                            <div class="min-w-0 flex-1">
+                                                <div class="flex items-center gap-2">
+                                                    <span class="text-[13px] font-medium text-ink">
+                                                        {a.label}
+                                                    </span>
+                                                    <Show when={isMetered(a.id)}>
+                                                        <span class="rounded-full bg-canvas px-1.5 py-px text-[9px] font-medium uppercase tracking-[0.1em] text-muted">
+                                                            scales
+                                                        </span>
+                                                    </Show>
+                                                    <Show when={!a.live}>
+                                                        <span class="rounded-full border border-line px-1.5 py-px text-[9px] font-medium uppercase tracking-[0.1em] text-muted">
+                                                            soon
+                                                        </span>
+                                                    </Show>
+                                                </div>
+                                                <div class="truncate text-[12px] text-muted">
+                                                    {a.description}
+                                                </div>
+                                            </div>
+                                            <div class="flex-none text-right tabular-nums">
+                                                <div class="text-[13px] font-semibold text-ink">
+                                                    {cost}{" "}
+                                                    <span class="text-[11px] font-normal text-muted">
+                                                        {r.max === 1 ? "credit" : "credits"}
+                                                    </span>
+                                                </div>
+                                                <Show when={perMonth(typicalCost(a.id))}>
+                                                    {(n) => (
+                                                        <div class="text-[11px] text-muted">
+                                                            ≈{n()}/mo
+                                                        </div>
+                                                    )}
+                                                </Show>
+                                            </div>
+                                        </div>
+                                    );
+                                }}
+                            </For>
+                        </div>
+                    </section>
 
                     <Show when={current() !== "free"}>
                         <button
