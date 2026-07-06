@@ -4,7 +4,7 @@ import { Route, Router } from "@solidjs/router";
 import { resolveTheme } from "@themes/library";
 import { authReady, bootstrap, user } from "./stores/auth";
 import { customThemes, loadCustomThemes } from "./theme";
-import { faviconOverride, setFavicon, appTheme, appThemeVars } from "./theme";
+import { faviconOverride, setFavicon, appTheme, appThemeOverride, appThemeVars } from "./theme";
 import { AuthPage } from "./views/AuthPage";
 import { EditorView } from "./views/EditorView";
 import { BuildView } from "./views/generate/BuildView";
@@ -13,16 +13,15 @@ import { LibraryView } from "./views/LibraryView";
 import { PresentView } from "./views/PresentView";
 import { PricingView } from "./views/PricingView";
 import { TemplatesView } from "./views/TemplatesView";
-import { ThemeDrawer } from "./components/ThemeDrawer";
 import { ThemeEditor } from "./views/ThemeEditor";
 import { TrashView } from "./views/TrashView";
 
-// Router root layout — wraps every route so the singular theme drawer is mounted once (inside router
-// context, so it can read the active route to apply context-aware) and persists across navigation.
+// Router root layout — wraps every route so the singular theme drawer + media picker are mounted once
+// (inside router context, so they read the active route to apply context-aware) and persist across nav.
 const AppShell: Component<{ children?: JSX.Element }> = (props) => (
     <>
         {props.children}
-        <ThemeDrawer />
+        <ThemeEditor />
     </>
 );
 
@@ -37,7 +36,8 @@ export const App: Component = () => {
     // (the app-chrome theme can itself be a custom one, registered asynchronously).
     createEffect(() => {
         customThemes();
-        setFavicon(resolveTheme(faviconOverride() ?? appTheme()).tokens);
+        // the live theme-editor draft (if open) wins, so the tab badge previews the draft too
+        setFavicon(appThemeOverride() ?? resolveTheme(faviconOverride() ?? appTheme()).tokens);
     });
     // CSS vars for the app root — recompute when the app theme OR the loaded custom themes change.
     const themeVars = createMemo((): JSX.CSSProperties => {
@@ -68,7 +68,6 @@ export const App: Component = () => {
                         <Route path="/new" component={IntakeView} />
                         <Route path="/generate" component={BuildView} />
                         <Route path="/edit/:id" component={EditorView} />
-                        <Route path="/theme/:id" component={ThemeEditor} />
                         <Route path="/present/:id" component={PresentView} />
                     </Router>
                 </Show>

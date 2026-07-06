@@ -34,7 +34,7 @@ import {
     TrashIcon,
 } from "../components/icons";
 import { CreateModal } from "../components/modals";
-import { openThemeDrawer } from "../theme";
+import { openThemeEditor } from "../theme";
 
 // Shared, route-aware app sidebar (Library / Templates / Folders…) + workspace, create menu, theme,
 // and sign-out. Built on the theme tokens so it recolors with the app theme. Folders are drop targets:
@@ -391,12 +391,12 @@ export const Sidebar: Component = () => {
     );
 };
 
-// Opens the singular theme drawer (the unified switcher + custom-theme creation).
+// Opens the theme editor modal (the unified picker + custom-theme creation).
 const ThemePicker: Component = () => (
     <button
         class="grid h-8 w-8 flex-none place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
         title="Theme"
-        onClick={() => openThemeDrawer()}
+        onClick={() => openThemeEditor()}
     >
         <ThemeIcon />
     </button>

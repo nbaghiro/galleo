@@ -19,7 +19,7 @@ import {
 } from "@editor/editor";
 import { api } from "../api";
 import { renameArtifactById } from "../stores/library";
-import { appTheme, setFaviconOverride, openThemeDrawer } from "../theme";
+import { appTheme, setFaviconOverride, openThemeEditor } from "../theme";
 import { flushAutosave, installAutosave } from "../stores/save";
 
 // One route per open artifact (/edit/:id). Loads it, runs the studio with autosave, and routes the
@@ -56,7 +56,7 @@ export const EditorView: Component = () => {
     onMount(() => {
         onHome(() => flushAutosave().then(() => navigate("/")));
         onSwitchArtifact((id) => flushAutosave().then(() => navigate(`/edit/${id}`)));
-        onThemePicker(() => openThemeDrawer());
+        onThemePicker(() => openThemeEditor());
         onPersistTitle((id, title) => renameArtifactById(id, title));
         (async () => {
             try {

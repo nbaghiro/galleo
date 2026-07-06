@@ -1,19 +1,28 @@
-import type { Tokens } from "@themes/theme";
+import type { Theme, Tokens } from "@themes/theme";
 import type { Component, JSX } from "solid-js";
-import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore } from "solid-js/store";
-import { useNavigate, useParams } from "@solidjs/router";
-import { luminance } from "@themes/theme";
-import { resolveTheme } from "@themes/library";
+import { useLocation } from "@solidjs/router";
+import { luminance, themeCssVars } from "@themes/theme";
+import { resolveTheme, THEME_LIST } from "@themes/library";
 import { resolveProfile } from "@engine/profile";
 import { paintSectionStack } from "@canvas/render/backends";
+import { setArtifactTheme } from "@elements/ops";
+import { commit, editor, endThemePreview } from "@editor/editor";
 import { ColorPopover, Dropdown, type ColorSwatch } from "../components/widgets";
-import { ChevronLeftIcon } from "../components/icons";
+import { CloseIcon, EditIcon } from "../components/icons";
+import { SectionThumb } from "../components/previews";
 import {
     appTheme,
     setAppTheme,
+    setAppThemePreview,
     saveCustomTheme,
     updateCustomTheme,
+    customThemes,
+    removeCustomTheme,
+    themeEditorOpen,
+    closeThemeEditor,
+    THEME_SAMPLE,
     type ThemeDraft,
 } from "../theme";
 import { themeDemo } from "./theme-demo";
@@ -88,49 +97,140 @@ const FORMATS: [string, string][] = [
     ["web", "Site"],
 ];
 
-// The full-screen theme editor — the whole customizable token set on the left, a real multi-section
-// demo artifact on the right that re-lays-out on every change (via the same engine the editor paints
-// with). `/theme/new` seeds from the active theme; `/theme/:id` edits a saved custom theme.
-export const ThemeEditor: Component = () => {
-    const params = useParams();
-    const navigate = useNavigate();
-    const id = (): string => params.id ?? "new";
-    const isNew = (): boolean => id() === "new";
-    const seed = resolveTheme(isNew() ? appTheme() : id());
+const CARD_W = 150; // two theme cards per row inside the 360px rail
 
+// The theme editor — a single large modal that is the whole theme surface. The left rail swaps between
+// a predefined-theme picker ("Themes") and the custom token editor ("Customize"); the right is a live
+// preview of the real artifact (in its own format) over the editor, else a generic demo artifact. The
+// current theme is selected on open; picking one applies it live; Customize forks/edits it further.
+// A thin wrapper mounts the stateful panel fresh on each open so it re-seeds from the current context.
+export const ThemeEditor: Component = () => (
+    <Show when={themeEditorOpen()}>
+        <ThemeEditorPanel />
+    </Show>
+);
+
+const ThemeEditorPanel: Component = () => {
+    const location = useLocation();
+    // Snapshot the context at open — the modal never outlives a navigation, so this holds for its life.
+    const editing = location.pathname.includes("/edit/");
+    const currentId = editing ? editor.artifact.theme : appTheme();
+
+    const [mode, setMode] = createSignal<"list" | "custom">("list");
+    const [selectedId, setSelectedId] = createSignal(currentId);
+    const [editTargetId, setEditTargetId] = createSignal<string | null>(null); // set → updating a custom theme
+
+    const baseTokens = resolveTheme(currentId).tokens;
     const [tk, setTk] = createStore<Tokens>({
-        ...seed.tokens,
-        border: seed.tokens.border ?? 1,
-        scrim: seed.tokens.scrim ?? 0.45,
+        ...baseTokens,
+        border: baseTokens.border ?? 1,
+        scrim: baseTokens.scrim ?? 0.45,
     });
-    const [name, setName] = createSignal(isNew() ? "Custom theme" : seed.name);
+    const [name, setName] = createSignal("Custom theme");
+    const [tag, setTag] = createSignal("custom");
     const [format, setFormat] = createSignal("web");
-    const [shadowPreset, setShadowPreset] = createSignal(inferShadow(seed.tokens.shadow));
-    const [tag, setTag] = createSignal(isNew() ? "custom" : seed.tag);
+    const [shadowPreset, setShadowPreset] = createSignal(inferShadow(baseTokens.shadow));
     const [busy, setBusy] = createSignal(false);
     const [width, setWidth] = createSignal(900);
 
-    // keep the shadow token in sync with the chosen preset + the current accent
-    createEffect(() => setTk("shadow", shadowCss(shadowPreset(), tk.accent)));
+    const isCustom = (id: string): boolean => customThemes().some((t) => t.id === id);
+    const formatLabel = (): string =>
+        FORMATS.find(([fid]) => fid === editor.artifact.format)?.[1] ?? editor.artifact.format;
+
+    // The switcher wears the selected theme, so picking a dark theme turns the whole modal dark — it
+    // reflects what you switch to. It tracks the selected *saved* theme (not each unsaved custom
+    // keystroke), which is always internally legible, so the controls never break mid-edit.
+    const panelVars = createMemo(
+        (): JSX.CSSProperties =>
+            themeCssVars(resolveTheme(selectedId()).tokens) as JSX.CSSProperties,
+    );
+
+    // Load a theme's tokens into the working store (drives the preview) + sync the shadow preset.
+    const loadTokens = (id: string): void => {
+        const t = resolveTheme(id).tokens;
+        setTk({ ...t, border: t.border ?? 1, scrim: t.scrim ?? 0.45 });
+        setShadowPreset(inferShadow(t.shadow));
+    };
+
+    // Pick a predefined/custom theme in list mode: apply it live (context-aware) and mirror it into the
+    // working store so the preview shows it. In the editor this commits an undoable theme change.
+    const pick = (id: string): void => {
+        setSelectedId(id);
+        loadTokens(id);
+        if (editing) {
+            endThemePreview();
+            commit(setArtifactTheme(editor.artifact, id));
+        } else {
+            setAppTheme(id);
+        }
+    };
+
+    // Drop into the token editor over the selected theme's values — updating it if it's already a custom
+    // theme, else forking it into a new one. The working store already holds the selected tokens.
+    const enterCustom = (): void => {
+        if (mode() === "custom") return;
+        const sel = selectedId();
+        const editable = isCustom(sel);
+        setEditTargetId(editable ? sel : null);
+        setName(editable ? resolveTheme(sel).name : "Custom theme");
+        setTag(resolveTheme(sel).tag || "custom");
+        setMode("custom");
+    };
+
+    // The pencil on a custom card: edit that theme directly (Save updates it in place).
+    const editCustom = (t: Theme): void => {
+        setSelectedId(t.id);
+        loadTokens(t.id);
+        setEditTargetId(t.id);
+        setName(t.name);
+        setTag(t.tag || "custom");
+        setMode("custom");
+    };
+
+    // In custom mode the shadow token follows the chosen preset + the live accent; in list mode the
+    // loaded theme keeps its own shadow untouched.
+    createEffect(() => {
+        if (mode() === "custom") setTk("shadow", shadowCss(shadowPreset(), tk.accent));
+    });
+
+    // Live app-chrome preview: only while customizing does the draft recolor the app behind the modal;
+    // picking in list mode applies the real theme instead. Cleared on close.
+    createEffect(() => {
+        if (mode() === "custom") setAppThemePreview({ ...tk });
+        else setAppThemePreview(null);
+    });
+    onCleanup(() => setAppThemePreview(null));
 
     let scroll!: HTMLDivElement;
     let host!: HTMLDivElement;
+    let panel!: HTMLDivElement;
 
-    // Re-lay-out + repaint the demo artifact on any token / format / width change. Spreading the store
-    // reads every field, so the effect tracks all of them; the demo is a function of the tokens, so the
-    // scrim + accent recolor their sections live.
+    // Re-lay-out + repaint on any token / format / width change. Spreading the store reads every field,
+    // so the effect tracks all of them. The preview renders the real artifact (in its own format) when
+    // opened over the editor, and the generic demo artifact everywhere else — always with the live tokens.
     const draw = (): void => {
         if (!host) return;
         const snap = { ...tk };
-        const profile = resolveProfile(format());
+        const sections = editing ? editor.artifact.sections : themeDemo(snap);
+        const profile = resolveProfile(editing ? editor.artifact.format : format());
         const fullW = Math.max(360, width());
         host.replaceChildren();
-        const { height } = paintSectionStack(host, themeDemo(snap), profile, snap, { fullW });
+        const { height } = paintSectionStack(host, sections, profile, snap, { fullW });
         host.style.cssText = `position:relative;width:${fullW}px;height:${height}px`;
     };
     createEffect(draw);
 
     onMount(() => {
+        const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+        if (!reduced)
+            panel.animate(
+                [
+                    { opacity: 0, transform: "translateY(8px) scale(0.98)" },
+                    { opacity: 1, transform: "none" },
+                ],
+                { duration: 180, easing: "cubic-bezier(.2,.7,.2,1)", fill: "both" },
+            );
+
         const ro = new ResizeObserver(() => setWidth(scroll.clientWidth));
         ro.observe(scroll);
         setWidth(scroll.clientWidth);
@@ -138,12 +238,21 @@ export const ThemeEditor: Component = () => {
         const onFonts = (): void => draw();
         document.fonts.ready.then(onFonts);
         document.fonts.addEventListener("loadingdone", onFonts);
+
+        const onKey = (e: KeyboardEvent): void => {
+            if (e.key === "Escape") closeThemeEditor();
+        };
+        window.addEventListener("keydown", onKey);
+
         onCleanup(() => {
             ro.disconnect();
             document.fonts.removeEventListener("loadingdone", onFonts);
+            window.removeEventListener("keydown", onKey);
         });
     });
 
+    // Save the custom theme, then apply to the surface the modal was opened over — the artifact while
+    // editing, else the app-chrome theme. Updates an existing custom theme, or creates a new one.
     const save = async (): Promise<void> => {
         setBusy(true);
         const draft: ThemeDraft = {
@@ -152,16 +261,68 @@ export const ThemeEditor: Component = () => {
             tag: tag().trim() || "custom",
             dark: luminance(tk.bg) < 0.5,
         };
-        const saved = isNew() ? await saveCustomTheme(draft) : await updateCustomTheme(id(), draft);
+        const et = editTargetId();
+        const saved = et ? await updateCustomTheme(et, draft) : await saveCustomTheme(draft);
         setBusy(false);
-        if (saved) {
+        if (!saved) return;
+        setAppThemePreview(null);
+        if (editing) {
+            endThemePreview();
+            commit(setArtifactTheme(editor.artifact, saved.id));
+        } else {
             setAppTheme(saved.id);
-            navigate("/");
         }
+        closeThemeEditor();
     };
 
-    // ── control fields ──
-    // The other seven tokens as quick swatches, so a color can reuse another role on-palette.
+    // ── segmented mode toggle ──
+    const seg = (active: boolean): string =>
+        `flex-1 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors ${
+            active ? "bg-accent text-onaccent" : "text-soft hover:text-ink"
+        }`;
+
+    // ── theme picker card ──
+    const card = (t: Theme, custom: boolean): JSX.Element => (
+        <div class="group" style={{ width: `${CARD_W}px` }}>
+            <SectionThumb
+                section={THEME_SAMPLE}
+                themeId={t.id}
+                formatId="deck"
+                width={CARD_W}
+                selected={selectedId() === t.id}
+                onOpen={() => pick(t.id)}
+            />
+            <div class="mt-1.5 flex items-center gap-1.5">
+                <span
+                    class="h-3 w-3 flex-none rounded"
+                    style={{ background: resolveTheme(t.id).tokens.accent }}
+                />
+                <span class="min-w-0 flex-1 truncate text-[12px] font-medium text-ink">
+                    {t.name}
+                </span>
+                <Show when={custom}>
+                    <span class="hidden items-center gap-0.5 group-hover:flex">
+                        <button
+                            class="grid h-5 w-5 place-items-center rounded text-muted hover:text-ink"
+                            title="Customize theme"
+                            onClick={() => editCustom(t)}
+                        >
+                            <EditIcon size={13} />
+                        </button>
+                        <button
+                            class="grid h-5 w-5 place-items-center rounded text-muted hover:text-ink"
+                            title="Delete theme"
+                            onClick={() => removeCustomTheme(t.id)}
+                        >
+                            <CloseIcon size={13} />
+                        </button>
+                    </span>
+                </Show>
+            </div>
+        </div>
+    );
+
+    // ── custom-mode control fields ──
     const paletteSwatches = (): ColorSwatch[] => [
         { label: "Canvas", color: tk.bg },
         { label: "Surface", color: tk.surface },
@@ -234,126 +395,194 @@ export const ThemeEditor: Component = () => {
     );
 
     return (
-        <div class="fixed inset-0 z-30 flex bg-canvas text-ink">
-            {/* ── controls ── */}
-            <aside class="flex w-[360px] flex-none flex-col border-r border-line bg-panel">
-                <header class="flex flex-none items-center gap-2 border-b border-line px-3 py-3">
-                    <button
-                        class="grid h-8 w-8 flex-none place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
-                        title="Back"
-                        onClick={() => navigate("/")}
-                    >
-                        <ChevronLeftIcon size={17} />
-                    </button>
-                    <input
-                        class="min-w-0 flex-1 rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-[13px] font-semibold text-ink outline-none focus:border-accent"
-                        value={name()}
-                        placeholder="Theme name"
-                        onInput={(e) => setName(e.currentTarget.value)}
-                    />
-                    <button
-                        class="flex-none rounded-lg bg-accent px-3.5 py-1.5 text-[12px] font-semibold text-onaccent disabled:opacity-50"
-                        disabled={busy()}
-                        onClick={save}
-                    >
-                        {isNew() ? "Save" : "Update"}
-                    </button>
-                </header>
-
-                <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
-                    <div class="mx-auto w-full max-w-[300px]">
-                        {heading("Details")}
-                        <div class="flex items-center justify-between gap-2.5 py-1">
-                            <span class="text-[12.5px] text-soft">Style tag</span>
-                            <input
-                                class="w-[150px] rounded-md border border-line bg-canvas px-2 py-1 text-[12px] text-ink outline-none focus:border-accent"
-                                value={tag()}
-                                placeholder="editorial, cyber…"
-                                onInput={(e) => setTag(e.currentTarget.value)}
-                            />
-                        </div>
-
-                        {heading("Color")}
-                        {colorField("bg", "Canvas")}
-                        {colorField("surface", "Surface")}
-                        {colorField("ink", "Ink")}
-                        {colorField("soft", "Soft text")}
-                        {colorField("muted", "Muted")}
-                        {colorField("accent", "Accent")}
-                        {colorField("onAccent", "On accent")}
-                        {colorField("line", "Line")}
-
-                        {heading("Type")}
-                        {fontField("fontDisplay", "Display", DISPLAY_FONTS)}
-                        {fontField("fontBody", "Body", BODY_FONTS)}
-                        {fontField("fontMono", "Mono", MONO_FONTS)}
-                        {rangeField("headingWeight", "Weight", 300, 900, 100, "")}
-
-                        {heading("Shape")}
-                        {rangeField("radius", "Radius", 0, 28, 1, "px")}
-                        {rangeField("border", "Border", 0, 4, 1, "px")}
-                        <div class="flex items-center gap-2.5 py-1">
-                            <span class="w-[84px] flex-none text-[12.5px] text-soft">Shadow</span>
-                            <div class="min-w-0 flex-1">
-                                <Dropdown
-                                    value={shadowPreset()}
-                                    options={SHADOW_PRESETS.map((o) => ({
-                                        value: o[0],
-                                        label: o[1],
-                                    }))}
-                                    onChange={setShadowPreset}
-                                />
-                            </div>
-                        </div>
-                        <label class="flex items-center gap-2.5 py-1">
-                            <span class="w-[84px] flex-none text-[12.5px] text-soft">
-                                Image scrim
-                            </span>
-                            <input
-                                type="range"
-                                class="min-w-0 flex-1"
-                                style={{ "accent-color": "var(--color-accent)" }}
-                                min={0}
-                                max={90}
-                                step={5}
-                                value={Math.round((tk.scrim ?? 0.45) * 100)}
-                                onInput={(e) => setTk("scrim", Number(e.currentTarget.value) / 100)}
-                            />
-                            <span class="w-10 flex-none text-right font-mono text-[10px] text-muted">
-                                {Math.round((tk.scrim ?? 0.45) * 100)}%
-                            </span>
-                        </label>
-                    </div>
-                </div>
-            </aside>
-
-            {/* ── live demo artifact ── */}
-            <div class="flex min-w-0 flex-1 flex-col">
-                <div class="flex flex-none items-center justify-between border-b border-line bg-panel px-4 py-2">
-                    <span class="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
-                        Live preview · this theme
-                    </span>
-                    <div class="flex items-center gap-1 rounded-lg border border-line p-0.5">
-                        {FORMATS.map(([id, label]) => (
-                            <button
-                                class={`rounded-md px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
-                                    format() === id
-                                        ? "bg-accent text-onaccent"
-                                        : "text-soft hover:text-ink"
-                                }`}
-                                onClick={() => setFormat(id)}
-                            >
-                                {label}
+        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 text-ink sm:p-6">
+            {/* light scrim (no blur) so the recoloring app stays visible behind the modal */}
+            <div class="absolute inset-0 bg-black/25" onClick={() => closeThemeEditor()} />
+            <div
+                ref={panel}
+                class="relative flex h-[88vh] max-h-[960px] w-full max-w-[1680px] overflow-hidden rounded-2xl border border-line bg-panel shadow-2xl"
+                style={panelVars()}
+            >
+                {/* ── left rail: Themes ⇄ Customize ── */}
+                <aside class="flex w-[360px] flex-none flex-col border-r border-line bg-panel">
+                    <header class="flex flex-none items-center gap-2 border-b border-line px-3 py-3">
+                        <div class="flex flex-1 items-center gap-1 rounded-lg border border-line p-0.5">
+                            <button class={seg(mode() === "list")} onClick={() => setMode("list")}>
+                                Themes
                             </button>
-                        ))}
+                            <button class={seg(mode() === "custom")} onClick={enterCustom}>
+                                Customize
+                            </button>
+                        </div>
+                        <button
+                            class="grid h-8 w-8 flex-none place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
+                            title="Close"
+                            onClick={() => closeThemeEditor()}
+                        >
+                            <CloseIcon size={15} />
+                        </button>
+                    </header>
+
+                    <div class="min-h-0 flex-1 overflow-y-auto">
+                        {/* ── themes picker ── */}
+                        <Show when={mode() === "list"}>
+                            <div class="px-4 py-3">
+                                <Show when={customThemes().length}>
+                                    <div class="mb-2 flex items-center justify-between">
+                                        <span class="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+                                            My themes
+                                        </span>
+                                        <span class="font-mono text-[9px] text-accent">synced</span>
+                                    </div>
+                                    <div class="mb-5 flex flex-wrap gap-3">
+                                        <For each={customThemes()}>{(t) => card(t, true)}</For>
+                                    </div>
+                                </Show>
+                                <div class="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+                                    Built-in
+                                </div>
+                                <div class="flex flex-wrap gap-3">
+                                    <For each={THEME_LIST}>{(t) => card(t, false)}</For>
+                                </div>
+                                <p class="mt-4 text-[11px] leading-relaxed text-muted">
+                                    Pick one to apply it, or hit{" "}
+                                    <span class="text-soft">Customize</span> to tweak it into your
+                                    own.
+                                </p>
+                            </div>
+                        </Show>
+
+                        {/* ── custom token editor ── */}
+                        <Show when={mode() === "custom"}>
+                            <div class="px-4 pb-6">
+                                <div class="sticky top-0 z-10 -mx-4 flex items-center gap-2 border-b border-line bg-panel px-4 py-3">
+                                    <input
+                                        class="min-w-0 flex-1 rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-[13px] font-semibold text-ink outline-none focus:border-accent"
+                                        value={name()}
+                                        placeholder="Theme name"
+                                        onInput={(e) => setName(e.currentTarget.value)}
+                                    />
+                                    <button
+                                        class="flex-none rounded-lg bg-accent px-3.5 py-1.5 text-[12px] font-semibold text-onaccent disabled:opacity-50"
+                                        disabled={busy()}
+                                        onClick={save}
+                                    >
+                                        {editTargetId() ? "Update" : "Save"}
+                                    </button>
+                                </div>
+
+                                <div class="mx-auto w-full max-w-[300px]">
+                                    {heading("Details")}
+                                    <div class="flex items-center justify-between gap-2.5 py-1">
+                                        <span class="text-[12.5px] text-soft">Style tag</span>
+                                        <input
+                                            class="w-[150px] rounded-md border border-line bg-canvas px-2 py-1 text-[12px] text-ink outline-none focus:border-accent"
+                                            value={tag()}
+                                            placeholder="editorial, cyber…"
+                                            onInput={(e) => setTag(e.currentTarget.value)}
+                                        />
+                                    </div>
+
+                                    {heading("Color")}
+                                    {colorField("bg", "Canvas")}
+                                    {colorField("surface", "Surface")}
+                                    {colorField("ink", "Ink")}
+                                    {colorField("soft", "Soft text")}
+                                    {colorField("muted", "Muted")}
+                                    {colorField("accent", "Accent")}
+                                    {colorField("onAccent", "On accent")}
+                                    {colorField("line", "Line")}
+
+                                    {heading("Type")}
+                                    {fontField("fontDisplay", "Display", DISPLAY_FONTS)}
+                                    {fontField("fontBody", "Body", BODY_FONTS)}
+                                    {fontField("fontMono", "Mono", MONO_FONTS)}
+                                    {rangeField("headingWeight", "Weight", 300, 900, 100, "")}
+
+                                    {heading("Shape")}
+                                    {rangeField("radius", "Radius", 0, 28, 1, "px")}
+                                    {rangeField("border", "Border", 0, 4, 1, "px")}
+                                    <div class="flex items-center gap-2.5 py-1">
+                                        <span class="w-[84px] flex-none text-[12.5px] text-soft">
+                                            Shadow
+                                        </span>
+                                        <div class="min-w-0 flex-1">
+                                            <Dropdown
+                                                value={shadowPreset()}
+                                                options={SHADOW_PRESETS.map((o) => ({
+                                                    value: o[0],
+                                                    label: o[1],
+                                                }))}
+                                                onChange={setShadowPreset}
+                                            />
+                                        </div>
+                                    </div>
+                                    <label class="flex items-center gap-2.5 py-1">
+                                        <span class="w-[84px] flex-none text-[12.5px] text-soft">
+                                            Image scrim
+                                        </span>
+                                        <input
+                                            type="range"
+                                            class="min-w-0 flex-1"
+                                            style={{ "accent-color": "var(--color-accent)" }}
+                                            min={0}
+                                            max={90}
+                                            step={5}
+                                            value={Math.round((tk.scrim ?? 0.45) * 100)}
+                                            onInput={(e) =>
+                                                setTk("scrim", Number(e.currentTarget.value) / 100)
+                                            }
+                                        />
+                                        <span class="w-10 flex-none text-right font-mono text-[10px] text-muted">
+                                            {Math.round((tk.scrim ?? 0.45) * 100)}%
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+                        </Show>
                     </div>
-                </div>
-                <div
-                    ref={scroll}
-                    class="min-h-0 flex-1 overflow-auto"
-                    style={{ background: tk.bg }}
-                >
-                    <div ref={host} />
+                </aside>
+
+                {/* ── live preview ── */}
+                <div class="flex min-w-0 flex-1 flex-col">
+                    <div class="flex flex-none items-center justify-between border-b border-line bg-panel px-4 py-2">
+                        <span class="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+                            {editing ? "Live preview · this artifact" : "Live preview · demo"}
+                        </span>
+                        <Show
+                            when={!editing}
+                            fallback={
+                                <span
+                                    class="rounded-md border border-line px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted"
+                                    title="Preview keeps this artifact's format"
+                                >
+                                    {formatLabel()}
+                                </span>
+                            }
+                        >
+                            <div class="flex items-center gap-1 rounded-lg border border-line p-0.5">
+                                {FORMATS.map(([id, label]) => (
+                                    <button
+                                        class={`rounded-md px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
+                                            format() === id
+                                                ? "bg-accent text-onaccent"
+                                                : "text-soft hover:text-ink"
+                                        }`}
+                                        onClick={() => setFormat(id)}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        </Show>
+                    </div>
+                    <div
+                        ref={scroll}
+                        class="min-h-0 flex-1 overflow-auto"
+                        style={{ background: tk.bg }}
+                    >
+                        <div ref={host} />
+                    </div>
                 </div>
             </div>
         </div>

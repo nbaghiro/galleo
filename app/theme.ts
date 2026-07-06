@@ -35,24 +35,35 @@ export function setAppTheme(id: string): void {
     }
 }
 
+// A live, non-persisted override for the app-chrome tokens. The theme editor sets this to its draft
+// tokens while open, so the whole app recolors *behind* the modal in real time; cleared on close, which
+// restores the resolved `appTheme()`. Distinct from setAppTheme (which persists a saved theme id).
+const [appThemeOverride, setAppThemeOverride] = createSignal<Tokens | null>(null);
+export { appThemeOverride };
+export function setAppThemePreview(tokens: Tokens | null): void {
+    setAppThemeOverride(tokens);
+}
+
 // CSS variables for the active app theme — set on the app root so every child (sign-in included)
-// recolors via the shared Tailwind tokens.
+// recolors via the shared Tailwind tokens. The live draft override wins while the theme editor is open.
 export function appThemeVars(): JSX.CSSProperties {
-    return themeCssVars(resolveTheme(appTheme()).tokens) as JSX.CSSProperties;
+    return themeCssVars(appThemeOverride() ?? resolveTheme(appTheme()).tokens) as JSX.CSSProperties;
 }
 
-// Global open-state for the singular theme drawer — any app-level trigger (sidebar button, editor
-// pill) flips it; the drawer itself is mounted once at the app root.
-const [themeDrawerOpen, setThemeDrawerOpen] = createSignal(false);
+// The theme editor is a single large modal — the whole theme surface (a predefined-theme picker + a
+// custom-theme token editor + a live preview in one). Mounted once at the app root; opened from any
+// theme trigger (sidebar button, editor pill). It selects the current theme on open and applies
+// context-aware (the open artifact while editing, else the app-chrome theme).
+const [themeEditorOpen, setThemeEditorOpen] = createSignal(false);
 
-export { themeDrawerOpen };
+export { themeEditorOpen };
 
-export function openThemeDrawer(): void {
-    setThemeDrawerOpen(true);
+export function openThemeEditor(): void {
+    setThemeEditorOpen(true);
 }
 
-export function closeThemeDrawer(): void {
-    setThemeDrawerOpen(false);
+export function closeThemeEditor(): void {
+    setThemeEditorOpen(false);
 }
 
 // A theme-reactive favicon — the brand "G" badge recolored to the active theme (accent fill, accent-ink
