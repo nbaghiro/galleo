@@ -23,6 +23,7 @@ function parse(data: string): string[][] {
 export const tableElement: ElementSpec<TableData> = {
     type: "table",
     label: "Table",
+    frame: true,
     category: "data",
     tier: "smart",
     create: () => ({

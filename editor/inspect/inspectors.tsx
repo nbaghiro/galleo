@@ -17,6 +17,8 @@ import { commit, editor, setSelection, editorTokens } from "../editor";
 import { PanelHeader, SchemaFields, Group } from "./fields";
 import { dataShapeFor, DATA_KEYS } from "./data-model";
 import { openDataEditor } from "./DataEditor";
+import { DataGrid } from "./DataGrid";
+import { Icon } from "../icons";
 import type { SectionBackground } from "@model/artifact";
 import { TEMPLATE_LABELS, TEMPLATES } from "@elements/compose";
 
@@ -40,6 +42,10 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
         const all = spec()?.controls ?? [];
         return editorShape() ? all.filter((c) => !DATA_KEYS.has(c.key)) : all;
     });
+    // Re-key the inline grid on the element + its type so it re-parses when either changes.
+    const gridKey = createMemo(
+        () => `${elementRegionId(props.address)}:${String(data().type ?? "")}`,
+    );
 
     const set = (key: string, value: unknown): void => {
         // Slider/color are dragged continuously — coalesce their stream into one undo step.
@@ -70,19 +76,34 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
                     </button>
                 }
             />
-            <Show when={editorShape()}>
-                <button
-                    class="mb-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-accent bg-accent/10 px-3 py-2 text-[13px] font-semibold text-accent transition-colors hover:bg-accent/20"
-                    onClick={() => openDataEditor(props.address)}
-                >
-                    Edit data…
-                </button>
-            </Show>
             <Show
                 when={panelControls().length > 0}
-                fallback={<p class="text-[13px] text-muted">No editable properties.</p>}
+                fallback={
+                    <Show when={!editorShape()}>
+                        <p class="text-[13px] text-muted">No editable properties.</p>
+                    </Show>
+                }
             >
                 <SchemaFields controls={panelControls()} read={(k) => data()[k]} write={set} />
+            </Show>
+            <Show when={editorShape()}>
+                <div class="mb-2 mt-4 flex items-center justify-between">
+                    <div class="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                        Data
+                    </div>
+                    <button
+                        class="flex h-6 w-6 items-center justify-center rounded-md border border-line text-soft transition-colors hover:border-accent hover:text-accent"
+                        title="Open full data editor"
+                        onClick={() => openDataEditor(props.address)}
+                    >
+                        <Icon name="fullscreen" size={13} />
+                    </button>
+                </div>
+                <Show when={gridKey()} keyed>
+                    <div class="overflow-hidden rounded-lg border border-line">
+                        <DataGrid address={props.address} compact />
+                    </div>
+                </Show>
             </Show>
         </div>
     );
