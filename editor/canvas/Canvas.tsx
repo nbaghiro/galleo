@@ -40,7 +40,7 @@ import {
     undo,
 } from "../editor";
 import { CellAdd, ContextMenu, openContextMenu, DropIndicator } from "./insert";
-import { ColumnDividers, ResizeHandles, SpacingHandles } from "../select/handles";
+import { RegionDividers, ResizeHandles, SpacingHandles } from "../select/handles";
 import { ContextBar } from "../inspect/format-bar";
 import { Overlay, SectionActions, SectionToolbar } from "../select/selection";
 import { TextEditor } from "../text/text-editor";
@@ -338,7 +338,7 @@ export const Canvas: Component = () => {
                 <Overlay />
                 <ResizeHandles />
                 <SpacingHandles />
-                <ColumnDividers />
+                <RegionDividers />
                 <DropIndicator />
                 <SectionActions />
                 <SectionToolbar />
@@ -353,6 +353,7 @@ export const Canvas: Component = () => {
 
 // ── section thumbnail (rendered in the Minimap rail) ──
 const THUMB_LAYOUT_WIDTH = 760; // lay out realistically, then scale to fit the rail
+const THUMB_PLACEHOLDER_H = 80; // height an un-laid-out (offscreen) thumb reserves so virtualization + reorder have a box
 
 export const Thumb: Component<{
     section: Section;
@@ -366,6 +367,7 @@ export const Thumb: Component<{
     const [seen, setSeen] = createSignal(false);
 
     onMount(() => {
+        wrap.style.height = `${THUMB_PLACEHOLDER_H}px`; // a box for IO/reorder until this thumb is laid out
         const io = new IntersectionObserver(
             (entries) => {
                 if (entries.some((e) => e.isIntersecting)) {
@@ -403,7 +405,7 @@ export const Thumb: Component<{
             <button
                 ref={wrap}
                 onClick={() => jumpToSection(props.index)}
-                class="relative block min-h-[80px] min-w-0 flex-1 cursor-pointer overflow-hidden rounded-lg border border-line bg-canvas p-0 hover:border-accent"
+                class="relative block min-w-0 flex-1 cursor-pointer overflow-hidden rounded-lg border border-line bg-canvas p-0 hover:border-accent"
             >
                 <div ref={inner} />
             </button>

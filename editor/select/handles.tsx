@@ -1,28 +1,24 @@
-// Direct-manipulation drag handles: resize, spacing/padding, and column-divider handles on the selected node.
+// Direct-manipulation drag handles: element height/aspect resize, container spacing, and the in-between
+// region dividers that resize side-by-side regions (cells + row-arranged element siblings, any depth).
 
 import type { ElementLayout } from "@model/geometry";
 import type { ElementAddress } from "@model/target";
 import type { ArtifactContent } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { GUTTER } from "@elements/compose";
 import { getElementAt, setElementLayout, setSectionWidths, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
-import { cellRegionId, elementRegionId, parentTarget, regionId } from "@model/target";
-import { commit, editor, editorAccent, regions, selection, stageEl } from "../editor";
-import type { Rect } from "@engine/node";
+import { cellRegionId, elementRegionId } from "@model/target";
+import { commit, editor, editorAccent, hover, regions, selection, stageEl } from "../editor";
+import type { Rect, Region } from "@engine/node";
 import { fallbackTemplate, TEMPLATES } from "@elements/compose";
-
-// The selection border IS the resize affordance — a thin drag zone along each edge (right = width,
-// bottom = height/aspect, corner = both), highlighted on hover. An edge only appears when resizing that
-// direction is feasible: width needs horizontal slack (or an explicit %); height needs a declared
-// height/aspect field. So a full-width, auto-height element shows no resize edges at all.
-type Axis = "w" | "h" | "wh";
-type Edge = "right" | "bottom" | "corner";
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 const EDGE = 8; // draggable border thickness
 
+// Height / aspect resize on the SELECTED element's bottom edge only. Width + corner handles were removed:
+// they overlapped neighbouring elements' own affordances, and width is now sized via the in-between
+// RegionDividers instead. An element only shows this edge when it declares a height or aspect field.
 export const ResizeHandles: Component = () => {
     const ctx = createMemo(() => {
         const sel = selection();
@@ -30,67 +26,15 @@ export const ResizeHandles: Component = () => {
         const inst = getElementAt(editor.artifact, sel.address);
         const spec = inst ? getElement(inst.type) : undefined;
         if (!inst || !spec) return null;
-        const box = regions().find((r) => r.id === elementRegionId(sel.address))?.box;
-        if (!box) return null;
-        // Content width available to the element: a top-level element sits in its cell (fixed gutter);
-        // a nested one uses its parent container box.
-        const topLevel = sel.address.path.length === 0;
-        const parent = topLevel ? null : parentTarget(sel);
-        const parentBox = topLevel
-            ? regions().find((r) => r.id === cellRegionId(sel.address.section, sel.address.cell))
-                  ?.box
-            : parent
-              ? regions().find((r) => r.id === regionId(parent))?.box
-              : undefined;
-        const contentW = parentBox ? (topLevel ? parentBox.w - 2 * GUTTER : parentBox.w) : box.w;
-        // Width is feasible only with real slack (element narrower than its content width) or when it is
-        // already an explicit %, so a full-width fill/auto element offers no width edge.
-        const isPct = typeof inst.layout?.width === "object";
-        const canW = spec.resize?.width !== false && (isPct || box.w < contentW - 6);
         const hCfg = spec.resize?.height;
         const aCfg = spec.resize?.aspect;
-        return { address: sel.address, box, contentW, canW, hCfg, aCfg, canH: !!hCfg || !!aCfg };
+        if (!hCfg && !aCfg) return null;
+        const box = regions().find((r) => r.id === elementRegionId(sel.address))?.box;
+        if (!box) return null;
+        return { address: sel.address, box, hCfg, aCfg };
     });
 
-    const zones = createMemo(() => {
-        const c = ctx();
-        if (!c) return [];
-        const b = c.box;
-        const out: { axis: Axis; edge: Edge; x: number; y: number; w: number; h: number }[] = [];
-        if (c.canW)
-            out.push({
-                axis: "w",
-                edge: "right",
-                x: b.x + b.w - EDGE / 2,
-                y: b.y,
-                w: EDGE,
-                h: b.h,
-            });
-        if (c.canH)
-            out.push({
-                axis: "h",
-                edge: "bottom",
-                x: b.x,
-                y: b.y + b.h - EDGE / 2,
-                w: b.w,
-                h: EDGE,
-            });
-        if (c.canW && c.canH)
-            out.push({
-                axis: "wh",
-                edge: "corner",
-                x: b.x + b.w - EDGE,
-                y: b.y + b.h - EDGE,
-                w: EDGE * 1.75,
-                h: EDGE * 1.75,
-            });
-        return out;
-    });
-
-    const cursorFor = (edge: Edge): string =>
-        edge === "right" ? "ew-resize" : edge === "bottom" ? "ns-resize" : "nwse-resize";
-
-    const onDown = (e: PointerEvent, axis: Axis): void => {
+    const onDown = (e: PointerEvent): void => {
         e.preventDefault();
         e.stopPropagation();
         const c = ctx();
@@ -99,33 +43,16 @@ export const ResizeHandles: Component = () => {
         const rect = stage.getBoundingClientRect();
         const start = c.box;
         const move = (ev: PointerEvent): void => {
-            const px = ev.clientX - rect.left;
-            const py = ev.clientY - rect.top;
-            const layoutPatch: Partial<ElementLayout> = {};
+            const h = Math.max(8, ev.clientY - rect.top - start.y);
             const dataPatch: Record<string, unknown> = {};
-            if ((axis === "w" || axis === "wh") && c.canW) {
-                const w = Math.max(20, px - start.x);
-                layoutPatch.width = {
-                    pct: Math.round(clamp((w / c.contentW) * 100, 10, 100) / 5) * 5,
-                };
+            if (c.hCfg) {
+                const step = c.hCfg.step ?? 1;
+                dataPatch[c.hCfg.key] = Math.round(clamp(h, c.hCfg.min, c.hCfg.max) / step) * step;
+            } else if (c.aCfg) {
+                dataPatch.aspect =
+                    Math.round(clamp(start.w / h, c.aCfg.min, c.aCfg.max) * 100) / 100;
             }
-            if ((axis === "h" || axis === "wh") && c.canH) {
-                const h = Math.max(8, py - start.y);
-                if (c.hCfg) {
-                    const step = c.hCfg.step ?? 1;
-                    dataPatch[c.hCfg.key] =
-                        Math.round(clamp(h, c.hCfg.min, c.hCfg.max) / step) * step;
-                } else if (c.aCfg) {
-                    dataPatch.aspect =
-                        Math.round(clamp(start.w / h, c.aCfg.min, c.aCfg.max) * 100) / 100;
-                }
-            }
-            setLiveEdit({
-                kind: "element",
-                address: c.address,
-                layoutPatch: Object.keys(layoutPatch).length ? layoutPatch : undefined,
-                dataPatch: Object.keys(dataPatch).length ? dataPatch : undefined,
-            });
+            setLiveEdit({ kind: "element", address: c.address, dataPatch });
         };
         const up = (): void => {
             const edit = liveEdit();
@@ -138,37 +65,27 @@ export const ResizeHandles: Component = () => {
         window.addEventListener("pointerup", up);
     };
 
-    // The accent emphasis drawn on the hovered edge (the border itself lighting up).
-    const barClass = (edge: Edge): string =>
-        edge === "right"
-            ? "absolute right-0 top-0 h-full w-[3px] rounded-full"
-            : edge === "bottom"
-              ? "absolute bottom-0 left-0 h-[3px] w-full rounded-full"
-              : "absolute bottom-0 right-0 h-2 w-2 rounded-[3px]";
-
     return (
         <Show when={ctx()}>
-            <For each={zones()}>
-                {(z) => (
+            {(c) => (
+                <div
+                    class="group absolute z-20"
+                    style={{
+                        left: `${c().box.x}px`,
+                        top: `${c().box.y + c().box.h - EDGE / 2}px`,
+                        width: `${c().box.w}px`,
+                        height: `${EDGE}px`,
+                        cursor: "ns-resize",
+                        "touch-action": "none",
+                    }}
+                    onPointerDown={onDown}
+                >
                     <div
-                        class="group absolute z-20"
-                        style={{
-                            left: `${z.x}px`,
-                            top: `${z.y}px`,
-                            width: `${z.w}px`,
-                            height: `${z.h}px`,
-                            cursor: cursorFor(z.edge),
-                            "touch-action": "none",
-                        }}
-                        onPointerDown={(e) => onDown(e, z.axis)}
-                    >
-                        <div
-                            class={`${barClass(z.edge)} opacity-0 transition-opacity group-hover:opacity-100`}
-                            style={{ background: editorAccent() }}
-                        />
-                    </div>
-                )}
-            </For>
+                        class="absolute bottom-0 left-0 h-[3px] w-full rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+                        style={{ background: editorAccent() }}
+                    />
+                </div>
+            )}
         </Show>
     );
 };
@@ -308,62 +225,142 @@ export const SpacingHandles: Component = () => {
     );
 };
 
-// Draggable dividers between a section's columns (canvas coords). Shown when the section or one of its
-// cells is selected; dragging reallocates the two adjacent column fractions (their combined width is
-// preserved). Live-previews via the shared liveEdit signal, committing on release.
+// In-between region dividers — the primary resize affordance. A draggable bar sits between two
+// horizontally-adjacent regions and reallocates their combined width on drag. Covered regions: a
+// section's grid cells (→ section.widths) AND the row-arranged children of ANY container at any nesting
+// depth (→ each child's ElementLayout.width %). Revealed while the region's section is hovered (so they
+// never overlap an element's own selection affordances), fading in on hover of the individual divider.
 const round = (n: number): number => Math.round(n * 1000) / 1000;
 
-export const ColumnDividers: Component = () => {
-    const ctx = createMemo(() => {
-        const sel = selection();
-        const sid =
-            sel?.kind === "section" ? sel.section : sel?.kind === "cell" ? sel.section : null;
-        if (!sid) return null;
-        const section = editor.artifact.sections.find((s) => s.id === sid);
-        if (!section) return null;
-        const tmpl = TEMPLATES[section.grid] ?? fallbackTemplate;
-        if (tmpl.cells.length < 2) return null;
-        const boxes = tmpl.cells.map(
-            (k) => regions().find((r) => r.id === cellRegionId(sid, k))?.box,
-        );
-        if (boxes.some((b) => !b)) return null;
-        const b = boxes as Rect[];
-        const rowLeft = b[0]!.x;
-        const rowWidth = b[b.length - 1]!.x + b[b.length - 1]!.w - rowLeft;
-        const fractions = b.map((x) => x.w / rowWidth);
-        const top = Math.min(...b.map((x) => x.y));
-        const bottom = Math.max(...b.map((x) => x.y + x.h));
-        return { sid, b, rowLeft, rowWidth, fractions, top, h: bottom - top };
+interface Divider {
+    key: string;
+    x: number; // centre, canvas coords
+    top: number;
+    h: number;
+    apply: (stageX: number) => LiveEdit; // stageX = clientX − stage.left
+}
+
+function cellDividers(sid: string, grid: string, regs: Region[]): Divider[] {
+    const tmpl = TEMPLATES[grid] ?? fallbackTemplate;
+    if (tmpl.cells.length < 2) return [];
+    const boxes = tmpl.cells.map((k) => regs.find((r) => r.id === cellRegionId(sid, k))?.box);
+    if (boxes.some((b) => !b)) return [];
+    const b = boxes as Rect[];
+    const rowLeft = b[0]!.x;
+    const rowWidth = b[b.length - 1]!.x + b[b.length - 1]!.w - rowLeft;
+    const fractions = b.map((x) => x.w / rowWidth);
+    const top = Math.min(...b.map((x) => x.y));
+    const h = Math.max(...b.map((x) => x.y + x.h)) - top;
+    const out: Divider[] = [];
+    for (let i = 0; i < b.length - 1; i++) {
+        const before = fractions.slice(0, i).reduce((a, x) => a + x, 0);
+        const combined = fractions[i]! + fractions[i + 1]!;
+        out.push({
+            key: `cell:${sid}:${i}`,
+            x: (b[i]!.x + b[i]!.w + b[i + 1]!.x) / 2,
+            top,
+            h,
+            apply: (stageX) => {
+                const fi = clamp((stageX - rowLeft) / rowWidth - before, 0.12, combined - 0.12);
+                const widths = [...fractions];
+                widths[i] = round(fi);
+                widths[i + 1] = round(combined - fi);
+                return { kind: "columns", section: sid, widths };
+            },
+        });
+    }
+    return out;
+}
+
+function siblingDividers(sid: string, regs: Region[]): Divider[] {
+    // Group every element region in the section by its parent (cell + parent path) → its sibling set.
+    const groups = new Map<
+        string,
+        { cell: string; parentPath: number[]; members: { index: number; box: Rect }[] }
+    >();
+    for (const r of regs) {
+        if (!r.id.startsWith(`el:${sid}:`)) continue;
+        const parts = r.id.split(":");
+        const cell = parts[2]!;
+        const pathStr = parts[3] ?? "";
+        if (pathStr === "") continue; // the cell's root element has no in-cell sibling boundary
+        const path = pathStr.split(".").map(Number);
+        const key = `${cell}|${path.slice(0, -1).join(".")}`;
+        let g = groups.get(key);
+        if (!g) {
+            g = { cell, parentPath: path.slice(0, -1), members: [] };
+            groups.set(key, g);
+        }
+        g.members.push({ index: path[path.length - 1]!, box: r.box });
+    }
+    const out: Divider[] = [];
+    for (const g of groups.values()) {
+        if (g.members.length < 2) continue;
+        const xs = g.members.map((m) => m.box.x);
+        const ys = g.members.map((m) => m.box.y);
+        // Only horizontal (width) dividers in v1: skip column-stacked sibling sets.
+        if (Math.max(...xs) - Math.min(...xs) < Math.max(...ys) - Math.min(...ys)) continue;
+        const sorted = [...g.members].sort((a, b) => a.box.x - b.box.x);
+        const rowLeft = sorted[0]!.box.x;
+        const last = sorted[sorted.length - 1]!.box;
+        const rowWidth = last.x + last.w - rowLeft;
+        if (rowWidth <= 0) continue;
+        const fractions = sorted.map((m) => m.box.w / rowWidth);
+        const top = Math.min(...ys);
+        const h = Math.max(...g.members.map((m) => m.box.y + m.box.h)) - top;
+        for (let i = 0; i < sorted.length - 1; i++) {
+            const before = fractions.slice(0, i).reduce((a, x) => a + x, 0);
+            const combined = fractions[i]! + fractions[i + 1]!;
+            const idxL = sorted[i]!.index;
+            const idxR = sorted[i + 1]!.index;
+            const parent: ElementAddress = { section: sid, cell: g.cell, path: g.parentPath };
+            out.push({
+                key: `el:${sid}:${g.cell}:${g.parentPath.join(".")}:${i}`,
+                x: (sorted[i]!.box.x + sorted[i]!.box.w + sorted[i + 1]!.box.x) / 2,
+                top,
+                h,
+                apply: (stageX) => {
+                    const fi = clamp((stageX - rowLeft) / rowWidth - before, 0.1, combined - 0.1);
+                    return {
+                        kind: "siblings",
+                        parent,
+                        entries: [
+                            { index: idxL, pct: Math.round(fi * 100) },
+                            { index: idxR, pct: Math.round((combined - fi) * 100) },
+                        ],
+                    };
+                },
+            });
+        }
+    }
+    return out;
+}
+
+export const RegionDividers: Component = () => {
+    // The section whose dividers are shown: the hovered one, else the selected one.
+    const sid = createMemo<string | null>(() => {
+        const t = hover() ?? selection();
+        if (!t) return null;
+        return t.kind === "element" ? t.address.section : t.section;
     });
 
-    const dividers = createMemo(() => {
-        const c = ctx();
-        if (!c) return [];
-        return c.b.slice(0, -1).map((box, i) => ({
-            i,
-            x: (box.x + box.w + c.b[i + 1]!.x) / 2,
-            top: c.top,
-            h: c.h,
-        }));
+    const dividers = createMemo((): Divider[] => {
+        const id = sid();
+        if (!id) return [];
+        const section = editor.artifact.sections.find((s) => s.id === id);
+        if (!section) return [];
+        const regs = regions();
+        return [...cellDividers(id, section.grid, regs), ...siblingDividers(id, regs)];
     });
 
-    const onDown = (e: PointerEvent, i: number): void => {
+    const onDown = (e: PointerEvent, d: Divider): void => {
         e.preventDefault();
         e.stopPropagation();
-        const c = ctx();
         const stage = stageEl();
-        if (!c || !stage) return;
+        if (!stage) return;
         const rect = stage.getBoundingClientRect();
-        const base = c.fractions;
-        const before = base.slice(0, i).reduce((a, x) => a + x, 0);
-        const combined = base[i]! + base[i + 1]!;
         const move = (ev: PointerEvent): void => {
-            const boundary = (ev.clientX - rect.left - c.rowLeft) / c.rowWidth;
-            const fi = clamp(boundary - before, 0.12, combined - 0.12);
-            const widths = [...base];
-            widths[i] = round(fi);
-            widths[i + 1] = round(combined - fi);
-            setLiveEdit({ kind: "columns", section: c.sid, widths });
+            setLiveEdit(d.apply(ev.clientX - rect.left));
         };
         const up = (): void => {
             const edit = liveEdit();
@@ -377,48 +374,64 @@ export const ColumnDividers: Component = () => {
     };
 
     return (
-        <Show when={ctx()}>
-            <For each={dividers()}>
-                {(d) => (
+        <For each={dividers()}>
+            {(d) => (
+                <div
+                    class="group absolute z-10 flex justify-center"
+                    style={{
+                        left: `${d.x - 6}px`,
+                        top: `${d.top}px`,
+                        width: "12px",
+                        height: `${d.h}px`,
+                        cursor: "col-resize",
+                        "touch-action": "none",
+                    }}
+                    onPointerDown={(e) => onDown(e, d)}
+                >
                     <div
-                        class="group absolute z-10 flex justify-center"
-                        style={{
-                            left: `${d.x - 6}px`,
-                            top: `${d.top}px`,
-                            width: "12px",
-                            height: `${d.h}px`,
-                            cursor: "col-resize",
-                            "touch-action": "none",
-                        }}
-                        onPointerDown={(e) => onDown(e, d.i)}
-                    >
-                        <div
-                            class="h-full w-[2px] rounded-full opacity-40 transition-opacity group-hover:opacity-100"
-                            style={{ background: editorAccent() }}
-                        />
-                    </div>
-                )}
-            </For>
-        </Show>
+                        class="h-full w-[2px] rounded-full opacity-25 transition-opacity duration-150 group-hover:opacity-100"
+                        style={{ background: editorAccent() }}
+                    />
+                </div>
+            )}
+        </For>
     );
 };
 
-// A live, uncommitted direct-manipulation edit (resize / column-drag / spacing) driven by a canvas
-// handle. The canvas paints `applyLiveEdit(artifact, edit)` while a handle is dragged so the layout
-// reflows in real time; the same op is committed on release. One signal covers every handle kind.
+// A live, uncommitted direct-manipulation edit driven by a canvas handle. The canvas paints
+// `applyLiveEdit(artifact, edit)` while a handle is dragged so the layout reflows in real time; the same
+// op is committed on release. One signal covers every handle kind.
 export type LiveEdit =
     | {
           kind: "element";
           address: ElementAddress;
-          layoutPatch?: Partial<ElementLayout>; // width / cross-axis (ElementLayout)
+          layoutPatch?: Partial<ElementLayout>; // cross-axis (ElementLayout)
           dataPatch?: Record<string, unknown>; // height / aspect / gap / padding (element data)
       }
-    | { kind: "columns"; section: string; widths: number[] };
+    | { kind: "columns"; section: string; widths: number[] }
+    | { kind: "siblings"; parent: ElementAddress; entries: { index: number; pct: number }[] };
 
 export const [liveEdit, setLiveEdit] = createSignal<LiveEdit | null>(null);
 
 export function applyLiveEdit(art: ArtifactContent, edit: LiveEdit): ArtifactContent {
     if (edit.kind === "columns") return setSectionWidths(art, edit.section, edit.widths);
+    if (edit.kind === "siblings") {
+        let out = art;
+        for (const e of edit.entries) {
+            const addr: ElementAddress = {
+                section: edit.parent.section,
+                cell: edit.parent.cell,
+                path: [...edit.parent.path, e.index],
+            };
+            const inst = getElementAt(out, addr);
+            if (inst)
+                out = setElementLayout(out, addr, {
+                    ...(inst.layout ?? {}),
+                    width: { pct: e.pct },
+                });
+        }
+        return out;
+    }
     const inst = getElementAt(art, edit.address);
     if (!inst) return art;
     let out = art;
