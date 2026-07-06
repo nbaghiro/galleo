@@ -22,9 +22,14 @@
         "db:migrate": "drizzle-kit migrate"
     },
     "dependencies": {
+        "@ai-sdk/anthropic": "^4.0.8",
+        "@ai-sdk/google": "^4.0.8",
+        "@ai-sdk/openai": "^4.0.8",
+        "@ai-sdk/xai": "^4.0.6",
         "@dagrejs/dagre": "^3.0.0",
         "@hono/node-server": "^2.0.6",
         "@solidjs/router": "^0.16.1",
+        "ai": "^7.0.15",
         "d3-hierarchy": "^3.1.2",
         "d3-scale": "^4.0.2",
         "d3-shape": "^3.2.0",
@@ -33,7 +38,8 @@
         "pdf-lib": "^1.17.1",
         "postgres": "^3.4.5",
         "solid-js": "^1.9.13",
-        "stripe": "^22.3.0"
+        "stripe": "^22.3.0",
+        "zod": "^4.4.3"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.3.1",

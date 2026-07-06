@@ -3,6 +3,8 @@
 // price or a limit here and both the paywall and the pricing cards move together. Stripe price ids are
 // NOT here — they live in server env (STRIPE_PRICE_*), so this file needs no account to exist.
 
+import { typicalCost } from "@model/ai-actions";
+
 export type PlanId = "free" | "pro" | "business";
 
 export interface PlanLimits {
@@ -26,9 +28,10 @@ export interface Plan {
     limits: PlanLimits;
 }
 
-// One AI generation spends this many credits; the only spender today, but credits leave room for
-// per-action pricing later (an edit, a re-theme, an image) without changing the plan shape.
-export const CREDITS_PER_GENERATION = 40;
+// A typical AI generation's credit cost. Now derived from the metered catalog (@model/ai-actions +
+// @model/credits): the real charge scales with the artifact's length, but this typical value stays for
+// callers/copy that want one representative number. The catalog is the source of truth.
+export const CREDITS_PER_GENERATION = typicalCost("generate");
 
 export const PLANS: Record<PlanId, Plan> = {
     free: {

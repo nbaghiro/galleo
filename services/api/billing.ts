@@ -4,6 +4,10 @@ import { getCookie } from "hono/cookie";
 import type Stripe from "stripe";
 import type { PlanId } from "@model/billing";
 import { PLANS, PLAN_ORDER, limitsFor, CREDITS_PER_GENERATION } from "@model/billing";
+import type { AiActionId, MeterParams } from "@model/ai-actions";
+import { AI_ACTION_LIST, estimateCost } from "@model/ai-actions";
+import type { Usage } from "@model/credits";
+import { costOf } from "@model/credits";
 import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
 import { currentUser, currentWorkspace, readJson } from "./context";
@@ -39,6 +43,7 @@ billing.get("/billing", async (c) => {
         },
         usage: { artifacts: rows.length, maxArtifacts: limits.maxArtifacts },
         catalog: PLAN_ORDER.map((id) => PLANS[id]),
+        aiActions: AI_ACTION_LIST, // per-action credit costs, for the "what a credit buys" showcase
         stripeReady: stripeReady(),
     });
 });
@@ -94,14 +99,28 @@ billing.post("/billing/portal", async (c) => {
     return c.json({ url: session.url });
 });
 
-// POST /billing/spend — reserve AI credits before a generation. 402 when the allowance is spent.
+// POST /billing/spend — reserve AI credits. The cost is, in order of precedence: an exact `usage` bag (what
+// a completed run actually did), an `action` + optional `meter` (a size-aware estimate for the pre-flight
+// gate), or a raw `amount`; it defaults to a typical generation. 402 when the allowance is spent.
 billing.post("/billing/spend", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await currentWorkspace(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
-    const { amount } = await readJson<{ amount?: number }>(c);
-    const cost = Math.max(1, amount ?? CREDITS_PER_GENERATION);
+    const { amount, action, meter, usage } = await readJson<{
+        amount?: number;
+        action?: AiActionId;
+        meter?: MeterParams;
+        usage?: Usage;
+    }>(c);
+    const cost = Math.max(
+        1,
+        usage
+            ? costOf(usage)
+            : action
+              ? estimateCost(action, meter)
+              : (amount ?? CREDITS_PER_GENERATION),
+    );
     const limit = limitsFor(ws.plan).aiCreditsPerMonth;
     if (ws.aiCreditsUsed + cost > limit) {
         return c.json(
