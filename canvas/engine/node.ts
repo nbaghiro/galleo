@@ -27,6 +27,29 @@ export interface DrawTextStyle {
     baseline?: "top" | "middle" | "bottom";
 }
 
+// A path builder — the subset of the Canvas 2D path API that `DrawContext.path` exposes. It is
+// structurally a slice of `CanvasRenderingContext2D` (so the canvas backend passes its context
+// straight through) and is exactly what d3-shape's generators render into via `.context()`, letting
+// charts emit arbitrary curves/arcs without a per-shape primitive. A future vector backend implements
+// the same methods against its own path sink.
+export interface PathSink {
+    moveTo(x: number, y: number): void;
+    lineTo(x: number, y: number): void;
+    bezierCurveTo(
+        cp1x: number,
+        cp1y: number,
+        cp2x: number,
+        cp2y: number,
+        x: number,
+        y: number,
+    ): void;
+    quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void;
+    arc(cx: number, cy: number, r: number, startRad: number, endRad: number, ccw?: boolean): void;
+    arcTo(x1: number, y1: number, x2: number, y2: number, r: number): void;
+    rect(x: number, y: number, w: number, h: number): void;
+    closePath(): void;
+}
+
 // Backend-abstract drawing API for self-rendered (surface) elements — charts, diagrams, gauges.
 // Implemented per target (canvas in the DOM/PNG backends, vector for PDF/PPTX). Coordinates are
 // local to the element's box.
@@ -43,7 +66,14 @@ export interface DrawContext {
         endRad: number,
         style: DrawStyle,
     ): void;
+    // Build one arbitrary path (lines/beziers/arcs) then fill/stroke it per `style`. The path is begun
+    // and closed by the backend; `build` only issues sink calls. Powers donut arcs, smoothed lines,
+    // and any d3-shape generator.
+    path(build: (sink: PathSink) => void, style: DrawStyle): void;
     text(text: string, x: number, y: number, style: DrawTextStyle): void;
+    // Measure a string's advance width in the given text style — for laying out axis labels + legends
+    // inside a surface (the immediate-mode paint has no DOM to measure against).
+    measureText(text: string, style: DrawTextStyle): { width: number };
 }
 
 // A measured text size. Named `Measured` to avoid clashing with the DOM `TextMetrics` global.

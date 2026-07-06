@@ -107,12 +107,22 @@ export function canvasDrawContext(cx: CanvasRenderingContext2D): DrawContext {
             cx.closePath();
             finish(s);
         },
+        path(build, s) {
+            apply(s);
+            cx.beginPath();
+            build(cx); // the 2D context is itself a PathSink (moveTo/arc/bezierCurveTo/…)
+            finish(s);
+        },
         text(text, x, y, s: DrawTextStyle) {
             cx.fillStyle = s.fill ?? "#000";
             cx.font = `${s.weight ?? 400} ${s.size ?? 12}px ${s.font ?? "system-ui, sans-serif"}`;
             cx.textAlign = s.align === "start" ? "left" : s.align === "end" ? "right" : "center";
             cx.textBaseline = s.baseline ?? "alphabetic";
             cx.fillText(text, x, y);
+        },
+        measureText(text, s: DrawTextStyle) {
+            cx.font = `${s.weight ?? 400} ${s.size ?? 12}px ${s.font ?? "system-ui, sans-serif"}`;
+            return { width: cx.measureText(text).width };
         },
     };
 }

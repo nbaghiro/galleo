@@ -386,6 +386,179 @@ const PREVIEWS: Record<string, string> = {
         <path d="M44 36 H55 M85 36 H96" stroke="${accent}" stroke-width="1.5"/>
         <path d="M52 33 L55 36 L52 39 M93 33 L96 36 L93 39" stroke="${accent}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
 
+    barChart: `
+        <line x1="14" y1="58" x2="126" y2="58" stroke="${line}" stroke-width="1.5"/>
+        <rect x="20" y="40" width="14" height="18" rx="2.5" fill="${accent}" opacity="0.5"/>
+        <rect x="42" y="26" width="14" height="32" rx="2.5" fill="${accent}" opacity="0.72"/>
+        <rect x="64" y="34" width="14" height="24" rx="2.5" fill="${accent}" opacity="0.6"/>
+        <rect x="86" y="18" width="14" height="40" rx="2.5" fill="${accent}"/>
+        <rect x="108" y="30" width="14" height="28" rx="2.5" fill="${accent}" opacity="0.82"/>`,
+
+    columnChart: `
+        <line x1="22" y1="12" x2="22" y2="60" stroke="${line}" stroke-width="1.5"/>
+        <rect x="24" y="16" width="62" height="8" rx="2.5" fill="${accent}"/>
+        <rect x="24" y="28" width="92" height="8" rx="2.5" fill="${accent}" opacity="0.72"/>
+        <rect x="24" y="40" width="44" height="8" rx="2.5" fill="${accent}" opacity="0.55"/>
+        <rect x="24" y="52" width="74" height="8" rx="2.5" fill="${accent}" opacity="0.62"/>`,
+
+    lineChart: `
+        <line x1="14" y1="58" x2="126" y2="58" stroke="${line}" stroke-width="1.5"/>
+        <polyline points="20,50 44,40 68,46 92,26 120,16" fill="none" stroke="${accent}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="20" cy="50" r="2.6" fill="${surface}" stroke="${accent}" stroke-width="1.6"/>
+        <circle cx="68" cy="46" r="2.6" fill="${surface}" stroke="${accent}" stroke-width="1.6"/>
+        <circle cx="120" cy="16" r="2.6" fill="${surface}" stroke="${accent}" stroke-width="1.6"/>`,
+
+    areaChart: `
+        <line x1="14" y1="58" x2="126" y2="58" stroke="${line}" stroke-width="1.5"/>
+        <path d="M20 50 L44 40 L68 46 L92 26 L120 16 L120 58 L20 58 Z" fill="${accent}" fill-opacity="0.18"/>
+        <polyline points="20,50 44,40 68,46 92,26 120,16" fill="none" stroke="${accent}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`,
+
+    pieChart: `
+        <circle cx="70" cy="36" r="24" fill="${accent}" fill-opacity="0.22"/>
+        <path d="M70 36 L70 12 A24 24 0 0 1 91.4 47.4 Z" fill="${accent}"/>
+        <path d="M70 36 L91.4 47.4 A24 24 0 0 1 50 49 Z" fill="${accent}" fill-opacity="0.6"/>`,
+
+    donutChart: `
+        <circle cx="70" cy="36" r="22" fill="none" stroke="${accent}" stroke-width="11" stroke-opacity="0.22"/>
+        <circle cx="70" cy="36" r="22" fill="none" stroke="${accent}" stroke-width="11" stroke-dasharray="55 83" transform="rotate(-90 70 36)"/>
+        <circle cx="70" cy="36" r="22" fill="none" stroke="${accent}" stroke-width="11" stroke-opacity="0.55" stroke-dasharray="30 108" stroke-dashoffset="-55" transform="rotate(-90 70 36)"/>`,
+
+    radarChart: `
+        <polygon points="70,13 100,29 100,53 70,60 40,53 40,29" fill="none" stroke="${line}" stroke-width="1.2"/>
+        <path d="M70 36 L70 13 M70 36 L100 29 M70 36 L100 53 M70 36 L70 60 M70 36 L40 53 M70 36 L40 29" stroke="${line}" stroke-width="0.7" opacity="0.6"/>
+        <polygon points="70,20 92,32 90,50 70,54 50,47 52,31" fill="${accent}" fill-opacity="0.28" stroke="${accent}" stroke-width="1.8"/>`,
+
+    scatterChart: `
+        <path d="M22 12 V58 H126" fill="none" stroke="${line}" stroke-width="1.5"/>
+        <circle cx="38" cy="46" r="3" fill="${accent}"/>
+        <circle cx="54" cy="36" r="3" fill="${accent}"/>
+        <circle cx="70" cy="42" r="3" fill="${accent}"/>
+        <circle cx="86" cy="26" r="3" fill="${accent}"/>
+        <circle cx="102" cy="32" r="3" fill="${accent}"/>
+        <circle cx="114" cy="20" r="3" fill="${accent}"/>`,
+
+    bubbleChart: `
+        <path d="M22 12 V58 H126" fill="none" stroke="${line}" stroke-width="1.5"/>
+        <circle cx="42" cy="44" r="5" fill="${accent}" fill-opacity="0.45" stroke="${accent}" stroke-width="1.3"/>
+        <circle cx="66" cy="30" r="9" fill="${accent}" fill-opacity="0.45" stroke="${accent}" stroke-width="1.3"/>
+        <circle cx="92" cy="40" r="4" fill="${accent}" fill-opacity="0.45" stroke="${accent}" stroke-width="1.3"/>
+        <circle cx="112" cy="26" r="6.5" fill="${accent}" fill-opacity="0.45" stroke="${accent}" stroke-width="1.3"/>`,
+
+    funnelChart: `
+        <path d="M26 14 H114 L102 25 H38 Z" fill="${accent}"/>
+        <path d="M39 27 H101 L91 38 H49 Z" fill="${accent}" fill-opacity="0.7"/>
+        <path d="M50 40 H90 L82 51 H58 Z" fill="${accent}" fill-opacity="0.5"/>
+        <path d="M59 53 H81 L75 62 H65 Z" fill="${accent}" fill-opacity="0.35"/>`,
+
+    gaugeChart: `
+        <path d="M28 54 A32 32 0 0 1 112 54" fill="none" stroke="${line}" stroke-width="8" stroke-linecap="round"/>
+        <path d="M28 54 A32 32 0 0 1 96 30" fill="none" stroke="${accent}" stroke-width="8" stroke-linecap="round"/>
+        <circle cx="70" cy="54" r="3.5" fill="${accent}"/>`,
+
+    heatmapChart: `
+        <rect x="20" y="16" width="24" height="12" rx="2" fill="${accent}" opacity="0.9"/>
+        <rect x="46" y="16" width="24" height="12" rx="2" fill="${accent}" opacity="0.35"/>
+        <rect x="72" y="16" width="24" height="12" rx="2" fill="${accent}" opacity="0.6"/>
+        <rect x="98" y="16" width="24" height="12" rx="2" fill="${accent}" opacity="0.2"/>
+        <rect x="20" y="30" width="24" height="12" rx="2" fill="${accent}" opacity="0.3"/>
+        <rect x="46" y="30" width="24" height="12" rx="2" fill="${accent}" opacity="0.75"/>
+        <rect x="72" y="30" width="24" height="12" rx="2" fill="${accent}" opacity="0.25"/>
+        <rect x="98" y="30" width="24" height="12" rx="2" fill="${accent}" opacity="0.55"/>
+        <rect x="20" y="44" width="24" height="12" rx="2" fill="${accent}" opacity="0.55"/>
+        <rect x="46" y="44" width="24" height="12" rx="2" fill="${accent}" opacity="0.4"/>
+        <rect x="72" y="44" width="24" height="12" rx="2" fill="${accent}" opacity="0.85"/>
+        <rect x="98" y="44" width="24" height="12" rx="2" fill="${accent}" opacity="0.3"/>`,
+
+    treemapChart: `
+        <rect x="16" y="14" width="108" height="44" rx="3" fill="${surface}" stroke="${line}" stroke-width="1"/>
+        <rect x="18" y="16" width="58" height="40" rx="2" fill="${accent}" fill-opacity="0.85"/>
+        <rect x="78" y="16" width="44" height="22" rx="2" fill="${accent}" fill-opacity="0.55"/>
+        <rect x="78" y="40" width="26" height="16" rx="2" fill="${accent}" fill-opacity="0.4"/>
+        <rect x="106" y="40" width="16" height="16" rx="2" fill="${accent}" fill-opacity="0.28"/>`,
+
+    processDiagram: `
+        <rect x="14" y="26" width="30" height="20" rx="5" fill="${accent}" fill-opacity="0.12" stroke="${accent}" stroke-width="1.5"/>
+        <rect x="55" y="26" width="30" height="20" rx="5" fill="${accent}" fill-opacity="0.12" stroke="${accent}" stroke-width="1.5"/>
+        <rect x="96" y="26" width="30" height="20" rx="5" fill="${accent}" fill-opacity="0.12" stroke="${accent}" stroke-width="1.5"/>
+        <path d="M44 36 H55 M85 36 H96" stroke="${accent}" stroke-width="1.5"/>
+        <path d="M52 33 L55 36 L52 39 M93 33 L96 36 L93 39" stroke="${accent}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+
+    cycleDiagram: `
+        <circle cx="70" cy="36" r="22" fill="none" stroke="${accent}" stroke-width="1.5" stroke-dasharray="3 5" opacity="0.5"/>
+        <circle cx="70" cy="14" r="6" fill="${accent}"/>
+        <circle cx="92" cy="36" r="6" fill="${accent}" fill-opacity="0.75"/>
+        <circle cx="70" cy="58" r="6" fill="${accent}" fill-opacity="0.6"/>
+        <circle cx="48" cy="36" r="6" fill="${accent}" fill-opacity="0.45"/>`,
+
+    pyramidDiagram: `
+        <path d="M60 14 H80 L86 25 H54 Z" fill="${accent}"/>
+        <path d="M54 27 H86 L94 38 H46 Z" fill="${accent}" fill-opacity="0.7"/>
+        <path d="M46 40 H94 L102 51 H38 Z" fill="${accent}" fill-opacity="0.5"/>
+        <path d="M38 53 H102 L108 62 H32 Z" fill="${accent}" fill-opacity="0.35"/>`,
+
+    funnelDiagram: `
+        <path d="M26 14 H114 L102 25 H38 Z" fill="${accent}"/>
+        <path d="M39 27 H101 L91 38 H49 Z" fill="${accent}" fill-opacity="0.7"/>
+        <path d="M50 40 H90 L82 51 H58 Z" fill="${accent}" fill-opacity="0.5"/>
+        <path d="M59 53 H81 L75 62 H65 Z" fill="${accent}" fill-opacity="0.35"/>`,
+
+    timelineDiagram: `
+        <line x1="16" y1="36" x2="124" y2="36" stroke="${line}" stroke-width="2"/>
+        <circle cx="32" cy="36" r="4.5" fill="${accent}"/>
+        <circle cx="62" cy="36" r="4.5" fill="${accent}" fill-opacity="0.8"/>
+        <circle cx="92" cy="36" r="4.5" fill="${accent}" fill-opacity="0.65"/>
+        <circle cx="118" cy="36" r="4.5" fill="${accent}" fill-opacity="0.5"/>
+        <rect x="24" y="18" width="16" height="5" rx="2.5" fill="${muted}" opacity="0.6"/>
+        <rect x="54" y="46" width="16" height="5" rx="2.5" fill="${muted}" opacity="0.5"/>
+        <rect x="84" y="18" width="16" height="5" rx="2.5" fill="${muted}" opacity="0.5"/>`,
+
+    vennDiagram: `
+        <circle cx="58" cy="36" r="22" fill="${accent}" fill-opacity="0.25" stroke="${accent}" stroke-width="1.5"/>
+        <circle cx="82" cy="36" r="22" fill="${accent}" fill-opacity="0.25" stroke="${accent}" stroke-width="1.5"/>`,
+
+    quadrantDiagram: `
+        <rect x="18" y="12" width="104" height="48" rx="4" fill="none" stroke="${line}" stroke-width="1.2"/>
+        <line x1="70" y1="12" x2="70" y2="60" stroke="${line}" stroke-width="1.2"/>
+        <line x1="18" y1="36" x2="122" y2="36" stroke="${line}" stroke-width="1.2"/>
+        <circle cx="44" cy="24" r="5" fill="${accent}" fill-opacity="0.8"/>
+        <circle cx="96" cy="24" r="5" fill="${accent}" fill-opacity="0.55"/>
+        <circle cx="44" cy="48" r="5" fill="${accent}" fill-opacity="0.4"/>
+        <circle cx="96" cy="48" r="5" fill="${accent}" fill-opacity="0.65"/>`,
+
+    matrixDiagram: `
+        <rect x="20" y="16" width="30" height="18" rx="3" fill="${accent}" fill-opacity="0.8"/>
+        <rect x="55" y="16" width="30" height="18" rx="3" fill="${accent}" fill-opacity="0.5"/>
+        <rect x="90" y="16" width="30" height="18" rx="3" fill="${accent}" fill-opacity="0.65"/>
+        <rect x="20" y="38" width="30" height="18" rx="3" fill="${accent}" fill-opacity="0.45"/>
+        <rect x="55" y="38" width="30" height="18" rx="3" fill="${accent}" fill-opacity="0.7"/>
+        <rect x="90" y="38" width="30" height="18" rx="3" fill="${accent}" fill-opacity="0.35"/>`,
+
+    treeDiagram: `
+        <path d="M70 27 V40 M44 40 H96 M44 40 V44 M96 40 V44" stroke="${accent}" stroke-width="1.4" fill="none"/>
+        <rect x="56" y="12" width="28" height="15" rx="4" fill="${accent}"/>
+        <rect x="30" y="44" width="28" height="15" rx="4" fill="${accent}" fill-opacity="0.5" stroke="${accent}" stroke-width="1.3"/>
+        <rect x="82" y="44" width="28" height="15" rx="4" fill="${accent}" fill-opacity="0.5" stroke="${accent}" stroke-width="1.3"/>`,
+
+    orgDiagram: `
+        <path d="M70 26 V40 M44 40 H96 M44 40 V44 M96 40 V44" stroke="${accent}" stroke-width="1.4" fill="none"/>
+        <rect x="55" y="12" width="30" height="14" rx="2" fill="${accent}"/>
+        <rect x="30" y="44" width="28" height="14" rx="2" fill="${accent}" fill-opacity="0.5" stroke="${accent}" stroke-width="1.3"/>
+        <rect x="82" y="44" width="28" height="14" rx="2" fill="${accent}" fill-opacity="0.5" stroke="${accent}" stroke-width="1.3"/>`,
+
+    mindmapDiagram: `
+        <path d="M84 34 C98 30 104 22 116 20 M84 40 C98 44 104 52 116 54 M56 40 C42 46 34 48 24 50" stroke="${accent}" stroke-width="1.4" fill="none"/>
+        <rect x="52" y="28" width="36" height="16" rx="8" fill="${accent}"/>
+        <rect x="112" y="14" width="20" height="11" rx="5.5" fill="${accent}" fill-opacity="0.55" stroke="${accent}" stroke-width="1.2"/>
+        <rect x="112" y="48" width="20" height="11" rx="5.5" fill="${accent}" fill-opacity="0.55" stroke="${accent}" stroke-width="1.2"/>
+        <rect x="8" y="45" width="20" height="11" rx="5.5" fill="${accent}" fill-opacity="0.55" stroke="${accent}" stroke-width="1.2"/>`,
+
+    flowDiagram: `
+        <rect x="16" y="28" width="30" height="16" rx="4" fill="${accent}" fill-opacity="0.14" stroke="${accent}" stroke-width="1.4"/>
+        <path d="M70 20 L88 36 L70 52 L52 36 Z" fill="${accent}" fill-opacity="0.14" stroke="${accent}" stroke-width="1.4"/>
+        <rect x="98" y="28" width="28" height="16" rx="4" fill="${accent}" fill-opacity="0.14" stroke="${accent}" stroke-width="1.4"/>
+        <path d="M46 36 H52 M88 36 H98" stroke="${accent}" stroke-width="1.4"/>
+        <path d="M49 33 L52 36 L49 39 M95 33 L98 36 L95 39" stroke="${accent}" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+
     button: `
         <rect x="30" y="25" width="80" height="22" rx="11" fill="${accent}"/>
         <rect x="48" y="33" width="44" height="6" rx="3" fill="${onaccent}" opacity="0.92"/>`,

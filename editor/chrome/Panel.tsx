@@ -7,10 +7,14 @@ import { Icon } from "../icons";
 import { ElementInspector, SectionInspector } from "../inspect/inspectors";
 import { PaletteItem } from "../canvas/insert";
 
-const HIDDEN = new Set(["group", "__dropghost"]); // internal container + drop preview, not palette items
+// internal container + drop preview + the back-compat `chart`/`diagram` catch-alls (the per-type
+// chart/diagram tiles are the palette entries) — none shown as palette items.
+const HIDDEN = new Set(["group", "__dropghost", "chart", "diagram"]);
 const CAT_ORDER = [
     "text",
     "media",
+    "chart",
+    "diagram",
     "data",
     "interactive",
     "branding",
@@ -21,7 +25,9 @@ const CAT_ORDER = [
 const CAT_LABEL: Record<string, string> = {
     text: "Text",
     media: "Media",
-    data: "Data & charts",
+    chart: "Charts",
+    diagram: "Diagrams",
+    data: "Data",
     interactive: "Interactive",
     branding: "Branding",
     layout: "Layout",

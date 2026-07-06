@@ -15,6 +15,8 @@ import {
 import { getElement, SECTION_CONTROLS } from "@elements/spec";
 import { commit, editor, setSelection, editorTokens } from "../editor";
 import { PanelHeader, SchemaFields, Group } from "./fields";
+import { dataShapeFor, DATA_KEYS } from "./data-model";
+import { openDataEditor } from "./DataEditor";
 import type { SectionBackground } from "@model/artifact";
 import { TEMPLATE_LABELS, TEMPLATES } from "@elements/compose";
 
@@ -28,6 +30,16 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
         return i ? getElement(i.type) : undefined;
     });
     const data = createMemo(() => (inst()?.data ?? {}) as Record<string, unknown>);
+    // Elements with a structured data shape (charts/diagrams) get the visual data editor; their raw
+    // data text fields are hidden from the panel (the grid owns them).
+    const editorShape = createMemo(() => {
+        const s = spec();
+        return s ? dataShapeFor(s.category, String(data().type ?? "")) : undefined;
+    });
+    const panelControls = createMemo(() => {
+        const all = spec()?.controls ?? [];
+        return editorShape() ? all.filter((c) => !DATA_KEYS.has(c.key)) : all;
+    });
 
     const set = (key: string, value: unknown): void => {
         // Slider/color are dragged continuously — coalesce their stream into one undo step.
@@ -58,15 +70,19 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
                     </button>
                 }
             />
+            <Show when={editorShape()}>
+                <button
+                    class="mb-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-accent bg-accent/10 px-3 py-2 text-[13px] font-semibold text-accent transition-colors hover:bg-accent/20"
+                    onClick={() => openDataEditor(props.address)}
+                >
+                    Edit data…
+                </button>
+            </Show>
             <Show
-                when={(spec()?.controls.length ?? 0) > 0}
+                when={panelControls().length > 0}
                 fallback={<p class="text-[13px] text-muted">No editable properties.</p>}
             >
-                <SchemaFields
-                    controls={spec()?.controls ?? []}
-                    read={(k) => data()[k]}
-                    write={set}
-                />
+                <SchemaFields controls={panelControls()} read={(k) => data()[k]} write={set} />
             </Show>
         </div>
     );

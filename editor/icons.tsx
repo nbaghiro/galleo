@@ -26,6 +26,12 @@ const PATHS: Record<string, () => JSX.Element> = {
     ),
     data: () => (
         <>
+            <rect x="4" y="5" width="16" height="14" rx="2" />
+            <path d="M4 10h16M10 5v14" />
+        </>
+    ),
+    chart: () => (
+        <>
             <path d="M4 20h16" />
             <rect
                 x="6.4"
@@ -54,6 +60,14 @@ const PATHS: Record<string, () => JSX.Element> = {
                 fill="currentColor"
                 stroke="none"
             />
+        </>
+    ),
+    diagram: () => (
+        <>
+            <rect x="3.5" y="9" width="6" height="6" rx="1.4" />
+            <rect x="14.5" y="4" width="6" height="6" rx="1.4" />
+            <rect x="14.5" y="14" width="6" height="6" rx="1.4" />
+            <path d="M9.5 12h3M12.5 12V7h2M12.5 12v5h2" />
         </>
     ),
     interactive: () => <path d="M6 4l4.6 14 2.3-5.6L18.5 9.8z" />,
