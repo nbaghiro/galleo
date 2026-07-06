@@ -9,7 +9,7 @@ import { PaletteItem } from "../canvas/insert";
 
 // internal container + drop preview + the back-compat `chart`/`diagram` catch-alls (the per-type
 // chart/diagram tiles are the palette entries) — none shown as palette items.
-const HIDDEN = new Set(["group", "__dropghost", "chart", "diagram"]);
+const HIDDEN = new Set(["group", "__dropghost", "chart", "diagram", "avatar"]);
 const CAT_ORDER = [
     "text",
     "media",
@@ -32,7 +32,7 @@ const CAT_LABEL: Record<string, string> = {
     branding: "Branding",
     layout: "Layout",
     decoration: "Decoration",
-    container: "Containers",
+    container: "Composite",
 };
 
 // Right side: an always-on vertical icon rail. Clicking an icon opens a flyout — a category's
@@ -51,12 +51,16 @@ export const Panel: Component = () => {
         return s?.kind === "element" ? s.address : null;
     });
     // Elements edited entirely on the canvas skip the docked panel: rich-text (text) via the format bar,
-    // and containers (group/card) via resize/spacing/column handles + their controls on the ContextBar.
+    // containers (group/card) via resize/spacing/column handles + their bar controls, and anything whose
+    // `bar` already surfaces every control (e.g. image: Replace + Fit + Radius) — the panel adds nothing.
     const elementInline = createMemo((): boolean => {
         const a = elementAddr();
         if (!a) return false;
         const spec = getElement(getElementAt(editor.artifact, a)?.type ?? "");
-        return !!(spec?.richText || spec?.container);
+        if (!spec) return false;
+        if (spec.richText || spec.container) return true;
+        const bar = spec.bar ?? [];
+        return spec.controls.length > 0 && spec.controls.every((c) => bar.includes(c.key));
     });
     const inspectorLabel = createMemo((): string | null => {
         if (sectionId()) return "Section";

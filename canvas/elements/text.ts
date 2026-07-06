@@ -239,6 +239,7 @@ const arrangeCallout = (d: CalloutData, ctx: LayoutCtx, kids: EngineNode[]): Eng
 export const calloutElement: ElementSpec<CalloutData> = {
     type: "callout",
     label: "Callout",
+    frame: true,
     category: "text",
     tier: "smart",
     create: () => ({
@@ -294,6 +295,7 @@ interface CodeData {
 export const codeElement: ElementSpec<CodeData> = {
     type: "code",
     label: "Code",
+    frame: true,
     category: "text",
     tier: "smart",
     create: () => ({ code: "const galleo = createEditor();\ngalleo.render(artifact);" }),

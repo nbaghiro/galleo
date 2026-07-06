@@ -6,3 +6,5 @@ import "@elements/diagrams";
 import "@elements/data";
 import "@elements/containers";
 import "@elements/chrome";
+import "@elements/graphics";
+import "@elements/blocks";

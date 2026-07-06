@@ -12,6 +12,7 @@ interface ButtonData {
 export const buttonElement: ElementSpec<ButtonData> = {
     type: "button",
     label: "Button",
+    frame: true,
     category: "interactive",
     tier: "primitive",
     create: () => ({ label: "Get started" }),
@@ -112,6 +113,7 @@ interface EmbedData {
 export const embedElement: ElementSpec<EmbedData> = {
     type: "embed",
     label: "Embed",
+    frame: true,
     category: "interactive",
     tier: "interactive",
     create: () => ({ title: "Embedded link", url: "https://galleo.app" }),
@@ -194,6 +196,7 @@ interface GradientData {
 export const gradientElement: ElementSpec<GradientData> = {
     type: "gradient",
     label: "Gradient",
+    frame: true,
     category: "decoration",
     tier: "primitive",
     create: () => ({ from: "#9a4f24", to: "#f4f0e8", angle: 135, height: 200 }),
