@@ -51,6 +51,8 @@ export type ControlKind =
     | "number"
     | "text"
     | "media"
+    | "icon" // icon glyph picker (Iconify) → sets a nested { id, body, vb }
+    | "iconColor" // theme-role color swatches for a themed icon
     | "custom";
 
 export interface ControlField {
@@ -65,6 +67,7 @@ export interface ControlField {
     multiline?: boolean; // text → textarea
     placeholder?: string;
     icon?: string; // a leading glyph identifying the control on the compact format bar (which drops labels)
+    mediaKind?: string; // for `media` controls: the media kind the picker opens for (photo · gif · …)
     group?: string; // optional inspector section heading
     visibleWhen?: (data: Record<string, unknown>) => boolean; // conditional visibility
 }
@@ -83,6 +86,8 @@ export interface ElementSpec<Data = unknown> {
     // Studio-only editing affordances (inert for layout/present/export — read solely by the editor):
     richText?: boolean; // primary text supports inline marks → marks-aware editor + inline mark bar
     bar?: string[]; // control keys (from `controls`) to surface in the on-canvas format bar
+    frame?: boolean; // has a visible frame (fill/image) → offer the universal corner-radius bar control
+
     // Direct-manipulation resize on the canvas (drag handles on the selection box). Width is a universal
     // ElementLayout %; height/aspect drive an explicit data field where the element has one.
     resize?: {
@@ -173,8 +178,8 @@ export const SECTION_CONTROLS: ControlField[] = [
     },
     {
         key: "bgImage",
-        label: "Image URL",
-        control: "text",
+        label: "Image",
+        control: "media",
         placeholder: "https://… image url",
         group: "Background",
         visibleWhen: (d) => d.bgKind === "image",

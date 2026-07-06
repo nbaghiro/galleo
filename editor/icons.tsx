@@ -17,6 +17,12 @@ const PATHS: Record<string, () => JSX.Element> = {
         </>
     ),
     text: () => <path d="M6 6h12M12 6v12M9.5 18h5" />,
+    lock: () => (
+        <>
+            <rect x="5" y="11" width="14" height="9" rx="2" />
+            <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+        </>
+    ),
     media: () => (
         <>
             <rect x="3" y="5" width="18" height="14" rx="2" />
@@ -263,6 +269,14 @@ const PATHS: Record<string, () => JSX.Element> = {
             <path d="M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4z" />
         </>
     ),
+    zoom: () => (
+        <>
+            <circle cx="10.5" cy="10.5" r="6.5" />
+            <line x1="20.5" y1="20.5" x2="15.4" y2="15.4" />
+            <path d="M10.5 8v5M8 10.5h5" />
+        </>
+    ),
+    corner: () => <path d="M5 19v-8a6 6 0 0 1 6-6h8" />,
 };
 
 // Icon line-weight/cap derive from the active artifact theme — heavier + square for bold/brutalist

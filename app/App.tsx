@@ -13,6 +13,7 @@ import { LibraryView } from "./views/LibraryView";
 import { PresentView } from "./views/PresentView";
 import { PricingView } from "./views/PricingView";
 import { TemplatesView } from "./views/TemplatesView";
+import { MediaPicker } from "./components/MediaPicker";
 import { ThemeEditor } from "./views/ThemeEditor";
 import { TrashView } from "./views/TrashView";
 
@@ -22,6 +23,7 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => (
     <>
         {props.children}
         <ThemeEditor />
+        <MediaPicker />
     </>
 );
 

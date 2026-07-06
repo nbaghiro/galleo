@@ -2,6 +2,22 @@ import type { Artifact, ArtifactInput, ArtifactSummary } from "@model/artifact";
 import type { Folder, Template, User } from "@model/workspace";
 import type { ThemeSummary as Theme, ThemeInput } from "@themes/theme";
 import type { Plan, PlanId } from "@model/billing";
+import type {
+    IconPick,
+    IconSearchResponse,
+    MediaGenerateRequest,
+    MediaItem,
+    MediaKind,
+    MediaProvider,
+    MediaSearchResponse,
+    MediaUploadRequest,
+} from "@model/media";
+
+// The GET /media/providers response — which sources are configured (have a key), so the rail can badge them.
+export interface MediaProvidersState {
+    stock: Record<MediaProvider, boolean>;
+    generate: boolean;
+}
 
 // The GET /billing response — the workspace's plan + live usage + the plan catalog the pricing page renders.
 export interface BillingState {
@@ -101,6 +117,33 @@ export const api = {
             body: JSON.stringify({ name }),
         }),
     deleteFolder: (id: string) => req<{ ok: true }>(`/folders/${id}`, { method: "DELETE" }),
+
+    // --- media picker (stock search / AI generation / upload / recent) ---
+    mediaProviders: () => req<MediaProvidersState>("/media/providers"),
+    searchMedia: (
+        provider: MediaProvider,
+        q: string,
+        page = 1,
+        kind: MediaKind = "photo",
+        orientation?: string,
+    ) =>
+        req<MediaSearchResponse>(
+            `/media/search?provider=${provider}&q=${encodeURIComponent(q)}&page=${page}&kind=${kind}` +
+                (orientation ? `&orientation=${orientation}` : ""),
+        ),
+    generateMedia: (body: MediaGenerateRequest) =>
+        req<{ items: MediaItem[] }>("/media/generate", {
+            method: "POST",
+            body: JSON.stringify(body),
+        }),
+    uploadMedia: (body: MediaUploadRequest) =>
+        req<{ item: MediaItem }>("/media/upload", { method: "POST", body: JSON.stringify(body) }),
+    useMedia: (item: MediaItem) =>
+        req<{ item: MediaItem }>("/media/use", { method: "POST", body: JSON.stringify({ item }) }),
+    recentMedia: () => req<{ items: MediaItem[] }>("/media/recent"),
+    searchIcons: (q: string, limit = 60) =>
+        req<IconSearchResponse>(`/media/icons?q=${encodeURIComponent(q)}&limit=${limit}`),
+    getIcon: (id: string) => req<{ icon: IconPick }>(`/media/icon?id=${encodeURIComponent(id)}`),
     listThemes: () => req<{ themes: Theme[] }>("/themes"),
     createTheme: (t: ThemeInput) =>
         req<{ theme: Theme }>("/themes", { method: "POST", body: JSON.stringify(t) }),

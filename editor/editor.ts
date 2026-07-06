@@ -1,6 +1,7 @@
 import type { Region } from "@engine/node";
 import type { ElementAddress, Target } from "@model/target";
 import type { ArtifactContent, Section } from "@model/artifact";
+import type { IconPick, MediaKind } from "@model/media";
 import { createSignal } from "solid-js";
 import type { Theme, Tokens } from "@themes/theme";
 import { duplicateSection, insertSection, moveSection, removeSection } from "@elements/ops";
@@ -293,6 +294,23 @@ export function onThemePicker(fn: () => void): void {
 }
 export function requestThemePicker(): void {
     themePickerHandler?.();
+}
+
+// The app registers a handler so the editor's image controls (image element + section background) can
+// open the shared media picker. A request carries the callback that receives the chosen image url and an
+// optional starting search query. No-op when the studio runs without an app host.
+export interface MediaPickerRequest {
+    onPick: (url: string) => void;
+    onPickIcon?: (icon: IconPick) => void; // icon kind delivers a themed-glyph descriptor, not a url
+    query?: string;
+    kind?: MediaKind; // which media kind to open the picker for (photo · gif · illustration · sticker · icon)
+}
+let mediaPickerHandler: ((req: MediaPickerRequest) => void) | null = null;
+export function onMediaPicker(fn: (req: MediaPickerRequest) => void): void {
+    mediaPickerHandler = fn;
+}
+export function requestMediaPicker(req: MediaPickerRequest): void {
+    mediaPickerHandler?.(req);
 }
 
 // Load an artifact (fetched from the API) into the editor. Resets transient state; does NOT bump

@@ -111,13 +111,15 @@ export const assets = pgTable("assets", {
         .notNull()
         .references(() => workspaces.id),
     kind: text("kind").notNull(),
-    source: text("source").notNull().default("upload"), // upload | ai
-    url: text("url").notNull(),
+    source: text("source").notNull().default("upload"), // upload | generated | stock
+    url: text("url").notNull(), // stock → provider CDN url; stored → /api/media/asset/:id
     width: integer("width"),
     height: integer("height"),
     bytes: bigint("bytes", { mode: "number" }),
     alt: text("alt"),
-    meta: jsonb("meta"),
+    meta: jsonb("meta"), // { provider, author, authorUrl, sourceUrl, downloadLocation, prompt, style }
+    data: text("data"), // base64 bytes for stored media (generated / uploaded); null for stock (url only)
+    mime: text("mime"), // content-type for the asset-serve route
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

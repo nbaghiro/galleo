@@ -126,6 +126,98 @@ async function seed(): Promise<void> {
     }
 
     log(`• seeded ${docs} artifacts across ${folders} folders`);
+
+    // Recent-media library — a handful of "recently used" images (stock with attribution, AI-generated
+    // with a prompt, and uploads) so the media picker's Recent tab has real content to browse. Reset
+    // first so re-seeding stays idempotent. picsum gives stable, varied photos without any API key.
+    await db.delete(schema.assets).where(eq(schema.assets.workspaceId, ws.id));
+    const cc = (author: string) => ({
+        provider: "Openverse",
+        author,
+        authorUrl: "https://openverse.org",
+        sourceUrl: "https://openverse.org",
+    });
+    const DEMO_ASSETS: {
+        source: string;
+        seed: string;
+        w: number;
+        h: number;
+        alt: string;
+        prompt?: string;
+        attribution?: ReturnType<typeof cc>;
+    }[] = [
+        {
+            source: "stock",
+            seed: "galleo-meadow",
+            w: 1600,
+            h: 1000,
+            alt: "Meadow at first light",
+            attribution: cc("Priya Nair"),
+        },
+        {
+            source: "generated",
+            seed: "galleo-solar",
+            w: 1536,
+            h: 864,
+            alt: "Rooftop solar array at golden hour",
+            prompt: "a 1.4-megawatt rooftop solar array at golden hour, wide angle, photographic",
+        },
+        {
+            source: "stock",
+            seed: "galleo-coast",
+            w: 1600,
+            h: 1067,
+            alt: "Rocky coastline at dusk",
+            attribution: cc("Marco Ferri"),
+        },
+        { source: "upload", seed: "galleo-offsite", w: 1400, h: 933, alt: "team-offsite.jpg" },
+        {
+            source: "generated",
+            seed: "galleo-studio",
+            w: 1024,
+            h: 1024,
+            alt: "Late-night recording studio",
+            prompt: "a moody late-night recording studio bathed in neon, cinematic, shallow depth of field",
+        },
+        {
+            source: "stock",
+            seed: "galleo-city",
+            w: 1600,
+            h: 1000,
+            alt: "City skyline at dusk",
+            attribution: cc("Lena Osei"),
+        },
+        { source: "upload", seed: "galleo-flatlay", w: 1200, h: 1200, alt: "product-flatlay.png" },
+        {
+            source: "stock",
+            seed: "galleo-lake",
+            w: 1600,
+            h: 1000,
+            alt: "Mountain lake, still water",
+            attribution: cc("Kamil Porembiński"),
+        },
+    ];
+    const now = Date.now();
+    for (let i = 0; i < DEMO_ASSETS.length; i++) {
+        const a = DEMO_ASSETS[i]!;
+        await db.insert(schema.assets).values({
+            workspaceId: ws.id,
+            kind: "image",
+            source: a.source,
+            url: `https://picsum.photos/seed/${a.seed}/${a.w}/${a.h}`,
+            width: a.w,
+            height: a.h,
+            alt: a.alt,
+            meta: {
+                attribution: a.attribution,
+                prompt: a.prompt,
+                thumbUrl: `https://picsum.photos/seed/${a.seed}/500/${Math.round((500 * a.h) / a.w)}`,
+            },
+            createdAt: new Date(now - i * 3_600_000), // newest first in the Recent grid
+        });
+        docs++;
+    }
+    log(`• seeded ${DEMO_ASSETS.length} recent-media assets`);
     log(`\nLog in with:  ${DEMO_EMAIL}  /  ${DEMO_PASSWORD}`);
 }
 

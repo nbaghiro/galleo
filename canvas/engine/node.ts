@@ -109,6 +109,7 @@ export interface ImageLeaf {
     fit: "cover" | "contain";
     radius?: number;
     scrim?: number; // 0..1 dark overlay (for text over a background image)
+    zoom?: number; // scale the image within its clipped frame (>1 crops in); set only by image elements
 }
 
 export interface FillLeaf {

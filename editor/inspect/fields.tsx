@@ -1,7 +1,8 @@
 import type { ControlField } from "@elements/spec";
+import type { MediaKind } from "@model/media";
 import type { Component, JSX } from "solid-js";
-import { createMemo, For, Match, Show, Switch } from "solid-js";
-import { editorTokens } from "../editor";
+import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
+import { editorTokens, requestMediaPicker } from "../editor";
 import { Icon } from "../icons";
 import { ColorPopover, Dropdown, type ColorSwatch } from "./widgets";
 
@@ -221,6 +222,203 @@ export const ColorField: Component<{
     );
 };
 
+// Image chooser: opens the shared media picker (stock search · AI generate · upload · recent). Full mode
+// shows the current image + a Change button + a paste-a-URL escape hatch; compact (format bar) is a lone
+// Replace button. Wired from the image element's `src` and the section-background image.
+export const MediaField: Component<{
+    value: string;
+    placeholder?: string;
+    compact?: boolean;
+    kind?: string;
+    onChange: (v: string) => void;
+}> = (props) => {
+    const [pasting, setPasting] = createSignal(false);
+    const open = (): void =>
+        requestMediaPicker({
+            onPick: (url) => props.onChange(url),
+            kind: props.kind as MediaKind | undefined,
+        });
+    return (
+        <Show
+            when={!props.compact}
+            fallback={
+                <button
+                    title="Replace image"
+                    class="flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] font-medium text-ink hover:bg-canvas"
+                    onClick={open}
+                >
+                    <Icon name="media" size={14} /> Replace
+                </button>
+            }
+        >
+            <div class="flex flex-col gap-2">
+                <div class="flex items-center gap-2.5">
+                    <button
+                        class="grid h-12 w-16 flex-none place-items-center overflow-hidden rounded-md border border-line bg-canvas bg-cover bg-center text-muted"
+                        style={
+                            props.value
+                                ? { "background-image": `url("${props.value}")` }
+                                : undefined
+                        }
+                        title="Change image"
+                        onClick={open}
+                    >
+                        <Show when={!props.value}>
+                            <Icon name="media" size={16} />
+                        </Show>
+                    </button>
+                    <div class="flex min-w-0 flex-1 flex-col items-start gap-1">
+                        <button
+                            class="rounded-md border border-line bg-canvas px-3 py-1.5 text-[12.5px] font-semibold text-ink hover:border-accent"
+                            onClick={open}
+                        >
+                            Change image
+                        </button>
+                        <button
+                            class="text-[11.5px] text-muted hover:text-ink"
+                            onClick={() => setPasting((p) => !p)}
+                        >
+                            or paste a URL
+                        </button>
+                    </div>
+                </div>
+                <Show when={pasting()}>
+                    <TextField
+                        value={props.value}
+                        placeholder={props.placeholder ?? "https://…"}
+                        onChange={props.onChange}
+                    />
+                </Show>
+            </div>
+        </Show>
+    );
+};
+
+// Icon chooser: opens the media picker in "icon" mode (Iconify search). The value is a nested glyph
+// { id, body, vb }; the preview renders it as a CSS mask so it takes the field's text color. Full mode
+// shows a swatch + Change button; compact (format bar) is a lone Change button.
+export const IconField: Component<{
+    glyph?: { id: string; body: string; vb: string };
+    compact?: boolean;
+    onChange: (g: { id: string; body: string; vb: string }) => void;
+}> = (props) => {
+    const open = (): void =>
+        requestMediaPicker({
+            kind: "icon",
+            onPick: () => {},
+            onPickIcon: (icon) =>
+                props.onChange({
+                    id: icon.id,
+                    body: icon.body,
+                    vb: `0 0 ${icon.width} ${icon.height}`,
+                }),
+        });
+    const maskStyle = (): JSX.CSSProperties | undefined => {
+        const g = props.glyph;
+        if (!g) return undefined;
+        const uri = `url("data:image/svg+xml,${encodeURIComponent(
+            `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${g.vb}">${g.body}</svg>`,
+        )}")`;
+        return {
+            "mask-image": uri,
+            "-webkit-mask-image": uri,
+            "mask-size": "contain",
+            "-webkit-mask-size": "contain",
+            "mask-repeat": "no-repeat",
+            "-webkit-mask-repeat": "no-repeat",
+            "mask-position": "center",
+            "-webkit-mask-position": "center",
+            "background-color": "currentColor",
+        };
+    };
+    return (
+        <Show
+            when={!props.compact}
+            fallback={
+                <button
+                    title="Change icon"
+                    class="flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] font-medium text-ink hover:bg-canvas"
+                    onClick={open}
+                >
+                    <span class="h-4 w-4" style={maskStyle()} /> Icon
+                </button>
+            }
+        >
+            <div class="flex items-center gap-2.5">
+                <button
+                    class="grid h-12 w-12 flex-none place-items-center rounded-md border border-line bg-canvas text-ink"
+                    title="Change icon"
+                    onClick={open}
+                >
+                    <span class="h-6 w-6" style={maskStyle()} />
+                </button>
+                <button
+                    class="rounded-md border border-line bg-canvas px-3 py-1.5 text-[12.5px] font-semibold text-ink hover:border-accent"
+                    onClick={open}
+                >
+                    Change icon
+                </button>
+            </div>
+        </Show>
+    );
+};
+
+// Icon color: theme-role swatches (accent · ink · soft · muted) that store the role name (so the icon
+// re-tints when the theme changes), plus a custom-hex well.
+const ICON_ROLES: { role: string; label: string }[] = [
+    { role: "accent", label: "Accent" },
+    { role: "ink", label: "Ink" },
+    { role: "soft", label: "Soft" },
+    { role: "muted", label: "Muted" },
+];
+export const IconColorField: Component<{ value?: string; onChange: (v: string) => void }> = (
+    props,
+) => {
+    const tok = (r: string): string =>
+        (editorTokens() as unknown as Record<string, string>)[r] ?? "#888888";
+    const active = (): string => props.value ?? "accent";
+    const isHex = (): boolean => active().startsWith("#");
+    return (
+        <div class="flex items-center gap-1.5">
+            <For each={ICON_ROLES}>
+                {(r) => (
+                    <button
+                        title={r.label}
+                        class={`h-6 w-6 rounded-full border-2 ${
+                            active() === r.role
+                                ? "border-ink"
+                                : "border-transparent hover:opacity-80"
+                        }`}
+                        style={{ background: tok(r.role) }}
+                        onClick={() => props.onChange(r.role)}
+                    />
+                )}
+            </For>
+            <label
+                class={`relative h-6 w-6 cursor-pointer overflow-hidden rounded-full border-2 ${
+                    isHex() ? "border-ink" : "border-line"
+                }`}
+                title="Custom color"
+            >
+                <span
+                    class="absolute inset-0"
+                    style={{
+                        background: isHex()
+                            ? active()
+                            : "conic-gradient(from 90deg,#ef4444,#eab308,#22c55e,#06b6d4,#6366f1,#ec4899,#ef4444)",
+                    }}
+                />
+                <input
+                    type="color"
+                    value={isHex() ? active() : "#888888"}
+                    onInput={(e) => props.onChange(e.currentTarget.value)}
+                    class="absolute inset-0 cursor-pointer opacity-0"
+                />
+            </label>
+        </div>
+    );
+};
+
 // ── schema-driven dispatcher ────────────────────────────────────────────────
 
 // Renders one `ControlField` (the matching primitive). Panel mode wraps it in a labelled row; `compact`
@@ -286,6 +484,28 @@ export const Field: Component<{
             </Match>
             <Match when={f().control === "toggle"}>
                 <ToggleSwitch value={!!props.value} onChange={props.onChange} />
+            </Match>
+            <Match when={f().control === "media"}>
+                <MediaField
+                    value={str()}
+                    placeholder={f().placeholder}
+                    compact={props.compact}
+                    kind={f().mediaKind}
+                    onChange={(v) => props.onChange(v)}
+                />
+            </Match>
+            <Match when={f().control === "icon"}>
+                <IconField
+                    glyph={props.value as { id: string; body: string; vb: string } | undefined}
+                    compact={props.compact}
+                    onChange={(g) => props.onChange(g)}
+                />
+            </Match>
+            <Match when={f().control === "iconColor"}>
+                <IconColorField
+                    value={props.value as string | undefined}
+                    onChange={props.onChange}
+                />
             </Match>
         </Switch>
     );

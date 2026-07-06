@@ -159,16 +159,31 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
         }
         if (c.fill?.shadow) el.style.boxShadow = c.fill.shadow;
     } else if (c.kind === "image") {
-        warmImage(c.image.src);
-        const scrim = c.image.scrim;
-        const url = `url("${c.image.src}")`;
-        el.style.backgroundImage = scrim
-            ? `linear-gradient(rgba(0,0,0,${scrim}), rgba(0,0,0,${scrim})), ${url}`
-            : url;
-        el.style.backgroundSize = c.image.fit;
-        el.style.backgroundPosition = "center";
-        el.style.backgroundRepeat = "no-repeat";
-        if (c.image.radius !== undefined) el.style.borderRadius = `${c.image.radius}px`;
+        const im = c.image;
+        if (im.zoom !== undefined && im.zoom > 1) {
+            // Zoomed image: an <img> in a clipped frame — `background-size:cover` can't scale past cover,
+            // so the picture becomes a real element we can `transform: scale()` and crop. Unzoomed images
+            // (and section backgrounds) keep the background path below, which reconciles without a reload.
+            el.style.overflow = "hidden";
+            if (im.radius !== undefined) el.style.borderRadius = `${im.radius}px`;
+            const img = document.createElement("img");
+            img.src = im.src;
+            img.draggable = false;
+            img.decoding = "sync";
+            img.style.cssText = `width:100%;height:100%;object-fit:${im.fit};object-position:center;transform:scale(${im.zoom});display:block`;
+            el.appendChild(img);
+        } else {
+            warmImage(im.src);
+            const scrim = im.scrim;
+            const url = `url("${im.src}")`;
+            el.style.backgroundImage = scrim
+                ? `linear-gradient(rgba(0,0,0,${scrim}), rgba(0,0,0,${scrim})), ${url}`
+                : url;
+            el.style.backgroundSize = im.fit;
+            el.style.backgroundPosition = "center";
+            el.style.backgroundRepeat = "no-repeat";
+            if (im.radius !== undefined) el.style.borderRadius = `${im.radius}px`;
+        }
     } else if (c.kind === "text") {
         paintText(el, c.text);
     } else {
@@ -259,10 +274,12 @@ function drawImageFit(
     fit: string,
     radius?: number,
     scrim?: number,
+    zoom = 1,
 ): void {
     cx.save();
-    if (radius) {
-        roundRectPath(cx, b.x, b.y, b.w, b.h, radius);
+    // Clip to the (rounded) frame — always when zoomed, so a >1 zoom crops instead of bleeding out.
+    if (radius || zoom !== 1) {
+        roundRectPath(cx, b.x, b.y, b.w, b.h, radius ?? 0);
         cx.clip();
     }
     const ir = img.width / img.height || 1;
@@ -276,6 +293,8 @@ function drawImageFit(
         dh = b.h;
         dw = dh * ir;
     }
+    dw *= zoom;
+    dh *= zoom;
     cx.drawImage(img, b.x + (b.w - dw) / 2, b.y + (b.h - dh) / 2, dw, dh);
     if (scrim) {
         cx.fillStyle = `rgba(0,0,0,${scrim})`;
@@ -372,7 +391,8 @@ function drawCommands(
             }
         } else if (c.kind === "image") {
             const img = images.get(c.image.src);
-            if (img) drawImageFit(cx, img, b, c.image.fit, c.image.radius, c.image.scrim);
+            if (img)
+                drawImageFit(cx, img, b, c.image.fit, c.image.radius, c.image.scrim, c.image.zoom);
         } else if (c.kind === "text" && c.text.runs && c.text.runs.length > 0) {
             drawRuns(cx, c.text, b);
         } else if (c.kind === "text") {

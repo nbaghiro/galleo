@@ -133,6 +133,11 @@ function applyLayout(node: EngineNode, layout: ElementLayout | undefined): Engin
         node.aspect = undefined;
     }
     if (layout.align) node.alignSelf = layout.align;
+    // Universal corner radius: override whatever frame the element painted (its image or its fill).
+    if (layout.radius !== undefined) {
+        if (node.image) node.image.radius = layout.radius;
+        else if (node.fill) node.fill.radius = layout.radius;
+    }
     return node;
 }
 
