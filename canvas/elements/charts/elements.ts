@@ -2,14 +2,23 @@ import type { ControlField, ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import { register } from "@elements/spec";
 import { fixed, grow } from "@model/geometry";
-import { renderChart, chartTypeOptions } from "@canvas/charts/render";
-import type { ChartData } from "@canvas/charts/types";
-import { barsSkel, bandsSkel, discSkel, dotsSkel, gridSkel } from "./skeletons";
+import { renderChart, chartTypeOptions } from "./render";
+import type { ChartData } from "./types";
+import { barsSkel, bandsSkel, discSkel, dotsSkel, gridSkel } from "../skeletons";
 
 // Controls shared by every chart element (the per-type palette tiles + the hidden back-compat `chart`).
 // The Type select lets you morph within the data-compatible family; per-type toggles ride on visibleWhen.
 export const CHART_CONTROLS: ControlField[] = [
-    { key: "type", label: "Type", control: "select", options: chartTypeOptions() },
+    // `options` is a getter so it reads the live type registry on each render. Freezing it to a plain
+    // array at module-eval is fragile — a hot re-exec of this module would capture an empty list.
+    {
+        key: "type",
+        label: "Type",
+        control: "select",
+        get options() {
+            return chartTypeOptions();
+        },
+    },
     {
         key: "values",
         label: "Data (rows ↵ · points ,)",

@@ -1,6 +1,6 @@
 import type { DiagramType } from "./types";
 
-// The diagram-type registry — mirrors the chart registry (@canvas/charts/registry). Grouped modules
+// The diagram-type registry — mirrors the chart registry (@elements/charts/registry). Grouped modules
 // (templated.ts, hierarchy.ts, flow.ts) register their types at import; render.ts imports them.
 const registry = new Map<string, DiagramType>();
 

@@ -10,7 +10,7 @@ import type { Tokens } from "@themes/theme";
 import type { DiagramData } from "./types";
 import { normalizeDiagram } from "./data";
 import { getDiagram } from "./registry";
-import { seriesColors } from "@canvas/charts/palette";
+import { seriesColors } from "@elements/charts/palette";
 
 export function renderDiagram(g: DrawContext, box: Rect, data: DiagramData, theme: Tokens): void {
     const diagram = normalizeDiagram(data);

@@ -2,10 +2,10 @@
 // a few "data shapes"; the editor renders the matching grid and serializes back to the element's existing
 // string fields (values/categories/seriesNames · items/links) — no storage migration, full back-compat.
 
-import { normalize as normalizeChart, catList } from "@canvas/charts/data";
-import { normalizeDiagram } from "@canvas/diagrams/data";
-import type { ChartData } from "@canvas/charts/types";
-import type { DiagramData } from "@canvas/diagrams/types";
+import { normalize as normalizeChart, catList } from "@elements/charts/data";
+import { normalizeDiagram } from "@elements/diagrams/data";
+import type { ChartData } from "@elements/charts/types";
+import type { DiagramData } from "@elements/diagrams/types";
 
 export type Shape =
     | "series"

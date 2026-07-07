@@ -2,15 +2,23 @@ import type { ControlField, ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import { register } from "@elements/spec";
 import { fixed, grow } from "@model/geometry";
-import { renderDiagram, diagramTypeOptions } from "@canvas/diagrams/render";
-import type { DiagramData } from "@canvas/diagrams/types";
-import { bandsSkel, boxesSkel, discSkel, gridSkel, treeSkel, twinDiscSkel } from "./skeletons";
+import { renderDiagram, diagramTypeOptions } from "./render";
+import type { DiagramData } from "./types";
+import { bandsSkel, boxesSkel, discSkel, gridSkel, treeSkel, twinDiscSkel } from "../skeletons";
 
 const GRAPH_TYPES = new Set(["flow", "tree", "org", "mindmap"]);
 
 // Controls shared by every diagram element. `links` only applies to the graph/hierarchy types.
 export const DIAGRAM_CONTROLS: ControlField[] = [
-    { key: "type", label: "Type", control: "select", options: diagramTypeOptions() },
+    // `options` is a getter so it reads the live type registry on each render (see charts/elements.ts).
+    {
+        key: "type",
+        label: "Type",
+        control: "select",
+        get options() {
+            return diagramTypeOptions();
+        },
+    },
     {
         key: "items",
         label: "Items (, or ↵)",
