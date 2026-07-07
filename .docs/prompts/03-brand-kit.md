@@ -26,12 +26,17 @@ signal + getter + async loader. **View/route**: `<Router base="/app">` in `app/A
 **⚠️ Entitlement gating — a parallel session owns billing; do NOT touch billing internals.** `model/
 features.ts` has the `FEATURES` registry (`status: "live"|"beta"|"planned"`; a `planned` feature is OFF for
 everyone). Gate on the backend:
+
 ```ts
 import { featuresFor } from "../features";
 import { can } from "@model/features";
 if (!can(featuresFor(ws), "workspaceThemes"))
-    return c.json({ error: "Shared brand kit is a Premium feature — upgrade.", upgrade: true }, 402);
+    return c.json(
+        { error: "Shared brand kit is a Premium feature — upgrade.", upgrade: true },
+        402,
+    );
 ```
+
 `GET /features` returns `{ features, status }`; add `app/stores/features.ts` (`useFeatures()`) +
 `api.getFeatures()` if you need frontend gating (badge `planned` as "coming soon"). **Your plan grant is
 already set** (Premium) in `model/billing.ts` — **do NOT edit it**. When built + verified, flip **only**
@@ -58,6 +63,7 @@ registry `model/themes/library.ts` (`resolveTheme`, 52 built-ins, `registerTheme
 or as the app-chrome theme — there is **no workspace default**.
 
 **Build:**
+
 - Add a `default_theme_id text` column to `workspaces` (`services/schema.ts:27-43`) — coordinate the
   `db:push` with the billing session (it's also adding `seats`/`feature_overrides`; batch it).
 - A route to set the workspace default theme (e.g. `PUT /workspace/default-theme`), gated on

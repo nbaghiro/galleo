@@ -1,4 +1,4 @@
-# Build: View analytics  (depends on 01-public-links)
+# Build: View analytics (depends on 01-public-links)
 
 ## Shared context
 
@@ -26,12 +26,14 @@ signal + getter + async loader. **View/route**: `<Router base="/app">` in `app/A
 **⚠️ Entitlement gating — a parallel session owns billing; do NOT touch billing internals.** `model/
 features.ts` has `FEATURES` (`status: "live"|"beta"|"planned"`; `planned` = off for everyone). Gate on the
 backend:
+
 ```ts
 import { featuresFor } from "../features";
 import { can } from "@model/features";
 if (!can(featuresFor(ws), "analytics"))
     return c.json({ error: "Analytics is a Premium feature — upgrade.", upgrade: true }, 402);
 ```
+
 `GET /features` returns `{ features, status }`; add `app/stores/features.ts` (`useFeatures()`) +
 `api.getFeatures()` for frontend gating. **Plan grant already set** (Premium) in `model/billing.ts` —
 **do NOT edit it**. When built + verified, flip **only** `FEATURES.analytics.status` `"planned"` →
@@ -41,7 +43,7 @@ if (!can(featuresFor(ws), "analytics"))
 `services/billing/stripe.ts`, `services/features.ts`, the resolver in `model/features.ts` (only your
 `status` line), `.env`. `services/schema.ts` is co-edited — additive changes; coordinate `pnpm db:push`.
 
-**Dependency:** this builds on **01-public-links** — you record + report views of *published* artifacts.
+**Dependency:** this builds on **01-public-links** — you record + report views of _published_ artifacts.
 If 01 isn't merged yet, coordinate on its `links` / `GET /p/:slug/content` shapes.
 
 ---
@@ -54,6 +56,7 @@ time, per artifact, top referrers.
 **Plan grant:** `analytics` on **Premium** (already set); `status: "planned"` → `"live"` when done.
 
 **Build:**
+
 - A new `artifact_views` table (`id`, `artifactId`, `linkId`, `viewedAt`, `visitorHash` = anonymized hash
   of IP+UA, `referrer`). Keep it privacy-preserving — no PII, no raw IPs, nothing identifying in URLs.
 - Record a view (fire-and-forget insert; don't block the response) inside 01's public read route

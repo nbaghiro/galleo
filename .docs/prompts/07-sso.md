@@ -27,13 +27,15 @@ schema `services/schema.ts`, pushed with `pnpm db:push`. Seed login: `demo@galle
 
 **⚠️ Entitlement gating — a parallel session owns billing; do NOT touch billing internals.** `model/
 features.ts` has `FEATURES` (`status: "live"|"beta"|"planned"`; `planned` = off for everyone). Gate SSO
-*configuration* on the backend:
+_configuration_ on the backend:
+
 ```ts
 import { featuresFor } from "../features";
 import { can } from "@model/features";
 if (!can(featuresFor(ws), "sso"))
     return c.json({ error: "SSO is a Premium feature — upgrade.", upgrade: true }, 402);
 ```
+
 `GET /features` returns `{ features, status }`; add `app/stores/features.ts` (`useFeatures()`) +
 `api.getFeatures()` for frontend gating. **Plan grant already set** (Premium) in `model/billing.ts` —
 **do NOT edit it**. When built + verified, flip **only** `FEATURES.sso.status` `"planned"` → `"live"`.
@@ -57,12 +59,13 @@ password.
 today — no OAuth/OIDC/SAML.
 
 **Build:** start with **OIDC (Google / Microsoft)** as the pragmatic path; SAML later.
+
 - Tables: `sso_connections` (`workspaceId`, `provider`, config/issuer/clientId, enabled) and/or
   `identities` (`userId`, `provider`, `providerSubject`) to link an IdP identity to a `users` row.
 - Backend: OAuth callback routes — `GET /auth/sso/:provider/start` (redirect to IdP) and
   `GET /auth/sso/:provider/callback` (exchange code → profile → find/create `users` row → link identity →
   `makeSession(user.id)` → set the `galleo_session` cookie, reusing the existing session mechanism). Gate
-  SSO *configuration* routes on `can(featuresFor(ws), "sso")`.
+  SSO _configuration_ routes on `can(featuresFor(ws), "sso")`.
 - Frontend: SSO settings (connect an IdP for the workspace), and a "Sign in with SSO" path on
   `app/views/AuthPage.tsx`.
 

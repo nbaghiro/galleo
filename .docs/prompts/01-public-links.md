@@ -20,15 +20,17 @@ files). Seed login: `demo@galleo.app` / `demo1234` (`pnpm seed`).
 
 **Backend router pattern** (`services/api/*.ts`): `export const x = new Hono()` carrying full paths; mount
 it in the router array in `services/server.ts:17`. Every authenticated route opens:
+
 ```ts
 import { getCookie } from "hono/cookie";
 import { SESSION_COOKIE } from "../auth";
 import { currentUser, currentWorkspace } from "./context";
 const u = await currentUser(getCookie(c, SESSION_COOKIE));
 if (!u) return c.json({ error: "unauthorized" }, 401);
-const ws = await currentWorkspace(u.id);        // full row; use firstWorkspaceId(u.id) for scope-only
+const ws = await currentWorkspace(u.id); // full row; use firstWorkspaceId(u.id) for scope-only
 if (!ws) return c.json({ error: "no workspace" }, 400);
 ```
+
 Auth is a signed cookie `galleo_session` = `"<userId>.<hmac>"` (`services/auth.ts`; `makeSession`,
 `readSession`). Helpers live in `services/api/context.ts`.
 
@@ -41,16 +43,17 @@ inside `<Router base="/app">` in `app/App.tsx:66-76`.
 
 **⚠️ Entitlement gating — the key integration. A parallel session owns billing; do NOT touch billing
 internals.** Capabilities are gated by `model/features.ts`:
+
 - `FEATURES` registry: every capability has `status: "live" | "beta" | "planned"`. **A `planned` feature is
   OFF for everyone regardless of plan.** `resolveFeatures(planId)` → resolved `Features`; accessors
   `can(f, key)`, `limit(f, key)` (`-1` = unlimited), `withinLimit(f, key, current)`.
 - **Backend gate** via `services/features.ts`:
-  ```ts
-  import { featuresFor } from "../features";
-  import { can } from "@model/features";
-  if (!can(featuresFor(ws), "publicLinks"))
-      return c.json({ error: "Public links are a paid feature — upgrade.", upgrade: true }, 402);
-  ```
+    ```ts
+    import { featuresFor } from "../features";
+    import { can } from "@model/features";
+    if (!can(featuresFor(ws), "publicLinks"))
+        return c.json({ error: "Public links are a paid feature — upgrade.", upgrade: true }, 402);
+    ```
 - **`GET /features`** returns `{ features, status }`. The frontend has **no features store yet** — add
   `app/stores/features.ts` (`useFeatures()` returning resolved `Features`) + `api.getFeatures()`, and badge
   `planned` capabilities "coming soon" (`PricingView.tsx:216-220` is the visual precedent).
@@ -87,10 +90,11 @@ foundation for Analytics (`04`) and Custom domains (`05`).
 `versions` (`artifactId`, `content` jsonb snapshot, `label`, `authorId`) at `:88-97`;
 `artifacts.publishedVersionId` (`:80`, a dead column today). Build `services/api/links.ts` (mount in
 `server.ts`):
+
 - `POST /artifacts/:id/publish` — **scope to the owner workspace** (fix the cross-tenant bug); snapshot
   `artifacts.draftContent` into a new `versions` row; set `artifacts.publishedVersionId`; upsert a `links`
   row (generate a short unique `slug`); set `visibility`/`password`. Gate on `can(featuresFor(ws),
-  "publicLinks")`.
+"publicLinks")`.
 - `GET /links/:artifactId` (authed) — current publish state for the Share UI. `PATCH /links/:id`
   (visibility/password). `POST /artifacts/:id/unpublish`.
 - `GET /p/:slug/content` — **UNAUTHENTICATED** — resolve slug → published `versions.content`; enforce

@@ -1,4 +1,4 @@
-# Build: Custom domains  (depends on 01-public-links)
+# Build: Custom domains (depends on 01-public-links)
 
 ## Shared context
 
@@ -26,6 +26,7 @@ signal + getter + async loader. **View/route**: `<Router base="/app">` in `app/A
 **⚠️ Entitlement gating — a parallel session owns billing; do NOT touch billing internals.** `model/
 features.ts` has `FEATURES` (`status: "live"|"beta"|"planned"`; `planned` = off for everyone). This flag is
 **numeric** (`customDomains`) — gate on the count vs the limit:
+
 ```ts
 import { featuresFor } from "../features";
 import { limit } from "@model/features";
@@ -33,6 +34,7 @@ const cap = limit(featuresFor(ws), "customDomains");
 if (currentDomainCount >= cap)
     return c.json({ error: "Custom domain limit reached — upgrade for more.", upgrade: true }, 402);
 ```
+
 `GET /features` returns `{ features, status }`; add `app/stores/features.ts` (`useFeatures()`) +
 `api.getFeatures()` for frontend gating. **Plan grants already set** (Pro 10 / Premium 100) in
 `model/billing.ts` — **do NOT edit them**. When built + verified, flip **only**
@@ -53,6 +55,7 @@ link/artifact and renders the same public viewer.
 published Galleo artifact). Numeric limit (**Pro 10 / Premium 100**, already set); `status: "planned"`.
 
 **Build (app-level):**
+
 - A `domains` table (`id`, `workspaceId`, `hostname` unique, `verifyToken`, `verified` bool, `linkId`/
   `artifactId` target).
 - Routes (authed, workspace-scoped): add domain — gate on `limit(featuresFor(ws), "customDomains")` vs the

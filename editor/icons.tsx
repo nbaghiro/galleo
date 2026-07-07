@@ -279,6 +279,12 @@ const PATHS: Record<string, () => JSX.Element> = {
     corner: () => <path d="M5 19v-8a6 6 0 0 1 6-6h8" />,
 };
 
+// Category-rail aliases — the palette keys its rail icon by category id (the @model/elements taxonomy),
+// reusing existing glyphs for the renamed/merged groups.
+PATHS.table = PATHS.data!;
+PATHS.composite = PATHS.container!;
+PATHS.basic = PATHS.interactive!;
+
 // Icon line-weight/cap derive from the active artifact theme — heavier + square for bold/brutalist
 // themes, thin + round for refined ones — so the chrome icons match the deck's character.
 function iconStyle(): { sw: number; cap: "round" | "square"; join: "round" | "miter" } {

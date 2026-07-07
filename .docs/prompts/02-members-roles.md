@@ -20,6 +20,7 @@ docker; schema `services/schema.ts`, pushed with `pnpm db:push`. Seed login: `de
 
 **Backend router pattern** (`services/api/*.ts`): `export const x = new Hono()` with full paths; mount in
 the array in `services/server.ts:17`. Every authenticated route opens:
+
 ```ts
 import { getCookie } from "hono/cookie";
 import { SESSION_COOKIE } from "../auth";
@@ -29,6 +30,7 @@ if (!u) return c.json({ error: "unauthorized" }, 401);
 const ws = await currentWorkspace(u.id);
 if (!ws) return c.json({ error: "no workspace" }, 400);
 ```
+
 Auth is a signed cookie `galleo_session` = `"<userId>.<hmac>"` (`services/auth.ts`). Helpers in
 `services/api/context.ts`.
 
@@ -40,12 +42,14 @@ to `<Router base="/app">` in `app/App.tsx:66-76`.
 are gated by `model/features.ts` (`FEATURES` registry with `status: "live"|"beta"|"planned"`;
 `resolveFeatures(planId)` → `Features`; `can(f,key)` / `limit(f,key)` / `withinLimit(f,key,current)`). This
 feature's flag `maxMembers` is a **numeric** feature and is already `status: "live"` — enforce with:
+
 ```ts
 import { featuresFor } from "../features";
 import { withinLimit } from "@model/features";
 if (!withinLimit(featuresFor(ws), "maxMembers", currentMemberCount))
     return c.json({ error: "Seat limit reached — add a seat to invite more.", upgrade: true }, 402);
 ```
+
 `GET /features` returns `{ features, status }`; the frontend has **no features store yet** — add
 `app/stores/features.ts` (`useFeatures()`) + `api.getFeatures()` if you need frontend gating.
 
@@ -76,6 +80,7 @@ billing session swaps in `workspace.seats`. **No `status` flip needed** (already
 **Backend** — the `members` table exists (composite pk `[workspaceId,userId]`, `role` default "editor",
 `services/schema.ts:45-58`) but only `firstWorkspaceId` reads it (role ignored) and seed inserts one
 "owner". Build `services/api/members.ts`:
+
 - `GET /members` — list workspace members (join `users`).
 - `POST /members/invite` — create an invite in a new `invites` table (`token`, `workspaceId`, `email`,
   `role`, `expiresAt`); return the invite link. (Email delivery is out of scope — there's a reserved

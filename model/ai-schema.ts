@@ -11,7 +11,7 @@
 import { BULLET_MARKERS, CALLOUT_TONES, TEXT_ALIGN, TEXT_STYLES } from "@model/elements/text";
 import { IMAGE_FIT } from "@model/elements/media";
 import { CARD_STYLES, FLEX_DIRECTION } from "@model/elements/composite";
-import { BUTTON_VARIANTS } from "@model/elements/chrome";
+import { BUTTON_VARIANTS } from "@model/elements/basic";
 import { CHART_TYPES } from "@model/elements/chart";
 import { DIAGRAM_TYPES } from "@model/elements/diagram";
 import { GRID_TEMPLATES } from "@model/elements/section";
@@ -20,7 +20,7 @@ import { GRID_TEMPLATES } from "@model/elements/section";
 export { BULLET_MARKERS, CALLOUT_TONES, TEXT_ALIGN, TEXT_STYLES } from "@model/elements/text";
 export { IMAGE_FIT } from "@model/elements/media";
 export { CARD_STYLES, FLEX_DIRECTION } from "@model/elements/composite";
-export { BUTTON_VARIANTS } from "@model/elements/chrome";
+export { BUTTON_VARIANTS } from "@model/elements/basic";
 export { CHART_TYPES } from "@model/elements/chart";
 export { DIAGRAM_TYPES, GRAPH_DIAGRAM_TYPES } from "@model/elements/diagram";
 export { GRID_IDS } from "@model/elements/section";

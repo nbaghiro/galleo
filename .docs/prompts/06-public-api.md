@@ -27,12 +27,14 @@ signal + getter + async loader. **View/route**: `<Router base="/app">` in `app/A
 **⚠️ Entitlement gating — a parallel session owns billing; do NOT touch billing internals.** `model/
 features.ts` has `FEATURES` (`status: "live"|"beta"|"planned"`; `planned` = off for everyone). Gate on the
 backend:
+
 ```ts
 import { featuresFor } from "../features";
 import { can } from "@model/features";
 if (!can(featuresFor(ws), "apiAccess"))
     return c.json({ error: "API access is a paid feature — upgrade.", upgrade: true }, 402);
 ```
+
 `GET /features` returns `{ features, status }`; add `app/stores/features.ts` (`useFeatures()`) +
 `api.getFeatures()` for frontend gating. **Plan grant already set** (Premium) in `model/billing.ts` —
 **do NOT edit it** (the Pro card copy says "API (soon)" but the Pro grant is `false`; that's a
@@ -55,6 +57,7 @@ Premium workspaces can integrate Galleo.
 **Plan grant:** `apiAccess` on **Premium** (already set); `status: "planned"`.
 
 **Build:**
+
 - An `api_keys` table (`id`, `workspaceId`, `keyHash`, `prefix` (shown in UI), `name`, `lastUsedAt`,
   `createdBy`, `createdAt`). Store only a hash of the key (reuse the scrypt approach in `services/auth.ts`).
 - Key-management routes (authed, gated on `apiAccess`): `POST /api-keys` (returns the raw key **once**),

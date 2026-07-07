@@ -10,29 +10,15 @@ import { PaletteItem } from "../canvas/insert";
 // internal container + drop preview + the back-compat `chart`/`diagram` catch-alls (the per-type
 // chart/diagram tiles are the palette entries) — none shown as palette items.
 const HIDDEN = new Set(["group", "__dropghost", "chart", "diagram", "avatar"]);
-const CAT_ORDER = [
-    "text",
-    "media",
-    "chart",
-    "diagram",
-    "data",
-    "interactive",
-    "branding",
-    "layout",
-    "decoration",
-    "container",
-];
+const CAT_ORDER = ["text", "media", "table", "composite", "chart", "diagram", "basic"];
 const CAT_LABEL: Record<string, string> = {
     text: "Text",
     media: "Media",
+    table: "Table",
+    composite: "Composite",
     chart: "Charts",
     diagram: "Diagrams",
-    data: "Data",
-    interactive: "Interactive",
-    branding: "Branding",
-    layout: "Layout",
-    decoration: "Decoration",
-    container: "Composite",
+    basic: "Basic",
 };
 
 // Right side: an always-on vertical icon rail. Clicking an icon opens a flyout — a category's
