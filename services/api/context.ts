@@ -37,7 +37,7 @@ export async function firstWorkspaceId(userId: string): Promise<string | null> {
     return ms[0]?.ws ?? null;
 }
 
-// The full workspace row (plan + billing + credits) — for the routes that gate on entitlements, not just
+// The full workspace row (plan + billing + credits) — for the routes that gate on features, not just
 // scope by id. Also rolls the monthly credit window over lazily on read: once the reset date passes,
 // zero the used counter and push the window a month out, so free/paid allowances refill without a cron.
 export async function currentWorkspace(userId: string) {

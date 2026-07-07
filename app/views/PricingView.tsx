@@ -147,7 +147,7 @@ export const PricingView: Component = () => {
                                         </p>
                                         <div class="mt-3 flex items-baseline gap-1">
                                             <span class="text-[30px] font-bold tracking-[-0.02em]">
-                                                ${plan.priceMonthly}
+                                                ${plan.billing.priceMonthly}
                                             </span>
                                             <span class="text-[13px] text-muted">/ month</span>
                                         </div>

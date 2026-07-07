@@ -3,7 +3,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import type Stripe from "stripe";
 import type { PlanId } from "@model/billing";
-import { PLANS, PLAN_ORDER, limitsFor, CREDITS_PER_GENERATION } from "@model/billing";
+import { visiblePlans, limitsFor, CREDITS_PER_GENERATION } from "@model/billing";
 import type { AiActionId, MeterParams } from "@model/ai-actions";
 import { AI_ACTION_LIST, estimateCost } from "@model/ai-actions";
 import type { Usage } from "@model/credits";
@@ -42,7 +42,7 @@ billing.get("/billing", async (c) => {
             perGeneration: CREDITS_PER_GENERATION,
         },
         usage: { artifacts: rows.length, maxArtifacts: limits.maxArtifacts },
-        catalog: PLAN_ORDER.map((id) => PLANS[id]),
+        catalog: visiblePlans(),
         aiActions: AI_ACTION_LIST, // per-action credit costs, for the "what a credit buys" showcase
         stripeReady: stripeReady(),
     });

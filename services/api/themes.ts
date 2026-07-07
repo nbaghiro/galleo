@@ -2,9 +2,10 @@ import { Hono } from "hono";
 import { and, eq } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import type { ThemeInput } from "@themes/theme";
-import { limitsFor } from "@model/billing";
+import { can } from "@model/features";
 import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
+import { featuresFor } from "../features";
 import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
 
 // Per-workspace custom-theme routes (workspaceId null = built-in/system, never returned here): list,
@@ -36,8 +37,8 @@ themes.post("/themes", async (c) => {
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await currentWorkspace(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
-    // Plan gate: custom themes are a paid feature.
-    if (!limitsFor(ws.plan).customThemes)
+    // Plan gate: custom themes are a paid feature (resolved via the feature layer).
+    if (!can(featuresFor(ws), "customThemes"))
         return c.json(
             {
                 error: "Custom themes are a Pro feature — upgrade to create your own.",

@@ -2,9 +2,11 @@ import { Hono } from "hono";
 import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import type { ArtifactInput, Cover, SectionSummary } from "@model/artifact";
-import { isUnlimited, limitsFor } from "@model/billing";
+import { isUnlimited } from "@model/billing";
+import { limit } from "@model/features";
 import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
+import { featuresFor } from "../features";
 import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
 
 // Artifact + Trash routes: list, create, read, patch (autosave), soft-delete/restore, and permanent
@@ -128,8 +130,8 @@ artifacts.post("/artifacts", async (c) => {
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await currentWorkspace(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
-    // Plan gate: the free tier caps the number of live artifacts.
-    const cap = limitsFor(ws.plan).maxArtifacts;
+    // Plan gate: some tiers cap the number of live artifacts (resolved via the feature layer).
+    const cap = limit(featuresFor(ws), "maxArtifacts");
     if (!isUnlimited(cap)) {
         const live = await db
             .select({ id: schema.artifacts.id })

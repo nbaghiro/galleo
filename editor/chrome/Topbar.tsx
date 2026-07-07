@@ -10,7 +10,7 @@ import {
     editor,
     editorTheme,
     editorTokens,
-    entitlements,
+    features,
     present,
     redo,
     renameArtifact,
@@ -172,9 +172,8 @@ const ExportMenu: Component = () => {
     const [open, setOpen] = createSignal(false);
     const [busy, setBusy] = createSignal(false);
     // The workspace plan decides which formats are unlocked and whether exports carry the Galleo mark.
-    const allows = (f: "png" | "pdf" | "print"): boolean =>
-        entitlements().exportFormats.includes(f);
-    const brand = (): boolean => !entitlements().removeBranding;
+    const allows = (f: "png" | "pdf" | "print"): boolean => features().exportFormats.includes(f);
+    const brand = (): boolean => !features().removeBranding;
     const run = async (fn: () => void | Promise<void>): Promise<void> => {
         setOpen(false);
         setBusy(true);

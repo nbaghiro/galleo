@@ -18,7 +18,7 @@ import {
     previewingTheme,
     previewSavedTheme,
     setArtifacts,
-    setEntitlements,
+    setFeatures,
     startThemePreview,
 } from "@editor/editor";
 import { api } from "../api";
@@ -42,11 +42,11 @@ export const EditorView: Component = () => {
     // reflect the open artifact's theme in the browser-tab favicon; revert to the app theme on exit
     createEffect(() => setFaviconOverride(editor.artifact.theme));
 
-    // Push the workspace plan's export entitlements into the studio so its Export menu gates paid formats
+    // Push the workspace plan's export features into the studio so its Export menu gates paid formats
     // and keeps/strips the Galleo mark. Defaults to Free until billing loads (most-restrictive is safe).
     createEffect(() => {
         const { exportFormats, removeBranding } = limitsFor(billing()?.plan);
-        setEntitlements({ exportFormats, removeBranding });
+        setFeatures({ exportFormats, removeBranding });
     });
     onCleanup(() => setFaviconOverride(null));
     // never leave a preview dangling on the in-memory artifact when leaving the editor

@@ -63,16 +63,16 @@ export const [selection, setSelection] = createSignal<Target | null>(null, {
 });
 export const [hover, setHover] = createSignal<Target | null>(null, { equals: targetsEqual });
 
-// Export entitlements — the app pushes these from the workspace plan (@model/billing limits) so the
+// Export features — the app pushes these from the workspace plan (@model/billing limits) so the
 // export menu can gate paid formats and keep/strip the Galleo mark. The editor stays app-free (data in,
 // no import back into app); defaults are the most-restrictive Free set, so a studio with no host still
 // gates correctly rather than leaking paid exports.
-export type ExportEntitlements = Pick<PlanLimits, "exportFormats" | "removeBranding">;
-const [entitlements, setEntitlements] = createSignal<ExportEntitlements>({
+export type ExportFeatures = Pick<PlanLimits, "exportFormats" | "removeBranding">;
+const [features, setFeatures] = createSignal<ExportFeatures>({
     exportFormats: ["png"],
     removeBranding: false,
 });
-export { entitlements, setEntitlements };
+export { features, setFeatures };
 
 // Snapshot history. Every edit — content OR host metadata (the artifact title) — goes through this, so a
 // single undo stack covers everything. A snapshot pairs the content tree with the title at that instant.
