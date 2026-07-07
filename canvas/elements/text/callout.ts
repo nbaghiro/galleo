@@ -1,11 +1,11 @@
 import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
-import type { Tokens } from "@themes/theme";
-import type { CalloutTone } from "@model/elements/text";
+import type { Tokens } from "@themes";
+import type { CalloutTone } from "@model/elements";
 import { register, getElement } from "@elements/spec";
 import { fit, grow, fixed } from "@model/geometry";
-import { CALLOUT_TONES } from "@model/elements/text";
+import { CALLOUT_TONES } from "@model/elements";
 
 // A note box (note/tip/warn) with an accent bar and real text children — the body edits inline.
 interface CalloutData {

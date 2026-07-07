@@ -11,7 +11,7 @@ import {
 } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
 import { resolveProfile } from "@engine/profile";
-import { resolveTheme } from "@themes/library";
+import { resolveTheme } from "@themes";
 import { backdropCss, paintSectionStack } from "@canvas/render/backends";
 import { slideElement, SLIDE_W, SLIDE_H } from "@canvas/render/present";
 import { api } from "../api";

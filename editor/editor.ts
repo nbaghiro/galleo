@@ -4,10 +4,10 @@ import type { ArtifactContent, Section } from "@model/artifact";
 import type { PlanLimits } from "@model/billing";
 import type { IconPick, MediaKind } from "@model/media";
 import { createSignal } from "solid-js";
-import type { Theme, Tokens } from "@themes/theme";
+import type { Theme, Tokens } from "@themes";
 import { duplicateSection, insertSection, moveSection, removeSection } from "@elements/ops";
 import { targetsEqual } from "@model/target";
-import { resolveTheme } from "@themes/library";
+import { resolveTheme } from "@themes";
 
 // The editor's reactive state: the open artifact + computed section offsets, the current selection /
 // hover target, and the geometry regions the canvas reports (in canvas-content coordinates).

@@ -1,5 +1,5 @@
 import type { Component, JSX } from "solid-js";
-import { resolveTheme } from "@themes/library";
+import { resolveTheme } from "@themes";
 import { appTheme } from "../theme";
 
 // Theme-reactive icon style: the active app theme's character drives the line work, so icons restyle

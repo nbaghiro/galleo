@@ -1,6 +1,6 @@
 import type { JSX, Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
-import { themeCssVars } from "@themes/theme";
+import { themeCssVars } from "@themes";
 import { AgentPanel } from "./chrome/AgentPanel";
 import { Canvas } from "./canvas/Canvas";
 import { DataEditor } from "./inspect/DataEditor";

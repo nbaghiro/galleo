@@ -3,7 +3,7 @@ import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
 import { getElement, register, bar } from "@elements/spec";
 import { fit, grow } from "@model/geometry";
-import type { FlexDirection } from "@model/elements/composite";
+import type { FlexDirection } from "@model/elements";
 import { DIRECTION_OPTIONS } from "@elements/composite/shared";
 
 // A transparent container that stacks several elements inside one cell (no background of its own).

@@ -1,4 +1,4 @@
-import { hexA } from "@themes/theme";
+import { hexA } from "@themes";
 import { centerLabel, nodeText, registerDiagram, type Renderer } from "./utils";
 
 // Two or three overlapping translucent circles; labels sit near each circle's centre.

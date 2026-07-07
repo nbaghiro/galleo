@@ -35,7 +35,9 @@ import "@elements/basic/gradient";
 import "@elements/basic/divider";
 import "@elements/basic/spacer";
 import "@elements/basic/shape";
-import "@elements/basic/dropghost";
 
 import "@elements/chart/element";
 import "@elements/diagram/element";
+
+// The internal, palette-hidden drop-preview — a framework element (root of elements/), not a category.
+import "@elements/dropghost";

@@ -1,6 +1,6 @@
 import type { DrawContext, DrawTextStyle, Rect } from "@engine/node";
-import type { Tokens } from "@themes/theme";
-import { fontStack, hexA, hexToRgb, luminance, mix } from "@themes/theme";
+import type { Tokens } from "@themes";
+import { fontStack, hexA, hexToRgb, luminance, mix } from "@themes";
 import { scaleBand, scaleLinear, scalePoint } from "d3-scale";
 import { curveCatmullRom, curveLinear } from "d3-shape";
 import type { CurveFactory } from "d3-shape";

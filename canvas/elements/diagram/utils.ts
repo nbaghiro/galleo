@@ -1,6 +1,6 @@
 import type { DrawContext, DrawTextStyle } from "@engine/node";
-import type { Tokens } from "@themes/theme";
-import { fontStack } from "@themes/theme";
+import type { Tokens } from "@themes";
+import { fontStack } from "@themes";
 import { hierarchy, tree, type HierarchyPointNode } from "d3-hierarchy";
 
 // ── Types ──────────────────────────────────────────────────────────────────

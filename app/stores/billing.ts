@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
-import type { PlanId } from "@model/billing";
-import type { AiActionId, MeterParams } from "@model/ai-actions";
+import type { Interval, PlanId } from "@model/billing";
+import type { AiActionId, MeterParams } from "@model/ai";
 import type { BillingState } from "../api";
 import { api, ApiError } from "../api";
 
@@ -17,19 +17,34 @@ export async function loadBilling(): Promise<void> {
     }
 }
 
-// Redirect to Stripe Checkout for a plan (the browser leaves the SPA and comes back to /pricing).
-export async function startCheckout(plan: PlanId): Promise<void> {
-    const { url } = await api.checkout(plan);
+// Redirect to Stripe Checkout for a plan (the browser leaves the SPA and comes back to /pricing). Used
+// for free → paid; per-seat plans pass a seat count and the billing interval.
+export async function startCheckout(opts: {
+    plan: PlanId;
+    interval?: Interval;
+    seats?: number;
+}): Promise<void> {
+    const { url } = await api.checkout(opts);
     if (url) window.location.href = url;
 }
 
-// Open the Stripe customer portal to manage/cancel the subscription.
+// In-app tier / interval / seat change on an existing subscription (no redirect). Reloads billing after.
+export async function changePlan(opts: {
+    plan?: PlanId;
+    interval?: Interval;
+    seats?: number;
+}): Promise<void> {
+    await api.changePlan(opts);
+    await loadBilling();
+}
+
+// Open the Stripe customer portal to manage payment method / invoices / cancel.
 export async function openPortal(): Promise<void> {
     const { url } = await api.portal();
     if (url) window.location.href = url;
 }
 
-// Reserve credits for an AI action (priced from the @model ai-actions catalog). Pass a `meter` for
+// Reserve credits for an AI action (priced from the @model/ai action catalog). Pass a `meter` for
 // size-aware actions (e.g. the generation length) so the gate reserves the real cost. Returns false when
 // the allowance is spent (the caller should send the user to pricing), true once the spend is recorded.
 export async function spendCredit(action: AiActionId, meter?: MeterParams): Promise<boolean> {

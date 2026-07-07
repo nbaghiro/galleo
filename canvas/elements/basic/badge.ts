@@ -2,7 +2,7 @@ import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import { register } from "@elements/spec";
 import { fit } from "@model/geometry";
-import { fontStack } from "@themes/theme";
+import { fontStack } from "@themes";
 
 interface BadgeData {
     text: string;

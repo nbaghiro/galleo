@@ -1,13 +1,13 @@
 import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode, TextLeaf } from "@engine/node";
-import type { ColorToken, FontRole } from "@themes/theme";
+import type { ColorToken, FontRole } from "@themes";
 import type { Mark } from "@model/text";
-import type { TextAlign, TextStyle } from "@model/elements/text";
+import type { TextAlign, TextStyle } from "@model/elements";
 import { register } from "@elements/spec";
 import { fit, grow } from "@model/geometry";
-import { fontStack } from "@themes/theme";
+import { fontStack } from "@themes";
 import { toRuns } from "@model/text";
-import { TEXT_STYLES } from "@model/elements/text";
+import { TEXT_STYLES } from "@model/elements";
 
 interface TextData {
     text: string;

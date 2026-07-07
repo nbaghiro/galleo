@@ -1,11 +1,11 @@
 import type { Component } from "solid-js";
-import { createMemo, For, onMount, Show } from "solid-js";
+import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
-import type { PlanId } from "@model/billing";
-import { AI_ACTION_LIST, costRange, isMetered, typicalCost } from "@model/ai-actions";
+import type { Interval, Plan, PlanId } from "@model/billing";
+import { AI_ACTION_LIST, costRange, isMetered, typicalCost } from "@model/ai";
 import { CheckIcon } from "../components/icons";
 import { Sidebar } from "../components/Sidebar";
-import { billing, loadBilling, openPortal, startCheckout } from "../stores/billing";
+import { billing, changePlan, loadBilling, openPortal, startCheckout } from "../stores/billing";
 
 // The pricing / upgrade page (/pricing). Renders the plan catalog straight from the backend's
 // @model/billing source of truth, shows the workspace's live usage, and hands off to Stripe Checkout /
@@ -30,15 +30,38 @@ export const PricingView: Component = () => {
         return limit > 0 ? Math.floor(limit / cost) : null;
     };
 
-    const pick = (plan: PlanId): void => {
-        if (plan === "free") openPortal().catch(() => {});
-        else startCheckout(plan).catch(() => {});
+    const [interval, setInterval] = createSignal<Interval>("month");
+    const [seats, setSeats] = createSignal(1);
+    const RANK: Record<PlanId, number> = { free: 0, pro: 1, premium: 2 };
+    const perSeat = (plan: Plan): boolean => plan.billing.model === "per_seat";
+    const unitPrice = (plan: Plan): number =>
+        interval() === "year" ? plan.billing.priceAnnualMonthly : plan.billing.priceMonthly;
+    const seatsFor = (plan: Plan): number => Math.max(seats(), plan.billing.minSeats);
+    const overLimit = (): boolean => {
+        const u = b()?.usage;
+        return !!u && u.maxArtifacts >= 0 && u.artifacts > u.maxArtifacts;
     };
 
-    const ctaLabel = (plan: PlanId): string => {
-        if (plan === current()) return "Current plan";
-        if (plan === "free") return "Manage / downgrade";
-        return `Upgrade to ${plan === "pro" ? "Pro" : "Business"}`;
+    const pick = (plan: Plan): void => {
+        if (plan.id === current()) return;
+        if (plan.id === "free") {
+            changePlan({ plan: "free" }).catch(() => {}); // cancel at period end
+            return;
+        }
+        const opts = {
+            plan: plan.id,
+            interval: interval(),
+            seats: perSeat(plan) ? seatsFor(plan) : undefined,
+        };
+        // free → paid needs Checkout (collect a payment method); paid → paid is an in-app change.
+        (current() === "free" ? startCheckout(opts) : changePlan(opts)).catch(() => {});
+    };
+
+    const ctaLabel = (plan: Plan): string => {
+        if (plan.id === current()) return "Current plan";
+        if (plan.id === "free") return "Downgrade to Free";
+        if (current() === "free") return `Upgrade to ${plan.name}`;
+        return RANK[plan.id] > RANK[current()] ? `Upgrade to ${plan.name}` : `Switch to ${plan.name}`;
     };
 
     return (
@@ -68,6 +91,23 @@ export const PricingView: Component = () => {
                         <div class="mb-5 rounded-xl border border-line bg-panel px-4 py-3 text-[13px] text-soft">
                             Billing isn't configured on this server yet — the plans below are live,
                             but checkout is disabled until the Stripe keys are set.
+                        </div>
+                    </Show>
+                    <Show when={b()?.status === "past_due"}>
+                        <div class="mb-5 flex items-center justify-between gap-3 rounded-xl border border-accent bg-accent/10 px-4 py-3 text-[13px] text-ink">
+                            <span>Your last payment failed — update your payment method to keep your plan.</span>
+                            <button
+                                class="flex-none rounded-lg border border-line bg-panel px-3 py-1.5 font-semibold hover:border-accent"
+                                onClick={() => openPortal().catch(() => {})}
+                            >
+                                Update payment →
+                            </button>
+                        </div>
+                    </Show>
+                    <Show when={overLimit()}>
+                        <div class="mb-5 rounded-xl border border-line bg-panel px-4 py-3 text-[13px] text-ink">
+                            You're over your plan's limits. Your existing work is safe, but you can't
+                            create more until you upgrade or remove some.
                         </div>
                     </Show>
 
@@ -114,11 +154,57 @@ export const PricingView: Component = () => {
                                             {state().plan}
                                         </span>{" "}
                                         plan
+                                        <Show when={state().seats > 1}>
+                                            {" · "}
+                                            {state().seats} seats
+                                        </Show>
+                                        <Show when={state().periodEnd}>
+                                            {(end) => (
+                                                <>
+                                                    {" · "}
+                                                    {state().status === "canceled"
+                                                        ? "ends"
+                                                        : "renews"}{" "}
+                                                    {new Date(end()).toLocaleDateString()}
+                                                </>
+                                            )}
+                                        </Show>
                                     </div>
                                 </div>
                             </div>
                         )}
                     </Show>
+
+                    {/* billing interval + seat count */}
+                    <div class="mb-4 flex flex-wrap items-center gap-3">
+                        <div class="inline-flex rounded-lg border border-line bg-panel p-0.5 text-[12px] font-semibold">
+                            <button
+                                class={`rounded-md px-3 py-1 ${interval() === "month" ? "bg-canvas text-ink shadow-sm" : "text-muted"}`}
+                                onClick={() => setInterval("month")}
+                            >
+                                Monthly
+                            </button>
+                            <button
+                                class={`rounded-md px-3 py-1 ${interval() === "year" ? "bg-canvas text-ink shadow-sm" : "text-muted"}`}
+                                onClick={() => setInterval("year")}
+                            >
+                                Annual <span class="text-accent">· save ~2 mo</span>
+                            </button>
+                        </div>
+                        <label class="inline-flex items-center gap-2 text-[12px] text-muted">
+                            Seats
+                            <input
+                                type="number"
+                                min="1"
+                                value={seats()}
+                                onInput={(e) =>
+                                    setSeats(Math.max(1, Math.floor(Number(e.currentTarget.value) || 1)))
+                                }
+                                class="w-16 rounded-md border border-line bg-panel px-2 py-1 text-[13px] text-ink outline-none focus:border-accent"
+                            />
+                            <span class="text-[11px]">for per-seat plans</span>
+                        </label>
+                    </div>
 
                     {/* plan cards */}
                     <div class="grid gap-4 md:grid-cols-3">
@@ -136,9 +222,9 @@ export const PricingView: Component = () => {
                                     >
                                         <div class="flex items-center justify-between">
                                             <span class="text-[15px] font-bold">{plan.name}</span>
-                                            <Show when={featured}>
+                                            <Show when={plan.badge}>
                                                 <span class="rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold text-onaccent">
-                                                    Most popular
+                                                    {plan.badge}
                                                 </span>
                                             </Show>
                                         </div>
@@ -147,9 +233,20 @@ export const PricingView: Component = () => {
                                         </p>
                                         <div class="mt-3 flex items-baseline gap-1">
                                             <span class="text-[30px] font-bold tracking-[-0.02em]">
-                                                ${plan.billing.priceMonthly}
+                                                ${unitPrice(plan)}
                                             </span>
-                                            <span class="text-[13px] text-muted">/ month</span>
+                                            <span class="text-[13px] text-muted">
+                                                {perSeat(plan) ? "/ seat / mo" : "/ mo"}
+                                            </span>
+                                        </div>
+                                        <div class="mt-0.5 min-h-4 text-[11.5px] text-muted">
+                                            <Show when={interval() === "year" && unitPrice(plan) > 0}>
+                                                billed annually
+                                            </Show>
+                                            <Show when={perSeat(plan) && seats() > 1}>
+                                                {" · "}${unitPrice(plan) * seatsFor(plan)}/mo ×{" "}
+                                                {seatsFor(plan)} seats
+                                            </Show>
                                         </div>
                                         <ul class="mt-4 flex flex-1 flex-col gap-2">
                                             <For each={plan.highlights}>
@@ -174,9 +271,9 @@ export const PricingView: Component = () => {
                                             disabled={
                                                 isCurrent() || (plan.id !== "free" && !ready())
                                             }
-                                            onClick={() => pick(plan.id)}
+                                            onClick={() => pick(plan)}
                                         >
-                                            {ctaLabel(plan.id)}
+                                            {ctaLabel(plan)}
                                         </button>
                                     </div>
                                 );

@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { createEffect, createSignal, on, onCleanup, onMount, Show } from "solid-js";
 import { useNavigate, useParams, useSearchParams } from "@solidjs/router";
-import { resolveTheme } from "@themes/library";
+import { resolveTheme } from "@themes";
 import { limitsFor } from "@model/billing";
 import { Studio } from "@editor/Studio";
 import {

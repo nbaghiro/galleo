@@ -3,8 +3,8 @@ import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
 import { getElement, register, bar, GHOST_LINE, GHOST_PANEL } from "@elements/spec";
 import { fit, fixed, grow } from "@model/geometry";
-import { CARD_STYLES } from "@model/elements/composite";
-import type { CardStyle, FlexDirection } from "@model/elements/composite";
+import { CARD_STYLES } from "@model/elements";
+import type { CardStyle, FlexDirection } from "@model/elements";
 import { DIRECTION_OPTIONS } from "@elements/composite/shared";
 
 interface CardData {

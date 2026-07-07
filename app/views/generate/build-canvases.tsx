@@ -4,7 +4,7 @@ import type { Section } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createEffect, createSignal, For, on, onMount, Show } from "solid-js";
 import { resolveProfile } from "@engine/profile";
-import { resolveTheme } from "@themes/library";
+import { resolveTheme } from "@themes";
 import { backdropCss, paint, fitSlideContent } from "@canvas/render/backends";
 import {
     measureText,

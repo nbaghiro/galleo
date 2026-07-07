@@ -1,5 +1,5 @@
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
-import type { GenerateInput } from "@model/agent";
+import type { GenerateInput } from "@model/ai";
 
 // Shared prompt primitives — the composition helpers and the reusable fragments (brief context, artifact
 // digest, the output/shape rules) that every capability builder assembles. Capability files import from

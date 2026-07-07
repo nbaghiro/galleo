@@ -1,11 +1,11 @@
 import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
-import type { BulletMarker } from "@model/elements/text";
+import type { BulletMarker } from "@model/elements";
 import { register, getElement } from "@elements/spec";
 import { fit, grow, fixed } from "@model/geometry";
-import { fontStack } from "@themes/theme";
-import { BULLET_MARKERS } from "@model/elements/text";
+import { fontStack } from "@themes";
+import { BULLET_MARKERS } from "@model/elements";
 
 interface BulletsData {
     children: ElementInstance[];

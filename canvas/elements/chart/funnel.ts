@@ -1,4 +1,4 @@
-import { luminance } from "@themes/theme";
+import { luminance } from "@themes";
 import { registerChart, catList, fmt, uiFont } from "./utils";
 import type { PlotCtx, ResolvedChart } from "./utils";
 

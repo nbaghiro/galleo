@@ -16,8 +16,9 @@ app/        the product SPA (served at /app) — library, templates, generation,
 website/    a separate public build (served at /)
 ```
 
-Path aliases are directory aliases: `@model/*`→`model/*`, `@themes`→`model/themes`, `@engine`→
-`canvas/engine`, `@elements`→`canvas/elements`, `@canvas`→`canvas`, `@editor`→`editor`. No `index.ts`
+Path aliases are directory aliases: `@model/*`→`model/*`, `@engine`→
+`canvas/engine`, `@elements`→`canvas/elements`, `@canvas`→`canvas`, `@editor`→`editor` — plus the one
+file alias `@themes`→`model/theme.ts` (the whole theme contract is a single file). No `index.ts`
 barrels — every concept is a named file. (`services` import each other by relative path.) Dependency
 direction: `model ← canvas ← editor ← app`; canvas imports only model; services imports only model.
 
@@ -42,7 +43,7 @@ geometry.ts    the dimensional contract: Size (+ fit/grow/percent/fixed construc
 authoring.ts   concise content-authoring DSL (t/img/section/group/deck/doc/web) — used by demos/templates + the agent
 ```
 
-**`themes/` — themes as data** (`@themes`; pure color math + a registry, no DOM)
+**`theme.ts` — themes as data** (`@themes`; the token/Theme types + resolvers + color math + the curated library, no DOM)
 
 ```
 theme.ts     Tokens (the semantic token set) · themeCssVars() · fontStack() · the wire DTOs (ThemeSummary · ThemeInput) · color math (hexToRgb · luminance · mix · mixWhite · hexA)

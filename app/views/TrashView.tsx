@@ -1,6 +1,6 @@
 import type { Component } from "solid-js";
 import { createSignal, For, onMount, Show } from "solid-js";
-import { resolveTheme } from "@themes/library";
+import { resolveTheme } from "@themes";
 import { type ArtifactSummary } from "../api";
 import {
     formatLabel,

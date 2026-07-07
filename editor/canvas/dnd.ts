@@ -2,7 +2,7 @@ import type { Rect, Region } from "@engine/node";
 import type { ElementAddress } from "@model/target";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import { createSignal } from "solid-js";
-import { DROP_GHOST } from "@elements/basic/dropghost";
+import { DROP_GHOST } from "@elements/dropghost";
 import { getElementAt, insertInCell, removeAt, setCellElement } from "@elements/ops";
 import { getElement } from "@elements/spec";
 

@@ -21,7 +21,7 @@
             "@model/*": ["model/*"],
             "@engine/*": ["canvas/engine/*"],
             "@elements/*": ["canvas/elements/*"],
-            "@themes/*": ["model/themes/*"],
+            "@themes": ["model/theme.ts"],
             "@canvas/*": ["canvas/*"],
             "@editor/*": ["editor/*"]
         }

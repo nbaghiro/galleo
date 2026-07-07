@@ -1,4 +1,4 @@
-import type { ChatInput } from "@model/agent";
+import type { ChatInput } from "@model/ai";
 import type { ArtifactContent } from "@model/artifact";
 import { PERSONA } from "./persona";
 import { artifactDigest, heading, stack } from "./system";

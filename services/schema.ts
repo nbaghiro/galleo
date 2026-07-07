@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import type { FeatureOverrides } from "@model/features";
 
 // The data layer — the implemented schema (11 tables) plus the live DB handle. Documented in
 // .docs/data-model.md (which also notes the broader model deferred to when each feature lands).
@@ -31,14 +32,17 @@ export const workspaces = pgTable("workspaces", {
     ownerId: uuid("owner_id")
         .notNull()
         .references(() => users.id),
-    plan: text("plan").notNull().default("free"), // free | pro | business (see @model/billing)
+    plan: text("plan").notNull().default("free"), // free | pro | premium (see @model/billing)
     // --- billing (Stripe) ---
     stripeCustomerId: text("stripe_customer_id"),
     stripeSubscriptionId: text("stripe_subscription_id"),
     planStatus: text("plan_status").notNull().default("active"), // active | past_due | canceled
     planPeriodEnd: timestamp("plan_period_end"),
+    seats: integer("seats").notNull().default(1), // subscription quantity (per-seat plans); synced from Stripe
     aiCreditsUsed: integer("ai_credits_used").notNull().default(0),
     creditsResetAt: timestamp("credits_reset_at").notNull().defaultNow(),
+    // Per-workspace feature grants that override the plan (comps, grandfathering, beta). See @model/features.
+    featureOverrides: jsonb("feature_overrides").$type<FeatureOverrides>(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

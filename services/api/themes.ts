@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { and, eq } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
-import type { ThemeInput } from "@themes/theme";
+import type { ThemeInput } from "@themes";
 import { can } from "@model/features";
 import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";

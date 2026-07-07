@@ -2,8 +2,8 @@ import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import { register, pill } from "@elements/spec";
 import { fit, fixed } from "@model/geometry";
-import { fontStack } from "@themes/theme";
-import { BUTTON_VARIANTS, type ButtonVariant } from "@model/elements/basic";
+import { fontStack } from "@themes";
+import { BUTTON_VARIANTS, type ButtonVariant } from "@model/elements";
 
 interface ButtonData {
     label: string;

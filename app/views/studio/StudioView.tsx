@@ -3,13 +3,13 @@ import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid
 import { useNavigate } from "@solidjs/router";
 import type { Section } from "@model/artifact";
 import { resolveProfile } from "@engine/profile";
-import { resolveTheme } from "@themes/library";
+import { resolveTheme } from "@themes";
 import { paint } from "@canvas/render/backends";
 import { measureText, layoutSection } from "@canvas/render/commands";
 import { appTheme } from "../../theme";
 import {
     gen,
-    startSession,
+    startRealSession,
     resetSession,
     saveGenerated,
     placedSections,
@@ -53,6 +53,20 @@ const GRID_LABEL: Record<string, string> = {
 };
 const gridLabel = (g: string): string => GRID_LABEL[g] ?? g.toUpperCase();
 
+// The macro phase stepper — the backend's fine-grained turn phases collapsed into four user-facing steps.
+const STEPS: { label: string; phases: string[] }[] = [
+    { label: "Reading", phases: ["intake"] },
+    { label: "Planning", phases: ["spine", "outline", "plan"] },
+    { label: "Building", phases: ["build", "edit", "research"] },
+    { label: "Ready", phases: ["compose", "done"] },
+];
+const stepIndex = (phase: string | null, done: boolean): number => {
+    if (done) return STEPS.length - 1;
+    if (!phase) return 0;
+    const i = STEPS.findIndex((s) => s.phases.includes(phase));
+    return i < 0 ? 0 : i;
+};
+
 // how wide a section lays out in the current format (mirrors the editor's geometry)
 function geometry(
     section: Section,
@@ -84,13 +98,10 @@ export const StudioView: Component = () => {
 
     const building = (): boolean => gen.phase !== "idle";
     const go = (): void => {
-        void startSession({
+        void startRealSession({
             prompt: prompt().trim() || PLACEHOLDER,
             surface: toSurface(fmt()),
             theme: appTheme(),
-            goal: "",
-            audience: "",
-            tone: "",
             length: "Standard",
         });
     };
@@ -303,6 +314,32 @@ const Build: Component<{
                         </ul>
                     </Show>
                 </div>
+                <div class="stu-narr-wrap">
+                    <h2>Progress</h2>
+                    <div class="stu-narr">
+                        <Show
+                            when={gen.narration.length}
+                            fallback={<div class="stu-planning">…</div>}
+                        >
+                            <For each={gen.narration.slice(-8)}>
+                                {(line) => (
+                                    <div class="stu-narr-line" classList={{ active: !line.done }}>
+                                        <span class="ndot" />
+                                        <span class="txt">
+                                            {line.text}
+                                            <Show when={line.mono}>
+                                                <span class="mono">{line.mono}</span>
+                                            </Show>
+                                            <Show when={line.sub}>
+                                                <span class="sub">{line.sub}</span>
+                                            </Show>
+                                        </span>
+                                    </div>
+                                )}
+                            </For>
+                        </Show>
+                    </div>
+                </div>
             </aside>
 
             <div class="stu-boardwrap">
@@ -325,8 +362,20 @@ const Build: Component<{
             </div>
 
             <footer class="stu-foot" classList={{ done: gen.phase === "done" }}>
-                <div class="stu-phase">
-                    <i /> {props.phaseText()}
+                <div class="stu-steps">
+                    <For each={STEPS}>
+                        {(s, i) => (
+                            <div
+                                class="stu-step"
+                                classList={{
+                                    active: i() === stepIndex(gen.turnPhase, gen.phase === "done"),
+                                    done: i() < stepIndex(gen.turnPhase, gen.phase === "done"),
+                                }}
+                            >
+                                <i /> {s.label}
+                            </div>
+                        )}
+                    </For>
                 </div>
                 <Show
                     when={gen.phase === "done"}
@@ -560,6 +609,22 @@ const STYLE = `
 .stu-phase{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);display:flex;align-items:center;gap:9px;min-width:180px}
 .stu-phase i{width:6px;height:6px;border-radius:50%;background:var(--amber);animation:stupulse 1.4s infinite}
 .stu-foot.done .stu-phase i{background:var(--teal);animation:none}
+.stu-steps{display:flex;gap:16px;align-items:center;min-width:230px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+.stu-step{display:flex;align-items:center;gap:6px;color:var(--ink3)}
+.stu-step i{width:6px;height:6px;border-radius:50%;background:var(--line2);transition:background .3s}
+.stu-step.active{color:var(--amber)}
+.stu-step.active i{background:var(--amber);animation:stupulse 1.4s infinite}
+.stu-step.done{color:var(--teal)}
+.stu-step.done i{background:var(--teal)}
+.stu-narr-wrap{min-height:0;display:flex;flex-direction:column;flex:1}
+.stu-narr{display:flex;flex-direction:column;gap:8px;overflow-y:auto;padding-right:2px}
+.stu-narr-line{display:flex;gap:8px;font-size:12px;line-height:1.4;color:var(--ink3);opacity:.7}
+.stu-narr-line.active{color:var(--ink);opacity:1}
+.stu-narr-line .ndot{width:5px;height:5px;border-radius:50%;background:var(--line2);margin-top:5px;flex:none}
+.stu-narr-line.active .ndot{background:var(--amber);animation:stupulse 1.3s infinite}
+.stu-narr-line .txt{min-width:0}
+.stu-narr-line .mono{font-family:var(--mono);font-size:10.5px;color:var(--amber);margin-left:2px}
+.stu-narr-line .sub{display:block;color:var(--ink3);font-size:11px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stu-ticks{display:flex;gap:4px;flex:1;flex-wrap:wrap}
 .stu-ticks i{width:22px;height:4px;border-radius:2px;background:var(--line2)}
 .stu-ticks i.active{background:var(--amber)}.stu-ticks i.done{background:var(--teal)}

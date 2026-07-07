@@ -1,4 +1,4 @@
-import { mix } from "@themes/theme";
+import { mix } from "@themes";
 import dagre from "@dagrejs/dagre";
 import type { EdgeLabel, GraphLabel, NodeLabel } from "@dagrejs/dagre";
 import {

@@ -2,7 +2,7 @@ import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import { register, getElement, skeletonize, GHOST } from "@elements/spec";
 import { fit, grow } from "@model/geometry";
-import { mix } from "@themes/theme";
+import { mix } from "@themes";
 
 // The palette-hidden type inserted into a *preview* artifact while dragging over open space.
 export const DROP_GHOST = "__dropghost";

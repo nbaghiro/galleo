@@ -1,4 +1,4 @@
-import { mix } from "@themes/theme";
+import { mix } from "@themes";
 import {
     boxWidth,
     buildTree,

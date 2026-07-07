@@ -12,14 +12,13 @@ import type {
 } from "@engine/node";
 import type { Section } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
-import type { Tokens } from "@themes/theme";
+import type { Tokens } from "@themes";
 import { composeSection } from "@elements/compose";
 import { skeletonize } from "@elements/spec";
 import { layout } from "@engine/layout";
 import { DEFAULT_PROFILE } from "@engine/profile";
 import { fixed, grow } from "@model/geometry";
-import { DEFAULT_THEME } from "@themes/library";
-import { mix } from "@themes/theme";
+import { DEFAULT_THEME, mix } from "@themes";
 
 // Imperative bridge: engine layout → render commands. Components paint these into refs; the engine
 // stays the single source of geometry (the framework never lays out content).

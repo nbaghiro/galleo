@@ -1,4 +1,4 @@
-import type { EditInput, SectionInput, Surface } from "@model/agent";
+import type { EditInput, SectionInput, Surface } from "@model/ai";
 import type { ArtifactContent, Section } from "@model/artifact";
 import { PERSONA, surfaceVoice } from "./persona";
 import { describeTheme, elementCatalog, gridCatalog } from "./catalog";

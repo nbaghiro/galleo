@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { resolveTheme } from "@themes/library";
+import { resolveTheme } from "@themes";
 import { api, type ApiFolder } from "../api";
 import { appTheme } from "../theme";
 

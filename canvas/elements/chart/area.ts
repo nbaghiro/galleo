@@ -1,4 +1,4 @@
-import { hexA } from "@themes/theme";
+import { hexA } from "@themes";
 import { area as d3area, line as d3line } from "d3-shape";
 import { registerChart, cartesianFrame, curveFor } from "./utils";
 import type { Frame, PlotCtx, ResolvedChart, Sink } from "./utils";

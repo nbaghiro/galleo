@@ -1,4 +1,4 @@
-import { hexA, mix } from "@themes/theme";
+import { hexA, mix } from "@themes";
 import { registerChart, catList, legendRow, uiFont } from "./utils";
 import type { PlotCtx, ResolvedChart } from "./utils";
 

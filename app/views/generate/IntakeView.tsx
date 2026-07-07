@@ -1,8 +1,7 @@
 import type { Component } from "solid-js";
 import { createMemo, createSignal, For } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { resolveTheme, THEME_LIST } from "@themes/library";
-import { themeCssVars } from "@themes/theme";
+import { resolveTheme, THEME_LIST, themeCssVars } from "@themes";
 import { api } from "../../api";
 import { blankArtifact, FORMAT_IDS, formatLabel } from "../../stores/library";
 import { ArrowUpRightIcon, RefreshIcon, SparkleIcon } from "../../components/icons";

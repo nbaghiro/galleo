@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { resolveTheme } from "@themes/library";
+import { resolveTheme } from "@themes";
 import { api, type ApiTemplate } from "../api";
 import { formatLabel } from "../stores/library";
 import { CloseIcon } from "../components/icons";

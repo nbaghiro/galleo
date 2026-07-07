@@ -4,7 +4,7 @@ import type { ElementInstance } from "@model/artifact";
 import { register, getElement } from "@elements/spec";
 import type { BoxInsets } from "@model/geometry";
 import { fit, fixed, grow, percent } from "@model/geometry";
-import { hexA } from "@themes/theme";
+import { hexA } from "@themes";
 
 // A table is a grid of real text-element cells (row-major), so every cell is independently selectable
 // and inline-editable via the same machinery as stat/quote. Table-level styling (header, gridlines,

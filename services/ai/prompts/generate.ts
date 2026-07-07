@@ -1,4 +1,4 @@
-import type { GenerateInput } from "@model/agent";
+import type { GenerateInput } from "@model/ai";
 import type { Beat, Outline } from "../schema";
 import { PERSONA, surfaceVoice } from "./persona";
 import { describeTheme, elementCatalog, gridCatalog } from "./catalog";
@@ -7,7 +7,7 @@ import { arcGuidance } from "./arcs";
 import { OUTPUT_NOTE, SECTION_RULES, briefContext, heading, stack } from "./system";
 import type { PromptParts } from "./system";
 
-// The generate capability — a two-phase flow that matches the AgentEvent protocol:
+// The generate capability — a two-phase flow that matches the TurnEvent protocol:
 //   1) outline  → the plan (title + ordered beats)  → emitted as a `plan` event
 //   2) section  → one Section per beat, in order    → each emitted as an `addSection` patch
 // Two phases (not one giant object) give real progressive rendering and let each section be written with

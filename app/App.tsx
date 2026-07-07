@@ -1,8 +1,9 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, onMount, Show } from "solid-js";
 import { Route, Router } from "@solidjs/router";
-import { resolveTheme } from "@themes/library";
+import { resolveTheme } from "@themes";
 import { authReady, bootstrap, user } from "./stores/auth";
+import { loadFeatures } from "./stores/features";
 import { customThemes, loadCustomThemes } from "./theme";
 import { faviconOverride, setFavicon, appTheme, appThemeOverride, appThemeVars } from "./theme";
 import { AuthPage } from "./views/AuthPage";
@@ -32,7 +33,12 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => (
 // restore the session + apply the app theme, then either sign-in or the routed app. The Router carries
 // base="/app" so all in-app links/routes resolve under /app/*.
 export const App: Component = () => {
-    onMount(() => bootstrap().then(() => loadCustomThemes()));
+    onMount(() =>
+        bootstrap().then(() => {
+            loadCustomThemes();
+            void loadFeatures();
+        }),
+    );
 
     // keep the browser-tab favicon in sync with the active theme (editor's artifact theme while editing,
     // otherwise the app-chrome theme). Touch customThemes() so it re-resolves once custom themes load

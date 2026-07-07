@@ -20,7 +20,7 @@ import {
     SECTION_GAP,
 } from "./commands";
 import type { Section, SectionBackground } from "@model/artifact";
-import type { Tokens } from "@themes/theme";
+import type { Tokens } from "@themes";
 import { resolveProfile } from "@engine/profile";
 import type { FormatDescriptor } from "@model/geometry";
 

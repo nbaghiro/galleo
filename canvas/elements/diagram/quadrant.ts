@@ -1,4 +1,4 @@
-import { hexA } from "@themes/theme";
+import { hexA } from "@themes";
 import { centerLabel, nodeText, registerDiagram, type Renderer } from "./utils";
 
 // A 2x2 matrix: faint quadrant tints, crossing axes, and the first four items one per quadrant.

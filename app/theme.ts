@@ -1,10 +1,9 @@
 // App theme state: the active app-chrome theme + drawer open/close state, favicon sync, editor-overlay token vars, and the sample artifact used in theme previews.
 
 import { createSignal } from "solid-js";
-import { resolveTheme, registerThemes } from "@themes/library";
-import { themeCssVars } from "@themes/theme";
+import { resolveTheme, registerThemes, themeCssVars } from "@themes";
 import type { JSX } from "solid-js";
-import type { Theme, Tokens } from "@themes/theme";
+import type { Theme, Tokens } from "@themes";
 import { api, type ApiTheme } from "./api";
 import { useLocation } from "@solidjs/router";
 import { editorTokens } from "@editor/editor";

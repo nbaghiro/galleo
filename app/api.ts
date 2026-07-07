@@ -1,8 +1,9 @@
 import type { Artifact, ArtifactInput, ArtifactSummary } from "@model/artifact";
 import type { Folder, Template, User } from "@model/workspace";
-import type { ThemeSummary as Theme, ThemeInput } from "@themes/theme";
-import type { Plan, PlanId } from "@model/billing";
-import type { AiActionId, AiActionInfo, MeterParams } from "@model/ai-actions";
+import type { ThemeSummary as Theme, ThemeInput } from "@themes";
+import type { Interval, Plan, PlanId } from "@model/billing";
+import type { FeatureKey, FeatureStatus, Features } from "@model/features";
+import type { TurnEvent, TurnRequest, AiActionId, AiActionInfo, MeterParams } from "@model/ai";
 import type { Usage } from "@model/credits";
 import type {
     IconPick,
@@ -28,9 +29,17 @@ export interface BillingState {
     periodEnd: string | null;
     credits: { used: number; limit: number; perGeneration: number };
     usage: { artifacts: number; maxArtifacts: number };
+    seats: number;
     catalog: Plan[];
     aiActions: AiActionInfo[]; // per-action credit costs ("what a credit buys")
     stripeReady: boolean;
+}
+
+// The GET /features response — the workspace's resolved capabilities + each feature's launch status, so
+// the app gates UI + badges `planned` features "coming soon" from the same source the backend enforces.
+export interface FeaturesState {
+    features: Features;
+    status: Record<FeatureKey, FeatureStatus>;
 }
 
 // Typed client over the backend (proxied at /api/* in dev → :8601). Cookies carry the session. The wire
@@ -46,7 +55,7 @@ export type {
     Folder as ApiFolder,
     Template as ApiTemplate,
 } from "@model/workspace";
-export type { ThemeSummary as ApiTheme } from "@themes/theme";
+export type { ThemeSummary as ApiTheme } from "@themes";
 
 export class ApiError extends Error {
     constructor(
@@ -154,10 +163,16 @@ export const api = {
         req<{ theme: Theme }>(`/themes/${id}`, { method: "PATCH", body: JSON.stringify(t) }),
     deleteTheme: (id: string) => req<{ ok: true }>(`/themes/${id}`, { method: "DELETE" }),
     getBilling: () => req<BillingState>("/billing"),
-    checkout: (plan: PlanId) =>
+    getFeatures: () => req<FeaturesState>("/features"),
+    checkout: (opts: { plan: PlanId; interval?: Interval; seats?: number }) =>
         req<{ url: string }>("/billing/checkout", {
             method: "POST",
-            body: JSON.stringify({ plan }),
+            body: JSON.stringify(opts),
+        }),
+    changePlan: (opts: { plan?: PlanId; interval?: Interval; seats?: number }) =>
+        req<{ ok?: boolean; effect?: string }>("/billing/change-plan", {
+            method: "POST",
+            body: JSON.stringify(opts),
         }),
     portal: () => req<{ url: string }>("/billing/portal", { method: "POST" }),
     spendCredits: (body?: {
@@ -171,3 +186,54 @@ export const api = {
             body: JSON.stringify(body ?? {}),
         }),
 };
+
+// Run one AI turn (POST /ai/turn) and deliver each TurnEvent to `onEvent` as it streams over SSE. Throws
+// ApiError on a non-stream failure (e.g. 402 out of credits) before the stream begins. The reader is
+// aborted via `signal` (cancel / navigate away).
+export async function streamTurn(
+    request: TurnRequest,
+    onEvent: (event: TurnEvent) => void,
+    signal?: AbortSignal,
+): Promise<void> {
+    const res = await fetch("/api/ai/turn", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+        signal,
+    });
+    if (!res.ok || !res.body) {
+        const text = await res.text().catch(() => "");
+        let msg = res.statusText;
+        try {
+            msg = (JSON.parse(text) as { error?: string }).error ?? msg;
+        } catch {
+            // non-JSON error body — keep the status text
+        }
+        throw new ApiError(res.status, msg);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let sep: number;
+        while ((sep = buf.indexOf("\n\n")) >= 0) {
+            const frame = buf.slice(0, sep);
+            buf = buf.slice(sep + 2);
+            for (const line of frame.split("\n")) {
+                if (!line.startsWith("data:")) continue;
+                const json = line.slice(5).trim();
+                if (!json) continue;
+                try {
+                    const logged = JSON.parse(json) as { seq: number; event: TurnEvent };
+                    onEvent(logged.event);
+                } catch {
+                    // skip a malformed frame
+                }
+            }
+        }
+    }
+}

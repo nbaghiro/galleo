@@ -17,7 +17,7 @@ with high-fidelity export. Net-new, TypeScript.
 - **`model/`** (`@model`, `@themes`) — the pure, edge-safe contract. Imports **nothing** outside `model`.
   Per-entity: each type sits with its own wire DTOs — `artifact` (the content tree + its REST shapes),
   `agent` (the streamed generation protocol), `workspace` (user/folder/template + their DTOs), `text`
-  (rich-text core + the render-facing `Run`), plus `target`/`geometry` (sizing + format profiles)/`authoring` and `themes/`.
+  (rich-text core + the render-facing `Run`), plus `target`/`geometry` (sizing + format profiles)/`authoring`, `elements` (the element value-sets), and `theme` (the whole theme contract + curated library, one file).
 - **`canvas/`** (`@canvas`, `@engine`, `@elements`) — the paint layer: the layout engine + element
   library + DOM / 2D-canvas / PDF backends + present-slide geometry + export. **Pure TS** — framework-
   and editor-free; imports only `model`. (The Solid present _surface_ that wraps it lives in `app`.)
@@ -67,7 +67,7 @@ The product SPA (`app/`, served at `/app`) wraps the studio: library / templates
 views, a backend (`services/` Hono + Postgres/Drizzle; artifact content lives in the
 `draft_content` jsonb), a singular theme drawer + custom-theme builder, and a narrated AI-generation
 flow that is a **client-side simulator** (`app/views/generate`, replaying hand-built fixtures section by
-section). A real backend LLM pipeline for the `@model/agent` protocol is future work.
+section). A real backend LLM pipeline for the `@model/ai` protocol is future work.
 
 ## Commits
 

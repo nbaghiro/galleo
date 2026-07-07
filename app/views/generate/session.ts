@@ -1,12 +1,12 @@
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
-import type { AgentEvent, Beat as PlanBeat } from "@model/agent";
+import type { TurnEvent, Beat as PlanBeat, GenerateInput, Phase as TurnPhase } from "@model/ai";
 import { createStore } from "solid-js/store";
-import { applyPatch } from "@model/agent";
-import { api } from "../../api";
+import { applyPatch } from "@model/ai";
+import { api, streamTurn } from "../../api";
 import { DEMO_EXAMPLES, type DemoExample } from "./demo";
 
 // The generation session — a reactive store the intake + build screens subscribe to. A client-side
-// simulator (`simulate`) replays a hand-built fixture as a stream of AgentEvents through `dispatch`, so
+// simulator (`simulate`) replays a hand-built fixture as a stream of TurnEvents through `dispatch`, so
 // the build screen fills in section by section. "Open in editor" persists the result and navigates to it.
 
 export type Surface = "deck" | "doc" | "web";
@@ -48,6 +48,7 @@ export interface Narration {
 
 interface SessionState {
     phase: Phase;
+    turnPhase: TurnPhase | null; // the backend's fine-grained phase (intake → outline → build → done)
     brief: Brief | null;
     theme: string;
     format: string;
@@ -61,6 +62,7 @@ interface SessionState {
 
 const initial: SessionState = {
     phase: "idle",
+    turnPhase: null,
     brief: null,
     theme: "studio",
     format: "deck",
@@ -118,8 +120,8 @@ export function resetSession(): void {
     setGen({ ...initial, beats: [], sections: [], narration: [] });
 }
 
-// Apply one AgentEvent to the store; returns the accumulating artifact content.
-function dispatch(ev: AgentEvent, content: ArtifactContent): ArtifactContent {
+// Apply one TurnEvent to the store; returns the accumulating artifact content.
+function dispatch(ev: TurnEvent, content: ArtifactContent): ArtifactContent {
     switch (ev.type) {
         case "plan":
             setGen({
@@ -145,6 +147,9 @@ function dispatch(ev: AgentEvent, content: ArtifactContent): ArtifactContent {
             if (ev.status === "active") setGen("activeSection", ev.id);
             break;
         }
+        case "phase":
+            setGen("turnPhase", ev.name);
+            break;
         case "narration":
             pushNarration(ev.text, ev.mono);
             if (ev.sub) narrSub(ev.sub);
@@ -302,16 +307,57 @@ export async function startSession(brief: Brief): Promise<void> {
     }
 }
 
+// Real generation: run a `generate` turn and stream the backend's TurnEvents (POST /ai/turn) into the
+// SAME dispatch the simulator uses, accumulating the artifact in `finalContent`. saveGenerated persists it.
+export async function startRealSession(input: GenerateInput): Promise<void> {
+    resetSession();
+    const controller = new AbortController();
+    abort = controller;
+    setGen({
+        phase: "building",
+        brief: {
+            prompt: input.prompt,
+            surface: input.surface,
+            theme: input.theme,
+            goal: input.goal ?? "",
+            audience: input.audience ?? "",
+            tone: input.tone ?? "",
+            length: input.length ?? "",
+        },
+        theme: input.theme,
+        format: input.surface,
+        error: "",
+    });
+    let content: ArtifactContent = { format: input.surface, theme: input.theme, sections: [] };
+    try {
+        await streamTurn(
+            { kind: "generate", input },
+            (ev) => {
+                content = dispatch(ev, content);
+            },
+            controller.signal,
+        );
+    } catch (e) {
+        if (controller.signal.aborted) return;
+        setGen({ phase: "error", error: e instanceof Error ? e.message : "Generation failed." });
+    }
+}
+
 // "Open" persists the replayed fixture as a fresh artifact (so it lands in the library + editor like a
 // real one) and returns its id to navigate to.
 export async function saveGenerated(): Promise<string | null> {
-    if (!demoArtifact) return null;
+    // simulator flow persists the matched fixture; real flow persists the streamed finalContent
+    const content = demoArtifact?.content ?? gen.finalContent;
+    if (!content) return null;
+    const title =
+        demoArtifact?.title ??
+        (content.sections[0] ? clip(sectionLabel(content.sections[0], 0), 60) : "Untitled");
     try {
         const { id } = await api.createArtifact({
-            title: demoArtifact.title,
-            formatId: demoArtifact.content.format,
-            themeId: demoArtifact.content.theme,
-            draftContent: demoArtifact.content,
+            title,
+            formatId: content.format,
+            themeId: content.theme,
+            draftContent: content,
             folderId: null,
         });
         return id;

@@ -1,4 +1,4 @@
-import { hexA } from "@themes/theme";
+import { hexA } from "@themes";
 import { arrow, drawNode, registerDiagram, type Renderer } from "./utils";
 
 // Horizontal row(s) of boxes, arrows between neighbours, wrapping to further rows when too many fit.

@@ -1,5 +1,5 @@
 import type { Section } from "@model/artifact";
-import type { Tokens } from "@themes/theme";
+import type { Tokens } from "@themes";
 import {
     badge,
     bullets,

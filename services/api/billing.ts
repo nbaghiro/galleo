@@ -2,16 +2,16 @@ import { Hono } from "hono";
 import { and, eq, isNull } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import type Stripe from "stripe";
-import type { PlanId } from "@model/billing";
-import { visiblePlans, limitsFor, CREDITS_PER_GENERATION } from "@model/billing";
-import type { AiActionId, MeterParams } from "@model/ai-actions";
-import { AI_ACTION_LIST, estimateCost } from "@model/ai-actions";
+import type { Interval, PlanId } from "@model/billing";
+import { visiblePlans, limitsFor, planFor, CREDITS_PER_GENERATION } from "@model/billing";
+import type { AiActionId, MeterParams } from "@model/ai";
+import { AI_ACTION_LIST, estimateCost } from "@model/ai";
 import type { Usage } from "@model/credits";
 import { costOf } from "@model/credits";
 import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
 import { currentUser, currentWorkspace, readJson } from "./context";
-import { stripe, stripeReady, priceIdFor, planForPrice } from "../billing/stripe";
+import { stripe, stripeReady, priceIdFor, planForPrice, intervalForPrice } from "../billing/stripe";
 
 // Billing: the current plan + usage (for the pricing page + paywalls), Stripe Checkout / customer-portal
 // hand-offs, an AI-credit spend gate, and the Stripe webhook that keeps the workspace's plan in sync.
@@ -20,6 +20,14 @@ export const billing = new Hono();
 // Where Stripe sends the user back to after Checkout / the portal (the app SPA, not the API).
 const APP_URL = process.env.APP_URL ?? "http://localhost:8600";
 const monthOut = (): Date => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+const RANK: Record<PlanId, number> = { free: 0, pro: 1, premium: 2 };
+
+// A subscription's current period end. Stripe moved this onto the subscription item in recent API
+// versions; fall back to a rough month-out if it's absent.
+function subPeriodEnd(sub: Stripe.Subscription): Date {
+    const ts = sub.items.data[0]?.current_period_end;
+    return ts ? new Date(ts * 1000) : monthOut();
+}
 
 // GET /billing — the plan, live usage, and the catalog the pricing page renders from.
 billing.get("/billing", async (c) => {
@@ -42,6 +50,7 @@ billing.get("/billing", async (c) => {
             perGeneration: CREDITS_PER_GENERATION,
         },
         usage: { artifacts: rows.length, maxArtifacts: limits.maxArtifacts },
+        seats: ws.seats,
         catalog: visiblePlans(),
         aiActions: AI_ACTION_LIST, // per-action credit costs, for the "what a credit buys" showcase
         stripeReady: stripeReady(),
@@ -55,9 +64,17 @@ billing.post("/billing/checkout", async (c) => {
     const ws = await currentWorkspace(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
     if (!stripeReady()) return c.json({ error: "billing not configured" }, 503);
-    const { plan } = await readJson<{ plan?: PlanId }>(c);
-    const price = plan ? priceIdFor(plan) : undefined;
+    const { plan, interval, seats } = await readJson<{
+        plan?: PlanId;
+        interval?: Interval;
+        seats?: number;
+    }>(c);
+    if (!plan || plan === "free") return c.json({ error: "invalid plan" }, 400);
+    const price = priceIdFor(plan, interval ?? "month");
     if (!price) return c.json({ error: "invalid plan" }, 400);
+    const p = planFor(plan);
+    const quantity =
+        p.billing.model === "per_seat" ? Math.max(seats ?? p.billing.minSeats, p.billing.minSeats) : 1;
 
     let customerId = ws.stripeCustomerId;
     if (!customerId) {
@@ -76,8 +93,9 @@ billing.post("/billing/checkout", async (c) => {
     const session = await stripe().checkout.sessions.create({
         mode: "subscription",
         customer: customerId,
-        line_items: [{ price, quantity: 1 }],
+        line_items: [{ price, quantity }],
         client_reference_id: ws.id,
+        subscription_data: { metadata: { workspaceId: ws.id } },
         allow_promotion_codes: true,
         success_url: `${APP_URL}/app/pricing?status=success`,
         cancel_url: `${APP_URL}/app/pricing?status=cancel`,
@@ -97,6 +115,52 @@ billing.post("/billing/portal", async (c) => {
         return_url: `${APP_URL}/app/pricing`,
     });
     return c.json({ url: session.url });
+});
+
+// POST /billing/change-plan — in-app tier / interval / seat change on an existing subscription. Downgrade
+// to Free schedules a cancel at period end (access kept until then); an upgrade invoices the difference
+// immediately (prorated); other changes prorate onto the next invoice. The webhook syncs the result.
+billing.post("/billing/change-plan", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await currentWorkspace(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+    if (!ws.stripeSubscriptionId)
+        return c.json({ error: "no active subscription", useCheckout: true }, 400);
+    const { plan, interval, seats } = await readJson<{
+        plan?: PlanId;
+        interval?: Interval;
+        seats?: number;
+    }>(c);
+
+    if (plan === "free") {
+        await stripe().subscriptions.update(ws.stripeSubscriptionId, { cancel_at_period_end: true });
+        return c.json({ ok: true, effect: "cancel_at_period_end" });
+    }
+    if (!stripeReady()) return c.json({ error: "billing not configured" }, 503);
+
+    const sub = await stripe().subscriptions.retrieve(ws.stripeSubscriptionId);
+    const item = sub.items.data[0];
+    if (!item) return c.json({ error: "no subscription item" }, 400);
+    const curPlan = planForPrice(item.price.id) ?? ((ws.plan ?? "free") as PlanId);
+    const curInterval = intervalForPrice(item.price.id) ?? "month";
+    const curSeats = item.quantity ?? 1;
+
+    const targetPlan = plan ?? curPlan;
+    const targetInterval = interval ?? curInterval;
+    const tp = planFor(targetPlan);
+    const targetSeats =
+        tp.billing.model === "per_seat" ? Math.max(seats ?? curSeats, tp.billing.minSeats) : 1;
+    const newPrice = priceIdFor(targetPlan, targetInterval);
+    if (!newPrice) return c.json({ error: "invalid plan" }, 400);
+
+    const upgrading = RANK[targetPlan] > RANK[curPlan] || targetSeats > curSeats;
+    await stripe().subscriptions.update(ws.stripeSubscriptionId, {
+        items: [{ id: item.id, price: newPrice, quantity: targetSeats }],
+        cancel_at_period_end: false,
+        proration_behavior: upgrading ? "always_invoice" : "create_prorations",
+    });
+    return c.json({ ok: true, effect: upgrading ? "upgraded" : "changed" });
 });
 
 // POST /billing/spend — reserve AI credits. The cost is, in order of precedence: an exact `usage` bag (what
@@ -161,22 +225,28 @@ billing.post("/billing/webhook", async (c) => {
 const activeStatus = (s: Stripe.Subscription.Status): string =>
     s === "active" || s === "trialing" ? "active" : s === "past_due" ? "past_due" : "canceled";
 
-async function workspaceBySub(subId: string, customerId: string | null) {
-    const [byS] = await db
+async function workspaceBySubId(subId: string) {
+    const [ws] = await db
         .select()
         .from(schema.workspaces)
         .where(eq(schema.workspaces.stripeSubscriptionId, subId));
-    if (byS) return byS;
-    if (customerId) {
-        const [byC] = await db
-            .select()
-            .from(schema.workspaces)
-            .where(eq(schema.workspaces.stripeCustomerId, customerId));
-        return byC ?? null;
-    }
-    return null;
+    return ws ?? null;
 }
 
+async function workspaceByCustomer(customerId: string) {
+    const [ws] = await db
+        .select()
+        .from(schema.workspaces)
+        .where(eq(schema.workspaces.stripeCustomerId, customerId));
+    return ws ?? null;
+}
+
+const seatsOf = (sub: Stripe.Subscription): number => sub.items.data[0]?.quantity ?? 1;
+const invCustomer = (inv: Stripe.Invoice): string | null =>
+    typeof inv.customer === "string" ? inv.customer : (inv.customer?.id ?? null);
+
+// Handlers are last-write-wins state syncs; the subscription events guard on the workspace whose CURRENT
+// sub this is (so a stale update arriving after a cancel can't resurrect a plan). Dunning maps by customer.
 async function handleEvent(event: Stripe.Event): Promise<void> {
     if (event.type === "checkout.session.completed") {
         const s = event.data.object as Stripe.Checkout.Session;
@@ -195,14 +265,15 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
                 planStatus: activeStatus(sub.status),
                 stripeCustomerId: customerId ?? undefined,
                 stripeSubscriptionId: sub.id,
-                planPeriodEnd: monthOut(),
+                seats: seatsOf(sub),
+                planPeriodEnd: subPeriodEnd(sub),
                 aiCreditsUsed: 0,
                 creditsResetAt: monthOut(),
             })
             .where(eq(schema.workspaces.id, wsId));
     } else if (event.type === "customer.subscription.updated") {
         const sub = event.data.object as Stripe.Subscription;
-        const ws = await workspaceBySub(sub.id, sub.customer as string);
+        const ws = await workspaceBySubId(sub.id); // strict: only this sub's workspace
         if (!ws) return;
         const plan = planForPrice(sub.items.data[0]?.price.id);
         await db
@@ -210,16 +281,34 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
             .set({
                 ...(plan ? { plan } : {}),
                 planStatus: activeStatus(sub.status),
-                planPeriodEnd: monthOut(),
+                seats: seatsOf(sub),
+                planPeriodEnd: subPeriodEnd(sub),
             })
             .where(eq(schema.workspaces.id, ws.id));
     } else if (event.type === "customer.subscription.deleted") {
         const sub = event.data.object as Stripe.Subscription;
-        const ws = await workspaceBySub(sub.id, sub.customer as string);
+        const ws = await workspaceBySubId(sub.id);
         if (!ws) return;
+        // access ends → back to Free. Data is kept; over-limit use is soft-locked by the resolver's gates.
         await db
             .update(schema.workspaces)
-            .set({ plan: "free", planStatus: "canceled", stripeSubscriptionId: null })
+            .set({ plan: "free", planStatus: "canceled", stripeSubscriptionId: null, seats: 1 })
             .where(eq(schema.workspaces.id, ws.id));
+    } else if (event.type === "invoice.payment_failed") {
+        const customerId = invCustomer(event.data.object as Stripe.Invoice);
+        const ws = customerId ? await workspaceByCustomer(customerId) : null;
+        if (ws)
+            await db
+                .update(schema.workspaces)
+                .set({ planStatus: "past_due" })
+                .where(eq(schema.workspaces.id, ws.id));
+    } else if (event.type === "invoice.paid") {
+        const customerId = invCustomer(event.data.object as Stripe.Invoice);
+        const ws = customerId ? await workspaceByCustomer(customerId) : null;
+        if (ws && ws.planStatus === "past_due")
+            await db
+                .update(schema.workspaces)
+                .set({ planStatus: "active" })
+                .where(eq(schema.workspaces.id, ws.id));
     }
 }

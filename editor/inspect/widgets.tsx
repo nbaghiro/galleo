@@ -1,8 +1,8 @@
 import type { Component } from "solid-js";
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { Portal } from "solid-js/web";
-import type { Tokens } from "@themes/theme";
-import { luminance, mix, mixWhite } from "@themes/theme";
+import type { Tokens } from "@themes";
+import { luminance, mix, mixWhite } from "@themes";
 
 // The shared input widgets for the inspector + format bar: a theme-aware Dropdown and the ColorPicker
 // (with its on-theme swatch palettes). Both use only theme CSS-var classes, so they match whatever theme

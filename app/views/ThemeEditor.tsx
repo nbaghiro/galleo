@@ -1,10 +1,9 @@
-import type { Theme, Tokens } from "@themes/theme";
+import type { Theme, Tokens } from "@themes";
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 import { useLocation } from "@solidjs/router";
-import { luminance, themeCssVars } from "@themes/theme";
-import { resolveTheme, THEME_LIST } from "@themes/library";
+import { luminance, themeCssVars, resolveTheme, THEME_LIST } from "@themes";
 import { resolveProfile } from "@engine/profile";
 import { paintSectionStack } from "@canvas/render/backends";
 import { setArtifactTheme } from "@elements/ops";
@@ -578,7 +577,7 @@ const ThemeEditorPanel: Component = () => {
                     </div>
                     <div
                         ref={scroll}
-                        class="min-h-0 flex-1 overflow-auto"
+                        class="min-h-0 flex-1 overflow-auto pt-4"
                         style={{ background: tk.bg }}
                     >
                         <div ref={host} />

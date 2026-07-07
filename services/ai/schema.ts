@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { GRID_IDS } from "@model/ai-schema";
+import { GRID_IDS } from "@model/elements";
 
 // The Zod schemas the AI module hands to `generateObject`/`streamObject` — the machine half of the contract
 // whose human half is the prompt catalog. They keep the *shape* honest (a section is grid + cells of
@@ -69,7 +69,7 @@ export const zTranslate = z.object({
 
 // --- theme generation (→ @themes ThemeInput) ---
 
-// The token set of a theme (matches @themes/theme Tokens). Colors are #rrggbb; fonts must come from the
+// The token set of a theme (matches @themes Tokens). Colors are #rrggbb; fonts must come from the
 // bundled families the prompt lists; radius/border are px, headingWeight 300–800.
 export const zTokens = z.object({
     bg: z.string().describe("page background hex"),

@@ -11,8 +11,7 @@ import {
     Switch,
 } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { resolveTheme } from "@themes/library";
-import { themeCssVars } from "@themes/theme";
+import { resolveTheme, themeCssVars } from "@themes";
 import {
     CheckIcon,
     ChevronLeftIcon,

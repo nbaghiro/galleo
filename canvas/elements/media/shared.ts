@@ -2,8 +2,8 @@ import type { ElementSpec } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import type { MediaKind } from "@model/media";
 import { fit, grow } from "@model/geometry";
-import { IMAGE_FIT } from "@model/elements/media";
-import type { ImageFit } from "@model/elements/media";
+import { IMAGE_FIT } from "@model/elements";
+import type { ImageFit } from "@model/elements";
 
 export interface ImageData {
     src: string;

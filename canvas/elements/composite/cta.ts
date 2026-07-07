@@ -1,7 +1,7 @@
 import type { EngineNode } from "@engine/node";
 import { register, bar, pill, GHOST_PANEL } from "@elements/spec";
 import { fit, grow } from "@model/geometry";
-import { mix } from "@themes/theme";
+import { mix } from "@themes";
 import { composite, t, button, pad } from "@elements/composite/shared";
 
 // --- cta: heading + subtext + button, centered on a tinted band ---

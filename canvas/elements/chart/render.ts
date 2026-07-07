@@ -16,7 +16,7 @@ import "./heatmap";
 import "./treemap";
 
 import type { DrawContext, Rect } from "@engine/node";
-import type { Tokens } from "@themes/theme";
+import type { Tokens } from "@themes";
 import type { ChartData } from "./utils";
 import { normalize, getChart, seriesColors } from "./utils";
 

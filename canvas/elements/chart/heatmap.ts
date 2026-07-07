@@ -1,4 +1,4 @@
-import { hexA } from "@themes/theme";
+import { hexA } from "@themes";
 import { registerChart, catList, fmt, labelStyle } from "./utils";
 import type { PlotCtx, ResolvedChart } from "./utils";
 

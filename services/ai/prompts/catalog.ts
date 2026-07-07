@@ -1,8 +1,9 @@
-import { ELEMENTS, GRIDS, TEXT_STYLES } from "@model/ai-schema";
-import type { ElementSchema, FieldSpec } from "@model/ai-schema";
-import { THEME_LIST, resolveTheme } from "@themes/library";
+import { ELEMENTS, GRIDS } from "@model/ai";
+import type { ElementSchema, FieldSpec } from "@model/ai";
+import { TEXT_STYLES } from "@model/elements";
+import { THEME_LIST, resolveTheme } from "@themes";
 
-// Renders the model-level authoring descriptor (@model/ai-schema) + the theme registry into the reference
+// Renders the model-level authoring descriptor (@model/ai) + the theme registry into the reference
 // text the LLM sees. Because it is generated from the same data the Zod schema validates against, the
 // catalog the model reads and the shape the module accepts can never drift.
 

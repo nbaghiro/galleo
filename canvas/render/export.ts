@@ -1,6 +1,6 @@
 import type { RenderCommand } from "@engine/node";
 import type { ArtifactContent } from "@model/artifact";
-import type { Tokens } from "@themes/theme";
+import type { Tokens } from "@themes";
 import { PDFDocument } from "pdf-lib";
 import { fragment } from "@engine/layout";
 import { resolveProfile } from "@engine/profile";

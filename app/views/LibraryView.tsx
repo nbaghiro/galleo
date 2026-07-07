@@ -12,8 +12,7 @@ import {
     Switch,
 } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
-import { resolveTheme } from "@themes/library";
-import { fontStack } from "@themes/theme";
+import { resolveTheme, fontStack } from "@themes";
 import { type ArtifactSummary } from "../api";
 import {
     FORMAT_IDS,

@@ -3,11 +3,11 @@ import type { EngineNode } from "@engine/node";
 import type { ElementAddress } from "@model/target";
 import type { ElementInstance, Section, SectionBackground } from "@model/artifact";
 import type { ElementLayout, Size } from "@model/geometry";
-import type { Tokens } from "@themes/theme";
+import type { Tokens } from "@themes";
 import { getElement } from "@elements/spec";
 import { cellRegionId, elementRegionId, sectionRegionId } from "@model/target";
 import { fit, grow, percent } from "@model/geometry";
-import { fontStack, luminance, mixWhite } from "@themes/theme";
+import { fontStack, luminance, mixWhite } from "@themes";
 
 // --- section grid templates: predefined per-cell width specs + one-click preset inserts ---
 // composeSection() (below) builds each cell's box from these and tags it for selection; spacing is via

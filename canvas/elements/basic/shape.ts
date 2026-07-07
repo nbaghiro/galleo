@@ -1,6 +1,6 @@
 import type { ControlField, ElementSpec, LayoutCtx } from "@elements/spec";
 import type { DrawContext, EngineNode, PathSink, Rect } from "@engine/node";
-import type { Tokens } from "@themes/theme";
+import type { Tokens } from "@themes";
 import { GHOST, register } from "@elements/spec";
 import { fixed, grow } from "@model/geometry";
 

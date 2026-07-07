@@ -2,8 +2,7 @@
 import "../theme/styles.css";
 import "./website.css";
 import { render } from "solid-js/web";
-import { resolveTheme } from "@themes/library";
-import { themeCssVars } from "@themes/theme";
+import { resolveTheme, themeCssVars } from "@themes";
 import { setFavicon } from "../app/theme";
 import { WebsitePage } from "./WebsitePage";
 

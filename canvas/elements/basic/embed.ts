@@ -2,7 +2,7 @@ import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import { register } from "@elements/spec";
 import { fit, grow } from "@model/geometry";
-import { fontStack } from "@themes/theme";
+import { fontStack } from "@themes";
 
 // A link/bookmark card (the static fallback for an iframe/embed).
 interface EmbedData {

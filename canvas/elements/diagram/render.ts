@@ -15,7 +15,7 @@ import "./mindmap";
 import "./flow";
 
 import type { DrawContext, Rect } from "@engine/node";
-import type { Tokens } from "@themes/theme";
+import type { Tokens } from "@themes";
 import type { DiagramData } from "./utils";
 import { getDiagram, normalizeDiagram } from "./utils";
 import { seriesColors } from "@elements/chart/utils";

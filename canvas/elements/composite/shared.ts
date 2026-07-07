@@ -11,8 +11,8 @@ import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
 import { getElement, GHOST } from "@elements/spec";
 import { fit, fixed, grow } from "@model/geometry";
-import { FLEX_DIRECTION } from "@model/elements/composite";
-import type { FlexDirection } from "@model/elements/composite";
+import { FLEX_DIRECTION } from "@model/elements";
+import type { FlexDirection } from "@model/elements";
 
 export interface CompositeData {
     children: ElementInstance[];

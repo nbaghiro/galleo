@@ -1,4 +1,4 @@
-import type { GenerateInput, Surface } from "@model/agent";
+import type { GenerateInput, Surface } from "@model/ai";
 import { heading } from "./system";
 
 // Canonical section arcs, extracted from the 30 starter templates (services/templates/*). Each category of

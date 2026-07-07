@@ -51,7 +51,7 @@ export default defineConfig({
             "@model": abs("./model"),
             "@engine": abs("./canvas/engine"),
             "@elements": abs("./canvas/elements"),
-            "@themes": abs("./model/themes"),
+            "@themes": abs("./model/theme"),
             "@canvas": abs("./canvas"),
             "@editor": abs("./editor"),
         },

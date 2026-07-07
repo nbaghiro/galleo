@@ -11,7 +11,7 @@ import {
 } from "solid-js";
 import type { Section, ArtifactContent } from "@model/artifact";
 import { resolveProfile } from "@engine/profile";
-import { resolveTheme } from "@themes/library";
+import { resolveTheme } from "@themes";
 import { paint, backdropCss, paintSectionStack } from "@canvas/render/backends";
 import { measureText, layoutSlide, SECTION_GAP } from "@canvas/render/commands";
 
