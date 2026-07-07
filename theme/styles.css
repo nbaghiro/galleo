@@ -135,3 +135,38 @@ body {
 .theme-drawer-enter {
     animation: theme-drawer-in 0.18s ease;
 }
+
+/* AI theme-generation loader: a row of swatches cycling a palette (staggered per swatch → "forming") */
+@keyframes theme-gen-swatch {
+    0%,
+    100% {
+        background: #a8572c;
+        transform: scale(1);
+    }
+    16% {
+        background: #2b5c7a;
+    }
+    33% {
+        background: #c9a24b;
+        transform: scale(1.12);
+    }
+    50% {
+        background: #1e7a6f;
+    }
+    66% {
+        background: #9c3d54;
+    }
+    83% {
+        background: #6e7a5c;
+        transform: scale(1.12);
+    }
+}
+.theme-gen-swatch {
+    animation: theme-gen-swatch 2.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .theme-gen-swatch {
+        animation: none;
+        opacity: 0.55;
+    }
+}

@@ -7,7 +7,15 @@ export type Provider = "anthropic" | "openai" | "google" | "xai";
 
 // Every capability the module offers. `generate` is the heavy one (a whole artifact); `rewrite`/`translate`
 // are high-volume and latency-sensitive, so they default to a fast model.
-export type AiTask = "generate" | "outline" | "section" | "edit" | "rewrite" | "translate" | "chat";
+export type AiTask =
+    | "generate"
+    | "outline"
+    | "section"
+    | "edit"
+    | "rewrite"
+    | "translate"
+    | "chat"
+    | "theme";
 
 export interface ModelInfo {
     id: string; // "anthropic:claude-sonnet-5"
@@ -123,6 +131,9 @@ export const DEFAULT_MODELS: Record<AiTask, string> = {
     rewrite: "google:gemini-2.5-flash",
     translate: "google:gemini-2.5-flash",
     chat: "google:gemini-2.5-flash",
+    // A theme is a tiny, tightly-constrained structured output - Flash is plenty and much faster than Pro,
+    // and the deterministic contrast + OKLCH pass guarantees quality on top, not the model.
+    theme: "google:gemini-2.5-flash",
 };
 
 export function defaultModelFor(task: AiTask): string {

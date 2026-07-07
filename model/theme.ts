@@ -150,6 +150,122 @@ export function hexA(hex: string, a: number): string {
     return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
+// --- WCAG contrast + OKLCH (used by the AI theme finalizer) ---
+// Proper, gamma-correct color math — distinct from the cheap perceived `luminance()` above. Pure.
+
+// sRGB channel (0..255) → linear-light 0..1.
+function toLinear(c: number): number {
+    const s = c / 255;
+    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+}
+// linear-light 0..1 → sRGB channel 0..255 (clamped).
+function fromLinear(c: number): number {
+    const v = c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055;
+    return Math.max(0, Math.min(255, Math.round(v * 255)));
+}
+const hx2 = (n: number): string => n.toString(16).padStart(2, "0");
+
+// WCAG relative luminance, 0 (black) → 1 (white).
+export function relLuminance(hex: string): number {
+    const [r, g, b] = hexToRgb(hex);
+    return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+
+// WCAG contrast ratio between two colors: 1 (identical) → 21 (black vs white). 4.5 = AA body text.
+export function contrastRatio(a: string, b: string): number {
+    const la = relLuminance(a);
+    const lb = relLuminance(b);
+    return la >= lb ? (la + 0.05) / (lb + 0.05) : (lb + 0.05) / (la + 0.05);
+}
+
+// A perceptual OKLCH color — L (0..1 lightness), C (chroma), H (hue radians).
+export interface Oklch {
+    L: number;
+    C: number;
+    H: number;
+}
+
+export function hexToOklch(hex: string): Oklch {
+    const [r8, g8, b8] = hexToRgb(hex);
+    const r = toLinear(r8);
+    const g = toLinear(g8);
+    const b = toLinear(b8);
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    const L = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
+    const A = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+    const B = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+    return { L, C: Math.hypot(A, B), H: Math.atan2(B, A) };
+}
+
+export function oklchToHex({ L, C, H }: Oklch): string {
+    const A = C * Math.cos(H);
+    const B = C * Math.sin(H);
+    const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3;
+    const m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3;
+    const s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3;
+    const r = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
+    const g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+    const b = -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s;
+    return `#${hx2(fromLinear(r))}${hx2(fromLinear(g))}${hx2(fromLinear(b))}`;
+}
+
+// --- the AI theme finalizer ---
+// A generated theme is coherent in structure but the model eyeballs contrast + saturation (it happily
+// pairs white text on a neon accent, or ships a fluorescent brand color). This pure pass GUARANTEES a
+// production-safe result with no extra model call: tame a neon accent, derive `onAccent` by contrast,
+// ensure a real bg→surface lift, and repair text-on-surface ratios. Applied to every AI-generated theme.
+
+const ACCENT_CHROMA_MAX = 0.155; // OKLCH chroma ceiling — above this an accent reads as neon/AI-slop
+const ACCENT_L_MAX_DARK = 0.74; // a too-light accent glows on a dark theme; pull it toward a jewel tone
+
+// Nudge `fg` toward black/white until it clears `ratio` against `bg` (falling back to the extreme).
+function reachContrast(
+    fg: string,
+    bg: string,
+    ratio: number,
+    toward: "#000000" | "#ffffff",
+): string {
+    if (contrastRatio(fg, bg) >= ratio) return fg;
+    for (let f = 0.12; f < 1; f += 0.12) {
+        const out = mix(fg, toward, f);
+        if (contrastRatio(out, bg) >= ratio) return out;
+    }
+    return toward;
+}
+
+export function finalizeTheme(t: Tokens): Tokens {
+    const dark = relLuminance(t.bg) < 0.4;
+    const textToward = dark ? "#ffffff" : "#000000";
+
+    // 1. Tame the accent — clamp chroma (and, on dark, lightness) so neon → a rich, designed color.
+    const ac = hexToOklch(t.accent);
+    const C = Math.min(ac.C, ACCENT_CHROMA_MAX);
+    const L = dark ? Math.min(ac.L, ACCENT_L_MAX_DARK) : ac.L;
+    const accent = C !== ac.C || L !== ac.L ? oklchToHex({ L, C, H: ac.H }) : t.accent;
+
+    // 2. onAccent — the black-or-white that reads best on the tamed accent (never the model's guess).
+    const onAccent =
+        contrastRatio("#0a0a0a", accent) >= contrastRatio("#ffffff", accent)
+            ? "#0a0a0a"
+            : "#ffffff";
+
+    // 3. Ensure surface is a visible lift above bg on dark themes (cards must separate from the page).
+    let surface = t.surface;
+    if (dark && contrastRatio(t.bg, surface) < 1.06) {
+        const bo = hexToOklch(t.bg);
+        surface = oklchToHex({ ...bo, L: bo.L + 0.045 });
+    }
+
+    // 4. Guarantee legible text on the surface (AA+ for ink, stepping down for soft/muted).
+    const ink = reachContrast(t.ink, surface, 5.5, textToward);
+    const soft = reachContrast(t.soft, surface, 3.8, textToward);
+    const muted = reachContrast(t.muted, surface, 2.6, textToward);
+
+    return { ...t, accent, onAccent, surface, ink, soft, muted };
+}
+
 // --- the curated theme library ---
 // Each theme is a coherent system: a font trio (display/body/mono), a heading weight, a corner radius,
 // an optional border width + shadow, and a palette. `surface` = `cv`, `soft` = `ik`, `muted` = `mu`,

@@ -107,3 +107,4 @@ export type Outline = z.infer<typeof zOutline>;
 export type Beat = z.infer<typeof zBeat>;
 export type SectionResult = z.infer<typeof zSectionResult>;
 export type ArtifactDraft = z.infer<typeof zArtifactDraft>;
+export type ThemeGen = z.infer<typeof zTheme>;

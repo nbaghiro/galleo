@@ -162,6 +162,12 @@ export const api = {
     updateTheme: (id: string, t: Partial<ThemeInput>) =>
         req<{ theme: Theme }>(`/themes/${id}`, { method: "PATCH", body: JSON.stringify(t) }),
     deleteTheme: (id: string) => req<{ ok: true }>(`/themes/${id}`, { method: "DELETE" }),
+    // AI-generate a custom theme from a text prompt → a ThemeInput to preview/save.
+    generateTheme: (prompt: string, isDark?: boolean) =>
+        req<{ theme: ThemeInput }>("/ai/theme", {
+            method: "POST",
+            body: JSON.stringify({ prompt, isDark }),
+        }),
     getBilling: () => req<BillingState>("/billing"),
     getFeatures: () => req<FeaturesState>("/features"),
     checkout: (opts: { plan: PlanId; interval?: Interval; seats?: number }) =>

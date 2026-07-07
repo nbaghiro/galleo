@@ -59,7 +59,8 @@ const THEME_RULES = stack(
         "Token rules",
         [
             "- Colors are #rrggbb. Ensure strong contrast: ink on surface must be easily legible (light theme = dark ink on light surface; dark theme = light ink on dark surface).",
-            "- `surface` is a subtle lift from `bg` (not identical, not jarring). `soft` and `muted` step down from `ink`. `line` is a low-contrast divider. `accent` is the one saturated brand color; `onAccent` must read clearly on it.",
+            "- `surface` is a subtle lift from `bg` (not identical, not jarring). `soft` and `muted` step down from `ink`. `line` is a low-contrast divider. `accent` is the one brand color; `onAccent` must read clearly on it.",
+            "- The accent is confident but NEVER fluorescent — pick a sophisticated, slightly-restrained saturation. A dark theme's accent is a jewel tone (deep teal, amber, garnet), not a neon glow.",
             "- radius: 0 for sharp/brutalist/editorial, 4–8 for classic, 14–26 for soft/organic. headingWeight: 400 for elegant serifs, 600–800 for bold/grotesque.",
             "- border: 0–1 for soft themes, 2–4 for blocky/brutalist. shadow: 'none', a soft lift, a hard offset (brutalist), or an accent glow.",
         ].join("\n"),

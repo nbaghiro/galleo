@@ -10,6 +10,7 @@ import { SESSION_COOKIE } from "../auth";
 import { currentUser, currentWorkspace, readJson } from "./context";
 import { aiReady } from "../ai/provider";
 import { runTurn } from "../ai/run";
+import { generateThemeFromPrompt } from "../ai/theme";
 
 // The AI route — runs one turn and streams its TurnEvents to the client over SSE. The turn runtime
 // (services/ai/run) yields the protocol; this handler adds auth, the credit gate, and SSE framing. The
@@ -81,4 +82,40 @@ ai.post("/ai/turn", async (c) => {
                 });
         }
     });
+});
+
+// POST /ai/theme — generate one custom theme from a text prompt. Not a streamed turn: a single small
+// structured call returns a full ThemeInput (name + mood + isDark + tokens) to preview/save. Reserves the
+// metered generate-theme cost up front, same gate as a turn.
+ai.post("/ai/theme", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await currentWorkspace(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+    if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
+    const body = await readJson<{ prompt?: string; isDark?: boolean }>(c);
+    if (!body?.prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
+
+    const cost = estimateCost("generate-theme");
+    const limit = limitsFor(ws.plan).aiCreditsPerMonth;
+    if (ws.aiCreditsUsed + cost > limit)
+        return c.json(
+            {
+                error: "out of AI credits",
+                upgrade: true,
+                remaining: Math.max(0, limit - ws.aiCreditsUsed),
+            },
+            402,
+        );
+    await db
+        .update(schema.workspaces)
+        .set({ aiCreditsUsed: ws.aiCreditsUsed + cost })
+        .where(eq(schema.workspaces.id, ws.id));
+
+    try {
+        const theme = await generateThemeFromPrompt(body.prompt.trim(), { isDark: body.isDark });
+        return c.json({ theme });
+    } catch (e) {
+        return c.json({ error: e instanceof Error ? e.message : "theme generation failed" }, 500);
+    }
 });
