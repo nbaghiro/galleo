@@ -38,7 +38,9 @@ const TH =
 const CELL = "border-b border-r border-line/50";
 const IN =
     "w-full min-w-[72px] bg-transparent px-2.5 py-2 text-[13px] text-ink outline-none focus:bg-canvas";
-const NUM = `${IN} text-right font-mono tabular-nums`;
+// Left-aligned (not right) so value cells sit under their column header, which matters most across the
+// multiple value columns of a multi-series chart. Tabular figures keep digit columns even.
+const NUM = `${IN} text-left font-mono tabular-nums`;
 const DEL = "px-2 text-[13px] text-muted transition-colors hover:text-accent";
 const numClass = (v: string): string =>
     invalidNumber(v) ? `${NUM} rounded-sm bg-rose-500/5 ring-1 ring-inset ring-rose-400/70` : NUM;
