@@ -1,125 +1,67 @@
-// The authoring surface, described as data — the single, edge-safe source of truth the AI module reads
-// to (a) render the system-prompt catalog an LLM sees and (b) build the Zod schema that validates what it
-// emits. It lives in `model` (not `canvas`) on purpose: `services` may not import `canvas`, but the AI
-// generator runs in `services`, so the contract it targets must be model-level. This mirrors the curated
-// subset the `@model/authoring` DSL already proves is enough to build every demo — the AI writes content
-// at that altitude (element `type` + `data`), never touching layout or pixels.
+// The AI authoring catalog — the element list the LLM writes against, annotated with `when`/`desc` guidance,
+// used to (a) render the system-prompt catalog and (b) build the Zod schema that validates what it emits. It
+// lives in `model` (not `canvas`) on purpose: `services` may not import `canvas`, but the AI generator runs
+// in `services`, so the contract it targets must be model-level. This file is now just the AI-additive
+// layer: the shared VALUE-SETS (styles, tones, chart/diagram types, grids) live once per category under
+// `@model/elements/*` and are re-exported here for back-compat; this file adds only the authoring guidance.
 //
-// Keep this in lockstep with the element specs in `canvas/elements/*`. It intentionally describes only the
-// fields the AI should set — not every studio-only affordance an element supports.
+// It intentionally describes only the fields the AI should set — not every studio-only affordance an element
+// supports — and emits `chart`/`diagram` with a `data.type` discriminant rather than the palette variants.
 
-// --- allowed value sets (the enums an LLM must pick from) ---
+import { BULLET_MARKERS, CALLOUT_TONES, TEXT_ALIGN, TEXT_STYLES } from "@model/elements/text";
+import { IMAGE_FIT } from "@model/elements/media";
+import { CARD_STYLES, FLEX_DIRECTION } from "@model/elements/composite";
+import { BUTTON_VARIANTS } from "@model/elements/chrome";
+import { CHART_TYPES } from "@model/elements/chart";
+import { DIAGRAM_TYPES } from "@model/elements/diagram";
+import { GRID_TEMPLATES } from "@model/elements/section";
 
-export const TEXT_STYLES = [
-    "h1", // Title — the biggest type; one per section, the headline
-    "subtitle", // a supporting line under a title
-    "h2", // Heading
-    "h3", // Subheading
-    "body", // paragraph copy
-    "caption", // small muted text — sources, footnotes, stat labels
-    "quote", // a pulled quotation
-    "label", // an eyebrow / kicker — short, uppercase-ish, sits above a title
-] as const;
-export type TextStyle = (typeof TEXT_STYLES)[number];
+// Re-export the shared value-sets so existing importers of `@model/ai-schema` keep resolving them here.
+export { BULLET_MARKERS, CALLOUT_TONES, TEXT_ALIGN, TEXT_STYLES } from "@model/elements/text";
+export { IMAGE_FIT } from "@model/elements/media";
+export { CARD_STYLES, FLEX_DIRECTION } from "@model/elements/composite";
+export { BUTTON_VARIANTS } from "@model/elements/chrome";
+export { CHART_TYPES } from "@model/elements/chart";
+export { DIAGRAM_TYPES, GRAPH_DIAGRAM_TYPES } from "@model/elements/diagram";
+export { GRID_IDS } from "@model/elements/section";
+export type { CalloutTone, TextStyle } from "@model/elements/text";
+export type { CardStyle } from "@model/elements/composite";
+export type { ChartType } from "@model/elements/chart";
+export type { DiagramType } from "@model/elements/diagram";
 
-export const TEXT_ALIGN = ["start", "center", "end"] as const;
-export const BULLET_MARKERS = ["dot", "number", "dash", "check"] as const;
-export const CALLOUT_TONES = [
-    "note",
-    "info",
-    "tip",
-    "success",
-    "warn",
-    "caution",
-    "question",
-] as const;
-export const IMAGE_FIT = ["cover", "contain"] as const;
-export const CARD_STYLES = ["solid", "outline", "sideline", "topline", "plain"] as const;
-export const FLEX_DIRECTION = ["row", "col"] as const;
-export const BUTTON_VARIANTS = ["filled", "outline"] as const;
-
-// The chart-registry discriminant carried in `data.type` (drives which chart is drawn; the element `type`
-// only selects the spec). Emit `{ type: "chart", data: { type: <one of these>, values, categories } }`.
-export const CHART_TYPES = [
-    "bar",
-    "column",
-    "line",
-    "area",
-    "pie",
-    "donut",
-    "radar",
-    "scatter",
-    "bubble",
-    "funnel",
-    "gauge",
-    "heatmap",
-    "treemap",
-] as const;
-export type ChartType = (typeof CHART_TYPES)[number];
-
-// The diagram-registry discriminant carried in `data.type`. `links` only applies to the graph kinds.
-export const DIAGRAM_TYPES = [
-    "process",
-    "cycle",
-    "pyramid",
-    "funnel",
-    "timeline",
-    "venn",
-    "quadrant",
-    "matrix",
-    "tree",
-    "org",
-    "mindmap",
-    "flow",
-] as const;
-export type DiagramType = (typeof DIAGRAM_TYPES)[number];
-
-// Graph diagrams read the `links` edge string; templated ones ignore it.
-export const GRAPH_DIAGRAM_TYPES = ["flow", "tree", "org", "mindmap"] as const;
-
-// --- section grid templates (the column layouts a section can use) ---
+// --- section grids (structure from @model/elements, authoring guidance added here) ---
 
 export interface GridSchema {
     id: string;
     cells: readonly string[]; // the cell keys this grid exposes (fill each with one element)
     widths: string; // human description of the column split
-    when: string;
+    when: string; // when to reach for this grid
 }
 
-export const GRIDS: readonly GridSchema[] = [
-    {
-        id: "full",
-        cells: ["a"],
+const GRID_HINTS: Record<string, { widths: string; when: string }> = {
+    full: {
         widths: "one full-width column",
         when: "a hero, a single statement, one big image, or a centered moment",
     },
-    {
-        id: "split-6040",
-        cells: ["a", "b"],
+    "split-6040": {
         widths: "60% / 40%",
         when: "text-forward with a supporting image/visual on the right",
     },
-    {
-        id: "split-4060",
-        cells: ["a", "b"],
+    "split-4060": {
         widths: "40% / 60%",
         when: "an image/visual on the left, text on the right",
     },
-    {
-        id: "two-col",
-        cells: ["a", "b"],
-        widths: "50% / 50%",
-        when: "two balanced ideas or a compare/contrast",
-    },
-    {
-        id: "three-up",
-        cells: ["a", "b", "c"],
+    "two-col": { widths: "50% / 50%", when: "two balanced ideas or a compare/contrast" },
+    "three-up": {
         widths: "three equal thirds",
         when: "three features, steps, stats, or cards side by side",
     },
-] as const;
+};
 
-export const GRID_IDS = GRIDS.map((g) => g.id);
+export const GRIDS: readonly GridSchema[] = GRID_TEMPLATES.map((t) => {
+    const h = GRID_HINTS[t.id] ?? { widths: "", when: "" };
+    return { id: t.id, cells: t.cells, widths: h.widths, when: h.when };
+});
 
 // --- the element catalog ---
 
