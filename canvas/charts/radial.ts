@@ -1,20 +1,18 @@
 import { hexA, mix } from "@themes/theme";
-import { arc as d3arc, pie as d3pie } from "d3-shape";
-import type { PieArcDatum } from "d3-shape";
 import { registerChart } from "./registry";
 import { fmt, legendRow, uiFont } from "./chrome";
 import { catList } from "./data";
 import type { PlotCtx, ResolvedChart } from "./types";
 
-type Sink = CanvasRenderingContext2D;
-
 // Pie + donut share everything but the inner radius. Both use the first series as the slice values and
-// the categories as slice labels.
+// the categories as slice labels. Slices are drawn centered at (cx, cy) with canvas angles (0 = top,
+// clockwise) — d3.arc() centers at the origin, which would pin the pie to the box's top-left corner.
 function pieLike(donut: boolean) {
     return (chart: ResolvedChart, ctx: PlotCtx): void => {
         const { g, W, H, theme } = ctx;
         const vals = (chart.series[0]?.points ?? []).map((v) => Math.max(0, v));
-        if (!vals.some((v) => v > 0)) return;
+        const total = vals.reduce((s, v) => s + v, 0);
+        if (total <= 0) return;
         const cats = catList(chart);
         const cols = ctx.colors(vals.length);
         const legendH = legendRow(
@@ -28,25 +26,27 @@ function pieLike(donut: boolean) {
         const availH = H - legendH - 6;
         const cy = 6 + availH / 2;
         const R = Math.max(6, Math.min(W, availH) / 2 - 6);
-        const arcs = d3pie<number>()
-            .sort(null)
-            .value((v) => v)(vals);
-        const arcGen = d3arc<PieArcDatum<number>>()
-            .innerRadius(donut ? R * 0.6 : 0)
-            .outerRadius(R)
-            .padAngle(0.012)
-            .cornerRadius(donut ? 2 : 0);
-        arcs.forEach((a, i) => {
-            g.path(
-                (p) => {
-                    arcGen.context(p as Sink);
-                    arcGen(a);
-                },
-                { fill: cols[i]!, stroke: theme.surface, width: 1.5 },
-            );
+        const rIn = donut ? R * 0.6 : 0;
+        const style = (i: number) => ({ fill: cols[i]!, stroke: theme.surface, width: 1.5 });
+
+        let a = -Math.PI / 2;
+        vals.forEach((v, i) => {
+            const a0 = a;
+            const a1 = a + (v / total) * Math.PI * 2;
+            a = a1;
+            if (donut) {
+                g.path((p) => {
+                    p.moveTo(cx + Math.cos(a0) * R, cy + Math.sin(a0) * R);
+                    p.arc(cx, cy, R, a0, a1, false);
+                    p.arc(cx, cy, rIn, a1, a0, true);
+                    p.closePath();
+                }, style(i));
+            } else {
+                g.wedge(cx, cy, R, a0, a1, style(i));
+            }
         });
+
         if (donut) {
-            const total = vals.reduce((a, b) => a + b, 0);
             g.text(fmt(total), cx, cy, {
                 fill: theme.ink,
                 size: Math.min(24, R * 0.5),

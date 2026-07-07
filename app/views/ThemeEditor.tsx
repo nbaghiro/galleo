@@ -400,7 +400,7 @@ const ThemeEditorPanel: Component = () => {
             <div class="absolute inset-0 bg-black/25" onClick={() => closeThemeEditor()} />
             <div
                 ref={panel}
-                class="relative flex h-[88vh] max-h-[960px] w-full max-w-[1680px] overflow-hidden rounded-2xl border border-line bg-panel shadow-2xl"
+                class="relative flex h-[90vh] max-h-[1000px] w-full max-w-[1520px] overflow-hidden rounded-2xl border border-line bg-panel shadow-2xl"
                 style={panelVars()}
             >
                 {/* ── left rail: Themes ⇄ Customize ── */}

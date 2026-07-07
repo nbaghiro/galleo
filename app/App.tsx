@@ -12,6 +12,7 @@ import { IntakeView } from "./views/generate/IntakeView";
 import { LibraryView } from "./views/LibraryView";
 import { PresentView } from "./views/PresentView";
 import { PricingView } from "./views/PricingView";
+import { StudioView } from "./views/studio/StudioView";
 import { TemplatesView } from "./views/TemplatesView";
 import { MediaPicker } from "./components/MediaPicker";
 import { ThemeEditor } from "./views/ThemeEditor";
@@ -69,6 +70,8 @@ export const App: Component = () => {
                         <Route path="/pricing" component={PricingView} />
                         <Route path="/new" component={IntakeView} />
                         <Route path="/generate" component={BuildView} />
+                        <Route path="/studio" component={StudioView} />
+                        {/* experimental generation UI */}
                         <Route path="/edit/:id" component={EditorView} />
                         <Route path="/present/:id" component={PresentView} />
                     </Router>
