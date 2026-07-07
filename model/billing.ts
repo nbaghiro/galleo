@@ -4,11 +4,13 @@
 // NOT here — they live in server env (STRIPE_PRICE_{ID}_{INTERVAL}), so this file needs no account to
 // exist. See .docs/billing.md for the full model; `model/features.ts` resolves these into the effective
 // features every gate reads.
+//
+// Three tiers: Free (solo, flat) · Pro · Premium. Both paid tiers are PER SEAT — a solo user buys 1 seat,
+// a team buys N — so tier (what you can do) and seats (how many of you) move independently.
 
 import { typicalCost } from "@model/ai-actions";
 
-export type PlanId = "free" | "plus" | "pro" | "team" | "business";
-export type Audience = "individual" | "team";
+export type PlanId = "free" | "pro" | "premium";
 export type BillingModel = "flat" | "per_seat";
 export type Interval = "month" | "year";
 export type ModelTier = "basic" | "advanced" | "premium";
@@ -28,6 +30,7 @@ export interface PlanBilling {
 
 // AI limits. VALUES here are owned by the AI/credit session (the contract they read); we own the fields.
 // The monthly credit budget lives here (a plan attribute); per-action cost lives in @model/credits.
+// On a per-seat plan the workspace pool = seats × creditsPerMonth.
 export interface PlanAi {
     creditsPerMonth: number; // per seat when per_seat
     creditsRollover: boolean;
@@ -40,7 +43,7 @@ export interface PlanAi {
 // Account / workspace caps.
 export interface PlanAccount {
     maxArtifacts: number; // -1 = unlimited
-    maxMembers: number; // seats included at base (per_seat: min seats)
+    maxMembers: number; // base seats included (per_seat: minSeats; real cap = workspace.seats)
     storageMb: number; // -1 = unlimited
 }
 
@@ -65,7 +68,6 @@ export interface Plan {
     id: PlanId;
     name: string;
     tagline: string;
-    audience: Audience;
     badge?: string; // e.g. "Most popular"
     highlights: string[]; // the bullet list on the pricing card
     order: number;
@@ -88,9 +90,8 @@ export const PLANS: Record<PlanId, Plan> = {
         id: "free",
         name: "Free",
         tagline: "Kick the tires.",
-        audience: "individual",
         highlights: [
-            "≈7 AI generations a month",
+            "≈3 AI generations a month",
             "Up to 10 artifacts",
             "All 52 built-in themes",
             "PNG · PDF export (with a Galleo mark)",
@@ -108,7 +109,7 @@ export const PLANS: Record<PlanId, Plan> = {
             trialDays: 0,
         },
         ai: {
-            creditsPerMonth: 300,
+            creditsPerMonth: 150,
             creditsRollover: false,
             maxSectionsPerGeneration: 10,
             textModelTier: "basic",
@@ -130,78 +131,31 @@ export const PLANS: Record<PlanId, Plan> = {
             earlyAccess: false,
         },
     },
-    plus: {
-        id: "plus",
-        name: "Plus",
-        tagline: "Extra AI power, no watermark.",
-        audience: "individual",
+    pro: {
+        id: "pro",
+        name: "Pro",
+        tagline: "For creators who ship — solo or as a team.",
+        badge: "Most popular",
         highlights: [
-            "≈25 AI generations a month",
+            "≈60 AI generations / seat / month",
             "Unlimited artifacts",
-            "No Galleo watermark",
-            "PNG · PDF · print export",
-            "Advanced AI image models",
+            "Custom themes + every font",
+            "Premium AI models · every export format · no watermark",
+            "Invite your team — billed per seat",
         ],
         order: 1,
         visible: true,
         contactSales: false,
         billing: {
-            model: "flat",
-            priceMonthly: 12,
-            priceAnnualMonthly: 10,
+            model: "per_seat",
+            priceMonthly: 20,
+            priceAnnualMonthly: 16,
             minSeats: 1,
-            maxSeats: 1,
+            maxSeats: null,
             trialDays: 0,
         },
         ai: {
-            creditsPerMonth: 1000,
-            creditsRollover: false,
-            maxSectionsPerGeneration: 25,
-            textModelTier: "advanced",
-            imageModelTier: "advanced",
-            creditTopUpsAllowed: false,
-        },
-        account: { maxArtifacts: -1, maxMembers: 1, storageMb: 5000 },
-        features: {
-            removeBranding: true,
-            customThemes: false,
-            workspaceThemes: false,
-            exportFormats: ["png", "pdf", "print"],
-            publicLinks: false,
-            customDomains: 0,
-            analytics: false,
-            apiAccess: false,
-            sso: false,
-            prioritySupport: false,
-            earlyAccess: false,
-        },
-    },
-    pro: {
-        id: "pro",
-        name: "Pro",
-        tagline: "For creators who ship.",
-        audience: "individual",
-        badge: "Most popular",
-        highlights: [
-            "≈100 AI generations a month",
-            "Custom themes + every font",
-            "Premium AI image models",
-            "Every export format",
-            "Public links · analytics · API (soon)",
-        ],
-        order: 2,
-        visible: true,
-        contactSales: false,
-        billing: {
-            model: "flat",
-            priceMonthly: 24,
-            priceAnnualMonthly: 20,
-            minSeats: 1,
-            maxSeats: 1,
-            trialDays: 0,
-        },
-        ai: {
-            creditsPerMonth: 4000,
+            creditsPerMonth: 2500,
             creditsRollover: false,
             maxSectionsPerGeneration: 60,
             textModelTier: "premium",
@@ -216,91 +170,44 @@ export const PLANS: Record<PlanId, Plan> = {
             exportFormats: ["png", "pdf", "print", "pptx", "slides"],
             publicLinks: true,
             customDomains: 10,
-            analytics: true,
-            apiAccess: true,
+            analytics: false,
+            apiAccess: false,
             sso: false,
             prioritySupport: false,
             earlyAccess: false,
         },
     },
-    team: {
-        id: "team",
-        name: "Team",
-        tagline: "For teams with a brand to hold.",
-        audience: "team",
+    premium: {
+        id: "premium",
+        name: "Premium",
+        tagline: "For teams that need control.",
         highlights: [
-            "Everything in Pro, per seat",
-            "6,000 AI credits per seat",
-            "Shared workspace brand kit",
-            "Admin + shared folders",
-            "Centralized billing",
+            "≈140 AI generations / seat / month",
+            "Everything in Pro",
+            "Admin controls + shared brand kit",
+            "SSO · analytics · API (coming soon)",
+            "Priority support",
         ],
-        order: 3,
-        visible: false, // staged until members / seats ship
-        contactSales: true,
+        order: 2,
+        visible: true,
+        contactSales: false,
         billing: {
             model: "per_seat",
-            priceMonthly: 30,
-            priceAnnualMonthly: 25,
-            minSeats: 2,
+            priceMonthly: 40,
+            priceAnnualMonthly: 33,
+            minSeats: 1,
             maxSeats: null,
             trialDays: 0,
         },
         ai: {
             creditsPerMonth: 6000,
             creditsRollover: false,
-            maxSectionsPerGeneration: 60,
-            textModelTier: "premium",
-            imageModelTier: "premium",
-            creditTopUpsAllowed: true,
-        },
-        account: { maxArtifacts: -1, maxMembers: 2, storageMb: 50000 },
-        features: {
-            removeBranding: true,
-            customThemes: true,
-            workspaceThemes: true,
-            exportFormats: ["png", "pdf", "print", "pptx", "slides"],
-            publicLinks: true,
-            customDomains: 25,
-            analytics: true,
-            apiAccess: true,
-            sso: false,
-            prioritySupport: false,
-            earlyAccess: false,
-        },
-    },
-    business: {
-        id: "business",
-        name: "Business",
-        tagline: "For orgs making it official.",
-        audience: "team",
-        highlights: [
-            "Everything in Team, per seat",
-            "10,000 AI credits per seat",
-            "SSO authentication",
-            "Advanced AI models",
-            "Priority support",
-        ],
-        order: 4,
-        visible: false, // staged until members / seats ship
-        contactSales: true,
-        billing: {
-            model: "per_seat",
-            priceMonthly: 60,
-            priceAnnualMonthly: 50,
-            minSeats: 2,
-            maxSeats: null,
-            trialDays: 0,
-        },
-        ai: {
-            creditsPerMonth: 10000,
-            creditsRollover: false,
             maxSectionsPerGeneration: 75,
             textModelTier: "premium",
             imageModelTier: "premium",
             creditTopUpsAllowed: true,
         },
-        account: { maxArtifacts: -1, maxMembers: 2, storageMb: -1 },
+        account: { maxArtifacts: -1, maxMembers: 1, storageMb: -1 },
         features: {
             removeBranding: true,
             customThemes: true,
@@ -317,11 +224,15 @@ export const PLANS: Record<PlanId, Plan> = {
     },
 };
 
-export const PLAN_ORDER: PlanId[] = ["free", "plus", "pro", "team", "business"];
+export const PLAN_ORDER: PlanId[] = ["free", "pro", "premium"];
 
 // The plans shown/sold on the pricing page (staged tiers are hidden until they ship).
 export const visiblePlans = (): Plan[] =>
     PLAN_ORDER.map((id) => PLANS[id]).filter((p) => p.visible);
+
+// Paid tiers that bill per seat — the ones that show a seat picker + support inviting members.
+export const isPerSeat = (id: string | null | undefined): boolean =>
+    planFor(id).billing.model === "per_seat";
 
 export const isUnlimited = (n: number): boolean => n < 0;
 

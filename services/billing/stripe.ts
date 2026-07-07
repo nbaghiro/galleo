@@ -20,7 +20,7 @@ export function stripeReady(): boolean {
     return !!(
         process.env.STRIPE_SECRET_KEY &&
         process.env.STRIPE_PRICE_PRO &&
-        process.env.STRIPE_PRICE_BUSINESS
+        process.env.STRIPE_PRICE_PREMIUM
     );
 }
 
@@ -28,7 +28,7 @@ export function stripeReady(): boolean {
 // restart with new env is enough; no rebuild.
 export function priceIdFor(plan: PlanId): string | undefined {
     if (plan === "pro") return process.env.STRIPE_PRICE_PRO;
-    if (plan === "business") return process.env.STRIPE_PRICE_BUSINESS;
+    if (plan === "premium") return process.env.STRIPE_PRICE_PREMIUM;
     return undefined; // free has no price
 }
 
@@ -36,6 +36,6 @@ export function priceIdFor(plan: PlanId): string | undefined {
 export function planForPrice(priceId: string | undefined | null): PlanId | null {
     if (!priceId) return null;
     if (priceId === process.env.STRIPE_PRICE_PRO) return "pro";
-    if (priceId === process.env.STRIPE_PRICE_BUSINESS) return "business";
+    if (priceId === process.env.STRIPE_PRICE_PREMIUM) return "premium";
     return null;
 }
