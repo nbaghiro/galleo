@@ -369,14 +369,21 @@ const PREVIEWS: Record<string, string> = {
         <path d="M90 48 L102 27 L114 48 Z" fill="${accent}" opacity="0.55"/>`,
 
     sticker: `
-        <circle cx="70" cy="36" r="22" fill="${accent}" stroke="${surface}" stroke-width="3.5"/>
-        <circle cx="62" cy="31" r="2.6" fill="${onaccent}"/>
-        <circle cx="78" cy="31" r="2.6" fill="${onaccent}"/>
-        <path d="M60 42 Q70 50 80 42" stroke="${onaccent}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
+        <rect x="13" y="12" width="114" height="48" rx="8" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
+        <circle cx="70" cy="36" r="16" fill="${accent}"/>
+        <circle cx="64" cy="32" r="2.1" fill="${onaccent}"/>
+        <circle cx="76" cy="32" r="2.1" fill="${onaccent}"/>
+        <path d="M63.5 40 Q70 45.5 76.5 40" stroke="${onaccent}" stroke-width="1.9" fill="none" stroke-linecap="round"/>`,
 
     icon: `
-        <path d="M66 14 L70.5 29 L70.5 29 Q71.5 32 74.5 33 L89 37 L74.5 41 Q71.5 42 70.5 45 L66 60 L61.5 45 Q60.5 42 57.5 41 L43 37 L57.5 33 Q60.5 32 61.5 29 Z" fill="${accent}"/>
-        <path d="M92 18 v8 M88 22 h8" stroke="${accent}" stroke-width="2.4" stroke-linecap="round" opacity="0.8"/>`,
+        <rect x="13" y="12" width="114" height="48" rx="8" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
+        <path d="M66 23 L70 34 L80 37 L70 40 L66 51 L62 40 L52 37 L62 34 Z" fill="${accent}"/>
+        <path d="M86 24 v7 M82.5 27.5 h7" stroke="${accent}" stroke-width="2.2" stroke-linecap="round" opacity="0.8"/>`,
+
+    shape: `
+        <rect x="14" y="17" width="40" height="40" rx="7" fill="${accent}"/>
+        <circle cx="84" cy="29" r="14" fill="none" stroke="${accent}" stroke-width="3"/>
+        <path d="M96 57 L116 23 L127 57 Z" fill="${ink}" opacity="0.28"/>`,
 
     stat: `
         <text x="14" y="42" font-family="ui-sans-serif, system-ui, sans-serif" font-size="30" font-weight="800" fill="${accent}">98%</text>

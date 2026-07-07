@@ -47,7 +47,6 @@ function imageLike(cfg: MediaConfig): ElementSpec<ImageData> {
             },
         }),
         resize: { aspect: { min: 0.4, max: 2.6 } },
-        frame: true, // corner radius comes from the universal frame control on the bar
         bar: ["src", "fit", "zoom"],
         controls: [
             { key: "src", label: cfg.label, control: "media", mediaKind: cfg.kind },

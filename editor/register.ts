@@ -8,3 +8,4 @@ import "@elements/containers";
 import "@elements/chrome";
 import "@elements/graphics";
 import "@elements/blocks";
+import "@elements/shapes";
