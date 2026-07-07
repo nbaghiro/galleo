@@ -19,37 +19,34 @@ Two workstreams touch plans; keep them decoupled:
   touch spend logic; they never touch `features`/Stripe. `ai.maxSectionsPerGeneration` is the one field
   their generation route will enforce. Neither side edits the other's cells → no merge collisions.
 
-## 2. Pricing model — Split B (staged launch)
+## 2. Pricing model — 3 tiers, seats orthogonal to tier
 
-Ship **Free / Plus / Pro** now (every gate on these is built or a tiny add). **Team / Business** are
-defined in the same model but `visible:false` / `contactSales:true` until members + seats exist —
-promoting them later is two booleans + two env price ids, zero rework.
+Three tiers: **Free · Pro · Premium**. Tier = _what you can do_; **seats** = _how many of you_. Free is
+solo (flat). **Pro and Premium are both per-seat** — a solo user buys 1 seat, a team buys N — so a team
+can form on either paid tier without a separate "Team/Business" plan. All three are `visible` (sold); no
+staged tiers.
 
-**Individual** (flat, 1 seat)
+|                        | Free         | Pro                              | Premium                                  |
+| ---------------------- | ------------ | -------------------------------- | ---------------------------------------- |
+| Price                  | $0           | **$20 / seat / mo** ($16 annual) | **$40 / seat / mo** ($33 annual)         |
+| Billing                | flat, 1 seat | per-seat (min 1)                 | per-seat (min 1)                         |
+| Team members           | — (solo)     | ✓ invite, billed / seat          | ✓ invite, billed / seat                  |
+| Credits/mo 🔶          | 150 (~3)     | 2,500 / seat (~60)               | 6,000 / seat (~140)                      |
+| Sections/generation 🔶 | 10           | 60                               | 75                                       |
+| AI models 🔶           | basic        | premium                          | premium                                  |
+| Artifacts              | 10           | ∞                                | ∞                                        |
+| Watermark · export     | on · png/pdf | off · all formats                | off · all formats                        |
+| Custom themes          | —            | ✓                                | ✓ + shared brand kit                     |
+| Storage                | 500 MB       | 20 GB                            | ∞                                        |
+| Org (planned)          | —            | —                                | SSO · analytics · API · admin · priority |
 
-|                          | Free      | Plus      | Pro         |
-| ------------------------ | --------- | --------- | ----------- |
-| $/mo (annual $/mo)       | $0        | $12 ($10) | $24 ($20)   |
-| Credits/mo 🔶            | 300       | 1,000     | 4,000       |
-| Sections/generation 🔶   | 10        | 25        | 60          |
-| Artifacts                | 10        | ∞         | ∞           |
-| Image model 🔶           | basic     | advanced  | premium     |
-| Remove branding          | —         | ✓         | ✓           |
-| Custom themes            | —         | —         | ✓           |
-| Export                   | png · pdf | + print   | all         |
-| Analytics · public links | —         | —         | ✓ (planned) |
+`🔶` = AI-session-owned value (seed as contract, they tune). Annual ≈ 2 months free; one field. Credits
+were **lowered** from the earlier draft to protect AI COGS. A per-seat workspace pool = `seats ×
+credits/seat`. Prices/limits are all tunable.
 
-**Team** (per seat, min 2) — _staged_
-
-|                        | Team                                      | Business                         |
-| ---------------------- | ----------------------------------------- | -------------------------------- |
-| $/seat/mo (annual)     | $30 ($25)                                 | $60 ($50)                        |
-| Credits/seat 🔶        | 6,000                                     | 10,000                           |
-| Sections/generation 🔶 | 60                                        | 75                               |
-| Adds                   | shared brand kit · admin · shared folders | SSO · advanced models · priority |
-
-`🔶` = AI-session-owned value (seed as contract, they tune). Annual = ~2 months free; lives in one field.
-Prices/limits are all tunable — the model below is built for it.
+**Teams are live, not staged.** Because both paid tiers bill per seat, the **members/seats feature is now
+required** (see §6.1 + the task list), not deferred. Until it ships, Pro/Premium are fully usable **solo**
+(1 seat); the "invite / add seat" surface is the one build item that unlocks multi-seat.
 
 ## 3. Data-driven plan config (`model/billing.ts`)
 
@@ -158,8 +155,8 @@ interval)` and reverse-maps `planForPrice(priceId)` across all of them (webhook 
 **The workspace is the billing entity — one Stripe Customer + one Subscription per workspace, not per
 user.** Already how the schema is built (`stripe_customer_id` / `stripe_subscription_id` on
 `workspaces`), and the right model: everything is workspace-scoped and seats = members of a workspace. An
-individual on Free/Plus/Pro is a workspace with **1 seat**; a team is a workspace with **N seats** — one
-consistent path, no separate per-user billing.
+individual on Free/Pro is a workspace with **1 seat**; a team is a workspace on Pro/Premium with **N
+seats** — one consistent path, no separate per-user billing.
 
 - **Customer = workspace** (owner's email as contact + `metadata.workspaceId`). A user who owns multiple
   workspaces gets one customer each; a shared-payer-across-workspaces model is a future option (today a
@@ -198,15 +195,15 @@ effect at period end** (the user keeps what they paid for).
   real `current_period_end` (today it's a fake +30d). Make handlers **idempotent** (upsert by sub id;
   ignore stale events).
 - **Downgrade reconciliation** — never delete user data. When new limits are tighter than current
-  usage (e.g. Business→Free with 40 artifacts / custom themes / extra seats): keep everything, but
+  usage (e.g. Premium→Free with 40 artifacts / custom themes / extra seats): keep everything, but
   **soft-lock** — block _new_ actions over the cap and mark excess resources read-only with an upgrade
   prompt. Driven entirely by the resolver, so it's automatic for every limit.
 
 ## 8. Frontend
 
-- **Pricing page** — Individual/Team tab + monthly/annual toggle; per-tier CTA that calls
-  `/billing/change-plan` (Upgrade / Downgrade / Current); staged tiers render as "Contact us"; `planned`
-  features badge "coming soon" from the registry.
+- **Pricing page** — one page (no Individual/Team tab), monthly/annual toggle + a **seat selector** on the
+  per-seat tiers (Pro/Premium); per-tier CTA that calls `/billing/change-plan` (Upgrade / Downgrade /
+  Current); `planned` features badge "coming soon" from the registry.
 - **Feature-gated UX** — `useFeatures()`; locks/badges across editor (export done), theme editor, etc.;
   over-limit banners after a downgrade; a `past_due` banner prompting a payment-method update.
 - **Billing management** — current plan, seats, renewal/period-end date, and payment status, with
@@ -214,17 +211,19 @@ effect at period end** (the user keeps what they paid for).
 
 ## 9. Phased implementation (see the task list)
 
-0. Model: data-driven `Plan` refactor + `features.ts` (registry + resolver).
-1. Backend: `features.ts` service + migrate gates + `feature_overrides` column + `/features`.
-2. Stripe: products/prices per visible plan × interval + `stripe.ts` resolution + env.
-3. Flows: `change-plan` route + webhook expansion/fixes + downgrade reconciliation.
-4. Frontend: pricing-page flows + feature-gated UX + billing management.
-5. Test: full up/down/cancel/dunning/seat/annual/reconciliation/idempotency matrix.
+0. Model: data-driven 3-tier `Plan` (Free flat · Pro/Premium per-seat) + `features.ts`. **✅ done**
+1. Backend: `features.ts` service + migrate gates + `/features`. **✅ done**
+2. Stripe: **Pro + Premium** products (per-seat, monthly + annual) + `stripe.ts` resolution + env.
+3. Flows: `change-plan` (incl. seat changes) + webhook expansion/fixes + downgrade reconciliation.
+4. **Members & seats** (now required): invites + roles + seat ↔ Stripe-`quantity` sync +
+   `seats` / `feature_overrides` columns + owner/admin billing gate.
+5. Frontend: pricing page (seat selector) + feature-gated UX + billing management.
+6. Test: full up/down/cancel/dunning/seat/annual/reconciliation/idempotency matrix.
 
 ## 10. Open tunables / decisions
 
-- Final prices + credit numbers (🔶 with the AI session).
+- Credits lowered to **150 / 2,500 / 6,000** (Free / Pro / Premium) 🔶 — confirm with the AI session.
 - Free tier: monthly credits vs one-time signup grant (Gamma gives a one-time 400 to cap COGS).
 - Annual discount depth (~2 months free vs Gamma's 28%).
 - Trials? (`billing.trialDays` is wired for it, default 0.)
-- When members/seats ship → flip Team/Business `visible:true` + add their env price ids.
+- Should Free allow inviting a first teammate as a trial, or stay strictly solo (current)?
