@@ -44,6 +44,69 @@ const KIND_NOUN: Record<MediaKind, string> = {
     icon: "icons",
 };
 
+// Featured browse: a search-backed source opens showing these defaults instead of a blank "type to
+// search" screen. Stock providers seed a per-kind popular query; the user's typed query overrides it and
+// clearing the box reverts to it. Icons show a curated starter set (below) rather than one query's results.
+const DEFAULT_QUERY: Record<MediaKind, string> = {
+    photo: "nature",
+    gif: "abstract",
+    illustration: "abstract",
+    sticker: "emoji",
+    icon: "",
+};
+
+// A curated, visually diverse starter grid for the icon source — popular Lucide glyphs.
+const STARTER_ICONS = [
+    "lucide:home",
+    "lucide:search",
+    "lucide:user",
+    "lucide:settings",
+    "lucide:heart",
+    "lucide:star",
+    "lucide:bell",
+    "lucide:mail",
+    "lucide:calendar",
+    "lucide:clock",
+    "lucide:map-pin",
+    "lucide:phone",
+    "lucide:camera",
+    "lucide:image",
+    "lucide:folder",
+    "lucide:file",
+    "lucide:download",
+    "lucide:upload",
+    "lucide:trash-2",
+    "lucide:pencil",
+    "lucide:check",
+    "lucide:x",
+    "lucide:plus",
+    "lucide:minus",
+    "lucide:arrow-right",
+    "lucide:arrow-up-right",
+    "lucide:chevron-right",
+    "lucide:external-link",
+    "lucide:link",
+    "lucide:share-2",
+    "lucide:lock",
+    "lucide:eye",
+    "lucide:zap",
+    "lucide:sparkles",
+    "lucide:rocket",
+    "lucide:flame",
+    "lucide:sun",
+    "lucide:moon",
+    "lucide:cloud",
+    "lucide:globe",
+    "lucide:shopping-cart",
+    "lucide:credit-card",
+    "lucide:gift",
+    "lucide:thumbs-up",
+    "lucide:message-circle",
+    "lucide:play",
+    "lucide:music",
+    "lucide:code",
+].map((id) => ({ id }));
+
 const RailIcon = {
     recent: () => (
         <svg
@@ -142,20 +205,20 @@ export const MediaPicker: Component = () => {
                 .catch(() => {});
             if (k === "icon") {
                 setSource("icons");
-                if (req.query?.trim()) runIconSearch();
+                runIconSearch(); // starter grid when there's no seeded query
             } else if (k === "photo") {
                 setSource("recent");
                 loadRecent();
             } else {
                 setSource("openverse");
-                if (req.query?.trim()) runSearch(true);
+                runSearch(true); // featured default when there's no seeded query
             }
         }),
     );
 
     async function runIconSearch(): Promise<void> {
         if (!query().trim()) {
-            setIconItems([]);
+            setIconItems(STARTER_ICONS);
             return;
         }
         setLoading(true);
@@ -189,12 +252,14 @@ export const MediaPicker: Component = () => {
 
     async function runSearch(reset: boolean): Promise<void> {
         const s = source();
-        if (!isStock(s) || !query().trim()) return;
+        if (!isStock(s)) return;
+        const q = query().trim() || DEFAULT_QUERY[kind()];
+        if (!q) return;
         const p = reset ? 1 : page() + 1;
         setLoading(true);
         setError("");
         try {
-            const res = await api.searchMedia(s, query().trim(), p, kind());
+            const res = await api.searchMedia(s, q, p, kind());
             setItems((cur) => (reset ? res.items : [...cur, ...res.items]));
             setPage(p);
             setHasMore(res.hasMore);
@@ -212,10 +277,8 @@ export const MediaPicker: Component = () => {
         setHasMore(false);
         setPage(1);
         if (s === "recent") loadRecent();
-        else if (s === "icons") {
-            setIconItems([]);
-            if (query().trim()) runIconSearch();
-        } else if (isStock(s) && query().trim()) runSearch(true);
+        else if (s === "icons") runIconSearch();
+        else if (isStock(s)) runSearch(true);
     };
 
     // debounced live search while typing in a stock / icon source
@@ -337,6 +400,11 @@ export const MediaPicker: Component = () => {
                 </div>
             }
         >
+            <Show when={!query().trim() && isStock(source())}>
+                <div class="mb-2 font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">
+                    Popular {KIND_NOUN[kind()]}
+                </div>
+            </Show>
             <div class="[column-gap:8px] columns-2 sm:columns-3">
                 <For each={items()}>
                     {(it) => (
@@ -403,6 +471,11 @@ export const MediaPicker: Component = () => {
                 </div>
             }
         >
+            <Show when={!query().trim()}>
+                <div class="mb-2 font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">
+                    Popular icons
+                </div>
+            </Show>
             <div class="grid grid-cols-6 gap-1.5 sm:grid-cols-8">
                 <For each={iconItems()}>
                     {(it) => (
