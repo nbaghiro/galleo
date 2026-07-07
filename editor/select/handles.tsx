@@ -296,18 +296,20 @@ function siblingDividers(sid: string, regs: Region[]): Divider[] {
     const out: Divider[] = [];
     for (const g of groups.values()) {
         if (g.members.length < 2) continue;
-        const xs = g.members.map((m) => m.box.x);
-        const ys = g.members.map((m) => m.box.y);
-        // Only horizontal (width) dividers in v1: skip column-stacked sibling sets.
-        if (Math.max(...xs) - Math.min(...xs) < Math.max(...ys) - Math.min(...ys)) continue;
+        // Width can only be reallocated between siblings sitting side by side in one row. Skip any set
+        // whose members don't share a common horizontal band — a column-stacked set, or a grid (e.g. a
+        // table) whose rows sit fully below one another. Purely geometric, so it stays element-agnostic.
+        const tops = g.members.map((m) => m.box.y);
+        const bottoms = g.members.map((m) => m.box.y + m.box.h);
+        if (Math.max(...tops) >= Math.min(...bottoms)) continue;
         const sorted = [...g.members].sort((a, b) => a.box.x - b.box.x);
         const rowLeft = sorted[0]!.box.x;
         const last = sorted[sorted.length - 1]!.box;
         const rowWidth = last.x + last.w - rowLeft;
         if (rowWidth <= 0) continue;
         const fractions = sorted.map((m) => m.box.w / rowWidth);
-        const top = Math.min(...ys);
-        const h = Math.max(...g.members.map((m) => m.box.y + m.box.h)) - top;
+        const top = Math.min(...tops);
+        const h = Math.max(...bottoms) - top;
         for (let i = 0; i < sorted.length - 1; i++) {
             const before = fractions.slice(0, i).reduce((a, x) => a + x, 0);
             const combined = fractions[i]! + fractions[i + 1]!;
