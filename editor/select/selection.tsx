@@ -13,7 +13,6 @@ import {
     regions,
     selection,
     addSectionAfter,
-    setAgentOpen,
     setSelection,
     duplicateSectionAt,
     moveSectionBy,
@@ -110,14 +109,6 @@ export const SectionActions: Component = () => {
                         onClick={() => addSectionAfter(sid()!)}
                     >
                         <Icon name="plus" size={13} /> Section
-                    </button>
-                    <span class="h-3.5 w-px bg-line" />
-                    <button
-                        class={action}
-                        title="Generate with the agent"
-                        onClick={() => setAgentOpen(true)}
-                    >
-                        <Icon name="sparkle" size={13} /> Generate
                     </button>
                     <span class="h-3.5 w-px bg-line" />
                     <button

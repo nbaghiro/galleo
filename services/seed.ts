@@ -82,7 +82,9 @@ async function seed(): Promise<void> {
     if (!ws) {
         [ws] = await db
             .insert(schema.workspaces)
-            .values({ name: "Demo Workspace", slug: "demo", ownerId: user.id })
+            // premium: the seed writes 12+ artifacts directly (bypassing the API cap), so the demo account
+            // needs unlimited artifacts + credits to actually use the app it ships with.
+            .values({ name: "Demo Workspace", slug: "demo", ownerId: user.id, plan: "premium" })
             .returning();
         log("• created demo workspace");
     }

@@ -32,6 +32,7 @@ import {
     setDraggingArtifact,
 } from "../stores/library";
 import { appTheme } from "../theme";
+import { openGenerate } from "./generate/session";
 import { folders } from "../stores/folders";
 import { ConfirmModal } from "../components/modals";
 import {
@@ -656,7 +657,7 @@ export const LibraryView: Component = () => {
                                 }
                             >
                                 <EmptyLibrary
-                                    onGenerate={() => navigate("/new")}
+                                    onGenerate={openGenerate}
                                     onTemplates={() => navigate("/templates")}
                                 />
                             </Show>

@@ -179,6 +179,7 @@ export interface Beat {
     role: string;
     grid?: string; // planned layout id — lets the client shape a section skeleton before content lands
     image?: boolean; // carries a prominent image (drives the sourcing step + ghost)
+    blocks?: string[]; // the block kind leading each grid cell, in cell order — skeleton + writer both honor it
 }
 
 export type TurnEvent =
@@ -480,7 +481,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 type: "enum",
                 required: true,
                 values: DIAGRAM_TYPES,
-                desc: "which diagram to draw",
+                desc: "which diagram. For a LINEAR sequence of steps use `process` (connected steps, reads left-to-right) — NOT `flow`. `cycle` = a repeating loop; `funnel` = narrowing stages; `pyramid` = layered levels; `timeline` = dated milestones; `matrix`/`quadrant` = a 2×2; `venn` = overlapping sets. Reserve the graph types (`flow`, `tree`, `org`, `mindmap`) for genuine BRANCHING relationships — they require the `links` field.",
             },
             {
                 key: "items",

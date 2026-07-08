@@ -22,11 +22,12 @@ export function heading(title: string, body: string): string {
 
 // The rules for shaping a section — referenced by generate + section builders.
 export const SECTION_RULES = `## How to build a section
-- Choose the \`grid\` that fits the point: \`full\` for a hero/statement, a split for text-with-visual, \`three-up\` for three parallel items.
+- Use the grid the plan assigned AND lead each cell with the block the plan assigned to it, in order (given in the section brief) — don't switch the grid or move a block to a different cell; a live preview is already showing that exact layout, so the finished section must match it. To place several elements in one cell (a headline + body + button), wrap them in a group led by that block.
 - Fill each of the grid's cells with exactly one element. To place several elements in one cell, use a \`group\`.
 - One clear headline per section (a single \`text\` with style \`h1\` or \`h2\`), plus only the supporting elements the point needs.
 - Prefer a \`stat\`, \`chart\`, \`diagram\`, \`table\`, or \`image\` over prose whenever the idea is a number, trend, comparison, or process.
 - For images, set \`src\` to a short, vivid description of the photo you want (e.g. "aerial view of a wind farm at dusk") — the module sources or generates it. Only use a real URL if you truly have one.
+- Reach for a full-bleed section background image on covers, section-dividers, and closing/CTA sections — set "background" to { "kind": "image", "image": "<vivid, on-theme photo description>", "scrim": 0.5 }, keep the overlaid content minimal (a headline + one supporting line), and raise the scrim to 0.5–0.65 so text stays legible. Never put a background image behind a dense chart/table/stat section.
 - Give every section a unique \`id\` (\`s1\`, \`s2\`, …).`;
 
 // The brief the user supplied at intake, rendered for the model.
@@ -114,5 +115,20 @@ export function neighbors(content: ArtifactContent, sectionId: string): string {
 }
 
 // A short, standing reminder about the output — the Zod schema enforces the shape, this reminds the model
-// what "good" content looks like inside it.
+// what "good" content looks like inside it. (Used by the outline phase, which is structured-output.)
 export const OUTPUT_NOTE = `Return only content that fits the schema. Never include commentary, markdown fences, or placeholder text — every field is real, finished copy.`;
+
+// The exact JSON envelope a section is returned as. Section writing is free-form JSON (not a rigid schema)
+// because an element's `data` is an open, type-dependent map the catalog teaches — so the model needs the
+// outer shape spelled out here, and validation happens on the parse.
+export const SECTION_OUTPUT = `## Output — return ONE JSON object and nothing else
+No prose, no explanation, no markdown fences. This exact shape:
+{
+  "id": "<this section's id>",
+  "grid": "<one of the grid ids above>",
+  "cells": {
+    "<cellKey>": { "element": { "type": "<element type>", "data": { /* fields the catalog lists for that type */ } } }
+  },
+  "background": { "kind": "image", "image": "<vivid photo description>", "scrim": 0.5 }
+}
+Fill exactly the cells the chosen grid exposes (e.g. grid "two-col" → cells "a" and "b"). One element per cell; to place several elements in one cell use a "group" whose \`data.children\` is an array of elements. The "background" key is optional — include it only for a cover, divider, or closing section (omit it entirely otherwise). Every string is real, finished copy — never placeholder text.`;

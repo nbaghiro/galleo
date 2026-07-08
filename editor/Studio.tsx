@@ -1,7 +1,6 @@
 import type { JSX, Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
 import { themeCssVars } from "@themes";
-import { AgentPanel } from "./chrome/AgentPanel";
 import { Canvas } from "./canvas/Canvas";
 import { DataEditor } from "./inspect/DataEditor";
 import { DragGhost } from "./canvas/insert";
@@ -45,7 +44,6 @@ export const Studio: Component = () => {
             </div>
             <DragGhost />
             <Present />
-            <AgentPanel />
             <DataEditor />
         </div>
     );

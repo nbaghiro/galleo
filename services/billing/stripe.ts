@@ -28,7 +28,8 @@ export function stripeReady(): boolean {
 // The env key holding a plan+interval's Stripe price id, or null for free (no price). Read at call time
 // so a restart with new env is enough — no rebuild.
 function priceEnvKey(plan: PlanId, interval: Interval): string | null {
-    if (plan === "pro") return interval === "year" ? "STRIPE_PRICE_PRO_YEAR" : "STRIPE_PRICE_PRO_MONTH";
+    if (plan === "pro")
+        return interval === "year" ? "STRIPE_PRICE_PRO_YEAR" : "STRIPE_PRICE_PRO_MONTH";
     if (plan === "premium")
         return interval === "year" ? "STRIPE_PRICE_PREMIUM_YEAR" : "STRIPE_PRICE_PREMIUM_MONTH";
     return null;

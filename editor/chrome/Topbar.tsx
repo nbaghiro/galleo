@@ -18,7 +18,6 @@ import {
     requestSwitchArtifact,
     requestThemePicker,
     requestUpgrade,
-    setAgentOpen,
     undo,
 } from "../editor";
 import { exportDeckPng, exportPdfAuto, exportPrint } from "@canvas/render/export";
@@ -28,7 +27,6 @@ import { Icon } from "../icons";
 const controlH = "h-8";
 const btnBase = `flex items-center cursor-pointer rounded-lg border px-3 text-[12px] font-semibold ${controlH}`;
 const btn = `${btnBase} border-line bg-canvas text-ink`;
-const btnAccent = `${btnBase} border-accent bg-accent text-onaccent`;
 
 const ArtifactMenu: Component = () => {
     const [open, setOpen] = createSignal(false);
@@ -285,10 +283,5 @@ export const Topbar: Component = () => (
             </span>
         </button>
         <ExportMenu />
-        <button class={btnAccent} onClick={() => setAgentOpen(true)}>
-            <span class="inline-flex items-center gap-1.5">
-                <Icon name="sparkle" size={14} /> Generate
-            </span>
-        </button>
     </header>
 );

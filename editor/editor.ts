@@ -402,22 +402,6 @@ export const [leftOpen, setLeftOpen] = createSignal(true);
 // Right side is an always-on icon rail; rightTab is the open flyout: a category, "search", "inspector", or null.
 export const [rightTab, setRightTab] = createSignal<string | null>(null);
 
-// --- agent (local preview generator; real AI lands with the backend) ---
-export const [agentOpen, setAgentOpen] = createSignal(false);
-
-export function loadGenerated(art: ArtifactContent): void {
-    past.length = 0;
-    future.length = 0;
-    coalesceKey = null;
-    editBefore = null;
-    setEditing(null);
-    setSelection(null);
-    setHover(null);
-    setContent(art);
-    setAgentOpen(false);
-    bumpHistory();
-}
-
 export function jumpToSection(index: number): void {
     const el = canvasEl();
     if (!el) return;

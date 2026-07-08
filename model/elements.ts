@@ -114,3 +114,19 @@ export const GRID_TEMPLATES: readonly GridTemplate[] = [
 ] as const;
 
 export const GRID_IDS = GRID_TEMPLATES.map((g) => g.id);
+
+// The layout vocabulary the outline plans with — the "block" that leads each grid cell, a curated subset of
+// the element library (the content-leading types). A beat carries one block per grid cell; the live skeleton
+// and the section writer both key off them, so the planned layout and the generated one match by construction.
+export const BLOCK_KINDS = [
+    "text", // a headline + supporting copy
+    "bullets", // a short list
+    "image", // a photo / visual
+    "stat", // a big number + label
+    "chart", // a data chart
+    "diagram", // a process / relationship diagram
+    "table", // tabular data
+    "quote", // a pulled quote
+    "cards", // a small cluster of cards
+] as const;
+export type BlockKind = (typeof BLOCK_KINDS)[number];

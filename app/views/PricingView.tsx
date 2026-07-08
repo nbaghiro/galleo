@@ -61,7 +61,9 @@ export const PricingView: Component = () => {
         if (plan.id === current()) return "Current plan";
         if (plan.id === "free") return "Downgrade to Free";
         if (current() === "free") return `Upgrade to ${plan.name}`;
-        return RANK[plan.id] > RANK[current()] ? `Upgrade to ${plan.name}` : `Switch to ${plan.name}`;
+        return RANK[plan.id] > RANK[current()]
+            ? `Upgrade to ${plan.name}`
+            : `Switch to ${plan.name}`;
     };
 
     return (
@@ -95,7 +97,10 @@ export const PricingView: Component = () => {
                     </Show>
                     <Show when={b()?.status === "past_due"}>
                         <div class="mb-5 flex items-center justify-between gap-3 rounded-xl border border-accent bg-accent/10 px-4 py-3 text-[13px] text-ink">
-                            <span>Your last payment failed — update your payment method to keep your plan.</span>
+                            <span>
+                                Your last payment failed — update your payment method to keep your
+                                plan.
+                            </span>
                             <button
                                 class="flex-none rounded-lg border border-line bg-panel px-3 py-1.5 font-semibold hover:border-accent"
                                 onClick={() => openPortal().catch(() => {})}
@@ -106,8 +111,8 @@ export const PricingView: Component = () => {
                     </Show>
                     <Show when={overLimit()}>
                         <div class="mb-5 rounded-xl border border-line bg-panel px-4 py-3 text-[13px] text-ink">
-                            You're over your plan's limits. Your existing work is safe, but you can't
-                            create more until you upgrade or remove some.
+                            You're over your plan's limits. Your existing work is safe, but you
+                            can't create more until you upgrade or remove some.
                         </div>
                     </Show>
 
@@ -198,7 +203,9 @@ export const PricingView: Component = () => {
                                 min="1"
                                 value={seats()}
                                 onInput={(e) =>
-                                    setSeats(Math.max(1, Math.floor(Number(e.currentTarget.value) || 1)))
+                                    setSeats(
+                                        Math.max(1, Math.floor(Number(e.currentTarget.value) || 1)),
+                                    )
                                 }
                                 class="w-16 rounded-md border border-line bg-panel px-2 py-1 text-[13px] text-ink outline-none focus:border-accent"
                             />
@@ -240,7 +247,9 @@ export const PricingView: Component = () => {
                                             </span>
                                         </div>
                                         <div class="mt-0.5 min-h-4 text-[11.5px] text-muted">
-                                            <Show when={interval() === "year" && unitPrice(plan) > 0}>
+                                            <Show
+                                                when={interval() === "year" && unitPrice(plan) > 0}
+                                            >
                                                 billed annually
                                             </Show>
                                             <Show when={perSeat(plan) && seats() > 1}>

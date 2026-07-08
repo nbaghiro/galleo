@@ -35,6 +35,7 @@ import {
 } from "../components/icons";
 import { CreateModal } from "../components/modals";
 import { openThemeEditor } from "../theme";
+import { openGenerate } from "../views/generate/session";
 
 // Shared, route-aware app sidebar (Library / Templates / Folders…) + workspace, create menu, theme,
 // and sign-out. Built on the theme tokens so it recolors with the app theme. Folders are drop targets:
@@ -121,7 +122,7 @@ export const Sidebar: Component = () => {
                     onClose={() => setCreateOpen(false)}
                     onGenerate={() => {
                         setCreateOpen(false);
-                        navigate("/new");
+                        openGenerate();
                     }}
                     onBlank={(fmt) => {
                         setCreateOpen(false);

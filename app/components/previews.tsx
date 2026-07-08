@@ -170,6 +170,62 @@ const LW = 1280; // layout width, then scaled to the card
 const SH = 720; // 16:9 slide frame
 const DEFAULT_W = 176; // default card width
 
+// A shared, presentational mini-canvas — renders a REAL Section with the engine at a logical slide width,
+// then CSS-scales it to `width`. Real text + images, just small: the payoff of a resolution-independent
+// engine (render at any dimension, then scale). Non-interactive; wrap it where you need a button/card (see
+// SectionThumb, which is exactly this + selection/onOpen). Reuse anywhere a scaled section render is wanted.
+export const MiniCanvas: Component<{
+    section: Section;
+    themeId: string;
+    formatId: string;
+    width: number; // final (scaled) width, px — the frame is 16:9
+    lazy?: boolean; // defer paint until near view (default false — tiles are usually on-screen)
+    class?: string;
+}> = (props) => {
+    let wrap!: HTMLDivElement;
+    let inner!: HTMLDivElement;
+    const [visible, setVisible] = createSignal(!props.lazy);
+
+    createEffect(() => {
+        if (!visible()) return;
+        const theme = resolveTheme(props.themeId).tokens;
+        const format = resolveProfile(props.formatId);
+        const { commands, height } = layoutSlide(props.section, LW, SH, measureText, theme, format);
+        inner.style.cssText = `width:${LW}px;height:${height}px;transform:scale(${props.width / LW});transform-origin:top left`;
+        paint(commands, inner);
+    });
+
+    onMount(() => {
+        if (!props.lazy) return;
+        const io = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((e) => e.isIntersecting)) {
+                    setVisible(true);
+                    io.disconnect();
+                }
+            },
+            { rootMargin: "400px" },
+        );
+        io.observe(wrap);
+        onCleanup(() => io.disconnect());
+    });
+
+    return (
+        <div
+            ref={wrap}
+            class={props.class}
+            style={{
+                width: `${props.width}px`,
+                height: `${Math.round((props.width * 9) / 16)}px`,
+                overflow: "hidden",
+                background: resolveTheme(props.themeId).tokens.bg,
+            }}
+        >
+            <div ref={inner} />
+        </div>
+    );
+};
+
 export const SectionThumb: Component<{
     section: Section;
     themeId: string;

@@ -14,7 +14,7 @@
         "build": "vite build",
         "preview": "vite preview",
         "preapi": "bash scripts/ensure-db.sh",
-        "api": "tsx services/server.ts",
+        "api": "tsx watch services/server.ts",
         "api:watch": "tsx watch services/server.ts",
         "seed": "tsx services/seed.ts",
         "db:push": "drizzle-kit push",

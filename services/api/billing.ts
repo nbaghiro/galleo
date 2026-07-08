@@ -74,7 +74,9 @@ billing.post("/billing/checkout", async (c) => {
     if (!price) return c.json({ error: "invalid plan" }, 400);
     const p = planFor(plan);
     const quantity =
-        p.billing.model === "per_seat" ? Math.max(seats ?? p.billing.minSeats, p.billing.minSeats) : 1;
+        p.billing.model === "per_seat"
+            ? Math.max(seats ?? p.billing.minSeats, p.billing.minSeats)
+            : 1;
 
     let customerId = ws.stripeCustomerId;
     if (!customerId) {
@@ -134,7 +136,9 @@ billing.post("/billing/change-plan", async (c) => {
     }>(c);
 
     if (plan === "free") {
-        await stripe().subscriptions.update(ws.stripeSubscriptionId, { cancel_at_period_end: true });
+        await stripe().subscriptions.update(ws.stripeSubscriptionId, {
+            cancel_at_period_end: true,
+        });
         return c.json({ ok: true, effect: "cancel_at_period_end" });
     }
     if (!stripeReady()) return c.json({ error: "billing not configured" }, 503);

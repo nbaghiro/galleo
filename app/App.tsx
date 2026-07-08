@@ -8,12 +8,10 @@ import { customThemes, loadCustomThemes } from "./theme";
 import { faviconOverride, setFavicon, appTheme, appThemeOverride, appThemeVars } from "./theme";
 import { AuthPage } from "./views/AuthPage";
 import { EditorView } from "./views/EditorView";
-import { BuildView } from "./views/generate/BuildView";
-import { IntakeView } from "./views/generate/IntakeView";
+import { GenerateModal } from "./views/generate/GenerateModal";
 import { LibraryView } from "./views/LibraryView";
 import { PresentView } from "./views/PresentView";
 import { PricingView } from "./views/PricingView";
-import { StudioView } from "./views/studio/StudioView";
 import { TemplatesView } from "./views/TemplatesView";
 import { MediaPicker } from "./components/MediaPicker";
 import { ThemeEditor } from "./views/ThemeEditor";
@@ -24,6 +22,7 @@ import { TrashView } from "./views/TrashView";
 const AppShell: Component<{ children?: JSX.Element }> = (props) => (
     <>
         {props.children}
+        <GenerateModal />
         <ThemeEditor />
         <MediaPicker />
     </>
@@ -74,10 +73,6 @@ export const App: Component = () => {
                         <Route path="/templates" component={TemplatesView} />
                         <Route path="/trash" component={TrashView} />
                         <Route path="/pricing" component={PricingView} />
-                        <Route path="/new" component={IntakeView} />
-                        <Route path="/generate" component={BuildView} />
-                        <Route path="/studio" component={StudioView} />
-                        {/* experimental generation UI */}
                         <Route path="/edit/:id" component={EditorView} />
                         <Route path="/present/:id" component={PresentView} />
                     </Router>

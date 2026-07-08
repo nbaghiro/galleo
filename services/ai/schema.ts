@@ -36,6 +36,12 @@ export const zBeat = z.object({
     role: z.string().describe("narrative role: scene | tension | turn | proof | momentum | close"),
     grid: gridEnum.optional().describe("the intended grid, so the canvas can pre-shape a skeleton"),
     image: z.boolean().optional().describe("true if this section leads with a prominent image"),
+    blocks: z
+        .array(z.string())
+        .optional()
+        .describe(
+            "the block leading each grid cell, in cell order (a, b, c) — each one of: text, bullets, image, stat, chart, diagram, table, quote, cards. Length = the grid's cell count.",
+        ),
     brief: z
         .string()
         .optional()
@@ -45,16 +51,6 @@ export const zBeat = z.object({
 export const zOutline = z.object({
     title: z.string().describe("the artifact title"),
     beats: z.array(zBeat).min(1).describe("the ordered sections to build"),
-});
-
-export const zSectionResult = z.object({
-    section: zSection,
-});
-
-// A whole-artifact single-shot (the simpler generate path / the `edit` result).
-export const zArtifactDraft = z.object({
-    title: z.string(),
-    sections: z.array(zSection).min(1),
 });
 
 // --- rewrite / translate (text-level, fast) ---
@@ -105,6 +101,4 @@ export const zImagePrompt = z.object({
 
 export type Outline = z.infer<typeof zOutline>;
 export type Beat = z.infer<typeof zBeat>;
-export type SectionResult = z.infer<typeof zSectionResult>;
-export type ArtifactDraft = z.infer<typeof zArtifactDraft>;
 export type ThemeGen = z.infer<typeof zTheme>;

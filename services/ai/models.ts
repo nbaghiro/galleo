@@ -120,19 +120,19 @@ export function getModel(id: string): ModelInfo | undefined {
     return MODELS_BY_ID[id];
 }
 
-// The default model per task. Google Gemini across the board: Pro for the quality-critical shaping tasks
-// (outline + section writing + whole-artifact edit), Flash for the high-volume, latency-sensitive text ops
-// (rewrite/translate) and chat. Tunable in one place; a request may override with an explicit model id.
+// The default model per task. Google Gemini across the board: Flash for generation (outline + the
+// high-volume, latency-sensitive per-section writing — a deck is ~12 sequential calls, so Pro's reasoning
+// latency stacks up badly), Pro reserved for whole-artifact edit. Tunable here; a request may override.
 export const DEFAULT_MODELS: Record<AiTask, string> = {
-    generate: "google:gemini-2.5-pro",
-    outline: "google:gemini-2.5-pro",
-    section: "google:gemini-2.5-pro",
+    generate: "google:gemini-2.5-flash",
+    outline: "google:gemini-2.5-flash",
+    section: "google:gemini-2.5-flash",
     edit: "google:gemini-2.5-pro",
     rewrite: "google:gemini-2.5-flash",
     translate: "google:gemini-2.5-flash",
     chat: "google:gemini-2.5-flash",
-    // A theme is a tiny, tightly-constrained structured output - Flash is plenty and much faster than Pro,
-    // and the deterministic contrast + OKLCH pass guarantees quality on top, not the model.
+    // A theme is a tiny structured output — Flash lands it in ~7s vs Pro's ~12s (up to 17s) at comparable
+    // quality, since the deterministic contrast/OKLCH finalize pass guarantees safety regardless of model.
     theme: "google:gemini-2.5-flash",
 };
 
