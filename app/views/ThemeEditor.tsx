@@ -9,7 +9,7 @@ import { paintSectionStack } from "@canvas/render/backends";
 import { setArtifactTheme } from "@elements/ops";
 import { commit, editor, endThemePreview } from "@editor/editor";
 import { ColorPopover, Dropdown, type ColorSwatch } from "../components/widgets";
-import { CloseIcon, EditIcon, RefreshIcon } from "../components/icons";
+import { ChevronLeftIcon, CloseIcon, EditIcon, RefreshIcon } from "../components/icons";
 import { SectionThumb } from "../components/previews";
 import { api } from "../api";
 import {
@@ -209,6 +209,10 @@ const ThemeEditorPanel: Component = () => {
         border: baseTokens.border ?? 1,
         scrim: baseTokens.scrim ?? 0.45,
     });
+    // A snapshot of the theme the modal chrome wears — updated on a pick / generate / edit-open (below),
+    // but NOT on each Customize slider drag, so the chrome reflects a generated theme yet never flickers
+    // or breaks mid-edit.
+    const [chromeTokens, setChromeTokens] = createSignal<Tokens>(baseTokens);
     const [name, setName] = createSignal("Custom theme");
     const [tag, setTag] = createSignal("custom");
     const [format, setFormat] = createSignal("web");
@@ -222,6 +226,9 @@ const ThemeEditorPanel: Component = () => {
     const [genBusy, setGenBusy] = createSignal(false);
     const [genError, setGenError] = createSignal("");
     const [genStep, setGenStep] = createSignal(0);
+    const [genDone, setGenDone] = createSignal(false); // generation finished → reveal the shared editor
+    // The token editor is shown both in Customize and after a generation (the Generate tab stays selected).
+    const editorActive = (): boolean => mode() === "custom" || (mode() === "generate" && genDone());
 
     // The idea catalog, shown a page at a time — the shuffle icon advances the window (no LLM call).
     const EX_PER_PAGE = 5;
@@ -239,12 +246,10 @@ const ThemeEditorPanel: Component = () => {
     // The format the preview renders in — the artifact's own over the editor, else the demo toggle.
     const previewFormat = (): string => (editing ? editor.artifact.format : format());
 
-    // The switcher wears the selected theme, so picking a dark theme turns the whole modal dark — it
-    // reflects what you switch to. It tracks the selected *saved* theme (not each unsaved custom
-    // keystroke), which is always internally legible, so the controls never break mid-edit.
+    // The switcher wears the chrome snapshot — it reflects a picked or a generated theme, but does not
+    // track individual Customize edits, so a mid-drag bad color never breaks the controls.
     const panelVars = createMemo(
-        (): JSX.CSSProperties =>
-            themeCssVars(resolveTheme(selectedId()).tokens) as JSX.CSSProperties,
+        (): JSX.CSSProperties => themeCssVars(chromeTokens()) as JSX.CSSProperties,
     );
 
     // Load a theme's tokens into the working store (drives the preview) + sync the shadow preset.
@@ -252,12 +257,22 @@ const ThemeEditorPanel: Component = () => {
         const t = resolveTheme(id).tokens;
         setTk({ ...t, border: t.border ?? 1, scrim: t.scrim ?? 0.45 });
         setShadowPreset(inferShadow(t.shadow));
+        setChromeTokens(t); // the chrome follows a wholesale theme change (pick / edit-open)
+    };
+
+    // Leaving a generated result (a tab switch, or "back to prompt") abandons it: revert the draft, the
+    // chrome snapshot, and the app preview to the pre-generation theme so nothing carries the unsaved theme.
+    const discardGenerated = (): void => {
+        if (!genDone()) return;
+        setGenDone(false);
+        loadTokens(selectedId());
     };
 
     // Pick a predefined/custom theme in list mode: apply it live (context-aware) and mirror it into the
     // working store so the preview shows it. In the editor this commits an undoable theme change.
     const pick = (id: string): void => {
         setSelectedId(id);
+        setGenDone(false); // a picked theme supersedes any generated draft
         loadTokens(id);
         if (editing) {
             endThemePreview();
@@ -271,6 +286,7 @@ const ThemeEditorPanel: Component = () => {
     // theme, else forking it into a new one. The working store already holds the selected tokens.
     const enterCustom = (): void => {
         if (mode() === "custom") return;
+        discardGenerated(); // switching to Customize abandons any unsaved generated theme
         const sel = selectedId();
         const editable = isCustom(sel);
         setEditTargetId(editable ? sel : null);
@@ -290,7 +306,7 @@ const ThemeEditorPanel: Component = () => {
     };
 
     // Generate a theme from a text prompt (Gemini Flash, a few seconds), load it into the working store,
-    // and land in Customize so it can be fine-tuned and saved as a new custom theme.
+    // and reveal the shared editor in place — the Generate tab stays selected — to fine-tune and save.
     const runGenerate = async (): Promise<void> => {
         const p = genPrompt().trim();
         if (!p || genBusy()) return;
@@ -302,10 +318,11 @@ const ThemeEditorPanel: Component = () => {
             const t = theme.tokens;
             setTk({ ...t, border: t.border ?? 1, scrim: t.scrim ?? 0.45 });
             setShadowPreset(inferShadow(t.shadow));
+            setChromeTokens(t); // switch the modal chrome to the generated theme
             setName(theme.name);
             setTag(theme.mood ?? "custom");
             setEditTargetId(null); // Save creates a new custom theme
-            setMode("custom");
+            setGenDone(true); // stay on Generate; the shared editor takes over from the loader
         } catch (e) {
             setGenError(e instanceof Error ? e.message : "Generation failed.");
         } finally {
@@ -313,16 +330,16 @@ const ThemeEditorPanel: Component = () => {
         }
     };
 
-    // In custom mode the shadow token follows the chosen preset + the live accent; in list mode the
+    // In the token editor the shadow token follows the chosen preset + the live accent; in list mode the
     // loaded theme keeps its own shadow untouched.
     createEffect(() => {
-        if (mode() === "custom") setTk("shadow", shadowCss(shadowPreset(), tk.accent));
+        if (editorActive()) setTk("shadow", shadowCss(shadowPreset(), tk.accent));
     });
 
-    // Live app-chrome preview: only while customizing does the draft recolor the app behind the modal;
-    // picking in list mode applies the real theme instead. Cleared on close.
+    // Live app-chrome preview: while editing tokens (Customize or a generated result) the draft recolors
+    // the app behind the modal; picking in list mode applies the real theme instead. Cleared on close.
     createEffect(() => {
-        if (mode() === "custom") setAppThemePreview({ ...tk });
+        if (editorActive()) setAppThemePreview({ ...tk });
         else setAppThemePreview(null);
     });
     onCleanup(() => setAppThemePreview(null));
@@ -541,7 +558,13 @@ const ThemeEditorPanel: Component = () => {
                 <aside class="flex w-[360px] flex-none flex-col border-r border-line bg-panel">
                     <header class="flex flex-none items-center gap-2 border-b border-line px-3 py-3">
                         <div class="flex flex-1 items-center gap-1 rounded-lg border border-line p-0.5">
-                            <button class={seg(mode() === "list")} onClick={() => setMode("list")}>
+                            <button
+                                class={seg(mode() === "list")}
+                                onClick={() => {
+                                    discardGenerated();
+                                    setMode("list");
+                                }}
+                            >
                                 Themes
                             </button>
                             <button class={seg(mode() === "custom")} onClick={enterCustom}>
@@ -594,131 +617,145 @@ const ThemeEditorPanel: Component = () => {
 
                         {/* ── AI theme generation ── */}
                         <Show when={mode() === "generate"}>
-                            <Show
-                                when={!genBusy()}
-                                fallback={
-                                    <div class="flex flex-col items-center gap-6 px-4 py-16 text-center">
-                                        <div class="flex gap-2">
-                                            <For each={[0, 1, 2, 3, 4, 5, 6]}>
-                                                {(i) => (
-                                                    <span
-                                                        class="theme-gen-swatch h-7 w-7 rounded-lg"
-                                                        style={{
-                                                            "animation-delay": `${i * 130}ms`,
-                                                        }}
-                                                    />
+                            <Show when={!genDone()}>
+                                <Show
+                                    when={!genBusy()}
+                                    fallback={
+                                        <div class="flex flex-col items-center gap-6 px-4 py-16 text-center">
+                                            <div class="flex gap-2">
+                                                <For each={[0, 1, 2, 3, 4, 5, 6]}>
+                                                    {(i) => (
+                                                        <span
+                                                            class="theme-gen-swatch h-7 w-7 rounded-lg"
+                                                            style={{
+                                                                "animation-delay": `${i * 130}ms`,
+                                                            }}
+                                                        />
+                                                    )}
+                                                </For>
+                                            </div>
+                                            <div>
+                                                <div
+                                                    class="text-[16px] text-ink"
+                                                    style={{ "font-family": "var(--font-display)" }}
+                                                >
+                                                    Designing your theme
+                                                </div>
+                                                <div class="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-accent">
+                                                    {GEN_STEPS[genStep()]}…
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                >
+                                    <div class="px-4 py-4">
+                                        <p class="mb-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+                                            Describe
+                                        </p>
+                                        <h2
+                                            class="mb-1 text-[22px] leading-tight text-ink"
+                                            style={{ "font-family": "var(--font-display)" }}
+                                        >
+                                            Generate a theme
+                                        </h2>
+                                        <p class="mb-4 text-[12.5px] leading-relaxed text-muted">
+                                            Describe a mood, brand, or vibe — the AI designs a full
+                                            color-and-type system (palette, fonts, shape) you can
+                                            preview, tweak, and save.
+                                        </p>
+                                        <textarea
+                                            class="min-h-[120px] w-full resize-none rounded-xl border border-line bg-canvas px-3 py-2.5 text-[13.5px] leading-relaxed text-ink outline-none placeholder:text-muted focus:border-accent"
+                                            placeholder="e.g. warm mid-century — terracotta and cream, editorial serif, soft corners"
+                                            value={genPrompt()}
+                                            onInput={(e) => setGenPrompt(e.currentTarget.value)}
+                                            onKeyDown={(e) => {
+                                                if ((e.metaKey || e.ctrlKey) && e.key === "Enter")
+                                                    runGenerate();
+                                            }}
+                                        />
+
+                                        <p class="mb-1.5 mt-4 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+                                            Mode
+                                        </p>
+                                        <div class="flex items-center gap-1 rounded-lg border border-line p-0.5">
+                                            <For each={["auto", "light", "dark"] as const}>
+                                                {(m) => (
+                                                    <button
+                                                        class={seg(genMode() === m)}
+                                                        onClick={() => setGenMode(m)}
+                                                    >
+                                                        {m === "auto"
+                                                            ? "Auto"
+                                                            : m === "light"
+                                                              ? "Light"
+                                                              : "Dark"}
+                                                    </button>
                                                 )}
                                             </For>
                                         </div>
-                                        <div>
-                                            <div
-                                                class="text-[16px] text-ink"
-                                                style={{ "font-family": "var(--font-display)" }}
+
+                                        <div class="mb-2 mt-5 flex items-center justify-between">
+                                            <p class="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+                                                Or start from an idea
+                                            </p>
+                                            <button
+                                                class="grid h-6 w-6 place-items-center rounded-md text-muted transition-colors hover:bg-canvas hover:text-accent"
+                                                title="Shuffle ideas"
+                                                onClick={() => setExPage((p) => p + 1)}
                                             >
-                                                Designing your theme
-                                            </div>
-                                            <div class="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-accent">
-                                                {GEN_STEPS[genStep()]}…
-                                            </div>
+                                                <RefreshIcon size={13} />
+                                            </button>
                                         </div>
-                                    </div>
-                                }
-                            >
-                                <div class="px-4 py-4">
-                                    <p class="mb-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
-                                        Describe
-                                    </p>
-                                    <h2
-                                        class="mb-1 text-[22px] leading-tight text-ink"
-                                        style={{ "font-family": "var(--font-display)" }}
-                                    >
-                                        Generate a theme
-                                    </h2>
-                                    <p class="mb-4 text-[12.5px] leading-relaxed text-muted">
-                                        Describe a mood, brand, or vibe — the AI designs a full
-                                        color-and-type system (palette, fonts, shape) you can
-                                        preview, tweak, and save.
-                                    </p>
-                                    <textarea
-                                        class="min-h-[120px] w-full resize-none rounded-xl border border-line bg-canvas px-3 py-2.5 text-[13.5px] leading-relaxed text-ink outline-none placeholder:text-muted focus:border-accent"
-                                        placeholder="e.g. warm mid-century — terracotta and cream, editorial serif, soft corners"
-                                        value={genPrompt()}
-                                        onInput={(e) => setGenPrompt(e.currentTarget.value)}
-                                        onKeyDown={(e) => {
-                                            if ((e.metaKey || e.ctrlKey) && e.key === "Enter")
-                                                runGenerate();
-                                        }}
-                                    />
+                                        <div class="flex flex-col gap-1.5">
+                                            <For each={examples()}>
+                                                {(ex) => (
+                                                    <button
+                                                        class="rounded-lg border border-line px-3 py-2 text-left text-[12.5px] text-soft transition-colors hover:border-accent hover:text-ink"
+                                                        onClick={() => setGenPrompt(ex)}
+                                                    >
+                                                        {ex}
+                                                    </button>
+                                                )}
+                                            </For>
+                                        </div>
 
-                                    <p class="mb-1.5 mt-4 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
-                                        Mode
-                                    </p>
-                                    <div class="flex items-center gap-1 rounded-lg border border-line p-0.5">
-                                        <For each={["auto", "light", "dark"] as const}>
-                                            {(m) => (
-                                                <button
-                                                    class={seg(genMode() === m)}
-                                                    onClick={() => setGenMode(m)}
-                                                >
-                                                    {m === "auto"
-                                                        ? "Auto"
-                                                        : m === "light"
-                                                          ? "Light"
-                                                          : "Dark"}
-                                                </button>
-                                            )}
-                                        </For>
-                                    </div>
-
-                                    <div class="mb-2 mt-5 flex items-center justify-between">
-                                        <p class="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
-                                            Or start from an idea
-                                        </p>
                                         <button
-                                            class="grid h-6 w-6 place-items-center rounded-md text-muted transition-colors hover:bg-canvas hover:text-accent"
-                                            title="Shuffle ideas"
-                                            onClick={() => setExPage((p) => p + 1)}
+                                            class="mt-5 w-full rounded-xl bg-accent py-2.5 text-[13.5px] font-semibold text-onaccent transition-shadow hover:shadow-lg disabled:opacity-50 disabled:hover:shadow-none"
+                                            disabled={genBusy() || !genPrompt().trim()}
+                                            onClick={runGenerate}
                                         >
-                                            <RefreshIcon size={13} />
+                                            {genBusy() ? "Designing…" : "✨ Generate theme"}
                                         </button>
-                                    </div>
-                                    <div class="flex flex-col gap-1.5">
-                                        <For each={examples()}>
-                                            {(ex) => (
-                                                <button
-                                                    class="rounded-lg border border-line px-3 py-2 text-left text-[12.5px] text-soft transition-colors hover:border-accent hover:text-ink"
-                                                    onClick={() => setGenPrompt(ex)}
-                                                >
-                                                    {ex}
-                                                </button>
-                                            )}
-                                        </For>
-                                    </div>
-
-                                    <button
-                                        class="mt-5 w-full rounded-xl bg-accent py-2.5 text-[13.5px] font-semibold text-onaccent transition-shadow hover:shadow-lg disabled:opacity-50 disabled:hover:shadow-none"
-                                        disabled={genBusy() || !genPrompt().trim()}
-                                        onClick={runGenerate}
-                                    >
-                                        {genBusy() ? "Designing…" : "✨ Generate theme"}
-                                    </button>
-                                    <Show when={genError()}>
-                                        <p class="mt-2 text-[11.5px]" style={{ color: "#C0392B" }}>
-                                            {genError()}
+                                        <Show when={genError()}>
+                                            <p
+                                                class="mt-2 text-[11.5px]"
+                                                style={{ color: "#C0392B" }}
+                                            >
+                                                {genError()}
+                                            </p>
+                                        </Show>
+                                        <p class="mt-3 text-[11px] leading-relaxed text-muted">
+                                            Generates in a few seconds — the result opens in
+                                            Customize, ready to fine-tune and save.
                                         </p>
-                                    </Show>
-                                    <p class="mt-3 text-[11px] leading-relaxed text-muted">
-                                        Generates in a few seconds — the result opens in Customize,
-                                        ready to fine-tune and save.
-                                    </p>
-                                </div>
+                                    </div>
+                                </Show>
                             </Show>
                         </Show>
 
-                        {/* ── custom token editor ── */}
-                        <Show when={mode() === "custom"}>
+                        {/* ── token editor: shared by Customize + a generated result ── */}
+                        <Show when={editorActive()}>
                             <div class="px-4 pb-6">
                                 <div class="sticky top-0 z-10 -mx-4 flex items-center gap-2 border-b border-line bg-panel px-4 py-3">
+                                    <Show when={mode() === "generate"}>
+                                        <button
+                                            class="grid h-8 w-8 flex-none place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
+                                            title="Back to prompt"
+                                            onClick={() => discardGenerated()}
+                                        >
+                                            <ChevronLeftIcon size={17} />
+                                        </button>
+                                    </Show>
                                     <input
                                         class="min-w-0 flex-1 rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-[13px] font-semibold text-ink outline-none focus:border-accent"
                                         value={name()}

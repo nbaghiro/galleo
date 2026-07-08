@@ -219,6 +219,40 @@ export function oklchToHex({ L, C, H }: Oklch): string {
 
 const ACCENT_CHROMA_MAX = 0.155; // OKLCH chroma ceiling — above this an accent reads as neon/AI-slop
 const ACCENT_L_MAX_DARK = 0.74; // a too-light accent glows on a dark theme; pull it toward a jewel tone
+const ACCENT_L_MAX_LIGHT = 0.82; // a too-light accent washes out on a light theme
+const ACCENT_L_MIN = 0.4; // below this an accent turns muddy / near-black
+const ACCENT_MIN_VS_BG = 1.8; // the accent must read as a distinct mark against the page
+// The yellow → chartreuse → lime hue band (OKLCH degrees). These hues are intrinsically very light, so at
+// high chroma they read as highlighter/garish and vanish on light backgrounds — deepen them hard toward a
+// gold/olive. Calibrated against our own color math: garish yellows sit at L≥0.84 / hue 100–150°, while
+// warm golds and ambers sit below 92°, so the band starts at 95° and leaves the good ones untouched.
+const GARISH_HUE: [number, number] = [95, 155];
+
+const toDeg = (h: number): number => ((((h * 180) / Math.PI) % 360) + 360) % 360;
+
+// Turn any generated accent into a usable, non-garish brand color: clamp chroma + lightness (harder in the
+// intrinsically-light yellow/chartreuse band), floor the darkness, then guarantee it reads as a distinct
+// mark against the page. This is the systematic replacement for a hardcoded hex avoid-list — it catches the
+// "bad yellow" case and every neon/pale/muddy accent by where it sits in perceptual space, not by exact hex.
+function sanitizeAccent(hex: string, dark: boolean, bg: string): string {
+    const o = hexToOklch(hex);
+    const deg = toDeg(o.H);
+    const garish = deg >= GARISH_HUE[0] && deg <= GARISH_HUE[1];
+    const cMax = garish ? 0.125 : ACCENT_CHROMA_MAX;
+    const lMax = garish ? 0.76 : dark ? ACCENT_L_MAX_DARK : ACCENT_L_MAX_LIGHT;
+    let L = Math.max(ACCENT_L_MIN, Math.min(o.L, lMax));
+    const C = Math.min(o.C, cMax);
+    let out = oklchToHex({ L, C, H: o.H });
+
+    // Visibility: on a light page this deepens a pale accent (the invisible-yellow case); on a dark page
+    // it's naturally satisfied.
+    const bgLight = relLuminance(bg) >= 0.4;
+    for (let i = 0; i < 10 && contrastRatio(out, bg) < ACCENT_MIN_VS_BG; i++) {
+        L = Math.max(0.34, Math.min(0.86, L + (bgLight ? -0.045 : 0.045)));
+        out = oklchToHex({ L, C, H: o.H });
+    }
+    return out;
+}
 
 // Nudge `fg` toward black/white until it clears `ratio` against `bg` (falling back to the extreme).
 function reachContrast(
@@ -239,11 +273,8 @@ export function finalizeTheme(t: Tokens): Tokens {
     const dark = relLuminance(t.bg) < 0.4;
     const textToward = dark ? "#ffffff" : "#000000";
 
-    // 1. Tame the accent — clamp chroma (and, on dark, lightness) so neon → a rich, designed color.
-    const ac = hexToOklch(t.accent);
-    const C = Math.min(ac.C, ACCENT_CHROMA_MAX);
-    const L = dark ? Math.min(ac.L, ACCENT_L_MAX_DARK) : ac.L;
-    const accent = C !== ac.C || L !== ac.L ? oklchToHex({ L, C, H: ac.H }) : t.accent;
+    // 1. Sanitize the accent — clamp neon, deepen garish yellows/limes, keep it visible against the page.
+    const accent = sanitizeAccent(t.accent, dark, t.bg);
 
     // 2. onAccent — the black-or-white that reads best on the tamed accent (never the model's guess).
     const onAccent =
