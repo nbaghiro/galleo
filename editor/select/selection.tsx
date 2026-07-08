@@ -18,6 +18,7 @@ import {
     moveSectionBy,
     removeSectionAt,
 } from "../editor";
+import { openSectionPrompt } from "../ai/section-gen";
 import { Icon } from "../icons";
 
 // Fallback radius for nodes that paint no corner of their own (text, groups): square in the seamless
@@ -105,10 +106,18 @@ export const SectionActions: Component = () => {
                 >
                     <button
                         class={action}
-                        title="Add a section below"
+                        title="Add a blank section below"
                         onClick={() => addSectionAfter(sid()!)}
                     >
                         <Icon name="plus" size={13} /> Section
+                    </button>
+                    <span class="h-3.5 w-px bg-line" />
+                    <button
+                        class={action}
+                        title="Generate a section here with AI"
+                        onClick={() => openSectionPrompt(sid()!)}
+                    >
+                        <Icon name="sparkle" size={13} /> Generate
                     </button>
                     <span class="h-3.5 w-px bg-line" />
                     <button

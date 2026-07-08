@@ -24,8 +24,10 @@ export const VOICE = `## Voice (write like the demos)
 // starter). Map the intake chip to a target so the model doesn't pad or truncate.
 export function lengthGuidance(length?: string): string {
     const l = (length ?? "").toLowerCase();
-    if (l.startsWith("short")) return "Target 6–9 sections — only the essential beats, tight.";
-    if (l.startsWith("in") || l.startsWith("deep") || l.startsWith("long"))
-        return "Target 16–20 sections — the full, rich treatment (the demo standard).";
-    return "Target 11–14 sections — a complete, well-paced piece.";
+    const lean = l.startsWith("short")
+        ? " The reader asked to keep it tight — lean toward the shorter end, only the essential beats."
+        : l.startsWith("in") || l.startsWith("deep") || l.startsWith("long")
+          ? " The reader asked for depth — lean toward the fuller end, the rich treatment."
+          : "";
+    return `Let the topic decide how many sections it needs. A sharp, single-idea piece might be 5–7; a broad, evidence-heavy one 15–20. Size it to the story — never pad to hit a number, never cut a beat the argument needs, and don't default to a middle length out of habit.${lean}`;
 }

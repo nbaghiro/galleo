@@ -95,7 +95,7 @@ export const Panel: Component = () => {
         <div class="absolute right-3 top-1/2 z-20 flex -translate-y-1/2 items-stretch gap-2">
             <Show when={rightTab()}>
                 {(tab) => (
-                    <aside class="flex max-h-[calc(100vh-120px)] w-[284px] flex-col overflow-y-auto rounded-2xl border border-line bg-panel/95 p-[18px] shadow-2xl backdrop-blur-md">
+                    <aside class="flex max-h-[calc(100vh-120px)] w-[284px] flex-col overflow-y-auto rounded-2xl border border-line bg-panel/95 p-[18px] shadow-[var(--panel-shadow)] backdrop-blur-md">
                         <Show
                             when={tab() === "inspector"}
                             fallback={
@@ -141,7 +141,7 @@ export const Panel: Component = () => {
                 )}
             </Show>
 
-            <div class="flex flex-col gap-1 self-center rounded-2xl border border-line bg-panel/95 p-1.5 shadow-2xl backdrop-blur-md">
+            <div class="flex flex-col gap-1 self-center rounded-2xl border border-line bg-panel/95 p-1.5 shadow-[var(--panel-shadow)] backdrop-blur-md">
                 <Show when={inspectorLabel()}>{(label) => railBtn("inspector", label())}</Show>
                 {railBtn("search", "Search")}
                 <For each={cats()}>{(c) => railBtn(c, CAT_LABEL[c] ?? c)}</For>

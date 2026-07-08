@@ -4,7 +4,7 @@ import { useNavigate } from "@solidjs/router";
 import type { Section, ElementInstance } from "@model/artifact";
 import { GRID_TEMPLATES } from "@model/elements";
 import { resolveProfile } from "@engine/profile";
-import { resolveTheme, themeCssVars } from "@themes";
+import { resolveTheme, themeCssVars, mix } from "@themes";
 import { paint } from "@canvas/render/backends";
 import { measureText, layoutSection, layoutSectionSkeleton } from "@canvas/render/commands";
 import { appTheme } from "../../theme";
@@ -258,10 +258,15 @@ const SAMPLE_SECTIONS: Section[] = [
     },
 ] as Section[];
 
-// The natural render width for the current format — matches the editor: the format's maxContentWidth
+// The surface the preview/build board renders in. It IS the brief's format selector before a run, and a
+// live view-toggle during/after it — same content, re-laid-out as deck / doc / web (format-as-view). The
+// switcher top-right of the board drives it; the submitted surface + the saved artifact follow it too.
+const [previewFormat, setPreviewFormat] = createSignal<Surface>("deck");
+
+// The natural render width for the previewed format — matches the editor: the format's maxContentWidth
 // clamped to the available board (web bleeds to fill). The frame is sized to exactly this so nothing clips.
 const frameWidth = (avail: number): number => {
-    const p = resolveProfile(gen.format);
+    const p = resolveProfile(previewFormat());
     return Math.max(
         320,
         p.id === "web" ? avail - 48 : Math.min(avail - 48, p.maxContentWidth ?? 1080),
@@ -400,7 +405,10 @@ export const GenerateModal: Component = () => (
 const GenerateModalPanel: Component = () => {
     const navigate = useNavigate();
     const [prompt, setPrompt] = createSignal("");
-    const [fmt, setFmt] = createSignal<Surface>("deck");
+    // The format lives in the module-level `previewFormat` — the brief's selector and the board's live
+    // switcher are the same control, so switching the preview surface just re-lays-out the same content.
+    const fmt = previewFormat;
+    const setFmt = setPreviewFormat;
     const [length, setLength] = createSignal("Standard");
     // The idea bank is shuffled once per open (fresh random order); the list shows four at a time and the
     // shuffle icon advances the window through the shuffled deck — all hardcoded, no LLM call.
@@ -435,7 +443,8 @@ const GenerateModalPanel: Component = () => {
         });
     };
     const openInEditor = async (): Promise<void> => {
-        const id = await saveGenerated();
+        // Save in whatever surface the preview is showing — the switcher is a real choice, so "Open" honors it.
+        const id = await saveGenerated(previewFormat());
         if (id) {
             closeGenerate();
             navigate(`/edit/${id}`);
@@ -678,16 +687,33 @@ const GenerateModalPanel: Component = () => {
                     class="flex min-w-0 flex-1 flex-col"
                     style={{ background: "var(--color-canvas)" }}
                 >
-                    <div class="flex flex-none items-center justify-between border-b border-line bg-panel px-4 py-2">
-                        <span class={eyebrow}>
-                            {building() ? "Live build" : "Preview"} ·{" "}
-                            {FORMATS.find(([id]) => id === (building() ? gen.format : fmt()))?.[1]}
+                    <div class="flex flex-none items-center justify-between gap-3 border-b border-line bg-panel px-4 py-2">
+                        <span class={`${eyebrow} flex-none`}>
+                            {building() ? "Live build" : "Preview"}
                         </span>
                         <Show when={building() && gen.brief?.prompt}>
-                            <span class="max-w-[60%] truncate text-[11.5px] text-muted">
+                            <span class="min-w-0 flex-1 truncate text-[11.5px] text-muted">
                                 {gen.brief?.prompt}
                             </span>
                         </Show>
+                        {/* live preview surface switcher — same content re-laid-out as deck / doc / web */}
+                        <div class="flex flex-none items-center gap-0.5 rounded-lg border border-line p-0.5">
+                            <For each={FORMATS}>
+                                {([id, label]) => (
+                                    <button
+                                        class={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                                            previewFormat() === id
+                                                ? "bg-accent text-onaccent"
+                                                : "text-soft hover:text-ink"
+                                        }`}
+                                        title={`Preview as ${label}`}
+                                        onClick={() => setPreviewFormat(id)}
+                                    >
+                                        {label}
+                                    </button>
+                                )}
+                            </For>
+                        </div>
                     </div>
                     <div class="min-h-0 flex-1">
                         <Show when={building()} fallback={<Idle />}>
@@ -731,7 +757,7 @@ const Idle: Component = () => (
                     <MiniCanvas
                         section={SAMPLE_SECTIONS[c.sample]!}
                         themeId={appTheme()}
-                        formatId="deck"
+                        formatId={previewFormat()}
                         width={240}
                         class="rounded-xl border border-line shadow-lg"
                     />
@@ -858,77 +884,94 @@ const Progress: Component = () => {
     );
 };
 
-// The scrolling board of section frames.
-// The build loader shown while the outline is being written (the first, longest wait). A slow orbit of
-// mini section skeletons — real engine renders (skeletonized, themed), varied by grid — circles the phase
-// text so there's something alive to watch. Each card counter-rotates to stay upright as the ring turns.
-const ORBIT: { sample: number }[] = [
-    { sample: 0 },
-    { sample: 1 },
-    { sample: 2 },
-    { sample: 3 },
-    { sample: 4 },
-    { sample: 5 },
-];
+// The build loader shown while the outline is being written (the first, longest wait). "Skeleton Cascade":
+// three section skeletons stack and light in sequence, top to bottom — the piece visibly forming — under a
+// caption that tracks the run's narration. Contained + calm (a fraction of the old orbit), and it reuses the
+// same skeleton language as the rest of the build. Ghost/lit tones derive from the artifact theme.
+const cascadeVars = (): JSX.CSSProperties => {
+    const tk = resolveTheme(gen.theme).tokens;
+    return {
+        width: "460px",
+        "--gc-frame": tk.surface,
+        "--gc-border": tk.line,
+        "--gc-ghost": mix(tk.surface, tk.ink, 0.14),
+        "--gc-lit": mix(tk.surface, tk.accent, 0.5),
+        "--gc-accent": tk.accent,
+    } as JSX.CSSProperties;
+};
 
 const ReadingLoader: Component = () => {
-    const R = 220; // vertical orbit radius; the g-ellipse wrapper stretches it horizontally (×1.4) so the
-    // wide center card gets even clearance on the sides as well as top/bottom
     const line = (): string => gen.narration[gen.narration.length - 1]?.text ?? "Reading the brief";
+    // one skeleton row (a themed frame of ghost bars) — the `d` delay staggers the three so they light in
+    // sequence; children read `--d` so a row's bars light with their frame.
+    const bar = (cls: string): JSX.Element => <div class={`gc-bar rounded ${cls}`} />;
     return (
-        <div class="relative grid place-items-center" style={{ width: "820px", height: "600px" }}>
+        <div class="flex flex-col items-center gap-6" style={cascadeVars()}>
             <style>{`
-              @keyframes g-orbit { to { transform: rotate(360deg); } }
-              @keyframes g-orbit-rev { to { transform: rotate(-360deg); } }
-              .g-orbit { animation: g-orbit 64s linear infinite; }
-              .g-orbit-rev { animation: g-orbit-rev 64s linear infinite; }
-              @media (prefers-reduced-motion: reduce) { .g-orbit, .g-orbit-rev { animation: none; } }
+              @keyframes gc-frame { 0%{opacity:.34} 7%{opacity:1} 30%{opacity:.5} 100%{opacity:.34} }
+              @keyframes gc-glow {
+                0%{box-shadow:none;border-color:var(--gc-border)}
+                7%{box-shadow:0 0 26px -10px var(--gc-accent);border-color:color-mix(in srgb,var(--gc-accent) 55%,var(--gc-border))}
+                30%,100%{box-shadow:none;border-color:var(--gc-border)}
+              }
+              @keyframes gc-bar { 0%{background:var(--gc-ghost)} 7%{background:var(--gc-lit)} 30%,100%{background:var(--gc-ghost)} }
+              .gc-row { animation: gc-frame 3.6s infinite ease-in-out, gc-glow 3.6s infinite ease-in-out; animation-delay: var(--d,0s); }
+              .gc-bar { background: var(--gc-ghost); animation: gc-bar 3.6s infinite ease-in-out; animation-delay: var(--d,0s); }
+              @media (prefers-reduced-motion: reduce) { .gc-row,.gc-bar { animation: none } .gc-row { opacity:.65 } }
             `}</style>
-            {/* g-ellipse: stretch the circular orbit horizontally (×1.4) so the wide center card gets even
-                clearance on the sides; each tile counter-scales (×1/1.4) to stay un-stretched + upright */}
-            <div class="absolute inset-0" style={{ transform: "scaleX(1.4)" }}>
-                <div class="g-orbit absolute inset-0">
-                    <For each={ORBIT}>
-                        {(it, i) => {
-                            const a = (360 / ORBIT.length) * i();
-                            return (
-                                <div
-                                    class="absolute left-1/2 top-1/2"
-                                    style={{ transform: `rotate(${a}deg) translateY(-${R}px)` }}
-                                >
-                                    <div class="g-orbit-rev">
-                                        <div style={{ transform: `rotate(${-a}deg)` }}>
-                                            <div style={{ transform: "scaleX(0.714)" }}>
-                                                <div
-                                                    style={{
-                                                        transform: "translate(-50%, -50%)",
-                                                        opacity: "0.62",
-                                                    }}
-                                                >
-                                                    <MiniCanvas
-                                                        section={SAMPLE_SECTIONS[it.sample]!}
-                                                        themeId={appTheme()}
-                                                        formatId="deck"
-                                                        width={172}
-                                                        class="rounded-lg border border-line shadow-lg"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        }}
-                    </For>
+
+            <div class="flex w-full flex-col gap-2.5">
+                {/* image-left */}
+                <div
+                    class="gc-row flex items-center gap-3.5 rounded-xl border p-3.5"
+                    style={{
+                        background: "var(--gc-frame)",
+                        "border-color": "var(--gc-border)",
+                        "--d": "0s",
+                    }}
+                >
+                    <div class="gc-bar h-10 w-14 flex-none rounded-md" />
+                    <div class="flex flex-1 flex-col gap-2">
+                        {bar("h-2 w-2/3")}
+                        {bar("h-1.5 w-11/12")}
+                        {bar("h-1.5 w-4/5")}
+                    </div>
+                </div>
+                {/* image-right */}
+                <div
+                    class="gc-row flex items-center gap-3.5 rounded-xl border p-3.5"
+                    style={{
+                        background: "var(--gc-frame)",
+                        "border-color": "var(--gc-border)",
+                        "--d": "1.2s",
+                    }}
+                >
+                    <div class="flex flex-1 flex-col gap-2">
+                        {bar("h-2 w-1/2")}
+                        {bar("h-1.5 w-11/12")}
+                        {bar("h-1.5 w-3/4")}
+                    </div>
+                    <div class="gc-bar h-10 w-14 flex-none rounded-md" />
+                </div>
+                {/* text-only */}
+                <div
+                    class="gc-row flex flex-col gap-2 rounded-xl border p-3.5"
+                    style={{
+                        background: "var(--gc-frame)",
+                        "border-color": "var(--gc-border)",
+                        "--d": "2.4s",
+                    }}
+                >
+                    {bar("h-2 w-1/3")}
+                    {bar("h-1.5 w-full")}
+                    {bar("h-1.5 w-5/6")}
                 </div>
             </div>
-            <div class="relative z-[2] flex max-w-[220px] flex-col items-center gap-3 rounded-2xl border border-line bg-panel/85 px-6 py-5 text-center shadow-xl backdrop-blur-sm">
-                <span class="h-5 w-5 animate-spin rounded-full border-2 border-line border-t-accent" />
-                <span class="font-mono text-[12px] uppercase tracking-[0.14em] text-soft">
+
+            <div class="flex items-center gap-2.5 rounded-full border border-line bg-panel/85 px-4 py-2 backdrop-blur-sm">
+                <span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-accent" />
+                <span class="font-mono text-[11px] uppercase tracking-[0.14em] text-soft">
                     {line()}…
-                </span>
-                <span class="text-[11.5px] leading-relaxed text-muted">
-                    Shaping the outline — every section builds here next.
                 </span>
             </div>
         </div>
@@ -977,8 +1020,16 @@ const Board: Component = () => {
         );
     });
     onCleanup(() => clearTimeout(scrollTimer));
+    // Spacing between frames reads the surface: web bands butt together (continuous scroll), deck cards get
+    // room (slides), a doc's pages sit a touch apart.
+    const gap = (): string =>
+        previewFormat() === "web" ? "2px" : previewFormat() === "doc" ? "14px" : "22px";
     return (
-        <div ref={board} class="flex h-full flex-col items-center gap-4 overflow-auto px-7 py-6">
+        <div
+            ref={board}
+            class="flex h-full flex-col items-center overflow-auto px-7 py-6"
+            style={{ gap: gap() }}
+        >
             <Show
                 when={!gen.beats.length}
                 fallback={
@@ -1005,6 +1056,7 @@ const Frame: Component<{ slot: SectionSlot; index: number; avail: () => number }
     const doneReady = (): boolean => props.slot.status === "done" && !!props.slot.section;
     const active = (): boolean => ["active", "writing", "image"].includes(props.slot.status);
     const themeBg = (): string => resolveTheme(gen.theme).tokens.bg;
+    const isWeb = (): boolean => previewFormat() === "web";
 
     createEffect(() => {
         if (!box) return;
@@ -1012,7 +1064,7 @@ const Frame: Component<{ slot: SectionSlot; index: number; avail: () => number }
         const sec = done ? (props.slot.section as Section) : placeholderSection(props.slot);
         const tk = resolveTheme(gen.theme).tokens;
         const layoutW = frameWidth(props.avail());
-        const profile = resolveProfile(gen.format);
+        const profile = resolveProfile(previewFormat());
         const out = done
             ? layoutSection(sec, layoutW, measureText, tk, profile)
             : layoutSectionSkeleton(sec, layoutW, measureText, tk, profile);
@@ -1055,10 +1107,13 @@ const Frame: Component<{ slot: SectionSlot; index: number; avail: () => number }
                 {props.slot.image ? " · IMG" : ""}
             </span>
             <div
-                class="overflow-hidden rounded-xl border transition-colors"
+                class="overflow-hidden transition-colors"
                 classList={{
-                    "border-line shadow-[0_30px_60px_-40px_rgba(0,0,0,0.5)]": doneReady(),
-                    "border-dashed border-accent/25": !doneReady(),
+                    // deck/doc read as framed cards/pages; web bleeds edge-to-edge as a continuous band
+                    "rounded-xl border": !isWeb(),
+                    "border-line shadow-[0_30px_60px_-40px_rgba(0,0,0,0.5)]":
+                        doneReady() && !isWeb(),
+                    "border-dashed border-accent/25": !doneReady() && !isWeb(),
                     "ring-1 ring-accent shadow-[0_0_30px_-6px_var(--color-accent)]": active(),
                 }}
                 style={{ background: themeBg() }}

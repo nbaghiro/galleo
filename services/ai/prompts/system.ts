@@ -26,7 +26,7 @@ export const SECTION_RULES = `## How to build a section
 - Fill each of the grid's cells with exactly one element. To place several elements in one cell, use a \`group\`.
 - One clear headline per section (a single \`text\` with style \`h1\` or \`h2\`), plus only the supporting elements the point needs.
 - Prefer a \`stat\`, \`chart\`, \`diagram\`, \`table\`, or \`image\` over prose whenever the idea is a number, trend, comparison, or process.
-- For images, set \`src\` to a short, vivid description of the photo you want (e.g. "aerial view of a wind farm at dusk") — the module sources or generates it. Only use a real URL if you truly have one.
+- For images, set \`src\` to a short, vivid description of the photo you want (e.g. "aerial view of a wind farm at dusk") — the module sources or generates it. Only use a real URL if you truly have one. For a PERSON (a testimonial, a headshot, a team member), describe them generically — e.g. "a confident businesswoman in her 40s, smiling" — never a specific or named individual, so a real, fitting portrait turns up instead of a random placeholder face.
 - Reach for a full-bleed section background image on covers, section-dividers, and closing/CTA sections — set "background" to { "kind": "image", "image": "<vivid, on-theme photo description>", "scrim": 0.5 }, keep the overlaid content minimal (a headline + one supporting line), and raise the scrim to 0.5–0.65 so text stays legible. Never put a background image behind a dense chart/table/stat section.
 - Give every section a unique \`id\` (\`s1\`, \`s2\`, …).`;
 
@@ -108,6 +108,30 @@ export function neighbors(content: ArtifactContent, sectionId: string): string {
             before && `Previous: ${before}`,
             after && `Next: ${after}`,
             "Fit between them — match the voice, don't repeat what the previous section already said.",
+        ]
+            .filter(Boolean)
+            .join("\n"),
+    );
+}
+
+// Where a NEW, inserted section lands — the section it follows and the one it precedes, so the plan/writer
+// makes it bridge the two (flows from the previous, sets up the next, repeats neither). Used by the
+// insert-a-section turn, whose "afterId" says which section the new one comes right after.
+export function insertionContext(content: ArtifactContent, afterId: string | null): string {
+    const i = afterId ? content.sections.findIndex((s) => s.id === afterId) : -1;
+    const prev = i >= 0 ? content.sections[i] : undefined;
+    const next = content.sections[i + 1];
+    const label = (s?: Section): string | undefined =>
+        s ? `[${s.id}] ${firstText(s) || "(untitled)"}` : undefined;
+    return heading(
+        "Where the new section goes",
+        [
+            `You're inserting ONE new section into an existing ${content.format} of ${content.sections.length} sections.`,
+            prev
+                ? `It comes right AFTER: ${label(prev)}`
+                : "It goes at the very START, before everything else.",
+            next ? `And right BEFORE: ${label(next)}` : "It becomes the new closing section.",
+            "Make it bridge the two — flow out of the previous, set up the next, and don't repeat what either already says.",
         ]
             .filter(Boolean)
             .join("\n"),

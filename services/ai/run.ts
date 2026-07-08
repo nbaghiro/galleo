@@ -1,14 +1,29 @@
-import type { TurnEvent, TurnRequest, TurnKind, Beat as PlanBeat, GenerateInput } from "@model/ai";
-import type { Section, ElementInstance } from "@model/artifact";
+import type {
+    TurnEvent,
+    TurnRequest,
+    TurnKind,
+    Beat as PlanBeat,
+    GenerateInput,
+    SectionInput,
+    Surface,
+} from "@model/ai";
+import type { ArtifactContent, Section, ElementInstance } from "@model/artifact";
 import type { MediaProvider } from "@model/media";
 import { generateObject, generateText } from "ai";
 import { resolveModel } from "./provider";
 import { defaultModelFor } from "./models";
-import { outlineParts, sectionParts } from "./prompts/generate";
+import {
+    insertSectionParts,
+    outlineParts,
+    sectionParts,
+    sectionPlanParts,
+    surfaceOf,
+} from "./prompts/generate";
 import { checkSection } from "./quality";
 import { searchStock, stockReady } from "../media/providers";
-import { zOutline, zSection } from "./schema";
-import type { Outline, Beat } from "./schema";
+import { zOutline, zSection, zSectionPlan } from "./schema";
+import type { Outline, Beat, SectionPlan } from "./schema";
+import type { PromptParts } from "./prompts/system";
 
 // The turn runtime — the real AI backend. `runTurn` dispatches a TurnRequest to its capability, each an
 // async generator that yields the honest TurnEvent stream the client renders (turn.start → phase → plan →
@@ -201,7 +216,7 @@ export async function* runTurn(req: TurnRequest, opts: RunOpts = {}): AsyncGener
             yield* unimplemented("edit", "Editing the whole artifact");
             return;
         case "section":
-            yield* unimplemented("section", "Regenerating a section");
+            yield* runSection(req.input, opts);
             return;
         case "chat":
             yield* unimplemented("chat", "Chat");
@@ -227,6 +242,9 @@ async function* runGenerate(input: GenerateInput, opts: RunOpts = {}): AsyncGene
         prompt: op.prompt,
         abortSignal: signal,
         providerOptions: GEN_PROVIDER_OPTS,
+        // The outline is where structure is decided; run it warm so section count + arc genuinely vary
+        // brief-to-brief (the schema + rubric keep it valid). Section writing stays cooler for accuracy.
+        temperature: 0.9,
     });
     const outline: Outline = outlineObj;
     const beats = outline.beats;
@@ -267,11 +285,11 @@ async function* runGenerate(input: GenerateInput, opts: RunOpts = {}): AsyncGene
         yield { type: "patch", ops: [{ op: "addSection", section }] };
         // Give the artifact its own atmospheric backdrop (the editor paints it behind every section, and the
         // library cover reads from it) — without one an AI artifact looks flat in the editor even though its
-        // sections have backgrounds. Source a SEPARATE, more abstract image than the cover photo — a moody
-        // texture, not a repeat of the cover — with a heavy scrim since content sections sit over it.
+        // sections have backgrounds. The outline authors an on-theme scene for this (`backdrop`) so it evokes
+        // the subject rather than a generic wash; heavy scrim since content sections sit over it.
         if (i === 0) {
             const backdrop = await resolveImage(
-                `abstract atmospheric texture, ${outline.title}`,
+                outline.backdrop || `${outline.title}, moody cinematic wide shot, soft focus`,
                 "landscape",
                 opts.image ?? {},
             );
@@ -296,24 +314,91 @@ async function* runGenerate(input: GenerateInput, opts: RunOpts = {}): AsyncGene
     yield { type: "turn.done", summary: `Composed ${n} sections — “${clip(outline.title, 48)}”` };
 }
 
+// A fresh section id that doesn't collide with the existing ones (the editor uses "s-xxxx"; we mirror that).
+function newSectionId(content: ArtifactContent): string {
+    const taken = new Set(content.sections.map((s) => s.id));
+    for (let n = content.sections.length + 1; ; n++) {
+        const id = `s-${n}`;
+        if (!taken.has(id)) return id;
+    }
+}
+
+// section — insert ONE new section into an existing artifact, aware of the sections around it. Two calls that
+// mirror generate scoped to a single beat: (1) plan the section (role + grid + per-cell blocks) so the client
+// shows the live skeleton, then (2) write it to fill that exact layout in the artifact's voice. Emits the same
+// plan → status → patch → done stream, so the editor renders it through the same path as a full generation.
+async function* runSection(input: SectionInput, opts: RunOpts = {}): AsyncGenerator<TurnEvent> {
+    const { signal } = opts;
+    const surface = surfaceOf(input.content.format);
+    const id = newSectionId(input.content);
+    yield { type: "turn.start", kind: "section" };
+    yield { type: "phase", name: "intake" };
+    yield {
+        type: "narration",
+        text: "Reading the surrounding sections",
+        sub: clip(input.instruction, 90),
+    };
+
+    // --- 1. plan the one section (so the skeleton can render before content lands) ---
+    yield { type: "phase", name: "outline" };
+    const pp = sectionPlanParts(input);
+    const { object: plan } = await generateObject({
+        model: resolveModel(defaultModelFor("outline")),
+        schema: zSectionPlan,
+        system: pp.system,
+        prompt: pp.prompt,
+        abortSignal: signal,
+        providerOptions: GEN_PROVIDER_OPTS,
+        temperature: 0.9,
+    });
+    const beat: Beat = { ...(plan as SectionPlan), id };
+    yield { type: "plan", beats: [toPlanBeat(beat)] };
+    yield { type: "narration", text: `Planned “${clip(beat.label, 48)}”`, mono: ` · ${beat.role}` };
+
+    // --- 2. write it to fill the planned layout, then source its images ---
+    yield { type: "phase", name: "build" };
+    yield { type: "section.status", id, status: "active" };
+    yield { type: "narration", text: `Writing “${beat.label}”`, mono: ` · ${beat.role}` };
+    yield { type: "section.status", id, status: "writing" };
+    let section = await writeSectionFrom(
+        insertSectionParts(input, beat),
+        id,
+        beat.label,
+        surface,
+        signal,
+    );
+    if (beat.image || section.background?.kind === "image") {
+        yield { type: "section.status", id, status: "image" };
+        yield { type: "narration", text: `Sourcing an image for “${beat.label}”` };
+    }
+    section = await resolveImages(section, opts.image ?? {});
+
+    yield { type: "phase", name: "compose" };
+    yield { type: "patch", ops: [{ op: "addSection", afterId: input.afterId, section }] };
+    yield { type: "section.status", id, status: "done" };
+    yield { type: "phase", name: "done" };
+    yield { type: "turn.done", summary: `Added “${clip(beat.label, 48)}”` };
+}
+
 // Write one section as free-form JSON, not structured output. A section's `cells` and each element's
 // `data` are open, type-dependent maps; Gemini's response schema can't populate arbitrary-keyed objects
 // and returns empty cells, so we let the model emit real JSON (the prompt teaches the exact shape) and
-// validate the parse with zSection. Retries once on a malformed parse before failing the turn.
-async function writeSection(
-    input: GenerateInput,
-    beat: Beat,
-    outline: Outline,
+// validate the parse with zSection. Retries once on a malformed parse before failing the turn. Shared by
+// generate (write each planned beat) and insert (write one new section), so both get the same auto-repair.
+async function writeSectionFrom(
+    parts: PromptParts,
+    id: string,
+    label: string,
+    surface: Surface,
     signal?: AbortSignal,
 ): Promise<Section> {
-    const sp = sectionParts(input, beat, outline);
     const model = resolveModel(defaultModelFor("section"));
     let note = ""; // feedback appended to the prompt on a retry (bad JSON, or a quality check that tripped)
     for (let attempt = 0; attempt < 2; attempt++) {
         const { text } = await generateText({
             model,
-            system: sp.system,
-            prompt: sp.prompt + note,
+            system: parts.system,
+            prompt: parts.prompt + note,
             abortSignal: signal,
             providerOptions: GEN_PROVIDER_OPTS,
         });
@@ -323,15 +408,30 @@ async function writeSection(
                 "\n\nYour previous reply was not valid JSON. Return ONLY the JSON object, nothing else.";
             continue;
         }
-        const section = { ...(parsed.data as unknown as Section), id: beat.id };
+        const section = { ...(parsed.data as unknown as Section), id };
         // Inline auto-repair: a section that trips a deterministic check gets one regenerate with the
         // issues fed back. Accept whatever's valid on the final attempt so one weak section can't stall
         // the whole generation.
-        const { ok, issues } = checkSection(section, input.surface);
+        const { ok, issues } = checkSection(section, surface);
         if (ok || attempt === 1) return section;
         note = `\n\nYour previous section had problems: ${issues.join("; ")}. Rewrite it — fill every cell with a real element, lead with a clear headline, and use varied, purposeful elements (a stat/chart/card/bullets where they fit) so the frame reads full, not sparse.`;
     }
-    throw new Error(`the model returned an unreadable section for “${beat.label}”`);
+    throw new Error(`the model returned an unreadable section for “${label}”`);
+}
+
+function writeSection(
+    input: GenerateInput,
+    beat: Beat,
+    outline: Outline,
+    signal?: AbortSignal,
+): Promise<Section> {
+    return writeSectionFrom(
+        sectionParts(input, beat, outline),
+        beat.id,
+        beat.label,
+        input.surface,
+        signal,
+    );
 }
 
 // Pull the JSON object out of a model response (tolerate stray prose or ```json fences).

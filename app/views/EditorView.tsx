@@ -12,6 +12,8 @@ import {
     onHome,
     onMediaPicker,
     onPersistTitle,
+    onSectionStream,
+    onSuggestSections,
     onSwitchArtifact,
     onThemePicker,
     onUpgrade,
@@ -21,7 +23,7 @@ import {
     setFeatures,
     startThemePreview,
 } from "@editor/editor";
-import { api } from "../api";
+import { api, streamTurn } from "../api";
 import { openMediaPicker } from "../media";
 import { renameArtifactById } from "../stores/library";
 import { billing, loadBilling } from "../stores/billing";
@@ -73,6 +75,14 @@ export const EditorView: Component = () => {
         onMediaPicker((req) => openMediaPicker(req));
         onPersistTitle((id, title) => renameArtifactById(id, title));
         onUpgrade(() => navigate("/pricing"));
+        // The insert-a-section flow streams a turn through the app's SSE transport, then refreshes the
+        // credit meter (the turn was billed server-side). Kept here so the editor stays app-free.
+        onSectionStream(async (req, onEvent, signal) => {
+            await streamTurn(req, onEvent, signal);
+            void loadBilling();
+        });
+        // Cheap, unmetered section suggestions for the insert-a-section popup (client caches per artifact).
+        onSuggestSections((content) => api.suggestSections(content));
         void loadBilling();
         (async () => {
             try {

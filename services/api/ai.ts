@@ -8,8 +8,10 @@ import { limitsFor } from "@model/billing";
 import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
 import { currentUser, currentWorkspace, readJson } from "./context";
+import type { ArtifactContent } from "@model/artifact";
 import { aiReady } from "../ai/provider";
 import { runTurn } from "../ai/run";
+import { suggestSections } from "../ai/suggest";
 import { generateThemeFromPrompt } from "../ai/theme";
 
 // The AI route — runs one turn and streams its TurnEvents to the client over SSE. The turn runtime
@@ -32,7 +34,7 @@ const meterFor = (req: TurnRequest): MeterParams =>
 
 // The kinds whose runtime is actually built. Others 501 before any charge (runTurn also guards them, but
 // blocking here keeps us from reserving credits for a capability that can't run).
-const IMPLEMENTED: readonly TurnKind[] = ["generate"];
+const IMPLEMENTED: readonly TurnKind[] = ["generate", "section"];
 
 // POST /ai/turn — run one turn (generate · edit · section · chat). Reserves a size-aware credit estimate,
 // then streams turn.start → phase → plan → per-section status/patch/narration → turn.done as SSE frames.
@@ -48,6 +50,8 @@ ai.post("/ai/turn", async (c) => {
         return c.json({ error: `${req.kind} turns aren’t available yet` }, 501);
     if (req.kind === "generate" && !req.input?.prompt?.trim())
         return c.json({ error: "a prompt is required" }, 400);
+    if (req.kind === "section" && (!req.input?.instruction?.trim() || !req.input?.content))
+        return c.json({ error: "an instruction and the current artifact are required" }, 400);
 
     // Credit gate — reserve a size-aware estimate before the billable model calls. 402 when spent.
     const cost = estimateCost(ACTION_FOR[req.kind], meterFor(req));
@@ -82,6 +86,23 @@ ai.post("/ai/turn", async (c) => {
                 });
         }
     });
+});
+
+// POST /ai/suggest — cheap "what to add next" ideas for an existing artifact (the insert-a-section popup).
+// Auth-gated but UNMETERED: a single tiny Flash call, and the client caches the result per artifact, so it
+// runs at most once per artifact on demand. Returns { suggestions: string[] } — empty on any failure, since
+// the client always has its free deterministic set to fall back to.
+ai.post("/ai/suggest", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    if (!aiReady()) return c.json({ suggestions: [] });
+    const body = await readJson<{ content?: ArtifactContent }>(c);
+    if (!body?.content?.sections?.length) return c.json({ suggestions: [] });
+    try {
+        return c.json({ suggestions: await suggestSections(body.content) });
+    } catch {
+        return c.json({ suggestions: [] });
+    }
 });
 
 // POST /ai/theme — generate one custom theme from a text prompt. Not a streamed turn: a single small

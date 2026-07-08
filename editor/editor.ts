@@ -2,6 +2,7 @@ import type { Region } from "@engine/node";
 import type { ElementAddress, Target } from "@model/target";
 import type { ArtifactContent, Section } from "@model/artifact";
 import type { PlanLimits } from "@model/billing";
+import type { TurnEvent, TurnRequest } from "@model/ai";
 import type { IconPick, MediaKind } from "@model/media";
 import { createSignal } from "solid-js";
 import type { Theme, Tokens } from "@themes";
@@ -148,6 +149,16 @@ export function commit(next: ArtifactContent, opts?: { coalesce?: string }): voi
     setContent(next);
     bumpSeq();
     if (key) armCoalesce(key);
+}
+
+// Commit `next` as ONE undo step whose baseline is `base`, not the current live tree. Used when the live
+// tree is holding a transient value that must not become the undo target — e.g. the insert-a-section flow
+// paints a placeholder skeleton live (via setArtifactLive, no history), then lands the real section with
+// this so a single undo removes the whole new section and leaves no placeholder behind.
+export function commitOver(base: ArtifactContent, next: ArtifactContent): void {
+    pushPast({ content: base, title: currentTitle() });
+    setContent(next);
+    bumpSeq();
 }
 
 // --- theme preview (non-destructive "open in app theme") ---
@@ -339,6 +350,34 @@ export function onMediaPicker(fn: (req: MediaPickerRequest) => void): void {
 }
 export function requestMediaPicker(req: MediaPickerRequest): void {
     mediaPickerHandler?.(req);
+}
+
+// The app registers how to run an AI turn (POST /ai/turn over SSE). The insert-a-section flow streams a
+// `section` turn through it; kept as an injected transport so the editor stays app-free (no import of the
+// app's api). No host registered → the generate-a-section action is simply unavailable.
+export type SectionStreamer = (
+    request: TurnRequest,
+    onEvent: (event: TurnEvent) => void,
+    signal?: AbortSignal,
+) => Promise<void>;
+let sectionStreamer: SectionStreamer | null = null;
+export function onSectionStream(fn: SectionStreamer): void {
+    sectionStreamer = fn;
+}
+export function getSectionStreamer(): SectionStreamer | null {
+    return sectionStreamer;
+}
+
+// The app registers a cheap "suggest sections" transport (POST /ai/suggest) so the insert-a-section popup
+// can offer content-specific ideas on demand. Injected (editor stays app-free); no host → the popup falls
+// back to its free deterministic suggestions.
+export type SectionSuggester = (content: ArtifactContent) => Promise<string[]>;
+let sectionSuggester: SectionSuggester | null = null;
+export function onSuggestSections(fn: SectionSuggester): void {
+    sectionSuggester = fn;
+}
+export function getSuggestSections(): SectionSuggester | null {
+    return sectionSuggester;
 }
 
 // Load an artifact (fetched from the API) into the editor. Resets transient state; does NOT bump

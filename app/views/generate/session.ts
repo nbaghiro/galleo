@@ -250,10 +250,13 @@ const sectionLabel = (s: Section, i: number): string => {
     return `Section ${i + 1}`;
 };
 
-// "Open" persists the streamed artifact as a fresh library artifact and returns its id to navigate to.
-export async function saveGenerated(): Promise<string | null> {
-    const content = gen.finalContent;
-    if (!content) return null;
+// "Open" persists the streamed artifact as a fresh library artifact and returns its id to navigate to. An
+// optional `formatId` overrides the surface (the modal passes the currently-previewed format, so opening
+// honors the live preview switcher) — the content is surface-agnostic, so it renders correctly either way.
+export async function saveGenerated(formatId?: string): Promise<string | null> {
+    const base = gen.finalContent;
+    if (!base) return null;
+    const content = formatId ? { ...base, format: formatId } : base;
     const title = content.sections[0] ? clip(sectionLabel(content.sections[0], 0), 60) : "Untitled";
     try {
         const { id } = await api.createArtifact({

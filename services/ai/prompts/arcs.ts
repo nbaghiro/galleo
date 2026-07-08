@@ -74,7 +74,7 @@ export function chooseArc(goal?: string, surface?: Surface): Arc {
 export function arcGuidance(input: GenerateInput): string {
     const a = chooseArc(input.goal, input.surface);
     return heading(
-        "A proven arc to adapt (don't copy it blindly)",
-        `${a.label}: ${a.arc}\nSignatures: ${a.tells}`,
+        "Design the structure for THIS brief",
+        `Decide the narrative this specific topic, goal, and audience need, then choose the sections and their order to serve it — don't reach for a stock template. As one reference, a "${a.label}" often runs:\n${a.arc}\nTreat that as a proven shape to draw from, remix, or set aside — not a checklist. Two different briefs should not produce the same skeleton. Signatures of this genre: ${a.tells}`,
     );
 }

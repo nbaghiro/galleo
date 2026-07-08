@@ -57,9 +57,9 @@ export interface EditInput {
 }
 
 export interface SectionInput {
-    instruction: string;
-    sectionId: string;
-    cell?: string; // narrow to one element/block within the section
+    instruction: string; // what the new section should be about (the user's prompt)
+    afterId: string | null; // insert the new section after this id (null ⇒ at the front)
+    content: ArtifactContent; // the current artifact — for neighbor context, surface/theme, and id allocation
 }
 
 export interface ChatInput {

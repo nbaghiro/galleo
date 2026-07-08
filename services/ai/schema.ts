@@ -50,8 +50,18 @@ export const zBeat = z.object({
 
 export const zOutline = z.object({
     title: z.string().describe("the artifact title"),
+    backdrop: z
+        .string()
+        .describe(
+            "a vivid, on-theme photo description for the artifact's full-bleed background — a moody, atmospheric scene evoking the subject (e.g. for a finance deck: 'a modern finance office at dusk, soft focus, warm light'), NOT a generic abstract texture. It sits behind every section under a heavy scrim, so keep it a wide, low-detail environment rather than a busy foreground subject.",
+        ),
     beats: z.array(zBeat).min(1).describe("the ordered sections to build"),
 });
+
+// A plan for ONE new section to insert into an existing artifact — a beat minus the id (the runtime assigns
+// a fresh, non-colliding one). Drives the live skeleton before the section writer fills it.
+export const zSectionPlan = zBeat.omit({ id: true });
+export type SectionPlan = z.infer<typeof zSectionPlan>;
 
 // --- rewrite / translate (text-level, fast) ---
 

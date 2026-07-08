@@ -56,7 +56,7 @@ export const Minimap: Component = () => {
     return (
         <aside
             ref={(el) => (asideEl = el)}
-            class="absolute left-3 top-1/2 z-20 flex max-h-[calc(100%-24px)] w-[182px] -translate-y-1/2 flex-col gap-3 overflow-y-auto rounded-2xl border border-line bg-panel/95 p-3 shadow-2xl backdrop-blur-md"
+            class="absolute left-3 top-1/2 z-20 flex max-h-[calc(100%-44px)] w-[182px] -translate-y-1/2 flex-col gap-3 overflow-y-auto rounded-2xl border border-line bg-panel/95 p-3 shadow-[var(--panel-shadow)] backdrop-blur-md"
         >
             <div class="flex items-center justify-between pl-1">
                 <span class="text-[10px] font-semibold uppercase tracking-wider text-muted">

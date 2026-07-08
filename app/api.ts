@@ -1,4 +1,4 @@
-import type { Artifact, ArtifactInput, ArtifactSummary } from "@model/artifact";
+import type { Artifact, ArtifactContent, ArtifactInput, ArtifactSummary } from "@model/artifact";
 import type { Folder, Template, User } from "@model/workspace";
 import type { ThemeSummary as Theme, ThemeInput } from "@themes";
 import type { Interval, Plan, PlanId } from "@model/billing";
@@ -101,6 +101,11 @@ export const api = {
     getArtifact: (id: string) => req<{ artifact: Artifact }>(`/artifacts/${id}`),
     createArtifact: (patch: ArtifactInput) =>
         req<{ id: string }>("/artifacts", { method: "POST", body: JSON.stringify(patch) }),
+    suggestSections: (content: ArtifactContent) =>
+        req<{ suggestions: string[] }>("/ai/suggest", {
+            method: "POST",
+            body: JSON.stringify({ content }),
+        }).then((r) => r.suggestions),
     listTrash: () => req<{ artifacts: ArtifactSummary[] }>("/artifacts?trashed=1"),
     trashArtifact: (id: string) => req<{ ok: true }>(`/artifacts/${id}/trash`, { method: "POST" }),
     restoreArtifact: (id: string) =>

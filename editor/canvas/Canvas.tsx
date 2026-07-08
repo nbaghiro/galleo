@@ -46,6 +46,8 @@ import { CellAdd, ContextMenu, openContextMenu, DropIndicator } from "./insert";
 import { RegionDividers, ResizeHandles, SpacingHandles } from "../select/handles";
 import { ContextBar } from "../inspect/format-bar";
 import { Overlay, SectionActions, SectionToolbar } from "../select/selection";
+import { SectionGenPopup } from "../ai/SectionGenPopup";
+import { SectionGenStage } from "../ai/SectionGenStage";
 import { TextEditor } from "../text/text-editor";
 import { VideoEmbeds } from "./embeds";
 
@@ -346,6 +348,8 @@ export const Canvas: Component = () => {
                 <DropIndicator />
                 <SectionActions />
                 <SectionToolbar />
+                <SectionGenStage />
+                <SectionGenPopup />
                 <ContextBar />
                 <CellAdd />
                 <TextEditor />
