@@ -160,6 +160,10 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
         if (c.fill?.shadow) el.style.boxShadow = c.fill.shadow;
     } else if (c.kind === "image") {
         const im = c.image;
+        if (im.border) {
+            el.style.border = `${im.border.width}px ${im.border.style ?? "solid"} ${im.border.color}`;
+        }
+        if (im.shadow) el.style.boxShadow = im.shadow;
         if (im.zoom !== undefined && im.zoom > 1) {
             // Zoomed image: an <img> in a clipped frame — `background-size:cover` can't scale past cover,
             // so the picture becomes a real element we can `transform: scale()` and crop. Unzoomed images
@@ -393,6 +397,15 @@ function drawCommands(
             const img = images.get(c.image.src);
             if (img)
                 drawImageFit(cx, img, b, c.image.fit, c.image.radius, c.image.scrim, c.image.zoom);
+            const bd = c.image.border;
+            if (bd) {
+                roundRectPath(cx, b.x, b.y, b.w, b.h, c.image.radius ?? 0);
+                cx.strokeStyle = bd.color;
+                cx.lineWidth = bd.width;
+                cx.setLineDash(bd.style === "dashed" ? [bd.width * 2.5, bd.width * 2] : []);
+                cx.stroke();
+                cx.setLineDash([]);
+            }
         } else if (c.kind === "text" && c.text.runs && c.text.runs.length > 0) {
             drawRuns(cx, c.text, b);
         } else if (c.kind === "text") {

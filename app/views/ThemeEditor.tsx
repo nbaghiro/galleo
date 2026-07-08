@@ -209,10 +209,6 @@ const ThemeEditorPanel: Component = () => {
         border: baseTokens.border ?? 1,
         scrim: baseTokens.scrim ?? 0.45,
     });
-    // A snapshot of the theme the modal chrome wears — updated on a pick / generate / edit-open (below),
-    // but NOT on each Customize slider drag, so the chrome reflects a generated theme yet never flickers
-    // or breaks mid-edit.
-    const [chromeTokens, setChromeTokens] = createSignal<Tokens>(baseTokens);
     const [name, setName] = createSignal("Custom theme");
     const [tag, setTag] = createSignal("custom");
     const [format, setFormat] = createSignal("web");
@@ -246,10 +242,14 @@ const ThemeEditorPanel: Component = () => {
     // The format the preview renders in — the artifact's own over the editor, else the demo toggle.
     const previewFormat = (): string => (editing ? editor.artifact.format : format());
 
-    // The switcher wears the chrome snapshot — it reflects a picked or a generated theme, but does not
-    // track individual Customize edits, so a mid-drag bad color never breaks the controls.
+    // The switcher wears the live theme it's showing — the working draft while editing (Customize or a
+    // generated result), else the selected theme in the picker — so the modal chrome, the preview, and the
+    // app behind it all move together on every edit. (A mid-edit illegible color is on the user for now.)
     const panelVars = createMemo(
-        (): JSX.CSSProperties => themeCssVars(chromeTokens()) as JSX.CSSProperties,
+        (): JSX.CSSProperties =>
+            themeCssVars(
+                editorActive() ? { ...tk } : resolveTheme(selectedId()).tokens,
+            ) as JSX.CSSProperties,
     );
 
     // Load a theme's tokens into the working store (drives the preview) + sync the shadow preset.
@@ -257,7 +257,6 @@ const ThemeEditorPanel: Component = () => {
         const t = resolveTheme(id).tokens;
         setTk({ ...t, border: t.border ?? 1, scrim: t.scrim ?? 0.45 });
         setShadowPreset(inferShadow(t.shadow));
-        setChromeTokens(t); // the chrome follows a wholesale theme change (pick / edit-open)
     };
 
     // Leaving a generated result (a tab switch, or "back to prompt") abandons it: revert the draft, the
@@ -318,7 +317,6 @@ const ThemeEditorPanel: Component = () => {
             const t = theme.tokens;
             setTk({ ...t, border: t.border ?? 1, scrim: t.scrim ?? 0.45 });
             setShadowPreset(inferShadow(t.shadow));
-            setChromeTokens(t); // switch the modal chrome to the generated theme
             setName(theme.name);
             setTag(theme.mood ?? "custom");
             setEditTargetId(null); // Save creates a new custom theme

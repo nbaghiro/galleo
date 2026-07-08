@@ -110,6 +110,8 @@ export interface ImageLeaf {
     radius?: number;
     scrim?: number; // 0..1 dark overlay (for text over a background image)
     zoom?: number; // scale the image within its clipped frame (>1 crops in); set only by image elements
+    border?: { color: string; width: number; style?: "solid" | "dashed" }; // section-card border (theme)
+    shadow?: string; // CSS box-shadow — the theme's design character, same as a filled section card
 }
 
 export interface FillLeaf {

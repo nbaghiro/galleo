@@ -261,6 +261,13 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
         children: [inner],
     };
 
+    // A framed section (not full-bleed, not a continuous doc/web merge) wears the theme's card decoration —
+    // border + shadow (the design character) — regardless of its background: surface, color, gradient, OR
+    // image. Full-bleed and continuous sections merge into the page, so they stay undecorated.
+    const framed = !bleed && !continuous;
+    const border = framed ? { color: ctx.theme.line, width: ctx.theme.border ?? 1 } : undefined;
+    const shadow = framed ? ctx.theme.shadow : undefined;
+
     if (bg?.kind === "image" && bg.image) {
         // legibility scrim: per-section override → theme default → built-in fallback
         node.image = {
@@ -268,22 +275,17 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
             fit: "cover",
             radius,
             scrim: bg.scrim ?? ctx.theme.scrim ?? 0.45,
+            border,
+            shadow,
         };
     } else if (bg?.kind === "gradient" && bg.gradient) {
-        node.fill = { gradient: bg.gradient, radius };
+        node.fill = { gradient: bg.gradient, radius, border, shadow };
     } else if (bg?.kind === "color" && bg.color) {
-        node.fill = { color: bg.color, radius };
+        node.fill = { color: bg.color, radius, border, shadow };
     } else {
         node.fill = continuous
             ? { color: ctx.theme.surface }
-            : {
-                  color: ctx.theme.surface,
-                  radius,
-                  border: bleed
-                      ? undefined
-                      : { color: ctx.theme.line, width: ctx.theme.border ?? 1 },
-                  shadow: bleed ? undefined : ctx.theme.shadow,
-              };
+            : { color: ctx.theme.surface, radius, border, shadow };
     }
     return node;
 }

@@ -141,7 +141,22 @@ export const THEME_SAMPLE: Section = {
 // User-created themes for the workspace — loaded from the backend, registered with the @themes
 // registry so they resolve by id like built-ins (in artifacts AND previews), and listed in the theme
 // drawer. Mutations are optimistic; the registry is re-synced on every change.
-const [customThemes, setCustomThemes] = createSignal<Theme[]>([]);
+// A localStorage cache of the workspace's custom themes, so a reload hydrates them synchronously (before
+// the server round-trip): the custom app/artifact theme resolves on first paint and "My themes" shows
+// immediately, instead of flashing the default until the fetch returns. Refreshed from the server on load.
+const CUSTOM_KEY = "galleo:custom-themes";
+function readCustomCache(): Theme[] {
+    try {
+        const list = JSON.parse(localStorage.getItem(CUSTOM_KEY) || "[]") as Theme[];
+        return Array.isArray(list) ? list : [];
+    } catch {
+        return [];
+    }
+}
+
+const cachedCustom = readCustomCache();
+if (cachedCustom.length) registerThemes(cachedCustom); // resolve custom themes before the first render
+const [customThemes, setCustomThemes] = createSignal<Theme[]>(cachedCustom);
 let loaded = false;
 
 export { customThemes };
@@ -151,8 +166,28 @@ function toTheme(a: ApiTheme): Theme {
 }
 
 function sync(list: Theme[]): void {
-    setCustomThemes(list);
+    // Register into the (non-reactive) @themes map FIRST, then flip the signal — so the reactive re-render
+    // it triggers already resolves a custom app/artifact theme instead of falling back to the default.
     registerThemes(list);
+    setCustomThemes(list);
+    try {
+        localStorage.setItem(CUSTOM_KEY, JSON.stringify(list));
+    } catch {
+        /* storage unavailable — cache skipped; the in-memory list + registry are still populated */
+    }
+}
+
+// Drop the custom-theme cache on sign-out so a different account never briefly inherits it, and re-arm the
+// one-shot load so the next session fetches fresh.
+export function clearCustomThemes(): void {
+    loaded = false;
+    registerThemes([]);
+    setCustomThemes([]);
+    try {
+        localStorage.removeItem(CUSTOM_KEY);
+    } catch {
+        /* ignore */
+    }
 }
 
 export async function loadCustomThemes(): Promise<void> {

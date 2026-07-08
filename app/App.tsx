@@ -32,12 +32,14 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => (
 // restore the session + apply the app theme, then either sign-in or the routed app. The Router carries
 // base="/app" so all in-app links/routes resolve under /app/*.
 export const App: Component = () => {
-    onMount(() =>
-        bootstrap().then(() => {
-            loadCustomThemes();
-            void loadFeatures();
-        }),
-    );
+    onMount(() => {
+        // Custom themes + features gate only on the session cookie (already present on a reload), so kick
+        // them off in parallel with the session restore instead of waiting for /me — the custom-theme cache
+        // covers first paint, and these refresh it as early as possible.
+        void bootstrap();
+        void loadCustomThemes();
+        void loadFeatures();
+    });
 
     // keep the browser-tab favicon in sync with the active theme (editor's artifact theme while editing,
     // otherwise the app-chrome theme). Touch customThemes() so it re-resolves once custom themes load
