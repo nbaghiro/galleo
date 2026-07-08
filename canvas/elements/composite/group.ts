@@ -25,6 +25,21 @@ const chunk = <T>(arr: T[], n: number): T[][] => {
     return out;
 };
 
+// The cross-axis alignment for a stacked (column) group. If it isn't set explicitly, infer it from the
+// text children: when they're all centered (or all end-aligned) via their own text-align, mirror that onto
+// the container so a button or image below them lands the same way instead of stranding at the start — a
+// common slip where the copy is centered but its container's alignment is left default. Explicit wins.
+function crossAlign(d: GroupData): Align | undefined {
+    if (d.align) return d.align;
+    const aligns = d.children
+        .filter((c) => c.type === "text")
+        .map((c) => (c.data as { align?: string }).align)
+        .filter((a): a is string => !!a);
+    if (aligns.length && aligns.every((a) => a === "center")) return "center";
+    if (aligns.length && aligns.every((a) => a === "end")) return "end";
+    return undefined;
+}
+
 const arrangeGroup = (d: GroupData, _ctx: LayoutCtx, kids: EngineNode[]): EngineNode => {
     const gap = d.gap ?? 14;
     const cols = Math.max(1, Math.min(6, Math.round(Number(d.columns ?? 1))));
@@ -50,13 +65,15 @@ const arrangeGroup = (d: GroupData, _ctx: LayoutCtx, kids: EngineNode[]): Engine
         };
     }
     const dir = d.direction ?? "col";
+    // A column group's cross axis (horizontal) mirrors centered text; a row group keeps its explicit align.
+    const cross = dir === "col" ? crossAlign(d) : d.align;
     return {
         w: grow(),
         h: fit(),
         direction: dir,
         gap,
-        alignX: dir === "row" ? d.distribute : d.align,
-        alignY: dir === "row" ? d.align : d.distribute,
+        alignX: dir === "row" ? d.distribute : cross,
+        alignY: dir === "row" ? cross : d.distribute,
         children: kids,
     };
 };
