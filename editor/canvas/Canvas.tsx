@@ -12,11 +12,13 @@ import {
     createSectionStackCache,
     paint,
     paintSectionStack,
+    sectionLayoutWidth,
 } from "@canvas/render/backends";
 import { measureText, layoutSection } from "@canvas/render/commands";
 import { applyDrop, computeDropTarget, drag, previewDrop, setDrag, startDrag } from "./dnd";
 import { applyLiveEdit, liveEdit } from "../select/handles";
 import {
+    canvasContentWidth,
     commit,
     currentArtifactId,
     duplicateSectionAt,
@@ -24,6 +26,7 @@ import {
     editor,
     editorTokens,
     editSeq,
+    setCanvasContentWidth,
     jumpToSection,
     leftOpen,
     redo,
@@ -80,6 +83,7 @@ export const Canvas: Component = () => {
         const profile = resolveProfile(editor.artifact.format);
         const padL = leftOpen() ? PANEL_L : RAIL_GAP;
         const fullW = Math.max(360, (scrollEl.clientWidth || 800) - padL - RAIL_R);
+        setCanvasContentWidth(fullW); // publish for the minimap so thumbnails match this exact width
         // suppress the painted text of the element being edited — only the live overlay shows it
         const editAddr = editing();
         const editId = editAddr ? elementRegionId(editAddr) : null;
@@ -352,7 +356,6 @@ export const Canvas: Component = () => {
 };
 
 // ── section thumbnail (rendered in the Minimap rail) ──
-const THUMB_LAYOUT_WIDTH = 760; // lay out realistically, then scale to fit the rail
 const THUMB_PLACEHOLDER_H = 80; // height an un-laid-out (offscreen) thumb reserves so virtualization + reorder have a box
 
 export const Thumb: Component<{
@@ -383,16 +386,22 @@ export const Thumb: Component<{
 
     createEffect(() => {
         if (!seen()) return;
-        const w = wrap.clientWidth || 150;
-        const scale = w / THUMB_LAYOUT_WIDTH;
+        // Lay out at the SAME width + format the editor canvas uses for this section, then CSS-scale the
+        // whole thing down to the rail. A true zoomed-out copy — identical text wraps + column behavior,
+        // not a re-wrap in a narrower box. Tracks the live canvas width so it stays matched on resize.
         const theme = editorTokens();
+        const profile = resolveProfile(editor.artifact.format);
+        const layoutW = sectionLayoutWidth(props.section, profile, canvasContentWidth());
+        const w = wrap.clientWidth || 150;
+        const scale = w / layoutW;
         const { commands, height } = layoutSection(
             props.section,
-            THUMB_LAYOUT_WIDTH,
+            layoutW,
             measureText,
             theme,
+            profile,
         );
-        inner.style.cssText = `width:${THUMB_LAYOUT_WIDTH}px;height:${height}px;transform:scale(${scale});transform-origin:top left`;
+        inner.style.cssText = `width:${layoutW}px;height:${height}px;transform:scale(${scale});transform-origin:top left`;
         paint(commands, inner);
         wrap.style.height = `${Math.round(height * scale) + 2}px`;
     });

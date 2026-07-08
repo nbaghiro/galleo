@@ -562,6 +562,19 @@ export function createSectionStackCache(): SectionStackCache {
     return { entries: new Map() };
 }
 
+// The width the section stack lays one section out at: a full-bleed section (or any web-format section)
+// fills the whole board; a contained section uses the format's max content width, clamped to the board.
+// The single source of truth for section width — shared by the stack painter and the minimap thumbnail
+// so a thumb lays out at the editor's exact width and wraps text identically (just scaled down).
+export function sectionLayoutWidth(
+    section: Section,
+    profile: FormatDescriptor,
+    fullW: number,
+): number {
+    const bleed = (section.bleed ?? false) || profile.id === "web";
+    return bleed ? fullW : Math.min(fullW - 64, profile.maxContentWidth ?? 1080);
+}
+
 // Paint a vertical stack of sections into `host` — deck = centered content columns with gaps, doc/web =
 // seamless full-bleed bands. Each section is laid out by the engine and painted into an absolutely-
 // positioned layer, and `host`'s children are replaced with the current layers. Returns the per-section
@@ -574,9 +587,7 @@ export function paintSectionStack(
     theme: Tokens,
     opts: { fullW: number; startY?: number; hideId?: string | null; cache?: SectionStackCache },
 ): { tops: number[]; regions: Region[]; height: number } {
-    const web = profile.id === "web";
     const gap = profile.kind === "continuous" ? 0 : SECTION_GAP; // doc/web merge seamlessly
-    const contentW = Math.min(opts.fullW - 64, profile.maxContentWidth ?? 1080);
     const cache = opts.cache;
     const tops: number[] = [];
     const regions: Region[] = [];
@@ -586,9 +597,8 @@ export function paintSectionStack(
 
     for (const section of sections) {
         live.add(section.id);
-        const bleed = (section.bleed ?? false) || web;
-        const layoutW = bleed ? opts.fullW : contentW;
-        const x = bleed ? 0 : Math.round((opts.fullW - contentW) / 2);
+        const layoutW = sectionLayoutWidth(section, profile, opts.fullW);
+        const x = Math.round((opts.fullW - layoutW) / 2); // bleed → layoutW == fullW → centered at 0
         // hideId (the inline-edited element's text) only affects its own section, so only that section's
         // cache key carries it — starting/ending an edit repaints one section, not the whole stack.
         const hideKey = opts.hideId?.startsWith(`el:${section.id}:`) ? opts.hideId : "";

@@ -52,6 +52,12 @@ export const editorAccent = (): string => editorTokens().accent;
 const [canvasEl, setCanvasEl] = createSignal<HTMLElement | null>(null);
 export { canvasEl, setCanvasEl };
 
+// The width the canvas currently lays its section stack out at (fullW, panel gutters already removed) —
+// set by the canvas on every draw. The minimap reads it so a thumbnail lays out at the editor's exact
+// width and is a true scaled-down copy (matching text wraps), not a re-wrap in a narrower box.
+const [canvasContentWidth, setCanvasContentWidth] = createSignal(1120);
+export { canvasContentWidth, setCanvasContentWidth };
+
 // The painted stage element (content coords for the overlays). Used to width-aware-place the
 // floating element inspector beside its element.
 const [stageEl, setStageEl] = createSignal<HTMLElement | null>(null);
