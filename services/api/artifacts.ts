@@ -168,10 +168,14 @@ artifacts.post("/artifacts", async (c) => {
 artifacts.get("/artifacts/:id", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await firstWorkspaceId(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
     const [a] = await db
         .select()
         .from(schema.artifacts)
-        .where(eq(schema.artifacts.id, c.req.param("id")));
+        .where(
+            and(eq(schema.artifacts.id, c.req.param("id")), eq(schema.artifacts.workspaceId, ws)),
+        );
     if (!a) return c.json({ error: "not found" }, 404);
     return c.json({
         artifact: {
@@ -244,6 +248,8 @@ artifacts.delete("/trash", async (c) => {
 artifacts.patch("/artifacts/:id", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await firstWorkspaceId(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
     const body = await readJson<ArtifactInput>(c);
     const patch: Record<string, unknown> = {};
     if (body.title !== undefined) patch.title = body.title;
@@ -263,7 +269,9 @@ artifacts.patch("/artifacts/:id", async (c) => {
     const [a] = await db
         .update(schema.artifacts)
         .set(patch)
-        .where(eq(schema.artifacts.id, c.req.param("id")))
+        .where(
+            and(eq(schema.artifacts.id, c.req.param("id")), eq(schema.artifacts.workspaceId, ws)),
+        )
         .returning({ id: schema.artifacts.id, updatedAt: schema.artifacts.updatedAt });
     if (!a) return c.json({ error: "not found" }, 404);
     return c.json({ ok: true, updatedAt: a.updatedAt });

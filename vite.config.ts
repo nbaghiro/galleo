@@ -7,10 +7,12 @@ import solid from "vite-plugin-solid";
 const abs = (p: string): string => fileURLToPath(new URL(p, import.meta.url));
 
 // Single domain, two builds. The repo root is the Vite root so each entry sits at its public URL:
-//   /         → index.html      → the website site (standalone, not the product SPA)
-//   /app/*    → app/index.html  → the product SPA (SolidJS Router base "/app")
-// In dev one server serves both; in prod the host routes / → website, /app/* → the app. This
-// middleware gives the app SPA its client-side fallback in dev (/app/<anything> → app/index.html).
+//   /         → index.html         → the website site (standalone, not the product SPA)
+//   /app/*    → app/index.html     → the product SPA (SolidJS Router base "/app")
+//   /p/*      → publish/index.html → the public share viewer (unauthenticated, its own build)
+// In dev one server serves all three; in prod the host routes / → website, /app/* → the app,
+// /p/* → the publish viewer. This middleware gives the app SPA + the publish viewer their client-side
+// fallbacks in dev (/app/<anything> → app/index.html · /p/<slug> → publish/index.html).
 function appSpaFallback(): Plugin {
     return {
         name: "app-spa-fallback",
@@ -19,8 +21,11 @@ function appSpaFallback(): Plugin {
                 const url = req.url ?? "";
                 const isHtmlNav =
                     (req.headers.accept ?? "").includes("text/html") && !/\.\w+(\?|$)/.test(url);
-                if (url.startsWith("/app") && url !== "/app/index.html" && isHtmlNav)
-                    req.url = "/app/index.html";
+                if (isHtmlNav) {
+                    if (url.startsWith("/app") && url !== "/app/index.html")
+                        req.url = "/app/index.html";
+                    else if (url.startsWith("/p/")) req.url = "/publish/index.html";
+                }
                 next();
             });
         },
@@ -53,6 +58,7 @@ export default defineConfig({
             "@elements": abs("./canvas/elements"),
             "@themes": abs("./model/theme"),
             "@canvas": abs("./canvas"),
+            "@ui": abs("./ui"),
             "@editor": abs("./editor"),
         },
     },
@@ -63,6 +69,7 @@ export default defineConfig({
             input: {
                 website: abs("./index.html"),
                 app: abs("./app/index.html"),
+                publish: abs("./publish/index.html"),
             },
         },
     },

@@ -8,6 +8,7 @@ import {
     boolean,
     jsonb,
     primaryKey,
+    unique,
 } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -138,17 +139,41 @@ export const shares = pgTable("shares", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// A published share of an artifact. One row = one share; its `visibility` is the access policy:
+//   public    — anyone with the slug URL
+//   protected — anyone with the slug URL + the (hashed) password
+//   private    — only invited emails, each via a per-recipient token (see link_recipients)
+// "Unpublished" = no row. Every view of every type resolves through this row, so analytics keys on it.
 export const links = pgTable("links", {
     id: uuid("id").primaryKey().defaultRandom(),
     artifactId: uuid("artifact_id")
         .notNull()
         .references(() => artifacts.id),
     slug: text("slug").notNull().unique(),
-    visibility: text("visibility").notNull().default("private"),
-    password: text("password"),
+    visibility: text("visibility").notNull().default("public"), // public | protected | private
+    password: text("password"), // scrypt hash, only for `protected`
     publishedVersionId: uuid("published_version_id").references(() => versions.id),
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// Per-recipient grants for a `private` link. Each invited email gets an unguessable token; the public
+// viewer resolves /p/:slug?k=<token> to this row, so access is possession-based (no viewer login) and a
+// view can be attributed to a single recipient. Deleting the link cascades these away.
+export const linkRecipients = pgTable(
+    "link_recipients",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        linkId: uuid("link_id")
+            .notNull()
+            .references(() => links.id, { onDelete: "cascade" }),
+        email: text("email").notNull(),
+        token: text("token").notNull().unique(),
+        message: text("message"), // optional note included in the invite email
+        invitedAt: timestamp("invited_at").notNull().defaultNow(),
+        lastViewedAt: timestamp("last_viewed_at"), // populated by view analytics (04)
+    },
+    (t) => [unique().on(t.linkId, t.email)], // one invite per email per link
+);
 
 export const credits = pgTable("credits", {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -175,6 +200,7 @@ export const schema = {
     assets,
     shares,
     links,
+    linkRecipients,
     credits,
 };
 

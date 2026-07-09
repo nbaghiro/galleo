@@ -2,7 +2,7 @@
 
 import type { Rect } from "@engine/node";
 import type { ControlField } from "@elements/spec";
-import type { Component, JSX } from "solid-js";
+import type { Component } from "solid-js";
 import { createMemo, For, Show, createSignal } from "solid-js";
 import { cellRegionId, elementRegionId, parentTarget, regionId } from "@model/target";
 import { GUTTER } from "@elements/compose";
@@ -26,10 +26,16 @@ import {
     editorTokens,
 } from "../editor";
 import { drag } from "../canvas/dnd";
+import { canRegenerate, elementGenBusy, regenerateElement } from "../ai/element-gen";
+import { canAssistText } from "../ai/text-assist";
+import { TextAiMenu } from "../ai/TextAiMenu";
 import { Field, SliderRow } from "./fields";
-import { Icon } from "../icons";
+import { Icon } from "@ui/icons";
 import type { MarkType } from "@model/text";
-import { ColorPicker, highlightSwatches, textColorSwatches } from "./widgets";
+import { ColorPicker, highlightSwatches, textColorSwatches } from "@ui/color";
+import { Button, IconButton, Spinner } from "@ui/button";
+import { FloatingBar, FloatingPanel } from "@ui/overlay";
+import { Separator, TextField } from "@ui/inputs";
 import {
     activeMarks,
     activeValues,
@@ -143,6 +149,17 @@ export const ContextBar: Component = () => {
         ["center", "alignCenter"],
         ["end", "alignRight"],
     ] as const;
+    // Regenerate — offered for any element that's meaningful to re-roll on its own (canRegenerate resolves
+    // fragments of quotes/stats/bullets up to their parent; drops dividers/videos). Fires a fresh AI version
+    // that swaps in place as one undo step; spins while the (single) regeneration is in flight.
+    const canRegen = createMemo((): boolean => {
+        const a = addr();
+        return a ? canRegenerate(a) : false;
+    });
+    const regen = (): void => {
+        const a = addr();
+        if (a) void regenerateElement(a);
+    };
     const dup = (): void => {
         const a = addr();
         if (!a) return;
@@ -156,18 +173,18 @@ export const ContextBar: Component = () => {
         setSelection(null);
     };
 
-    const iconBtn = (active: boolean): string =>
-        `flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
-            active ? "bg-accent text-onaccent" : "text-ink hover:bg-canvas"
-        }`;
-    const sep = (): JSX.Element => <span class="mx-0.5 h-5 w-px bg-line" />;
-
     return (
         <Show when={pos()}>
             {(p) => (
-                <div
+                <FloatingBar
+                    tone="panel"
+                    rounded="xl"
+                    pad="sm"
+                    shadow="2xl"
+                    anchor="free"
+                    gap="0.5"
                     data-galleo-toolbar="true"
-                    class="absolute z-40 flex -translate-x-1/2 items-center gap-0.5 rounded-xl border border-line bg-panel/95 p-1 shadow-2xl backdrop-blur-md"
+                    class="absolute z-40 -translate-x-1/2"
                     style={{ left: `${p().left}px`, top: `${p().top}px` }}
                     onPointerDown={(e) => e.stopPropagation()}
                 >
@@ -182,7 +199,7 @@ export const ContextBar: Component = () => {
                                 />
                             )}
                         </For>
-                        {sep()}
+                        <Separator vertical class="mx-0.5" />
                     </Show>
                     <Show when={spec()?.frame}>
                         <span class="flex items-center gap-1.5 pl-1 pr-0.5 text-soft">
@@ -198,37 +215,62 @@ export const ContextBar: Component = () => {
                                 />
                             </span>
                         </span>
-                        {sep()}
+                        <Separator vertical class="mx-0.5" />
                     </Show>
                     <Show when={editing() && spec()?.richText}>
                         <MarkControls />
-                        {sep()}
+                        <Separator vertical class="mx-0.5" />
                     </Show>
                     <Show when={canAlign()}>
                         <For each={ALIGNS}>
                             {([v, ic]) => (
-                                <button
-                                    class={iconBtn(align() === v)}
+                                <IconButton
+                                    size="md"
+                                    rounded="md"
+                                    tone="ink"
+                                    active={align() === v}
                                     title={`Align ${v}`}
                                     onClick={() => setAlign(v)}
                                 >
                                     <Icon name={ic} size={15} />
-                                </button>
+                                </IconButton>
                             )}
                         </For>
-                        {sep()}
+                        <Separator vertical class="mx-0.5" />
                     </Show>
-                    <button class={iconBtn(false)} title="Duplicate" onClick={dup}>
+                    <Show when={canRegen()}>
+                        <IconButton
+                            size="md"
+                            rounded="md"
+                            tone="ink"
+                            class="hover:text-accent"
+                            title="Regenerate with AI"
+                            disabled={elementGenBusy()}
+                            onClick={regen}
+                        >
+                            <Show
+                                when={elementGenBusy()}
+                                fallback={<Icon name="sparkle" size={15} />}
+                            >
+                                <Spinner size={14} tone="accent" />
+                            </Show>
+                        </IconButton>
+                        <Separator vertical class="mx-0.5" />
+                    </Show>
+                    <IconButton size="md" rounded="md" tone="ink" title="Duplicate" onClick={dup}>
                         <Icon name="duplicate" size={15} />
-                    </button>
-                    <button
-                        class={`${iconBtn(false)} hover:text-accent`}
+                    </IconButton>
+                    <IconButton
+                        size="md"
+                        rounded="md"
+                        tone="ink"
+                        class="hover:text-accent"
                         title="Delete"
                         onClick={del}
                     >
                         <Icon name="trash" size={15} />
-                    </button>
-                </div>
+                    </IconButton>
+                </FloatingBar>
             )}
         </Show>
     );
@@ -247,14 +289,9 @@ const BOOL: { type: MarkType; icon: string; title: string }[] = [
     { type: "s", icon: "strike", title: "Strikethrough" },
 ];
 
-const btn = (active: boolean): string =>
-    `flex h-7 min-w-7 items-center justify-center rounded-md px-1 transition-colors ${
-        active ? "bg-accent text-onaccent" : "text-ink hover:bg-canvas"
-    }`;
-const sep = (): JSX.Element => <span class="mx-0.5 h-5 w-px bg-line" />;
 const noBlur = (e: MouseEvent): void => e.preventDefault();
-const popCls =
-    "absolute left-1/2 top-full z-50 mt-2 w-60 -translate-x-1/2 rounded-xl border border-line bg-panel/95 p-2.5 shadow-2xl backdrop-blur-md";
+// Positioning + padding for the color/highlight flyout; FloatingPanel owns the surface chrome.
+const popCls = "absolute left-1/2 top-full z-50 mt-2 w-60 -translate-x-1/2 p-2.5";
 
 export const MarkControls: Component = () => {
     const [pop, setPop] = createSignal<null | "color" | "hl" | "link">(null);
@@ -292,33 +329,49 @@ export const MarkControls: Component = () => {
 
     return (
         <>
+            <Show when={canAssistText()}>
+                <TextAiMenu />
+                <Separator vertical class="mx-0.5" />
+            </Show>
             <For each={BOOL}>
                 {(m) => (
-                    <button
+                    <IconButton
+                        auto
+                        size="md"
+                        rounded="md"
+                        tone="ink"
+                        active={is(m.type)}
                         title={m.title}
-                        class={btn(is(m.type))}
                         onMouseDown={noBlur}
                         onClick={() => toggleTextMark(m.type)}
                     >
                         <Icon name={m.icon} size={15} />
-                    </button>
+                    </IconButton>
                 )}
             </For>
-            <button
+            <IconButton
+                auto
+                size="md"
+                rounded="md"
+                tone="ink"
+                active={is("code")}
                 title="Inline code"
-                class={btn(is("code"))}
                 onMouseDown={noBlur}
                 onClick={() => toggleTextMark("code")}
             >
                 <Icon name="code" size={15} />
-            </button>
-            {sep()}
+            </IconButton>
+            <Separator vertical class="mx-0.5" />
 
             {/* text color */}
             <div class="relative">
-                <button
+                <IconButton
+                    auto
+                    size="md"
+                    rounded="md"
+                    tone="ink"
+                    active={is("color")}
                     title="Text color"
-                    class={btn(is("color"))}
                     onMouseDown={noBlur}
                     onClick={() => openPicker("color")}
                 >
@@ -329,9 +382,9 @@ export const MarkControls: Component = () => {
                             style={{ background: activeValues().color ?? "currentColor" }}
                         />
                     </span>
-                </button>
+                </IconButton>
                 <Show when={pop() === "color"}>
-                    <div class={popCls}>
+                    <FloatingPanel rounded="xl" pad="none" class={popCls}>
                         <ColorPicker
                             value={activeValues().color}
                             swatches={textColorSwatches(editorTokens())}
@@ -341,15 +394,19 @@ export const MarkControls: Component = () => {
                             clearWhenEmpty
                             keepFocus
                         />
-                    </div>
+                    </FloatingPanel>
                 </Show>
             </div>
 
             {/* highlight */}
             <div class="relative">
-                <button
+                <IconButton
+                    auto
+                    size="md"
+                    rounded="md"
+                    tone="ink"
+                    active={is("hl")}
                     title="Highlight"
-                    class={btn(is("hl"))}
                     onMouseDown={noBlur}
                     onClick={() => openPicker("hl")}
                 >
@@ -360,9 +417,9 @@ export const MarkControls: Component = () => {
                             style={{ background: activeValues().hl ?? "transparent" }}
                         />
                     </span>
-                </button>
+                </IconButton>
                 <Show when={pop() === "hl"}>
-                    <div class={popCls}>
+                    <FloatingPanel rounded="xl" pad="none" class={popCls}>
                         <ColorPicker
                             value={activeValues().hl}
                             swatches={highlightSwatches(editorTokens())}
@@ -372,27 +429,36 @@ export const MarkControls: Component = () => {
                             clearWhenEmpty
                             keepFocus
                         />
-                    </div>
+                    </FloatingPanel>
                 </Show>
             </div>
 
             {/* link */}
             <div class="relative">
-                <button
+                <IconButton
+                    auto
+                    size="md"
+                    rounded="md"
+                    tone="ink"
+                    active={is("link")}
                     title="Link"
-                    class={btn(is("link"))}
                     onMouseDown={noBlur}
                     onClick={openLink}
                 >
                     <Icon name="link" size={15} />
-                </button>
+                </IconButton>
                 <Show when={pop() === "link"}>
-                    <div class="absolute left-1/2 top-full z-50 mt-2 flex w-[248px] -translate-x-1/2 items-center gap-1.5 rounded-xl border border-line bg-panel/95 p-2 shadow-2xl backdrop-blur-md">
-                        <input
-                            class="min-w-0 flex-1 rounded-md border border-line bg-canvas px-2 py-1 text-[12px] text-ink outline-none focus:border-accent"
+                    <FloatingPanel
+                        rounded="xl"
+                        pad="none"
+                        class="absolute left-1/2 top-full z-50 mt-2 flex w-[248px] -translate-x-1/2 items-center gap-1.5 p-2"
+                    >
+                        <TextField
+                            compact
+                            class="min-w-0 flex-1"
                             placeholder="https://…"
                             value={linkUrl()}
-                            onInput={(e) => setLinkUrl(e.currentTarget.value)}
+                            onChange={setLinkUrl}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter") {
                                     e.preventDefault();
@@ -400,13 +466,10 @@ export const MarkControls: Component = () => {
                                 }
                             }}
                         />
-                        <button
-                            class="flex-none rounded-md bg-accent px-2 py-1 text-[12px] font-semibold text-onaccent"
-                            onClick={applyLink}
-                        >
+                        <Button variant="primary" size="sm" class="flex-none" onClick={applyLink}>
                             {activeValues().link ? "Save" : "Add"}
-                        </button>
-                    </div>
+                        </Button>
+                    </FloatingPanel>
                 </Show>
             </div>
         </>

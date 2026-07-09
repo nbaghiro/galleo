@@ -1,6 +1,12 @@
-import type { Artifact, ArtifactContent, ArtifactInput, ArtifactSummary } from "@model/artifact";
+import type {
+    Artifact,
+    ArtifactContent,
+    ArtifactInput,
+    ArtifactSummary,
+    ElementInstance,
+} from "@model/artifact";
 import type { Folder, Template, User } from "@model/workspace";
-import type { ThemeSummary as Theme, ThemeInput } from "@themes";
+import type { ThemeSummary as Theme, ThemeInput, Tokens } from "@themes";
 import type { Interval, Plan, PlanId } from "@model/billing";
 import type { FeatureKey, FeatureStatus, Features } from "@model/features";
 import type { TurnEvent, TurnRequest, AiActionId, AiActionInfo, MeterParams } from "@model/ai";
@@ -40,6 +46,40 @@ export interface BillingState {
 export interface FeaturesState {
     features: Features;
     status: Record<FeatureKey, FeatureStatus>;
+}
+
+// --- sharing / public links ---
+// The access policy of a published link. `public` = anyone with the URL, `protected` = URL + password,
+// `private` = only invited emails (each via a per-recipient token).
+export type Visibility = "public" | "protected" | "private";
+
+// A recipient of a private share: their email + their own tokenized link + whether they've opened it.
+export interface ShareRecipient {
+    id: string;
+    email: string;
+    url: string;
+    invitedAt: string;
+    lastViewedAt: string | null;
+}
+
+// The GET /links/:artifactId response — current publish state for the Share modal.
+export interface LinkState {
+    id: string;
+    slug: string;
+    visibility: Visibility;
+    hasPassword: boolean;
+    url: string;
+    publishedAt: string;
+    recipients: ShareRecipient[];
+}
+
+// The UNAUTHENTICATED GET /p/:slug/content response — everything the public viewer needs to paint. A
+// workspace custom theme rides along in `customTheme` (built-ins are already in the viewer's registry).
+export interface PublicContent {
+    title: string;
+    content: ArtifactContent;
+    branded: boolean;
+    customTheme: { id: string; name: string; tag: string; dark: boolean; tokens: Tokens } | null;
 }
 
 // Typed client over the backend (proxied at /api/* in dev → :8601). Cookies carry the session. The wire
@@ -106,6 +146,27 @@ export const api = {
             method: "POST",
             body: JSON.stringify({ content }),
         }).then((r) => r.suggestions),
+    reviseElement: (
+        content: ArtifactContent,
+        sectionId: string,
+        element: ElementInstance,
+        instruction?: string,
+    ) =>
+        req<{ element: ElementInstance }>("/ai/element", {
+            method: "POST",
+            body: JSON.stringify({ content, sectionId, element, instruction }),
+        }).then((r) => r.element),
+    assistText: (req_: {
+        op: "rewrite" | "translate";
+        text: string;
+        instruction?: string;
+        language?: string;
+        context?: string;
+    }) =>
+        req<{ text: string }>("/ai/text", {
+            method: "POST",
+            body: JSON.stringify(req_),
+        }).then((r) => r.text),
     listTrash: () => req<{ artifacts: ArtifactSummary[] }>("/artifacts?trashed=1"),
     trashArtifact: (id: string) => req<{ ok: true }>(`/artifacts/${id}/trash`, { method: "POST" }),
     restoreArtifact: (id: string) =>
@@ -196,6 +257,44 @@ export const api = {
             method: "POST",
             body: JSON.stringify(body ?? {}),
         }),
+
+    // --- sharing / public links ---
+    getLinkState: (artifactId: string) => req<{ link: LinkState | null }>(`/links/${artifactId}`),
+    publishArtifact: (
+        id: string,
+        body: {
+            visibility?: Visibility;
+            password?: string | null;
+            recipients?: string[];
+            message?: string | null;
+        },
+    ) =>
+        req<{ slug: string; visibility: Visibility; url: string; recipients?: ShareRecipient[] }>(
+            `/artifacts/${id}/publish`,
+            { method: "POST", body: JSON.stringify(body) },
+        ),
+    updateLink: (id: string, patch: { visibility?: Visibility; password?: string | null }) =>
+        req<{ link: LinkState }>(`/links/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify(patch),
+        }),
+    addRecipients: (linkId: string, emails: string[], message?: string | null) =>
+        req<{ recipients: ShareRecipient[] }>(`/links/${linkId}/recipients`, {
+            method: "POST",
+            body: JSON.stringify({ emails, message: message ?? null }),
+        }),
+    removeRecipient: (linkId: string, recipientId: string) =>
+        req<{ ok: true }>(`/links/${linkId}/recipients/${recipientId}`, { method: "DELETE" }),
+    unpublishArtifact: (id: string) =>
+        req<{ ok: true }>(`/artifacts/${id}/unpublish`, { method: "POST" }),
+    // UNAUTHENTICATED — used by the public viewer (publish/ build).
+    getPublicContent: (slug: string, opts?: { pw?: string; k?: string }) => {
+        const q = new URLSearchParams();
+        if (opts?.pw) q.set("pw", opts.pw);
+        if (opts?.k) q.set("k", opts.k);
+        const qs = q.toString();
+        return req<PublicContent>(`/p/${slug}/content${qs ? `?${qs}` : ""}`);
+    },
 };
 
 // Run one AI turn (POST /ai/turn) and deliver each TurnEvent to `onEvent` as it streams over SSE. Throws

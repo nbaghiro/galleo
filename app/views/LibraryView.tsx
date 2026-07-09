@@ -34,7 +34,12 @@ import {
 import { appTheme } from "../theme";
 import { openGenerate } from "./generate/session";
 import { folders } from "../stores/folders";
-import { ConfirmModal } from "../components/modals";
+import { ConfirmModal, FloatingBar, Popover } from "@ui/overlay";
+import { Button, Chip, Eyebrow, IconButton } from "@ui/button";
+import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@ui/menu";
+import { Separator, TextField } from "@ui/inputs";
+import { EmptyState } from "@ui/status";
+import { ThemeSwatch } from "@ui/color";
 import {
     CheckIcon,
     ChevronDownIcon,
@@ -42,10 +47,9 @@ import {
     DuplicateIcon,
     FolderIcon,
     MoreIcon,
-    SearchIcon,
     SparkleIcon,
     TrashIcon,
-} from "../components/icons";
+} from "@ui/icons";
 import { SectionThumb } from "../components/previews";
 import { Sidebar } from "../components/Sidebar";
 
@@ -109,9 +113,9 @@ const EmptyLibrary: Component<{ onGenerate: () => void; onTemplates: () => void 
         </div>
 
         <div class="relative z-10 max-w-[440px] rounded-2xl border border-line bg-panel/95 px-9 py-8 text-center shadow-2xl backdrop-blur-sm">
-            <div class="mb-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+            <Eyebrow as="div" tracking="widest" class="mb-2">
                 A clean slate
-            </div>
+            </Eyebrow>
             <h2
                 class="font-display text-[24px] font-semibold text-ink"
                 style={{ "text-wrap": "balance" }}
@@ -183,7 +187,6 @@ export const LibraryView: Component = () => {
     // --- multi-select: shift-click (or click while any is selected) toggles a card; a floating bar then
     // offers the only two batch actions on artifacts — move-to-folder and delete. ---
     const [selected, setSelected] = createSignal<Set<string>>(new Set());
-    const [batchMenu, setBatchMenu] = createSignal(false);
     const isSelected = (id: string): boolean => selected().has(id);
     // The bar reflects what's actually on screen — a filter/folder change narrows it to visible cards.
     const selectedVisible = createMemo((): string[] => {
@@ -201,7 +204,6 @@ export const LibraryView: Component = () => {
     };
     const clearSelection = (): void => {
         setSelected(new Set<string>());
-        setBatchMenu(false);
     };
     const moveSelected = (folderId: string | null): void => {
         moveArtifacts(selectedVisible(), folderId);
@@ -249,7 +251,6 @@ export const LibraryView: Component = () => {
         const img = (): string | undefined => cv().image;
         const secs = () => p.d.sections ?? [];
         const content = (): ArtifactContent | undefined => contents()[p.d.id];
-        const [menu, setMenu] = createSignal(false);
         const [askAt, setAskAt] = createSignal<{ x: number; y: number } | null>(null);
         // open in the saved theme normally; if the app theme differs, offer to view in it instead. The
         // choice popup opens at the click point (the cover OR the "Open" button), not a fixed corner.
@@ -349,58 +350,36 @@ export const LibraryView: Component = () => {
                     </Show>
                     <Show when={askAt()}>
                         {(pos) => (
-                            <>
-                                <div class="fixed inset-0 z-40" onClick={() => setAskAt(null)} />
-                                <div
-                                    class="fixed z-50 w-60 rounded-xl border border-line bg-panel p-1.5 shadow-xl"
-                                    style={{
-                                        left: `${Math.min(pos().x, window.innerWidth - 252)}px`,
-                                        top: `${Math.min(pos().y, window.innerHeight - 130)}px`,
-                                    }}
-                                >
-                                    <div class="px-2.5 pb-1 pt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
-                                        Open in…
-                                    </div>
-                                    <button
-                                        class="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-soft hover:bg-canvas"
-                                        onClick={() => openWith(false)}
-                                    >
-                                        <span class="flex min-w-0 items-center gap-2">
-                                            <span
-                                                class="h-3 w-3 flex-none rounded-[3px]"
-                                                style={{
-                                                    background: resolveTheme(p.d.themeId).tokens
-                                                        .accent,
-                                                }}
-                                            />
-                                            <span class="truncate font-medium text-ink">
-                                                {resolveTheme(p.d.themeId).name}
-                                            </span>
-                                        </span>
+                            <Popover
+                                open={true}
+                                at={() => ({ x: pos().x, y: pos().y })}
+                                onClose={() => setAskAt(null)}
+                                estHeight={130}
+                                fixedWidth={240}
+                                panelClass="p-1.5"
+                            >
+                                <MenuLabel>Open in…</MenuLabel>
+                                <MenuItem
+                                    icon={<ThemeSwatch themeId={p.d.themeId} />}
+                                    trailing={
                                         <span class="flex-none text-[11px] text-muted">saved</span>
-                                    </button>
-                                    <button
-                                        class="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-soft hover:bg-canvas"
-                                        onClick={() => openWith(true)}
-                                    >
-                                        <span class="flex min-w-0 items-center gap-2">
-                                            <span
-                                                class="h-3 w-3 flex-none rounded-[3px]"
-                                                style={{
-                                                    background:
-                                                        resolveTheme(appTheme()).tokens.accent,
-                                                }}
-                                            />
-                                            <span class="truncate font-medium text-ink">
-                                                {resolveTheme(appTheme()).name}
-                                            </span>
-                                        </span>
+                                    }
+                                    onClick={() => openWith(false)}
+                                >
+                                    {resolveTheme(p.d.themeId).name}
+                                </MenuItem>
+                                <MenuItem
+                                    icon={<ThemeSwatch themeId={appTheme()} />}
+                                    trailing={
                                         <span class="flex-none text-[11px] text-muted">
                                             app theme
                                         </span>
-                                    </button>
-                                </div>
-                            </>
+                                    }
+                                    onClick={() => openWith(true)}
+                                >
+                                    {resolveTheme(appTheme()).name}
+                                </MenuItem>
+                            </Popover>
                         )}
                     </Show>
                 </div>
@@ -441,91 +420,69 @@ export const LibraryView: Component = () => {
                                 <span>{relativeTime(p.d.updatedAt)}</span>
                             </div>
                         </div>
-                        <div class="relative ml-auto flex-none">
-                            <button
-                                class="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-canvas hover:text-ink"
-                                title="Move to folder"
-                                onClick={() => setMenu((x) => !x)}
+                        <div class="ml-auto flex-none">
+                            <Menu
+                                align="end"
+                                width={224}
+                                trigger={(m) => (
+                                    <IconButton
+                                        ref={m.ref}
+                                        size="md"
+                                        rounded="md"
+                                        tone="muted"
+                                        title="Move to folder"
+                                        onClick={m.toggle}
+                                    >
+                                        <MoreIcon size={16} />
+                                    </IconButton>
+                                )}
                             >
-                                <MoreIcon size={16} />
-                            </button>
-                            <Show when={menu()}>
-                                <div class="fixed inset-0 z-10" onClick={() => setMenu(false)} />
-                                <div class="absolute right-0 top-8 z-20 w-52 rounded-xl border border-line bg-panel p-1.5 shadow-xl">
-                                    <button
-                                        class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-soft hover:bg-canvas"
-                                        onClick={() => {
-                                            setMenu(false);
-                                            setConfirm({ kind: "duplicate", doc: p.d });
-                                        }}
+                                <MenuItem
+                                    icon={<DuplicateIcon size={15} />}
+                                    onClick={() => setConfirm({ kind: "duplicate", doc: p.d })}
+                                >
+                                    Duplicate
+                                </MenuItem>
+                                <MenuSeparator />
+                                <MenuLabel>Move to</MenuLabel>
+                                <Show when={p.d.folderId}>
+                                    <MenuItem onClick={() => moveArtifact(p.d.id, null)}>
+                                        ↑ Remove from folder
+                                    </MenuItem>
+                                </Show>
+                                <div class="max-h-56 overflow-y-auto">
+                                    <For
+                                        each={folders()}
+                                        fallback={
+                                            <p class="px-2.5 py-1.5 text-[12px] text-muted">
+                                                No folders yet.
+                                            </p>
+                                        }
                                     >
-                                        <span class="grid h-4 w-4 flex-none place-items-center text-muted">
-                                            <DuplicateIcon size={15} />
-                                        </span>{" "}
-                                        Duplicate
-                                    </button>
-                                    <div class="my-1 h-px bg-line" />
-                                    <div class="px-2.5 pb-1 pt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
-                                        Move to
-                                    </div>
-                                    <Show when={p.d.folderId}>
-                                        <button
-                                            class="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-soft hover:bg-canvas"
-                                            onClick={() => {
-                                                setMenu(false);
-                                                moveArtifact(p.d.id, null);
-                                            }}
-                                        >
-                                            ↑ Remove from folder
-                                        </button>
-                                    </Show>
-                                    <div class="max-h-56 overflow-y-auto">
-                                        <For
-                                            each={folders()}
-                                            fallback={
-                                                <p class="px-2.5 py-1.5 text-[12px] text-muted">
-                                                    No folders yet.
-                                                </p>
-                                            }
-                                        >
-                                            {(f) => (
-                                                <button
-                                                    class={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] ${f.id === p.d.folderId ? "font-semibold text-accent" : "text-soft hover:bg-canvas"}`}
-                                                    onClick={() => {
-                                                        setMenu(false);
-                                                        moveArtifact(p.d.id, f.id);
-                                                    }}
-                                                >
-                                                    <span class="grid h-4 w-4 flex-none place-items-center">
-                                                        <FolderIcon size={14} />
-                                                    </span>
-                                                    <span class="truncate">{f.name}</span>
-                                                </button>
-                                            )}
-                                        </For>
-                                    </div>
-                                    <div class="my-1 h-px bg-line" />
-                                    <button
-                                        class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] font-medium text-[#C0392B] hover:bg-[#C0392B]/10"
-                                        onClick={() => {
-                                            setMenu(false);
-                                            setConfirm({ kind: "delete", doc: p.d });
-                                        }}
-                                    >
-                                        <span class="grid h-4 w-4 flex-none place-items-center">
-                                            <TrashIcon size={15} />
-                                        </span>{" "}
-                                        Delete
-                                    </button>
+                                        {(f) => (
+                                            <MenuItem
+                                                icon={<FolderIcon size={14} />}
+                                                selected={f.id === p.d.folderId}
+                                                onClick={() => moveArtifact(p.d.id, f.id)}
+                                            >
+                                                {f.name}
+                                            </MenuItem>
+                                        )}
+                                    </For>
                                 </div>
-                            </Show>
+                                <MenuSeparator />
+                                <MenuItem
+                                    tone="danger"
+                                    icon={<TrashIcon size={15} />}
+                                    onClick={() => setConfirm({ kind: "delete", doc: p.d })}
+                                >
+                                    Delete
+                                </MenuItem>
+                            </Menu>
                         </div>
-                        <button
-                            class="flex-none text-[11.5px] font-semibold text-accent"
-                            onClick={open}
-                        >
+                        <Button variant="link" class="flex-none text-[11.5px]" onClick={open}>
                             Open →
-                        </button>
+                        </Button>
                     </div>
                     <div class="flex gap-3 overflow-x-auto pb-2 pt-0.5">
                         <Show
@@ -569,9 +526,9 @@ export const LibraryView: Component = () => {
                                 </span>
                             </Show>
                             <div>
-                                <div class="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+                                <Eyebrow as="div" tracking="widest">
                                     {folder() ? "Folder" : "Atelier Studio"}
-                                </div>
+                                </Eyebrow>
                                 <h1 class="mt-0.5 font-display text-[26px] font-semibold text-ink">
                                     {folder()?.name ?? "Library"}
                                 </h1>
@@ -583,15 +540,13 @@ export const LibraryView: Component = () => {
                             </div>
                         </div>
                         <div class="flex items-center gap-2">
-                            <div class="flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-soft">
-                                <SearchIcon size={15} />
-                                <input
-                                    class="w-44 bg-transparent text-[13px] text-ink outline-none placeholder:text-muted"
-                                    placeholder="Search artifacts…"
-                                    value={query()}
-                                    onInput={(e) => setQuery(e.currentTarget.value)}
-                                />
-                            </div>
+                            <TextField
+                                icon="search"
+                                class="w-56"
+                                placeholder="Search artifacts…"
+                                value={query()}
+                                onChange={(v) => setQuery(v)}
+                            />
                             <button
                                 class="rounded-lg border border-line bg-panel px-3 py-2 text-[12.5px] font-medium text-soft hover:text-ink"
                                 onClick={() => setSort((s) => (s === "recent" ? "az" : "recent"))}
@@ -606,12 +561,14 @@ export const LibraryView: Component = () => {
                     <div class="mt-4 flex items-center gap-1.5">
                         <For each={FORMATS}>
                             {([k, label]) => (
-                                <button
-                                    class={`rounded-full px-3 py-1.5 text-[12.5px] font-medium ${fmt() === k ? "bg-accent text-onaccent" : "border border-line text-soft hover:bg-panel"}`}
+                                <Chip
+                                    variant="solid"
+                                    size="md"
+                                    selected={fmt() === k}
                                     onClick={() => setFmt(k)}
                                 >
                                     {label}
-                                </button>
+                                </Chip>
                             )}
                         </For>
                     </div>
@@ -630,30 +587,33 @@ export const LibraryView: Component = () => {
                             <Show
                                 when={scope().length === 0 && !folderId()}
                                 fallback={
-                                    <div class="flex h-64 flex-col items-center justify-center gap-1 text-[13px] text-muted">
-                                        <Show
-                                            when={scope().length}
-                                            fallback={
-                                                <>
-                                                    <span>This folder is empty.</span>
-                                                    <span class="text-[12px]">
-                                                        Drag artifacts onto this folder to add them.
-                                                    </span>
-                                                </>
+                                    <Show
+                                        when={scope().length}
+                                        fallback={
+                                            <EmptyState
+                                                class="h-64"
+                                                title="This folder is empty."
+                                                subtitle="Drag artifacts onto this folder to add them."
+                                            />
+                                        }
+                                    >
+                                        <EmptyState
+                                            class="h-64"
+                                            title="No artifacts match your filters."
+                                            action={
+                                                <Button
+                                                    variant="link"
+                                                    class="text-[12px]"
+                                                    onClick={() => {
+                                                        setQuery("");
+                                                        setFmt("all");
+                                                    }}
+                                                >
+                                                    Clear filters
+                                                </Button>
                                             }
-                                        >
-                                            <span>No artifacts match your filters.</span>
-                                            <button
-                                                class="text-[12px] font-semibold text-accent"
-                                                onClick={() => {
-                                                    setQuery("");
-                                                    setFmt("all");
-                                                }}
-                                            >
-                                                Clear filters
-                                            </button>
-                                        </Show>
-                                    </div>
+                                        />
+                                    </Show>
                                 }
                             >
                                 <EmptyLibrary
@@ -671,71 +631,68 @@ export const LibraryView: Component = () => {
             {/* the batch action bar — appears whenever ≥1 artifact is selected; only two actions apply
                 to a batch of artifacts: move them to a folder, or delete them. */}
             <Show when={selectMode()}>
-                <div class="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-line bg-panel/95 px-2.5 py-2 shadow-2xl backdrop-blur-md">
+                <FloatingBar
+                    tone="panel"
+                    rounded="2xl"
+                    anchor="free"
+                    class="fixed bottom-6 left-1/2 z-40 -translate-x-1/2"
+                >
                     <span class="px-2 text-[13px] font-semibold text-ink">
                         {selectedVisible().length} selected
                     </span>
-                    <span class="mx-0.5 h-6 w-px bg-line" />
-                    <div class="relative">
-                        <button
-                            class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-soft hover:bg-canvas hover:text-ink"
-                            onClick={() => setBatchMenu((x) => !x)}
-                        >
-                            <FolderIcon size={15} /> Move to folder
-                            <ChevronDownIcon size={12} />
-                        </button>
-                        <Show when={batchMenu()}>
-                            <div class="fixed inset-0 z-10" onClick={() => setBatchMenu(false)} />
-                            <div class="absolute bottom-full left-0 z-20 mb-2 w-56 rounded-xl border border-line bg-panel p-1.5 shadow-xl">
-                                <div class="px-2.5 pb-1 pt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
-                                    Move to
-                                </div>
-                                <button
-                                    class="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-soft hover:bg-canvas"
-                                    onClick={() => moveSelected(null)}
-                                >
-                                    ↑ No folder
-                                </button>
-                                <div class="max-h-56 overflow-y-auto">
-                                    <For
-                                        each={folders()}
-                                        fallback={
-                                            <p class="px-2.5 py-1.5 text-[12px] text-muted">
-                                                No folders yet.
-                                            </p>
-                                        }
+                    <Separator vertical class="mx-0.5" />
+                    <Menu
+                        width={224}
+                        trigger={(m) => (
+                            <button
+                                ref={m.ref}
+                                class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-soft hover:bg-canvas hover:text-ink"
+                                onClick={m.toggle}
+                            >
+                                <FolderIcon size={15} /> Move to folder
+                                <ChevronDownIcon size={12} />
+                            </button>
+                        )}
+                    >
+                        <MenuLabel>Move to</MenuLabel>
+                        <MenuItem onClick={() => moveSelected(null)}>↑ No folder</MenuItem>
+                        <div class="max-h-56 overflow-y-auto">
+                            <For
+                                each={folders()}
+                                fallback={
+                                    <p class="px-2.5 py-1.5 text-[12px] text-muted">
+                                        No folders yet.
+                                    </p>
+                                }
+                            >
+                                {(f) => (
+                                    <MenuItem
+                                        icon={<FolderIcon size={14} />}
+                                        onClick={() => moveSelected(f.id)}
                                     >
-                                        {(f) => (
-                                            <button
-                                                class="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-soft hover:bg-canvas"
-                                                onClick={() => moveSelected(f.id)}
-                                            >
-                                                <span class="grid h-4 w-4 flex-none place-items-center">
-                                                    <FolderIcon size={14} />
-                                                </span>
-                                                <span class="truncate">{f.name}</span>
-                                            </button>
-                                        )}
-                                    </For>
-                                </div>
-                            </div>
-                        </Show>
-                    </div>
+                                        {f.name}
+                                    </MenuItem>
+                                )}
+                            </For>
+                        </div>
+                    </Menu>
                     <button
                         class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-[#C0392B] hover:bg-[#C0392B]/10"
                         onClick={() => setConfirm({ kind: "delete-batch", ids: selectedVisible() })}
                     >
                         <TrashIcon size={15} /> Delete
                     </button>
-                    <span class="mx-0.5 h-6 w-px bg-line" />
-                    <button
-                        class="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-canvas hover:text-ink"
+                    <Separator vertical class="mx-0.5" />
+                    <IconButton
+                        size="md"
+                        rounded="md"
+                        tone="muted"
                         title="Clear selection (Esc)"
                         onClick={clearSelection}
                     >
                         <CloseIcon size={15} />
-                    </button>
-                </div>
+                    </IconButton>
+                </FloatingBar>
             </Show>
 
             <Show when={confirm()}>

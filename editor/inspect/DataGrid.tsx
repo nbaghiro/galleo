@@ -12,6 +12,8 @@ import { elementRegionId } from "@model/target";
 import { getElementAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { commit, editor } from "../editor";
+import { Button } from "@ui/button";
+import { CellInput } from "@ui/inputs";
 import {
     dataShapeFor,
     parseModel,
@@ -31,19 +33,16 @@ import {
     type Shape,
 } from "./data-model";
 
-const TOOL =
-    "inline-flex items-center gap-1 rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-[12px] font-semibold text-soft transition-colors hover:border-accent hover:text-ink";
 const TH =
     "sticky top-0 z-[1] whitespace-nowrap border-b border-line bg-canvas px-2.5 py-2 text-left text-[12px] font-semibold text-soft";
 const CELL = "border-b border-r border-line/50";
+// Still used by the cell-embedded native <select>s (which stay bespoke).
 const IN =
     "w-full min-w-[72px] bg-transparent px-2.5 py-2 text-[13px] text-ink outline-none focus:bg-canvas";
-// Left-aligned (not right) so value cells sit under their column header, which matters most across the
-// multiple value columns of a multi-series chart. Tabular figures keep digit columns even.
-const NUM = `${IN} text-left font-mono tabular-nums`;
 const DEL = "px-2 text-[13px] text-muted transition-colors hover:text-accent";
-const numClass = (v: string): string =>
-    invalidNumber(v) ? `${NUM} rounded-sm bg-rose-500/5 ring-1 ring-inset ring-rose-400/70` : NUM;
+// Extra classes layered onto a numeric CellInput to flag an invalid number.
+const numRing = (v: string): string =>
+    invalidNumber(v) ? "rounded-sm bg-rose-500/5 ring-1 ring-inset ring-rose-400/70" : "";
 
 export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }> = (props) => {
     const addr = props.address;
@@ -101,13 +100,12 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                 {(sr, si) => (
                                     <th class={TH}>
                                         <div class="flex items-center">
-                                            <input
-                                                class={`${IN} font-semibold`}
+                                            <CellInput
+                                                class="font-semibold"
                                                 value={sr().name}
-                                                onInput={(e) =>
+                                                onChange={(v) =>
                                                     edit((d) => {
-                                                        (d as SeriesModel).series[si]!.name =
-                                                            e.currentTarget.value;
+                                                        (d as SeriesModel).series[si]!.name = v;
                                                     }, `sname${si}`)
                                                 }
                                             />
@@ -134,13 +132,12 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                             {(cat, ci) => (
                                 <tr>
                                     <td class={CELL}>
-                                        <input
-                                            class={`${IN} font-medium text-soft`}
+                                        <CellInput
+                                            class="font-medium text-soft"
                                             value={cat()}
-                                            onInput={(e) =>
+                                            onChange={(v) =>
                                                 edit((d) => {
-                                                    (d as SeriesModel).categories[ci] =
-                                                        e.currentTarget.value;
+                                                    (d as SeriesModel).categories[ci] = v;
                                                 }, `cat${ci}`)
                                             }
                                         />
@@ -148,14 +145,15 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                     <Index each={m.series}>
                                         {(_sr, si) => (
                                             <td class={CELL}>
-                                                <input
-                                                    class={numClass(m.series[si]!.values[ci] ?? "")}
+                                                <CellInput
+                                                    numeric
+                                                    class={numRing(m.series[si]!.values[ci] ?? "")}
                                                     value={m.series[si]!.values[ci] ?? ""}
-                                                    onInput={(e) =>
+                                                    onChange={(v) =>
                                                         edit((d) => {
                                                             (d as SeriesModel).series[si]!.values[
                                                                 ci
-                                                            ] = e.currentTarget.value;
+                                                            ] = v;
                                                         }, `v${si}-${ci}`)
                                                     }
                                                 />
@@ -200,25 +198,23 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                             {(it, i) => (
                                 <tr>
                                     <td class={CELL}>
-                                        <input
-                                            class={IN}
+                                        <CellInput
                                             value={it().label}
-                                            onInput={(e) =>
+                                            onChange={(v) =>
                                                 edit((d) => {
-                                                    (d as KvModel).items[i]!.label =
-                                                        e.currentTarget.value;
+                                                    (d as KvModel).items[i]!.label = v;
                                                 }, `lbl${i}`)
                                             }
                                         />
                                     </td>
                                     <td class={CELL}>
-                                        <input
-                                            class={numClass(it().value)}
+                                        <CellInput
+                                            numeric
+                                            class={numRing(it().value)}
                                             value={it().value}
-                                            onInput={(e) =>
+                                            onChange={(v) =>
                                                 edit((d) => {
-                                                    (d as KvModel).items[i]!.value =
-                                                        e.currentTarget.value;
+                                                    (d as KvModel).items[i]!.value = v;
                                                 }, `val${i}`)
                                             }
                                         />
@@ -265,38 +261,38 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                         {i + 1}
                                     </td>
                                     <td class={CELL}>
-                                        <input
-                                            class={numClass(pt().x)}
+                                        <CellInput
+                                            numeric
+                                            class={numRing(pt().x)}
                                             value={pt().x}
-                                            onInput={(e) =>
+                                            onChange={(v) =>
                                                 edit((d) => {
-                                                    (d as PointsModel).points[i]!.x =
-                                                        e.currentTarget.value;
+                                                    (d as PointsModel).points[i]!.x = v;
                                                 }, `x${i}`)
                                             }
                                         />
                                     </td>
                                     <td class={CELL}>
-                                        <input
-                                            class={numClass(pt().y)}
+                                        <CellInput
+                                            numeric
+                                            class={numRing(pt().y)}
                                             value={pt().y}
-                                            onInput={(e) =>
+                                            onChange={(v) =>
                                                 edit((d) => {
-                                                    (d as PointsModel).points[i]!.y =
-                                                        e.currentTarget.value;
+                                                    (d as PointsModel).points[i]!.y = v;
                                                 }, `y${i}`)
                                             }
                                         />
                                     </td>
                                     <Show when={m.dims === 3}>
                                         <td class={CELL}>
-                                            <input
-                                                class={numClass(pt().size)}
+                                            <CellInput
+                                                numeric
+                                                class={numRing(pt().size)}
                                                 value={pt().size}
-                                                onInput={(e) =>
+                                                onChange={(v) =>
                                                     edit((d) => {
-                                                        (d as PointsModel).points[i]!.size =
-                                                            e.currentTarget.value;
+                                                        (d as PointsModel).points[i]!.size = v;
                                                     }, `z${i}`)
                                                 }
                                             />
@@ -331,13 +327,12 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                             <Index each={m.cols}>
                                 {(col, ci) => (
                                     <th class={TH}>
-                                        <input
-                                            class={`${IN} font-semibold`}
+                                        <CellInput
+                                            class="font-semibold"
                                             value={col()}
-                                            onInput={(e) =>
+                                            onChange={(v) =>
                                                 edit((d) => {
-                                                    (d as MatrixModel).cols[ci] =
-                                                        e.currentTarget.value;
+                                                    (d as MatrixModel).cols[ci] = v;
                                                 }, `col${ci}`)
                                             }
                                         />
@@ -351,13 +346,12 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                             {(row, ri) => (
                                 <tr>
                                     <td class={`${CELL} bg-canvas`}>
-                                        <input
-                                            class={`${IN} font-medium text-soft`}
+                                        <CellInput
+                                            class="font-medium text-soft"
                                             value={row()}
-                                            onInput={(e) =>
+                                            onChange={(v) =>
                                                 edit((d) => {
-                                                    (d as MatrixModel).rows[ri] =
-                                                        e.currentTarget.value;
+                                                    (d as MatrixModel).rows[ri] = v;
                                                 }, `row${ri}`)
                                             }
                                         />
@@ -365,13 +359,13 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                     <Index each={m.cols}>
                                         {(_c, ci) => (
                                             <td class={CELL}>
-                                                <input
-                                                    class={numClass(m.cells[ri]?.[ci] ?? "")}
+                                                <CellInput
+                                                    numeric
+                                                    class={numRing(m.cells[ri]?.[ci] ?? "")}
                                                     value={m.cells[ri]?.[ci] ?? ""}
-                                                    onInput={(e) =>
+                                                    onChange={(v) =>
                                                         edit((d) => {
-                                                            (d as MatrixModel).cells[ri]![ci] =
-                                                                e.currentTarget.value;
+                                                            (d as MatrixModel).cells[ri]![ci] = v;
                                                         }, `c${ri}-${ci}`)
                                                     }
                                                 />
@@ -428,13 +422,11 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                         {i + 1}
                                     </td>
                                     <td class={CELL}>
-                                        <input
-                                            class={IN}
+                                        <CellInput
                                             value={it()}
-                                            onInput={(e) =>
+                                            onChange={(v) =>
                                                 edit((d) => {
-                                                    (d as { items: string[] }).items[i] =
-                                                        e.currentTarget.value;
+                                                    (d as { items: string[] }).items[i] = v;
                                                 }, `item${i}`)
                                             }
                                         />
@@ -474,14 +466,12 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                             {(nd, i) => (
                                 <tr>
                                     <td class={CELL}>
-                                        <input
-                                            class={IN}
+                                        <CellInput
                                             value={nd().label}
-                                            onInput={(e) =>
+                                            onChange={(val) =>
                                                 edit((d) => {
                                                     const h = d as HierModel;
                                                     const old = h.nodes[i]!.label;
-                                                    const val = e.currentTarget.value;
                                                     h.nodes[i]!.label = val;
                                                     h.nodes.forEach((x) => {
                                                         if (x.parent === old) x.parent = val;
@@ -541,13 +531,11 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                 {(nd, i) => (
                                     <tr>
                                         <td class={CELL}>
-                                            <input
-                                                class={IN}
+                                            <CellInput
                                                 value={nd()}
-                                                onInput={(e) =>
+                                                onChange={(v) =>
                                                     edit((d) => {
-                                                        (d as GraphModel).nodes[i] =
-                                                            e.currentTarget.value;
+                                                        (d as GraphModel).nodes[i] = v;
                                                     }, `gn${i}`)
                                                 }
                                             />
@@ -569,8 +557,10 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                             </Index>
                         </tbody>
                     </table>
-                    <button
-                        class={`${TOOL} mt-2`}
+                    <Button
+                        variant="tool"
+                        size="sm"
+                        class="mt-2"
                         onClick={() =>
                             edit((d) => {
                                 (d as GraphModel).nodes.push("New");
@@ -578,7 +568,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                         }
                     >
                         ＋ Node
-                    </button>
+                    </Button>
                 </div>
                 <div>
                     <div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
@@ -626,13 +616,11 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                             </select>
                                         </td>
                                         <td class={CELL}>
-                                            <input
-                                                class={IN}
+                                            <CellInput
                                                 value={eg().label}
-                                                onInput={(e) =>
+                                                onChange={(v) =>
                                                     edit((d) => {
-                                                        (d as GraphModel).edges[i]!.label =
-                                                            e.currentTarget.value;
+                                                        (d as GraphModel).edges[i]!.label = v;
                                                     }, `el${i}`)
                                                 }
                                             />
@@ -654,8 +642,10 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                             </Index>
                         </tbody>
                     </table>
-                    <button
-                        class={`${TOOL} mt-2`}
+                    <Button
+                        variant="tool"
+                        size="sm"
+                        class="mt-2"
                         onClick={() =>
                             edit((d) => {
                                 const g = d as GraphModel;
@@ -668,7 +658,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                         }
                     >
                         ＋ Edge
-                    </button>
+                    </Button>
                 </div>
             </div>
         );
@@ -730,22 +720,18 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                 <div
                     class={`flex items-center gap-2 border-b border-line ${props.compact ? "px-2 py-2" : "px-4 py-2.5"}`}
                 >
-                    <button
-                        class={TOOL}
-                        classList={{ "pointer-events-none opacity-40": overLimit() }}
-                        onClick={addRow}
-                    >
+                    <Button variant="tool" size="sm" disabled={overLimit()} onClick={addRow}>
                         ＋ {rowWord}
-                    </button>
+                    </Button>
                     <Show when={shape === "series"}>
-                        <button class={TOOL} onClick={addSeries}>
+                        <Button variant="tool" size="sm" onClick={addSeries}>
                             ＋ Series
-                        </button>
+                        </Button>
                     </Show>
                     <Show when={shape === "matrix"}>
-                        <button class={TOOL} onClick={addCol}>
+                        <Button variant="tool" size="sm" onClick={addCol}>
                             ＋ Column
-                        </button>
+                        </Button>
                     </Show>
                 </div>
             </Show>

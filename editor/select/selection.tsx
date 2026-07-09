@@ -19,7 +19,10 @@ import {
     removeSectionAt,
 } from "../editor";
 import { openSectionPrompt } from "../ai/section-gen";
-import { Icon } from "../icons";
+import { Icon } from "@ui/icons";
+import { IconButton } from "@ui/button";
+import { FloatingBar } from "@ui/overlay";
+import { Separator } from "@ui/inputs";
 
 // Fallback radius for nodes that paint no corner of their own (text, groups): square in the seamless
 // doc/web formats (rounded looks odd on square sections), a small round on paged decks.
@@ -98,8 +101,13 @@ export const SectionActions: Component = () => {
     return (
         <Show when={box()}>
             {(b) => (
-                <div
-                    class="absolute z-20 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-line bg-panel/95 px-1.5 py-1 shadow-lg backdrop-blur-md"
+                <FloatingBar
+                    tone="panel"
+                    rounded="full"
+                    shadow="lg"
+                    gap="0.5"
+                    anchor="free"
+                    class="absolute z-20 -translate-x-1/2"
                     style={{ left: `${b().x + b().w / 2}px`, top: `${b().y + b().h - 16}px` }}
                     onPointerMove={(e) => e.stopPropagation()}
                     onPointerDown={(e) => e.stopPropagation()}
@@ -111,7 +119,7 @@ export const SectionActions: Component = () => {
                     >
                         <Icon name="plus" size={13} /> Section
                     </button>
-                    <span class="h-3.5 w-px bg-line" />
+                    <Separator vertical class="h-3.5" />
                     <button
                         class={action}
                         title="Generate a section here with AI"
@@ -119,7 +127,7 @@ export const SectionActions: Component = () => {
                     >
                         <Icon name="sparkle" size={13} /> Generate
                     </button>
-                    <span class="h-3.5 w-px bg-line" />
+                    <Separator vertical class="h-3.5" />
                     <button
                         class={action}
                         title="Section layout & background"
@@ -127,14 +135,11 @@ export const SectionActions: Component = () => {
                     >
                         <Icon name="layout" size={13} /> Layout
                     </button>
-                </div>
+                </FloatingBar>
             )}
         </Show>
     );
 };
-
-const btn =
-    "flex h-7 w-7 items-center justify-center rounded-md text-[13px] leading-none text-ink hover:bg-canvas";
 
 // Floating toolbar over a selected section: reorder · duplicate · add-below · delete.
 export const SectionToolbar: Component = () => {
@@ -150,39 +155,62 @@ export const SectionToolbar: Component = () => {
     return (
         <Show when={box()}>
             {(b) => (
-                <div
-                    class="absolute z-20 flex items-center gap-0.5 rounded-lg border border-line bg-panel p-1 shadow-lg"
+                <FloatingBar
+                    tone="panel"
+                    rounded="lg"
+                    pad="sm"
+                    shadow="lg"
+                    anchor="free"
+                    class="absolute z-20"
                     style={{ left: `${b().x + 10}px`, top: `${b().y + 10}px` }}
                     onPointerDown={(e) => e.stopPropagation()}
                 >
-                    <button class={btn} title="Move up" onClick={() => moveSectionBy(sid()!, -1)}>
+                    <IconButton
+                        size="md"
+                        rounded="md"
+                        tone="ink"
+                        title="Move up"
+                        onClick={() => moveSectionBy(sid()!, -1)}
+                    >
                         <Icon name="chevronUp" size={15} />
-                    </button>
-                    <button class={btn} title="Move down" onClick={() => moveSectionBy(sid()!, 1)}>
+                    </IconButton>
+                    <IconButton
+                        size="md"
+                        rounded="md"
+                        tone="ink"
+                        title="Move down"
+                        onClick={() => moveSectionBy(sid()!, 1)}
+                    >
                         <Icon name="chevronDown" size={15} />
-                    </button>
-                    <button
-                        class={btn}
+                    </IconButton>
+                    <IconButton
+                        size="md"
+                        rounded="md"
+                        tone="ink"
                         title="Duplicate"
                         onClick={() => duplicateSectionAt(sid()!)}
                     >
                         <Icon name="duplicate" size={14} />
-                    </button>
-                    <button
-                        class={btn}
+                    </IconButton>
+                    <IconButton
+                        size="md"
+                        rounded="md"
+                        tone="ink"
                         title="Add section below"
                         onClick={() => addSectionAfter(sid()!)}
                     >
                         <Icon name="plus" size={15} />
-                    </button>
-                    <button
-                        class={`${btn} text-accent`}
+                    </IconButton>
+                    <IconButton
+                        size="md"
+                        rounded="md"
+                        tone="accent"
                         title="Delete section"
                         onClick={() => removeSectionAt(sid()!)}
                     >
                         <Icon name="close" size={14} />
-                    </button>
-                </div>
+                    </IconButton>
+                </FloatingBar>
             )}
         </Show>
     );

@@ -23,8 +23,9 @@
             "@elements/*": ["canvas/elements/*"],
             "@themes": ["model/theme.ts"],
             "@canvas/*": ["canvas/*"],
+            "@ui/*": ["ui/*"],
             "@editor/*": ["editor/*"]
         }
     },
-    "include": ["model", "canvas", "editor", "services", "app", "*.ts"]
+    "include": ["model", "canvas", "ui", "editor", "services", "app", "publish", "*.ts"]
 }

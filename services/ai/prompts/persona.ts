@@ -17,7 +17,7 @@ You write the content only. You never think about pixels, CSS, or layout math �
 // A one-line reminder of how the chosen surface wants to read. `format-as-view` means the same content
 // renders three ways, but the writing register differs.
 const SURFACE_VOICE: Record<Surface, string> = {
-    deck: "This is a DECK: one section = one slide. Be punchy and visual — short headlines, few words per slide, let stats/images/charts carry weight. 8–16 sections.",
+    deck: "This is a DECK: one section = one slide. Be punchy and visual — short headlines, few words per slide, let stats/images/charts carry weight. Every section must fit a 16:9 slide, so keep image grids WIDE, not tall: lay people/portraits/cards out in a single horizontal row, never a tall multi-row stack of big photos. 8–16 sections.",
     doc: "This is a DOCUMENT: continuous, read top-to-bottom. Write in fuller prose with clear headings and supporting detail. Denser than a deck.",
     web: "This is a WEBSITE: a scrolling landing page. Alternate full-bleed hero moments with feature rows, proof, and a clear call to action.",
 };

@@ -14,6 +14,7 @@ import {
     removeMark,
     toggleMark,
     normalizeMarks,
+    spliceText,
     toRuns,
 } from "@model/text";
 import {
@@ -29,6 +30,7 @@ import {
 import { ctxFor } from "@canvas/render/commands";
 import {
     registerTextField,
+    registerTextReplace,
     setActiveMarks,
     setActiveValues,
     setTextSelection,
@@ -127,6 +129,20 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         syncSel();
     };
 
+    // Replace [from, to) with AI-edited text: splice the model (shifting/keeping marks), re-render the styled
+    // DOM, and reselect the new span. Live (no history) — it folds into the current edit session's one undo
+    // step, exactly like typing. Called by the text AI menu after the model returns.
+    const replaceRange = (from: number, to: number, insert: string): void => {
+        if (!inst()) return;
+        const data = fields();
+        const { text, marks } = spliceText(data.text ?? "", data.marks ?? [], from, to, insert);
+        setArtifactLive(updateDataAt(editor.artifact, props.address, { ...data, text, marks }));
+        renderMarks(el, text, marks);
+        el.focus();
+        setOffsets(el, from, from + insert.length);
+        syncSel();
+    };
+
     onMount(() => {
         const data = fields();
         renderMarks(el, data.text ?? "", data.marks ?? []);
@@ -148,6 +164,7 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         sel?.addRange(range);
 
         registerTextField(runMark);
+        registerTextReplace(replaceRange);
         document.addEventListener("selectionchange", syncSel);
         syncSel();
         onCleanup(() => {

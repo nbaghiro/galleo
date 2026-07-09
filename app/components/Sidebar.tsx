@@ -32,10 +32,14 @@ import {
     TemplatesIcon,
     ThemeIcon,
     TrashIcon,
-} from "../components/icons";
+} from "@ui/icons";
 import { CreateModal } from "../components/modals";
 import { openThemeEditor } from "../theme";
 import { openGenerate } from "../views/generate/session";
+import { Button, Eyebrow, IconButton } from "@ui/button";
+import { TextField } from "@ui/inputs";
+import { Meter } from "@ui/status";
+import { Mark } from "@ui/brand";
 
 // Shared, route-aware app sidebar (Library / Templates / Folders…) + workspace, create menu, theme,
 // and sign-out. Built on the theme tokens so it recolors with the app theme. Folders are drop targets:
@@ -111,12 +115,14 @@ export const Sidebar: Component = () => {
     const [createOpen, setCreateOpen] = createSignal(false);
     const NewButton: Component = () => (
         <>
-            <button
-                class="flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent py-2.5 text-[13px] font-semibold text-onaccent"
+            <Button
+                variant="primary"
+                rounded="xl"
+                class="w-full"
                 onClick={() => setCreateOpen(true)}
             >
                 <PlusIcon size={15} /> New artifact
-            </button>
+            </Button>
             <Show when={createOpen()}>
                 <CreateModal
                     onClose={() => setCreateOpen(false)}
@@ -154,13 +160,13 @@ export const Sidebar: Component = () => {
 
     const pad = (d: number): string => `${8 + d * 14}px`;
     const newInput = (depth: number, placeholder: string) => (
-        <input
-            class="mx-0.5 rounded-lg border border-accent bg-canvas py-1.5 pr-2.5 text-[13px] text-ink outline-none"
+        <TextField
+            class="mx-0.5 rounded-lg border-accent pr-2.5"
             style={{ "padding-left": pad(depth) }}
             placeholder={placeholder}
             value={newName()}
             ref={(el) => queueMicrotask(() => el.focus())}
-            onInput={(e) => setNewName(e.currentTarget.value)}
+            onChange={setNewName}
             onBlur={() => submitNew()}
             onKeyDown={(e) => {
                 if (e.key === "Enter") submitNew();
@@ -180,12 +186,12 @@ export const Sidebar: Component = () => {
                 <Show
                     when={renaming() !== np.f.id}
                     fallback={
-                        <input
-                            class="mx-0.5 rounded-lg border border-accent bg-canvas py-1.5 pr-2.5 text-[13px] text-ink outline-none"
+                        <TextField
+                            class="mx-0.5 rounded-lg border-accent pr-2.5"
                             style={{ "padding-left": pad(np.depth) }}
                             value={renameName()}
                             ref={(el) => queueMicrotask(() => el.focus())}
-                            onInput={(e) => setRenameName(e.currentTarget.value)}
+                            onChange={setRenameName}
                             onBlur={() => submitRename(np.f.id)}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter") submitRename(np.f.id);
@@ -203,8 +209,10 @@ export const Sidebar: Component = () => {
                         onDrop={() => drop(np.f.id)}
                     >
                         <Show when={kids().length} fallback={<span class="w-3.5 flex-none" />}>
-                            <button
-                                class="grid h-3.5 w-3.5 flex-none place-items-center text-muted hover:text-ink"
+                            <IconButton
+                                size="2xs"
+                                tone="muted"
+                                class="flex-none"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     toggleCollapse(np.f.id);
@@ -215,7 +223,7 @@ export const Sidebar: Component = () => {
                                 >
                                     <ChevronRightIcon size={12} />
                                 </span>
-                            </button>
+                            </IconButton>
                         </Show>
                         <span
                             class="grid h-[18px] w-[18px] flex-none place-items-center"
@@ -230,8 +238,9 @@ export const Sidebar: Component = () => {
                             </span>
                         </Show>
                         <span class="hidden flex-none items-center gap-0.5 group-hover:flex">
-                            <button
-                                class="grid h-5 w-5 place-items-center rounded text-muted hover:text-ink"
+                            <IconButton
+                                size="xs"
+                                tone="muted"
                                 title="New subfolder"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -239,9 +248,10 @@ export const Sidebar: Component = () => {
                                 }}
                             >
                                 <PlusIcon size={11} />
-                            </button>
-                            <button
-                                class="grid h-5 w-5 place-items-center rounded text-muted hover:text-ink"
+                            </IconButton>
+                            <IconButton
+                                size="xs"
+                                tone="muted"
                                 title="Rename"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -250,9 +260,10 @@ export const Sidebar: Component = () => {
                                 }}
                             >
                                 <EditIcon size={12} />
-                            </button>
-                            <button
-                                class="grid h-5 w-5 place-items-center rounded text-muted hover:text-ink"
+                            </IconButton>
+                            <IconButton
+                                size="xs"
+                                tone="muted"
                                 title="Delete folder"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -261,7 +272,7 @@ export const Sidebar: Component = () => {
                                 }}
                             >
                                 <CloseIcon size={12} />
-                            </button>
+                            </IconButton>
                         </span>
                     </div>
                 </Show>
@@ -284,15 +295,11 @@ export const Sidebar: Component = () => {
                 title="Galleo — home"
                 class="flex items-center gap-2.5 px-1.5 pb-3 font-mono text-[14px] font-bold tracking-[0.06em] text-accent transition-opacity hover:opacity-70"
             >
-                <span class="grid h-6 w-6 place-items-center rounded-md bg-accent text-[13px] text-onaccent">
-                    G
-                </span>
+                <Mark size={24} rounded="md" />
                 GALLEO
             </a>
             <div class="mb-2 flex items-center gap-2.5 rounded-xl border border-line bg-canvas px-2.5 py-2">
-                <span class="grid h-7 w-7 place-items-center rounded-lg bg-accent text-[12px] font-bold text-onaccent">
-                    A
-                </span>
+                <Mark size={28} />
                 <span class="min-w-0 flex-1">
                     <span class="block truncate text-[12.5px] font-bold text-ink">
                         Atelier Studio
@@ -317,16 +324,15 @@ export const Sidebar: Component = () => {
 
             {/* Folders */}
             <div class="mt-4 flex items-center justify-between px-2.5 pb-1">
-                <span class="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                    Folders
-                </span>
-                <button
-                    class="grid h-5 w-5 place-items-center rounded text-muted hover:bg-canvas hover:text-ink"
+                <Eyebrow tracking="wider">Folders</Eyebrow>
+                <IconButton
+                    size="xs"
+                    tone="muted"
                     title="New folder"
                     onClick={() => startCreate(null)}
                 >
                     <PlusIcon size={13} />
-                </button>
+                </IconButton>
             </div>
             <div class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
                 <For each={folders().filter((f) => !f.parentId)}>
@@ -351,14 +357,12 @@ export const Sidebar: Component = () => {
                             </span>
                         </div>
                         <Show when={b().usage.maxArtifacts > 0}>
-                            <div class="my-2 h-1.5 overflow-hidden rounded-full bg-line">
-                                <div
-                                    class="h-full rounded-full bg-accent"
-                                    style={{
-                                        width: `${Math.min(100, (b().usage.artifacts / b().usage.maxArtifacts) * 100)}%`,
-                                    }}
-                                />
-                            </div>
+                            <Meter
+                                value={b().usage.artifacts}
+                                max={b().usage.maxArtifacts}
+                                trackTone="line"
+                                class="my-2"
+                            />
                         </Show>
                         <a
                             class="mt-1 block cursor-pointer text-[11.5px] font-semibold text-accent"
@@ -380,13 +384,15 @@ export const Sidebar: Component = () => {
                     <div class="truncate text-[10.5px] text-muted">{user()?.email}</div>
                 </div>
                 <ThemePicker />
-                <button
-                    class="grid h-8 w-8 flex-none place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
+                <IconButton
+                    size="lg"
+                    tone="muted"
+                    class="flex-none"
                     title="Sign out"
                     onClick={() => logout().then(() => navigate("/"))}
                 >
                     <SignOutIcon />
-                </button>
+                </IconButton>
             </div>
         </aside>
     );
@@ -394,11 +400,13 @@ export const Sidebar: Component = () => {
 
 // Opens the theme editor modal (the unified picker + custom-theme creation).
 const ThemePicker: Component = () => (
-    <button
-        class="grid h-8 w-8 flex-none place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
+    <IconButton
+        size="lg"
+        tone="muted"
+        class="flex-none"
         title="Theme"
         onClick={() => openThemeEditor()}
     >
         <ThemeIcon />
-    </button>
+    </IconButton>
 );

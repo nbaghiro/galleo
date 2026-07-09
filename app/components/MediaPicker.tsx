@@ -16,7 +16,10 @@ import { editorTokens } from "@editor/editor";
 import { api, type MediaProvidersState } from "../api";
 import { closeMediaPicker, mediaRequest, pickMedia, pickMediaIcon } from "../media";
 import { overlayThemeVars } from "../theme";
-import { CloseIcon, SearchIcon, SparkleIcon } from "./icons";
+import { CloseIcon, SparkleIcon } from "@ui/icons";
+import { Modal } from "@ui/overlay";
+import { Button, Chip, Eyebrow, IconButton } from "@ui/button";
+import { TextArea, TextField } from "@ui/inputs";
 
 // The shared media picker — a source-rail modal reused everywhere an image is chosen (the image element +
 // the section background). The rail lists every source; the main area reconfigures per source. Mounted
@@ -378,15 +381,17 @@ export const MediaPicker: Component = () => {
             <span class="grid h-4 w-4 flex-none place-items-center">{icon()}</span>
             <span class="min-w-0 flex-1 truncate">{label}</span>
             <Show when={disabled}>
-                <span class="font-mono text-[8.5px] uppercase tracking-wider text-muted">key</span>
+                <Eyebrow size={8.5} weight="normal">
+                    key
+                </Eyebrow>
             </Show>
         </button>
     );
 
     const railGroup = (label: string): JSX.Element => (
-        <div class="mb-1.5 mt-3 px-2.5 font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-muted first:mt-1">
+        <Eyebrow as="div" size={9} tracking="wide" class="mb-1.5 mt-3 px-2.5 first:mt-1">
             {label}
-        </div>
+        </Eyebrow>
     );
 
     const grid = (): JSX.Element => (
@@ -401,9 +406,9 @@ export const MediaPicker: Component = () => {
             }
         >
             <Show when={!query().trim() && isStock(source())}>
-                <div class="mb-2 font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">
+                <Eyebrow as="div" size={9} tracking="wide" class="mb-2">
                     Popular {KIND_NOUN[kind()]}
-                </div>
+                </Eyebrow>
             </Show>
             <div class="[column-gap:8px] columns-2 sm:columns-3">
                 <For each={items()}>
@@ -432,12 +437,9 @@ export const MediaPicker: Component = () => {
             </div>
             <Show when={hasMore() && isStock(source())}>
                 <div class="mt-2 flex justify-center">
-                    <button
-                        class="rounded-lg border border-line px-4 py-1.5 text-[12.5px] font-medium text-soft hover:text-ink"
-                        onClick={() => runSearch(false)}
-                    >
+                    <Button variant="outline" onClick={() => runSearch(false)}>
                         {loading() ? "Loading…" : "Load more"}
-                    </button>
+                    </Button>
                 </div>
             </Show>
         </Show>
@@ -472,9 +474,9 @@ export const MediaPicker: Component = () => {
             }
         >
             <Show when={!query().trim()}>
-                <div class="mb-2 font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">
+                <Eyebrow as="div" size={9} tracking="wide" class="mb-2">
                     Popular icons
-                </div>
+                </Eyebrow>
             </Show>
             <div class="grid grid-cols-6 gap-1.5 sm:grid-cols-8">
                 <For each={iconItems()}>
@@ -499,192 +501,174 @@ export const MediaPicker: Component = () => {
 
     return (
         <Show when={mediaRequest()}>
-            <div
-                class="fixed inset-0 z-[70] flex items-center justify-center p-6 text-ink"
-                style={themeVars()}
+            <Modal
+                onClose={closeMediaPicker}
+                scrim="blur"
+                z={70}
+                vars={themeVars()}
+                class="flex h-[600px] max-h-[86vh] max-w-[900px] flex-col overflow-hidden"
             >
-                <div
-                    class="absolute inset-0 bg-black/45 backdrop-blur-sm"
-                    onClick={closeMediaPicker}
-                />
-                <div class="relative flex h-[600px] max-h-[86vh] w-full max-w-[900px] flex-col overflow-hidden rounded-2xl border border-line bg-panel shadow-2xl">
-                    <header class="flex flex-none items-center gap-3 border-b border-line px-5 py-3">
-                        <h2
-                            class="font-display text-[16px] font-semibold text-ink"
-                            style={{ "font-weight": "var(--hw)" }}
-                        >
-                            {KIND_TITLE[kind()]}
-                        </h2>
-                        <Show when={error()}>
-                            <span class="truncate text-[12px] text-red-500">{error()}</span>
-                        </Show>
-                        <button
-                            class="ml-auto grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
-                            onClick={closeMediaPicker}
-                        >
-                            <CloseIcon size={15} />
-                        </button>
-                    </header>
+                <header class="flex flex-none items-center gap-3 border-b border-line px-5 py-3">
+                    <h2
+                        class="font-display text-[16px] font-semibold text-ink"
+                        style={{ "font-weight": "var(--hw)" }}
+                    >
+                        {KIND_TITLE[kind()]}
+                    </h2>
+                    <Show when={error()}>
+                        <span class="truncate text-[12px] text-red-500">{error()}</span>
+                    </Show>
+                    <IconButton size="md" tone="muted" class="ml-auto" onClick={closeMediaPicker}>
+                        <CloseIcon size={15} />
+                    </IconButton>
+                </header>
 
-                    <div class="flex min-h-0 flex-1">
-                        {/* rail */}
-                        <nav class="w-[170px] flex-none overflow-y-auto border-r border-line px-2 py-2">
-                            <Show
-                                when={kind() !== "icon"}
-                                fallback={
-                                    <>
-                                        {railGroup("Icons")}
-                                        {railBtn("icons", "Icons", RailIcon.icons)}
-                                    </>
+                <div class="flex min-h-0 flex-1">
+                    {/* rail */}
+                    <nav class="w-[170px] flex-none overflow-y-auto border-r border-line px-2 py-2">
+                        <Show
+                            when={kind() !== "icon"}
+                            fallback={
+                                <>
+                                    {railGroup("Icons")}
+                                    {railBtn("icons", "Icons", RailIcon.icons)}
+                                </>
+                            }
+                        >
+                            {railGroup("Yours")}
+                            {railBtn("recent", "Recent", RailIcon.recent)}
+                            {railBtn("upload", "Upload", RailIcon.upload)}
+                            {railGroup("Stock")}
+                            <For each={stockSources()}>
+                                {(p) =>
+                                    railBtn(
+                                        p,
+                                        p.charAt(0).toUpperCase() + p.slice(1),
+                                        RailIcon.photo,
+                                        !providers().stock[p],
+                                    )
                                 }
-                            >
-                                {railGroup("Yours")}
-                                {railBtn("recent", "Recent", RailIcon.recent)}
-                                {railBtn("upload", "Upload", RailIcon.upload)}
-                                {railGroup("Stock")}
-                                <For each={stockSources()}>
-                                    {(p) =>
-                                        railBtn(
-                                            p,
-                                            p.charAt(0).toUpperCase() + p.slice(1),
-                                            RailIcon.photo,
-                                            !providers().stock[p],
-                                        )
+                            </For>
+                            {/* Generate is image-only (the model can't animate) — hidden for GIFs */}
+                            <Show when={kind() !== "gif"}>
+                                {railGroup("Create")}
+                                {railBtn(
+                                    "generate",
+                                    "Generate",
+                                    () => (
+                                        <SparkleIcon size={14} />
+                                    ),
+                                    !providers().generate,
+                                )}
+                            </Show>
+                        </Show>
+                    </nav>
+
+                    {/* main */}
+                    <div class="flex min-w-0 flex-1 flex-col">
+                        <Show when={isStock(source()) || source() === "icons"}>
+                            <div class="flex-none px-4 pt-3">
+                                <TextField
+                                    icon="search"
+                                    placeholder={
+                                        source() === "icons"
+                                            ? "Search icons…"
+                                            : `Search ${source()}…`
                                     }
-                                </For>
-                                {/* Generate is image-only (the model can't animate) — hidden for GIFs */}
-                                <Show when={kind() !== "gif"}>
-                                    {railGroup("Create")}
-                                    {railBtn(
-                                        "generate",
-                                        "Generate",
-                                        () => (
-                                            <SparkleIcon size={14} />
-                                        ),
-                                        !providers().generate,
-                                    )}
-                                </Show>
-                            </Show>
-                        </nav>
-
-                        {/* main */}
-                        <div class="flex min-w-0 flex-1 flex-col">
-                            <Show when={isStock(source()) || source() === "icons"}>
-                                <div class="flex-none px-4 pt-3">
-                                    <div class="flex items-center gap-2 rounded-lg border border-line bg-canvas px-3 py-2 text-ink focus-within:border-accent">
-                                        <span class="flex-none text-muted">
-                                            <SearchIcon size={15} />
-                                        </span>
-                                        <input
-                                            class="min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-muted"
-                                            placeholder={
-                                                source() === "icons"
-                                                    ? "Search icons…"
-                                                    : `Search ${source()}…`
-                                            }
-                                            value={query()}
-                                            onInput={(e) => onQuery(e.currentTarget.value)}
-                                            onKeyDown={(e) =>
-                                                e.key === "Enter" &&
-                                                (source() === "icons"
-                                                    ? runIconSearch()
-                                                    : runSearch(true))
-                                            }
-                                        />
-                                    </div>
-                                </div>
-                            </Show>
-
-                            <Show when={source() === "generate"}>
-                                <div class="flex-none px-4 pt-3">
-                                    <textarea
-                                        rows={2}
-                                        class="w-full resize-none rounded-lg border border-line bg-canvas px-3 py-2 text-[13.5px] text-ink outline-none focus:border-accent"
-                                        placeholder="Describe the image — e.g. a rooftop solar array at golden hour, wide angle"
-                                        value={prompt()}
-                                        onInput={(e) => setPrompt(e.currentTarget.value)}
-                                    />
-                                    <div class="mt-2 flex flex-wrap items-center gap-1.5">
-                                        <span class="text-[11px] text-muted">Style</span>
-                                        <For each={MEDIA_GEN_STYLES}>
-                                            {(s) => (
-                                                <button
-                                                    class={`rounded-full border px-2.5 py-0.5 text-[11.5px] ${
-                                                        genStyle() === s.value
-                                                            ? "border-transparent bg-accent/12 font-semibold text-accent"
-                                                            : "border-line text-soft hover:text-ink"
-                                                    }`}
-                                                    onClick={() => setGenStyle(s.value)}
-                                                >
-                                                    {s.label}
-                                                </button>
-                                            )}
-                                        </For>
-                                    </div>
-                                    <div class="mt-2 flex items-center gap-1.5">
-                                        <span class="text-[11px] text-muted">Ratio</span>
-                                        <For each={MEDIA_ASPECTS}>
-                                            {(a) => (
-                                                <button
-                                                    class={`rounded-full border px-2.5 py-0.5 text-[11.5px] ${
-                                                        aspect() === a.value
-                                                            ? "border-transparent bg-accent/12 font-semibold text-accent"
-                                                            : "border-line text-soft hover:text-ink"
-                                                    }`}
-                                                    onClick={() => setAspect(a.value)}
-                                                >
-                                                    {a.label}
-                                                </button>
-                                            )}
-                                        </For>
-                                        <button
-                                            class="ml-auto flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold text-onaccent disabled:opacity-60"
-                                            disabled={loading() || !prompt().trim()}
-                                            onClick={generate}
-                                        >
-                                            <SparkleIcon size={13} />
-                                            {loading() ? "Generating…" : "Generate"}
-                                        </button>
-                                    </div>
-                                </div>
-                            </Show>
-
-                            <div class="min-h-0 flex-1 overflow-y-auto p-4">
-                                <Switch fallback={grid()}>
-                                    <Match when={source() === "icons"}>{iconGrid()}</Match>
-                                    <Match when={source() === "upload"}>
-                                        <button
-                                            class="grid h-full w-full place-items-center rounded-xl border-2 border-dashed border-line text-center text-muted hover:border-accent hover:text-ink"
-                                            onClick={() => fileInput.click()}
-                                        >
-                                            <span>
-                                                <span class="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-full bg-canvas">
-                                                    {RailIcon.upload()}
-                                                </span>
-                                                <span class="block text-[13.5px] font-medium text-ink">
-                                                    {loading()
-                                                        ? "Uploading…"
-                                                        : "Choose a file to upload"}
-                                                </span>
-                                                <span class="block text-[12px]">
-                                                    PNG, JPG, or GIF
-                                                </span>
-                                            </span>
-                                        </button>
-                                    </Match>
-                                </Switch>
+                                    value={query()}
+                                    onChange={onQuery}
+                                    onKeyDown={(e) =>
+                                        e.key === "Enter" &&
+                                        (source() === "icons" ? runIconSearch() : runSearch(true))
+                                    }
+                                />
                             </div>
+                        </Show>
+
+                        <Show when={source() === "generate"}>
+                            <div class="flex-none px-4 pt-3">
+                                <TextArea
+                                    rows={2}
+                                    rounded="lg"
+                                    placeholder="Describe the image — e.g. a rooftop solar array at golden hour, wide angle"
+                                    value={prompt()}
+                                    onChange={setPrompt}
+                                />
+                                <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                                    <span class="text-[11px] text-muted">Style</span>
+                                    <For each={MEDIA_GEN_STYLES}>
+                                        {(s) => (
+                                            <Chip
+                                                variant="soft"
+                                                selected={genStyle() === s.value}
+                                                onClick={() => setGenStyle(s.value)}
+                                            >
+                                                {s.label}
+                                            </Chip>
+                                        )}
+                                    </For>
+                                </div>
+                                <div class="mt-2 flex items-center gap-1.5">
+                                    <span class="text-[11px] text-muted">Ratio</span>
+                                    <For each={MEDIA_ASPECTS}>
+                                        {(a) => (
+                                            <Chip
+                                                variant="soft"
+                                                selected={aspect() === a.value}
+                                                onClick={() => setAspect(a.value)}
+                                            >
+                                                {a.label}
+                                            </Chip>
+                                        )}
+                                    </For>
+                                    <Button
+                                        variant="primary"
+                                        size="sm"
+                                        class="ml-auto"
+                                        loading={loading()}
+                                        disabled={!prompt().trim()}
+                                        onClick={generate}
+                                    >
+                                        <SparkleIcon size={13} />
+                                        {loading() ? "Generating…" : "Generate"}
+                                    </Button>
+                                </div>
+                            </div>
+                        </Show>
+
+                        <div class="min-h-0 flex-1 overflow-y-auto p-4">
+                            <Switch fallback={grid()}>
+                                <Match when={source() === "icons"}>{iconGrid()}</Match>
+                                <Match when={source() === "upload"}>
+                                    <button
+                                        class="grid h-full w-full place-items-center rounded-xl border-2 border-dashed border-line text-center text-muted hover:border-accent hover:text-ink"
+                                        onClick={() => fileInput.click()}
+                                    >
+                                        <span>
+                                            <span class="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-full bg-canvas">
+                                                {RailIcon.upload()}
+                                            </span>
+                                            <span class="block text-[13.5px] font-medium text-ink">
+                                                {loading()
+                                                    ? "Uploading…"
+                                                    : "Choose a file to upload"}
+                                            </span>
+                                            <span class="block text-[12px]">PNG, JPG, or GIF</span>
+                                        </span>
+                                    </button>
+                                </Match>
+                            </Switch>
                         </div>
                     </div>
-                    <input
-                        ref={fileInput}
-                        type="file"
-                        accept="image/*"
-                        class="hidden"
-                        onChange={(e) => onFiles(e.currentTarget.files)}
-                    />
                 </div>
-            </div>
+                <input
+                    ref={fileInput}
+                    type="file"
+                    accept="image/*"
+                    class="hidden"
+                    onChange={(e) => onFiles(e.currentTarget.files)}
+                />
+            </Modal>
         </Show>
     );
 };

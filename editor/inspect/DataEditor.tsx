@@ -13,6 +13,8 @@ import { renderDiagram } from "@elements/diagram/render";
 import type { ChartData } from "@elements/chart/utils";
 import type { DiagramData } from "@elements/diagram/utils";
 import { commit, editor, editorTokens } from "../editor";
+import { Badge, Button, IconButton } from "@ui/button";
+import { Modal } from "@ui/overlay";
 import { SchemaFields } from "./fields";
 import { DataGrid } from "./DataGrid";
 import { DATA_KEYS, type Kind } from "./data-model";
@@ -85,61 +87,50 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
     };
 
     return (
-        <div
-            class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-            onClick={(e) => {
-                if (e.target === e.currentTarget) close();
-            }}
+        <Modal
+            scrim="blur"
+            size="full"
+            z={80}
+            class="flex h-[760px] max-h-[90vh] w-[min(1140px,96vw)] flex-col overflow-hidden"
+            onClose={close}
         >
-            <div class="flex h-[min(760px,92vh)] w-[min(1140px,96vw)] flex-col overflow-hidden rounded-2xl border border-line bg-panel text-ink shadow-2xl">
-                <div class="flex items-center gap-3 border-b border-line px-5 py-3">
-                    <div class="text-[15px] font-semibold">Edit data</div>
-                    <span class="rounded-full border border-line px-2.5 py-0.5 text-[11px] font-medium text-muted">
-                        {spec?.label ?? "Element"}
-                    </span>
-                    <div class="flex-1" />
-                    <button
-                        class="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-soft hover:bg-canvas"
-                        onClick={close}
-                    >
-                        ✕
-                    </button>
-                </div>
-
-                <div class="flex min-h-0 flex-1">
-                    <aside class="flex w-[320px] flex-none flex-col gap-4 overflow-y-auto border-r border-line p-4">
-                        <div class="rounded-xl border border-line bg-canvas p-2.5">
-                            <canvas ref={cv} class="block w-full rounded-md" />
-                            <div class="mt-2 px-1 text-[10px] font-medium uppercase tracking-wider text-muted">
-                                Live preview
-                            </div>
-                        </div>
-                        <Show when={configControls.length > 0}>
-                            <SchemaFields
-                                controls={configControls}
-                                read={cfgRead}
-                                write={cfgWrite}
-                            />
-                        </Show>
-                    </aside>
-
-                    <DataGrid address={addr} />
-                </div>
-
-                <div class="flex items-center gap-2 border-t border-line px-5 py-3">
-                    <span class="text-[12px] text-muted">
-                        Edits save to the element and update the canvas live.
-                    </span>
-                    <div class="flex-1" />
-                    <button
-                        class="rounded-lg border border-accent bg-accent px-5 py-2 text-[13px] font-semibold text-onaccent"
-                        onClick={close}
-                    >
-                        Done
-                    </button>
-                </div>
+            <div class="flex items-center gap-3 border-b border-line px-5 py-3">
+                <div class="text-[15px] font-semibold">Edit data</div>
+                <Badge tone="outline" size="md" weight="medium">
+                    {spec?.label ?? "Element"}
+                </Badge>
+                <div class="flex-1" />
+                <IconButton size="lg" rounded="lg" bordered tone="soft" onClick={close}>
+                    ✕
+                </IconButton>
             </div>
-        </div>
+
+            <div class="flex min-h-0 flex-1">
+                <aside class="flex w-[320px] flex-none flex-col gap-4 overflow-y-auto border-r border-line p-4">
+                    <div class="rounded-xl border border-line bg-canvas p-2.5">
+                        <canvas ref={cv} class="block w-full rounded-md" />
+                        <div class="mt-2 px-1 text-[10px] font-medium uppercase tracking-wider text-muted">
+                            Live preview
+                        </div>
+                    </div>
+                    <Show when={configControls.length > 0}>
+                        <SchemaFields controls={configControls} read={cfgRead} write={cfgWrite} />
+                    </Show>
+                </aside>
+
+                <DataGrid address={addr} />
+            </div>
+
+            <div class="flex items-center gap-2 border-t border-line px-5 py-3">
+                <span class="text-[12px] text-muted">
+                    Edits save to the element and update the canvas live.
+                </span>
+                <div class="flex-1" />
+                <Button variant="primary" size="md" onClick={close}>
+                    Done
+                </Button>
+            </div>
+        </Modal>
     );
 };
 

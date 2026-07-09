@@ -8,9 +8,10 @@ import { limitsFor } from "@model/billing";
 import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
 import { currentUser, currentWorkspace, readJson } from "./context";
-import type { ArtifactContent } from "@model/artifact";
+import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import { aiReady } from "../ai/provider";
-import { runTurn } from "../ai/run";
+import { reviseElement, runTurn } from "../ai/run";
+import { rewriteText, translateText } from "../ai/text";
 import { suggestSections } from "../ai/suggest";
 import { generateThemeFromPrompt } from "../ai/theme";
 
@@ -34,7 +35,7 @@ const meterFor = (req: TurnRequest): MeterParams =>
 
 // The kinds whose runtime is actually built. Others 501 before any charge (runTurn also guards them, but
 // blocking here keeps us from reserving credits for a capability that can't run).
-const IMPLEMENTED: readonly TurnKind[] = ["generate", "section"];
+const IMPLEMENTED: readonly TurnKind[] = ["generate", "section", "chat"];
 
 // POST /ai/turn — run one turn (generate · edit · section · chat). Reserves a size-aware credit estimate,
 // then streams turn.start → phase → plan → per-section status/patch/narration → turn.done as SSE frames.
@@ -52,6 +53,8 @@ ai.post("/ai/turn", async (c) => {
         return c.json({ error: "a prompt is required" }, 400);
     if (req.kind === "section" && (!req.input?.instruction?.trim() || !req.input?.content))
         return c.json({ error: "an instruction and the current artifact are required" }, 400);
+    if (req.kind === "chat" && !req.input?.message?.trim())
+        return c.json({ error: "a message is required" }, 400);
 
     // Credit gate — reserve a size-aware estimate before the billable model calls. 402 when spent.
     const cost = estimateCost(ACTION_FOR[req.kind], meterFor(req));
@@ -102,6 +105,104 @@ ai.post("/ai/suggest", async (c) => {
         return c.json({ suggestions: await suggestSections(body.content) });
     } catch {
         return c.json({ suggestions: [] });
+    }
+});
+
+// POST /ai/element — regenerate ONE element in place. Not a streamed turn: a single call returns the fresh
+// element for the editor to swap in (undoable client-side). The element rides along in the body (the runtime
+// can't traverse the canvas tree), with the section it lives in for context. Reserves the metered
+// edit-element cost up front, same gate as a turn; 402 when spent, 500 on a generation failure.
+ai.post("/ai/element", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await currentWorkspace(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+    if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
+    const body = await readJson<{
+        content?: ArtifactContent;
+        sectionId?: string;
+        element?: ElementInstance;
+        instruction?: string;
+    }>(c);
+    if (!body?.content?.sections?.length || !body.sectionId || !body.element?.type)
+        return c.json({ error: "content, sectionId, and element are required" }, 400);
+
+    const cost = estimateCost("edit-element");
+    const limit = limitsFor(ws.plan).aiCreditsPerMonth;
+    if (ws.aiCreditsUsed + cost > limit)
+        return c.json(
+            {
+                error: "out of AI credits",
+                upgrade: true,
+                remaining: Math.max(0, limit - ws.aiCreditsUsed),
+            },
+            402,
+        );
+    await db
+        .update(schema.workspaces)
+        .set({ aiCreditsUsed: ws.aiCreditsUsed + cost })
+        .where(eq(schema.workspaces.id, ws.id));
+
+    try {
+        const element = await reviseElement(
+            body.content,
+            body.sectionId,
+            body.element,
+            body.instruction,
+        );
+        return c.json({ element });
+    } catch (e) {
+        return c.json({ error: e instanceof Error ? e.message : "regeneration failed" }, 500);
+    }
+});
+
+// POST /ai/text — rewrite or translate ONE selected passage. Not a streamed turn: a single fast call returns
+// the edited text for the editor to splice back into the selection. Meters as the matching text action
+// (rewrite / translate). 402 when out of credits, 500 on a generation failure.
+ai.post("/ai/text", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await currentWorkspace(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+    if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
+    const body = await readJson<{
+        op?: "rewrite" | "translate";
+        text?: string;
+        instruction?: string;
+        language?: string;
+        context?: string;
+    }>(c);
+    if (!body?.text?.trim() || (body.op !== "rewrite" && body.op !== "translate"))
+        return c.json({ error: "op ('rewrite' | 'translate') and text are required" }, 400);
+    if (body.op === "rewrite" && !body.instruction?.trim())
+        return c.json({ error: "an instruction is required" }, 400);
+    if (body.op === "translate" && !body.language?.trim())
+        return c.json({ error: "a target language is required" }, 400);
+
+    const cost = estimateCost(body.op === "translate" ? "translate" : "rewrite");
+    const limit = limitsFor(ws.plan).aiCreditsPerMonth;
+    if (ws.aiCreditsUsed + cost > limit)
+        return c.json(
+            {
+                error: "out of AI credits",
+                upgrade: true,
+                remaining: Math.max(0, limit - ws.aiCreditsUsed),
+            },
+            402,
+        );
+    await db
+        .update(schema.workspaces)
+        .set({ aiCreditsUsed: ws.aiCreditsUsed + cost })
+        .where(eq(schema.workspaces.id, ws.id));
+
+    try {
+        const text =
+            body.op === "translate"
+                ? await translateText(body.text, body.language!.trim(), { context: body.context })
+                : await rewriteText(body.text, body.instruction!.trim(), { context: body.context });
+        return c.json({ text });
+    } catch (e) {
+        return c.json({ error: e instanceof Error ? e.message : "the edit failed" }, 500);
     }
 });
 

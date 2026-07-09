@@ -62,9 +62,56 @@ export interface SectionInput {
     content: ArtifactContent; // the current artifact — for neighbor context, surface/theme, and id allocation
 }
 
-export interface ChatInput {
-    message: string; // conversational turn; may research + propose a patch, or just reply
+// What the chat agent is looking at. Assembled on the client each message. The full `content` rides along
+// for server-side tools (edit/add a section need the real tree), but the MODEL only ever sees the compact
+// digest + focus derived from it — so the model's context stays cheap regardless of artifact size.
+export interface ChatFocus {
+    kind: "element" | "cell" | "section" | "none";
+    sectionId?: string;
+    cell?: string;
+    elementType?: string; // the selected element's type (stat, image, …)
+    headline?: string; // the focused section/element's first text, for grounding
 }
+
+// A compact picture of the user's workspace, sent when NO artifact is open (the library / templates / trash
+// views) so the agent can ground itself — reference their recent work, size the workspace, help them start
+// something — instead of only knowing "no artifact is open".
+export interface ChatLibrary {
+    view?: string; // where they are: "library" | "templates" | "trash" | "shared"
+    artifactCount?: number; // how many artifacts they have
+    recent?: { title: string; format: string }[]; // a few most-recent titles, for grounding
+    folder?: string; // the folder they're filtered to, if any
+}
+
+export interface ChatContext {
+    surface: "editor" | "library"; // where the chat is being used
+    artifactId?: string;
+    content?: ArtifactContent; // the open artifact (editor surface) — server derives the digest for the model
+    focus?: ChatFocus;
+    library?: ChatLibrary; // present on the "library" surface (no open artifact) — the workspace summary
+    plan?: string; // workspace plan, so the agent can hint at gated capabilities
+}
+
+export interface ChatTurnRef {
+    role: "user" | "assistant";
+    text: string; // prior messages, compacted (widgets aren't replayed to the model)
+}
+
+export interface ChatInput {
+    message: string;
+    context: ChatContext;
+    history?: ChatTurnRef[];
+}
+
+// A rich block in an assistant message — a chat response is an ordered list of these. Text streams in as
+// `chat.text` deltas; the widget blocks arrive whole as `chat.block`. `proposal` carries a mutation the user
+// applies or discards (with a real section preview); `preview` shows content without changing anything.
+export type ChatBlock =
+    | { type: "text"; text: string }
+    | { type: "suggestions"; items: string[] }
+    | { type: "proposal"; summary: string; patch: Patch; preview?: Section }
+    | { type: "preview"; section?: Section; format?: string }
+    | { type: "sections"; sections: Section[]; format?: string }; // a scrollable carousel of existing sections
 
 export type TurnRequest =
     | { kind: "generate"; input: GenerateInput }
@@ -190,6 +237,10 @@ export type TurnEvent =
     | { type: "section.status"; id: string; status: SectionStatus }
     | { type: "patch"; ops: Patch } // apply to the canvas as it streams
     | { type: "reply"; text: string } // chat/research answer
+    | { type: "chat.text"; delta: string } // streamed assistant prose (appended to the message's text)
+    | { type: "chat.tool"; blockId: string; tool: string; title: string } // a tool started → a widget shell appears
+    | { type: "chat.nested"; blockId: string; event: TurnEvent } // a capability event routed to a block's widget
+    | { type: "chat.block"; blockId: string; block: ChatBlock } // a finished widget block
     | { type: "turn.done"; summary?: string }
     | { type: "error"; message: string };
 

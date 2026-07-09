@@ -2,9 +2,12 @@ import type { Component } from "solid-js";
 import { createSignal, Show } from "solid-js";
 import { login } from "../stores/auth";
 import { Visual } from "../components/previews";
+import { TextField } from "@ui/inputs";
+import { Button, Eyebrow } from "@ui/button";
 
-const field =
-    "w-full rounded-lg border border-line bg-panel px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-muted focus:border-accent";
+// Auth fields are visually larger than the studio default (rounded-lg, raised bg-panel, bigger pad,
+// 14px, muted placeholder) — pass those as a class on TextField's base input style.
+const authField = "rounded-lg bg-panel px-3.5 py-2.5 text-[14px] placeholder:text-muted";
 const oauth =
     "flex items-center justify-center gap-2 rounded-lg border border-line bg-panel py-2.5 text-[13px] font-medium text-soft cursor-not-allowed opacity-55";
 const serif = "var(--font-display, 'Fraunces', serif)";
@@ -87,38 +90,36 @@ export const AuthPage: Component = () => {
                     </p>
 
                     <form onSubmit={(e) => submit(e)} class="flex flex-col gap-2.5">
-                        <label class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
-                            Email
-                        </label>
-                        <input
+                        <Eyebrow>Email</Eyebrow>
+                        <TextField
                             type="email"
                             autocomplete="email"
                             placeholder="you@studio.com"
-                            class={field}
+                            class={authField}
                             value={email()}
-                            onInput={(e) => setEmail(e.currentTarget.value)}
+                            onChange={setEmail}
                         />
-                        <label class="mt-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
-                            Password
-                        </label>
-                        <input
+                        <Eyebrow class="mt-1.5">Password</Eyebrow>
+                        <TextField
                             type="password"
                             autocomplete="current-password"
                             placeholder="••••••••"
-                            class={field}
+                            class={authField}
                             value={password()}
-                            onInput={(e) => setPassword(e.currentTarget.value)}
+                            onChange={setPassword}
                         />
                         <Show when={error()}>
                             <p class="text-[12px] text-accent">{error()}</p>
                         </Show>
-                        <button
+                        <Button
                             type="submit"
-                            disabled={busy()}
-                            class="mt-2 w-full rounded-lg bg-accent px-3 py-2.5 text-[14px] font-semibold text-onaccent disabled:opacity-60"
+                            variant="primary"
+                            size="lg"
+                            loading={busy()}
+                            class="mt-2 w-full"
                         >
                             {busy() ? "Signing in…" : "Sign in"}
-                        </button>
+                        </Button>
                     </form>
 
                     <div class="my-5 flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.12em] text-muted">

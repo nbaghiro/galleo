@@ -1,8 +1,11 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { resolveProfile } from "@engine/profile";
-import { backdropCss, paintSectionStack } from "@canvas/render/backends";
+import { paintSectionStack } from "@canvas/render/backends";
 import { slideElement, SLIDE_W, SLIDE_H } from "@canvas/render/present";
+import { SlideProgress, backdropHostStyle } from "@ui/section";
+import { FloatingBar } from "@ui/overlay";
+import { IconButton } from "@ui/button";
 import {
     editor,
     editorTokens,
@@ -13,7 +16,7 @@ import {
     setSlideIndex,
     slideIndex,
 } from "../editor";
-import { Icon } from "../icons";
+import { Icon } from "@ui/icons";
 
 const MINI_W = 250;
 
@@ -168,16 +171,8 @@ export const Present: Component = () => {
     });
 
     const total = (): number => editor.artifact.sections.length;
-    const chrome = "grid h-7 w-7 flex-none place-items-center rounded-lg transition-colors";
     const hostStyle = createMemo(
-        (): JSX.CSSProperties =>
-            paged()
-                ? {}
-                : {
-                      background: backdropCss(editor.artifact.background, theme()),
-                      "background-size": "cover",
-                      "background-position": "center",
-                  },
+        (): JSX.CSSProperties => backdropHostStyle(paged(), editor.artifact.background, theme()),
     );
 
     return (
@@ -196,82 +191,92 @@ export const Present: Component = () => {
 
                 {/* deck: progress + slide controls */}
                 <Show when={paged()}>
-                    <div class="pointer-events-none absolute left-0 top-0 h-[3px] w-full bg-white/10">
-                        <div
-                            class="h-full bg-white/70 transition-all"
-                            style={{
-                                width: `${total() ? ((slideIndex() + 1) / total()) * 100 : 0}%`,
-                            }}
-                        />
-                    </div>
-                    <div
-                        class="absolute bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-xl border border-white/10 bg-black/55 px-2 py-1.5 text-white/80 backdrop-blur-md"
+                    <SlideProgress index={slideIndex()} total={total()} />
+                    <FloatingBar
+                        tone="dark"
+                        anchor="bottomCenter"
+                        rounded="xl"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <button
-                            class={`${chrome} hover:bg-white/10`}
+                        <IconButton
+                            size="md"
+                            rounded="lg"
+                            tone="onDark"
                             title="Previous (←)"
                             onClick={() => prevSlide()}
                         >
                             <Icon name="chevronLeft" size={16} />
-                        </button>
+                        </IconButton>
                         <span class="px-1.5 font-mono text-[12px] tabular-nums">
                             {slideIndex() + 1} / {total()}
                         </span>
-                        <button
-                            class={`${chrome} hover:bg-white/10`}
+                        <IconButton
+                            size="md"
+                            rounded="lg"
+                            tone="onDark"
                             title="Next (→)"
                             onClick={() => nextSlide()}
                         >
                             <Icon name="chevronRight" size={16} />
-                        </button>
+                        </IconButton>
                         <span class="mx-1 h-4 w-px bg-white/15" />
-                        <button
-                            class={`${chrome} ${overview() ? "bg-white/15" : "hover:bg-white/10"}`}
+                        <IconButton
+                            size="md"
+                            rounded="lg"
+                            tone="onDark"
+                            active={overview()}
                             title="Overview (O)"
                             onClick={() => setOverview((v) => !v)}
                         >
                             <Icon name="grid" size={15} />
-                        </button>
-                        <button
-                            class={`${chrome} hover:bg-white/10`}
+                        </IconButton>
+                        <IconButton
+                            size="md"
+                            rounded="lg"
+                            tone="onDark"
                             title="Fullscreen (F)"
                             onClick={toggleFs}
                         >
                             <Icon name="fullscreen" size={15} />
-                        </button>
-                        <button
-                            class={`${chrome} hover:bg-white/10`}
+                        </IconButton>
+                        <IconButton
+                            size="md"
+                            rounded="lg"
+                            tone="onDark"
                             title="Exit (Esc)"
                             onClick={() => exitPresent()}
                         >
                             <Icon name="close" size={15} />
-                        </button>
-                    </div>
+                        </IconButton>
+                    </FloatingBar>
                 </Show>
 
                 {/* doc / web: minimal floating controls */}
                 <Show when={!paged()}>
-                    <div class="absolute bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-xl border border-white/10 bg-black/55 px-2 py-1.5 text-white/80 backdrop-blur-md">
+                    <FloatingBar tone="dark" anchor="bottomCenter" rounded="xl">
                         <span class="px-1.5 text-[11px] uppercase tracking-wider text-white/55">
                             Preview
                         </span>
                         <span class="mx-1 h-4 w-px bg-white/15" />
-                        <button
-                            class={`${chrome} hover:bg-white/10`}
+                        <IconButton
+                            size="md"
+                            rounded="lg"
+                            tone="onDark"
                             title="Fullscreen (F)"
                             onClick={toggleFs}
                         >
                             <Icon name="fullscreen" size={15} />
-                        </button>
-                        <button
-                            class={`${chrome} hover:bg-white/10`}
+                        </IconButton>
+                        <IconButton
+                            size="md"
+                            rounded="lg"
+                            tone="onDark"
                             title="Exit (Esc)"
                             onClick={() => exitPresent()}
                         >
                             <Icon name="close" size={15} />
-                        </button>
-                    </div>
+                        </IconButton>
+                    </FloatingBar>
                 </Show>
             </div>
         </Show>

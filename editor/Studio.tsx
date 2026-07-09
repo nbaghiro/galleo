@@ -6,7 +6,8 @@ import { Canvas } from "./canvas/Canvas";
 import { DataEditor } from "./inspect/DataEditor";
 import { DragGhost } from "./canvas/insert";
 import { editorTokens, leftOpen, setLeftOpen } from "./editor";
-import { Icon } from "./icons";
+import { IconButton } from "@ui/button";
+import { Icon, UiThemeProvider } from "@ui/icons";
 import { Minimap } from "./chrome/Minimap";
 import { Panel } from "./chrome/Panel";
 import { Present } from "./canvas/Present";
@@ -51,32 +52,38 @@ export const Studio: Component = () => {
     );
 
     return (
-        <div
-            class="grid h-screen grid-rows-[52px_1fr] overflow-hidden bg-canvas text-ink"
-            style={vars()}
-        >
-            <Topbar />
-            <div class="relative min-h-0 overflow-hidden">
-                <Canvas />
-                <Show
-                    when={leftOpen()}
-                    fallback={
-                        <button
-                            class="absolute left-3 top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl border border-line bg-panel/95 text-muted shadow-lg backdrop-blur-md transition-colors hover:text-ink"
-                            title="Sections"
-                            onClick={() => setLeftOpen(true)}
-                        >
-                            <Icon name="sections" />
-                        </button>
-                    }
-                >
-                    <Minimap />
-                </Show>
-                <Panel />
+        <UiThemeProvider tokens={editorTokens}>
+            <div
+                class="grid h-screen grid-rows-[52px_1fr] overflow-hidden bg-canvas text-ink"
+                style={vars()}
+            >
+                <Topbar />
+                <div class="relative min-h-0 overflow-hidden">
+                    <Canvas />
+                    <Show
+                        when={leftOpen()}
+                        fallback={
+                            <IconButton
+                                size="xl"
+                                bordered
+                                tone="muted"
+                                rounded="xl"
+                                class="absolute left-3 top-1/2 z-20 -translate-y-1/2 bg-panel/95 shadow-lg backdrop-blur-md"
+                                title="Sections"
+                                onClick={() => setLeftOpen(true)}
+                            >
+                                <Icon name="sections" />
+                            </IconButton>
+                        }
+                    >
+                        <Minimap />
+                    </Show>
+                    <Panel />
+                </div>
+                <DragGhost />
+                <Present />
+                <DataEditor />
             </div>
-            <DragGhost />
-            <Present />
-            <DataEditor />
-        </div>
+        </UiThemeProvider>
     );
 };

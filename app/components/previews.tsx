@@ -12,8 +12,9 @@ import {
 import type { Section, ArtifactContent } from "@model/artifact";
 import { resolveProfile } from "@engine/profile";
 import { resolveTheme } from "@themes";
-import { paint, backdropCss, paintSectionStack } from "@canvas/render/backends";
-import { measureText, layoutSlide, SECTION_GAP } from "@canvas/render/commands";
+import { backdropCss, paintSectionStack } from "@canvas/render/backends";
+import { SECTION_GAP } from "@canvas/render/commands";
+import { ScaledSectionCanvas } from "@ui/section";
 
 // Themeable abstract motion for the sign-in panel — colored from --color-accent (see visuals.css).
 // Cycles through a curated set (crossfading); pass `viz` to pin a single one.
@@ -166,14 +167,11 @@ export const Visual: Component<{ viz?: Viz }> = (props) => {
 // layout/text/images. Every section uses one uniform 16:9 frame (deck/doc/site alike) so the
 // filmstrip stays aligned; the format still drives how the content composes, just not the card shape.
 // Rendering is lazy (only when scrolled near view) so a library of many artifacts × sections stays fast.
-const LW = 1280; // layout width, then scaled to the card
-const SH = 720; // 16:9 slide frame
 const DEFAULT_W = 176; // default card width
 
-// A shared, presentational mini-canvas — renders a REAL Section with the engine at a logical slide width,
-// then CSS-scales it to `width`. Real text + images, just small: the payoff of a resolution-independent
-// engine (render at any dimension, then scale). Non-interactive; wrap it where you need a button/card (see
-// SectionThumb, which is exactly this + selection/onOpen). Reuse anywhere a scaled section render is wanted.
+// A shared, presentational mini-canvas — a REAL Section rendered by the engine at a logical slide width
+// then CSS-scaled to `width`. Thin id-resolving wrapper over @ui/section's ScaledSectionCanvas (frame
+// "slide"); non-interactive, unframed (no radius/border), so callers can card/round it themselves.
 export const MiniCanvas: Component<{
     section: Section;
     themeId: string;
@@ -181,51 +179,21 @@ export const MiniCanvas: Component<{
     width: number; // final (scaled) width, px — the frame is 16:9
     lazy?: boolean; // defer paint until near view (default false — tiles are usually on-screen)
     class?: string;
-}> = (props) => {
-    let wrap!: HTMLDivElement;
-    let inner!: HTMLDivElement;
-    const [visible, setVisible] = createSignal(!props.lazy);
+}> = (props) => (
+    <ScaledSectionCanvas
+        section={props.section}
+        theme={resolveTheme(props.themeId).tokens}
+        profile={resolveProfile(props.formatId)}
+        width={props.width}
+        frame="slide"
+        lazy={props.lazy}
+        radius={0}
+        class={props.class}
+    />
+);
 
-    createEffect(() => {
-        if (!visible()) return;
-        const theme = resolveTheme(props.themeId).tokens;
-        const format = resolveProfile(props.formatId);
-        const { commands, height } = layoutSlide(props.section, LW, SH, measureText, theme, format);
-        inner.style.cssText = `width:${LW}px;height:${height}px;transform:scale(${props.width / LW});transform-origin:top left`;
-        paint(commands, inner);
-    });
-
-    onMount(() => {
-        if (!props.lazy) return;
-        const io = new IntersectionObserver(
-            (entries) => {
-                if (entries.some((e) => e.isIntersecting)) {
-                    setVisible(true);
-                    io.disconnect();
-                }
-            },
-            { rootMargin: "400px" },
-        );
-        io.observe(wrap);
-        onCleanup(() => io.disconnect());
-    });
-
-    return (
-        <div
-            ref={wrap}
-            class={props.class}
-            style={{
-                width: `${props.width}px`,
-                height: `${Math.round((props.width * 9) / 16)}px`,
-                overflow: "hidden",
-                background: resolveTheme(props.themeId).tokens.bg,
-            }}
-        >
-            <div ref={inner} />
-        </div>
-    );
-};
-
+// The filmstrip/library thumbnail: MiniCanvas as a selectable button with the framed card chrome
+// (rounded, theme-line border, resting shadow, accent ring when selected).
 export const SectionThumb: Component<{
     section: Section;
     themeId: string;
@@ -234,61 +202,24 @@ export const SectionThumb: Component<{
     width?: number;
     selected?: boolean;
     onOpen: (e: MouseEvent) => void;
-}> = (props) => {
-    let wrap!: HTMLButtonElement;
-    let inner!: HTMLDivElement;
-    const cw = (): number => props.width ?? DEFAULT_W;
-    const ch = (): number => Math.round((cw() * 9) / 16);
-
-    // Lazy: paint only once scrolled near view. Then re-paints reactively if the theme / section /
-    // format changes (e.g. switching the app theme while previews are on screen) — paint() clears the
-    // host first, so a re-render simply replaces the content.
-    const [visible, setVisible] = createSignal(false);
-    const render = (): void => {
-        if (!visible()) return;
-        const theme = resolveTheme(props.themeId).tokens;
-        const format = resolveProfile(props.formatId);
-        const { commands, height } = layoutSlide(props.section, LW, SH, measureText, theme, format);
-        inner.style.cssText = `width:${LW}px;height:${height}px;transform:scale(${cw() / LW});transform-origin:top left`;
-        paint(commands, inner);
-    };
-    createEffect(render);
-
-    onMount(() => {
-        const io = new IntersectionObserver(
-            (entries) => {
-                if (entries.some((e) => e.isIntersecting)) {
-                    setVisible(true);
-                    io.disconnect();
-                }
-            },
-            { rootMargin: "500px" },
-        );
-        io.observe(wrap);
-        onCleanup(() => io.disconnect());
-    });
-
-    return (
-        <button
-            ref={wrap}
-            onClick={props.onOpen}
-            title={props.label}
-            class="relative flex-none cursor-pointer overflow-hidden rounded-lg"
-            style={{
-                width: `${cw()}px`,
-                height: `${ch()}px`,
-                background: resolveTheme(props.themeId).tokens.bg,
-                // ring lives in the inline box-shadow so it isn't overridden by the base shadow below
-                "box-shadow": props.selected
-                    ? "0 0 0 2px var(--color-accent), 0 1px 2px rgba(0,0,0,0.05)"
-                    : "0 1px 2px rgba(0,0,0,0.05)",
-                border: "1px solid var(--color-line)",
-            }}
-        >
-            <div ref={inner} />
-        </button>
-    );
-};
+}> = (props) => (
+    <ScaledSectionCanvas
+        section={props.section}
+        theme={resolveTheme(props.themeId).tokens}
+        profile={resolveProfile(props.formatId)}
+        width={props.width ?? DEFAULT_W}
+        frame="slide"
+        as="button"
+        onOpen={props.onOpen}
+        selected={props.selected}
+        title={props.label}
+        lazy
+        rootMargin="500px"
+        bordered
+        baseShadow
+        class="flex-none"
+    />
+);
 
 // Read-only render of an artifact in a chosen format — the SAME continuous canvas the studio editor
 // uses (deck = wide cards with gaps, doc = reading column, web = full-bleed bands), at each section's

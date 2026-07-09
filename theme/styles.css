@@ -6,6 +6,7 @@
 @source "../app/**/*.{ts,tsx,html}";
 @source "../surfaces/studio/**/*.{ts,tsx,html}";
 @source "../website/**/*.{ts,tsx,html}";
+@source "../publish/**/*.{ts,tsx,html}";
 
 @theme {
     --color-canvas: #f4f0e8;
@@ -45,44 +46,41 @@ body {
     scrollbar-width: thin;
     scrollbar-color: var(--sb, var(--color-line)) transparent;
 }
-/* Generation skeletons: a slow accent shimmer sweeping across the waiting block. */
-.gen-shimmer {
-    background: linear-gradient(
-        100deg,
-        transparent 20%,
-        color-mix(in oklab, var(--color-accent) 22%, transparent) 50%,
-        transparent 80%
-    );
-    background-size: 220% 100%;
-    animation: gen-sweep 1.8s linear infinite;
+/* In-place AI-generation overlay (shared by @ui/gen-overlay's GenOverlay — used by SectionGenStage +
+   ElementGenStage): an accent light sweeping down through the forming block, with the frame glowing. Per
+   instance speed via --gen-speed. */
+@keyframes gen-lightsweep {
+    0% {
+        transform: translateY(-120%);
+    }
+    100% {
+        transform: translateY(240%);
+    }
 }
-@keyframes gen-sweep {
-    from {
-        background-position: 180% 0;
+@keyframes gen-frameglow {
+    0%,
+    100% {
+        opacity: 0.35;
     }
-    to {
-        background-position: -80% 0;
+    50% {
+        opacity: 0.85;
     }
+}
+.gen-lightsweep {
+    animation: gen-lightsweep var(--gen-speed, 2.4s) cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.gen-frameglow {
+    animation: gen-frameglow var(--gen-speed, 2.4s) ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-    .gen-shimmer {
+    .gen-lightsweep {
         animation: none;
+        opacity: 0;
     }
-}
-
-/* Spotlight direction: an accent beam from the top + a vignette fading to the theme bg at the edges. */
-.gen-spotbeam {
-    background:
-        radial-gradient(
-            62% 48% at 50% -4%,
-            color-mix(in oklab, var(--color-accent) 16%, transparent),
-            transparent 72%
-        ),
-        radial-gradient(
-            130% 96% at 50% 42%,
-            transparent 52%,
-            color-mix(in oklab, var(--color-canvas) 80%, transparent)
-        );
+    .gen-frameglow {
+        animation: none;
+        opacity: 0.55;
+    }
 }
 
 /* PDF export: show only the print container, one section per page. */

@@ -18,7 +18,8 @@ import { PanelHeader, SchemaFields, Group } from "./fields";
 import { dataShapeFor, DATA_KEYS } from "./data-model";
 import { openDataEditor } from "./DataEditor";
 import { DataGrid } from "./DataGrid";
-import { Icon } from "../icons";
+import { Icon } from "@ui/icons";
+import { Button, IconButton } from "@ui/button";
 import type { SectionBackground } from "@model/artifact";
 import { TEMPLATE_LABELS, TEMPLATES } from "@elements/compose";
 
@@ -68,12 +69,9 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
             <PanelHeader
                 title={spec()?.label ?? "Element"}
                 action={
-                    <button
-                        class="text-[12px] font-semibold text-accent hover:underline"
-                        onClick={del}
-                    >
+                    <Button variant="link" onClick={del}>
                         Delete
-                    </button>
+                    </Button>
                 }
             />
             <Show
@@ -91,13 +89,15 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
                     <div class="text-[10px] font-semibold uppercase tracking-wider text-muted">
                         Data
                     </div>
-                    <button
-                        class="flex h-6 w-6 items-center justify-center rounded-md border border-line text-soft transition-colors hover:border-accent hover:text-accent"
+                    <IconButton
+                        size="sm"
+                        bordered
+                        tone="tool"
                         title="Open full data editor"
                         onClick={() => openDataEditor(props.address)}
                     >
                         <Icon name="fullscreen" size={13} />
-                    </button>
+                    </IconButton>
                 </div>
                 <Show when={gridKey()} keyed>
                     <div class="overflow-hidden rounded-lg border border-line">

@@ -15,6 +15,7 @@ import {
     sectionLayoutWidth,
 } from "@canvas/render/backends";
 import { measureText, layoutSection } from "@canvas/render/commands";
+import { scaledHostCss } from "@canvas/render/geometry";
 import { applyDrop, computeDropTarget, drag, previewDrop, setDrag, startDrag } from "./dnd";
 import { applyLiveEdit, liveEdit } from "../select/handles";
 import {
@@ -48,6 +49,7 @@ import { ContextBar } from "../inspect/format-bar";
 import { Overlay, SectionActions, SectionToolbar } from "../select/selection";
 import { SectionGenPopup } from "../ai/SectionGenPopup";
 import { SectionGenStage } from "../ai/SectionGenStage";
+import { ElementGenStage } from "../ai/ElementGenStage";
 import { TextEditor } from "../text/text-editor";
 import { VideoEmbeds } from "./embeds";
 
@@ -350,6 +352,7 @@ export const Canvas: Component = () => {
                 <SectionToolbar />
                 <SectionGenStage />
                 <SectionGenPopup />
+                <ElementGenStage />
                 <ContextBar />
                 <CellAdd />
                 <TextEditor />
@@ -405,7 +408,7 @@ export const Thumb: Component<{
             theme,
             profile,
         );
-        inner.style.cssText = `width:${layoutW}px;height:${height}px;transform:scale(${scale});transform-origin:top left`;
+        inner.style.cssText = scaledHostCss(layoutW, height, scale);
         paint(commands, inner);
         wrap.style.height = `${Math.round(height * scale) + 2}px`;
     });

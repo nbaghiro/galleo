@@ -8,8 +8,12 @@ import { resolveTheme, themeCssVars, mix } from "@themes";
 import { paint } from "@canvas/render/backends";
 import { measureText, layoutSection, layoutSectionSkeleton } from "@canvas/render/commands";
 import { appTheme } from "../../theme";
-import { CloseIcon } from "../../components/icons";
+import { CloseIcon } from "@ui/icons";
 import { MiniCanvas } from "../../components/previews";
+import { Button, IconButton, Spinner, Eyebrow } from "@ui/button";
+import { Segmented, TextArea } from "@ui/inputs";
+import { Modal } from "@ui/overlay";
+import { StatusDot } from "@ui/status";
 import {
     gen,
     generateOpen,
@@ -419,8 +423,6 @@ const GenerateModalPanel: Component = () => {
     const shuffleExamples = (): void => {
         setExOffset((o) => (o + 4) % deck.length);
     };
-    let panel!: HTMLDivElement;
-
     const building = (): boolean => gen.phase !== "idle";
     const total = (): number => gen.sections.length;
     const done = (): number => placedSections().length;
@@ -452,277 +454,243 @@ const GenerateModalPanel: Component = () => {
     };
 
     onMount(() => {
-        if (!reduced())
-            panel.animate(
-                [
-                    { opacity: 0, transform: "translateY(8px) scale(0.98)" },
-                    { opacity: 1, transform: "none" },
-                ],
-                { duration: 180, easing: "cubic-bezier(.2,.7,.2,1)", fill: "both" },
-            );
         const onKey = (e: KeyboardEvent): void => {
-            if (e.key === "Escape") closeGenerate();
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !building()) go();
         };
         window.addEventListener("keydown", onKey);
         onCleanup(() => window.removeEventListener("keydown", onKey));
     });
 
-    const seg = (active: boolean): string =>
-        `flex-1 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors ${
-            active ? "bg-accent text-onaccent" : "text-soft hover:text-ink"
-        }`;
-    const eyebrow = "font-mono text-[10px] uppercase tracking-[0.16em] text-muted";
-
     return (
-        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 text-ink sm:p-6">
-            <div class="absolute inset-0 bg-black/30" onClick={() => closeGenerate()} />
-            <div
-                ref={panel}
-                class="relative flex h-[90vh] max-h-[1000px] w-full max-w-[1520px] overflow-hidden rounded-2xl border border-line bg-panel shadow-2xl"
-                style={panelVars()}
-            >
-                {/* ── left rail: brief (intake) ⇄ progress (building) ── */}
-                <aside class="flex w-[360px] flex-none flex-col border-r border-line bg-panel">
-                    <header class="flex flex-none items-center justify-between border-b border-line px-4 py-3">
-                        <div class="flex items-baseline gap-2">
-                            <span class="text-[13px] font-semibold tracking-tight">Generate</span>
-                            <span class={eyebrow}>{building() ? "building" : "new"}</span>
-                        </div>
-                        <button
-                            class="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
-                            title="Close"
-                            onClick={() => closeGenerate()}
-                        >
-                            <CloseIcon size={15} />
-                        </button>
-                    </header>
-
-                    <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-                        <Show when={!building()} fallback={<Progress />}>
-                            {/* ── intake ── */}
-                            <p class={`${eyebrow} mb-2`}>Compose</p>
-                            <h2
-                                class="mb-1 font-serif text-[22px] leading-tight"
-                                style={{ "font-family": "var(--font-display)" }}
-                            >
-                                What are we making?
-                            </h2>
-                            <p class="mb-4 text-[12.5px] leading-relaxed text-muted">
-                                Describe it in a sentence. Galleo shapes the outline, writes every
-                                section, and sources the images — watch it build alongside.
-                            </p>
-                            <textarea
-                                class="min-h-[120px] w-full resize-none rounded-xl border border-line bg-canvas px-3 py-2.5 text-[13.5px] leading-relaxed text-ink outline-none placeholder:text-muted focus:border-accent"
-                                placeholder={PLACEHOLDER}
-                                value={prompt()}
-                                onInput={(e) => setPrompt(e.currentTarget.value)}
-                            />
-
-                            <p class={`${eyebrow} mb-1.5 mt-4`}>Format</p>
-                            <div class="flex items-center gap-1 rounded-lg border border-line p-0.5">
-                                <For each={FORMATS}>
-                                    {([id, label]) => (
-                                        <button
-                                            class={seg(fmt() === id)}
-                                            onClick={() => setFmt(id)}
-                                        >
-                                            {label}
-                                        </button>
-                                    )}
-                                </For>
-                            </div>
-
-                            <p class={`${eyebrow} mb-1.5 mt-4`}>Length</p>
-                            <div class="flex items-center gap-1 rounded-lg border border-line p-0.5">
-                                <For each={LENGTHS}>
-                                    {(l) => (
-                                        <button
-                                            class={seg(length() === l)}
-                                            onClick={() => setLength(l)}
-                                        >
-                                            {l}
-                                        </button>
-                                    )}
-                                </For>
-                            </div>
-
-                            <div class="mb-2 mt-5 flex items-center justify-between">
-                                <p class={eyebrow}>Or start from an idea</p>
-                                <button
-                                    class="group grid h-6 w-6 place-items-center rounded-md text-muted transition-colors hover:bg-canvas hover:text-ink"
-                                    title="Show different ideas"
-                                    onClick={shuffleExamples}
-                                >
-                                    <svg
-                                        width="13"
-                                        height="13"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        stroke-width="2"
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        class="transition-transform duration-300 group-hover:rotate-90"
-                                    >
-                                        <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
-                                    </svg>
-                                </button>
-                            </div>
-                            <div class="flex flex-col gap-1.5">
-                                <For each={examples()}>
-                                    {(ex) => (
-                                        <button
-                                            class="rounded-lg border border-line px-3 py-2 text-left text-[12.5px] text-soft transition-colors hover:border-accent hover:text-ink"
-                                            onClick={() => {
-                                                setPrompt(ex.text);
-                                                setFmt(ex.format);
-                                            }}
-                                        >
-                                            {ex.text}
-                                        </button>
-                                    )}
-                                </For>
-                            </div>
-                        </Show>
+        <Modal
+            size="full"
+            scrim="light"
+            z={60}
+            vars={panelVars()}
+            class="flex h-[90vh] max-h-[1000px] overflow-hidden"
+            onClose={() => closeGenerate()}
+        >
+            {/* ── left rail: brief (intake) ⇄ progress (building) ── */}
+            <aside class="flex w-[360px] flex-none flex-col border-r border-line bg-panel">
+                <header class="flex flex-none items-center justify-between border-b border-line px-4 py-3">
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-[13px] font-semibold tracking-tight">Generate</span>
+                        <Eyebrow weight="normal" tracking="widest">
+                            {building() ? "building" : "new"}
+                        </Eyebrow>
                     </div>
+                    <IconButton
+                        size="lg"
+                        tone="muted"
+                        title="Close"
+                        onClick={() => closeGenerate()}
+                    >
+                        <CloseIcon size={15} />
+                    </IconButton>
+                </header>
 
-                    {/* ── rail footer: Generate (intake) · steps + CTA (building/done) ── */}
-                    <footer class="flex-none border-t border-line px-4 py-3">
-                        <Show
-                            when={building()}
-                            fallback={
-                                <button
-                                    class="w-full rounded-xl bg-accent py-2.5 text-[13.5px] font-semibold text-onaccent transition-shadow hover:shadow-lg"
-                                    onClick={go}
-                                >
-                                    Generate →
-                                </button>
-                            }
+                <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+                    <Show when={!building()} fallback={<Progress />}>
+                        {/* ── intake ── */}
+                        <Eyebrow as="div" weight="normal" tracking="widest" class="mb-2">
+                            Compose
+                        </Eyebrow>
+                        <h2
+                            class="mb-1 font-serif text-[22px] leading-tight"
+                            style={{ "font-family": "var(--font-display)" }}
                         >
-                            <div class="mb-3 flex items-center justify-between gap-2">
-                                <For each={STEPS}>
-                                    {(s, i) => {
-                                        const at = (): number =>
-                                            stepIndex(gen.turnPhase, gen.phase === "done");
-                                        return (
-                                            <div
-                                                class="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.1em]"
-                                                classList={{
-                                                    "text-accent": i() === at(),
-                                                    "text-muted": i() > at(),
-                                                    "text-soft": i() < at(),
-                                                }}
-                                            >
-                                                <span
-                                                    class="h-1.5 w-1.5 rounded-full"
-                                                    classList={{
-                                                        "bg-accent": i() === at(),
-                                                        "animate-pulse": i() === at(),
-                                                        "bg-soft": i() < at(),
-                                                        "bg-line": i() > at(),
-                                                    }}
-                                                />
-                                                {s.label}
-                                            </div>
-                                        );
-                                    }}
-                                </For>
-                            </div>
-                            <Show
-                                when={gen.phase === "done"}
-                                fallback={
-                                    <Show
-                                        when={gen.phase === "error"}
-                                        fallback={
-                                            <div class="flex items-center justify-between text-[12px] text-muted">
-                                                <span class="font-mono tabular-nums">
-                                                    {String(done()).padStart(2, "0")} /{" "}
-                                                    {String(total()).padStart(2, "0")} sections
-                                                </span>
-                                                <button
-                                                    class="text-muted hover:text-ink"
-                                                    onClick={() => closeGenerate()}
-                                                >
-                                                    Cancel
-                                                </button>
-                                            </div>
-                                        }
-                                    >
-                                        <div class="flex items-center justify-between gap-2">
-                                            <span class="text-[12px] text-red-400">
-                                                {gen.error}
-                                            </span>
-                                            <button
-                                                class="rounded-lg border border-line px-3 py-1.5 text-[12px] text-soft hover:text-ink"
-                                                onClick={go}
-                                            >
-                                                Retry
-                                            </button>
-                                        </div>
-                                    </Show>
-                                }
-                            >
-                                <div class="flex items-center gap-2">
-                                    <button
-                                        class="rounded-lg border border-line px-3 py-2 text-[12.5px] text-soft hover:text-ink"
-                                        onClick={go}
-                                    >
-                                        Regenerate
-                                    </button>
-                                    <button
-                                        class="flex-1 rounded-xl bg-accent py-2 text-[13px] font-semibold text-onaccent transition-shadow hover:shadow-lg"
-                                        onClick={openInEditor}
-                                    >
-                                        Open in editor →
-                                    </button>
-                                </div>
-                            </Show>
-                        </Show>
-                    </footer>
-                </aside>
+                            What are we making?
+                        </h2>
+                        <p class="mb-4 text-[12.5px] leading-relaxed text-muted">
+                            Describe it in a sentence. Galleo shapes the outline, writes every
+                            section, and sources the images — watch it build alongside.
+                        </p>
+                        <TextArea
+                            rounded="xl"
+                            class="min-h-[120px] placeholder:text-muted"
+                            placeholder={PLACEHOLDER}
+                            value={prompt()}
+                            onChange={(v) => setPrompt(v)}
+                        />
 
-                {/* ── right: the live board ── */}
-                <div
-                    class="flex min-w-0 flex-1 flex-col"
-                    style={{ background: "var(--color-canvas)" }}
-                >
-                    <div class="flex flex-none items-center justify-between gap-3 border-b border-line bg-panel px-4 py-2">
-                        <span class={`${eyebrow} flex-none`}>
-                            {building() ? "Live build" : "Preview"}
-                        </span>
-                        <Show when={building() && gen.brief?.prompt}>
-                            <span class="min-w-0 flex-1 truncate text-[11.5px] text-muted">
-                                {gen.brief?.prompt}
-                            </span>
-                        </Show>
-                        {/* live preview surface switcher — same content re-laid-out as deck / doc / web */}
-                        <div class="flex flex-none items-center gap-0.5 rounded-lg border border-line p-0.5">
-                            <For each={FORMATS}>
-                                {([id, label]) => (
+                        <Eyebrow as="div" weight="normal" tracking="widest" class="mb-1.5 mt-4">
+                            Format
+                        </Eyebrow>
+                        <Segmented
+                            variant="accent"
+                            value={fmt()}
+                            options={FORMATS.map(([value, label]) => ({ value, label }))}
+                            onChange={(v) => setFmt(v as Surface)}
+                        />
+
+                        <Eyebrow as="div" weight="normal" tracking="widest" class="mb-1.5 mt-4">
+                            Length
+                        </Eyebrow>
+                        <Segmented
+                            variant="accent"
+                            value={length()}
+                            options={LENGTHS.map((l) => ({ value: l, label: l }))}
+                            onChange={(v) => setLength(v)}
+                        />
+
+                        <div class="mb-2 mt-5 flex items-center justify-between">
+                            <Eyebrow weight="normal" tracking="widest">
+                                Or start from an idea
+                            </Eyebrow>
+                            <IconButton
+                                size="sm"
+                                rounded="md"
+                                class="group"
+                                title="Show different ideas"
+                                onClick={shuffleExamples}
+                            >
+                                <svg
+                                    width="13"
+                                    height="13"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    class="transition-transform duration-300 group-hover:rotate-90"
+                                >
+                                    <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
+                                </svg>
+                            </IconButton>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <For each={examples()}>
+                                {(ex) => (
                                     <button
-                                        class={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                                            previewFormat() === id
-                                                ? "bg-accent text-onaccent"
-                                                : "text-soft hover:text-ink"
-                                        }`}
-                                        title={`Preview as ${label}`}
-                                        onClick={() => setPreviewFormat(id)}
+                                        class="rounded-lg border border-line px-3 py-2 text-left text-[12.5px] text-soft transition-colors hover:border-accent hover:text-ink"
+                                        onClick={() => {
+                                            setPrompt(ex.text);
+                                            setFmt(ex.format);
+                                        }}
                                     >
-                                        {label}
+                                        {ex.text}
                                     </button>
                                 )}
                             </For>
                         </div>
-                    </div>
-                    <div class="min-h-0 flex-1">
-                        <Show when={building()} fallback={<Idle />}>
-                            <Board />
+                    </Show>
+                </div>
+
+                {/* ── rail footer: Generate (intake) · steps + CTA (building/done) ── */}
+                <footer class="flex-none border-t border-line px-4 py-3">
+                    <Show
+                        when={building()}
+                        fallback={
+                            <Button variant="primary" rounded="xl" class="w-full" onClick={go}>
+                                Generate →
+                            </Button>
+                        }
+                    >
+                        <div class="mb-3 flex items-center justify-between gap-2">
+                            <For each={STEPS}>
+                                {(s, i) => {
+                                    const at = (): number =>
+                                        stepIndex(gen.turnPhase, gen.phase === "done");
+                                    return (
+                                        <div
+                                            class="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.1em]"
+                                            classList={{
+                                                "text-accent": i() === at(),
+                                                "text-muted": i() > at(),
+                                                "text-soft": i() < at(),
+                                            }}
+                                        >
+                                            <StatusDot
+                                                tone={
+                                                    i() === at()
+                                                        ? "accent"
+                                                        : i() < at()
+                                                          ? "soft"
+                                                          : "line"
+                                                }
+                                                pulse={i() === at()}
+                                            />
+                                            {s.label}
+                                        </div>
+                                    );
+                                }}
+                            </For>
+                        </div>
+                        <Show
+                            when={gen.phase === "done"}
+                            fallback={
+                                <Show
+                                    when={gen.phase === "error"}
+                                    fallback={
+                                        <div class="flex items-center justify-between text-[12px] text-muted">
+                                            <span class="font-mono tabular-nums">
+                                                {String(done()).padStart(2, "0")} /{" "}
+                                                {String(total()).padStart(2, "0")} sections
+                                            </span>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => closeGenerate()}
+                                            >
+                                                Cancel
+                                            </Button>
+                                        </div>
+                                    }
+                                >
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="text-[12px] text-red-400">{gen.error}</span>
+                                        <Button variant="outline" size="sm" onClick={go}>
+                                            Retry
+                                        </Button>
+                                    </div>
+                                </Show>
+                            }
+                        >
+                            <div class="flex items-center gap-2">
+                                <Button variant="outline" size="sm" onClick={go}>
+                                    Regenerate
+                                </Button>
+                                <Button
+                                    variant="primary"
+                                    rounded="xl"
+                                    class="flex-1"
+                                    onClick={openInEditor}
+                                >
+                                    Open in editor →
+                                </Button>
+                            </div>
                         </Show>
-                    </div>
+                    </Show>
+                </footer>
+            </aside>
+
+            {/* ── right: the live board ── */}
+            <div class="flex min-w-0 flex-1 flex-col" style={{ background: "var(--color-canvas)" }}>
+                <div class="flex flex-none items-center justify-between gap-3 border-b border-line bg-panel px-4 py-2">
+                    <Eyebrow weight="normal" tracking="widest" class="flex-none">
+                        {building() ? "Live build" : "Preview"}
+                    </Eyebrow>
+                    <Show when={building() && gen.brief?.prompt}>
+                        <span class="min-w-0 flex-1 truncate text-[11.5px] text-muted">
+                            {gen.brief?.prompt}
+                        </span>
+                    </Show>
+                    {/* live preview surface switcher — same content re-laid-out as deck / doc / web */}
+                    <Segmented
+                        variant="accent"
+                        value={previewFormat()}
+                        options={FORMATS.map(([value, label]) => ({ value, label }))}
+                        onChange={(v) => setPreviewFormat(v as Surface)}
+                    />
+                </div>
+                <div class="min-h-0 flex-1">
+                    <Show when={building()} fallback={<Idle />}>
+                        <Board />
+                    </Show>
                 </div>
             </div>
-        </div>
+        </Modal>
     );
 };
 
@@ -787,17 +755,20 @@ const Idle: Component = () => (
 
 // The left-rail progress readout during a build: the brief, the outline beats, and the narration feed.
 const Progress: Component = () => {
-    const eyebrow = "font-mono text-[10px] uppercase tracking-[0.16em] text-muted";
     return (
         <div class="flex flex-col gap-5">
             <div>
-                <p class={`${eyebrow} mb-2`}>The brief</p>
+                <Eyebrow as="div" weight="normal" tracking="widest" class="mb-2">
+                    The brief
+                </Eyebrow>
                 <div class="border-l-2 border-line pl-3 text-[12.5px] leading-relaxed text-soft">
                     {gen.brief?.prompt}
                 </div>
             </div>
             <div>
-                <p class={`${eyebrow} mb-2`}>Outline</p>
+                <Eyebrow as="div" weight="normal" tracking="widest" class="mb-2">
+                    Outline
+                </Eyebrow>
                 <Show
                     when={gen.beats.length}
                     fallback={<div class="font-mono text-[11px] text-muted">planning…</div>}
@@ -812,13 +783,12 @@ const Progress: Component = () => {
                                     <span class="w-4 flex-none font-mono text-[10px] text-muted">
                                         {String(i() + 1).padStart(2, "0")}
                                     </span>
-                                    <span
-                                        class="h-2.5 w-2.5 flex-none rounded-full border"
-                                        classList={{
-                                            "border-line": b.status === "upcoming",
-                                            "border-accent animate-pulse": b.status === "active",
-                                            "border-accent bg-accent": b.status === "done",
-                                        }}
+                                    <StatusDot
+                                        ring
+                                        size={10}
+                                        tone={b.status === "upcoming" ? "line" : "accent"}
+                                        fill={b.status === "done"}
+                                        pulse={b.status === "active"}
                                     />
                                     <span
                                         class="min-w-0 flex-1 truncate text-[12.5px]"
@@ -839,7 +809,9 @@ const Progress: Component = () => {
                 </Show>
             </div>
             <div>
-                <p class={`${eyebrow} mb-2`}>Progress</p>
+                <Eyebrow as="div" weight="normal" tracking="widest" class="mb-2">
+                    Progress
+                </Eyebrow>
                 <div class="flex flex-col gap-2">
                     <Show
                         when={gen.narration.length}
@@ -854,12 +826,10 @@ const Progress: Component = () => {
                                         "text-ink": !line.done,
                                     }}
                                 >
-                                    <span
-                                        class="mt-1.5 h-1.5 w-1.5 flex-none rounded-full"
-                                        classList={{
-                                            "bg-line": line.done,
-                                            "bg-accent animate-pulse": !line.done,
-                                        }}
+                                    <StatusDot
+                                        class="mt-1.5"
+                                        tone={line.done ? "line" : "accent"}
+                                        pulse={!line.done}
                                     />
                                     <span class="min-w-0">
                                         {line.text}
@@ -969,7 +939,7 @@ const ReadingLoader: Component = () => {
             </div>
 
             <div class="flex items-center gap-2.5 rounded-full border border-line bg-panel/85 px-4 py-2 backdrop-blur-sm">
-                <span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-accent" />
+                <Spinner size={14} />
                 <span class="font-mono text-[11px] uppercase tracking-[0.14em] text-soft">
                     {line()}…
                 </span>
@@ -1130,7 +1100,7 @@ const Frame: Component<{ slot: SectionSlot; index: number; avail: () => number }
             </div>
             <Show when={active()}>
                 <div class="absolute bottom-3 left-4 z-[2] flex items-center gap-2 rounded-md bg-panel/80 px-2 py-1 font-mono text-[10.5px] uppercase tracking-[0.12em] text-accent backdrop-blur-sm">
-                    <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+                    <StatusDot tone="accent" pulse />
                     {props.slot.status === "image" ? "Sourcing image…" : "Writing…"}
                 </div>
             </Show>

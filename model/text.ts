@@ -213,6 +213,43 @@ function unique<T>(items: T[]): T[] {
     return [...new Set(items)];
 }
 
+// Replace the character range [from, to) with `insert`, returning the new string and adjusted marks — the
+// text-editing primitive behind the AI rewrite/translate action. Marks entirely before the range are kept;
+// marks entirely after it shift by the length delta; marks straddling an edge are split at that edge (the
+// covered middle is dropped, since the replacement text is new); and any mark that uniformly covered the
+// WHOLE original range is re-applied over the inserted text — so a phrase that was bold/linked stays that way
+// after it's rewritten. Pure; input untouched.
+export function spliceText(
+    text: string,
+    marks: Mark[],
+    from: number,
+    to: number,
+    insert: string,
+): { text: string; marks: Mark[] } {
+    const a = Math.max(0, Math.min(from, text.length));
+    const b = Math.max(a, Math.min(to, text.length));
+    const nextText = text.slice(0, a) + insert + text.slice(b);
+    const delta = insert.length - (b - a);
+    const newTo = a + insert.length;
+    // marks that uniformly cover [a, b) → carried onto the inserted span
+    const cover = marks
+        .filter((m) => m.from <= a && m.to >= b && m.to > m.from)
+        .map((m) => ({ type: m.type, value: m.value }));
+    const out: Mark[] = [];
+    for (const m of marks) {
+        if (m.to <= a) {
+            out.push({ ...m });
+        } else if (m.from >= b) {
+            out.push({ ...m, from: m.from + delta, to: m.to + delta });
+        } else {
+            if (m.from < a) out.push({ ...m, to: a }); // left tail (before the range)
+            if (m.to > b) out.push({ ...m, from: b + delta, to: m.to + delta }); // right tail (after it)
+        }
+    }
+    for (const c of cover) out.push({ from: a, to: newTo, type: c.type, value: c.value });
+    return { text: nextText, marks: normalizeMarks(out) };
+}
+
 // --- selection ---
 export interface Point {
     para: number;

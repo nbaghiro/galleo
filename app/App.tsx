@@ -8,14 +8,18 @@ import { customThemes, loadCustomThemes } from "./theme";
 import { faviconOverride, setFavicon, appTheme, appThemeOverride, appThemeVars } from "./theme";
 import { AuthPage } from "./views/AuthPage";
 import { EditorView } from "./views/EditorView";
+import { ChatPanel } from "./views/chat/ChatPanel";
 import { GenerateModal } from "./views/generate/GenerateModal";
 import { LibraryView } from "./views/LibraryView";
 import { PresentView } from "./views/PresentView";
 import { PricingView } from "./views/PricingView";
 import { TemplatesView } from "./views/TemplatesView";
 import { MediaPicker } from "./components/MediaPicker";
+import { ShareModal } from "./components/ShareModal";
 import { ThemeEditor } from "./views/ThemeEditor";
 import { TrashView } from "./views/TrashView";
+import { UiPlayground } from "@ui/playground";
+import { UiThemeProvider } from "@ui/icons";
 
 // Router root layout — wraps every route so the singular theme drawer + media picker are mounted once
 // (inside router context, so they read the active route to apply context-aware) and persist across nav.
@@ -25,6 +29,8 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => (
         <GenerateModal />
         <ThemeEditor />
         <MediaPicker />
+        <ShareModal />
+        <ChatPanel />
     </>
 );
 
@@ -54,32 +60,41 @@ export const App: Component = () => {
         customThemes();
         return appThemeVars();
     });
+    // Icon stroke weight/cap track the active theme via the @ui theme context (the editor provides its own
+    // artifact tokens; here the app-chrome theme, previewing the live theme-editor draft when one is open).
+    const appTokens = createMemo(() => {
+        customThemes();
+        return appThemeOverride() ?? resolveTheme(appTheme()).tokens;
+    });
 
     return (
-        <div
-            class="h-screen w-screen overflow-hidden bg-canvas font-body text-ink"
-            style={themeVars()}
-        >
-            <Show
-                when={authReady()}
-                fallback={
-                    <div class="flex h-full items-center justify-center text-[13px] text-muted">
-                        Loading…
-                    </div>
-                }
+        <UiThemeProvider tokens={appTokens}>
+            <div
+                class="h-screen w-screen overflow-hidden bg-canvas font-body text-ink"
+                style={themeVars()}
             >
-                <Show when={user()} fallback={<AuthPage />}>
-                    <Router base="/app" root={AppShell}>
-                        <Route path="/" component={LibraryView} />
-                        <Route path="/folder/:id" component={LibraryView} />
-                        <Route path="/templates" component={TemplatesView} />
-                        <Route path="/trash" component={TrashView} />
-                        <Route path="/pricing" component={PricingView} />
-                        <Route path="/edit/:id" component={EditorView} />
-                        <Route path="/present/:id" component={PresentView} />
-                    </Router>
+                <Show
+                    when={authReady()}
+                    fallback={
+                        <div class="flex h-full items-center justify-center text-[13px] text-muted">
+                            Loading…
+                        </div>
+                    }
+                >
+                    <Show when={user()} fallback={<AuthPage />}>
+                        <Router base="/app" root={AppShell}>
+                            <Route path="/" component={LibraryView} />
+                            <Route path="/folder/:id" component={LibraryView} />
+                            <Route path="/templates" component={TemplatesView} />
+                            <Route path="/trash" component={TrashView} />
+                            <Route path="/pricing" component={PricingView} />
+                            <Route path="/edit/:id" component={EditorView} />
+                            <Route path="/present/:id" component={PresentView} />
+                            <Route path="/ui" component={UiPlayground} />
+                        </Router>
+                    </Show>
                 </Show>
-            </Show>
-        </div>
+            </div>
+        </UiThemeProvider>
     );
 };

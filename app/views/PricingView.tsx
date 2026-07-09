@@ -3,7 +3,10 @@ import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import type { Interval, Plan, PlanId } from "@model/billing";
 import { AI_ACTION_LIST, costRange, isMetered, typicalCost } from "@model/ai";
-import { CheckIcon } from "../components/icons";
+import { CheckIcon } from "@ui/icons";
+import { Badge, Eyebrow } from "@ui/button";
+import { TextField } from "@ui/inputs";
+import { Meter } from "@ui/status";
 import { Sidebar } from "../components/Sidebar";
 import { billing, changePlan, loadBilling, openPortal, startCheckout } from "../stores/billing";
 
@@ -121,9 +124,7 @@ export const PricingView: Component = () => {
                         {(state) => (
                             <div class="mb-8 grid grid-cols-2 gap-3 sm:max-w-[520px]">
                                 <div class="rounded-xl border border-line bg-panel px-4 py-3">
-                                    <div class="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
-                                        AI credits this month
-                                    </div>
+                                    <Eyebrow as="div">AI credits this month</Eyebrow>
                                     <div class="mt-1 flex items-baseline gap-1.5 tabular-nums">
                                         <span class="text-[20px] font-bold">
                                             {state().credits.used}
@@ -132,17 +133,10 @@ export const PricingView: Component = () => {
                                             / {state().credits.limit}
                                         </span>
                                     </div>
-                                    <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-canvas">
-                                        <div
-                                            class="h-full rounded-full bg-accent transition-all"
-                                            style={{ width: `${usagePct()}%` }}
-                                        />
-                                    </div>
+                                    <Meter value={usagePct()} trackTone="canvas" class="mt-2" />
                                 </div>
                                 <div class="rounded-xl border border-line bg-panel px-4 py-3">
-                                    <div class="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
-                                        Artifacts
-                                    </div>
+                                    <Eyebrow as="div">Artifacts</Eyebrow>
                                     <div class="mt-1 flex items-baseline gap-1.5 tabular-nums">
                                         <span class="text-[20px] font-bold">
                                             {state().usage.artifacts}
@@ -198,16 +192,12 @@ export const PricingView: Component = () => {
                         </div>
                         <label class="inline-flex items-center gap-2 text-[12px] text-muted">
                             Seats
-                            <input
+                            <TextField
                                 type="number"
-                                min="1"
-                                value={seats()}
-                                onInput={(e) =>
-                                    setSeats(
-                                        Math.max(1, Math.floor(Number(e.currentTarget.value) || 1)),
-                                    )
-                                }
-                                class="w-16 rounded-md border border-line bg-panel px-2 py-1 text-[13px] text-ink outline-none focus:border-accent"
+                                min={1}
+                                value={String(seats())}
+                                onChange={(v) => setSeats(Math.max(1, Math.floor(Number(v) || 1)))}
+                                class="w-16"
                             />
                             <span class="text-[11px]">for per-seat plans</span>
                         </label>
@@ -230,9 +220,7 @@ export const PricingView: Component = () => {
                                         <div class="flex items-center justify-between">
                                             <span class="text-[15px] font-bold">{plan.name}</span>
                                             <Show when={plan.badge}>
-                                                <span class="rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold text-onaccent">
-                                                    {plan.badge}
-                                                </span>
+                                                <Badge tone="accentSolid">{plan.badge}</Badge>
                                             </Show>
                                         </div>
                                         <p class="mt-0.5 text-[12.5px] text-muted">
@@ -315,14 +303,24 @@ export const PricingView: Component = () => {
                                                         {a.label}
                                                     </span>
                                                     <Show when={isMetered(a.id)}>
-                                                        <span class="rounded-full bg-canvas px-1.5 py-px text-[9px] font-medium uppercase tracking-[0.1em] text-muted">
+                                                        <Badge
+                                                            tone="muted"
+                                                            size="xs"
+                                                            uppercase
+                                                            weight="medium"
+                                                        >
                                                             scales
-                                                        </span>
+                                                        </Badge>
                                                     </Show>
                                                     <Show when={!a.live}>
-                                                        <span class="rounded-full border border-line px-1.5 py-px text-[9px] font-medium uppercase tracking-[0.1em] text-muted">
+                                                        <Badge
+                                                            tone="outline"
+                                                            size="xs"
+                                                            uppercase
+                                                            weight="medium"
+                                                        >
                                                             soon
-                                                        </span>
+                                                        </Badge>
                                                     </Show>
                                                 </div>
                                                 <div class="truncate text-[12px] text-muted">

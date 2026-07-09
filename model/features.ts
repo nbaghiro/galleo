@@ -109,7 +109,7 @@ export const FEATURES: Record<FeatureKey, FeatureDef> = {
     },
     publicLinks: {
         label: "Public share links",
-        status: "planned",
+        status: "live",
         description: "Publish an artifact to a public URL.",
     },
     customDomains: {

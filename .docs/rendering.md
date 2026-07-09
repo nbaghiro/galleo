@@ -1,9 +1,14 @@
 # Galleo — Rendering & Elements
 
 > How content becomes pixels. Two pure, editor-free layers in `canvas/`: a custom **Clay-style layout
-> engine** (geometry) and the **element system** (content blocks that compile down to it). The concrete
-> DOM / 2D-canvas / PDF paint backends live alongside them in `canvas/`. Companion to `architecture.md`
-> (the file map) and `data-model.md`.
+> engine** (geometry) and the **element system** (content blocks that compile down to it). A thin **render
+> bridge** (`canvas/render`) drives the engine and feeds the concrete DOM / 2D-canvas / PDF paint
+> backends. Companion to `architecture.md` (the file map) and `data-model.md`; see
+> `elements-and-editing.md` for the element catalog + selection UI in depth.
+
+**The pipeline, end to end:** `Section` (data) → `composeSection` → `EngineNode` tree → `layout(node,
+size)` → `RenderCommand[]` + `Region[]` → a paint backend (DOM divs on screen, 2D canvas for
+present/export). One layout pass feeds screen _and_ export, so what you edit is what ships (§8).
 
 ## 1. The core bet
 
@@ -40,7 +45,8 @@ Why this shape:
 3. **positions** (top-down) — assign `x/y`, apply alignment.
 
 Then flatten to `RenderCommand[]` (`rect`/`text`/`image`/`surface`) + `Region[]` (the box of every node
-carrying an `id`) — paint and hit-testing are separate outputs.
+carrying an `id`) — paint and hit-testing are separate outputs. `layout(node, size)` is the whole public
+surface; the render bridge (§7) is what calls it.
 
 > **The engine does not wrap child elements** — only text wraps. Responsive "grid of N" is built by the
 > _element_ (e.g. `group` chunks its children into rows) or the compose layer, never the engine. This is
@@ -79,6 +85,9 @@ dimensions are data, a custom size or a draggable/resizable canvas is a data cha
   `el:…`), so the engine reports its box for selection + overlays.
 - **Contrast.** Over a dark section background, content tokens flip to a light-on-dark set.
 
+The composed tree isn't laid out here — `composeSection` only builds boxes. The **render bridge** (§7)
+takes it from tree to render commands, and chooses the framing (natural-height section vs 16:9 slide).
+
 ## 5. The element system (`canvas/elements`)
 
 Every block — from a `divider` to a `chart` — is one registry entry implementing **`ElementSpec`**:
@@ -96,6 +105,7 @@ interface ElementSpec<Data> {
     // studio-only affordances (inert for layout / export):
     richText?;
     bar?;
+    frame?; // universal corner-radius (and image zoom) control
     skeleton?;
     fallback?;
     resize?;
@@ -119,10 +129,21 @@ registry-driven, so **adding an element is adding a spec — zero engine changes
 palette and as the live drop preview; auto-derived from `layout(create())` unless the spec overrides it.
 Because it's real engine output, previews can't drift from the element.
 
-**Registered today (`editor/register.ts`):** `text` (the typographic primitive — every
-heading/body/label role is a `style`), `image`, `card`, `group`, `stat`, `bullets`, `button`, `quote`,
-`divider`, `badge`, `callout`, `code`, `chart`, `table`, `diagram`, `gradient`, `spacer`, `embed`,
-`video` — plus an internal, palette-hidden `dropghost` used only as the live drop preview.
+**Organised by category** — one file per element under `canvas/elements/{text,media,table,composite,chart,diagram,basic}/`,
+each category side-effect-registered by `editor/register.ts`:
+
+- **`text`** — the typographic primitive (`text`, every heading/body/label role is a `style`) plus
+  `bullets` / `quote` / `callout` / `code`.
+- **`media`** — `image` / `gif` / `illustration` / `sticker` / `icon` / `avatar` / `video`; theme-reactive,
+  keyless providers, one shared picker.
+- **`composite`** — containers (`group` / `card`) that recurse through the composer, plus prebuilt blocks
+  (`cta` / `faq` / `feature` / `pricing` / `profile` / `testimonial`).
+- **`chart` / `diagram`** — the self-rendered surfaces (one file per variant + a shared `render`/`element`).
+- **`table`** — `table` / `stat`.
+- **`basic`** — the utility set: `button` / `divider` / `badge` / `shape` / `gradient` / `spacer` / `embed`.
+
+An internal, palette-hidden `dropghost` element backs the live drop preview. See `elements-and-editing.md`
+for the full catalog.
 
 ## 6. Selection & direct manipulation (`editor/select`)
 
@@ -133,26 +154,40 @@ geometry:
   selection ring and context bar anchor to the region box.
 - **Inspect** — the docked inspector renders `spec.controls`; the floating context bar renders `spec.bar`
   (the compact subset) + universal align / duplicate / delete. Changing `data` recomposes only that cell.
-- **Resize** — the selection border _is_ the drag affordance: the right edge sets width (`ElementLayout`
-  %), the bottom edge sets height/aspect where the spec declares one, the corner does both — and an edge
-  only appears when that direction is actually resizable.
-- **Columns** — drag the divider between a section's cells to reallocate their widths.
+- **Resize** — a bottom-edge handle sets height/aspect where the spec's `resize` declares one; it only
+  appears when that element is actually resizable.
+- **Width** — width is a region affordance, not an element handle: drag the **divider** between a
+  section's cells to reallocate their widths (`ElementLayout` %), so neighbours give and take together.
 - **Spacing** — for containers, drag a grip between children (gap) or at the content inset (padding).
+- **Frame** — the format bar carries the universal corner-radius control (and image zoom), driven by the
+  spec's `frame`.
 - **Drag-and-drop** — drag an element to any spot; over open space the section reflows around a live
   ghost, over an existing element a thin insertion line positions it precisely.
 
 Each previews live (the canvas repaints the modified artifact) and commits on release through the same
-content ops.
+content ops. The four selection surfaces (context/format bar, docked inspector, on-canvas handles, inline
+data grids) are detailed in `elements-and-editing.md`.
 
-## 7. Pagination & slide framing
+## 7. The render bridge — compose → commands (`canvas/render/commands.ts`)
 
-Continuous formats (doc/web) skip pagination on screen. Paged formats need it:
+The engine is format-blind; the bridge is what turns a `Section` into paintable commands and chooses the
+framing. It injects the Canvas 2D `measureText` (so §2's fidelity invariant holds), then offers two entry
+points:
 
-- **Fragmentation** (`fragment` in `engine/layout.ts`) — slice a tall command flow into page-height chunks, breaking
-  at a clean edge and never through a block ("good, not optimal" greedy).
-- **Deck slides** (`studio/canvas/render.ts`) — each section is fit to the 1280×720 frame: short sections
-  stretch to fill and center; a text+image split whose image would overflow cover-fits the image column
-  so it fills 16:9 instead of scaling down.
+- **`layoutSection`** — the default (doc / web / thumbnails). `composeSection` → `layout` at the profile
+  width and an unbounded height → `{ commands, regions, height }` where `height` is the natural bottom of
+  the content. Sections stack with a fixed `SECTION_GAP`.
+- **`layoutSlide`** — the deck path. Each section is fit to the 1280×720 (16:9) frame: short sections
+  stretch to fill and center (`prepareSlideNode`); a text+image split whose image would overflow
+  cover-fits the image column (`coverFitColumns`) so it fills the frame instead of scaling down.
+
+Paged export still needs to cut a tall flow into pages: **`fragment`** (`engine/layout.ts`) slices a
+command list into page-height chunks, breaking at a clean edge and never through a block ("good, not
+optimal" greedy). Continuous formats skip it on screen.
+
+Fitting a logical layout into a physical viewport (minimap thumbs, present) is one shared formula —
+`scaledHostCss` / `fitToViewport` in `canvas/render/geometry.ts`: lay out at the logical width, then
+CSS-scale the host to fit. Layout math never changes; only the transform does.
 
 ## 8. Paint backends
 

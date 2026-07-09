@@ -11,8 +11,10 @@ import {
     restoreFromTrash,
     trash,
 } from "../stores/library";
-import { RestoreIcon, TrashIcon } from "../components/icons";
-import { ConfirmModal } from "../components/modals";
+import { RestoreIcon, TrashIcon } from "@ui/icons";
+import { ConfirmModal } from "@ui/overlay";
+import { Button, Eyebrow, IconButton } from "@ui/button";
+import { EmptyState } from "@ui/status";
 import { Sidebar } from "../components/Sidebar";
 
 const DANGER = "#C0392B";
@@ -90,20 +92,18 @@ export const TrashView: Component = () => {
                     </div>
                 </div>
                 <div class="flex flex-none items-center gap-1.5 opacity-0 transition group-hover:opacity-100">
-                    <button
-                        class="flex items-center gap-1.5 rounded-lg border border-line bg-canvas px-3 py-1.5 text-[12.5px] font-medium text-soft hover:text-ink"
-                        onClick={() => restoreFromTrash(p.d.id)}
-                    >
+                    <Button variant="tool" size="sm" onClick={() => restoreFromTrash(p.d.id)}>
                         <RestoreIcon size={14} /> Restore
-                    </button>
-                    <button
-                        class="grid h-8 w-8 place-items-center rounded-lg hover:bg-canvas"
-                        style={{ color: DANGER }}
+                    </Button>
+                    <IconButton
+                        size="lg"
+                        rounded="lg"
+                        tone="danger"
                         title="Delete forever"
                         onClick={() => setConfirm({ kind: "purge", doc: p.d })}
                     >
                         <TrashIcon size={15} />
-                    </button>
+                    </IconButton>
                 </div>
             </div>
         );
@@ -116,9 +116,7 @@ export const TrashView: Component = () => {
                 <div class="border-b border-line px-9 py-6">
                     <div class="flex flex-wrap items-end justify-between gap-4">
                         <div>
-                            <div class="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
-                                Removed
-                            </div>
+                            <Eyebrow tracking="widest">Removed</Eyebrow>
                             <h1 class="mt-0.5 font-display text-[26px] font-semibold text-ink">
                                 Trash
                             </h1>
@@ -151,15 +149,16 @@ export const TrashView: Component = () => {
                     <Show
                         when={trash().length}
                         fallback={
-                            <div class="flex h-72 flex-col items-center justify-center gap-2 text-muted">
-                                <span class="opacity-40">
-                                    <TrashIcon size={30} />
-                                </span>
-                                <span class="text-[13px]">Trash is empty.</span>
-                                <span class="text-[12px] opacity-70">
-                                    Deleted artifacts land here before they're gone for good.
-                                </span>
-                            </div>
+                            <EmptyState
+                                class="h-72"
+                                icon={
+                                    <span class="opacity-40">
+                                        <TrashIcon size={30} />
+                                    </span>
+                                }
+                                title="Trash is empty."
+                                subtitle="Deleted artifacts land here before they're gone for good."
+                            />
                         }
                     >
                         <div class="flex flex-col gap-2.5 px-9 py-6">

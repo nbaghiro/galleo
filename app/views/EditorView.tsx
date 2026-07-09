@@ -4,7 +4,10 @@ import { useNavigate, useParams, useSearchParams } from "@solidjs/router";
 import { resolveTheme } from "@themes";
 import { limitsFor } from "@model/billing";
 import { Studio } from "@editor/Studio";
+import { Button } from "@ui/button";
+import { FloatingBar } from "@ui/overlay";
 import {
+    currentTitle,
     editor,
     endThemePreview,
     keepPreviewedTheme,
@@ -12,8 +15,11 @@ import {
     onHome,
     onMediaPicker,
     onPersistTitle,
+    onReviseElement,
     onSectionStream,
+    onShare,
     onSuggestSections,
+    onTextAssist,
     onSwitchArtifact,
     onThemePicker,
     onUpgrade,
@@ -25,6 +31,8 @@ import {
 } from "@editor/editor";
 import { api, streamTurn } from "../api";
 import { openMediaPicker } from "../media";
+import { openShare } from "../share";
+import { can } from "../stores/features";
 import { renameArtifactById } from "../stores/library";
 import { billing, loadBilling } from "../stores/billing";
 import { appTheme, setFaviconOverride, openThemeEditor } from "../theme";
@@ -48,7 +56,9 @@ export const EditorView: Component = () => {
     // and keeps/strips the Galleo mark. Defaults to Free until billing loads (most-restrictive is safe).
     createEffect(() => {
         const { exportFormats, removeBranding } = limitsFor(billing()?.plan);
-        setFeatures({ exportFormats, removeBranding });
+        // publicLinks is launch-status-aware (off while `planned`), so read it from the features store
+        // (GET /features → resolveFeatures) rather than the raw plan grant in limitsFor.
+        setFeatures({ exportFormats, removeBranding, publicLinks: can("publicLinks") });
     });
     onCleanup(() => setFaviconOverride(null));
     // never leave a preview dangling on the in-memory artifact when leaving the editor
@@ -75,6 +85,9 @@ export const EditorView: Component = () => {
         onMediaPicker((req) => openMediaPicker(req));
         onPersistTitle((id, title) => renameArtifactById(id, title));
         onUpgrade(() => navigate("/pricing"));
+        onShare(() => {
+            if (params.id) openShare({ artifactId: params.id, title: currentTitle() });
+        });
         // The insert-a-section flow streams a turn through the app's SSE transport, then refreshes the
         // credit meter (the turn was billed server-side). Kept here so the editor stays app-free.
         onSectionStream(async (req, onEvent, signal) => {
@@ -83,6 +96,18 @@ export const EditorView: Component = () => {
         });
         // Cheap, unmetered section suggestions for the insert-a-section popup (client caches per artifact).
         onSuggestSections((content) => api.suggestSections(content));
+        // Regenerate one element in place (metered edit-element) → refresh the credit meter after.
+        onReviseElement(async (content, sectionId, element, instruction) => {
+            const el = await api.reviseElement(content, sectionId, element, instruction);
+            void loadBilling();
+            return el;
+        });
+        // Rewrite / translate the selected text passage (metered rewrite / translate) → refresh the meter.
+        onTextAssist(async (r) => {
+            const text = await api.assistText(r);
+            void loadBilling();
+            return text;
+        });
         void loadBilling();
         (async () => {
             try {
@@ -119,8 +144,14 @@ export const EditorView: Component = () => {
                 <Studio />
             </Show>
             <Show when={previewingTheme()}>
-                <div class="pointer-events-none absolute inset-x-0 bottom-5 z-50 flex justify-center">
-                    <div class="pointer-events-auto flex items-center gap-3 rounded-full border border-line bg-panel/95 px-4 py-2 text-[12.5px] shadow-xl backdrop-blur">
+                <div class="pointer-events-none absolute inset-0 z-50">
+                    <FloatingBar
+                        tone="panel"
+                        rounded="full"
+                        anchor="bottomCenter"
+                        shadow="lg"
+                        class="pointer-events-auto text-[12.5px]"
+                    >
                         <span class="text-soft">
                             Previewing in{" "}
                             <span class="font-semibold text-ink">
@@ -131,19 +162,18 @@ export const EditorView: Component = () => {
                                 {resolveTheme(previewSavedTheme() ?? editor.artifact.theme).name}
                             </span>
                         </span>
-                        <button
-                            class="rounded-full bg-accent px-3 py-1 text-[12px] font-semibold text-onaccent"
+                        <Button
+                            variant="primary"
+                            rounded="full"
+                            size="sm"
                             onClick={keepPreviewedTheme}
                         >
                             Keep
-                        </button>
-                        <button
-                            class="rounded-full px-2 py-1 text-[12px] font-medium text-soft hover:text-ink"
-                            onClick={endThemePreview}
-                        >
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={endThemePreview}>
                             Revert
-                        </button>
-                    </div>
+                        </Button>
+                    </FloatingBar>
                 </div>
             </Show>
         </div>

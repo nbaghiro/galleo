@@ -1,4 +1,5 @@
 import type { GenerateInput, SectionInput, Surface } from "@model/ai";
+import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import { GRID_TEMPLATES, BLOCK_KINDS } from "@model/elements";
 import type { Beat, Outline } from "../schema";
 import { PERSONA, surfaceVoice } from "./persona";
@@ -13,6 +14,7 @@ import {
     briefContext,
     heading,
     insertionContext,
+    neighbors,
     stack,
 } from "./system";
 import { sectionExemplars } from "./exemplars";
@@ -184,6 +186,87 @@ export function insertSectionParts(input: SectionInput, beat: Beat): PromptParts
             heading("The brief", `This one section: ${input.instruction}`),
             insertPlacement(beat, input),
             `Write section "${beat.id}" now — real, specific, finished content.`,
+        ),
+    };
+}
+
+// --- edit an existing section in place (the chat agent's editSection tool) ---
+
+// Rewrite a section to satisfy an instruction, keeping its id and grounding in the real neighbours, so the
+// result still flows with the piece. Returns the full revised section (the runtime diffs it → replaceSection).
+export function editSectionParts(
+    content: ArtifactContent,
+    section: Section,
+    instruction: string,
+): PromptParts {
+    return {
+        system: sectionSystem(surfaceOf(content.format), content.theme),
+        prompt: stack(
+            heading("What to change", instruction),
+            neighbors(content, section.id),
+            heading("The section as it is now", "```json\n" + JSON.stringify(section) + "\n```"),
+            `Rewrite section "${section.id}" to satisfy the instruction — keep its id (and its grid, unless the change requires a different one), and return the full revised section as JSON.`,
+        ),
+    };
+}
+
+// --- regenerate ONE element in place (the ContextBar's Regenerate action / the revise-element tool) ---
+
+// The output envelope for a single element — one `{ type, data }` object, keeping the original type (this
+// rewrites the element's CONTENT, not what kind of element it is), so the section's layout stays valid.
+const ELEMENT_OUTPUT = `## Output — return ONE JSON object and nothing else
+No prose, no explanation, no markdown fences. A single element in this exact shape:
+{ "type": "<the SAME type as the original element>", "data": { /* the fields the catalog lists for that type */ } }
+Keep "type" identical to the original — you are rewriting its CONTENT, not changing what kind of element it is. If it's a container (group / card / quote / stat / bullets / callout), return it with its \`data.children\` fully populated. Every string is real, finished copy — never placeholder text.`;
+
+// The system half of an element-regeneration call — the persona, surface/theme, the full element catalog +
+// section rules (so the writer knows the element's fields and honours the image/person guidance), the voice,
+// and the single-element output envelope.
+function elementSystem(surface: Surface, theme: string): string {
+    return stack(
+        PERSONA,
+        surfaceVoice(surface),
+        describeTheme(theme),
+        elementCatalog(),
+        SECTION_RULES,
+        VOICE,
+        ELEMENT_OUTPUT,
+    );
+}
+
+// Where the element sits — the whole-piece voice plus the section it belongs to (so the fresh version fits
+// the topic and doesn't just repeat what a sibling element in the same section already says).
+function elementContext(content: ArtifactContent, section: Section): string {
+    return stack(
+        artifactSpine(content),
+        heading(
+            "The section it belongs to",
+            `Grid ${section.grid}. Fit this section's point and the piece's voice; don't duplicate copy that another element in the section already carries.\n\`\`\`json\n${JSON.stringify(section)}\n\`\`\``,
+        ),
+    );
+}
+
+// Regenerate a single element: keep its type, produce a genuinely fresh, stronger version. With no
+// instruction it's a straight re-roll; an instruction ("make it punchier", "use a different stat") steers it.
+export function reviseElementParts(
+    content: ArtifactContent,
+    section: Section,
+    element: ElementInstance,
+    instruction?: string,
+): PromptParts {
+    const change = instruction?.trim()
+        ? heading("What to change", instruction.trim())
+        : heading(
+              "What to do",
+              "Regenerate this element — a fresh, stronger version that makes the same kind of point in a better way. Keep it the same TYPE, but genuinely rework the wording, numbers, or framing so it reads as a real alternative, not the same text handed back.",
+          );
+    return {
+        system: elementSystem(surfaceOf(content.format), content.theme),
+        prompt: stack(
+            change,
+            elementContext(content, section),
+            heading("The element as it is now", "```json\n" + JSON.stringify(element) + "\n```"),
+            `Return the single revised element as JSON — same "type", fresh content.`,
         ),
     };
 }

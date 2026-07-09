@@ -1,8 +1,10 @@
 import type { Component } from "solid-js";
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { addSectionAfter, editor, moveSectionBy, setLeftOpen } from "../editor";
+import { IconButton, Eyebrow } from "@ui/button";
+import { FloatingPanel } from "@ui/overlay";
 import { Thumb } from "../canvas/Canvas";
-import { Icon } from "../icons";
+import { Icon } from "@ui/icons";
 
 // Floating left rail: a live thumbnail per section; click to jump-scroll, drag the grip to reorder.
 // "+ Section" appends one.
@@ -54,21 +56,18 @@ export const Minimap: Component = () => {
     };
 
     return (
-        <aside
+        <FloatingPanel
+            as="aside"
+            pad="md"
+            shadow="panel"
             ref={(el) => (asideEl = el)}
-            class="absolute left-3 top-1/2 z-20 flex max-h-[calc(100%-44px)] w-[182px] -translate-y-1/2 flex-col gap-3 overflow-y-auto rounded-2xl border border-line bg-panel/95 p-3 shadow-[var(--panel-shadow)] backdrop-blur-md"
+            class="absolute left-3 top-1/2 z-20 flex max-h-[calc(100%-44px)] w-[182px] -translate-y-1/2 flex-col gap-3 overflow-y-auto"
         >
             <div class="flex items-center justify-between pl-1">
-                <span class="text-[10px] font-semibold uppercase tracking-wider text-muted">
-                    Sections
-                </span>
-                <button
-                    class="flex h-5 w-5 items-center justify-center rounded text-muted hover:text-ink"
-                    title="Hide"
-                    onClick={() => setLeftOpen(false)}
-                >
+                <Eyebrow mono={false}>Sections</Eyebrow>
+                <IconButton size="xs" tone="muted" title="Hide" onClick={() => setLeftOpen(false)}>
                     <Icon name="close" size={12} />
-                </button>
+                </IconButton>
             </div>
             <For each={sectionIds()}>
                 {(id, i) => {
@@ -107,6 +106,6 @@ export const Minimap: Component = () => {
             >
                 + Section
             </button>
-        </aside>
+        </FloatingPanel>
     );
 };

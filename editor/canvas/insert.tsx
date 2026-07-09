@@ -17,7 +17,8 @@ import {
     removeSectionAt,
     editorAccent,
 } from "../editor";
-import { Icon } from "../icons";
+import { Icon } from "@ui/icons";
+import { FloatingPanel, Popover } from "@ui/overlay";
 import { PRESETS } from "@elements/compose";
 import { getElement } from "@elements/spec";
 import { startDrag, drag } from "./dnd";
@@ -66,9 +67,13 @@ export const CellAdd: Component = () => {
                         <Icon name="plus" size={14} /> Add element
                     </button>
                     <Show when={open()}>
-                        <div class="absolute left-1/2 top-full mt-2 w-[248px] -translate-x-1/2 rounded-xl border border-line bg-panel/95 p-2 shadow-2xl backdrop-blur-md">
+                        <FloatingPanel
+                            rounded="xl"
+                            pad="none"
+                            class="absolute left-1/2 top-full mt-2 w-[248px] -translate-x-1/2 p-2"
+                        >
                             <ElementPicker onInsert={insert} />
-                        </div>
+                        </FloatingPanel>
                     </Show>
                 </div>
             )}
@@ -202,33 +207,33 @@ export const ContextMenu: Component = () => (
     <Show when={menu()}>
         {(m) => {
             const items = itemsFor(m().target);
-            const left = Math.min(m().x, window.innerWidth - 200);
-            const top = Math.min(m().y, window.innerHeight - (items.length * 34 + 12));
             const onPick = (run: () => void): void => {
                 run();
                 closeContextMenu();
             };
             return (
-                <>
-                    <div class="fixed inset-0 z-[60]" onPointerDown={() => closeContextMenu()} />
-                    <div
-                        class="fixed z-[61] min-w-[180px] rounded-xl border border-line bg-panel/95 p-1.5 text-ink shadow-2xl backdrop-blur-md"
-                        style={{ left: `${left}px`, top: `${top}px` }}
-                    >
-                        <For each={items}>
-                            {(it): JSX.Element => (
-                                <button
-                                    class={`block w-full rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors hover:bg-canvas ${
-                                        it.danger ? "text-accent" : "text-ink"
-                                    }`}
-                                    onClick={() => onPick(it.run)}
-                                >
-                                    {it.label}
-                                </button>
-                            )}
-                        </For>
-                    </div>
-                </>
+                <Popover
+                    open={true}
+                    at={() => ({ x: m().x, y: m().y })}
+                    onClose={closeContextMenu}
+                    estHeight={items.length * 34 + 12}
+                    minWidth={180}
+                    toolbar
+                    panelClass="min-w-[180px] p-1.5"
+                >
+                    <For each={items}>
+                        {(it): JSX.Element => (
+                            <button
+                                class={`block w-full rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors hover:bg-canvas ${
+                                    it.danger ? "text-accent" : "text-ink"
+                                }`}
+                                onClick={() => onPick(it.run)}
+                            >
+                                {it.label}
+                            </button>
+                        )}
+                    </For>
+                </Popover>
             );
         }}
     </Show>

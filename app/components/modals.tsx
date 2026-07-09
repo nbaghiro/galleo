@@ -1,158 +1,71 @@
-// The app's modal dialogs: the create-artifact modal + the confirm/destructive-action modal.
+// The create-artifact modal — a hero card for the AI flow + the three blank formats, built on the shared
+// @ui Modal shell (theme snapshot via overlayThemeVars so it stays themed at the app root). The confirm
+// dialog is @ui's `ConfirmModal`, used directly at the call sites (no wrapper needed).
 
 import type { Component, JSX } from "solid-js";
-import { For, onCleanup, onMount } from "solid-js";
-import { CloseIcon, DeckIcon, DocIcon, SiteIcon, SparkleIcon } from "../components/icons";
+import { For } from "solid-js";
+import { CloseIcon, DeckIcon, DocIcon, SiteIcon, SparkleIcon } from "@ui/icons";
 import { overlayThemeVars } from "../theme";
+import { Modal } from "@ui/overlay";
+import { Eyebrow, IconButton } from "@ui/button";
 
-// The "New artifact" create dialog — a centered modal (not a dropdown) that gives the AI flow a hero card
-// and keeps the three blank formats one click away. Rendered inside the themed app tree (fixed-position,
-// not portalled) so it inherits the active theme tokens.
 const FORMATS: { id: string; label: string; desc: string; icon: () => JSX.Element }[] = [
     { id: "deck", label: "Deck", desc: "Slides", icon: () => <DeckIcon size={20} /> },
     { id: "doc", label: "Doc", desc: "A document", icon: () => <DocIcon size={20} /> },
     { id: "web", label: "Site", desc: "A web page", icon: () => <SiteIcon size={20} /> },
 ];
 
+// The "New artifact" create dialog — a hero card for the AI flow + the three blank formats one click away.
 export const CreateModal: Component<{
     onClose: () => void;
     onGenerate: () => void;
     onBlank: (fmt: string) => void;
-}> = (props) => {
-    const themeVars = overlayThemeVars(); // stamped once at open (snapshot)
-    let panel!: HTMLDivElement;
-    onMount(() => {
-        const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-        if (!reduced)
-            panel.animate(
-                [
-                    { opacity: 0, transform: "translateY(8px) scale(0.97)" },
-                    { opacity: 1, transform: "none" },
-                ],
-                { duration: 200, easing: "cubic-bezier(.2,.7,.2,1)", fill: "both" },
-            );
-        const onKey = (e: KeyboardEvent): void => {
-            if (e.key === "Escape") props.onClose();
-        };
-        window.addEventListener("keydown", onKey);
-        onCleanup(() => window.removeEventListener("keydown", onKey));
-    });
-
-    return (
-        <div
-            class="fixed inset-0 z-50 flex items-center justify-center p-6 text-ink"
-            style={themeVars}
-        >
-            <div class="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={props.onClose} />
-            <div
-                ref={panel}
-                class="relative w-full max-w-[520px] rounded-[var(--radius)] border border-line bg-panel p-6 shadow-2xl"
-            >
-                <div class="mb-5 flex items-center justify-between">
-                    <h2
-                        class="font-display text-[22px] text-ink"
-                        style={{ "font-weight": "var(--hw)" }}
-                    >
-                        Create something
-                    </h2>
-                    <button
-                        class="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
-                        onClick={props.onClose}
-                    >
-                        <CloseIcon size={15} />
-                    </button>
-                </div>
-
-                {/* hero — generate with AI */}
-                <button
-                    class="group mb-5 flex w-full items-center gap-4 rounded-[var(--radius)] border border-accent/40 bg-accent/10 p-5 text-left transition hover:bg-accent/15"
-                    onClick={props.onGenerate}
-                >
-                    <span class="grid h-11 w-11 flex-none place-items-center rounded-xl bg-accent text-onaccent">
-                        <SparkleIcon size={20} />
-                    </span>
-                    <span class="min-w-0 flex-1">
-                        <span class="block text-[15px] font-semibold text-ink">
-                            Generate with AI
-                        </span>
-                        <span class="block text-[12.5px] text-soft">
-                            Describe it — watch it build into a finished draft.
-                        </span>
-                    </span>
-                    <span class="flex-none text-[18px] text-accent transition-transform group-hover:translate-x-0.5">
-                        →
-                    </span>
-                </button>
-
-                <div class="mb-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                    Or start from blank
-                </div>
-                <div class="grid grid-cols-3 gap-3">
-                    <For each={FORMATS}>
-                        {(f) => (
-                            <button
-                                class="flex flex-col items-center gap-2 rounded-[var(--radius)] border border-line bg-canvas p-4 text-soft transition hover:border-accent hover:text-ink"
-                                onClick={() => props.onBlank(f.id)}
-                            >
-                                <span class="text-muted">{f.icon()}</span>
-                                <span class="text-[13px] font-semibold text-ink">{f.label}</span>
-                                <span class="text-[11px] text-muted">{f.desc}</span>
-                            </button>
-                        )}
-                    </For>
-                </div>
-            </div>
+}> = (props) => (
+    <Modal onClose={props.onClose} size="md" scrim="blur" vars={overlayThemeVars()} class="p-6">
+        <div class="mb-5 flex items-center justify-between">
+            <h2 class="font-display text-[22px] text-ink" style={{ "font-weight": "var(--hw)" }}>
+                Create something
+            </h2>
+            <IconButton onClick={props.onClose}>
+                <CloseIcon size={15} />
+            </IconButton>
         </div>
-    );
-};
 
-// Shared confirm / destructive dialog — a centered card over a dimmed backdrop. Rendered inside the
-// themed app tree so it inherits the active theme tokens (the artifact theme when over the editor, the
-// app theme elsewhere). The caller owns the <Show> that mounts it and passes the copy + handlers;
-// `danger` paints the primary button red, `busy` locks it while acting.
-export const ConfirmModal: Component<{
-    title: string;
-    body: JSX.Element;
-    confirmLabel: string;
-    onConfirm: () => void;
-    onCancel: () => void;
-    danger?: boolean;
-    busy?: boolean;
-}> = (props) => {
-    const themeVars = overlayThemeVars(); // stamped once at open (snapshot)
-    return (
-        <div
-            class="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4"
-            style={themeVars}
-            onClick={() => !props.busy && props.onCancel()}
+        {/* hero — generate with AI */}
+        <button
+            class="group mb-5 flex w-full items-center gap-4 rounded-[var(--radius)] border border-accent/40 bg-accent/10 p-5 text-left transition hover:bg-accent/15"
+            onClick={props.onGenerate}
         >
-            <div
-                class="w-[400px] max-w-[92vw] rounded-2xl border border-line bg-panel p-6 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <h2 class="font-display text-[18px] font-semibold text-ink">{props.title}</h2>
-                <p class="mt-2 text-[13.5px] leading-relaxed text-soft">{props.body}</p>
-                <div class="mt-5 flex justify-end gap-2.5">
+            <span class="grid h-11 w-11 flex-none place-items-center rounded-xl bg-accent text-onaccent">
+                <SparkleIcon size={20} />
+            </span>
+            <span class="min-w-0 flex-1">
+                <span class="block text-[15px] font-semibold text-ink">Generate with AI</span>
+                <span class="block text-[12.5px] text-soft">
+                    Describe it — watch it build into a finished draft.
+                </span>
+            </span>
+            <span class="flex-none text-[18px] text-accent transition-transform group-hover:translate-x-0.5">
+                →
+            </span>
+        </button>
+
+        <Eyebrow as="div" tracking="wider" class="mb-3">
+            Or start from blank
+        </Eyebrow>
+        <div class="grid grid-cols-3 gap-3">
+            <For each={FORMATS}>
+                {(f) => (
                     <button
-                        class="rounded-lg border border-line px-3.5 py-2 text-[13px] font-medium text-soft hover:text-ink disabled:opacity-50"
-                        disabled={props.busy}
-                        onClick={() => props.onCancel()}
+                        class="flex flex-col items-center gap-2 rounded-[var(--radius)] border border-line bg-canvas p-4 text-soft transition hover:border-accent hover:text-ink"
+                        onClick={() => props.onBlank(f.id)}
                     >
-                        Cancel
+                        <span class="text-muted">{f.icon()}</span>
+                        <span class="text-[13px] font-semibold text-ink">{f.label}</span>
+                        <span class="text-[11px] text-muted">{f.desc}</span>
                     </button>
-                    <button
-                        class="rounded-lg px-3.5 py-2 text-[13px] font-semibold disabled:opacity-60"
-                        style={{
-                            background: props.danger ? "#C0392B" : "var(--color-accent)",
-                            color: props.danger ? "#fff" : "var(--color-onaccent)",
-                        }}
-                        disabled={props.busy}
-                        onClick={() => props.onConfirm()}
-                    >
-                        {props.busy ? "Working…" : props.confirmLabel}
-                    </button>
-                </div>
-            </div>
+                )}
+            </For>
         </div>
-    );
-};
+    </Modal>
+);

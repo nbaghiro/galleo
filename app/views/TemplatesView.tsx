@@ -3,8 +3,11 @@ import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { resolveTheme } from "@themes";
 import { api, type ApiTemplate } from "../api";
-import { formatLabel } from "../stores/library";
-import { CloseIcon } from "../components/icons";
+import { FORMATS, formatLabel } from "../stores/library";
+import { CloseIcon } from "@ui/icons";
+import { Button, Eyebrow, IconButton } from "@ui/button";
+import { Segmented } from "@ui/inputs";
+import { Modal } from "@ui/overlay";
 import { PreviewCanvas, SectionThumb } from "../components/previews";
 import { Sidebar } from "../components/Sidebar";
 import { appTheme } from "../theme";
@@ -105,9 +108,9 @@ export const TemplatesView: Component = () => {
             <Sidebar />
             <main class="flex-1 overflow-y-auto bg-canvas">
                 <div class="border-b border-line px-9 py-7">
-                    <div class="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+                    <Eyebrow tracking="widest" as="div">
                         Start from a template
-                    </div>
+                    </Eyebrow>
                     <h1 class="mt-1 font-display text-[26px] font-semibold text-ink">Templates</h1>
                     <p class="mt-1 text-[13px] text-muted">
                         Beautiful, ready-to-edit starting points — pick one and make it yours.
@@ -142,60 +145,54 @@ export const TemplatesView: Component = () => {
             {/* preview modal — renders the template read-only with format switches, then "Use template" */}
             <Show when={preview()}>
                 {(t) => (
-                    <div
-                        class="fixed inset-0 z-50 flex bg-black/70 p-4"
-                        onClick={() => setPreview(null)}
+                    <Modal
+                        size="full"
+                        surface="canvas"
+                        scrim="dim"
+                        class="flex h-[94vh] w-[97vw] flex-col overflow-hidden"
+                        onClose={() => setPreview(null)}
                     >
-                        <div
-                            class="m-auto flex h-[94vh] w-[97vw] max-w-[1500px] flex-col overflow-hidden rounded-2xl border border-line bg-canvas shadow-2xl"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <header class="flex flex-none items-center gap-3 border-b border-line px-5 py-3">
-                                <div class="min-w-0">
-                                    <div class="truncate text-[14px] font-semibold text-ink">
-                                        {t().name}
-                                    </div>
-                                    <div class="text-[11px] text-muted">
-                                        {t().category} · {t().content.sections.length} sections
-                                    </div>
+                        <header class="flex flex-none items-center gap-3 border-b border-line px-5 py-3">
+                            <div class="min-w-0">
+                                <div class="truncate text-[14px] font-semibold text-ink">
+                                    {t().name}
                                 </div>
-                                <div class="ml-4 flex items-center gap-0.5 rounded-lg border border-line bg-panel p-0.5">
-                                    <For each={["deck", "doc", "web"]}>
-                                        {(f) => (
-                                            <button
-                                                class={`rounded-md px-3 py-1.5 text-[12px] font-semibold ${previewFmt() === f ? "bg-accent text-onaccent" : "text-soft hover:text-ink"}`}
-                                                onClick={() => setPreviewFmt(f)}
-                                            >
-                                                {formatLabel(f)}
-                                            </button>
-                                        )}
-                                    </For>
+                                <div class="text-[11px] text-muted">
+                                    {t().category} · {t().content.sections.length} sections
                                 </div>
-                                <div class="ml-auto flex items-center gap-2">
-                                    <button
-                                        class="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-onaccent disabled:opacity-60"
-                                        disabled={using() !== null}
-                                        onClick={() => use(t())}
-                                    >
-                                        {using() === t().id ? "Creating…" : "Use template →"}
-                                    </button>
-                                    <button
-                                        class="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
-                                        title="Close"
-                                        onClick={() => setPreview(null)}
-                                    >
-                                        <CloseIcon size={16} />
-                                    </button>
-                                </div>
-                            </header>
-                            <div class="min-h-0 flex-1">
-                                <PreviewCanvas
-                                    content={{ ...t().content, theme: appTheme() }}
-                                    format={previewFmt}
+                            </div>
+                            <div class="ml-4">
+                                <Segmented
+                                    variant="accent"
+                                    value={previewFmt()}
+                                    options={FORMATS.map((f) => ({ label: f.label, value: f.id }))}
+                                    onChange={setPreviewFmt}
                                 />
                             </div>
+                            <div class="ml-auto flex items-center gap-2">
+                                <Button
+                                    variant="primary"
+                                    disabled={using() !== null}
+                                    onClick={() => use(t())}
+                                >
+                                    {using() === t().id ? "Creating…" : "Use template →"}
+                                </Button>
+                                <IconButton
+                                    size="xl"
+                                    title="Close"
+                                    onClick={() => setPreview(null)}
+                                >
+                                    <CloseIcon size={16} />
+                                </IconButton>
+                            </div>
+                        </header>
+                        <div class="min-h-0 flex-1">
+                            <PreviewCanvas
+                                content={{ ...t().content, theme: appTheme() }}
+                                format={previewFmt}
+                            />
                         </div>
-                    </div>
+                    </Modal>
                 )}
             </Show>
         </div>

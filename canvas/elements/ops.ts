@@ -176,6 +176,16 @@ export function updateDataAt(
     return updateElementAt(art, addr, (inst) => ({ ...inst, data }));
 }
 
+// Replace the whole element instance at `addr` — the cell's root element (path []) or a nested container
+// child. Used by the AI regenerate-element flow to swap a fresh version in place.
+export function setElementAt(
+    art: ArtifactContent,
+    addr: ElementAddress,
+    element: ElementInstance,
+): ArtifactContent {
+    return updateElementAt(art, addr, () => element);
+}
+
 export function setElementLayout(
     art: ArtifactContent,
     addr: ElementAddress,

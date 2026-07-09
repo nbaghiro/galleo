@@ -130,7 +130,9 @@ export const DEFAULT_MODELS: Record<AiTask, string> = {
     edit: "google:gemini-2.5-pro",
     rewrite: "google:gemini-2.5-flash",
     translate: "google:gemini-2.5-flash",
-    chat: "google:gemini-2.5-flash",
+    // The chat AGENT reasons — it picks + chains tools and reads nuance — so it runs on Pro with thinking ON
+    // (chat.ts sets no thinkingBudget). The content tools it calls keep their own fast, thinkless models.
+    chat: "google:gemini-2.5-pro",
     // A theme is a tiny structured output — Flash lands it in ~7s vs Pro's ~12s (up to 17s) at comparable
     // quality, since the deterministic contrast/OKLCH finalize pass guarantees safety regardless of model.
     theme: "google:gemini-2.5-flash",

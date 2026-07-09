@@ -1,6 +1,6 @@
 import type { Region } from "@engine/node";
 import type { ElementAddress, Target } from "@model/target";
-import type { ArtifactContent, Section } from "@model/artifact";
+import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import type { PlanLimits } from "@model/billing";
 import type { TurnEvent, TurnRequest } from "@model/ai";
 import type { IconPick, MediaKind } from "@model/media";
@@ -74,10 +74,11 @@ export const [hover, setHover] = createSignal<Target | null>(null, { equals: tar
 // export menu can gate paid formats and keep/strip the Galleo mark. The editor stays app-free (data in,
 // no import back into app); defaults are the most-restrictive Free set, so a studio with no host still
 // gates correctly rather than leaking paid exports.
-export type ExportFeatures = Pick<PlanLimits, "exportFormats" | "removeBranding">;
+export type ExportFeatures = Pick<PlanLimits, "exportFormats" | "removeBranding" | "publicLinks">;
 const [features, setFeatures] = createSignal<ExportFeatures>({
     exportFormats: ["png"],
     removeBranding: false,
+    publicLinks: false, // status-aware value pushed by the app; Free/most-restrictive default
 });
 export { features, setFeatures };
 
@@ -335,6 +336,16 @@ export function requestThemePicker(): void {
     themePickerHandler?.();
 }
 
+// The app registers a handler so the studio's Share control can open the app-level Share modal (publish /
+// public links / recipients). No-op when the studio runs without an app host.
+let shareHandler: (() => void) | null = null;
+export function onShare(fn: () => void): void {
+    shareHandler = fn;
+}
+export function requestShare(): void {
+    shareHandler?.();
+}
+
 // The app registers a handler so the editor's image controls (image element + section background) can
 // open the shared media picker. A request carries the callback that receives the chosen image url and an
 // optional starting search query. No-op when the studio runs without an app host.
@@ -378,6 +389,42 @@ export function onSuggestSections(fn: SectionSuggester): void {
 }
 export function getSuggestSections(): SectionSuggester | null {
     return sectionSuggester;
+}
+
+// The app registers how to regenerate ONE element (POST /ai/element) — a single call returning a fresh
+// version of the element to swap in place. Injected so the editor stays app-free; no host registered → the
+// ContextBar's Regenerate action stays hidden (see canRegenerate in ai/element-gen).
+export type ElementReviser = (
+    content: ArtifactContent,
+    sectionId: string,
+    element: ElementInstance,
+    instruction?: string,
+) => Promise<ElementInstance>;
+let elementReviser: ElementReviser | null = null;
+export function onReviseElement(fn: ElementReviser): void {
+    elementReviser = fn;
+}
+export function getReviseElement(): ElementReviser | null {
+    return elementReviser;
+}
+
+// The app registers how to rewrite / translate ONE passage of selected text (POST /ai/text) — a single fast
+// call returning the edited string the editor splices back into the selection. Injected so the editor stays
+// app-free; no host → the text AI menu doesn't appear.
+export interface TextAssistRequest {
+    op: "rewrite" | "translate";
+    text: string; // the selected passage to edit
+    instruction?: string; // rewrite: the directive (e.g. "make it punchier")
+    language?: string; // translate: the target language
+    context?: string; // the full surrounding text, when only a sub-range is selected
+}
+export type TextAssistant = (req: TextAssistRequest) => Promise<string>;
+let textAssistant: TextAssistant | null = null;
+export function onTextAssist(fn: TextAssistant): void {
+    textAssistant = fn;
+}
+export function getTextAssist(): TextAssistant | null {
+    return textAssistant;
 }
 
 // Load an artifact (fetched from the API) into the editor. Resets transient state; does NOT bump

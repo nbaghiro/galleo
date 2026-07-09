@@ -15,21 +15,19 @@ import {
     redo,
     renameArtifact,
     requestHome,
+    requestShare,
     requestSwitchArtifact,
     requestThemePicker,
     requestUpgrade,
     undo,
 } from "../editor";
 import { exportDeckPng, exportPdfAuto, exportPrint } from "@canvas/render/export";
-import { Icon } from "../icons";
-
-// One shared height for every topbar control (switchers + action buttons) so they always line up.
-const controlH = "h-8";
-const btnBase = `flex items-center cursor-pointer rounded-lg border px-3 text-[12px] font-semibold ${controlH}`;
-const btn = `${btnBase} border-line bg-canvas text-ink`;
+import { Button, IconButton, Badge } from "@ui/button";
+import { Segmented, inputCls } from "@ui/inputs";
+import { Icon } from "@ui/icons";
+import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@ui/menu";
 
 const ArtifactMenu: Component = () => {
-    const [open, setOpen] = createSignal(false);
     const [renaming, setRenaming] = createSignal(false);
     const [draft, setDraft] = createSignal("");
     const current = createMemo(
@@ -37,7 +35,6 @@ const ArtifactMenu: Component = () => {
     );
     let inputEl: HTMLInputElement | undefined;
     const startRename = (): void => {
-        setOpen(false);
         setDraft(current());
         setRenaming(true);
         queueMicrotask(() => {
@@ -52,85 +49,71 @@ const ArtifactMenu: Component = () => {
     };
 
     return (
-        <div class="relative">
-            <Show
-                when={renaming()}
-                fallback={
-                    <button
-                        class="flex items-center gap-1.5 text-[13px] text-muted hover:text-ink"
-                        title="Rename or switch artifact"
-                        onClick={() => setOpen((o) => !o)}
-                    >
-                        {current()} <Icon name="chevron" size={12} />
-                    </button>
-                }
-            >
-                <input
-                    ref={(el) => (inputEl = el)}
-                    class="w-56 rounded-md border border-line bg-canvas px-2 py-1 text-[13px] font-semibold text-ink outline-none focus:border-accent"
-                    value={draft()}
-                    onInput={(e) => setDraft(e.currentTarget.value)}
-                    onBlur={commitRename}
-                    onKeyDown={(e) => {
-                        e.stopPropagation(); // don't leak ⌘Z/Escape to the canvas' global shortcuts
-                        if (e.key === "Enter") {
-                            e.preventDefault();
-                            commitRename();
-                        } else if (e.key === "Escape") {
-                            e.preventDefault();
-                            setRenaming(false);
-                        }
-                    }}
-                />
-            </Show>
-            <Show when={open()}>
-                <div class="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-                <div class="absolute left-0 z-20 mt-2 w-60 rounded-xl border border-line bg-panel p-1.5 shadow-xl">
-                    <button
-                        class="block w-full rounded-lg px-2.5 py-2 text-left text-[13px] text-soft hover:bg-canvas"
-                        onClick={startRename}
-                    >
-                        Rename…
-                    </button>
-                    <div class="my-1 h-px bg-line" />
-                    <div class="px-2.5 pb-1 pt-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
-                        Switch to
-                    </div>
+        <Show
+            when={renaming()}
+            fallback={
+                <Menu
+                    width={240}
+                    trigger={(m) => (
+                        <button
+                            ref={m.ref}
+                            class="flex items-center gap-1.5 text-[13px] text-muted hover:text-ink"
+                            title="Rename or switch artifact"
+                            onClick={m.toggle}
+                        >
+                            {current()} <Icon name="chevron" size={12} />
+                        </button>
+                    )}
+                >
+                    <MenuItem onClick={startRename}>Rename…</MenuItem>
+                    <MenuSeparator />
+                    <MenuLabel>Switch to</MenuLabel>
                     <For each={artifacts()}>
                         {(d) => (
-                            <button
-                                class={`block w-full rounded-lg px-2.5 py-2 text-left text-[13px] ${d.id === currentArtifactId() ? "bg-canvas font-semibold text-accent" : "hover:bg-canvas"}`}
-                                onClick={() => {
-                                    requestSwitchArtifact(d.id);
-                                    setOpen(false);
-                                }}
+                            <MenuItem
+                                selected={d.id === currentArtifactId()}
+                                onClick={() => requestSwitchArtifact(d.id)}
                             >
                                 {d.title}
-                            </button>
+                            </MenuItem>
                         )}
                     </For>
-                </div>
-            </Show>
-        </div>
+                </Menu>
+            }
+        >
+            <input
+                ref={(el) => (inputEl = el)}
+                class={`${inputCls} w-56 font-semibold`}
+                value={draft()}
+                onInput={(e) => setDraft(e.currentTarget.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                    e.stopPropagation(); // don't leak ⌘Z/Escape to the canvas' global shortcuts
+                    if (e.key === "Enter") {
+                        e.preventDefault();
+                        commitRename();
+                    } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        setRenaming(false);
+                    }
+                }}
+            />
+        </Show>
     );
 };
 
 // Small icon-only undo/redo, greyed when their stack is empty. Content edits, theme changes, format
 // switches and renames all share one stack (see editor.ts), so these step through everything.
-const HistoryButtons: Component = () => {
-    const cls =
-        "grid h-8 w-8 place-items-center rounded-lg text-soft transition-colors hover:bg-canvas hover:text-ink disabled:pointer-events-none disabled:opacity-30";
-    return (
-        <div class="flex items-center gap-0.5">
-            <button class={cls} disabled={!canUndo()} title="Undo (⌘Z)" onClick={undo}>
-                <Icon name="undo" size={15} />
-            </button>
-            <button class={cls} disabled={!canRedo()} title="Redo (⌘⇧Z)" onClick={redo}>
-                <Icon name="redo" size={15} />
-            </button>
-        </div>
-    );
-};
+const HistoryButtons: Component = () => (
+    <div class="flex items-center gap-0.5">
+        <IconButton size="lg" tone="soft" disabled={!canUndo()} title="Undo (⌘Z)" onClick={undo}>
+            <Icon name="undo" size={15} />
+        </IconButton>
+        <IconButton size="lg" tone="soft" disabled={!canRedo()} title="Redo (⌘⇧Z)" onClick={redo}>
+            <Icon name="redo" size={15} />
+        </IconButton>
+    </div>
+);
 
 const Swatch: Component<{ surface: string; ink: string; accent: string }> = (props) => (
     <span class="flex h-4 w-4 overflow-hidden rounded-full border border-line">
@@ -145,18 +128,14 @@ const Swatch: Component<{ surface: string; ink: string; accent: string }> = (pro
 const ThemeMenu: Component = () => {
     const current = createMemo(() => editorTheme());
     return (
-        <button
-            class={`${btn} flex items-center gap-2`}
-            title="Theme"
-            onClick={() => requestThemePicker()}
-        >
+        <Button variant="tool" size="sm" title="Theme" onClick={() => requestThemePicker()}>
             <Swatch
                 surface={current().tokens.surface}
                 ink={current().tokens.ink}
                 accent={current().tokens.accent}
             />
             {current().name}
-        </button>
+        </Button>
     );
 };
 
@@ -167,13 +146,11 @@ const FORMATS = [
 ];
 
 const ExportMenu: Component = () => {
-    const [open, setOpen] = createSignal(false);
     const [busy, setBusy] = createSignal(false);
     // The workspace plan decides which formats are unlocked and whether exports carry the Galleo mark.
     const allows = (f: "png" | "pdf" | "print"): boolean => features().exportFormats.includes(f);
     const brand = (): boolean => !features().removeBranding;
     const run = async (fn: () => void | Promise<void>): Promise<void> => {
-        setOpen(false);
         setBusy(true);
         try {
             await fn();
@@ -189,77 +166,59 @@ const ExportMenu: Component = () => {
         fn: () => void | Promise<void>,
     ): JSX.Element =>
         allows(format) ? (
-            <button
-                class="block w-full rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-canvas"
-                onClick={() => run(fn)}
+            <MenuItem onClick={() => run(fn)}>{label}</MenuItem>
+        ) : (
+            <MenuItem
+                icon={<Icon name="lock" size={12} />}
+                trailing={<Badge tone="accentSoft">Pro</Badge>}
+                onClick={() => requestUpgrade()}
             >
                 {label}
-            </button>
-        ) : (
-            <button
-                class="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[13px] text-muted hover:bg-canvas"
-                onClick={() => {
-                    setOpen(false);
-                    requestUpgrade();
-                }}
-            >
-                <span class="inline-flex items-center gap-1.5">
-                    <Icon name="lock" size={12} /> {label}
-                </span>
-                <span class="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent">
-                    Pro
-                </span>
-            </button>
+            </MenuItem>
         );
     return (
-        <div class="relative">
-            <button class={btn} disabled={busy()} onClick={() => !busy() && setOpen((o) => !o)}>
-                <Show
-                    when={busy()}
-                    fallback={
-                        <span class="inline-flex items-center gap-1.5">
-                            <Icon name="export" size={14} /> Export{" "}
-                            <Icon name="chevron" size={11} />
-                        </span>
-                    }
+        <Menu
+            align="end"
+            width={208}
+            trigger={(m) => (
+                <Button
+                    ref={m.ref}
+                    variant="tool"
+                    size="sm"
+                    loading={busy()}
+                    onClick={() => !busy() && m.toggle()}
                 >
-                    <span class="inline-flex items-center gap-1.5">
-                        <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    <Show
+                        when={busy()}
+                        fallback={
+                            <>
+                                <Icon name="export" size={14} /> Export{" "}
+                                <Icon name="chevron" size={11} />
+                            </>
+                        }
+                    >
                         Exporting
-                    </span>
-                </Show>
-            </button>
-            <Show when={open()}>
-                <div class="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-                <div class="absolute right-0 z-20 mt-2 w-52 rounded-xl border border-line bg-panel p-1.5 shadow-xl">
-                    {item("PDF", "pdf", () =>
-                        exportPdfAuto(editor.artifact, editorTokens(), { brand: brand() }),
-                    )}
-                    {item("PNG — deck", "png", () =>
-                        exportDeckPng(editor.artifact, editorTokens(), { brand: brand() }),
-                    )}
-                    {item("Print…", "print", () => exportPrint(editor.artifact, editorTokens()))}
-                </div>
-            </Show>
-        </div>
+                    </Show>
+                </Button>
+            )}
+        >
+            {item("PDF", "pdf", () =>
+                exportPdfAuto(editor.artifact, editorTokens(), { brand: brand() }),
+            )}
+            {item("PNG — deck", "png", () =>
+                exportDeckPng(editor.artifact, editorTokens(), { brand: brand() }),
+            )}
+            {item("Print…", "print", () => exportPrint(editor.artifact, editorTokens()))}
+        </Menu>
     );
 };
 
 const FormatSwitcher: Component = () => (
-    <div
-        class={`flex items-center gap-0.5 rounded-lg border border-line bg-canvas p-0.5 ${controlH}`}
-    >
-        <For each={FORMATS}>
-            {(f) => (
-                <button
-                    class={`rounded-md px-2.5 py-1 text-[12px] font-semibold ${editor.artifact.format === f.id ? "bg-panel text-ink shadow-sm" : "text-muted hover:text-ink"}`}
-                    onClick={() => commit(setArtifactFormat(editor.artifact, f.id))}
-                >
-                    {f.label}
-                </button>
-            )}
-        </For>
-    </div>
+    <Segmented
+        value={editor.artifact.format}
+        options={FORMATS.map((f) => ({ label: f.label, value: f.id }))}
+        onChange={(v) => commit(setArtifactFormat(editor.artifact, v))}
+    />
 );
 
 export const Topbar: Component = () => (
@@ -276,12 +235,19 @@ export const Topbar: Component = () => (
         <span class="flex-1" />
         <FormatSwitcher />
         <ThemeMenu />
-        <button class={btn} onClick={() => present()}>
-            <span class="inline-flex items-center gap-1.5">
-                <Icon name={editor.artifact.format === "deck" ? "present" : "preview"} size={14} />
-                {editor.artifact.format === "deck" ? "Present" : "Preview"}
-            </span>
-        </button>
+        <Button variant="tool" size="sm" onClick={() => present()}>
+            <Icon name={editor.artifact.format === "deck" ? "present" : "preview"} size={14} />
+            {editor.artifact.format === "deck" ? "Present" : "Preview"}
+        </Button>
+        <Button
+            variant="tool"
+            size="sm"
+            title={features().publicLinks ? "Share" : "Sharing is a paid feature — upgrade"}
+            onClick={() => (features().publicLinks ? requestShare() : requestUpgrade())}
+        >
+            <Icon name={features().publicLinks ? "link" : "lock"} size={14} />
+            Share
+        </Button>
         <ExportMenu />
     </header>
 );

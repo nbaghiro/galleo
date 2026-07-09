@@ -142,3 +142,63 @@ nothing). Otherwise a `createEffect` auto-opens the inspector for the selection.
 Net: an element's entire editing surface is assembled from its `ElementSpec` — `bar` picks the quick
 controls, `controls` fills the panel, `frame`/`resize`/`spacing`/`container` light up canvas affordances, and
 `richText`/`dataShapeFor` swap in the specialized editors (inline text marks, chart/diagram grid).
+
+## 5. How it's wired (the plumbing under §4)
+
+None of the surfaces above query the DOM to find an element. They all read a handful of signals in
+`editor/editor.ts` and position themselves from the engine's `Region` boxes, so the chrome can never drift
+from what's painted.
+
+**The reactive spine.** Five signals carry the whole interaction:
+
+- **`regions`** — `Region[]` the canvas republishes on every paint; each is `{ id, box, radius }` in
+  canvas-content coords. The region `id` (`el:…` / `cell:…` / `section:…`) is the join key between engine
+  output and UI. This is the single source of geometry for every overlay.
+- **`selection` / `hover`** — a `Target | null` each (`{kind:"element", address}` | `cell` | `section`),
+  with a custom `targetsEqual` so re-selecting the same thing doesn't churn.
+- **`rightTab`** — which right-rail flyout is open (a `category` id · `"search"` · `"inspector"` · `null`).
+- **`liveEdit`** (`select/handles.tsx`) — a transient, uncommitted direct-manipulation edit (drag in flight).
+- **`editing`** (`ElementAddress | null`) — the element whose inline text is being edited.
+
+"Becoming visible" = one of these turns non-null and a `Show`/`For` memo lights up. Selection itself is just
+"set the `selection` signal"; everything in §4 is a reaction to it.
+
+**Pixels → selection (`editor/canvas/Canvas.tsx`).** Each `draw()` paints the section stack and gets back
+`{tops, regions, height}`. It publishes `regions` _and_ pre-parses them once into a flat `liveHits` array of
+`{target, specificity, box}`, so a hover test is a numeric box-scan, not id-parsing per pointer move. The
+pointer protocol:
+
+- **down** → records `pending = {target: hitTest(x,y), x, y}` — no selection yet.
+- **move** → sets `hover` to the hit; _or_, if `pending` is an element dragged past `DRAG_THRESHOLD`,
+  promotes to a drag-move (drop handled by `canvas/dnd.ts`).
+- **up** → `setSelection(pending.target)`; if that element's spec is `richText`, `startEditing` at the click
+  point (so clicking body text drops you straight into editing).
+- **`hitTest`** returns the highest-`specificity` region under the point → element beats cell beats section.
+  `Escape` walks up via `parentTarget`; `Delete`/`Backspace` removes the selection; `⌘D` duplicates; arrows
+  reorder a selected section. Keys are ignored while a form field or the inline editor has focus.
+
+**The overlay stack.** All chrome is mounted as absolutely-positioned siblings over the `paintHost` inside
+one stage div — the selection/hover rings (`Overlay`), the three handle layers, the drop indicator, the two
+section-level surfaces, the `ContextBar`, and the inline `TextEditor`. Each renders nothing until its slice of
+`selection()`/`hover()` matches.
+
+**Section-level chrome** (`editor/select/selection.tsx`, beyond §4's four element surfaces):
+
+- **`SectionActions`** — a pill straddling a section's bottom edge whenever any region inside it is _hovered_:
+  Add section / Generate (AI) / Layout (selects the section).
+- **`SectionToolbar`** — reorder ↑↓ / duplicate / add-below / delete, shown when a `section` is _selected_.
+
+**The panel auto-opens itself.** A `createEffect` in `Panel.tsx` sets `rightTab` to `"inspector"` whenever
+selection becomes a section or a non-inline element, and closes it when selection clears — so selecting on the
+canvas pops the inspector open, while the `elementInline` rule (§4②) keeps it shut for bar-only elements.
+
+**Live edits & undo.** Every control write funnels through `commit(op(...))` with an optional `coalesce` key;
+continuous gestures — slider/color scrubs and every handle drag — pass a stable key so the whole gesture folds
+into **one** undo step. Handle drags additionally route through the shared `liveEdit` signal: the canvas's
+`preview` memo paints `applyLiveEdit(artifact, edit)` each frame with `track: true` (regions update so the
+handle follows the element as it resizes), then commits the identical op once on release. Inline text edits
+update live with no history and record a single snapshot when editing ends.
+
+**Why the panel doesn't steal focus.** `SchemaFields` derives its grouping only from the stable control
+_list_, and reads each value through a getter — so editing a value never re-renders the panel structure (which
+would blur the input mid-keystroke). Only a `visibleWhen` flip actually remounts a row.

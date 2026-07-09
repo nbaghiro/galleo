@@ -159,6 +159,18 @@ export const formatLabel = (id: string): string =>
 
 export const formatLabelPlural = (id: string): string => `${formatLabel(id)}s`;
 
+// Icon glyph per format (deck / doc / site — the glyphs live in @ui/icons).
+export const formatIcon = (id: string): string =>
+    id === "web" ? "site" : id === "doc" ? "doc" : "deck";
+
+// The single ordered {id,label,icon} list every format switcher/picker builds on (Topbar · generate ·
+// theme · templates), so the deck/doc/web triple is never restated per-view.
+export const FORMATS: { id: string; label: string; icon: string }[] = FORMAT_IDS.map((id) => ({
+    id,
+    label: formatLabel(id),
+    icon: formatIcon(id),
+}));
+
 // Relative "…ago" timestamp for the library / trash cards.
 export function relativeTime(iso: string): string {
     const s = (Date.now() - new Date(iso).getTime()) / 1000;

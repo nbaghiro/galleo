@@ -8,8 +8,12 @@ import { resolveProfile } from "@engine/profile";
 import { paintSectionStack } from "@canvas/render/backends";
 import { setArtifactTheme } from "@elements/ops";
 import { commit, editor, endThemePreview } from "@editor/editor";
-import { ColorPopover, Dropdown, type ColorSwatch } from "../components/widgets";
-import { ChevronLeftIcon, CloseIcon, EditIcon, RefreshIcon } from "../components/icons";
+import { ColorPopover, ThemeSwatch, type ColorSwatch } from "@ui/color";
+import { Dropdown } from "@ui/select";
+import { Button, IconButton, Eyebrow } from "@ui/button";
+import { Slider, Segmented, TextField, TextArea } from "@ui/inputs";
+import { Modal } from "@ui/overlay";
+import { ChevronLeftIcon, CloseIcon, EditIcon, RefreshIcon } from "@ui/icons";
 import { SectionThumb } from "../components/previews";
 import { api } from "../api";
 import {
@@ -352,7 +356,6 @@ const ThemeEditorPanel: Component = () => {
 
     let scroll!: HTMLDivElement;
     let host!: HTMLDivElement;
-    let panel!: HTMLDivElement;
 
     // Re-lay-out + repaint on any token / format / width change. Spreading the store reads every field,
     // so the effect tracks all of them. The preview renders the real artifact (in its own format) when
@@ -370,16 +373,6 @@ const ThemeEditorPanel: Component = () => {
     createEffect(draw);
 
     onMount(() => {
-        const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-        if (!reduced)
-            panel.animate(
-                [
-                    { opacity: 0, transform: "translateY(8px) scale(0.98)" },
-                    { opacity: 1, transform: "none" },
-                ],
-                { duration: 180, easing: "cubic-bezier(.2,.7,.2,1)", fill: "both" },
-            );
-
         const ro = new ResizeObserver(() => setWidth(scroll.clientWidth));
         ro.observe(scroll);
         setWidth(scroll.clientWidth);
@@ -390,6 +383,13 @@ const ThemeEditorPanel: Component = () => {
 
         const onKey = (e: KeyboardEvent): void => {
             if (e.key === "Escape") closeThemeEditor();
+            if (
+                (e.metaKey || e.ctrlKey) &&
+                e.key === "Enter" &&
+                mode() === "generate" &&
+                !genDone()
+            )
+                void runGenerate();
         };
         window.addEventListener("keydown", onKey);
 
@@ -424,12 +424,6 @@ const ThemeEditorPanel: Component = () => {
         closeThemeEditor();
     };
 
-    // ── segmented mode toggle ──
-    const seg = (active: boolean): string =>
-        `flex-1 rounded-md px-2 py-1 text-[11.5px] font-medium transition-colors ${
-            active ? "bg-accent text-onaccent" : "text-soft hover:text-ink"
-        }`;
-
     // ── theme picker card ──
     const card = (t: Theme, custom: boolean): JSX.Element => (
         <div class="group" style={{ width: `${CARD_W}px` }}>
@@ -442,29 +436,28 @@ const ThemeEditorPanel: Component = () => {
                 onOpen={() => pick(t.id)}
             />
             <div class="mt-1.5 flex items-center gap-1.5">
-                <span
-                    class="h-3 w-3 flex-none rounded"
-                    style={{ background: resolveTheme(t.id).tokens.accent }}
-                />
+                <ThemeSwatch themeId={t.id} rounded="rounded" />
                 <span class="min-w-0 flex-1 truncate text-[12px] font-medium text-ink">
                     {t.name}
                 </span>
                 <Show when={custom}>
                     <span class="hidden items-center gap-0.5 group-hover:flex">
-                        <button
-                            class="grid h-5 w-5 place-items-center rounded text-muted hover:text-ink"
+                        <IconButton
+                            size="xs"
+                            rounded="md"
                             title="Customize theme"
                             onClick={() => editCustom(t)}
                         >
                             <EditIcon size={13} />
-                        </button>
-                        <button
-                            class="grid h-5 w-5 place-items-center rounded text-muted hover:text-ink"
+                        </IconButton>
+                        <IconButton
+                            size="xs"
+                            rounded="md"
                             title="Delete theme"
                             onClick={() => removeCustomTheme(t.id)}
                         >
                             <CloseIcon size={13} />
-                        </button>
+                        </IconButton>
                     </span>
                 </Show>
             </div>
@@ -501,23 +494,19 @@ const ThemeEditorPanel: Component = () => {
         step: number,
         unit: string,
     ): JSX.Element => (
-        <label class="flex items-center gap-2.5 py-1">
+        <div class="flex items-center gap-2.5 py-1">
             <span class="w-[84px] flex-none text-[12.5px] text-soft">{label}</span>
-            <input
-                type="range"
-                class="min-w-0 flex-1"
-                style={{ "accent-color": "var(--color-accent)" }}
-                min={min}
-                max={max}
-                step={step}
-                value={(tk[key] as number) ?? min}
-                onInput={(e) => setTk(key, Number(e.currentTarget.value))}
-            />
-            <span class="w-10 flex-none text-right font-mono text-[10px] text-muted">
-                {(tk[key] as number) ?? min}
-                {unit}
-            </span>
-        </label>
+            <div class="min-w-0 flex-1">
+                <Slider
+                    value={(tk[key] as number) ?? min}
+                    min={min}
+                    max={max}
+                    step={step}
+                    unit={unit}
+                    onChange={(n) => setTk(key, n)}
+                />
+            </div>
+        </div>
     );
 
     const fontField = (
@@ -538,352 +527,342 @@ const ThemeEditorPanel: Component = () => {
     );
 
     const heading = (label: string): JSX.Element => (
-        <div class="mb-1 mt-4 font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted">
+        <Eyebrow as="div" weight="normal" tracking="wider" size={9.5} class="mb-1 mt-4">
             {label}
-        </div>
+        </Eyebrow>
     );
 
     return (
-        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 text-ink sm:p-6">
-            {/* light scrim (no blur) so the recoloring app stays visible behind the modal */}
-            <div class="absolute inset-0 bg-black/25" onClick={() => closeThemeEditor()} />
-            <div
-                ref={panel}
-                class="relative flex h-[90vh] max-h-[1000px] w-full max-w-[1520px] overflow-hidden rounded-2xl border border-line bg-panel shadow-2xl"
-                style={panelVars()}
-            >
-                {/* ── left rail: Themes ⇄ Customize ── */}
-                <aside class="flex w-[360px] flex-none flex-col border-r border-line bg-panel">
-                    <header class="flex flex-none items-center gap-2 border-b border-line px-3 py-3">
-                        <div class="flex flex-1 items-center gap-1 rounded-lg border border-line p-0.5">
-                            <button
-                                class={seg(mode() === "list")}
-                                onClick={() => {
+        <Modal
+            size="full"
+            scrim="light"
+            z={60}
+            vars={panelVars()}
+            class="flex h-[90vh] max-h-[1000px] overflow-hidden"
+            onClose={() => closeThemeEditor()}
+        >
+            {/* ── left rail: Themes ⇄ Customize ── */}
+            <aside class="flex w-[360px] flex-none flex-col border-r border-line bg-panel">
+                <header class="flex flex-none items-center gap-2 border-b border-line px-3 py-3">
+                    <div class="flex-1">
+                        <Segmented
+                            variant="accent"
+                            value={mode()}
+                            options={[
+                                { value: "list", label: "Themes" },
+                                { value: "custom", label: "Customize" },
+                                { value: "generate", label: "Generate" },
+                            ]}
+                            onChange={(v) => {
+                                if (v === "list") {
                                     discardGenerated();
                                     setMode("list");
-                                }}
-                            >
-                                Themes
-                            </button>
-                            <button class={seg(mode() === "custom")} onClick={enterCustom}>
-                                Customize
-                            </button>
-                            <button
-                                class={seg(mode() === "generate")}
-                                onClick={() => setMode("generate")}
-                            >
-                                Generate
-                            </button>
-                        </div>
-                        <button
-                            class="grid h-8 w-8 flex-none place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
-                            title="Close"
-                            onClick={() => closeThemeEditor()}
-                        >
-                            <CloseIcon size={15} />
-                        </button>
-                    </header>
+                                } else if (v === "custom") enterCustom();
+                                else setMode("generate");
+                            }}
+                        />
+                    </div>
+                    <IconButton
+                        size="lg"
+                        tone="muted"
+                        class="flex-none"
+                        title="Close"
+                        onClick={() => closeThemeEditor()}
+                    >
+                        <CloseIcon size={15} />
+                    </IconButton>
+                </header>
 
-                    <div class="min-h-0 flex-1 overflow-y-auto">
-                        {/* ── themes picker ── */}
-                        <Show when={mode() === "list"}>
-                            <div class="px-4 py-3">
-                                <Show when={customThemes().length}>
-                                    <div class="mb-2 flex items-center justify-between">
-                                        <span class="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
-                                            My themes
-                                        </span>
-                                        <span class="font-mono text-[9px] text-accent">synced</span>
-                                    </div>
-                                    <div class="mb-5 flex flex-wrap gap-3">
-                                        <For each={customThemes()}>{(t) => card(t, true)}</For>
-                                    </div>
-                                </Show>
-                                <div class="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
-                                    Built-in
+                <div class="min-h-0 flex-1 overflow-y-auto">
+                    {/* ── themes picker ── */}
+                    <Show when={mode() === "list"}>
+                        <div class="px-4 py-3">
+                            <Show when={customThemes().length}>
+                                <div class="mb-2 flex items-center justify-between">
+                                    <Eyebrow weight="normal">My themes</Eyebrow>
+                                    <span class="font-mono text-[9px] text-accent">synced</span>
                                 </div>
-                                <div class="flex flex-wrap gap-3">
-                                    <For each={THEME_LIST}>{(t) => card(t, false)}</For>
+                                <div class="mb-5 flex flex-wrap gap-3">
+                                    <For each={customThemes()}>{(t) => card(t, true)}</For>
                                 </div>
-                                <p class="mt-4 text-[11px] leading-relaxed text-muted">
-                                    Pick one to apply it, or hit{" "}
-                                    <span class="text-soft">Customize</span> to tweak it into your
-                                    own.
-                                </p>
+                            </Show>
+                            <Eyebrow as="div" weight="normal" class="mb-2">
+                                Built-in
+                            </Eyebrow>
+                            <div class="flex flex-wrap gap-3">
+                                <For each={THEME_LIST}>{(t) => card(t, false)}</For>
                             </div>
-                        </Show>
+                            <p class="mt-4 text-[11px] leading-relaxed text-muted">
+                                Pick one to apply it, or hit{" "}
+                                <span class="text-soft">Customize</span> to tweak it into your own.
+                            </p>
+                        </div>
+                    </Show>
 
-                        {/* ── AI theme generation ── */}
-                        <Show when={mode() === "generate"}>
-                            <Show when={!genDone()}>
-                                <Show
-                                    when={!genBusy()}
-                                    fallback={
-                                        <div class="flex flex-col items-center gap-6 px-4 py-16 text-center">
-                                            <div class="flex gap-2">
-                                                <For each={[0, 1, 2, 3, 4, 5, 6]}>
-                                                    {(i) => (
-                                                        <span
-                                                            class="theme-gen-swatch h-7 w-7 rounded-lg"
-                                                            style={{
-                                                                "animation-delay": `${i * 130}ms`,
-                                                            }}
-                                                        />
-                                                    )}
-                                                </For>
-                                            </div>
-                                            <div>
-                                                <div
-                                                    class="text-[16px] text-ink"
-                                                    style={{ "font-family": "var(--font-display)" }}
-                                                >
-                                                    Designing your theme
-                                                </div>
-                                                <div class="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-accent">
-                                                    {GEN_STEPS[genStep()]}…
-                                                </div>
-                                            </div>
-                                        </div>
-                                    }
-                                >
-                                    <div class="px-4 py-4">
-                                        <p class="mb-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
-                                            Describe
-                                        </p>
-                                        <h2
-                                            class="mb-1 text-[22px] leading-tight text-ink"
-                                            style={{ "font-family": "var(--font-display)" }}
-                                        >
-                                            Generate a theme
-                                        </h2>
-                                        <p class="mb-4 text-[12.5px] leading-relaxed text-muted">
-                                            Describe a mood, brand, or vibe — the AI designs a full
-                                            color-and-type system (palette, fonts, shape) you can
-                                            preview, tweak, and save.
-                                        </p>
-                                        <textarea
-                                            class="min-h-[120px] w-full resize-none rounded-xl border border-line bg-canvas px-3 py-2.5 text-[13.5px] leading-relaxed text-ink outline-none placeholder:text-muted focus:border-accent"
-                                            placeholder="e.g. warm mid-century — terracotta and cream, editorial serif, soft corners"
-                                            value={genPrompt()}
-                                            onInput={(e) => setGenPrompt(e.currentTarget.value)}
-                                            onKeyDown={(e) => {
-                                                if ((e.metaKey || e.ctrlKey) && e.key === "Enter")
-                                                    runGenerate();
-                                            }}
-                                        />
-
-                                        <p class="mb-1.5 mt-4 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
-                                            Mode
-                                        </p>
-                                        <div class="flex items-center gap-1 rounded-lg border border-line p-0.5">
-                                            <For each={["auto", "light", "dark"] as const}>
-                                                {(m) => (
-                                                    <button
-                                                        class={seg(genMode() === m)}
-                                                        onClick={() => setGenMode(m)}
-                                                    >
-                                                        {m === "auto"
-                                                            ? "Auto"
-                                                            : m === "light"
-                                                              ? "Light"
-                                                              : "Dark"}
-                                                    </button>
+                    {/* ── AI theme generation ── */}
+                    <Show when={mode() === "generate"}>
+                        <Show when={!genDone()}>
+                            <Show
+                                when={!genBusy()}
+                                fallback={
+                                    <div class="flex flex-col items-center gap-6 px-4 py-16 text-center">
+                                        <div class="flex gap-2">
+                                            <For each={[0, 1, 2, 3, 4, 5, 6]}>
+                                                {(i) => (
+                                                    <span
+                                                        class="theme-gen-swatch h-7 w-7 rounded-lg"
+                                                        style={{
+                                                            "animation-delay": `${i * 130}ms`,
+                                                        }}
+                                                    />
                                                 )}
                                             </For>
                                         </div>
-
-                                        <div class="mb-2 mt-5 flex items-center justify-between">
-                                            <p class="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
-                                                Or start from an idea
-                                            </p>
-                                            <button
-                                                class="grid h-6 w-6 place-items-center rounded-md text-muted transition-colors hover:bg-canvas hover:text-accent"
-                                                title="Shuffle ideas"
-                                                onClick={() => setExPage((p) => p + 1)}
+                                        <div>
+                                            <div
+                                                class="text-[16px] text-ink"
+                                                style={{ "font-family": "var(--font-display)" }}
                                             >
-                                                <RefreshIcon size={13} />
-                                            </button>
+                                                Designing your theme
+                                            </div>
+                                            <div class="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-accent">
+                                                {GEN_STEPS[genStep()]}…
+                                            </div>
                                         </div>
-                                        <div class="flex flex-col gap-1.5">
-                                            <For each={examples()}>
-                                                {(ex) => (
-                                                    <button
-                                                        class="rounded-lg border border-line px-3 py-2 text-left text-[12.5px] text-soft transition-colors hover:border-accent hover:text-ink"
-                                                        onClick={() => setGenPrompt(ex)}
-                                                    >
-                                                        {ex}
-                                                    </button>
-                                                )}
-                                            </For>
-                                        </div>
-
-                                        <button
-                                            class="mt-5 w-full rounded-xl bg-accent py-2.5 text-[13.5px] font-semibold text-onaccent transition-shadow hover:shadow-lg disabled:opacity-50 disabled:hover:shadow-none"
-                                            disabled={genBusy() || !genPrompt().trim()}
-                                            onClick={runGenerate}
-                                        >
-                                            {genBusy() ? "Designing…" : "✨ Generate theme"}
-                                        </button>
-                                        <Show when={genError()}>
-                                            <p
-                                                class="mt-2 text-[11.5px]"
-                                                style={{ color: "#C0392B" }}
-                                            >
-                                                {genError()}
-                                            </p>
-                                        </Show>
-                                        <p class="mt-3 text-[11px] leading-relaxed text-muted">
-                                            Generates in a few seconds — the result opens in
-                                            Customize, ready to fine-tune and save.
-                                        </p>
                                     </div>
-                                </Show>
+                                }
+                            >
+                                <div class="px-4 py-4">
+                                    <Eyebrow
+                                        as="div"
+                                        weight="normal"
+                                        tracking="widest"
+                                        class="mb-2"
+                                    >
+                                        Describe
+                                    </Eyebrow>
+                                    <h2
+                                        class="mb-1 text-[22px] leading-tight text-ink"
+                                        style={{ "font-family": "var(--font-display)" }}
+                                    >
+                                        Generate a theme
+                                    </h2>
+                                    <p class="mb-4 text-[12.5px] leading-relaxed text-muted">
+                                        Describe a mood, brand, or vibe — the AI designs a full
+                                        color-and-type system (palette, fonts, shape) you can
+                                        preview, tweak, and save.
+                                    </p>
+                                    <TextArea
+                                        rounded="xl"
+                                        class="min-h-[120px] placeholder:text-muted"
+                                        placeholder="e.g. warm mid-century — terracotta and cream, editorial serif, soft corners"
+                                        value={genPrompt()}
+                                        onChange={(v) => setGenPrompt(v)}
+                                    />
+
+                                    <Eyebrow
+                                        as="div"
+                                        weight="normal"
+                                        tracking="widest"
+                                        class="mb-1.5 mt-4"
+                                    >
+                                        Mode
+                                    </Eyebrow>
+                                    <Segmented
+                                        variant="accent"
+                                        value={genMode()}
+                                        options={[
+                                            { value: "auto", label: "Auto" },
+                                            { value: "light", label: "Light" },
+                                            { value: "dark", label: "Dark" },
+                                        ]}
+                                        onChange={(v) => setGenMode(v as "auto" | "light" | "dark")}
+                                    />
+
+                                    <div class="mb-2 mt-5 flex items-center justify-between">
+                                        <Eyebrow weight="normal" tracking="widest">
+                                            Or start from an idea
+                                        </Eyebrow>
+                                        <IconButton
+                                            size="sm"
+                                            rounded="md"
+                                            title="Shuffle ideas"
+                                            onClick={() => setExPage((p) => p + 1)}
+                                        >
+                                            <RefreshIcon size={13} />
+                                        </IconButton>
+                                    </div>
+                                    <div class="flex flex-col gap-1.5">
+                                        <For each={examples()}>
+                                            {(ex) => (
+                                                <button
+                                                    class="rounded-lg border border-line px-3 py-2 text-left text-[12.5px] text-soft transition-colors hover:border-accent hover:text-ink"
+                                                    onClick={() => setGenPrompt(ex)}
+                                                >
+                                                    {ex}
+                                                </button>
+                                            )}
+                                        </For>
+                                    </div>
+
+                                    <Button
+                                        variant="primary"
+                                        size="lg"
+                                        rounded="xl"
+                                        class="mt-5 w-full"
+                                        disabled={genBusy() || !genPrompt().trim()}
+                                        onClick={runGenerate}
+                                    >
+                                        {genBusy() ? "Designing…" : "✨ Generate theme"}
+                                    </Button>
+                                    <Show when={genError()}>
+                                        <p class="mt-2 text-[11.5px]" style={{ color: "#C0392B" }}>
+                                            {genError()}
+                                        </p>
+                                    </Show>
+                                    <p class="mt-3 text-[11px] leading-relaxed text-muted">
+                                        Generates in a few seconds — the result opens in Customize,
+                                        ready to fine-tune and save.
+                                    </p>
+                                </div>
                             </Show>
                         </Show>
+                    </Show>
 
-                        {/* ── token editor: shared by Customize + a generated result ── */}
-                        <Show when={editorActive()}>
-                            <div class="px-4 pb-6">
-                                <div class="sticky top-0 z-10 -mx-4 flex items-center gap-2 border-b border-line bg-panel px-4 py-3">
-                                    <Show when={mode() === "generate"}>
-                                        <button
-                                            class="grid h-8 w-8 flex-none place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
-                                            title="Back to prompt"
-                                            onClick={() => discardGenerated()}
-                                        >
-                                            <ChevronLeftIcon size={17} />
-                                        </button>
-                                    </Show>
-                                    <input
-                                        class="min-w-0 flex-1 rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-[13px] font-semibold text-ink outline-none focus:border-accent"
-                                        value={name()}
-                                        placeholder="Theme name"
-                                        onInput={(e) => setName(e.currentTarget.value)}
-                                    />
-                                    <button
-                                        class="flex-none rounded-lg bg-accent px-3.5 py-1.5 text-[12px] font-semibold text-onaccent disabled:opacity-50"
-                                        disabled={busy()}
-                                        onClick={save}
+                    {/* ── token editor: shared by Customize + a generated result ── */}
+                    <Show when={editorActive()}>
+                        <div class="px-4 pb-6">
+                            <div class="sticky top-0 z-10 -mx-4 flex items-center gap-2 border-b border-line bg-panel px-4 py-3">
+                                <Show when={mode() === "generate"}>
+                                    <IconButton
+                                        size="lg"
+                                        tone="muted"
+                                        class="flex-none"
+                                        title="Back to prompt"
+                                        onClick={() => discardGenerated()}
                                     >
-                                        {editTargetId() ? "Update" : "Save"}
-                                    </button>
+                                        <ChevronLeftIcon size={17} />
+                                    </IconButton>
+                                </Show>
+                                <TextField
+                                    value={name()}
+                                    placeholder="Theme name"
+                                    class="min-w-0 flex-1 font-semibold"
+                                    onChange={(v) => setName(v)}
+                                />
+                                <Button
+                                    variant="primary"
+                                    size="sm"
+                                    class="flex-none"
+                                    disabled={busy()}
+                                    onClick={save}
+                                >
+                                    {editTargetId() ? "Update" : "Save"}
+                                </Button>
+                            </div>
+
+                            <div class="mx-auto w-full max-w-[300px]">
+                                {heading("Details")}
+                                <div class="flex items-center justify-between gap-2.5 py-1">
+                                    <span class="text-[12.5px] text-soft">Style tag</span>
+                                    <TextField
+                                        compact
+                                        value={tag()}
+                                        placeholder="editorial, cyber…"
+                                        class="w-[150px]"
+                                        onChange={(v) => setTag(v)}
+                                    />
                                 </div>
 
-                                <div class="mx-auto w-full max-w-[300px]">
-                                    {heading("Details")}
-                                    <div class="flex items-center justify-between gap-2.5 py-1">
-                                        <span class="text-[12.5px] text-soft">Style tag</span>
-                                        <input
-                                            class="w-[150px] rounded-md border border-line bg-canvas px-2 py-1 text-[12px] text-ink outline-none focus:border-accent"
-                                            value={tag()}
-                                            placeholder="editorial, cyber…"
-                                            onInput={(e) => setTag(e.currentTarget.value)}
+                                {heading("Color")}
+                                {colorField("bg", "Canvas")}
+                                {colorField("surface", "Surface")}
+                                {colorField("ink", "Ink")}
+                                {colorField("soft", "Soft text")}
+                                {colorField("muted", "Muted")}
+                                {colorField("accent", "Accent")}
+                                {colorField("onAccent", "On accent")}
+                                {colorField("line", "Line")}
+
+                                {heading("Type")}
+                                {fontField("fontDisplay", "Display", DISPLAY_FONTS)}
+                                {fontField("fontBody", "Body", BODY_FONTS)}
+                                {fontField("fontMono", "Mono", MONO_FONTS)}
+                                {rangeField("headingWeight", "Weight", 300, 900, 100, "")}
+
+                                {heading("Shape")}
+                                {rangeField("radius", "Radius", 0, 28, 1, "px")}
+                                {rangeField("border", "Border", 0, 4, 1, "px")}
+                                <div class="flex items-center gap-2.5 py-1">
+                                    <span class="w-[84px] flex-none text-[12.5px] text-soft">
+                                        Shadow
+                                    </span>
+                                    <div class="min-w-0 flex-1">
+                                        <Dropdown
+                                            value={shadowPreset()}
+                                            options={SHADOW_PRESETS.map((o) => ({
+                                                value: o[0],
+                                                label: o[1],
+                                            }))}
+                                            onChange={setShadowPreset}
                                         />
                                     </div>
-
-                                    {heading("Color")}
-                                    {colorField("bg", "Canvas")}
-                                    {colorField("surface", "Surface")}
-                                    {colorField("ink", "Ink")}
-                                    {colorField("soft", "Soft text")}
-                                    {colorField("muted", "Muted")}
-                                    {colorField("accent", "Accent")}
-                                    {colorField("onAccent", "On accent")}
-                                    {colorField("line", "Line")}
-
-                                    {heading("Type")}
-                                    {fontField("fontDisplay", "Display", DISPLAY_FONTS)}
-                                    {fontField("fontBody", "Body", BODY_FONTS)}
-                                    {fontField("fontMono", "Mono", MONO_FONTS)}
-                                    {rangeField("headingWeight", "Weight", 300, 900, 100, "")}
-
-                                    {heading("Shape")}
-                                    {rangeField("radius", "Radius", 0, 28, 1, "px")}
-                                    {rangeField("border", "Border", 0, 4, 1, "px")}
-                                    <div class="flex items-center gap-2.5 py-1">
-                                        <span class="w-[84px] flex-none text-[12.5px] text-soft">
-                                            Shadow
-                                        </span>
-                                        <div class="min-w-0 flex-1">
-                                            <Dropdown
-                                                value={shadowPreset()}
-                                                options={SHADOW_PRESETS.map((o) => ({
-                                                    value: o[0],
-                                                    label: o[1],
-                                                }))}
-                                                onChange={setShadowPreset}
-                                            />
-                                        </div>
-                                    </div>
-                                    <label class="flex items-center gap-2.5 py-1">
-                                        <span class="w-[84px] flex-none text-[12.5px] text-soft">
-                                            Image scrim
-                                        </span>
-                                        <input
-                                            type="range"
-                                            class="min-w-0 flex-1"
-                                            style={{ "accent-color": "var(--color-accent)" }}
+                                </div>
+                                <div class="flex items-center gap-2.5 py-1">
+                                    <span class="w-[84px] flex-none text-[12.5px] text-soft">
+                                        Image scrim
+                                    </span>
+                                    <div class="min-w-0 flex-1">
+                                        <Slider
+                                            value={Math.round((tk.scrim ?? 0.45) * 100)}
                                             min={0}
                                             max={90}
                                             step={5}
-                                            value={Math.round((tk.scrim ?? 0.45) * 100)}
-                                            onInput={(e) =>
-                                                setTk("scrim", Number(e.currentTarget.value) / 100)
-                                            }
+                                            unit="%"
+                                            onChange={(n) => setTk("scrim", n / 100)}
                                         />
-                                        <span class="w-10 flex-none text-right font-mono text-[10px] text-muted">
-                                            {Math.round((tk.scrim ?? 0.45) * 100)}%
-                                        </span>
-                                    </label>
+                                    </div>
                                 </div>
                             </div>
-                        </Show>
-                    </div>
-                </aside>
+                        </div>
+                    </Show>
+                </div>
+            </aside>
 
-                {/* ── live preview ── */}
-                <div class="flex min-w-0 flex-1 flex-col">
-                    <div class="flex flex-none items-center justify-between border-b border-line bg-panel px-4 py-2">
-                        <span class="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
-                            {editing ? "Live preview · this artifact" : "Live preview · demo"}
-                        </span>
-                        <Show
-                            when={!editing}
-                            fallback={
-                                <span
-                                    class="rounded-md border border-line px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted"
-                                    title="Preview keeps this artifact's format"
-                                >
-                                    {formatLabel()}
-                                </span>
-                            }
-                        >
-                            <div class="flex items-center gap-1 rounded-lg border border-line p-0.5">
-                                {FORMATS.map(([id, label]) => (
-                                    <button
-                                        class={`rounded-md px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
-                                            format() === id
-                                                ? "bg-accent text-onaccent"
-                                                : "text-soft hover:text-ink"
-                                        }`}
-                                        onClick={() => setFormat(id)}
-                                    >
-                                        {label}
-                                    </button>
-                                ))}
-                            </div>
-                        </Show>
-                    </div>
-                    {/* full-bleed sites hug the header; decks/docs get a gap below it */}
-                    <div
-                        ref={scroll}
-                        class={`min-h-0 flex-1 overflow-auto${previewFormat() === "web" ? "" : " pt-4"}`}
-                        style={{ background: tk.bg }}
+            {/* ── live preview ── */}
+            <div class="flex min-w-0 flex-1 flex-col">
+                <div class="flex flex-none items-center justify-between border-b border-line bg-panel px-4 py-2">
+                    <Eyebrow weight="normal">
+                        {editing ? "Live preview · this artifact" : "Live preview · demo"}
+                    </Eyebrow>
+                    <Show
+                        when={!editing}
+                        fallback={
+                            <span
+                                class="rounded-md border border-line px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted"
+                                title="Preview keeps this artifact's format"
+                            >
+                                {formatLabel()}
+                            </span>
+                        }
                     >
-                        <div ref={host} />
-                    </div>
+                        <Segmented
+                            variant="accent"
+                            value={format()}
+                            options={FORMATS.map(([value, label]) => ({ value, label }))}
+                            onChange={(v) => setFormat(v)}
+                        />
+                    </Show>
+                </div>
+                {/* full-bleed sites hug the header; decks/docs get a gap below it */}
+                <div
+                    ref={scroll}
+                    class={`min-h-0 flex-1 overflow-auto${previewFormat() === "web" ? "" : " pt-4"}`}
+                    style={{ background: tk.bg }}
+                >
+                    <div ref={host} />
                 </div>
             </div>
-        </div>
+        </Modal>
     );
 };

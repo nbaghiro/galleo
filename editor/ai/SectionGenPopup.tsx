@@ -1,8 +1,11 @@
 import type { Component } from "solid-js";
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { sectionRegionId } from "@model/target";
+import { Button, Chip, Eyebrow, Spinner } from "@ui/button";
 import { content, currentArtifactId, regions } from "../editor";
-import { Icon } from "../icons";
+import { Icon } from "@ui/icons";
+import { FloatingPanel } from "@ui/overlay";
+import { TextArea } from "@ui/inputs";
 import { closeSectionGen, runSectionGen, sectionGen } from "./section-gen";
 import { fetchSuggestions, suggestSections } from "./suggest";
 
@@ -84,9 +87,11 @@ export const SectionGenPopup: Component = () => {
     return (
         <Show when={showing() && box()}>
             {(b) => (
-                <div
+                <FloatingPanel
                     ref={panel}
-                    class="absolute z-30 w-[420px] max-w-[80vw] -translate-x-1/2 rounded-2xl border border-line bg-panel/95 p-3 shadow-2xl backdrop-blur-md"
+                    rounded="2xl"
+                    pad="md"
+                    class="absolute z-30 w-[420px] max-w-[80vw] -translate-x-1/2"
                     style={{
                         left: `${b().x + b().w / 2}px`,
                         top: `${b().y + b().h + 12}px`,
@@ -95,9 +100,11 @@ export const SectionGenPopup: Component = () => {
                     onPointerMove={(e) => e.stopPropagation()}
                 >
                     <div class="mb-2 flex items-center justify-between px-1">
-                        <span class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-soft">
+                        <span class="flex items-center gap-1.5 text-soft">
                             <Icon name="sparkle" size={13} />
-                            Generate a section here
+                            <Eyebrow tone="soft" mono={false}>
+                                Generate a section here
+                            </Eyebrow>
                         </span>
                         <button
                             class="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted hover:text-accent disabled:opacity-50"
@@ -106,56 +113,55 @@ export const SectionGenPopup: Component = () => {
                             title="Suggest sections from this artifact's content"
                         >
                             <Show when={loading()} fallback={<Icon name="sparkle" size={11} />}>
-                                <span class="h-3 w-3 animate-spin rounded-full border-[1.5px] border-line border-t-accent" />
+                                <Spinner size={12} tone="accent" />
                             </Show>
                             {refined() ? "Refresh ideas" : "Suggest from this"}
                         </button>
                     </div>
-                    <textarea
+                    <TextArea
                         ref={field}
+                        rounded="lg"
+                        rows={2}
                         value={text()}
-                        onInput={(e) => setText(e.currentTarget.value)}
+                        onChange={setText}
                         onKeyDown={(e) => {
                             if (e.key === "Enter" && !e.shiftKey) {
                                 e.preventDefault();
                                 submit();
                             }
                         }}
-                        rows={2}
                         placeholder="Describe the section to add — it'll fit the story around it…"
-                        class="w-full resize-none rounded-lg border border-line bg-canvas px-3 py-2 text-[13px] leading-snug text-ink outline-none placeholder:text-soft focus:border-accent"
+                        class="resize-none placeholder:text-soft"
                     />
                     <div class="mt-2 flex flex-wrap gap-1.5">
                         <For each={chips()}>
                             {(c) => (
-                                <button
-                                    class="rounded-full border border-line px-2.5 py-1 text-[11px] font-medium text-soft hover:border-accent hover:text-ink"
+                                <Chip
+                                    variant="outline"
                                     onClick={() => {
                                         setText(c);
                                         field?.focus();
                                     }}
                                 >
                                     {c}
-                                </button>
+                                </Chip>
                             )}
                         </For>
                     </div>
                     <div class="mt-2.5 flex items-center justify-end gap-2">
-                        <button
-                            class="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-soft hover:text-ink"
-                            onClick={() => closeSectionGen()}
-                        >
+                        <Button variant="ghost" size="sm" onClick={() => closeSectionGen()}>
                             Cancel
-                        </button>
-                        <button
-                            class="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[12px] font-semibold text-onaccent shadow-sm disabled:opacity-40"
+                        </Button>
+                        <Button
+                            variant="primary"
+                            size="sm"
                             disabled={!text().trim()}
                             onClick={submit}
                         >
                             <Icon name="sparkle" size={13} /> Generate
-                        </button>
+                        </Button>
                     </div>
-                </div>
+                </FloatingPanel>
             )}
         </Show>
     );

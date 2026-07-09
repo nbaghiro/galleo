@@ -3,7 +3,10 @@ import { createEffect, createMemo, createSignal, For, Match, Show, Switch } from
 import { getElementAt } from "@elements/ops";
 import { getElement, listElements } from "@elements/spec";
 import { editor, rightTab, selection, setRightTab } from "../editor";
-import { Icon } from "../icons";
+import { IconButton, Eyebrow } from "@ui/button";
+import { TextField } from "@ui/inputs";
+import { Icon } from "@ui/icons";
+import { FloatingPanel } from "@ui/overlay";
 import { ElementInspector, SectionInspector } from "../inspect/inspectors";
 import { PaletteItem } from "../canvas/insert";
 
@@ -78,38 +81,42 @@ export const Panel: Component = () => {
     });
 
     const railBtn = (id: string, label: string): JSX.Element => (
-        <button
+        <IconButton
+            size="xl"
+            tone="muted"
+            active={rightTab() === id}
             title={label}
-            class={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
-                rightTab() === id
-                    ? "bg-accent text-onaccent"
-                    : "text-soft hover:bg-canvas hover:text-ink"
-            }`}
             onClick={() => setRightTab((t) => (t === id ? null : id))}
         >
             <Icon name={id} />
-        </button>
+        </IconButton>
     );
 
     return (
         <div class="absolute right-3 top-1/2 z-20 flex -translate-y-1/2 items-stretch gap-2">
             <Show when={rightTab()}>
                 {(tab) => (
-                    <aside class="flex max-h-[calc(100vh-120px)] w-[284px] flex-col overflow-y-auto rounded-2xl border border-line bg-panel/95 p-[18px] shadow-[var(--panel-shadow)] backdrop-blur-md">
+                    <FloatingPanel
+                        as="aside"
+                        pad="lg"
+                        shadow="panel"
+                        class="flex max-h-[calc(100vh-120px)] w-[284px] flex-col overflow-y-auto"
+                    >
                         <Show
                             when={tab() === "inspector"}
                             fallback={
                                 <>
-                                    <div class="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                                    <Eyebrow as="div" mono={false} weight="semibold" class="mb-3">
                                         {tab() === "search"
                                             ? "All elements"
                                             : (CAT_LABEL[tab()] ?? tab())}
-                                    </div>
-                                    <input
+                                    </Eyebrow>
+                                    <TextField
+                                        type="search"
                                         value={q()}
-                                        onInput={(e) => setQ(e.currentTarget.value)}
                                         placeholder="Search elements…"
-                                        class="mb-4 w-full rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-accent"
+                                        class="mb-4"
+                                        onChange={setQ}
                                     />
                                     <div class="grid grid-cols-2 gap-3">
                                         <For each={items()}>
@@ -137,15 +144,15 @@ export const Panel: Component = () => {
                                 </Match>
                             </Switch>
                         </Show>
-                    </aside>
+                    </FloatingPanel>
                 )}
             </Show>
 
-            <div class="flex flex-col gap-1 self-center rounded-2xl border border-line bg-panel/95 p-1.5 shadow-[var(--panel-shadow)] backdrop-blur-md">
+            <FloatingPanel pad="sm" shadow="panel" class="flex flex-col gap-1 self-center">
                 <Show when={inspectorLabel()}>{(label) => railBtn("inspector", label())}</Show>
                 {railBtn("search", "Search")}
                 <For each={cats()}>{(c) => railBtn(c, CAT_LABEL[c] ?? c)}</For>
-            </div>
+            </FloatingPanel>
         </div>
     );
 };

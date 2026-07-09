@@ -13,15 +13,21 @@ import { generateObject, generateText } from "ai";
 import { resolveModel } from "./provider";
 import { defaultModelFor } from "./models";
 import {
+    editSectionParts,
     insertSectionParts,
     outlineParts,
+    reviseElementParts,
     sectionParts,
     sectionPlanParts,
     surfaceOf,
 } from "./prompts/generate";
 import { checkSection } from "./quality";
+import { runChat } from "./chat";
+import "./tools/register"; // side-effect: register the whole tool catalog
+import { generateArtifactTool } from "./tools/generate";
+import { makeContext } from "./tools/registry";
 import { searchStock, stockReady } from "../media/providers";
-import { zOutline, zSection, zSectionPlan } from "./schema";
+import { zElement, zOutline, zSection, zSectionPlan } from "./schema";
 import type { Outline, Beat, SectionPlan } from "./schema";
 import type { PromptParts } from "./prompts/system";
 
@@ -105,7 +111,7 @@ const picsum = (phrase: string): string => `https://picsum.photos/seed/${slug(ph
 // Search stock → the top hit's url, or null. Retries across providers AND with a broadened query: a keyed
 // provider that errors (rate limit / network) is skipped for keyless openverse; a query that finds nothing
 // is retried with fewer keywords. So a real photo turns up unless every provider genuinely has none.
-async function findStock(phrase: string, orientation: string): Promise<string | null> {
+export async function findStock(phrase: string, orientation: string): Promise<string | null> {
     const ready = stockReady();
     const queries = [toQuery(phrase, 6), toQuery(phrase, 3)].filter(
         (q, i, a) => !!q && a.indexOf(q) === i,
@@ -138,7 +144,7 @@ export interface ImageOptions {
 
 // The façade: one phrase → one real url, honoring the chosen source. AI when asked and wired; otherwise (or
 // on any miss/error) stock; and a deterministic placeholder as the final backstop. Already-a-url passes.
-async function resolveImage(
+export async function resolveImage(
     phrase: string,
     orientation: string,
     opts: ImageOptions,
@@ -205,12 +211,16 @@ export interface RunOpts {
     image?: ImageOptions; // how images resolve — stock (default) vs ai + its generator; set by the route
 }
 
-// Dispatch a turn to its capability — each kind is an async generator of the shared TurnEvent stream.
-// `generate` is live; the rest report "not yet" until built, all behind this one seam.
+// Dispatch a turn to its capability — the DIRECT surface over the tool registry. `generate` runs through
+// its registry tool (services/ai/tools); section + chat still route to their runtimes directly until they're
+// wrapped too; edit reports "not yet". Same TurnEvent stream out, whichever path.
 export async function* runTurn(req: TurnRequest, opts: RunOpts = {}): AsyncGenerator<TurnEvent> {
     switch (req.kind) {
         case "generate":
-            yield* runGenerate(req.input, opts);
+            yield* generateArtifactTool.run(
+                req.input,
+                makeContext({ image: opts.image ?? {}, signal: opts.signal }),
+            );
             return;
         case "edit":
             yield* unimplemented("edit", "Editing the whole artifact");
@@ -219,13 +229,16 @@ export async function* runTurn(req: TurnRequest, opts: RunOpts = {}): AsyncGener
             yield* runSection(req.input, opts);
             return;
         case "chat":
-            yield* unimplemented("chat", "Chat");
+            yield* runChat(req.input, opts);
             return;
     }
 }
 
 // generate — a full artifact from a brief: outline (the plan), then one section written per beat, in order.
-async function* runGenerate(input: GenerateInput, opts: RunOpts = {}): AsyncGenerator<TurnEvent> {
+export async function* runGenerate(
+    input: GenerateInput,
+    opts: RunOpts = {},
+): AsyncGenerator<TurnEvent> {
     const { signal } = opts;
     yield { type: "turn.start", kind: "generate" };
     yield { type: "phase", name: "intake" };
@@ -456,4 +469,98 @@ function extractJson(text: string): unknown {
 async function* unimplemented(kind: TurnKind, what: string): AsyncGenerator<TurnEvent> {
     yield { type: "turn.start", kind };
     yield { type: "error", message: `${what} isn’t available yet.` };
+}
+
+// --- capability helpers the chat agent calls as tools (produce a section to PROPOSE, not stream) ---
+
+// Build ONE new section (plan → write → images) and return it, for a chat proposal the user applies.
+export async function chatAddSection(
+    content: ArtifactContent,
+    afterId: string | null,
+    instruction: string,
+    opts: RunOpts = {},
+): Promise<Section> {
+    const input: SectionInput = { instruction, afterId, content };
+    const id = newSectionId(content);
+    const pp = sectionPlanParts(input);
+    const { object } = await generateObject({
+        model: resolveModel(defaultModelFor("outline")),
+        schema: zSectionPlan,
+        system: pp.system,
+        prompt: pp.prompt,
+        abortSignal: opts.signal,
+        providerOptions: GEN_PROVIDER_OPTS,
+        temperature: 0.9,
+    });
+    const beat: Beat = { ...(object as SectionPlan), id };
+    const section = await writeSectionFrom(
+        insertSectionParts(input, beat),
+        id,
+        beat.label,
+        surfaceOf(content.format),
+        opts.signal,
+    );
+    return resolveImages(section, opts.image ?? {});
+}
+
+// Regenerate ONE element in place and return the fresh version — the ContextBar's Regenerate action (via
+// the /ai/element route) and the revise-element tool both land here. The element is passed in by value (the
+// runtime can't traverse the canvas element tree — that lives in @elements), and its `section` gives the
+// model the surrounding context. Keeps the original type (so the section's layout contract holds) and the
+// user's own layout (radius / width / align they set by hand), rewriting only the content; then resolves any
+// images the fresh element introduces. Retries once on unreadable JSON before failing.
+export async function reviseElement(
+    content: ArtifactContent,
+    sectionId: string,
+    element: ElementInstance,
+    instruction?: string,
+    opts: RunOpts = {},
+): Promise<ElementInstance> {
+    const section = content.sections.find((s) => s.id === sectionId);
+    if (!section) throw new Error("that section is not in the artifact");
+    const parts = reviseElementParts(content, section, element, instruction);
+    const model = resolveModel(defaultModelFor("section"));
+    let note = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const { text } = await generateText({
+            model,
+            system: parts.system,
+            prompt: parts.prompt + note,
+            abortSignal: opts.signal,
+            providerOptions: GEN_PROVIDER_OPTS,
+        });
+        const parsed = zElement.safeParse(extractJson(text));
+        if (!parsed.success) {
+            note =
+                "\n\nYour previous reply was not valid JSON. Return ONLY the single element JSON object, nothing else.";
+            continue;
+        }
+        // Keep the original type + hand-set layout; regenerate content only. Then source any new images.
+        const revised: ElementInstance = {
+            type: element.type,
+            data: parsed.data.data,
+            ...(element.layout ? { layout: element.layout } : {}),
+        };
+        return resolveElement(revised, opts.image ?? {});
+    }
+    throw new Error("the model returned an unreadable element");
+}
+
+// Rewrite an existing section per an instruction and return it, for a chat proposal (→ replaceSection).
+export async function chatEditSection(
+    content: ArtifactContent,
+    sectionId: string,
+    instruction: string,
+    opts: RunOpts = {},
+): Promise<Section | null> {
+    const current = content.sections.find((s) => s.id === sectionId);
+    if (!current) return null;
+    const section = await writeSectionFrom(
+        editSectionParts(content, current, instruction),
+        sectionId,
+        sectionId,
+        surfaceOf(content.format),
+        opts.signal,
+    );
+    return resolveImages(section, opts.image ?? {});
 }
