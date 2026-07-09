@@ -18,7 +18,6 @@ import { MediaPicker } from "./components/MediaPicker";
 import { ShareModal } from "./components/ShareModal";
 import { ThemeEditor } from "./views/ThemeEditor";
 import { TrashView } from "./views/TrashView";
-import { UiPlayground } from "@ui/playground";
 import { UiThemeProvider } from "@ui/icons";
 
 // Router root layout — wraps every route so the singular theme drawer + media picker are mounted once
@@ -90,7 +89,6 @@ export const App: Component = () => {
                             <Route path="/pricing" component={PricingView} />
                             <Route path="/edit/:id" component={EditorView} />
                             <Route path="/present/:id" component={PresentView} />
-                            <Route path="/ui" component={UiPlayground} />
                         </Router>
                     </Show>
                 </Show>

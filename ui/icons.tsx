@@ -464,5 +464,5 @@ export const ArrowUpRightIcon = named("arrowUpRight");
 export const ThemeIcon = named("theme");
 export const AgentIcon = named("agent");
 
-// The glyph keys — handy for the playground's icon gallery.
+// The full list of glyph names (e.g. for an icon gallery / picker).
 export const ICON_NAMES: string[] = Object.keys(PATHS);

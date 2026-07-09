@@ -1,6 +1,6 @@
 # Galleo — Shared UI Component Library (`@ui`)
 
-> **Status: Phase 1 + Phase 2 complete.** The module + `/ui` playground are in (`ui/*`, wired via the
+> **Status: Phase 1 + Phase 2 complete.** The module is in (`ui/*`, wired via the
 > `@ui` alias); typecheck/lint/build green. Phase 2 migrated ~113 clean call-sites across 25 files (after
 > extending the atoms), **unified both icon systems onto `@ui/icons`** (deleted `editor/icons.tsx` +
 > `app/components/icons.tsx`; stroke stays theme-reactive via `UiThemeProvider` at the app/editor/publish
@@ -55,7 +55,6 @@ ui/                @ui · Solid · depends only on @themes
   icons.tsx        Icon (merged registry, ~70 glyphs) + generated named *Icon wrappers
   visual.tsx       Visual (+ visuals.css)
   tokens.css       field-surface · floating-panel · swatch/swatch-active · toolbar-btn
-  playground.tsx   the /ui showcase
 ```
 
 Base atoms come first in each file; composites below them import from the same or a sibling module.
@@ -137,7 +136,7 @@ on a root element —
 **The rule for every `@ui` component:** style only through these theme utilities + `var(--radius)`,
 `var(--hw)`, `var(--shadow)`, `var(--border-width)`. **Zero hardcoded colors.** Such a component recolors
 automatically to whatever theme's vars are set on an ancestor — the identical path the app uses, so
-parity is by construction (not a playground-only approximation).
+parity is by construction (not an approximation).
 
 Three specifics:
 
@@ -146,27 +145,10 @@ Three specifics:
   portaled node — exactly today's `Dropdown`/`ColorPopover`/`overlayThemeVars` pattern, lifted into
   `Popover`/`Modal` once so no consumer re-implements it.
 - **`Icon`** derives stroke weight / cap from theme (`--hw`, `--radius`), read from a small `@ui` theme
-  context (with a sensible default). The playground provides it; Phase 2 has app/editor provide it.
+  context (with a sensible default). `UiThemeProvider` supplies it at the app / editor / publish roots.
 - **Non-color values** that vary by theme — corner radius, border width, shadow, heading weight — use
   `var(--radius)` etc. so shape tracks the theme too (a brutalist theme's square corners, a refined
   theme's round ones), matching the app.
-
-## The playground (`/ui`) — theme-switchable, app-exact
-
-A dev route `<Route path="/ui" component={UiPlayground}>` in `app/App.tsx` (routes are flat there).
-
-- **Layout:** a mini-Storybook — every component grouped (Actions · Inputs · Color · Overlays · Canvas ·
-  Icons · Decorative), each rendered live with **prop controls built from the `@ui` inputs themselves**
-  (dogfood: a `Segmented` drives `Button.variant`, a `Slider` drives `size`, a `Toggle` drives
-  `disabled`…).
-- **Theme switcher (the parity mechanism):** the preview region is wrapped in one element whose inline
-  style = `themeCssVars(resolveTheme(selectedId).tokens)` **and** an `@ui` theme-context provider with
-  the same tokens. Switching the picker swaps `selectedId` → every component inside recolors through the
-  same CSS-var path the app uses → **pixel-exact parity with the app in that theme**, including custom
-  themes (`THEME_LIST` + `customThemes()`). A canvas/surface bg toggle lets each component be judged on
-  the theme's real ground. Portaled overlays stay correct because they snapshot the preview region's
-  vars.
-- Sample data: `THEME_SAMPLE` / `themeDemo` for the canvas components.
 
 ## `canvas/render/geometry.ts` (framework-free)
 
@@ -189,9 +171,8 @@ active parallel session.**
 5. `icons.tsx` — merge registries, generate named wrappers, `@ui` theme context for stroke.
 6. `section.tsx` — `ScaledSectionCanvas` + `SlideProgress` + `backdropHostStyle`.
 7. `visual.tsx` + `tokens.css`.
-8. `playground.tsx` + `/ui` route (theme switcher + dogfooded controls).
 
-**Verification:** `pnpm typecheck && lint && build`; open `/ui`; sweep every component across
+**Verification:** `pnpm typecheck && lint && build`; sweep every component across
 light/dark/brutalist + a custom theme to confirm app-exact theming.
 
 ## Phase 2 — migration
