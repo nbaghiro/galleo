@@ -62,6 +62,20 @@ export interface ShareRecipient {
     lastViewedAt: string | null;
 }
 
+// One row of GET /links — a published link in the workspace (the Shared tab is just the full links list,
+// filtered by type). Artifact metadata (title/format/theme/cover) is joined client-side from the library
+// store, keyed by artifactId.
+export interface LinkSummary {
+    id: string;
+    artifactId: string;
+    slug: string;
+    visibility: Visibility;
+    url: string;
+    recipientCount: number;
+    openedCount: number; // invited recipients who've opened (private links)
+    publishedAt: string;
+}
+
 // The GET /links/:artifactId response — current publish state for the Share modal.
 export interface LinkState {
     id: string;
@@ -259,6 +273,7 @@ export const api = {
         }),
 
     // --- sharing / public links ---
+    listLinks: () => req<{ links: LinkSummary[] }>("/links"),
     getLinkState: (artifactId: string) => req<{ link: LinkState | null }>(`/links/${artifactId}`),
     publishArtifact: (
         id: string,

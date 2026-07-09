@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { randomBytes } from "node:crypto";
 import type { ArtifactContent } from "@model/artifact";
@@ -55,6 +55,28 @@ const newToken = (): string => randomBytes(24).toString("base64url");
 
 const publicUrl = (slug: string, token?: string): string =>
     `${APP_URL}/p/${slug}${token ? `?k=${token}` : ""}`;
+
+// In-memory brute-force guard for protected-link passwords. Per-process (single API node today) — good
+// enough until a shared store is warranted. Keyed by slug: too many wrong guesses locks it for a cooldown.
+const PW_MAX_FAILS = 8;
+const PW_WINDOW_MS = 10 * 60 * 1000;
+const pwFails = new Map<string, { count: number; resetAt: number }>();
+
+function pwLocked(slug: string): boolean {
+    const e = pwFails.get(slug);
+    if (!e) return false;
+    if (Date.now() > e.resetAt) {
+        pwFails.delete(slug);
+        return false;
+    }
+    return e.count >= PW_MAX_FAILS;
+}
+function pwFail(slug: string): void {
+    const now = Date.now();
+    const e = pwFails.get(slug);
+    if (!e || now > e.resetAt) pwFails.set(slug, { count: 1, resetAt: now + PW_WINDOW_MS });
+    else e.count += 1;
+}
 
 // The password hash to store: only `protected` links carry one; a new password re-hashes, otherwise the
 // existing hash is kept (so toggling other fields doesn't wipe it).
@@ -189,15 +211,33 @@ links.post("/artifacts/:id/publish", async (c) => {
     if (visibility === "protected" && !body.password && !existing?.password)
         return c.json({ error: "A password is required for a protected link." }, 400);
 
-    // Snapshot the current draft into an immutable version, then point the artifact + link at it.
-    const [version] = await db
-        .insert(schema.versions)
-        .values({ artifactId, content: artifact.draftContent, label: "published", authorId: u.id })
-        .returning({ id: schema.versions.id });
-    if (!version) return c.json({ error: "publish failed" }, 500);
+    // Snapshot the current draft into an immutable version — but reuse the current published version when
+    // the draft is unchanged, so repeated publishes / visibility toggles don't bloat the history.
+    let versionId: string | null = null;
+    if (existing?.publishedVersionId) {
+        const [cur] = await db
+            .select({ content: schema.versions.content })
+            .from(schema.versions)
+            .where(eq(schema.versions.id, existing.publishedVersionId));
+        if (cur && JSON.stringify(cur.content) === JSON.stringify(artifact.draftContent))
+            versionId = existing.publishedVersionId;
+    }
+    if (!versionId) {
+        const [version] = await db
+            .insert(schema.versions)
+            .values({
+                artifactId,
+                content: artifact.draftContent,
+                label: "published",
+                authorId: u.id,
+            })
+            .returning({ id: schema.versions.id });
+        if (!version) return c.json({ error: "publish failed" }, 500);
+        versionId = version.id;
+    }
     await db
         .update(schema.artifacts)
-        .set({ publishedVersionId: version.id })
+        .set({ publishedVersionId: versionId })
         .where(and(eq(schema.artifacts.id, artifactId), eq(schema.artifacts.workspaceId, ws.id)));
 
     const password = passwordFor(visibility, body.password, existing?.password ?? null);
@@ -205,7 +245,7 @@ links.post("/artifacts/:id/publish", async (c) => {
     if (existing) {
         const [row] = await db
             .update(schema.links)
-            .set({ visibility, password, publishedVersionId: version.id })
+            .set({ visibility, password, publishedVersionId: versionId })
             .where(eq(schema.links.id, existing.id))
             .returning();
         link = row!;
@@ -217,7 +257,7 @@ links.post("/artifacts/:id/publish", async (c) => {
                 slug: await uniqueSlug(),
                 visibility,
                 password,
-                publishedVersionId: version.id,
+                publishedVersionId: versionId,
             })
             .returning();
         link = row!;
@@ -239,6 +279,54 @@ links.post("/artifacts/:id/publish", async (c) => {
         visibility: link.visibility,
         url: publicUrl(link.slug),
         recipients,
+    });
+});
+
+// ── Every published link in the workspace (the Shared view) ──────────────────────────────────────────
+links.get("/links", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await firstWorkspaceId(u.id);
+    if (!ws) return c.json({ links: [] });
+
+    const rows = await db
+        .select({
+            id: schema.links.id,
+            artifactId: schema.links.artifactId,
+            slug: schema.links.slug,
+            visibility: schema.links.visibility,
+            createdAt: schema.links.createdAt,
+        })
+        .from(schema.links)
+        .innerJoin(schema.artifacts, eq(schema.links.artifactId, schema.artifacts.id))
+        .where(and(eq(schema.artifacts.workspaceId, ws), isNull(schema.artifacts.trashedAt)))
+        .orderBy(desc(schema.links.createdAt));
+
+    const ids = rows.map((r) => r.id);
+    const counts = ids.length
+        ? await db
+              .select({
+                  linkId: schema.linkRecipients.linkId,
+                  invited: sql<number>`count(*)::int`,
+                  opened: sql<number>`count(last_viewed_at)::int`, // non-null = has been opened
+              })
+              .from(schema.linkRecipients)
+              .where(inArray(schema.linkRecipients.linkId, ids))
+              .groupBy(schema.linkRecipients.linkId)
+        : [];
+    const countMap = new Map(counts.map((x) => [x.linkId, x]));
+
+    return c.json({
+        links: rows.map((r) => ({
+            id: r.id,
+            artifactId: r.artifactId,
+            slug: r.slug,
+            visibility: r.visibility,
+            url: publicUrl(r.slug),
+            recipientCount: countMap.get(r.id)?.invited ?? 0,
+            openedCount: countMap.get(r.id)?.opened ?? 0,
+            publishedAt: r.createdAt,
+        })),
     });
 });
 
@@ -369,18 +457,51 @@ links.post("/artifacts/:id/unpublish", async (c) => {
 
 // ── UNAUTHENTICATED public read — the one anonymous surface ──────────────────────────────────────────
 links.get("/p/:slug/content", async (c) => {
-    const [link] = await db
-        .select()
-        .from(schema.links)
-        .where(eq(schema.links.slug, c.req.param("slug")));
+    const slug = c.req.param("slug");
+    const [link] = await db.select().from(schema.links).where(eq(schema.links.slug, slug));
     if (!link || !link.publishedVersionId) return c.json({ error: "not found" }, 404);
+
+    // The owning artifact — a trashed artifact's links go dark (never reveal existence → 404).
+    const [artifact] = await db
+        .select({
+            title: schema.artifacts.title,
+            workspaceId: schema.artifacts.workspaceId,
+            trashedAt: schema.artifacts.trashedAt,
+        })
+        .from(schema.artifacts)
+        .where(eq(schema.artifacts.id, link.artifactId));
+    if (!artifact || artifact.trashedAt) return c.json({ error: "not found" }, 404);
+
+    // A link is only active while the OWNER's plan still grants public links, and the owner's plan also
+    // drives branding (an anonymous viewer has no plan of its own). Downgrading to Free deactivates links.
+    const [ownerWs] = await db
+        .select({
+            plan: schema.workspaces.plan,
+            featureOverrides: schema.workspaces.featureOverrides,
+        })
+        .from(schema.workspaces)
+        .where(eq(schema.workspaces.id, artifact.workspaceId));
+    const owner = resolveFeatures(
+        (ownerWs?.plan ?? "free") as PlanId,
+        ownerWs?.featureOverrides ?? undefined,
+    );
+    if (!owner.publicLinks) return c.json({ error: "not found" }, 404);
+    const branded = !owner.removeBranding;
 
     // Access policy. Never reveal existence on a failed private/unknown check → 404.
     let recipientId: string | null = null;
     if (link.visibility === "protected") {
+        if (pwLocked(slug))
+            return c.json(
+                { error: "Too many attempts. Try again later.", needsPassword: true },
+                429,
+            );
         const pw = c.req.query("pw");
-        if (!pw || !verifyPassword(pw, link.password))
+        if (!pw || !verifyPassword(pw, link.password)) {
+            if (pw) pwFail(slug); // count only real wrong guesses, not the initial promptless GET
             return c.json({ error: "password required", needsPassword: true }, 401);
+        }
+        pwFails.delete(slug); // correct password clears the counter
     } else if (link.visibility === "private") {
         const token = c.req.query("k");
         if (!token) return c.json({ error: "not found" }, 404);
@@ -403,27 +524,6 @@ links.get("/p/:slug/content", async (c) => {
         .where(eq(schema.versions.id, link.publishedVersionId));
     if (!version) return c.json({ error: "not found" }, 404);
     const content = version.content as ArtifactContent;
-
-    const [artifact] = await db
-        .select({ title: schema.artifacts.title, workspaceId: schema.artifacts.workspaceId })
-        .from(schema.artifacts)
-        .where(eq(schema.artifacts.id, link.artifactId));
-    if (!artifact) return c.json({ error: "not found" }, 404);
-
-    // Branding is the OWNER's entitlement — an anonymous viewer has no plan of its own.
-    const [ownerWs] = await db
-        .select({
-            plan: schema.workspaces.plan,
-            featureOverrides: schema.workspaces.featureOverrides,
-        })
-        .from(schema.workspaces)
-        .where(eq(schema.workspaces.id, artifact.workspaceId));
-    const branded = ownerWs
-        ? !resolveFeatures(
-              (ownerWs.plan ?? "free") as PlanId,
-              ownerWs.featureOverrides ?? undefined,
-          ).removeBranding
-        : true;
 
     // A workspace custom theme won't be in the anonymous viewer's registry — ship its record so the
     // viewer can registerThemes() before painting. Built-in ids (non-uuid) are already in the registry.
@@ -449,12 +549,14 @@ links.get("/p/:slug/content", async (c) => {
     }
 
     // View analytics (04) hooks in here: a fire-and-forget insert into artifact_views keyed by
-    // link.id (+ recipientId for private). We already track per-recipient "opened" for the Share UI:
+    // link.id (+ recipientId for private). We already track per-recipient "opened" for the Share UI.
+    // NB: drizzle builders are lazy — the trailing .catch() (not a bare `void`) is what runs the query.
     if (recipientId)
         void db
             .update(schema.linkRecipients)
             .set({ lastViewedAt: new Date() })
-            .where(eq(schema.linkRecipients.id, recipientId));
+            .where(eq(schema.linkRecipients.id, recipientId))
+            .catch(() => {});
 
     return c.json({ title: artifact.title, content, branded, customTheme });
 });

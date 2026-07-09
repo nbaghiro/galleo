@@ -3,6 +3,7 @@ import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { api, type LinkState, type Visibility } from "../api";
 import { closeShare, shareRequest, type ShareRequest } from "../share";
+import { flushAutosave } from "../stores/save";
 import { can, isComingSoon } from "../stores/features";
 import { overlayThemeVars } from "../theme";
 import { CheckIcon, CloseIcon } from "@ui/icons";
@@ -95,6 +96,7 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
         setBusy(true);
         setErr("");
         try {
+            await flushAutosave(); // snapshot the latest edits, not the last debounced autosave
             await api.publishArtifact(props.req.artifactId, {
                 visibility: vis(),
                 password: vis() === "protected" && password() ? password() : undefined,
@@ -147,6 +149,7 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
         setBusy(true);
         setErr("");
         try {
+            await flushAutosave(); // push the current draft, including edits still in the autosave debounce
             await api.publishArtifact(props.req.artifactId, {});
             await reload();
         } catch (e) {
@@ -254,7 +257,7 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                         <Show when={vis() === "protected"}>
                             <div class="mb-3">
                                 <TextField
-                                    type="text"
+                                    type="password"
                                     placeholder={
                                         link()?.hasPassword
                                             ? "Set a new password (leave blank to keep)"
@@ -326,6 +329,12 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                                 </Show>
                             </div>
 
+                            <Show when={published() && !link()!.recipients.length}>
+                                <p class="mb-3 text-[11.5px] text-muted">
+                                    No one can view this yet — add people above to grant access.
+                                </p>
+                            </Show>
+
                             <Show when={published() && link()!.recipients.length}>
                                 <div class="mb-3 rounded-lg border border-line">
                                     <For each={link()!.recipients}>
@@ -337,22 +346,24 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                                                         {r.lastViewedAt ? "Opened" : "Invited"}
                                                     </div>
                                                 </div>
-                                                <button
-                                                    class="text-muted hover:text-accent"
+                                                <Button
+                                                    variant="tool"
+                                                    size="sm"
                                                     title="Copy their link"
                                                     onClick={() => copy(r.url)}
                                                 >
                                                     <Show when={copied() === r.url} fallback="Copy">
                                                         <span class="text-accent">Copied</span>
                                                     </Show>
-                                                </button>
-                                                <button
-                                                    class="text-muted hover:text-ink"
+                                                </Button>
+                                                <IconButton
+                                                    size="sm"
+                                                    tone="muted"
                                                     title="Revoke access"
                                                     onClick={() => void revoke(r.id)}
                                                 >
                                                     <CloseIcon size={13} />
-                                                </button>
+                                                </IconButton>
                                             </div>
                                         )}
                                     </For>

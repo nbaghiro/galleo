@@ -318,7 +318,7 @@ export const Sidebar: Component = () => {
                     "root",
                 )}
                 {navItem(<TemplatesIcon />, "Templates", "/templates", route() === "/templates")}
-                {navItem(<SharedIcon />, "Shared", null, false)}
+                {navItem(<SharedIcon />, "Shared", "/shared", route() === "/shared")}
                 {navItem(<TrashIcon />, "Trash", "/trash", route() === "/trash")}
             </nav>
 

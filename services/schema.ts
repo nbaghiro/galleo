@@ -94,7 +94,7 @@ export const versions = pgTable("versions", {
     id: uuid("id").primaryKey().defaultRandom(),
     artifactId: uuid("artifact_id")
         .notNull()
-        .references(() => artifacts.id),
+        .references(() => artifacts.id, { onDelete: "cascade" }), // history goes with its artifact
     content: jsonb("content").notNull(),
     label: text("label"),
     authorId: uuid("author_id").references(() => users.id),
@@ -148,7 +148,7 @@ export const links = pgTable("links", {
     id: uuid("id").primaryKey().defaultRandom(),
     artifactId: uuid("artifact_id")
         .notNull()
-        .references(() => artifacts.id),
+        .references(() => artifacts.id, { onDelete: "cascade" }), // deleting an artifact drops its link
     slug: text("slug").notNull().unique(),
     visibility: text("visibility").notNull().default("public"), // public | protected | private
     password: text("password"), // scrypt hash, only for `protected`

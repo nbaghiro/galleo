@@ -4,6 +4,18 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Galleo</title>
+        <!-- Send only the origin (never the path/query) in Referer, so a private link's ?k= token never
+             leaks to third parties (fonts, embeds, images). -->
+        <meta name="referrer" content="strict-origin" />
+        <!-- Static social card. Per-artifact unfurls (title/description/preview per slug) need SSR of this
+             HTML — reserved for the publish/SSR surface; this generic card ships now. -->
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Galleo" />
+        <meta property="og:title" content="Shared with Galleo" />
+        <meta property="og:description" content="A document shared with you, made with Galleo." />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content="Shared with Galleo" />
+        <meta name="twitter:description" content="A document shared with you, made with Galleo." />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link

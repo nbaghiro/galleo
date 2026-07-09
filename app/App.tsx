@@ -13,6 +13,7 @@ import { GenerateModal } from "./views/generate/GenerateModal";
 import { LibraryView } from "./views/LibraryView";
 import { PresentView } from "./views/PresentView";
 import { PricingView } from "./views/PricingView";
+import { SharedView } from "./views/SharedView";
 import { TemplatesView } from "./views/TemplatesView";
 import { MediaPicker } from "./components/MediaPicker";
 import { ShareModal } from "./components/ShareModal";
@@ -85,6 +86,7 @@ export const App: Component = () => {
                             <Route path="/" component={LibraryView} />
                             <Route path="/folder/:id" component={LibraryView} />
                             <Route path="/templates" component={TemplatesView} />
+                            <Route path="/shared" component={SharedView} />
                             <Route path="/trash" component={TrashView} />
                             <Route path="/pricing" component={PricingView} />
                             <Route path="/edit/:id" component={EditorView} />
