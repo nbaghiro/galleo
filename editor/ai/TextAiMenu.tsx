@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { createSignal, For, Show } from "solid-js";
 import { Icon } from "@ui/icons";
-import { Button, Eyebrow, IconButton, Spinner } from "@ui/button";
+import { Button, Chip, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { FloatingPanel } from "@ui/overlay";
 import { textSelection } from "../text/text-format";
 import { LANGUAGES, REWRITE_PRESETS, runRewrite, runTranslate, textAssist } from "./text-assist";
@@ -138,14 +138,14 @@ export const TextAiMenu: Component = () => {
                         <div class="flex flex-wrap gap-1 px-2 pb-1 pt-0.5">
                             <For each={LANGUAGES}>
                                 {(l) => (
-                                    <button
-                                        class="rounded-full border border-line px-2 py-0.5 text-[11px] text-soft hover:border-accent hover:text-ink disabled:opacity-40"
+                                    <Chip
+                                        variant="outline"
                                         disabled={busy()}
                                         onMouseDown={noBlur}
                                         onClick={() => void act(runTranslate(l, captured))}
                                     >
                                         {l}
-                                    </button>
+                                    </Chip>
                                 )}
                             </For>
                         </div>

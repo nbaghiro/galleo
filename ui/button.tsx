@@ -165,35 +165,45 @@ const CHIP_SIZE: Record<ChipSize, string> = {
     sm: "px-2.5 py-0.5 text-[11px]",
     md: "px-3 py-1.5 text-[12.5px]",
 };
-export const Chip: Component<{
-    variant?: "outline" | "solid" | "soft";
-    size?: ChipSize;
-    selected?: boolean;
-    rounded?: "md" | "full";
-    onClick?: (e: MouseEvent) => void;
-    onRemove?: () => void; // renders a dismiss affordance after the label
-    title?: string;
-    children: JSX.Element;
-}> = (props) => {
+export const Chip: Component<
+    JSX.ButtonHTMLAttributes<HTMLButtonElement> & {
+        variant?: "outline" | "solid" | "soft";
+        size?: ChipSize;
+        selected?: boolean;
+        rounded?: "md" | "full";
+        onRemove?: () => void; // renders a dismiss affordance after the label
+    }
+> = (props) => {
+    const [local, rest] = splitProps(props, [
+        "variant",
+        "size",
+        "selected",
+        "rounded",
+        "onRemove",
+        "class",
+        "children",
+    ]);
     const cls = (): string => {
-        const base = `inline-flex items-center gap-1 ${props.rounded === "md" ? "rounded-md" : "rounded-full"} ${CHIP_SIZE[props.size ?? "sm"]} transition-colors`;
-        if (props.variant === "solid")
-            return `${base} font-semibold ${props.selected ? "bg-accent text-onaccent" : "bg-canvas text-soft hover:text-ink"}`;
-        if (props.variant === "soft")
-            return `${base} font-medium ${props.selected ? "bg-accent/12 text-accent" : "text-soft hover:text-ink"}`;
-        return `${base} border font-medium ${props.selected ? "border-accent text-ink" : "border-line text-muted hover:border-accent hover:text-ink"}`;
+        const base = `inline-flex items-center gap-1 ${local.rounded === "md" ? "rounded-md" : "rounded-full"} ${CHIP_SIZE[local.size ?? "sm"]} transition-colors disabled:pointer-events-none disabled:opacity-40`;
+        const tone =
+            local.variant === "solid"
+                ? `font-semibold ${local.selected ? "bg-accent text-onaccent" : "bg-canvas text-soft hover:text-ink"}`
+                : local.variant === "soft"
+                  ? `font-medium ${local.selected ? "bg-accent/12 text-accent" : "text-soft hover:text-ink"}`
+                  : `border font-medium ${local.selected ? "border-accent text-ink" : "border-line text-muted hover:border-accent hover:text-ink"}`;
+        return `${base} ${tone} ${local.class ?? ""}`;
     };
     return (
-        <button type="button" class={cls()} title={props.title} onClick={props.onClick}>
-            {props.children}
-            <Show when={props.onRemove}>
+        <button type="button" {...rest} class={cls()}>
+            {local.children}
+            <Show when={local.onRemove}>
                 <span
                     role="button"
                     aria-label="Remove"
                     class="-mr-0.5 ml-0.5 leading-none opacity-60 hover:opacity-100"
                     onClick={(e) => {
                         e.stopPropagation();
-                        props.onRemove!();
+                        local.onRemove!();
                     }}
                 >
                     ×

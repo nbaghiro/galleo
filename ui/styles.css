@@ -1,12 +1,9 @@
-/* Shared theming for every frontend module (app + studio + future library/teams/settings). The
-   active theme recolors chrome by setting these `--color-*` vars on a root element via
-   themeCssVars() (kernel/themes). Imported once by the app entry; @source scans all module dirs so
-   their utility classes + tokens are available everywhere. */
+/* The shared frontend stylesheet — the Tailwind v4 entry + the theme token→utility mapping every module
+   (app · editor · website · publish) and every @ui component styles through. The active theme recolors
+   chrome by setting these `--color-*` / `--font-*` vars on a root element via `themeCssVars()` (@themes).
+   Imported once by each frontend entry; Tailwind v4 auto-detects source files across the repo, so no
+   explicit @source list is needed. */
 @import "tailwindcss";
-@source "../app/**/*.{ts,tsx,html}";
-@source "../surfaces/studio/**/*.{ts,tsx,html}";
-@source "../website/**/*.{ts,tsx,html}";
-@source "../publish/**/*.{ts,tsx,html}";
 
 @theme {
     --color-canvas: #f4f0e8;
@@ -119,19 +116,6 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background-color: var(--sb-strong, var(--sb, var(--color-line)));
     background-clip: content-box;
-}
-
-/* theme drawer slide-in */
-@keyframes theme-drawer-in {
-    from {
-        transform: translateX(100%);
-    }
-    to {
-        transform: translateX(0);
-    }
-}
-.theme-drawer-enter {
-    animation: theme-drawer-in 0.18s ease;
 }
 
 /* AI theme-generation loader: a row of swatches cycling a palette (staggered per swatch → "forming") */

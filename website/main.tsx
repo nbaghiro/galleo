@@ -1,5 +1,5 @@
 /* @refresh reload */
-import "../theme/styles.css";
+import "../ui/styles.css";
 import "./website.css";
 import { render } from "solid-js/web";
 import { resolveTheme, themeCssVars } from "@themes";

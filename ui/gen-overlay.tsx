@@ -6,7 +6,7 @@ import type { Rect } from "@engine/node";
 // down through it with the frame glowing (busy), a brief danger ring (error), or nothing extra (done). Used
 // by both the section-gen and element-gen stages (their only real differences are speed/height/mix/ring —
 // all props). `base` renders under the light; `children` render over it (a status chip). Keyframes live in
-// theme/styles.css (`gen-lightsweep`/`gen-frameglow`); speed is set per-instance via the `--gen-speed` var.
+// ui/styles.css (`gen-lightsweep`/`gen-frameglow`); speed is set per-instance via the `--gen-speed` var.
 
 const DANGER = "#e5484d";
 

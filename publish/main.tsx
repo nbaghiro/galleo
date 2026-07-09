@@ -1,5 +1,5 @@
 /* @refresh reload */
-import "../theme/styles.css";
+import "../ui/styles.css";
 import "../app/components/visuals.css";
 import "@editor/register"; // side-effect: register every element so the engine can paint published content
 import type { Component } from "solid-js";
