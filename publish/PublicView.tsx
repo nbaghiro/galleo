@@ -6,6 +6,7 @@ import { registerThemes, resolveTheme } from "@themes";
 import { PresentSurface } from "@ui/present";
 import { UiThemeProvider } from "@ui/icons";
 import { api, ApiError, type PublicContent } from "../app/api";
+import { setFavicon } from "../app/theme";
 
 // The public, UNAUTHENTICATED viewer — a chrome-free read-only render of a published artifact, served at
 // /p/:slug (its own tiny build, no auth/editor/app code). It paints through the same @canvas backends as
@@ -82,7 +83,11 @@ export const PublicView: Component = () => {
     onMount(() => void load());
     createEffect(() => {
         const c = content();
-        if (c) document.title = c.title;
+        if (!c) return;
+        document.title = c.title;
+        // Theme-aware tab badge — the "G" mark in the published artifact's own theme, matching how the
+        // app + website builds set their favicon. The custom theme (if any) is registered in load() first.
+        setFavicon(resolveTheme(c.content.theme).tokens);
     });
 
     const submitPassword = (e: Event): void => {
