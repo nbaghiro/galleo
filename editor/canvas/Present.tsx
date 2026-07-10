@@ -1,6 +1,6 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
-import { resolveProfile } from "@engine/profile";
+import { previewContentProfile, resolveProfile } from "@engine/profile";
 import { paintSectionStack } from "@canvas/render/backends";
 import { slideElement, SLIDE_W, SLIDE_H } from "@canvas/render/present";
 import { SlideProgress, backdropHostStyle } from "@ui/section";
@@ -72,8 +72,9 @@ export const Present: Component = () => {
     // --- doc / web: all sections stacked + scrollable, sized like the studio's continuous view ---
     const renderContinuous = (): void => {
         if (!host) return;
-        const prof = profile();
         const fullW = host.clientWidth || window.innerWidth;
+        // preview isn't bound to the editor's fixed reading-column width — let a doc widen with the viewport
+        const prof = previewContentProfile(profile(), fullW);
         const stage = document.createElement("div");
         stage.style.cssText = `position:relative;width:${fullW}px`;
         const { height } = paintSectionStack(stage, editor.artifact.sections, prof, theme(), {

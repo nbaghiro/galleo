@@ -1,7 +1,7 @@
 import type { ArtifactContent } from "@model/artifact";
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
-import { resolveProfile } from "@engine/profile";
+import { previewContentProfile, resolveProfile } from "@engine/profile";
 import { resolveTheme } from "@themes";
 import { paintSectionStack } from "@canvas/render/backends";
 import { slideElement, SLIDE_W, SLIDE_H } from "@canvas/render/present";
@@ -51,9 +51,11 @@ export const PresentSurface: Component<{
     const renderContinuous = (): void => {
         if (!host) return;
         const fullW = host.clientWidth || window.innerWidth;
+        // preview isn't bound to the editor's fixed reading-column width — let a doc widen with the viewport
+        const prof = previewContentProfile(profile(), fullW);
         const stage = document.createElement("div");
         stage.style.cssText = `position:relative;width:${fullW}px`;
-        const { height } = paintSectionStack(stage, props.artifact.sections, profile(), tokens(), {
+        const { height } = paintSectionStack(stage, props.artifact.sections, prof, tokens(), {
             fullW,
         });
         stage.style.height = `${height}px`;
