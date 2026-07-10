@@ -212,12 +212,18 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
         children: [inner],
     };
 
-    // A framed section (not full-bleed, not a continuous doc/web merge) wears the theme's card decoration —
-    // border + shadow (the design character) — regardless of its background: surface, color, gradient, OR
-    // image. Full-bleed and continuous sections merge into the page, so they stay undecorated.
+    // A framed section (not full-bleed, not a continuous doc/web merge) wears the theme's card decoration.
+    // The shadow (depth/glow) reads on any background, so it applies regardless. The border, though, is a
+    // *delineation* line — it earns its place on a light surface that could blend into the page, but over a
+    // dark background (an image is always scrimmed dark; a dark color/gradient too) a light theme hairline
+    // just reads as an awkward frame, so dark-backed sections take the shadow alone. Full-bleed + continuous
+    // sections merge into the page, so they stay undecorated.
     const framed = !bleed && !continuous;
-    const border = framed ? { color: ctx.theme.line, width: ctx.theme.border ?? 1 } : undefined;
     const shadow = framed ? ctx.theme.shadow : undefined;
+    const border =
+        framed && !bgIsDark(bg)
+            ? { color: ctx.theme.line, width: ctx.theme.border ?? 1 }
+            : undefined;
 
     if (bg?.kind === "image" && bg.image) {
         // legibility scrim: per-section override → theme default → built-in fallback
