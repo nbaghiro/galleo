@@ -1,10 +1,11 @@
-// Insert affordances: cell-add, the element picker/palette item, context menu, and the drag/drop ghosts.
+// Insert affordances: the empty-region add, the element picker/palette item, context menu, and drop ghosts.
 
 import type { Rect } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
 import type { Component, JSX } from "solid-js";
 import { createMemo, createSignal, Show, For } from "solid-js";
-import { setCellElement, duplicateAt, duplicatedAddr, removeAt } from "@elements/ops";
+import { deleteElement, duplicateAt, duplicatedAddr, getElementAt, replaceAt } from "@elements/ops";
+import { elementRegionId } from "@model/target";
 import {
     commit,
     editor,
@@ -15,7 +16,6 @@ import {
     duplicateSectionAt,
     moveSectionBy,
     removeSectionAt,
-    editorAccent,
 } from "../editor";
 import { Icon } from "@ui/icons";
 import { FloatingPanel, Popover } from "@ui/overlay";
@@ -24,32 +24,31 @@ import { getElement } from "@elements/spec";
 import { startDrag, drag } from "./dnd";
 import type { Target } from "@model/target";
 
-// The empty-cell affordance: a centered "+ Add element" that opens the shared picker and drops the
-// chosen element (or a smart-layout preset) into the cell — no drag required.
-export const CellAdd: Component = () => {
+// The empty-region affordance: when an empty column/region is selected, a centered "+ Add element" opens
+// the shared picker and drops the chosen element (or a smart-layout preset) into it — no drag required.
+export const EmptyRegionAdd: Component = () => {
     const [open, setOpen] = createSignal(false);
-    const cell = createMemo(() => {
+    // The selected element, when it's an empty container (an empty column / drop region).
+    const target = createMemo(() => {
         const s = selection();
-        return s?.kind === "cell" ? s : null;
-    });
-    const empty = createMemo((): boolean => {
-        const c = cell();
-        if (!c) return false;
-        const sec = editor.artifact.sections.find((s) => s.id === c.section);
-        return !sec?.cells[c.cell]?.element;
+        if (s?.kind !== "element") return null;
+        const inst = getElementAt(editor.artifact, s.address);
+        if (!inst) return null;
+        const spec = getElement(inst.type);
+        const isEmpty = !!spec?.container && spec.container.children(inst.data).length === 0;
+        return isEmpty ? s.address : null;
     });
     const box = createMemo((): Rect | null => {
-        const c = cell();
-        if (!c || !empty()) return null;
-        return regions().find((r) => r.id === `cell:${c.section}:${c.cell}`)?.box ?? null;
+        const a = target();
+        return a ? (regions().find((r) => r.id === elementRegionId(a))?.box ?? null) : null;
     });
 
     const insert = (inst: ElementInstance): void => {
-        const c = cell();
-        if (!c) return;
-        commit(setCellElement(editor.artifact, c.section, c.cell, inst));
+        const a = target();
+        if (!a) return;
+        commit(replaceAt(editor.artifact, a, inst));
         setOpen(false);
-        setSelection({ kind: "element", address: { section: c.section, cell: c.cell, path: [] } });
+        setSelection({ kind: "element", address: a });
     };
 
     return (
@@ -180,7 +179,7 @@ function itemsFor(t: Target | null): Item[] {
                 label: "Delete",
                 danger: true,
                 run: () => {
-                    commit(removeAt(editor.artifact, t.address));
+                    commit(deleteElement(editor.artifact, t.address));
                     setSelection(null);
                 },
             },
@@ -195,10 +194,6 @@ function itemsFor(t: Target | null): Item[] {
             { label: "Move down", run: () => moveSectionBy(id, 1) },
             { label: "Delete", danger: true, run: () => removeSectionAt(id) },
         ];
-    }
-    if (t?.kind === "cell") {
-        // Route to the cell so its "+ Add element" affordance appears where the deep picker lives.
-        return [{ label: "Add element…", run: () => setSelection(t) }];
     }
     return [{ label: "Add section", run: () => addSectionAfter(null) }];
 }
@@ -239,8 +234,9 @@ export const ContextMenu: Component = () => (
     </Show>
 );
 
-// A small label pill trailing the cursor — cursor-level feedback while dragging (the in-place skeleton
-// at the drop slot, drawn by DropIndicator, shows what/where it lands). Always mounted; visibility toggled.
+// A small label pill trailing the cursor — cursor-level feedback while dragging (the dimmed in-place ghost
+// of the dragged element, spliced into the previewed section, shows what/where it lands). Always mounted;
+// visibility toggled.
 export const DragGhost: Component = () => (
     <div
         class="pointer-events-none fixed z-50 rounded-full border border-line bg-panel/95 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-lg backdrop-blur-md"
@@ -253,34 +249,6 @@ export const DragGhost: Component = () => (
         {drag()?.label}
     </div>
 );
-
-// Lives inside the canvas stage (canvas coords). For a "between" drop (hovering an existing element) it
-// draws a thin accent insertion line at the target boundary. For a "reflow" drop (open space) it shows
-// nothing here — the ghost skeleton is painted inline in the preview artifact, which auto-sizes the
-// section around it.
-export const DropIndicator: Component = () => {
-    const line = createMemo(() => {
-        const t = drag()?.target;
-        return t && !t.reflow ? t.slot : null;
-    });
-
-    return (
-        <Show when={line()}>
-            {(b) => (
-                <div
-                    class="pointer-events-none absolute rounded-full"
-                    style={{
-                        left: `${b().x}px`,
-                        top: `${b().y}px`,
-                        width: `${b().w}px`,
-                        height: `${b().h}px`,
-                        background: editorAccent(),
-                    }}
-                />
-            )}
-        </Show>
-    );
-};
 
 // Hand-designed, theme-driven SVG previews per element type. Every color is a CSS variable the
 // Studio root sets from the active theme (--color-accent/ink/muted/panel/canvas/line/onaccent), so a

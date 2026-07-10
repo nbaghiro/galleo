@@ -152,3 +152,107 @@ body {
         opacity: 0.55;
     }
 }
+
+/* Markdown (assistant / AI prose) — see @ui/markdown. Sized for the chat panel; every color is a theme var,
+   so it recolors with the active theme. Applied to the sanitized HTML marked emits. */
+.md {
+    color: var(--color-ink);
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+.md > :first-child {
+    margin-top: 0;
+}
+.md > :last-child {
+    margin-bottom: 0;
+}
+.md p {
+    margin: 0 0 0.6em;
+}
+.md strong {
+    font-weight: 650;
+}
+.md em {
+    font-style: italic;
+}
+.md a {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.md ul,
+.md ol {
+    margin: 0 0 0.6em;
+    padding-left: 1.3em;
+}
+.md li {
+    margin: 0.15em 0;
+}
+.md li::marker {
+    color: var(--color-muted);
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+    margin: 0.85em 0 0.35em;
+    font-weight: 650;
+    line-height: 1.3;
+}
+.md h1 {
+    font-size: 1.3em;
+}
+.md h2 {
+    font-size: 1.18em;
+}
+.md h3 {
+    font-size: 1.07em;
+}
+.md h4 {
+    font-size: 1em;
+}
+.md code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background: color-mix(in srgb, var(--color-muted) 18%, transparent);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+}
+.md pre {
+    margin: 0 0 0.6em;
+    padding: 0.7em 0.85em;
+    background: color-mix(in srgb, var(--color-muted) 12%, transparent);
+    border: 1px solid var(--color-line);
+    border-radius: 8px;
+    overflow-x: auto;
+}
+.md pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.85em;
+}
+.md blockquote {
+    margin: 0 0 0.6em;
+    padding-left: 0.8em;
+    border-left: 2px solid var(--color-line);
+    color: var(--color-soft);
+}
+.md hr {
+    margin: 0.85em 0;
+    border: none;
+    border-top: 1px solid var(--color-line);
+}
+.md table {
+    display: block;
+    overflow-x: auto;
+    border-collapse: collapse;
+    margin: 0 0 0.6em;
+    font-size: 0.95em;
+}
+.md th,
+.md td {
+    border: 1px solid var(--color-line);
+    padding: 0.3em 0.55em;
+    text-align: left;
+}

@@ -52,6 +52,15 @@ export function fontStack(role: FontRole, t: Tokens): string {
 // The Tailwind color variables for a theme — any module sets these on a root element to recolor its
 // chrome (the shared theme.css declares the matching `@theme` tokens). Pure: just a string record.
 export function themeCssVars(t: Tokens): Record<string, string> {
+    // Derive the whole radius scale from the theme's section radius, overriding Tailwind's own
+    // `--radius-*` tokens — so every `rounded-{sm..3xl}` utility in the chrome (library cards, editor
+    // panels, minimap, modals) tracks the active theme instead of being hardcoded, exactly the way the
+    // `--color-*` overrides recolor it. Anchored so radius 16 reproduces Tailwind's default scale, and
+    // proportional either side: radius 0 → a fully sharp chrome, larger radii round it in step with the
+    // sections. `rounded-full` / arbitrary `rounded-[…]` values don't use these tokens, so they're
+    // unaffected. `--radius` (the bare `rounded` + the sections' `rounded-[var(--radius)]`) stays the raw
+    // section radius.
+    const rad = (base: number): string => `${Math.round((base * t.radius) / 16 / 0.25) * 0.25}px`;
     return {
         "--color-canvas": t.bg,
         "--color-panel": t.surface,
@@ -64,6 +73,13 @@ export function themeCssVars(t: Tokens): Record<string, string> {
         "--border-width": `${t.border ?? 1}px`,
         "--shadow": t.shadow ?? "0 1px 2px rgba(0,0,0,0.05)",
         "--radius": `${t.radius}px`,
+        "--radius-xs": rad(2),
+        "--radius-sm": rad(4),
+        "--radius-md": rad(6),
+        "--radius-lg": rad(8),
+        "--radius-xl": rad(12),
+        "--radius-2xl": rad(16),
+        "--radius-3xl": rad(24),
         "--font-display": `'${t.fontDisplay}', serif`,
         "--font-body": `'${t.fontBody}', system-ui, sans-serif`,
         "--font-mono": `'${t.fontMono}', monospace`,

@@ -21,7 +21,7 @@ interface RawEl {
 }
 interface RawDraft {
     background?: { image?: string };
-    sections?: { background?: { image?: string }; cells?: Record<string, { element?: RawEl }> }[];
+    sections?: { background?: { image?: string }; root?: RawEl }[];
 }
 
 // Depth-first visit of a raw draft element + its nested group children.
@@ -37,12 +37,10 @@ function coverOf(draft: unknown): Cover {
     if (!sec) return {};
     const texts: { style?: string; text?: string }[] = [];
     let image = d.background?.image ?? sec.background?.image;
-    for (const cell of Object.values(sec.cells ?? {}))
-        walkRaw(cell.element, (el) => {
-            if (el.type === "text" && el.data)
-                texts.push({ style: el.data.style, text: el.data.text });
-            if (el.type === "image" && !image && el.data?.src) image = el.data.src;
-        });
+    walkRaw(sec.root, (el) => {
+        if (el.type === "text" && el.data) texts.push({ style: el.data.style, text: el.data.text });
+        if (el.type === "image" && !image && el.data?.src) image = el.data.src;
+    });
     const find = (...styles: string[]): string | undefined =>
         texts.find((t) => t.style && styles.includes(t.style))?.text;
     return {
@@ -60,16 +58,14 @@ function sectionsSummary(draft: unknown): SectionSummary[] {
     return (d.sections ?? []).map((sec, idx) => {
         let title: string | undefined;
         const kinds = new Set<string>();
-        for (const cell of Object.values(sec.cells ?? {}))
-            walkRaw(cell.element, (el) => {
-                if (el.type === "text" && el.data) {
-                    const st = el.data.style;
-                    if (el.data.text && !title && st && !["label", "caption"].includes(st))
-                        title = el.data.text;
-                }
-                if (el.type && !["text", "group", "card", "cell"].includes(el.type))
-                    kinds.add(el.type);
-            });
+        walkRaw(sec.root, (el) => {
+            if (el.type === "text" && el.data) {
+                const st = el.data.style;
+                if (el.data.text && !title && st && !["label", "caption"].includes(st))
+                    title = el.data.text;
+            }
+            if (el.type && !["text", "group", "card"].includes(el.type)) kinds.add(el.type);
+        });
         let kind = "cover";
         if (idx > 0) {
             kind = "content";

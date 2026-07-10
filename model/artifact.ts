@@ -1,20 +1,25 @@
 // The artifact, end to end — its content tree and the wire shapes that describe it. One artifact is a
-// tree of sections → cells → elements; each element's `data` stays schema-flexible (its ElementSpec reads
-// it). The DTOs at the bottom are the HTTP shapes the backend + frontend share, colocated with the type
-// they summarize so they can never drift from it. Pure types (+ nothing else). The shared floor.
-// (Sizing/layout primitives live in `@model/geometry`.)
+// list of sections; each section's content is ONE recursive tree (`root`) — a container (row/col of
+// children, each carrying its own width) whose leaves are content elements, nestable to any depth.
+// Every element's `data` stays schema-flexible (its ElementSpec reads it). The DTOs at the bottom are the
+// HTTP shapes the backend + frontend share, colocated with the type they summarize so they can never
+// drift from it. Pure types (+ nothing else). The shared floor. (Sizing/layout lives in `@model/geometry`;
+// the legacy `{ grid, cells }` → `root` conversion lives in `@model/section`.)
 
 import type { ElementLayout } from "@model/geometry";
 
 export type Id = string;
 
-// A registered content component instance; `data` is interpreted by its ElementSpec.
+// A registered content component instance; `data` is interpreted by its ElementSpec. A container element
+// (group/card/…) carries its children inside `data`; each child's `layout.width` sets its column share.
 export interface ElementInstance {
     type: string;
     data: unknown;
     layout?: ElementLayout;
 }
 
+// Legacy per-cell wrapper (the old `{ grid, cells }` section shape). Retained only so `@model/section`
+// can migrate historical content + AI output into the recursive `root`; no longer part of `Section`.
 export interface Cell {
     element?: ElementInstance;
 }
@@ -30,9 +35,7 @@ export interface SectionBackground {
 
 export interface Section {
     id: Id;
-    grid: string; // grid template id, e.g. "split-6040"
-    widths?: number[]; // custom column fractions (per grid cell, summing to 1) — overrides the preset
-    cells: Record<string, Cell>;
+    root: ElementInstance; // the section's content: one recursive container/leaf tree
     background?: SectionBackground;
     bleed?: boolean; // full-bleed (edge-to-edge) vs a contained card
 }

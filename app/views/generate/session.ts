@@ -34,9 +34,9 @@ export interface Beat {
 export interface SectionSlot {
     id: string;
     status: SectionStatus;
-    grid: string; // the planned grid — drives the skeleton shape before content lands
+    layout: string; // the planned layout preset — drives the skeleton shape before content lands
     image: boolean; // whether this beat carries an image
-    blocks: string[]; // the block leading each grid cell (in cell order) — the exact planned layout
+    blocks: string[]; // the block leading each column, in order — the exact planned layout
     section: Section | null; // populated when its content patch lands
 }
 export interface Narration {
@@ -146,7 +146,7 @@ function dispatch(ev: TurnEvent, content: ArtifactContent): ArtifactContent {
                 sections: ev.beats.map((b: PlanBeat) => ({
                     id: b.id,
                     status: "queued" as SectionStatus,
-                    grid: b.grid ?? "full",
+                    layout: b.layout ?? "full",
                     image: b.image ?? false,
                     blocks: b.blocks ?? [],
                     section: null,
@@ -242,13 +242,7 @@ const firstText = (inst: ElementInstance | undefined): string | undefined => {
     return undefined;
 };
 // The artifact title = the first text run in the first section (its headline), else a fallback.
-const sectionLabel = (s: Section, i: number): string => {
-    for (const c of Object.values(s.cells)) {
-        const txt = firstText(c.element);
-        if (txt) return txt;
-    }
-    return `Section ${i + 1}`;
-};
+const sectionLabel = (s: Section, i: number): string => firstText(s.root) || `Section ${i + 1}`;
 
 // "Open" persists the streamed artifact as a fresh library artifact and returns its id to navigate to. An
 // optional `formatId` overrides the surface (the modal passes the currently-previewed format, so opening

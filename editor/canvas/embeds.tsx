@@ -44,8 +44,7 @@ function walkAddressed(
         if (Array.isArray(kids))
             kids.forEach((k, i) => recurse(k, { ...addr, path: [...addr.path, i] }));
     };
-    for (const [cell, c] of Object.entries(section.cells))
-        recurse(c.element, { section: section.id, cell, path: [] });
+    recurse(section.root, { section: section.id, path: [] });
 }
 
 export const VideoEmbeds: Component = () => {

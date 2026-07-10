@@ -698,7 +698,7 @@ inside its true frame from the MVP** (§2.2) — two approaches, one shipping no
 
 2. **Scale a fixed W×H layer to fit the column — deferred (T3).** True WYSIWYG (short content stays inside
    the frame, tall content scales down), but introduces a scale factor that **every overlay assumes is 1** —
-   the selection ring, `ResizeHandles`, `SpacingHandles`, `ColumnDividers`, the `TextEditor` caret, and
+   the selection ring, `DragHandle`, `ResizeHandles`, `RegionDividers`, the `TextEditor` caret, and
    `computeDropTarget`/`hitTest` all work in unscaled coords (`Canvas.tsx`, `editor/select/*`). Correct but
    invasive — a coordinate-transform pass across the whole overlay layer. Deferred; would also let deck opt
    into framed editing.

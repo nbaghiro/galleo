@@ -21,9 +21,11 @@ import { artifacts, formatLabel } from "../../stores/library";
 // from the open artifact + current selection. Proposals apply to the editor via commit (undoable); nothing
 // mutates until the user clicks Apply.
 
-// A rendered block in a message — text accumulates from chat.text deltas; a `tool` is the "working…" shell a
-// tool shows while it runs; a `widget` is the finished ChatBlock (proposal / suggestions / preview).
+// A rendered block in a message — `reasoning` accumulates the streamed thinking tokens (the collapsible
+// bubble, closed once the answer starts); `text` accumulates from chat.text deltas; a `tool` is the "working…"
+// shell a tool shows while it runs; a `widget` is the finished ChatBlock (proposal / suggestions / preview).
 export type UIBlock =
+    | { k: "reasoning"; text: string; done: boolean }
     | { k: "text"; text: string }
     | { k: "tool"; blockId: string; tool: string; title: string; done: boolean }
     | { k: "widget"; blockId: string; block: ChatBlock; applied?: "applied" | "discarded" };
@@ -70,20 +72,16 @@ function firstText(section: Section | undefined): string {
         }
         return "";
     };
-    for (const cell of Object.values(section.cells)) {
-        const t = visit(cell.element);
-        if (t) return t;
-    }
-    return "";
+    return visit(section.root);
 }
 
 function deriveFocus(): ChatFocus | undefined {
     const t: Target | null = selection();
     if (!t) return undefined;
     const sectionId = t.kind === "element" ? t.address.section : t.section;
-    const cell = t.kind === "cell" ? t.cell : t.kind === "element" ? t.address.cell : undefined;
+    const path = t.kind === "element" ? t.address.path : undefined;
     const sec = editor.artifact.sections.find((s) => s.id === sectionId);
-    return { kind: t.kind, sectionId, cell, headline: firstText(sec) || undefined };
+    return { kind: t.kind, sectionId, path, headline: firstText(sec) || undefined };
 }
 
 // The workspace summary sent when no artifact is open — a few most-recent titles + a count, so the agent can
@@ -120,8 +118,22 @@ function updateMsg(id: number, fn: (m: ChatMsg) => void): void {
     );
 }
 
+// Close (collapse) any still-open thinking bubble — the answer (or an error) has started.
+function closeReasoning(m: ChatMsg): void {
+    for (const b of m.blocks) if (b.k === "reasoning" && !b.done) b.done = true;
+}
+
+function pushReasoning(id: number, delta: string): void {
+    updateMsg(id, (m) => {
+        const last = m.blocks[m.blocks.length - 1];
+        if (last && last.k === "reasoning" && !last.done) last.text += delta;
+        else m.blocks.push({ k: "reasoning", text: delta, done: false });
+    });
+}
+
 function pushText(id: number, delta: string): void {
     updateMsg(id, (m) => {
+        closeReasoning(m); // prose has begun → the thinking bubble auto-collapses
         const last = m.blocks[m.blocks.length - 1];
         if (last && last.k === "text") last.text += delta;
         else m.blocks.push({ k: "text", text: delta });
@@ -130,6 +142,9 @@ function pushText(id: number, delta: string): void {
 
 function dispatch(ev: TurnEvent, aid: number): void {
     switch (ev.type) {
+        case "chat.reasoning":
+            pushReasoning(aid, ev.delta);
+            break;
         case "chat.text":
             pushText(aid, ev.delta);
             break;
@@ -200,7 +215,10 @@ export async function sendChat(text: string): Promise<void> {
             pushText(aid, `\n\n_(${e instanceof Error ? e.message : "The chat failed."})_`);
     } finally {
         setBusy(false);
-        updateMsg(aid, (m) => (m.streaming = false));
+        updateMsg(aid, (m) => {
+            m.streaming = false;
+            closeReasoning(m); // a tool-only / interrupted turn → don't leave the bubble spinning
+        });
         abort = null;
         void loadBilling();
     }

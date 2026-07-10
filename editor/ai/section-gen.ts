@@ -93,7 +93,7 @@ export async function runSectionGen(instruction: string): Promise<void> {
     const baseContent = content(); // the real artifact, without any placeholder
 
     // reserve the slot with a generic skeleton so its box scrolls in + holds height while planning
-    putPlaceholder(placeholderSection({ id: PLACEHOLDER_ID, grid: "full" }));
+    putPlaceholder(placeholderSection({ id: PLACEHOLDER_ID, layout: "full" }));
     setSectionGen({ stage: "planning", caption: "Reading the surrounding sections", error: null });
     setSelection(null);
 
@@ -119,7 +119,7 @@ export async function runSectionGen(instruction: string): Promise<void> {
                 putPlaceholder(
                     placeholderSection({
                         id: PLACEHOLDER_ID,
-                        grid: b.grid,
+                        layout: b.layout,
                         blocks: b.blocks,
                         image: b.image,
                     }),

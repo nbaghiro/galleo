@@ -1,9 +1,9 @@
 import type { GenerateInput, SectionInput, Surface } from "@model/ai";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
-import { GRID_TEMPLATES, BLOCK_KINDS } from "@model/elements";
+import { BLOCK_KINDS } from "@model/elements";
 import type { Beat, Outline } from "../schema";
 import { PERSONA, surfaceVoice } from "./persona";
-import { describeTheme, elementCatalog, gridCatalog } from "./catalog";
+import { describeTheme, elementCatalog, layoutCatalog } from "./catalog";
 import { RUBRIC, VOICE, lengthGuidance } from "./rubric";
 import { arcGuidance } from "./arcs";
 import {
@@ -28,7 +28,7 @@ import type { PromptParts } from "./system";
 // arc so the first generation reads like the hand-built demos, not AI slop.
 
 const OUTLINE_JOB = `## Your job
-Plan the artifact: a title, a backdrop, and an ordered list of beats (sections). The backdrop is the artifact's full-bleed background image — describe a moody, on-theme atmospheric scene that evokes the subject (a wide, low-detail environment, since it sits behind every section under a scrim), never a generic abstract texture. Give the piece a real narrative arc that fits the topic — the beat roles (scene, tension, turn, proof, momentum, close) are a toolbox to draw on, not a fixed sequence: use the ones the story needs, in the order it needs, and repeat proof/momentum beats where the argument earns them. For each beat: an id (s1, s2, …), a short working label, its narrative role, the grid you intend, and — crucially — design its LAYOUT: assign a block to each of that grid's cells, in cell order (\`blocks\`, one per cell, each one of: ${BLOCK_KINDS.join(", ")}). Vary grids and blocks across the piece, and place visual blocks (image / stat / chart / diagram / table) where they earn their spot rather than defaulting to walls of text — the layout you choose is rendered as a live skeleton and the section writer must fill it exactly. Also give each beat whether it leads with an image and a one-line brief of what it must say. Give the opening (scene) and closing (close) sections a full-bleed background image — set image=true for them; they anchor the piece. Don't pad and don't truncate.`;
+Plan the artifact: a title, a backdrop, and an ordered list of beats (sections). The backdrop is the artifact's full-bleed background image — describe a moody, on-theme atmospheric scene that evokes the subject (a wide, low-detail environment, since it sits behind every section under a scrim), never a generic abstract texture. Give the piece a real narrative arc that fits the topic — the beat roles (scene, tension, turn, proof, momentum, close) are a toolbox to draw on, not a fixed sequence: use the ones the story needs, in the order it needs, and repeat proof/momentum beats where the argument earns them. For each beat: an id (s1, s2, …), a short working label, its narrative role, the layout you intend (\`layout\` — a named preset: full · split-6040 · split-4060 · two-col · three-up), and — crucially — design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Vary layouts and blocks across the piece, and place visual blocks (image / stat / chart / diagram / table) where they earn their spot rather than defaulting to walls of text — the layout you choose is rendered as a live skeleton and the section writer must fill it exactly. Also give each beat whether it leads with an image and a one-line brief of what it must say. Give the opening (scene) and closing (close) sections a full-bleed background image — set image=true for them; they anchor the piece. Don't pad and don't truncate.`;
 
 export function outlineParts(input: GenerateInput): PromptParts {
     return {
@@ -37,7 +37,7 @@ export function outlineParts(input: GenerateInput): PromptParts {
             surfaceVoice(input.surface),
             describeTheme(input.theme),
             OUTLINE_JOB,
-            gridCatalog(),
+            layoutCatalog(),
             RUBRIC,
             OUTPUT_NOTE,
         ),
@@ -50,19 +50,16 @@ export function outlineParts(input: GenerateInput): PromptParts {
     };
 }
 
-// Map a beat's per-cell blocks onto the grid's cell keys → "cell a: text, cell b: image".
-function cellPlan(beat: Beat): string {
-    const cells = GRID_TEMPLATES.find((g) => g.id === beat.grid)?.cells ?? [];
-    return (beat.blocks ?? [])
-        .map((b, i) => `cell ${cells[i] ?? String.fromCharCode(97 + i)}: ${b}`)
-        .join(", ");
+// Map a beat's per-column blocks onto column order → "column 1: text, column 2: image".
+function columnPlan(beat: Beat): string {
+    return (beat.blocks ?? []).map((b, i) => `column ${i + 1}: ${b}`).join(", ");
 }
 
-// The "fill each cell with its planned block, in order" instruction — shared by the generate placement and
-// the insert-a-section placement so both hold the writer to the exact layout the live skeleton is showing.
+// The "fill each column with its planned block, in order" instruction — shared by the generate placement
+// and the insert-a-section placement so both hold the writer to the exact layout the live skeleton shows.
 function blockLine(beat: Beat): string | undefined {
     if (!beat.blocks?.length) return undefined;
-    return `Fill the cells in this exact order, leading each with its assigned block — ${cellPlan(beat)}. A "text" cell = a headline + supporting copy; "image" = one image; "stat" = a stat; "bullets" = a short list; "chart"/"diagram"/"table" = that visual; "quote" = a pulled quote; "cards" = a small group of cards. The live preview shows this layout, so match it exactly (don't move a block to a different cell).`;
+    return `Fill the columns in this exact order, leading each with its assigned block — ${columnPlan(beat)}. A "text" column = a headline + supporting copy; "image" = one image; "stat" = a stat; "bullets" = a short list; "chart"/"diagram"/"table" = that visual; "quote" = a pulled quote; "cards" = a small group of cards. The live preview shows this layout, so match it exactly (don't move a block to a different column).`;
 }
 
 // Context about where this section sits, so it flows from the ones around it.
@@ -77,8 +74,8 @@ function placement(beat: Beat, outline: Outline): string {
             `Artifact title: ${outline.title}`,
             `Beat ${idx + 1} of ${outline.beats.length}: "${beat.label}" (role: ${beat.role})`,
             beat.brief && `What it must say: ${beat.brief}`,
-            beat.grid &&
-                `Use EXACTLY this grid — the plan chose it and a live preview is already showing it: ${beat.grid}.`,
+            beat.layout &&
+                `Use EXACTLY this layout — the plan chose it and a live preview is already showing it: ${beat.layout}.`,
             blockLine(beat),
             beat.image ? "This section leads with a prominent image." : undefined,
             idx === 0
@@ -105,7 +102,7 @@ function sectionSystem(surface: Surface, theme: string): string {
         surfaceVoice(surface),
         describeTheme(theme),
         elementCatalog(),
-        gridCatalog(),
+        layoutCatalog(),
         SECTION_RULES,
         VOICE,
         sectionExemplars(surface),
@@ -133,9 +130,9 @@ export function surfaceOf(format: string): Surface {
 }
 
 const PLAN_ONE_JOB = `## Your job
-Plan ONE new section to slot into this artifact at the marked spot. Decide its narrative role, choose the grid that fits, and design its LAYOUT: assign a block to each of that grid's cells, in cell order (\`blocks\`, one per cell, each one of: ${BLOCK_KINDS.join(", ")}). Reach for a visual block (image / stat / chart / diagram / table) where the idea is a picture, number, trend, or process rather than defaulting to a wall of text. Give it a short working label, whether it leads with an image, and a one-line brief of what it must say. Match the density and voice of the sections around it — this section has to feel like it was always there.`;
+Plan ONE new section to slot into this artifact at the marked spot. Decide its narrative role, choose the layout that fits (\`layout\` — a named preset: full · split-6040 · split-4060 · two-col · three-up), and design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Reach for a visual block (image / stat / chart / diagram / table) where the idea is a picture, number, trend, or process rather than defaulting to a wall of text. Give it a short working label, whether it leads with an image, and a one-line brief of what it must say. Match the density and voice of the sections around it — this section has to feel like it was always there.`;
 
-// Plan the one new section (structured call): role + grid + per-cell blocks, aware of where it lands.
+// Plan the one new section (structured call): role + layout + per-column blocks, aware of where it lands.
 export function sectionPlanParts(input: SectionInput): PromptParts {
     const surface = surfaceOf(input.content.format);
     return {
@@ -143,7 +140,7 @@ export function sectionPlanParts(input: SectionInput): PromptParts {
             PERSONA,
             surfaceVoice(surface),
             describeTheme(input.content.theme),
-            gridCatalog(),
+            layoutCatalog(),
             PLAN_ONE_JOB,
             OUTPUT_NOTE,
         ),
@@ -156,7 +153,7 @@ export function sectionPlanParts(input: SectionInput): PromptParts {
     };
 }
 
-// Placement context for the inserted section — the assigned grid/blocks plus where it sits in the real
+// Placement context for the inserted section — the assigned layout/blocks plus where it sits in the real
 // artifact (the outline arc is replaced by the true neighbors, since there's no fresh outline here).
 function insertPlacement(beat: Beat, input: SectionInput): string {
     return stack(
@@ -165,8 +162,8 @@ function insertPlacement(beat: Beat, input: SectionInput): string {
             [
                 `Role: ${beat.role}. Working title: "${beat.label}".`,
                 beat.brief && `What it must say: ${beat.brief}`,
-                beat.grid &&
-                    `Use EXACTLY this grid — a live preview is already showing it: ${beat.grid}.`,
+                beat.layout &&
+                    `Use EXACTLY this layout — a live preview is already showing it: ${beat.layout}.`,
                 blockLine(beat),
                 beat.image ? "This section leads with a prominent image." : undefined,
             ]
@@ -205,7 +202,7 @@ export function editSectionParts(
             heading("What to change", instruction),
             neighbors(content, section.id),
             heading("The section as it is now", "```json\n" + JSON.stringify(section) + "\n```"),
-            `Rewrite section "${section.id}" to satisfy the instruction — keep its id (and its grid, unless the change requires a different one), and return the full revised section as JSON.`,
+            `Rewrite section "${section.id}" to satisfy the instruction — keep its id (and its layout, unless the change requires a different one), and return the full revised section as JSON.`,
         ),
     };
 }
@@ -241,7 +238,7 @@ function elementContext(content: ArtifactContent, section: Section): string {
         artifactSpine(content),
         heading(
             "The section it belongs to",
-            `Grid ${section.grid}. Fit this section's point and the piece's voice; don't duplicate copy that another element in the section already carries.\n\`\`\`json\n${JSON.stringify(section)}\n\`\`\``,
+            `Fit this section's point and the piece's voice; don't duplicate copy that another element in the section already carries.\n\`\`\`json\n${JSON.stringify(section)}\n\`\`\``,
         ),
     );
 }

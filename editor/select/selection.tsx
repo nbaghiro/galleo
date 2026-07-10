@@ -3,7 +3,7 @@
 import type { Region } from "@engine/node";
 import type { Target } from "@model/target";
 import type { Component } from "solid-js";
-import { createMemo, Show } from "solid-js";
+import { createMemo, createSignal, Show } from "solid-js";
 import { resolveProfile } from "@engine/profile";
 import { regionId, sectionRegionId } from "@model/target";
 import {
@@ -13,15 +13,17 @@ import {
     regions,
     selection,
     addSectionAfter,
-    setSelection,
     duplicateSectionAt,
     moveSectionBy,
     removeSectionAt,
 } from "../editor";
 import { openSectionPrompt } from "../ai/section-gen";
+import { drag } from "../canvas/dnd";
+import { sectionDragId } from "./handles";
+import { SectionLayoutPopup } from "../inspect/SectionLayoutPopup";
 import { Icon } from "@ui/icons";
 import { IconButton } from "@ui/button";
-import { FloatingBar } from "@ui/overlay";
+import { FloatingBar, Popover } from "@ui/overlay";
 import { Separator } from "@ui/inputs";
 
 // Fallback radius for nodes that paint no corner of their own (text, groups): square in the seamless
@@ -50,8 +52,11 @@ const ring = (r: Region, shadow: string) => ({
 });
 
 export const Overlay: Component = () => {
-    const sel = createMemo(() => regionFor(selection()));
+    // Suppressed while an element OR section is being dragged: selection/hover are frozen and the painted
+    // layout has shifted (lifted element / reflowed section), so a ring would strand over a stale spot.
+    const sel = createMemo(() => (drag() || sectionDragId() ? null : regionFor(selection())));
     const hov = createMemo(() => {
+        if (drag() || sectionDragId()) return null;
         const h = hover();
         if (!h) return null;
         const s = selection();
@@ -89,53 +94,72 @@ function sectionOf(t: Target | null): string | null {
 const action =
     "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-canvas";
 
-// On section hover, a pill bar straddles the section's bottom edge: add a section below, generate, or
-// jump to the section's layout/background controls.
+// The section whose Layout popup is open (else null). While open, SectionActions pins its bar to that
+// section so the anchor button stays mounted even if the cursor drifts away.
+const [layoutOpen, setLayoutOpen] = createSignal<string | null>(null);
+
+// On section hover, a pill bar straddles the section's bottom edge: add a section below, generate, or open
+// the inline Layout popup (smart-layout gallery + width/background) — which replaces the docked inspector.
 export const SectionActions: Component = () => {
-    const sid = createMemo(() => sectionOf(hover()));
+    const sid = createMemo(() => layoutOpen() ?? sectionOf(hover()));
     const box = createMemo(() => {
         const id = sid();
         return id ? (regions().find((r) => r.id === sectionRegionId(id))?.box ?? null) : null;
     });
+    let pillRef: HTMLDivElement | undefined;
 
     return (
         <Show when={box()}>
             {(b) => (
-                <FloatingBar
-                    tone="panel"
-                    rounded="full"
-                    shadow="lg"
-                    gap="0.5"
-                    anchor="free"
-                    class="absolute z-20 -translate-x-1/2"
-                    style={{ left: `${b().x + b().w / 2}px`, top: `${b().y + b().h - 16}px` }}
-                    onPointerMove={(e) => e.stopPropagation()}
-                    onPointerDown={(e) => e.stopPropagation()}
-                >
-                    <button
-                        class={action}
-                        title="Add a blank section below"
-                        onClick={() => addSectionAfter(sid()!)}
+                <>
+                    <FloatingBar
+                        ref={pillRef}
+                        tone="panel"
+                        rounded="full"
+                        shadow="lg"
+                        gap="0.5"
+                        anchor="free"
+                        class="absolute z-20 -translate-x-1/2"
+                        style={{ left: `${b().x + b().w / 2}px`, top: `${b().y + b().h - 16}px` }}
+                        onPointerMove={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
                     >
-                        <Icon name="plus" size={13} /> Section
-                    </button>
-                    <Separator vertical class="h-3.5" />
-                    <button
-                        class={action}
-                        title="Generate a section here with AI"
-                        onClick={() => openSectionPrompt(sid()!)}
+                        <button
+                            class={action}
+                            title="Add a blank section below"
+                            onClick={() => addSectionAfter(sid()!)}
+                        >
+                            <Icon name="plus" size={13} /> Section
+                        </button>
+                        <Separator vertical class="h-3.5" />
+                        <button
+                            class={action}
+                            title="Generate a section here with AI"
+                            onClick={() => openSectionPrompt(sid()!)}
+                        >
+                            <Icon name="sparkle" size={13} /> Generate
+                        </button>
+                        <Separator vertical class="h-3.5" />
+                        <button
+                            class={action}
+                            title="Section layout & background"
+                            onClick={() => setLayoutOpen(sid())}
+                        >
+                            <Icon name="layout" size={13} /> Layout
+                        </button>
+                    </FloatingBar>
+                    <Popover
+                        anchor={() => pillRef}
+                        open={layoutOpen() !== null}
+                        onClose={() => setLayoutOpen(null)}
+                        fixedWidth={512}
+                        estHeight={560}
+                        align="center"
+                        panelClass="p-3.5"
                     >
-                        <Icon name="sparkle" size={13} /> Generate
-                    </button>
-                    <Separator vertical class="h-3.5" />
-                    <button
-                        class={action}
-                        title="Section layout & background"
-                        onClick={() => setSelection({ kind: "section", section: sid()! })}
-                    >
-                        <Icon name="layout" size={13} /> Layout
-                    </button>
-                </FloatingBar>
+                        <SectionLayoutPopup section={sid()!} />
+                    </Popover>
+                </>
             )}
         </Show>
     );

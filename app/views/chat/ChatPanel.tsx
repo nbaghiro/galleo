@@ -2,7 +2,8 @@ import type { Component } from "solid-js";
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import type { ChatBlock } from "@model/ai";
 import { currentArtifactId, editor } from "@editor/editor";
-import { AgentIcon } from "@ui/icons";
+import { AgentIcon, Icon } from "@ui/icons";
+import { Markdown } from "@ui/markdown";
 import { MiniCanvas } from "../../components/previews";
 import { Button, IconButton, Chip, Spinner } from "@ui/button";
 import type { ChatMsg, UIBlock } from "./session";
@@ -96,14 +97,44 @@ const ProposalCard: Component<{
     );
 };
 
+// The agent's thinking trace — streams into an expanded bubble while the model reasons, then auto-collapses
+// when the answer starts (but stays, so the user can re-open and read the reasoning). Turns the pre-answer
+// wait into visible progress instead of a dead loader.
+const ReasoningBlock: Component<{ text: string; done: boolean }> = (props) => {
+    const [open, setOpen] = createSignal(!props.done);
+    createEffect(() => {
+        if (props.done) setOpen(false);
+    });
+    return (
+        <div class="mt-0.5 overflow-hidden rounded-lg border border-line bg-canvas/60">
+            <button
+                class="flex w-full items-center gap-2 px-2.5 py-1.5 text-[11.5px] font-medium text-muted transition-colors hover:text-soft"
+                onClick={() => setOpen((o) => !o)}
+            >
+                <Show when={!props.done} fallback={<Icon name="sparkle" size={12} />}>
+                    <Spinner size={11} />
+                </Show>
+                <span>{props.done ? "Thoughts" : "Thinking…"}</span>
+                <span class="ml-auto opacity-60">
+                    <Icon name={open() ? "chevronDown" : "chevronRight"} size={12} />
+                </span>
+            </button>
+            <Show when={open()}>
+                <div class="whitespace-pre-wrap border-t border-line px-2.5 py-2 text-[11.5px] leading-relaxed text-muted">
+                    {props.text}
+                </div>
+            </Show>
+        </div>
+    );
+};
+
 const BlockView: Component<{ msgId: number; b: UIBlock }> = (props) => (
     <>
+        <Show when={props.b.k === "reasoning" ? props.b : null}>
+            {(b) => <ReasoningBlock text={b().text} done={b().done} />}
+        </Show>
         <Show when={props.b.k === "text" ? props.b : null}>
-            {(b) => (
-                <div class="whitespace-pre-wrap text-[13px] leading-relaxed text-ink">
-                    {b().text}
-                </div>
-            )}
+            {(b) => <Markdown text={b().text} />}
         </Show>
         <Show when={props.b.k === "tool" && !props.b.done ? props.b : null}>
             {(b) => (

@@ -148,6 +148,7 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
     el.style.width = `${c.box.w}px`;
     el.style.height = `${c.box.h}px`;
     el.style.boxSizing = "border-box";
+    if (c.opacity !== undefined) el.style.opacity = String(c.opacity);
     if (c.kind === "rect") {
         const g = c.fill?.gradient;
         if (g) el.style.background = `linear-gradient(${g.angle ?? 135}deg, ${g.from}, ${g.to})`;
@@ -362,6 +363,8 @@ function drawCommands(
 ): void {
     for (const c of commands) {
         const b = c.box;
+        if (c.opacity !== undefined) cx.save();
+        if (c.opacity !== undefined) cx.globalAlpha = c.opacity;
         if (c.kind === "rect") {
             const f = c.fill;
             roundRectPath(cx, b.x, b.y, b.w, b.h, f?.radius ?? 0);
@@ -427,6 +430,7 @@ function drawCommands(
             c.paint(canvasDrawContext(cx), { x: 0, y: 0, w: b.w, h: b.h });
             cx.restore();
         }
+        if (c.opacity !== undefined) cx.restore();
     }
 }
 
@@ -585,7 +589,13 @@ export function paintSectionStack(
     sections: Section[],
     profile: FormatDescriptor,
     theme: Tokens,
-    opts: { fullW: number; startY?: number; hideId?: string | null; cache?: SectionStackCache },
+    opts: {
+        fullW: number;
+        startY?: number;
+        hideId?: string | null;
+        dimId?: string | null; // a section being drag-reordered — painted dimmed as a "lifted" preview
+        cache?: SectionStackCache;
+    },
 ): { tops: number[]; regions: Region[]; height: number } {
     const gap = profile.kind === "continuous" ? 0 : SECTION_GAP; // doc/web merge seamlessly
     const cache = opts.cache;
@@ -638,6 +648,7 @@ export function paintSectionStack(
         entry.layer.style.top = `${y}px`;
         entry.layer.style.width = `${layoutW}px`;
         entry.layer.style.height = `${entry.height}px`;
+        entry.layer.style.opacity = opts.dimId === section.id ? "0.4" : "1"; // reset each paint (layers cache)
         layers.push(entry.layer);
         for (const r of entry.regions)
             regions.push({

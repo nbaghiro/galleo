@@ -38,8 +38,8 @@ Why this shape:
 
 **Solver** (`layout.ts`) — three O(n) passes:
 
-1. **widths** (top-down) — each parent assigns its children's widths (`percent` of content width, `fit` =
-   intrinsic clamped, `grow` = share of leftover).
+1. **widths** (top-down) — each parent assigns its children's widths (`percent`/`fit`/`grow` all of the
+   content width _after_ inter-child gaps, so a row of `60% + 40%` columns plus a gutter fills exactly).
 2. **heights** (bottom-up) — text is measured _at its resolved width_ (width must be known first); a
    row's cross-height is the tallest child; `grow`-height stretches to it.
 3. **positions** (top-down) — assign `x/y`, apply alignment.
@@ -72,18 +72,22 @@ dimensions are data, a custom size or a draggable/resizable canvas is a data cha
 
 ## 4. Compose — Section → EngineNode (`canvas/elements/compose.ts`)
 
-`composeSection` turns a `Section` into an engine tree:
+A section's content is **one recursive tree** — `section.root`, a container (`group` laid out as a `row`
+for columns / `col` to stack) nesting to any depth, or a bare leaf for a full-width section. `composeSection`
+turns it into an engine tree:
 
-- **Grid.** The section's `grid` names a template (`compose.ts`: `full` / `split-6040` / `split-4060` /
-  `two-col` / `three-up`) whose per-cell width specs become the columns; a section's custom `widths`
-  (from a column-divider drag) override the preset.
-- **Recursion.** Container elements (`group`, `card`) recurse through the same composer, so nested
-  elements get addressable paths.
+- **Root tree.** `composeElement` recurses `root`. Columns are just the root row's children, each carrying
+  a `layout.width` fraction (`@model/section` builds these; the migration from the old `grid`/`cells` shape
+  is gone). An empty container composes to the dashed "drop element" placeholder, so an empty column and an
+  emptied group are the same thing.
 - **Per-instance layout.** `applyLayout` maps each element's optional `ElementLayout` (width
-  `fit`/`fill`/`{pct}`, height `fit`/`fill`, cross-axis `align`) onto the node.
-- **Region ids.** Every section/cell/element node is tagged with a stable id (`section:…` / `cell:…` /
-  `el:…`), so the engine reports its box for selection + overlays.
+  `fit`/`fill`/`{pct}`, height `fit`/`fill`, cross-axis `align`, corner `radius`) onto the node.
+- **Region ids.** Every element node is tagged with a stable **path** id (`section:…` / `el:<section>` for
+  the root / `el:<section>:0.1` for a grandchild), so the engine reports its box for selection + overlays.
 - **Contrast.** Over a dark section background, content tokens flip to a light-on-dark set.
+
+Named **layout presets** (`full` / `split-6040` / `three-up` …) are just convenience helpers that set the
+root row's column count + width ratios — not a stored mode the section is "in".
 
 The composed tree isn't laid out here — `composeSection` only builds boxes. The **render bridge** (§7)
 takes it from tree to render commands, and chooses the framing (natural-height section vs 16:9 slide).
@@ -150,19 +154,21 @@ for the full catalog.
 The engine emits every id'd node's box as a `Region`, so the whole editing UI is positioned from real
 geometry:
 
-- **Select** — hit-test the deepest region under the cursor (element → cell → section); Esc walks up. The
-  selection ring and context bar anchor to the region box.
+- **Select** — hit-test the deepest region under the cursor (nested element → element → section) by path;
+  Esc walks up the tree. The selection ring and context bar anchor to the region box.
 - **Inspect** — the docked inspector renders `spec.controls`; the floating context bar renders `spec.bar`
-  (the compact subset) + universal align / duplicate / delete. Changing `data` recomposes only that cell.
+  (the compact subset) + universal align / duplicate / delete. Changing `data` recomposes that element.
 - **Resize** — a bottom-edge handle sets height/aspect where the spec's `resize` declares one; it only
   appears when that element is actually resizable.
-- **Width** — width is a region affordance, not an element handle: drag the **divider** between a
-  section's cells to reallocate their widths (`ElementLayout` %), so neighbours give and take together.
+- **Width** — one divider mechanism at every depth: drag the **bar between any two side-by-side siblings**
+  — the section's columns (the root row's children) or a nested row — to reallocate their `ElementLayout.width %`.
 - **Spacing** — for containers, drag a grip between children (gap) or at the content inset (padding).
 - **Frame** — the format bar carries the universal corner-radius control (and image zoom), driven by the
   spec's `frame`.
-- **Drag-and-drop** — drag an element to any spot; over open space the section reflows around a live
-  ghost, over an existing element a thin insertion line positions it precisely.
+- **Drag-and-drop** — drag an element to any spot; every drop previews the same way: the section reflows
+  around a dimmed inline ghost of the dragged element (the real element for a move, its skeleton for a
+  new-from-palette drop), so you see exactly what lands where before releasing. Dragging to a **section edge /
+  column gutter** creates a new column; pulling a column's last content out **collapses** it and reflows the rest.
 
 Each previews live (the canvas repaints the modified artifact) and commits on release through the same
 content ops. The four selection surfaces (context/format bar, docked inspector, on-canvas handles, inline
@@ -200,9 +206,10 @@ One `RenderCommand[]` → multiple serializers:
 
 ## 9. Status & deferred
 
-**Built:** the engine, all three format views, compose + the template grid, the full element contract
-with skeletons + direct-manipulation sizing, DOM + canvas backends, PDF/PNG export, deck present.
+**Built:** the engine, all three format views, compose from the recursive root + the layout presets, the
+full element contract with skeletons + direct-manipulation sizing (one divider system, edge-drop columns,
+collapse-on-empty), DOM + canvas backends, PDF/PNG export, deck present.
 
 **Deferred by design:** engine-native rich text (`@model/text` is scaffolded; the editor uses a
-contenteditable overlay today); general/non-template grid + bento spanning; PPTX export (PowerPoint
-re-flows text — fundamentally approximate); relayout-boundary caching (not needed at current scale).
+contenteditable overlay today); free-form / bento grid spanning; PPTX export (PowerPoint re-flows text —
+fundamentally approximate); relayout-boundary caching (not needed at current scale).

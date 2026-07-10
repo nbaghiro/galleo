@@ -88,16 +88,20 @@ function findAspectImage(n: EngineNode): EngineNode | null {
 // at least one column is NOT image-driven, convert the image columns to cover-fit (grow + crop) so the
 // section height is driven by the text, not the image. Returns the inner rows it changed (to grow later).
 function coverFitColumns(root: EngineNode): EngineNode[] {
+    // A "column" is an addressable element node (composeElement tags each with an `el:…` region id). Rows
+    // whose children carry those ids are real content columns (a section's top-level split, or a nested row
+    // group) — as opposed to a leaf element's internal layout rows, whose parts have no id. (This used to key
+    // off `cell:` ids, which the recursive-section refactor removed, silently disabling cover-fit.)
     const rows: EngineNode[] = [];
     const collect = (n: EngineNode): void => {
-        if (n.direction === "row" && (n.children ?? []).some((c) => c.id?.startsWith("cell:")))
+        if (n.direction === "row" && (n.children ?? []).some((c) => c.id?.startsWith("el:")))
             rows.push(n);
         n.children?.forEach(collect);
     };
     collect(root);
     const changed: EngineNode[] = [];
     for (const row of rows) {
-        const cells = (row.children ?? []).filter((c) => c.id?.startsWith("cell:"));
+        const cells = (row.children ?? []).filter((c) => c.id?.startsWith("el:"));
         const imageCells = cells.filter((c) => findAspectImage(c));
         // Need a text column to set the height and an image column to convert; skip all-image rows.
         if (cells.length < 2 || imageCells.length === 0 || imageCells.length === cells.length)

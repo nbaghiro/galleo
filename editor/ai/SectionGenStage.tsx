@@ -30,7 +30,7 @@ const SkeletonBase: Component<{ width: number }> = (props) => {
         }
         const sec = placeholderSection({
             id: PLACEHOLDER_SECTION_ID,
-            grid: beat.grid,
+            layout: beat.layout,
             blocks: beat.blocks,
             image: beat.image,
         });

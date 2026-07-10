@@ -91,10 +91,6 @@ export const cardElement: ElementSpec<CardData> = {
         withChildren: (d, children) => ({ ...d, children }),
     },
     bar: ["style", "direction", "radius", "bg"],
-    spacing: {
-        gap: { key: "gap", min: 0, max: 48, def: 12 },
-        padding: { key: "padding", min: 0, max: 64, def: 24 },
-    },
     controls: [
         {
             key: "style",

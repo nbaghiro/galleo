@@ -7,15 +7,16 @@ import {
     bullets,
     button,
     callout,
-    cell,
     chart,
     deck,
     diagram,
-    empty,
+    emptyRegion,
     group,
     img,
     quote,
+    row,
     section,
+    split,
     stat,
     t,
     table,
@@ -28,24 +29,21 @@ export const startupPitch: ArtifactContent = deck(
     [
         section(
             "s1",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("MISE · SEED ROUND 2026", "label"),
-                        t("Run the kitchen, not the spreadsheet.", "h1"),
-                        t(
-                            "Mise turns every restaurant's POS, invoices, and suppliers into one live system — forecasting prep, automating orders, and clawing back the margin that waste quietly eats.",
-                            "subtitle",
-                        ),
-                        badge("$4M SEED · LED BY ANDISON CAPITAL"),
-                    ),
+            group(
+                t("MISE · SEED ROUND 2026", "label"),
+                t("Run the kitchen, not the spreadsheet.", "h1"),
+                t(
+                    "Mise turns every restaurant's POS, invoices, and suppliers into one live system — forecasting prep, automating orders, and clawing back the margin that waste quietly eats.",
+                    "subtitle",
                 ),
-            },
+                badge("$4M SEED · LED BY ANDISON CAPITAL"),
+            ),
             { background: bgImage("mise-kitchen-cover", 0.55) },
         ),
-        section("s2", "split-6040", {
-            a: cell(
+        section(
+            "s2",
+            split(
+                60,
                 group(
                     t("01 — The problem", "label"),
                     t("Restaurants run on 4% margins and 1990s tooling.", "h2"),
@@ -54,25 +52,22 @@ export const startupPitch: ArtifactContent = deck(
                         "body",
                     ),
                 ),
+                img("mise-walkin-cooler", 0.82),
             ),
-            b: cell(img("mise-walkin-cooler", 0.82)),
-        }),
+        ),
         section(
             "s3",
-            "full",
-            {
-                a: cell(
-                    quote(
-                        "Front of house got Toast, Square, and Resy. The kitchen — where the money is actually made or lost — got nothing.",
-                        "— the Mise thesis",
-                    ),
-                ),
-            },
+            quote(
+                "Front of house got Toast, Square, and Resy. The kitchen — where the money is actually made or lost — got nothing.",
+                "— the Mise thesis",
+            ),
             { background: bgImage("mise-chef-pass", 0.6) },
         ),
-        section("s4", "split-4060", {
-            a: cell(img("mise-supplier-truck", 1.1)),
-            b: cell(
+        section(
+            "s4",
+            split(
+                40,
+                img("mise-supplier-truck", 1.1),
                 group(
                     t("02 — Why now", "label"),
                     t("The kitchen's data finally left the building.", "h2"),
@@ -83,10 +78,12 @@ export const startupPitch: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
-        section("s5", "split-4060", {
-            a: cell(img("mise-app-prep-list", 1.1)),
-            b: cell(
+        ),
+        section(
+            "s5",
+            split(
+                40,
+                img("mise-app-prep-list", 1.1),
                 group(
                     t("03 — The product", "label"),
                     t("One screen the whole line actually opens.", "h2"),
@@ -97,27 +94,31 @@ export const startupPitch: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
-        section("s6", "three-up", {
-            a: cell(stat("$1.1T", "U.S. restaurant industry")),
-            b: cell(stat("749K", "U.S. restaurant locations")),
-            c: cell(stat("$162B", "food wasted by U.S. restaurants / yr")),
-        }),
-        section("s7", "full", {
-            a: cell(
-                group(
-                    t("04 — How it works", "label"),
-                    t("Connect once. It runs every morning.", "h2"),
-                    diagram(
-                        "process",
-                        "Connect POS & invoices, Mise learns your menu, Forecast tonight's covers, Auto-draft the order, Lock in food cost",
-                        180,
-                    ),
+        ),
+        section(
+            "s6",
+            row(
+                stat("$1.1T", "U.S. restaurant industry"),
+                stat("749K", "U.S. restaurant locations"),
+                stat("$162B", "food wasted by U.S. restaurants / yr"),
+            ),
+        ),
+        section(
+            "s7",
+            group(
+                t("04 — How it works", "label"),
+                t("Connect once. It runs every morning.", "h2"),
+                diagram(
+                    "process",
+                    "Connect POS & invoices, Mise learns your menu, Forecast tonight's covers, Auto-draft the order, Lock in food cost",
+                    180,
                 ),
             ),
-        }),
-        section("s8", "split-6040", {
-            a: cell(
+        ),
+        section(
+            "s8",
+            split(
+                60,
                 group(
                     t("05 — Traction", "label"),
                     t("Kitchens that don't want to give it back.", "h2"),
@@ -133,27 +134,31 @@ export const startupPitch: ArtifactContent = deck(
                         ),
                     ),
                 ),
+                chart("line", "6, 11, 17, 24, 31, 38", 240),
             ),
-            b: cell(chart("line", "6, 11, 17, 24, 31, 38", 240)),
-        }),
-        section("s9", "three-up", {
-            a: cell(stat("38", "kitchens live")),
-            b: cell(stat("310bps", "avg food-cost reduction")),
-            c: cell(stat("94%", "weekly active kitchens")),
-        }),
-        section("s10", "full", {
-            a: cell(
-                group(
-                    t("06 — Business model", "label"),
-                    t("Per-location SaaS, priced under the waste it kills.", "h2"),
-                    table(
-                        "Plan,Per location / mo,Built for\nLine,$249,Single independents\nKitchen,$399,Full-service & multi-station\nGroup,$329,Multi-unit groups (5+)\nEnterprise,Custom,Chains & franchisors",
-                    ),
+        ),
+        section(
+            "s9",
+            row(
+                stat("38", "kitchens live"),
+                stat("310bps", "avg food-cost reduction"),
+                stat("94%", "weekly active kitchens"),
+            ),
+        ),
+        section(
+            "s10",
+            group(
+                t("06 — Business model", "label"),
+                t("Per-location SaaS, priced under the waste it kills.", "h2"),
+                table(
+                    "Plan,Per location / mo,Built for\nLine,$249,Single independents\nKitchen,$399,Full-service & multi-station\nGroup,$329,Multi-unit groups (5+)\nEnterprise,Custom,Chains & franchisors",
                 ),
             ),
-        }),
-        section("s11", "split-6040", {
-            a: cell(
+        ),
+        section(
+            "s11",
+            split(
+                60,
                 group(
                     t("07 — Why we win", "label"),
                     t("Spreadsheets, distributor portals, and point tools.", "h2"),
@@ -163,49 +168,44 @@ export const startupPitch: ArtifactContent = deck(
                         "We're POS-agnostic — the data layer for the kitchen, not another silo",
                     ),
                 ),
+                img("mise-competition-grid", 0.86),
             ),
-            b: cell(img("mise-competition-grid", 0.86)),
-        }),
-        section("s12", "three-up", {
-            a: cell(
+        ),
+        section(
+            "s12",
+            row(
                 group(
                     img("mise-founder-dana", 1),
                     t("Dana Reyes", "h3"),
                     t("CEO · ex-Toast, ran ops for 40 kitchens", "caption"),
                 ),
-            ),
-            b: cell(
                 group(
                     img("mise-founder-marcus", 1),
                     t("Marcus Vallée", "h3"),
                     t("CTO · ex-Flexport forecasting", "caption"),
                 ),
-            ),
-            c: cell(
                 group(
                     img("mise-founder-priya", 1),
                     t("Priya Anand", "h3"),
                     t("Head of Culinary · 12 years on the line", "caption"),
                 ),
             ),
-        }),
+        ),
         section(
             "s13",
-            "split-4060",
-            {
-                a: empty,
-                b: cell(
-                    group(
-                        t("08 — The ask", "label"),
-                        t("Raising $4M to put Mise in 1,000 kitchens.", "h2"),
-                        t(
-                            "Use of funds: supplier API coverage (40%), the forecasting & food-cost engine (35%), and a culinary-led go-to-market across the top 20 U.S. metros (25%). 24 months of runway to $4M ARR.",
-                            "body",
-                        ),
-                        button("dana@mise.kitchen"),
+            split(
+                40,
+                emptyRegion(),
+                group(
+                    t("08 — The ask", "label"),
+                    t("Raising $4M to put Mise in 1,000 kitchens.", "h2"),
+                    t(
+                        "Use of funds: supplier API coverage (40%), the forecasting & food-cost engine (35%), and a culinary-led go-to-market across the top 20 U.S. metros (25%). 24 months of runway to $4M ARR.",
+                        "body",
                     ),
+                    button("dana@mise.kitchen"),
                 ),
-            },
+            ),
             { background: bgImage("mise-kitchen-night", 0.6) },
         ),
     ],
@@ -218,24 +218,21 @@ export const salesDeck: ArtifactContent = deck(
     [
         section(
             "f1",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("FLEETWISE · FOR OPERATIONS & MAINTENANCE LEADERS", "label"),
-                        t("Your trucks make money moving, not in the shop.", "h1"),
-                        t(
-                            "Fleetwise reads the telematics you already pay for and turns it into maintenance you do before the breakdown — cutting unplanned downtime, roadside failures, and the overtime that follows.",
-                            "subtitle",
-                        ),
-                        badge("TRUSTED BY 140+ FLEETS"),
-                    ),
+            group(
+                t("FLEETWISE · FOR OPERATIONS & MAINTENANCE LEADERS", "label"),
+                t("Your trucks make money moving, not in the shop.", "h1"),
+                t(
+                    "Fleetwise reads the telematics you already pay for and turns it into maintenance you do before the breakdown — cutting unplanned downtime, roadside failures, and the overtime that follows.",
+                    "subtitle",
                 ),
-            },
+                badge("TRUSTED BY 140+ FLEETS"),
+            ),
             { background: bgImage("fleetwise-depot-dawn", 0.55) },
         ),
-        section("f2", "split-6040", {
-            a: cell(
+        section(
+            "f2",
+            split(
+                60,
                 group(
                     t("The problem", "label"),
                     t("Every breakdown is a fire you find out about by phone.", "h2"),
@@ -244,17 +241,22 @@ export const salesDeck: ArtifactContent = deck(
                         "body",
                     ),
                 ),
+                img("fleetwise-roadside-breakdown", 0.82),
             ),
-            b: cell(img("fleetwise-roadside-breakdown", 0.82)),
-        }),
-        section("f3", "three-up", {
-            a: cell(stat("$760", "avg cost per truck, per day down")),
-            b: cell(stat("23%", "of road calls were preventable")),
-            c: cell(stat("4.3 days", "avg unplanned repair turnaround")),
-        }),
-        section("f4", "split-4060", {
-            a: cell(img("fleetwise-dashboard", 1.1)),
-            b: cell(
+        ),
+        section(
+            "f3",
+            row(
+                stat("$760", "avg cost per truck, per day down"),
+                stat("23%", "of road calls were preventable"),
+                stat("4.3 days", "avg unplanned repair turnaround"),
+            ),
+        ),
+        section(
+            "f4",
+            split(
+                40,
+                img("fleetwise-dashboard", 1.1),
                 group(
                     t("The solution", "label"),
                     t("Fix it in the bay, on your schedule.", "h2"),
@@ -265,22 +267,23 @@ export const salesDeck: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
-        section("f5", "full", {
-            a: cell(
-                group(
-                    t("How it works", "label"),
-                    t("Live in two weeks, no new hardware.", "h2"),
-                    diagram(
-                        "process",
-                        "Connect your telematics, Fleetwise scores every vehicle, Flags failures weeks early, Drafts the work order, Schedule before it breaks",
-                        180,
-                    ),
+        ),
+        section(
+            "f5",
+            group(
+                t("How it works", "label"),
+                t("Live in two weeks, no new hardware.", "h2"),
+                diagram(
+                    "process",
+                    "Connect your telematics, Fleetwise scores every vehicle, Flags failures weeks early, Drafts the work order, Schedule before it breaks",
+                    180,
                 ),
             ),
-        }),
-        section("f6", "split-6040", {
-            a: cell(
+        ),
+        section(
+            "f6",
+            split(
+                60,
                 group(
                     t("Case study · Meridian Freight", "label"),
                     t("A 320-truck carrier got its shop ahead of the road.", "h2"),
@@ -293,40 +296,39 @@ export const salesDeck: ArtifactContent = deck(
                         t("$1.9M saved in year one — 11× their Fleetwise spend.", "body"),
                     ),
                 ),
+                chart("line", "18, 16, 14, 11, 9, 8, 8", 240),
             ),
-            b: cell(chart("line", "18, 16, 14, 11, 9, 8, 8", 240)),
-        }),
-        section("f7", "three-up", {
-            a: cell(stat("52%", "fewer roadside failures")),
-            b: cell(stat("78%", "of work now planned")),
-            c: cell(stat("11×", "first-year ROI")),
-        }),
+        ),
+        section(
+            "f7",
+            row(
+                stat("52%", "fewer roadside failures"),
+                stat("78%", "of work now planned"),
+                stat("11×", "first-year ROI"),
+            ),
+        ),
         section(
             "f8",
-            "full",
-            {
-                a: cell(
-                    quote(
-                        "We used to staff for breakdowns. Now we staff for the schedule Fleetwise hands us the night before.",
-                        "— Carla Mendez, VP Maintenance, Meridian Freight",
-                    ),
-                ),
-            },
+            quote(
+                "We used to staff for breakdowns. Now we staff for the schedule Fleetwise hands us the night before.",
+                "— Carla Mendez, VP Maintenance, Meridian Freight",
+            ),
             { background: bgImage("fleetwise-shop-bay", 0.6) },
         ),
-        section("f9", "full", {
-            a: cell(
-                group(
-                    t("Pricing", "label"),
-                    t("Priced per truck, under one day of downtime.", "h2"),
-                    table(
-                        "Plan,Per truck / mo,Includes\nCore,$29,Health scores & failure alerts\nShop,$39,+ Auto work orders & parts\nFleet,$34,Multi-depot, 100+ trucks\nEnterprise,Custom,Telematics integrations & SLA",
-                    ),
+        section(
+            "f9",
+            group(
+                t("Pricing", "label"),
+                t("Priced per truck, under one day of downtime.", "h2"),
+                table(
+                    "Plan,Per truck / mo,Includes\nCore,$29,Health scores & failure alerts\nShop,$39,+ Auto work orders & parts\nFleet,$34,Multi-depot, 100+ trucks\nEnterprise,Custom,Telematics integrations & SLA",
                 ),
             ),
-        }),
-        section("f10", "split-6040", {
-            a: cell(
+        ),
+        section(
+            "f10",
+            split(
+                60,
                 group(
                     t("Why now", "label"),
                     t("Margins are thin and parts lead times aren't shrinking.", "h2"),
@@ -335,26 +337,24 @@ export const salesDeck: ArtifactContent = deck(
                         "body",
                     ),
                 ),
+                img("fleetwise-parts-warehouse", 0.86),
             ),
-            b: cell(img("fleetwise-parts-warehouse", 0.86)),
-        }),
+        ),
         section(
             "f11",
-            "split-4060",
-            {
-                a: empty,
-                b: cell(
-                    group(
-                        t("Next steps", "label"),
-                        t("See your own fleet's risk in 30 minutes.", "h2"),
-                        t(
-                            "Send us read-only telematics access and we'll bring a free risk assessment of your top 25 vehicles to the next call — no install, no commitment.",
-                            "body",
-                        ),
-                        button("Book your fleet assessment"),
+            split(
+                40,
+                emptyRegion(),
+                group(
+                    t("Next steps", "label"),
+                    t("See your own fleet's risk in 30 minutes.", "h2"),
+                    t(
+                        "Send us read-only telematics access and we'll bring a free risk assessment of your top 25 vehicles to the next call — no install, no commitment.",
+                        "body",
                     ),
+                    button("Book your fleet assessment"),
                 ),
-            },
+            ),
             { background: bgImage("fleetwise-fleet-lineup", 0.55) },
         ),
     ],
@@ -367,24 +367,21 @@ export const seriesA: ArtifactContent = deck(
     [
         section(
             "a1",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("SWITCHBOARD · SERIES A · 2026", "label"),
-                        t("Never miss the call that pays the bills.", "h1"),
-                        t(
-                            "Switchboard is the AI front desk for home-services businesses — answering every call and text in seconds, booking the job, and keeping the schedule full, around the clock.",
-                            "subtitle",
-                        ),
-                        badge("$18M SERIES A · LED BY MERIDIAN VENTURES"),
-                    ),
+            group(
+                t("SWITCHBOARD · SERIES A · 2026", "label"),
+                t("Never miss the call that pays the bills.", "h1"),
+                t(
+                    "Switchboard is the AI front desk for home-services businesses — answering every call and text in seconds, booking the job, and keeping the schedule full, around the clock.",
+                    "subtitle",
                 ),
-            },
+                badge("$18M SERIES A · LED BY MERIDIAN VENTURES"),
+            ),
             { background: bgImage("switchboard-dispatch-cover", 0.55) },
         ),
-        section("a2", "split-6040", {
-            a: cell(
+        section(
+            "a2",
+            split(
+                60,
                 group(
                     t("01 — Why now", "label"),
                     t("Voice AI finally crossed the line a caller can't hear.", "h2"),
@@ -393,29 +390,29 @@ export const seriesA: ArtifactContent = deck(
                         "body",
                     ),
                 ),
+                img("switchboard-tech-on-call", 0.82),
             ),
-            b: cell(img("switchboard-tech-on-call", 0.82)),
-        }),
+        ),
         section(
             "a3",
-            "full",
-            {
-                a: cell(
-                    quote(
-                        "Every missed call is a job that went to the next plumber on Google. We just pick up.",
-                        "— the Switchboard thesis",
-                    ),
-                ),
-            },
+            quote(
+                "Every missed call is a job that went to the next plumber on Google. We just pick up.",
+                "— the Switchboard thesis",
+            ),
             { background: bgImage("switchboard-night-shift", 0.6) },
         ),
-        section("a4", "three-up", {
-            a: cell(stat("2,400", "businesses on Switchboard")),
-            b: cell(stat("$6.8M", "ARR · up 3.1× YoY")),
-            c: cell(stat("$140M", "in jobs booked for customers")),
-        }),
-        section("a5", "split-6040", {
-            a: cell(
+        section(
+            "a4",
+            row(
+                stat("2,400", "businesses on Switchboard"),
+                stat("$6.8M", "ARR · up 3.1× YoY"),
+                stat("$140M", "in jobs booked for customers"),
+            ),
+        ),
+        section(
+            "a5",
+            split(
+                60,
                 group(
                     t("02 — What we've proven", "label"),
                     t("Revenue that compounds with every booked job.", "h2"),
@@ -431,12 +428,14 @@ export const seriesA: ArtifactContent = deck(
                         ),
                     ),
                 ),
+                chart("line", "0.4, 0.9, 1.8, 3.1, 4.9, 6.8", 240),
             ),
-            b: cell(chart("line", "0.4, 0.9, 1.8, 3.1, 4.9, 6.8", 240)),
-        }),
-        section("a6", "split-4060", {
-            a: cell(img("switchboard-dashboard", 1.1)),
-            b: cell(
+        ),
+        section(
+            "a6",
+            split(
+                40,
+                img("switchboard-dashboard", 1.1),
                 group(
                     t("03 — The product", "label"),
                     t("One front desk that never sleeps.", "h2"),
@@ -448,9 +447,11 @@ export const seriesA: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
-        section("a7", "split-6040", {
-            a: cell(
+        ),
+        section(
+            "a7",
+            split(
+                60,
                 group(
                     t("04 — The wedge", "label"),
                     t("We land on the call they're already losing.", "h2"),
@@ -459,58 +460,54 @@ export const seriesA: ArtifactContent = deck(
                         "body",
                     ),
                 ),
+                img("switchboard-after-hours", 0.82),
             ),
-            b: cell(img("switchboard-after-hours", 0.82)),
-        }),
-        section("a8", "full", {
-            a: cell(
-                group(
-                    t("05 — Go-to-market", "label"),
-                    t("A self-serve funnel with a field-sales motor.", "h2"),
-                    diagram(
-                        "process",
-                        "Owner signs up online, Number ports in minutes, Books the first job same day, Switches on text & scheduling, Refers their trade network",
-                        180,
-                    ),
+        ),
+        section(
+            "a8",
+            group(
+                t("05 — Go-to-market", "label"),
+                t("A self-serve funnel with a field-sales motor.", "h2"),
+                diagram(
+                    "process",
+                    "Owner signs up online, Number ports in minutes, Books the first job same day, Switches on text & scheduling, Refers their trade network",
+                    180,
                 ),
             ),
-        }),
-        section("a9", "full", {
-            a: cell(
-                group(
-                    t("06 — Unit economics", "label"),
-                    t("Payback under three months — and still improving.", "h2"),
-                    table(
-                        "Metric,Today,Series B target\nAverage revenue / account,$236 / mo,$340 / mo\nGross margin,79%,84%\nCAC payback,2.8 months,2.0 months\nNet revenue retention,132%,140%\nAnnual logo churn,9%,6%",
-                    ),
+        ),
+        section(
+            "a9",
+            group(
+                t("06 — Unit economics", "label"),
+                t("Payback under three months — and still improving.", "h2"),
+                table(
+                    "Metric,Today,Series B target\nAverage revenue / account,$236 / mo,$340 / mo\nGross margin,79%,84%\nCAC payback,2.8 months,2.0 months\nNet revenue retention,132%,140%\nAnnual logo churn,9%,6%",
                 ),
             ),
-        }),
-        section("a10", "three-up", {
-            a: cell(
+        ),
+        section(
+            "a10",
+            row(
                 group(
                     img("switchboard-founder-dana", 1),
                     t("Dana Whitfield", "h3"),
                     t("CEO · ex-ServiceTitan, scaled 3,000 contractors", "caption"),
                 ),
-            ),
-            b: cell(
                 group(
                     img("switchboard-founder-amir", 1),
                     t("Amir Hassan", "h3"),
                     t("CTO · ex-Google speech, built real-time voice", "caption"),
                 ),
-            ),
-            c: cell(
                 group(
                     img("switchboard-founder-lena", 1),
                     t("Lena Ortiz", "h3"),
                     t("Head of Revenue · ex-Jobber, 0→$30M", "caption"),
                 ),
             ),
-        }),
-        section("a11", "two-col", {
-            a: cell(
+        ),
+        section(
+            "a11",
+            row(
                 group(
                     t("07 — The raise", "label"),
                     t("Raising $18M to reach 10,000 businesses.", "h2"),
@@ -520,8 +517,6 @@ export const seriesA: ArtifactContent = deck(
                     ),
                     button("dana@switchboard.ai"),
                 ),
-            ),
-            b: cell(
                 group(
                     t("Milestones", "label"),
                     bullets(
@@ -532,25 +527,17 @@ export const seriesA: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
+        ),
         section(
             "a12",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("08 — Vision", "label"),
-                        t(
-                            "The operating system for the businesses that show up at your door.",
-                            "h1",
-                        ),
-                        t(
-                            "Eight million tradespeople run the physical economy off a phone and a paper calendar. Switchboard starts by answering the call — and ends up running the whole business behind it.",
-                            "subtitle",
-                        ),
-                    ),
+            group(
+                t("08 — Vision", "label"),
+                t("The operating system for the businesses that show up at your door.", "h1"),
+                t(
+                    "Eight million tradespeople run the physical economy off a phone and a paper calendar. Switchboard starts by answering the call — and ends up running the whole business behind it.",
+                    "subtitle",
                 ),
-            },
+            ),
             { background: bgImage("switchboard-vision-truck", 0.5) },
         ),
     ],
@@ -563,24 +550,20 @@ export const productDemo: ArtifactContent = deck(
     [
         section(
             "p1",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("SIFT · PRODUCT TOUR", "label"),
-                        t("Turn every customer signal into your next release.", "h1"),
-                        t(
-                            "Sift pulls feedback from support tickets, sales calls, reviews, and surveys into one place — then tells your product team what to build next, and exactly who asked for it.",
-                            "subtitle",
-                        ),
-                        badge("A FIVE-MINUTE TOUR"),
-                    ),
+            group(
+                t("SIFT · PRODUCT TOUR", "label"),
+                t("Turn every customer signal into your next release.", "h1"),
+                t(
+                    "Sift pulls feedback from support tickets, sales calls, reviews, and surveys into one place — then tells your product team what to build next, and exactly who asked for it.",
+                    "subtitle",
                 ),
-            },
+                badge("A FIVE-MINUTE TOUR"),
+            ),
             { background: bgImage("sift-product-cover", 0.55) },
         ),
-        section("p2", "two-col", {
-            a: cell(
+        section(
+            "p2",
+            row(
                 group(
                     t("Who it's for", "label"),
                     t("Built for the people who own the roadmap.", "h2"),
@@ -589,12 +572,14 @@ export const productDemo: ArtifactContent = deck(
                         "body",
                     ),
                 ),
+                img("sift-pm-team", 1.0),
             ),
-            b: cell(img("sift-pm-team", 1.0)),
-        }),
-        section("p3", "split-4060", {
-            a: cell(img("sift-scattered-feedback", 1.1)),
-            b: cell(
+        ),
+        section(
+            "p3",
+            split(
+                40,
+                img("sift-scattered-feedback", 1.1),
                 group(
                     t("Before Sift", "label"),
                     t("Feedback lives everywhere. Decisions live on a hunch.", "h2"),
@@ -612,10 +597,12 @@ export const productDemo: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
-        section("p4", "split-4060", {
-            a: cell(img("sift-unified-inbox", 1.1)),
-            b: cell(
+        ),
+        section(
+            "p4",
+            split(
+                40,
+                img("sift-unified-inbox", 1.1),
                 group(
                     t("The tour · 01", "label"),
                     t("Every signal lands in one inbox.", "h2"),
@@ -626,9 +613,11 @@ export const productDemo: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
-        section("p5", "split-6040", {
-            a: cell(
+        ),
+        section(
+            "p5",
+            split(
+                60,
                 group(
                     t("The tour · 02", "label"),
                     t("Sift reads it so your team doesn't have to.", "h2"),
@@ -638,12 +627,14 @@ export const productDemo: ArtifactContent = deck(
                         'Ask in plain English — "what are enterprise accounts frustrated by?" — and get the answer with receipts',
                     ),
                 ),
+                img("sift-ai-themes", 0.82),
             ),
-            b: cell(img("sift-ai-themes", 0.82)),
-        }),
-        section("p6", "split-4060", {
-            a: cell(img("sift-insights-dashboard", 1.1)),
-            b: cell(
+        ),
+        section(
+            "p6",
+            split(
+                40,
+                img("sift-insights-dashboard", 1.1),
                 group(
                     t("The tour · 03", "label"),
                     t("Watch the themes that matter move week over week.", "h2"),
@@ -654,9 +645,11 @@ export const productDemo: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
-        section("p7", "split-6040", {
-            a: cell(
+        ),
+        section(
+            "p7",
+            split(
+                60,
                 group(
                     t("The tour · 04", "label"),
                     t("Close the loop without leaving Sift.", "h2"),
@@ -666,66 +659,57 @@ export const productDemo: ArtifactContent = deck(
                         "Reopen rates drop and renewal calls get a lot friendlier",
                     ),
                 ),
+                img("sift-close-the-loop", 0.82),
             ),
-            b: cell(img("sift-close-the-loop", 0.82)),
-        }),
-        section("p8", "three-up", {
-            a: cell(stat("9 hrs", "saved per PM, every week")),
-            b: cell(stat("3.4×", "more feedback reviewed")),
-            c: cell(stat("28%", "faster from request to release")),
-        }),
+        ),
+        section(
+            "p8",
+            row(
+                stat("9 hrs", "saved per PM, every week"),
+                stat("3.4×", "more feedback reviewed"),
+                stat("28%", "faster from request to release"),
+            ),
+        ),
         section(
             "p9",
-            "full",
-            {
-                a: cell(
-                    quote(
-                        "We stopped arguing about the roadmap in meetings. Now we just open Sift and the answer's already there.",
-                        "— Priya Nair, VP Product, Northwind Software",
-                    ),
-                ),
-            },
+            quote(
+                "We stopped arguing about the roadmap in meetings. Now we just open Sift and the answer's already there.",
+                "— Priya Nair, VP Product, Northwind Software",
+            ),
             { background: bgImage("sift-customer-office", 0.6) },
         ),
-        section("p10", "three-up", {
-            a: cell(card(t("Support", "h3"), t("Zendesk · Intercom · Front · Help Scout", "body"))),
-            b: cell(
+        section(
+            "p10",
+            row(
+                card(t("Support", "h3"), t("Zendesk · Intercom · Front · Help Scout", "body")),
                 card(t("Sales & calls", "h3"), t("Gong · Salesforce · HubSpot · Slack", "body")),
-            ),
-            c: cell(
                 card(
                     t("Voice of customer", "h3"),
                     t("G2 · App Store · Typeform · NPS surveys", "body"),
                 ),
             ),
-        }),
-        section("p11", "full", {
-            a: cell(
-                group(
-                    t("Pricing", "label"),
-                    t("Starts free. Scales with your team, not your ticket volume.", "h2"),
-                    table(
-                        "Plan,Price,Built for\nFree,$0,Up to 1k feedback items / mo\nTeam,$99 / mo,Growing product teams\nBusiness,$399 / mo,Multiple products & segments\nEnterprise,Custom,SSO · security review · SLAs",
-                    ),
+        ),
+        section(
+            "p11",
+            group(
+                t("Pricing", "label"),
+                t("Starts free. Scales with your team, not your ticket volume.", "h2"),
+                table(
+                    "Plan,Price,Built for\nFree,$0,Up to 1k feedback items / mo\nTeam,$99 / mo,Growing product teams\nBusiness,$399 / mo,Multiple products & segments\nEnterprise,Custom,SSO · security review · SLAs",
                 ),
             ),
-        }),
+        ),
         section(
             "p12",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("Get started", "label"),
-                        t("Stop guessing. Start shipping what customers actually asked for.", "h1"),
-                        t(
-                            "Connect your first source in under ten minutes — free for your first 1,000 pieces of feedback, no credit card.",
-                            "subtitle",
-                        ),
-                        button("Start free"),
-                    ),
+            group(
+                t("Get started", "label"),
+                t("Stop guessing. Start shipping what customers actually asked for.", "h1"),
+                t(
+                    "Connect your first source in under ten minutes — free for your first 1,000 pieces of feedback, no credit card.",
+                    "subtitle",
                 ),
-            },
+                button("Start free"),
+            ),
             { background: bgImage("sift-get-started-cover", 0.55) },
         ),
     ],
@@ -739,26 +723,23 @@ export const companyOverview: ArtifactContent = deck(
         // ── Cover ────────────────────────────────────────────────────────────
         section(
             "c1",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("FERNWOOD & CO.", "label"),
-                        t("Furniture made to outlast the trend that inspired it.", "h1"),
-                        t(
-                            "We are a Portland design studio and workshop making contemporary furniture, lighting, and objects — drawn by hand, built by people, and meant to be handed down.",
-                            "subtitle",
-                        ),
-                        badge("EST. 2012 · PORTLAND, OREGON"),
-                    ),
+            group(
+                t("FERNWOOD & CO.", "label"),
+                t("Furniture made to outlast the trend that inspired it.", "h1"),
+                t(
+                    "We are a Portland design studio and workshop making contemporary furniture, lighting, and objects — drawn by hand, built by people, and meant to be handed down.",
+                    "subtitle",
                 ),
-            },
+                badge("EST. 2012 · PORTLAND, OREGON"),
+            ),
             { background: bgImage("fernwood-workshop-cover", 0.55) },
         ),
 
         // ── What we do ───────────────────────────────────────────────────────
-        section("c2", "split-6040", {
-            a: cell(
+        section(
+            "c2",
+            split(
+                60,
                 group(
                     t("WHAT WE DO", "label"),
                     t(
@@ -770,14 +751,16 @@ export const companyOverview: ArtifactContent = deck(
                         "body",
                     ),
                 ),
+                img("fernwood-dining-table", 0.82),
             ),
-            b: cell(img("fernwood-dining-table", 0.82)),
-        }),
+        ),
 
         // ── Our story ────────────────────────────────────────────────────────
-        section("c3", "split-4060", {
-            a: cell(img("fernwood-founders-bench", 1.05)),
-            b: cell(
+        section(
+            "c3",
+            split(
+                40,
+                img("fernwood-founders-bench", 1.05),
                 group(
                     t("OUR STORY", "label"),
                     t("It started with one stubborn bench.", "h2"),
@@ -787,11 +770,12 @@ export const companyOverview: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // ── What we make ─────────────────────────────────────────────────────
-        section("c4", "three-up", {
-            a: cell(
+        section(
+            "c4",
+            row(
                 card(
                     img("fernwood-seating", 1.4),
                     t("Seating", "h3"),
@@ -800,8 +784,6 @@ export const companyOverview: ArtifactContent = deck(
                         "caption",
                     ),
                 ),
-            ),
-            b: cell(
                 card(
                     img("fernwood-tables", 1.4),
                     t("Tables & casegoods", "h3"),
@@ -810,8 +792,6 @@ export const companyOverview: ArtifactContent = deck(
                         "caption",
                     ),
                 ),
-            ),
-            c: cell(
                 card(
                     img("fernwood-lighting", 1.4),
                     t("Lighting", "h3"),
@@ -821,31 +801,28 @@ export const companyOverview: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // ── Our craft (feature background) ───────────────────────────────────
         section(
             "c5",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("OUR CRAFT", "label"),
-                        t("Real materials, joined to last a generation.", "h2"),
-                        t(
-                            "We work only in FSC-certified hardwoods, water-based finishes, and solid brass hardware — nothing veneered, nothing disposable. Each joint is cut to fit, each surface sanded through nine grits, and each piece signed by the maker who built it.",
-                            "body",
-                        ),
-                        button("Tour the workshop"),
-                    ),
+            group(
+                t("OUR CRAFT", "label"),
+                t("Real materials, joined to last a generation.", "h2"),
+                t(
+                    "We work only in FSC-certified hardwoods, water-based finishes, and solid brass hardware — nothing veneered, nothing disposable. Each joint is cut to fit, each surface sanded through nine grits, and each piece signed by the maker who built it.",
+                    "body",
                 ),
-            },
+                button("Tour the workshop"),
+            ),
             { background: bgImage("fernwood-craft-joinery", 0.6) },
         ),
 
         // ── Who we serve ─────────────────────────────────────────────────────
-        section("c6", "split-6040", {
-            a: cell(
+        section(
+            "c6",
+            split(
+                60,
                 group(
                     t("WHO WE SERVE", "label"),
                     t("Trusted by the people who care how a room feels.", "h2"),
@@ -864,36 +841,40 @@ export const companyOverview: ArtifactContent = deck(
                         "caption",
                     ),
                 ),
+                img("fernwood-hotel-lobby", 0.82),
             ),
-            b: cell(img("fernwood-hotel-lobby", 0.82)),
-        }),
+        ),
 
         // ── Testimonials ─────────────────────────────────────────────────────
-        section("c7", "two-col", {
-            a: cell(
+        section(
+            "c7",
+            row(
                 quote(
                     "Fernwood is the only shop I trust with a lobby. The pieces arrive better than the drawings, every time.",
                     "Dahlia Reyes · Principal, Reyes + Co. Interiors",
                 ),
-            ),
-            b: cell(
                 quote(
                     "Five years and forty covers a night, and our Fernwood chairs haven't loosened a single joint.",
                     "Marco Bélanger · Owner, Cafe Mistral",
                 ),
             ),
-        }),
+        ),
 
         // ── By the numbers ───────────────────────────────────────────────────
-        section("c8", "three-up", {
-            a: cell(stat("8,400", "pieces built and shipped since 2012")),
-            b: cell(stat("30", "makers, finishers, and designers on the bench")),
-            c: cell(stat("25 yrs", "structural warranty on every frame")),
-        }),
+        section(
+            "c8",
+            row(
+                stat("8,400", "pieces built and shipped since 2012"),
+                stat("30", "makers, finishers, and designers on the bench"),
+                stat("25 yrs", "structural warranty on every frame"),
+            ),
+        ),
 
         // ── How we work ──────────────────────────────────────────────────────
-        section("c9", "split-6040", {
-            a: cell(
+        section(
+            "c9",
+            split(
+                60,
                 group(
                     t("HOW WE WORK", "label"),
                     t("From sketch to your room in four steps.", "h2"),
@@ -907,39 +888,38 @@ export const companyOverview: ArtifactContent = deck(
                         180,
                     ),
                 ),
+                img("fernwood-finishing-bench", 0.9),
             ),
-            b: cell(img("fernwood-finishing-bench", 0.9)),
-        }),
+        ),
 
         // ── The team ─────────────────────────────────────────────────────────
-        section("c10", "three-up", {
-            a: cell(
+        section(
+            "c10",
+            row(
                 group(
                     img("fernwood-team-mara", 1),
                     t("Mara Fernwood", "h3"),
                     t("Founder & Creative Director", "caption"),
                 ),
-            ),
-            b: cell(
                 group(
                     img("fernwood-team-elias", 1),
                     t("Elias Fernwood", "h3"),
                     t("Founder & Head of Workshop", "caption"),
                 ),
-            ),
-            c: cell(
                 group(
                     img("fernwood-team-jun", 1),
                     t("Jun Park", "h3"),
                     t("Design Lead · ex-Heath Ceramics", "caption"),
                 ),
             ),
-        }),
+        ),
 
         // ── Our values ───────────────────────────────────────────────────────
-        section("c11", "split-4060", {
-            a: cell(img("fernwood-values-detail", 1.05)),
-            b: cell(
+        section(
+            "c11",
+            split(
+                40,
+                img("fernwood-values-detail", 1.05),
                 group(
                     t("WHAT WE BELIEVE", "label"),
                     t("Make less. Make it last.", "h2"),
@@ -958,25 +938,20 @@ export const companyOverview: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // ── Get in touch (feature background) ─────────────────────────────────
         section(
             "c12",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("GET IN TOUCH", "label"),
-                        t("Let's build something that lasts.", "h1"),
-                        t(
-                            "Visit the workshop, start a commission, or join the trade program. We'd love to make something for your space.",
-                            "subtitle",
-                        ),
-                        button("hello@fernwoodco.com"),
-                    ),
+            group(
+                t("GET IN TOUCH", "label"),
+                t("Let's build something that lasts.", "h1"),
+                t(
+                    "Visit the workshop, start a commission, or join the trade program. We'd love to make something for your space.",
+                    "subtitle",
                 ),
-            },
+                button("hello@fernwoodco.com"),
+            ),
             { background: bgImage("fernwood-showroom-light", 0.55) },
         ),
     ],
@@ -990,26 +965,23 @@ export const gtmPlan: ArtifactContent = deck(
         // ── Cover ────────────────────────────────────────────────────────────
         section(
             "g1",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("TIDEPOOL · GO-TO-MARKET PLAN", "label"),
-                        t("Launching the inventory brain for growing brands.", "h1"),
-                        t(
-                            "Our plan to take Tidepool — demand planning and inventory for multi-channel retail — from private beta to 1,000 paying brands in twelve months.",
-                            "subtitle",
-                        ),
-                        badge("GO-TO-MARKET PLAN · H2 2026"),
-                    ),
+            group(
+                t("TIDEPOOL · GO-TO-MARKET PLAN", "label"),
+                t("Launching the inventory brain for growing brands.", "h1"),
+                t(
+                    "Our plan to take Tidepool — demand planning and inventory for multi-channel retail — from private beta to 1,000 paying brands in twelve months.",
+                    "subtitle",
                 ),
-            },
+                badge("GO-TO-MARKET PLAN · H2 2026"),
+            ),
             { background: bgImage("tidepool-warehouse-cover", 0.55) },
         ),
 
         // ── The opportunity ──────────────────────────────────────────────────
-        section("g2", "split-6040", {
-            a: cell(
+        section(
+            "g2",
+            split(
+                60,
                 group(
                     t("THE OPPORTUNITY", "label"),
                     t("Growing brands are flying blind on inventory.", "h2"),
@@ -1018,8 +990,6 @@ export const gtmPlan: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-            ),
-            b: cell(
                 group(
                     chart("bar", "12, 19, 31, 48, 72, 104", 240),
                     t(
@@ -1028,11 +998,12 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // ── Target segments ──────────────────────────────────────────────────
-        section("g3", "three-up", {
-            a: cell(
+        section(
+            "g3",
+            row(
                 card(
                     img("tidepool-dtc-brand", 1.4),
                     t("DTC brands", "h3"),
@@ -1041,8 +1012,6 @@ export const gtmPlan: ArtifactContent = deck(
                         "caption",
                     ),
                 ),
-            ),
-            b: cell(
                 card(
                     img("tidepool-multi-location", 1.4),
                     t("Multi-location retail", "h3"),
@@ -1051,8 +1020,6 @@ export const gtmPlan: ArtifactContent = deck(
                         "caption",
                     ),
                 ),
-            ),
-            c: cell(
                 card(
                     img("tidepool-wholesale", 1.4),
                     t("Wholesale & distribution", "h3"),
@@ -1062,38 +1029,35 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // ── Positioning (feature background) ─────────────────────────────────
         section(
             "g4",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("POSITIONING", "label"),
-                        t("The demand-planning brain built for brands, not the enterprise.", "h2"),
-                        t(
-                            "For operators at growing multi-channel brands who are tired of guessing, Tidepool is the inventory platform that forecasts demand, flags stockouts before they happen, and tells you exactly what to reorder — without an ERP project or a six-figure contract.",
-                            "body",
-                        ),
-                        callout(
-                            "info",
-                            t(
-                                "Where the big platforms need a consultant and six months, Tidepool is live in an afternoon and pays for itself the first time it prevents a stockout.",
-                                "body",
-                            ),
-                        ),
+            group(
+                t("POSITIONING", "label"),
+                t("The demand-planning brain built for brands, not the enterprise.", "h2"),
+                t(
+                    "For operators at growing multi-channel brands who are tired of guessing, Tidepool is the inventory platform that forecasts demand, flags stockouts before they happen, and tells you exactly what to reorder — without an ERP project or a six-figure contract.",
+                    "body",
+                ),
+                callout(
+                    "info",
+                    t(
+                        "Where the big platforms need a consultant and six months, Tidepool is live in an afternoon and pays for itself the first time it prevents a stockout.",
+                        "body",
                     ),
                 ),
-            },
+            ),
             { background: bgImage("tidepool-positioning-shelves", 0.6) },
         ),
 
         // ── The funnel ───────────────────────────────────────────────────────
-        section("g5", "split-4060", {
-            a: cell(img("tidepool-funnel-dashboard", 1.05)),
-            b: cell(
+        section(
+            "g5",
+            split(
+                40,
+                img("tidepool-funnel-dashboard", 1.05),
                 group(
                     t("THE FUNNEL", "label"),
                     t("How a curious operator becomes a paying brand.", "h2"),
@@ -1108,11 +1072,12 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // ── Channels ─────────────────────────────────────────────────────────
-        section("g6", "three-up", {
-            a: cell(
+        section(
+            "g6",
+            row(
                 card(
                     img("tidepool-channel-content", 1.4),
                     t("Content & SEO", "h3"),
@@ -1121,8 +1086,6 @@ export const gtmPlan: ArtifactContent = deck(
                         "caption",
                     ),
                 ),
-            ),
-            b: cell(
                 card(
                     img("tidepool-channel-partners", 1.4),
                     t("Platform partnerships", "h3"),
@@ -1131,8 +1094,6 @@ export const gtmPlan: ArtifactContent = deck(
                         "caption",
                     ),
                 ),
-            ),
-            c: cell(
                 card(
                     img("tidepool-channel-community", 1.4),
                     t("Community & events", "h3"),
@@ -1142,50 +1103,52 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // ── Pricing & packaging ──────────────────────────────────────────────
-        section("g7", "full", {
-            a: cell(
-                group(
-                    t("PRICING & PACKAGING", "label"),
-                    t("Priced to land self-serve and grow with the brand.", "h2"),
-                    table(
-                        "Plan,Price,Built for,Key limits\nFree,$0,Single-channel sellers,1 channel · 500 SKUs · 90-day forecast\nGrowth,$149 / mo,Multi-channel DTC,Unlimited channels · 5k SKUs · reorder alerts\nPro,$399 / mo,Scaling & wholesale,Demand planning · POs · 3 seats\nEnterprise,Custom,Multi-entity brands,SSO · API · onboarding & SLAs",
-                    ),
-                    t(
-                        "Land on Free or Growth self-serve, convert to Pro as channels and SKUs grow, Enterprise for multi-entity brands.",
-                        "caption",
-                    ),
+        section(
+            "g7",
+            group(
+                t("PRICING & PACKAGING", "label"),
+                t("Priced to land self-serve and grow with the brand.", "h2"),
+                table(
+                    "Plan,Price,Built for,Key limits\nFree,$0,Single-channel sellers,1 channel · 500 SKUs · 90-day forecast\nGrowth,$149 / mo,Multi-channel DTC,Unlimited channels · 5k SKUs · reorder alerts\nPro,$399 / mo,Scaling & wholesale,Demand planning · POs · 3 seats\nEnterprise,Custom,Multi-entity brands,SSO · API · onboarding & SLAs",
+                ),
+                t(
+                    "Land on Free or Growth self-serve, convert to Pro as channels and SKUs grow, Enterprise for multi-entity brands.",
+                    "caption",
                 ),
             ),
-        }),
+        ),
 
         // ── Launch timeline ──────────────────────────────────────────────────
-        section("g8", "full", {
-            a: cell(
-                group(
-                    t("LAUNCH TIMELINE", "label"),
-                    t("Four phases from beta to GA.", "h2"),
-                    diagram(
-                        "process",
-                        "Private beta · 40 brands, Open beta · pricing live, Public launch · Shopify feature, Scale · paid channels on",
-                        180,
-                    ),
+        section(
+            "g8",
+            group(
+                t("LAUNCH TIMELINE", "label"),
+                t("Four phases from beta to GA.", "h2"),
+                diagram(
+                    "process",
+                    "Private beta · 40 brands, Open beta · pricing live, Public launch · Shopify feature, Scale · paid channels on",
+                    180,
                 ),
             ),
-        }),
+        ),
 
         // ── Goals & KPIs ─────────────────────────────────────────────────────
-        section("g9", "three-up", {
-            a: cell(stat("1,000", "paying brands by Q2 '27")),
-            b: cell(stat("$3.6M", "ARR target in the first year")),
-            c: cell(stat("< 4 mo", "CAC payback, blended across channels")),
-        }),
+        section(
+            "g9",
+            row(
+                stat("1,000", "paying brands by Q2 '27"),
+                stat("$3.6M", "ARR target in the first year"),
+                stat("< 4 mo", "CAC payback, blended across channels"),
+            ),
+        ),
 
         // ── First 90 days & owners ───────────────────────────────────────────
-        section("g10", "two-col", {
-            a: cell(
+        section(
+            "g10",
+            row(
                 group(
                     t("FIRST 90 DAYS", "label"),
                     t("What we ship before launch.", "h2"),
@@ -1195,8 +1158,6 @@ export const gtmPlan: ArtifactContent = deck(
                         "Weeks 9–12 — Open beta to the waitlist and stand up the operators' community",
                     ),
                 ),
-            ),
-            b: cell(
                 group(
                     t("OWNERS", "label"),
                     t("Who's accountable", "h3"),
@@ -1205,25 +1166,20 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // ── Next steps (feature background) ──────────────────────────────────
         section(
             "g11",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("NEXT STEPS", "label"),
-                        t("Greenlight the launch.", "h1"),
-                        t(
-                            "Approve the plan and the H2 budget this week, and Tidepool ships to the waitlist on September 15.",
-                            "subtitle",
-                        ),
-                        button("Approve & kick off"),
-                    ),
+            group(
+                t("NEXT STEPS", "label"),
+                t("Greenlight the launch.", "h1"),
+                t(
+                    "Approve the plan and the H2 budget this week, and Tidepool ships to the waitlist on September 15.",
+                    "subtitle",
                 ),
-            },
+                button("Approve & kick off"),
+            ),
             { background: bgImage("tidepool-launch-horizon", 0.55) },
         ),
     ],

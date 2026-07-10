@@ -4,8 +4,8 @@ import { getCookie } from "hono/cookie";
 import type Stripe from "stripe";
 import type { Interval, PlanId } from "@model/billing";
 import { visiblePlans, limitsFor, planFor, CREDITS_PER_GENERATION } from "@model/billing";
-import type { AiActionId, MeterParams } from "@model/ai";
-import { AI_ACTION_LIST, estimateCost } from "@model/ai";
+import type { ToolId, MeterParams } from "@model/tools";
+import { estimateCost } from "@model/tools";
 import type { Usage } from "@model/credits";
 import { costOf } from "@model/credits";
 import { db, schema } from "../schema";
@@ -52,7 +52,6 @@ billing.get("/billing", async (c) => {
         usage: { artifacts: rows.length, maxArtifacts: limits.maxArtifacts },
         seats: ws.seats,
         catalog: visiblePlans(),
-        aiActions: AI_ACTION_LIST, // per-action credit costs, for the "what a credit buys" showcase
         stripeReady: stripeReady(),
     });
 });
@@ -177,7 +176,7 @@ billing.post("/billing/spend", async (c) => {
     if (!ws) return c.json({ error: "no workspace" }, 400);
     const { amount, action, meter, usage } = await readJson<{
         amount?: number;
-        action?: AiActionId;
+        action?: ToolId;
         meter?: MeterParams;
         usage?: Usage;
     }>(c);

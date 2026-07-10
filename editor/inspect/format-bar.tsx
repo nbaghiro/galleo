@@ -4,7 +4,7 @@ import type { Rect } from "@engine/node";
 import type { ControlField } from "@elements/spec";
 import type { Component } from "solid-js";
 import { createMemo, For, Show, createSignal } from "solid-js";
-import { cellRegionId, elementRegionId, parentTarget, regionId } from "@model/target";
+import { elementRegionId, parentTarget, regionId } from "@model/target";
 import { GUTTER } from "@elements/compose";
 import {
     duplicateAt,
@@ -128,15 +128,15 @@ export const ContextBar: Component = () => {
         const a = addr();
         const b = box();
         if (!a || !b) return false;
-        const topLevel = a.path.length === 0;
-        const parent = topLevel ? null : parentTarget({ kind: "element", address: a });
-        const parentBox = topLevel
-            ? regions().find((r) => r.id === cellRegionId(a.section, a.cell))?.box
-            : parent
-              ? regions().find((r) => r.id === regionId(parent))?.box
-              : undefined;
+        // Align is self-positioning within the parent — offered only when there's horizontal slack. The
+        // root's parent is the section content area (minus the gutter); a nested element's is its container.
+        const rootLevel = a.path.length === 0;
+        const parent = parentTarget({ kind: "element", address: a });
+        const parentBox = parent
+            ? regions().find((r) => r.id === regionId(parent))?.box
+            : undefined;
         if (!parentBox) return false;
-        const contentW = topLevel ? parentBox.w - 2 * GUTTER : parentBox.w;
+        const contentW = rootLevel ? parentBox.w - 2 * GUTTER : parentBox.w;
         return b.w < contentW - 6;
     });
     const setAlign = (v: "start" | "center" | "end"): void => {
@@ -238,7 +238,14 @@ export const ContextBar: Component = () => {
                         </For>
                         <Separator vertical class="mx-0.5" />
                     </Show>
-                    <Show when={canRegen()}>
+                    {/* The single AI ✨: the text-edit intake popup while inline-editing rich text (it acts on
+                        the selection), the whole-element regenerate otherwise. One button in one place, so
+                        there's never a confusing second sparkle. */}
+                    <Show when={editing() && spec()?.richText && canAssistText()}>
+                        <TextAiMenu />
+                        <Separator vertical class="mx-0.5" />
+                    </Show>
+                    <Show when={!(editing() && spec()?.richText && canAssistText()) && canRegen()}>
                         <IconButton
                             size="md"
                             rounded="md"
@@ -329,10 +336,6 @@ export const MarkControls: Component = () => {
 
     return (
         <>
-            <Show when={canAssistText()}>
-                <TextAiMenu />
-                <Separator vertical class="mx-0.5" />
-            </Show>
             <For each={BOOL}>
                 {(m) => (
                     <IconButton

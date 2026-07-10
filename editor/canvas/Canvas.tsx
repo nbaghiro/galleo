@@ -3,7 +3,13 @@ import type { Target } from "@model/target";
 import type { Section } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { duplicateAt, duplicatedAddr, getElementAt, removeAt } from "@elements/ops";
+import {
+    deleteElement,
+    duplicateAt,
+    duplicatedAddr,
+    getElementAt,
+    moveSection,
+} from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { resolveProfile } from "@engine/profile";
 import { elementRegionId, parentTarget, parseTarget, specificity } from "@model/target";
@@ -16,8 +22,8 @@ import {
 } from "@canvas/render/backends";
 import { measureText, layoutSection } from "@canvas/render/commands";
 import { scaledHostCss } from "@canvas/render/geometry";
-import { applyDrop, computeDropTarget, drag, previewDrop, setDrag, startDrag } from "./dnd";
-import { applyLiveEdit, liveEdit } from "../select/handles";
+import { applyDrop, computeDropTarget, drag, previewDrop, setDrag } from "./dnd";
+import { applyLiveEdit, liveEdit, sectionDrop, sectionDragId } from "../select/handles";
 import {
     canvasContentWidth,
     commit,
@@ -43,8 +49,8 @@ import {
     stopEditing,
     undo,
 } from "../editor";
-import { CellAdd, ContextMenu, openContextMenu, DropIndicator } from "./insert";
-import { RegionDividers, ResizeHandles, SpacingHandles } from "../select/handles";
+import { EmptyRegionAdd, ContextMenu, openContextMenu } from "./insert";
+import { DragHandle, RegionDividers, ResizeHandles } from "../select/handles";
 import { ContextBar } from "../inspect/format-bar";
 import { Overlay, SectionActions, SectionToolbar } from "../select/selection";
 import { SectionGenPopup } from "../ai/SectionGenPopup";
@@ -52,8 +58,6 @@ import { SectionGenStage } from "../ai/SectionGenStage";
 import { ElementGenStage } from "../ai/ElementGenStage";
 import { TextEditor } from "../text/text-editor";
 import { VideoEmbeds } from "./embeds";
-
-const DRAG_THRESHOLD = 4;
 
 // Gutters reserved for the floating panels (so centered content clears them); collapsed → just a margin.
 const RAIL_GAP = 28;
@@ -81,7 +85,7 @@ export const Canvas: Component = () => {
     // auto-sizes the section (DnD, `track` off — hit-testing stays on the stable real layout so the drop
     // target doesn't chase itself), or a live resize/column edit (`track` on — regions update so the
     // handles follow the element as it resizes).
-    const draw = (preview?: Section[] | null, track = false): void => {
+    const draw = (preview?: Section[] | null, track = false, dimId?: string | null): void => {
         if (!paintHost) return;
         // The panels float over the canvas; reserve their gutters so centered content clears them.
         const profile = resolveProfile(editor.artifact.format);
@@ -96,7 +100,7 @@ export const Canvas: Component = () => {
             preview ?? editor.artifact.sections,
             profile,
             editorTokens(),
-            { fullW, hideId: editId, cache: stackCache },
+            { fullW, hideId: editId, dimId, cache: stackCache },
         );
         stageEl.style.height = `${height}px`;
         setSectionTops(tops);
@@ -115,15 +119,19 @@ export const Canvas: Component = () => {
     // Coalesce draw triggers to one paint per animation frame (a gesture fires many moves per frame); the
     // latest queued state wins.
     let rafId = 0;
-    let queued: { sections: Section[] | null; track: boolean } | null = null;
-    const scheduleDraw = (sections: Section[] | null, track: boolean): void => {
-        queued = { sections, track };
+    let queued: { sections: Section[] | null; track: boolean; dimId?: string | null } | null = null;
+    const scheduleDraw = (
+        sections: Section[] | null,
+        track: boolean,
+        dimId?: string | null,
+    ): void => {
+        queued = { sections, track, dimId };
         if (rafId) return;
         rafId = requestAnimationFrame(() => {
             rafId = 0;
             const q = queued;
             queued = null;
-            if (q) draw(q.sections, q.track);
+            if (q) draw(q.sections, q.track, q.dimId);
         });
     };
 
@@ -154,18 +162,9 @@ export const Canvas: Component = () => {
     };
 
     const onPointerMove = (e: PointerEvent): void => {
-        if (drag() || editing() || liveEdit()) return; // active drag/resize driven by window listeners
-        if (
-            pending?.target?.kind === "element" &&
-            Math.hypot(e.clientX - pending.x, e.clientY - pending.y) > DRAG_THRESHOLD
-        ) {
-            const movedType = getElementAt(editor.artifact, pending.target.address)?.type;
-            const label = (movedType && getElement(movedType)?.label) || "Move";
-            startDrag({ kind: "move", from: pending.target.address }, e.clientX, e.clientY, label);
-            pending = null;
-            setHover(null);
-            return;
-        }
+        if (drag() || editing() || liveEdit() || sectionDrop() !== null) return; // driven by window listeners
+        // Moving an element is initiated only from its drag handle (DragHandle) — not by dragging its body —
+        // so ordinary clicks/selection never turn into an accidental move.
         setHover(hitTest(...point(e)));
     };
 
@@ -229,7 +228,7 @@ export const Canvas: Component = () => {
             } else if ((e.key === "Delete" || e.key === "Backspace") && sel) {
                 e.preventDefault();
                 if (sel.kind === "element") {
-                    commit(removeAt(editor.artifact, sel.address));
+                    commit(deleteElement(editor.artifact, sel.address));
                     setSelection(null);
                 } else if (sel.kind === "section") {
                     removeSectionAt(sel.section);
@@ -266,18 +265,35 @@ export const Canvas: Component = () => {
     });
 
     // The live preview painted mid-gesture: a resize/column edit (track on, so handles follow), or a
-    // reflow drop ghost (track off). Null when nothing is being manipulated.
-    const preview = createMemo<{ sections: Section[]; track: boolean } | null>(() => {
-        const edit = liveEdit();
-        if (edit) return { sections: applyLiveEdit(editor.artifact, edit).sections, track: true };
-        const d = drag();
-        if (d?.target?.reflow)
-            return {
-                sections: previewDrop(editor.artifact, d.target, d.payload).sections,
-                track: false,
-            };
-        return null;
-    });
+    // drop ghost (track off). Null when nothing is being manipulated. A MOVE drag previews for the whole
+    // gesture even before it has a target — previewDrop lifts the source out immediately (so the element
+    // leaves its old spot and stays gone); a new-from-palette drag only previews once it has a target.
+    const preview = createMemo<{ sections: Section[]; track: boolean; dimId?: string } | null>(
+        () => {
+            const edit = liveEdit();
+            if (edit)
+                return { sections: applyLiveEdit(editor.artifact, edit).sections, track: true };
+            const d = drag();
+            if (d && (d.payload.kind === "move" || d.target))
+                return {
+                    sections: previewDrop(editor.artifact, d.target, d.payload).sections,
+                    track: false,
+                };
+            // Section drag-reorder: reflow the dragged section into its drop slot and dim it, so it reads
+            // like the lifted element preview instead of a bare insertion line.
+            const sid = sectionDragId();
+            const sd = sectionDrop();
+            if (sid && sd !== null) {
+                const secs = editor.artifact.sections;
+                const i = secs.findIndex((s) => s.id === sid);
+                const delta = (sd > i ? sd - 1 : sd) - i;
+                const sections =
+                    delta !== 0 ? moveSection(editor.artifact, sid, delta).sections : secs;
+                return { sections, track: false, dimId: sid };
+            }
+            return null;
+        },
+    );
 
     // The draw runs later in a rAF (outside tracking), so every dep that must force a repaint is read
     // here synchronously — omitting one silently stops it from triggering redraws.
@@ -288,7 +304,7 @@ export const Canvas: Component = () => {
         editing();
         editorTokens();
         const p = preview();
-        scheduleDraw(p?.sections ?? null, p?.track ?? false);
+        scheduleDraw(p?.sections ?? null, p?.track ?? false, p?.dimId ?? null);
     });
 
     // While a drag is active, the cursor lives anywhere on screen — track it on the window.
@@ -296,15 +312,21 @@ export const Canvas: Component = () => {
     createEffect(() => {
         if (!isDragging()) return;
         const move = (e: PointerEvent): void => {
-            const target = computeDropTarget(liveRegions, ...point(e));
-            setDrag((d) => (d ? { ...d, x: e.clientX, y: e.clientY, target } : d));
+            const target = computeDropTarget(editor.artifact, liveRegions, ...point(e));
+            // Sticky target: keep the last valid drop target when the cursor is momentarily over a gutter,
+            // between sections, or off-canvas (target === null), so the preview doesn't flash back to the
+            // lifted-only layout. Only a NEW valid target replaces it; it resets when the drag ends.
+            setDrag((d) =>
+                d ? { ...d, x: e.clientX, y: e.clientY, target: target ?? d.target } : d,
+            );
         };
         const up = (): void => {
             const d = drag();
             setDrag(null); // clear first so the redraw effect paints the committed result, not the ghost
             if (d?.target) {
-                commit(applyDrop(editor.artifact, d.target, d.payload));
-                setSelection({ kind: "cell", section: d.target.section, cell: d.target.cell });
+                const res = applyDrop(editor.artifact, d.target, d.payload);
+                commit(res.content);
+                setSelection(res.address ? { kind: "element", address: res.address } : null);
                 setHover(null);
             }
         };
@@ -344,17 +366,16 @@ export const Canvas: Component = () => {
                 <div ref={paintHost} class="absolute inset-0" />
                 <VideoEmbeds />
                 <Overlay />
+                <DragHandle />
                 <ResizeHandles />
-                <SpacingHandles />
                 <RegionDividers />
-                <DropIndicator />
                 <SectionActions />
                 <SectionToolbar />
                 <SectionGenStage />
                 <SectionGenPopup />
                 <ElementGenStage />
                 <ContextBar />
-                <CellAdd />
+                <EmptyRegionAdd />
                 <TextEditor />
             </div>
             <ContextMenu />

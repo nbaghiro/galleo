@@ -139,6 +139,7 @@ export interface EngineNode {
     alignX?: Align;
     alignY?: Align;
     alignSelf?: Align; // overrides the parent's cross-axis alignment for this child
+    opacity?: number; // 0..1, multiplied down the subtree — for the dimmed drag/drop preview
     text?: TextLeaf;
     image?: ImageLeaf;
     fill?: FillLeaf;
@@ -149,10 +150,10 @@ export interface EngineNode {
 // --- render output (flattened from the node tree) + interaction geometry ---
 
 export type RenderCommand =
-    | { kind: "rect"; box: Rect; fill?: FillLeaf; id?: string }
-    | { kind: "text"; box: Rect; text: TextLeaf; id?: string }
-    | { kind: "image"; box: Rect; image: ImageLeaf; id?: string }
-    | { kind: "surface"; box: Rect; paint: SurfaceLeaf["paint"]; id?: string };
+    | { kind: "rect"; box: Rect; fill?: FillLeaf; id?: string; opacity?: number }
+    | { kind: "text"; box: Rect; text: TextLeaf; id?: string; opacity?: number }
+    | { kind: "image"; box: Rect; image: ImageLeaf; id?: string; opacity?: number }
+    | { kind: "surface"; box: Rect; paint: SurfaceLeaf["paint"]; id?: string; opacity?: number };
 
 // Interaction geometry: the final box of every node that carries an id (sections, cells, elements).
 // Separate from paint so selection/hit-testing/overlays don't depend on what was drawn.

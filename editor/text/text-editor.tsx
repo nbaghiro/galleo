@@ -24,6 +24,7 @@ import {
     editorAccent,
     editorTokens,
     regions,
+    remountEditing,
     setArtifactLive,
     stopEditing,
 } from "../editor";
@@ -39,6 +40,11 @@ import {
 import type { Run } from "@engine/node";
 
 type TextFields = { text?: string; marks?: Mark[] } & Record<string, unknown>;
+
+// The selection to restore when the overlay is re-mounted after an AI edit (the rewritten span), instead of
+// the default end-of-text caret. Set by replaceRange right before it re-mounts; consumed once on the next
+// mount. Module-level because only one field is ever mounted at a time.
+let pendingSel: { from: number; to: number } | null = null;
 
 // Map a viewport point to a text caret Range (Chrome/Safari vs Firefox APIs), typed without `any`.
 interface CaretDoc {
@@ -129,39 +135,46 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         syncSel();
     };
 
-    // Replace [from, to) with AI-edited text: splice the model (shifting/keeping marks), re-render the styled
-    // DOM, and reselect the new span. Live (no history) — it folds into the current edit session's one undo
-    // step, exactly like typing. Called by the text AI menu after the model returns.
+    // Replace [from, to) with AI-edited text: splice the model (shifting/keeping marks) live — it folds into
+    // the current edit session's one undo step, exactly like typing — then RE-MOUNT the overlay so it renders
+    // fresh from the updated model, reselecting the rewritten span. The re-mount matters: unlike a mark toggle
+    // (which runs inside the click handler), this lands in an async continuation after the model round-trip, and
+    // the browser won't reliably repaint an in-place imperative change to a focused contenteditable made outside
+    // a user gesture — the new text only appears on the next interaction. A fresh mount always paints.
     const replaceRange = (from: number, to: number, insert: string): void => {
         if (!inst()) return;
         const data = fields();
         const { text, marks } = spliceText(data.text ?? "", data.marks ?? [], from, to, insert);
         setArtifactLive(updateDataAt(editor.artifact, props.address, { ...data, text, marks }));
-        renderMarks(el, text, marks);
-        el.focus();
-        setOffsets(el, from, from + insert.length);
-        syncSel();
+        pendingSel = { from, to: from + insert.length };
+        remountEditing();
     };
 
     onMount(() => {
         const data = fields();
         renderMarks(el, data.text ?? "", data.marks ?? []);
         el.focus();
-        const sel = window.getSelection();
-        let range: Range | null = null;
-        // Place the caret where the user clicked; fall back to the end of the text.
-        const caret = editCaret();
-        if (caret) {
-            const r = caretRangeAtPoint(caret.x, caret.y);
-            if (r && el.contains(r.startContainer)) range = r;
+        if (pendingSel) {
+            // re-mounted after an AI edit → reselect the rewritten span instead of placing a fresh caret
+            setOffsets(el, pendingSel.from, pendingSel.to);
+            pendingSel = null;
+        } else {
+            const sel = window.getSelection();
+            let range: Range | null = null;
+            // Place the caret where the user clicked; fall back to the end of the text.
+            const caret = editCaret();
+            if (caret) {
+                const r = caretRangeAtPoint(caret.x, caret.y);
+                if (r && el.contains(r.startContainer)) range = r;
+            }
+            if (!range) {
+                range = document.createRange();
+                range.selectNodeContents(el);
+                range.collapse(false);
+            }
+            sel?.removeAllRanges();
+            sel?.addRange(range);
         }
-        if (!range) {
-            range = document.createRange();
-            range.selectNodeContents(el);
-            range.collapse(false);
-        }
-        sel?.removeAllRanges();
-        sel?.addRange(range);
 
         registerTextField(runMark);
         registerTextReplace(replaceRange);
@@ -240,7 +253,12 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
 };
 
 export const TextEditor: Component = () => (
-    <Show when={editing()}>{(addr) => <EditingField address={addr()} />}</Show>
+    // `keyed`: a change in the editing address (a different element, or a fresh reference from remountEditing)
+    // rebuilds the field — so an external edit (AI text rewrite, element regenerate) re-mounts the overlay and
+    // its new text paints reliably, instead of a stale in-place update the browser won't repaint.
+    <Show when={editing()} keyed>
+        {(addr) => <EditingField address={addr} />}
+    </Show>
 );
 
 // DOM ⇄ marks bridge for the inline text editor. The model (a plain string + offset-range marks) is the

@@ -1,10 +1,5 @@
-import type {
-    ArtifactContent,
-    Cell,
-    ElementInstance,
-    Section,
-    SectionBackground,
-} from "@model/artifact";
+import type { ArtifactContent, ElementInstance, Section, SectionBackground } from "@model/artifact";
+import { emptyRegion, rowGroup } from "@model/section";
 
 // Concise builders for authoring demo artifacts (real content, full element variety).
 
@@ -56,16 +51,25 @@ export const chart = (kind: string, values: string, height = 240): ElementInstan
 
 export const divider = (): ElementInstance => ({ type: "divider", data: {} });
 
-export const cell = (element: ElementInstance): Cell => ({ element });
+// Column helpers for authoring a section's recursive `root`. `row(...)` lays children side by side in an
+// even split; `split(pct, a, b)` weights a two-column row; a plain `group(...)` stacks vertically;
+// `emptyRegion()` is a droppable blank column. A section's `root` is any element — a single leaf for a
+// full-width section, or a row of columns for a split.
+export const row = (...children: ElementInstance[]): ElementInstance => rowGroup(children);
 
-export const empty: Cell = {};
+export const split = (
+    leftPct: number,
+    left: ElementInstance,
+    right: ElementInstance,
+): ElementInstance => rowGroup([left, right], [leftPct / 100, 1 - leftPct / 100]);
+
+export { emptyRegion };
 
 export const section = (
     id: string,
-    grid: string,
-    cells: Record<string, Cell>,
+    root: ElementInstance,
     opts?: { background?: SectionBackground; bleed?: boolean },
-): Section => ({ id, grid, cells, ...opts });
+): Section => ({ id, root, ...opts });
 
 export const bgImage = (seedOrSrc: string, scrim = 0.5): SectionBackground => ({
     kind: "image",

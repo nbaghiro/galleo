@@ -2,14 +2,15 @@
 
 > The element library (what blocks exist, how they're filed, the spec every one implements) and the
 > editing UI a selection drives (the floating format bar, the docked inspector, and the on-canvas
-> handles). Companion to `rendering.md` (the engine + compose pipeline — unchanged by the refactors
-> below), `element-structure.md` (the category taxonomy plan), `charts-diagrams.md` (the chart/diagram
-> subsystem), and `ui-component-library.md` (the shared control kit).
+> handles). Companion to `rendering.md` (the engine + compose pipeline), `element-structure.md` (the
+> category taxonomy plan), `charts-diagrams.md` (the chart/diagram subsystem), and `ui-component-library.md`
+> (the shared control kit).
 
-Nothing here touches the engine. `canvas/engine/` (the Clay solver + `EngineNode`/`DrawContext`) and
-`canvas/elements/compose.ts` (Section → `EngineNode`) are exactly as `rendering.md` describes them. The
-recent work was **organizational**: one file per element, category subfolders, and a consolidated palette
-taxonomy.
+A section's content is **one recursive tree** — `section.root`, a container (`group` as a `row` for columns
+/ `col` to stack) nesting to any depth, addressed purely by index **path**. The old `{ grid, cells }` shape
+is gone; `@model/section` holds the row/col builders + layout presets, and everything below — compose, the
+content ops (`ops.ts`), selection, and drag-drop — is one uniform mechanism at every depth (a "column" is
+just a row's child).
 
 ## 1. Where elements live
 
@@ -19,9 +20,9 @@ One file per element under `canvas/elements/<category>/`, plus the shared machin
 canvas/elements/
   spec.ts        ElementSpec + ControlField, the registry (register/getElement/listElements/walkElements),
                  SECTION_CONTROLS, ghost builders (bar/block/pill/dot) + skeletonize/skeletonFor
-  compose.ts     composeSection/composeElement (content tree → EngineNode), grid TEMPLATES + PRESETS,
-                 dark-background token adaptation
-  ops.ts         pure immutable content edits (get/set/insert/remove/duplicate; section grid/bg/bleed)
+  compose.ts     composeSection/composeElement (section.root → EngineNode), PRESETS, dark-bg adaptation
+  ops.ts         pure immutable content edits over the root tree by PATH (get/set/insert/remove/duplicate,
+                 collapse-on-empty, addColumn, applyLayoutPreset, section bg/bleed)
   skeletons.ts   reusable structural ghosts for chart/diagram palette tiles + drop previews
   dropghost.ts   the internal __dropghost element (the live drop preview)
 
@@ -79,7 +80,6 @@ Every block is one registry entry. Required: `type · label · category · tier 
 | `bar?: string[]`  | which `controls` keys appear on the floating format bar                                                       |
 | `frame?: boolean` | element has a visible frame → the universal corner-radius control on the bar                                  |
 | `resize?`         | canvas drag handles: `height` (a data key) / `aspect` (`data.aspect`); width is a universal `ElementLayout` % |
-| `spacing?`        | container gap/inset drag handles, each driving a data field                                                   |
 | `container?`      | `{children, arrange, withChildren}` — recursion + generic insert/remove for card/group/composite blocks       |
 | `skeleton?`       | palette + drop-preview ghost; auto-derived from `skeletonize(layout(create()))` if absent                     |
 | `fallback?`       | interactive → static substitution for paged/export                                                            |
@@ -100,7 +100,7 @@ anchored just above its region box (flips below if it would clip; hidden mid-dra
 the spec's `bar` keys resolved to their `ControlField`s and rendered **compact** (same `Field` dispatcher as
 the panel, labels dropped) → the **universal radius** slider (only when `spec.frame`, written to
 `ElementLayout.radius`, not element data) → **rich-text marks** (`MarkControls`, only while editing a
-`richText` element) → **align** (only when the element has horizontal slack in its cell) → **duplicate** →
+`richText` element) → **align** (only when the element has horizontal slack in its parent) → **duplicate** →
 **delete**. Continuous slider/color drags coalesce into a single undo step.
 
 **② Docked right panel** — `editor/chrome/Panel.tsx`: a vertical icon rail + a flyout that shows either the
@@ -124,23 +124,21 @@ nothing). Otherwise a `createEffect` auto-opens the inspector for the selection.
   (width/height/align/gap/padding) — those are canvas handles. **Charts/diagrams are special**: their
   `dataShapeFor()` returns a structured shape, so the inspector drops the raw data keys and renders an inline
   **`DataGrid`** (a spreadsheet-style editor) instead of text fields.
-- **SectionInspector** — a bespoke grid-template picker (live thumbnails) followed by the generic
-  `SECTION_CONTROLS` (bleed + background) through the same `SchemaFields`, via a flat adapter over the
-  structured `Section`.
+- **SectionInspector** — a **layout-preset** picker (live thumbnails; `applyLayoutPreset` sets the column
+  count + width ratios — a helper, not a stored mode; the active preset lights up by matching current
+  widths) followed by the generic `SECTION_CONTROLS` (bleed + background) through the same `SchemaFields`.
 
 **④ On-canvas handles** — `editor/select/handles.tsx`, all live-previewed through a shared `liveEdit` signal
 (the canvas reflows per frame, commits on release):
 
-- **ResizeHandles** — now a single **bottom-edge** strip (corner/width handles were removed) → `resize.height`
+- **ResizeHandles** — a single **bottom-edge** strip (corner/width handles were removed) → `resize.height`
   (a data key) or `resize.aspect` (`data.aspect`).
-- **RegionDividers** — the **primary width affordance**: thin `col-resize` bars between a section's grid cells
-  (→ section `widths`) and between row-adjacent element siblings at any nesting depth (→ each sibling's
-  `ElementLayout.width.pct`).
-- **SpacingHandles** — from `spec.spacing`: a grip in each child gap (`gap`) and one at the content inset
-  (`padding`).
+- **RegionDividers** — the **primary width affordance**, ONE mechanism at every depth: thin `col-resize`
+  bars between any two side-by-side siblings — the section's columns (the root row's children) or a nested
+  row — each writing that child's `ElementLayout.width.pct`.
 
 Net: an element's entire editing surface is assembled from its `ElementSpec` — `bar` picks the quick
-controls, `controls` fills the panel, `frame`/`resize`/`spacing`/`container` light up canvas affordances, and
+controls, `controls` fills the panel, `frame`/`resize`/`container` light up canvas affordances, and
 `richText`/`dataShapeFor` swap in the specialized editors (inline text marks, chart/diagram grid).
 
 ## 5. How it's wired (the plumbing under §4)
@@ -152,10 +150,10 @@ from what's painted.
 **The reactive spine.** Five signals carry the whole interaction:
 
 - **`regions`** — `Region[]` the canvas republishes on every paint; each is `{ id, box, radius }` in
-  canvas-content coords. The region `id` (`el:…` / `cell:…` / `section:…`) is the join key between engine
-  output and UI. This is the single source of geometry for every overlay.
-- **`selection` / `hover`** — a `Target | null` each (`{kind:"element", address}` | `cell` | `section`),
-  with a custom `targetsEqual` so re-selecting the same thing doesn't churn.
+  canvas-content coords. The region `id` (`section:…` / `el:<section>` for the root / `el:<section>:0.1` by
+  path) is the join key between engine output and UI. The single source of geometry for every overlay.
+- **`selection` / `hover`** — a `Target | null` each (`{kind:"element", address:{section, path}}` |
+  `{kind:"section", …}`), with a custom `targetsEqual` so re-selecting the same thing doesn't churn.
 - **`rightTab`** — which right-rail flyout is open (a `category` id · `"search"` · `"inspector"` · `null`).
 - **`liveEdit`** (`select/handles.tsx`) — a transient, uncommitted direct-manipulation edit (drag in flight).
 - **`editing`** (`ElementAddress | null`) — the element whose inline text is being edited.
@@ -173,14 +171,23 @@ pointer protocol:
   promotes to a drag-move (drop handled by `canvas/dnd.ts`).
 - **up** → `setSelection(pending.target)`; if that element's spec is `richText`, `startEditing` at the click
   point (so clicking body text drops you straight into editing).
-- **`hitTest`** returns the highest-`specificity` region under the point → element beats cell beats section.
-  `Escape` walks up via `parentTarget`; `Delete`/`Backspace` removes the selection; `⌘D` duplicates; arrows
-  reorder a selected section. Keys are ignored while a form field or the inline editor has focus.
+- **`hitTest`** returns the highest-`specificity` region under the point → a deeper element (longer path)
+  beats a shallower one beats the section. `Escape` walks up the tree via `parentTarget`; `Delete`/`Backspace`
+  removes + collapses the column; `⌘D` duplicates; arrows reorder a selected section. Keys are ignored while a
+  form field or the inline editor has focus.
 
 **The overlay stack.** All chrome is mounted as absolutely-positioned siblings over the `paintHost` inside
-one stage div — the selection/hover rings (`Overlay`), the three handle layers, the drop indicator, the two
-section-level surfaces, the `ContextBar`, and the inline `TextEditor`. Each renders nothing until its slice of
-`selection()`/`hover()` matches.
+one stage div — the selection/hover rings (`Overlay`), the three handle layers, the two section-level
+surfaces, the `ContextBar`, and the inline `TextEditor`. (There's no separate drop indicator: a drop previews
+by reflowing the painted section around an inline ghost, not by an overlay.) Each renders nothing until its
+slice of `selection()`/`hover()` matches.
+
+**Drag & drop (`editor/canvas/dnd.ts`).** A drag resolves against the engine regions to ONE of four ops —
+replace an empty region, insert into a container, wrap a leaf into a new row/col, or add a section column
+(dragging to a section edge / column gutter). A move removes the source, places the element, then
+**collapses** only the emptied source column (unrelated empty columns stay put). `previewDrop` runs the
+identical path, splicing an inline ghost of the dragged element — the real element dimmed for a move, its
+skeleton for a new-from-palette drop — so the live reflow matches the drop exactly, at every drop target.
 
 **Section-level chrome** (`editor/select/selection.tsx`, beyond §4's four element surfaces):
 

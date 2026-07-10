@@ -7,6 +7,7 @@ import type { IconPick, MediaKind } from "@model/media";
 import { createSignal } from "solid-js";
 import type { Theme, Tokens } from "@themes";
 import { duplicateSection, insertSection, moveSection, removeSection } from "@elements/ops";
+import { emptyRegion } from "@model/section";
 import { targetsEqual } from "@model/target";
 import { resolveTheme } from "@themes";
 
@@ -19,7 +20,7 @@ import { resolveTheme } from "@themes";
 const EMPTY_ARTIFACT: ArtifactContent = {
     format: "deck",
     theme: "studio",
-    sections: [{ id: "s-1", grid: "full", cells: { a: {} } }],
+    sections: [{ id: "s-1", root: emptyRegion() }],
 };
 
 // The open artifact is an immutable value in a plain signal: every write REPLACES the whole tree (content
@@ -243,6 +244,11 @@ let editBefore: ArtifactContent | null = null;
 export function startEditing(addr: ElementAddress, caret?: { x: number; y: number }): void {
     editBefore = editor.artifact;
     setEditCaret(caret ?? null);
+    // Clear hover: mouse-move hover updates are suppressed for the whole edit session (Canvas.onPointerMove
+    // bails while editing), so any lingering value is stale — it would strand hover chrome (the drag handle,
+    // the hover ring) on the previously-hovered element while a DIFFERENT one is being edited. Selection,
+    // which tracks the edited element, still drives that chrome to the right place.
+    setHover(null);
     setEditing(addr);
 }
 
@@ -251,6 +257,15 @@ export function stopEditing(): void {
         pushPast({ content: editBefore, title: currentTitle() });
     editBefore = null;
     setEditing(null);
+}
+
+// Re-mount the inline editor overlay in place — same element, same edit session (history untouched). A fresh
+// address reference re-keys the editing <Show>, so the contenteditable is rebuilt from the current model. Used
+// after an AI text edit: that change lands in an async continuation, and the browser won't reliably repaint an
+// in-place imperative change to a focused contenteditable until the next interaction — a fresh mount always
+// paints, so the new text shows immediately.
+export function remountEditing(): void {
+    setEditing((a) => (a ? { ...a } : a));
 }
 
 export function setArtifactLive(next: ArtifactContent): void {
@@ -450,7 +465,7 @@ function newSectionId(): string {
 }
 
 export function addSectionAfter(afterId: string | null): void {
-    const sec: Section = { id: newSectionId(), grid: "full", cells: { a: {} } };
+    const sec: Section = { id: newSectionId(), root: emptyRegion() };
     const at = afterId
         ? editor.artifact.sections.findIndex((s) => s.id === afterId) + 1
         : editor.artifact.sections.length;
@@ -469,6 +484,14 @@ export function removeSectionAt(id: string): void {
 
 export function moveSectionBy(id: string, delta: number): void {
     commit(moveSection(editor.artifact, id, delta));
+}
+
+// Move a section to an absolute drop position (0..n, in the pre-move ordering) — for drag-to-reorder.
+export function moveSectionTo(id: string, index: number): void {
+    const i = editor.artifact.sections.findIndex((s) => s.id === id);
+    if (i < 0) return;
+    const delta = (index > i ? index - 1 : index) - i;
+    if (delta !== 0) commit(moveSection(editor.artifact, id, delta));
 }
 
 // --- present mode ---

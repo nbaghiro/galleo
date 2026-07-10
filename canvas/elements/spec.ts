@@ -22,8 +22,8 @@ export function listElements(): ElementSpec[] {
     return [...registry.values()];
 }
 
-// Visit every element in a section — each cell's element, then recursively any group children —
-// depth-first in cell order. The single place the content tree's element traversal lives.
+// Visit every element in a section — the root, then recursively any container children — depth-first.
+// The single place the content tree's element traversal lives.
 export function walkElements(section: Section, visit: (el: ElementInstance) => void): void {
     const recurse = (el?: ElementInstance): void => {
         if (!el) return;
@@ -31,7 +31,7 @@ export function walkElements(section: Section, visit: (el: ElementInstance) => v
         const kids = (el.data as { children?: ElementInstance[] }).children;
         if (Array.isArray(kids)) kids.forEach(recurse);
     };
-    for (const cell of Object.values(section.cells)) recurse(cell.element);
+    recurse(section.root);
 }
 
 export interface LayoutCtx {
@@ -94,12 +94,6 @@ export interface ElementSpec<Data = unknown> {
         width?: boolean; // right/corner handle → ElementLayout.width { pct }; defaults on
         height?: { key: string; min: number; max: number; step?: number }; // bottom handle → data[key]
         aspect?: { min: number; max: number }; // bottom handle → data.aspect (width / height)
-    };
-    // Container spacing handles on the canvas: a handle in the gap between children, and one at the
-    // content inset. Each drives an element data field. `def` is the value when the field is unset.
-    spacing?: {
-        gap?: { key: string; min: number; max: number; def: number };
-        padding?: { key: string; min: number; max: number; def: number };
     };
     fallback?: (data: Data) => Data; // interactive -> static for paged/export
     // Structural ghost shown in the palette + as the drop preview. Optional: if absent, one is

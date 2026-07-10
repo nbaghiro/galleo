@@ -2,8 +2,10 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { getCookie } from "hono/cookie";
 import { eq } from "drizzle-orm";
-import type { TurnEvent, TurnRequest, TurnKind, AiActionId, MeterParams } from "@model/ai";
-import { estimateCost, isKind } from "@model/ai";
+import type { TurnEvent, TurnRequest, TurnKind } from "@model/ai";
+import { isKind } from "@model/ai";
+import type { ToolId, MeterParams } from "@model/tools";
+import { estimateCost } from "@model/tools";
 import { limitsFor } from "@model/billing";
 import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
@@ -21,12 +23,12 @@ import { generateThemeFromPrompt } from "../ai/theme";
 // uses, so a turn renders identically whether the events came from a fixture or the model.
 export const ai = new Hono();
 
-// Which priced action each turn kind bills as (costs defined in @model/ai AI_ACTIONS).
-const ACTION_FOR: Record<TurnKind, AiActionId> = {
-    generate: "generate",
-    edit: "edit",
-    section: "regenerate-section",
-    chat: "chat",
+// Which priced tool each turn kind bills as (costs defined on the tool def in @model/tools).
+const ACTION_FOR: Record<TurnKind, ToolId> = {
+    generate: "generate-artifact",
+    edit: "revise-artifact",
+    section: "add-section",
+    chat: "ask-assistant",
 };
 
 // The size knobs each kind meters by pre-flight — only generate scales here, by its length chip.
@@ -127,7 +129,7 @@ ai.post("/ai/element", async (c) => {
     if (!body?.content?.sections?.length || !body.sectionId || !body.element?.type)
         return c.json({ error: "content, sectionId, and element are required" }, 400);
 
-    const cost = estimateCost("edit-element");
+    const cost = estimateCost("revise-element");
     const limit = limitsFor(ws.plan).aiCreditsPerMonth;
     if (ws.aiCreditsUsed + cost > limit)
         return c.json(
@@ -179,7 +181,7 @@ ai.post("/ai/text", async (c) => {
     if (body.op === "translate" && !body.language?.trim())
         return c.json({ error: "a target language is required" }, 400);
 
-    const cost = estimateCost(body.op === "translate" ? "translate" : "rewrite");
+    const cost = estimateCost(body.op === "translate" ? "translate-text" : "rewrite-text");
     const limit = limitsFor(ws.plan).aiCreditsPerMonth;
     if (ws.aiCreditsUsed + cost > limit)
         return c.json(

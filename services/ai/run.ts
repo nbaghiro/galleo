@@ -178,30 +178,23 @@ async function resolveElement(el: ElementInstance, opts: ImageOptions): Promise<
     return data === el.data ? el : { ...el, data };
 }
 
-// Resolve every image in a section — inline images at ANY depth (via resolveElement) plus a full-bleed
-// background — in parallel. The stock-vs-AI decision lives entirely in `opts`.
+// Resolve every image in a section — inline images at ANY depth in the root tree (via resolveElement) plus
+// a full-bleed background — in parallel. The stock-vs-AI decision lives entirely in `opts`.
 async function resolveImages(section: Section, opts: ImageOptions): Promise<Section> {
-    const entries = await Promise.all(
-        Object.entries(section.cells).map(async ([key, cell]) =>
-            cell.element
-                ? ([key, { element: await resolveElement(cell.element, opts) }] as const)
-                : ([key, cell] as const),
-        ),
-    );
-    const cells = Object.fromEntries(entries) as typeof section.cells;
+    const root = await resolveElement(section.root, opts);
     let background = section.background;
     const bg = section.background;
     if (bg?.kind === "image" && typeof bg.image === "string") {
         background = { ...bg, image: await resolveImage(bg.image, "landscape", opts) };
     }
-    return { ...section, cells, background };
+    return { ...section, root, background };
 }
 
 const toPlanBeat = (b: Beat): PlanBeat => ({
     id: b.id,
     label: b.label,
     role: b.role,
-    grid: b.grid,
+    layout: b.layout,
     image: b.image,
     blocks: b.blocks,
 });

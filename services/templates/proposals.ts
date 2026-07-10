@@ -8,16 +8,17 @@ import {
     button,
     callout,
     card,
-    cell,
     chart,
     deck,
     diagram,
     doc,
-    empty,
+    emptyRegion,
     group,
     img,
     quote,
+    row,
     section,
+    split,
     stat,
     t,
     table,
@@ -33,24 +34,21 @@ export const projectProposal: ArtifactContent = deck(
     [
         section(
             "cover",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("PROPOSAL · PREPARED FOR ATLAS COFFEE ROASTERS", "label"),
-                        t("A rebrand worth waking up for.", "h1"),
-                        t(
-                            "Foldwork — a brand & digital studio — on relaunching Atlas as a specialty-coffee name that travels. Prepared for the Atlas leadership team, June 2026.",
-                            "subtitle",
-                        ),
-                        badge("CONFIDENTIAL · v2"),
-                    ),
+            group(
+                t("PROPOSAL · PREPARED FOR ATLAS COFFEE ROASTERS", "label"),
+                t("A rebrand worth waking up for.", "h1"),
+                t(
+                    "Foldwork — a brand & digital studio — on relaunching Atlas as a specialty-coffee name that travels. Prepared for the Atlas leadership team, June 2026.",
+                    "subtitle",
                 ),
-            },
+                badge("CONFIDENTIAL · v2"),
+            ),
             { background: bgImage("atlas-coffee-cover", 0.55) },
         ),
-        section("opportunity", "split-6040", {
-            a: cell(
+        section(
+            "opportunity",
+            split(
+                60,
                 group(
                     t("01 — The opportunity", "label"),
                     t("Great coffee, hiding behind a tired bag.", "h2"),
@@ -59,40 +57,36 @@ export const projectProposal: ArtifactContent = deck(
                         "body",
                     ),
                 ),
+                img("atlas-coffee-bags", 0.82),
             ),
-            b: cell(img("atlas-coffee-bags", 0.82)),
-        }),
-        section("goals", "full", {
-            a: cell(
-                group(
-                    t("02 — What we heard", "label"),
-                    t("Where you want to be in twelve months.", "h2"),
-                    bullets(
-                        "Triple direct-to-consumer revenue within twelve months",
-                        "Launch a coffee subscription with predictable recurring revenue",
-                        "Look like a national brand without losing the neighborhood story",
-                        "Win shelf space in regional grocery and specialty retail",
-                        "Unify the look across the bag, the web, and the cafe counter",
-                    ),
+        ),
+        section(
+            "goals",
+            group(
+                t("02 — What we heard", "label"),
+                t("Where you want to be in twelve months.", "h2"),
+                bullets(
+                    "Triple direct-to-consumer revenue within twelve months",
+                    "Launch a coffee subscription with predictable recurring revenue",
+                    "Look like a national brand without losing the neighborhood story",
+                    "Win shelf space in regional grocery and specialty retail",
+                    "Unify the look across the bag, the web, and the cafe counter",
                 ),
             ),
-        }),
+        ),
         section(
             "northstar",
-            "full",
-            {
-                a: cell(
-                    quote(
-                        "We don’t want to look bigger. We want to look like the best version of ourselves.",
-                        "— Dana Mercer · Founder, Atlas Coffee Roasters",
-                    ),
-                ),
-            },
+            quote(
+                "We don’t want to look bigger. We want to look like the best version of ourselves.",
+                "— Dana Mercer · Founder, Atlas Coffee Roasters",
+            ),
             { background: bgImage("atlas-coffee-pour", 0.6) },
         ),
-        section("approach", "split-4060", {
-            a: cell(img("atlas-roastery-craft", 1.05)),
-            b: cell(
+        section(
+            "approach",
+            split(
+                40,
+                img("atlas-roastery-craft", 1.05),
                 group(
                     t("03 — Our approach", "label"),
                     t("Strategy first. Then a system, not a logo.", "h2"),
@@ -103,9 +97,10 @@ export const projectProposal: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
-        section("deliverables", "three-up", {
-            a: cell(
+        ),
+        section(
+            "deliverables",
+            row(
                 card(
                     t("Brand Strategy", "h3"),
                     bullets(
@@ -114,8 +109,6 @@ export const projectProposal: ArtifactContent = deck(
                         "Category & competitive audit",
                     ),
                 ),
-            ),
-            b: cell(
                 card(
                     t("Visual Identity", "h3"),
                     bullets(
@@ -124,8 +117,6 @@ export const projectProposal: ArtifactContent = deck(
                         "Type, color & art direction",
                     ),
                 ),
-            ),
-            c: cell(
                 card(
                     t("Digital & Commerce", "h3"),
                     bullets(
@@ -135,63 +126,60 @@ export const projectProposal: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
-        section("timeline", "full", {
-            a: cell(
-                group(
-                    t("04 — Timeline", "label"),
-                    t("Twelve weeks, four milestones.", "h2"),
-                    diagram("process", "Discovery, Strategy, Identity, Build, Launch", 180),
-                    bullets(
-                        "Weeks 1–2 · Discovery sprint, stakeholder interviews, brand & UX audit",
-                        "Weeks 3–6 · Strategy platform and two identity directions",
-                        "Weeks 7–11 · Packaging, storefront design and front-end build",
-                        "Week 12 · Launch, handover and brand guidelines",
-                    ),
+        ),
+        section(
+            "timeline",
+            group(
+                t("04 — Timeline", "label"),
+                t("Twelve weeks, four milestones.", "h2"),
+                diagram("process", "Discovery, Strategy, Identity, Build, Launch", 180),
+                bullets(
+                    "Weeks 1–2 · Discovery sprint, stakeholder interviews, brand & UX audit",
+                    "Weeks 3–6 · Strategy platform and two identity directions",
+                    "Weeks 7–11 · Packaging, storefront design and front-end build",
+                    "Week 12 · Launch, handover and brand guidelines",
                 ),
             ),
-        }),
-        section("team", "three-up", {
-            a: cell(
+        ),
+        section(
+            "team",
+            row(
                 group(
                     img("foldwork-team-nora", 1),
                     t("Nora Vance", "h3"),
                     t("Creative Director", "caption"),
                 ),
-            ),
-            b: cell(
                 group(
                     img("foldwork-team-devin", 1),
                     t("Devin Osei", "h3"),
                     t("Brand Strategist", "caption"),
                 ),
-            ),
-            c: cell(
                 group(
                     img("foldwork-team-lina", 1),
                     t("Lina Park", "h3"),
                     t("Design & Web Lead", "caption"),
                 ),
             ),
-        }),
-        section("investment", "full", {
-            a: cell(
-                group(
-                    t("05 — Investment", "label"),
-                    t("A fixed-scope engagement.", "h2"),
-                    table(
-                        "Phase,Timeline,Investment\nDiscovery & Strategy,2 weeks,$16K\nVisual Identity,4 weeks,$34K\nWebsite & Build,5 weeks,$39K\nLaunch & Handover,1 week,$11K\nTotal,12 weeks,$100K",
-                    ),
-                    t(
-                        "50% to begin, 50% at launch. Excludes third-party costs (photography talent, licensed fonts, Shopify apps), estimated at $6–9K.",
-                        "caption",
-                    ),
+        ),
+        section(
+            "investment",
+            group(
+                t("05 — Investment", "label"),
+                t("A fixed-scope engagement.", "h2"),
+                table(
+                    "Phase,Timeline,Investment\nDiscovery & Strategy,2 weeks,$16K\nVisual Identity,4 weeks,$34K\nWebsite & Build,5 weeks,$39K\nLaunch & Handover,1 week,$11K\nTotal,12 weeks,$100K",
+                ),
+                t(
+                    "50% to begin, 50% at launch. Excludes third-party costs (photography talent, licensed fonts, Shopify apps), estimated at $6–9K.",
+                    "caption",
                 ),
             ),
-        }),
-        section("why-us", "split-4060", {
-            a: cell(img("foldwork-studio-work", 0.86)),
-            b: cell(
+        ),
+        section(
+            "why-us",
+            split(
+                40,
+                img("foldwork-studio-work", 0.86),
                 group(
                     t("06 — Why Foldwork", "label"),
                     t("We make brands people taste before they read.", "h2"),
@@ -209,29 +197,30 @@ export const projectProposal: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
-        section("track-record", "three-up", {
-            a: cell(stat("184%", "Avg. first-year DTC lift")),
-            b: cell(stat("14", "F&B brands launched")),
-            c: cell(stat("4.9★", "Average client rating")),
-        }),
+        ),
+        section(
+            "track-record",
+            row(
+                stat("184%", "Avg. first-year DTC lift"),
+                stat("14", "F&B brands launched"),
+                stat("4.9★", "Average client rating"),
+            ),
+        ),
         section(
             "next-steps",
-            "split-6040",
-            {
-                a: cell(
-                    group(
-                        t("07 — Next steps", "label"),
-                        t("Let’s get the first roast on.", "h2"),
-                        t(
-                            "If this resonates, we’ll schedule a 60-minute kickoff and hold a start date in July. This proposal is valid for 30 days.",
-                            "subtitle",
-                        ),
-                        button("Approve & schedule kickoff"),
+            split(
+                60,
+                group(
+                    t("07 — Next steps", "label"),
+                    t("Let’s get the first roast on.", "h2"),
+                    t(
+                        "If this resonates, we’ll schedule a 60-minute kickoff and hold a start date in July. This proposal is valid for 30 days.",
+                        "subtitle",
                     ),
+                    button("Approve & schedule kickoff"),
                 ),
-                b: empty,
-            },
+                emptyRegion(),
+            ),
             { background: bgImage("atlas-coffee-beans", 0.58) },
         ),
     ],
@@ -248,46 +237,45 @@ export const investorUpdate: ArtifactContent = doc(
     [
         section(
             "cover",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("INVESTOR UPDATE · MAY 2026", "label"),
-                        t("Cadence", "h1"),
-                        t(
-                            "The billing engine for usage-based software. Another month of compounding — MRR up 16% to $248K, NRR holding at 124%, and Usage Studio now shipped to every customer.",
-                            "subtitle",
-                        ),
-                        t("Elena Vossberg · Co-founder & CEO", "caption"),
-                    ),
+            group(
+                t("INVESTOR UPDATE · MAY 2026", "label"),
+                t("Cadence", "h1"),
+                t(
+                    "The billing engine for usage-based software. Another month of compounding — MRR up 16% to $248K, NRR holding at 124%, and Usage Studio now shipped to every customer.",
+                    "subtitle",
                 ),
-            },
+                t("Elena Vossberg · Co-founder & CEO", "caption"),
+            ),
             { background: bgImage("cadence-cover", 0.55) },
         ),
-        section("tldr", "full", {
-            a: cell(
-                callout(
-                    "success",
-                    group(
-                        t("TL;DR", "label"),
-                        bullets(
-                            "MRR grew 16% MoM to $248K (≈ $3.0M ARR)",
-                            "14 net-new logos — our best month yet — at 1.1% logo churn",
-                            "Shipped Usage Studio: real-time metering for every customer",
-                            "Runway extended to 21 months on improving gross margin",
-                            "The ask: warm intros to Series A leads and a VP Sales",
-                        ),
+        section(
+            "tldr",
+            callout(
+                "success",
+                group(
+                    t("TL;DR", "label"),
+                    bullets(
+                        "MRR grew 16% MoM to $248K (≈ $3.0M ARR)",
+                        "14 net-new logos — our best month yet — at 1.1% logo churn",
+                        "Shipped Usage Studio: real-time metering for every customer",
+                        "Runway extended to 21 months on improving gross margin",
+                        "The ask: warm intros to Series A leads and a VP Sales",
                     ),
                 ),
             ),
-        }),
-        section("headline", "three-up", {
-            a: cell(stat("$248K", "MRR · +16% MoM")),
-            b: cell(stat("124%", "Net revenue retention")),
-            c: cell(stat("21 mo", "Cash runway")),
-        }),
-        section("growth", "split-6040", {
-            a: cell(
+        ),
+        section(
+            "headline",
+            row(
+                stat("$248K", "MRR · +16% MoM"),
+                stat("124%", "Net revenue retention"),
+                stat("21 mo", "Cash runway"),
+            ),
+        ),
+        section(
+            "growth",
+            split(
+                60,
                 group(
                     t("Growth", "label"),
                     t("Six straight months of compounding.", "h2"),
@@ -296,75 +284,67 @@ export const investorUpdate: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-            ),
-            b: cell(
                 group(
                     chart("line", "131, 152, 171, 196, 214, 248", 240),
                     t("MRR, Dec 2025 – May 2026 ($K)", "caption"),
                 ),
             ),
-        }),
-        section("wins", "full", {
-            a: cell(
-                group(
-                    t("Wins this month", "label"),
-                    t("What went right.", "h2"),
-                    bullets(
-                        "Closed Northloop and Verge — our two largest contracts to date ($3.4K and $2.9K MRR)",
-                        "Shipped Usage Studio: live metering, anomaly alerts and revenue forecasting",
-                        "Completed SOC 2 Type II — unblocking three enterprise deals in the pipeline",
-                        "Hired Sofia Reyes as VP Engineering (ex-Stripe, ex-Plaid)",
-                        "Gross margin improved from 71% to 78% after the metering rewrite",
-                    ),
+        ),
+        section(
+            "wins",
+            group(
+                t("Wins this month", "label"),
+                t("What went right.", "h2"),
+                bullets(
+                    "Closed Northloop and Verge — our two largest contracts to date ($3.4K and $2.9K MRR)",
+                    "Shipped Usage Studio: live metering, anomaly alerts and revenue forecasting",
+                    "Completed SOC 2 Type II — unblocking three enterprise deals in the pipeline",
+                    "Hired Sofia Reyes as VP Engineering (ex-Stripe, ex-Plaid)",
+                    "Gross margin improved from 71% to 78% after the metering rewrite",
                 ),
             ),
-        }),
+        ),
         section(
             "voice",
-            "full",
-            {
-                a: cell(
-                    quote(
-                        "Cadence replaced three internal tools and a spreadsheet the whole team was afraid of. We closed the books four days faster.",
-                        "— Marisol Tan · VP Finance, Northloop",
-                    ),
-                ),
-            },
+            quote(
+                "Cadence replaced three internal tools and a spreadsheet the whole team was afraid of. We closed the books four days faster.",
+                "— Marisol Tan · VP Finance, Northloop",
+            ),
             { background: bgImage("cadence-dashboard-glow", 0.6) },
         ),
-        section("challenges", "full", {
-            a: cell(
-                group(
-                    t("Challenges & lowlights", "label"),
-                    t("What we’re watching.", "h2"),
+        section(
+            "challenges",
+            group(
+                t("Challenges & lowlights", "label"),
+                t("What we’re watching.", "h2"),
+                t(
+                    "Enterprise sales cycles are stretching — the SOC 2 deals are real but slow, averaging 71 days from first call to signature. We lost one SMB customer (Pinecrest, $2.1K MRR) to an in-house build, our first churn of that size. And a usage spike from two accounts pushed infra costs 22% over plan before we shipped autoscaling caps.",
+                    "body",
+                ),
+                callout(
+                    "caution",
                     t(
-                        "Enterprise sales cycles are stretching — the SOC 2 deals are real but slow, averaging 71 days from first call to signature. We lost one SMB customer (Pinecrest, $2.1K MRR) to an in-house build, our first churn of that size. And a usage spike from two accounts pushed infra costs 22% over plan before we shipped autoscaling caps.",
+                        "Senior backend hiring is our critical path. Two offers are out; if both land we’re staffed for the Q3 roadmap. If neither does, Usage Studio v2 slips a month.",
                         "body",
                     ),
-                    callout(
-                        "caution",
-                        t(
-                            "Senior backend hiring is our critical path. Two offers are out; if both land we’re staffed for the Q3 roadmap. If neither does, Usage Studio v2 slips a month.",
-                            "body",
-                        ),
-                    ),
                 ),
             ),
-        }),
-        section("metrics", "full", {
-            a: cell(
-                group(
-                    t("By the numbers", "label"),
-                    t("Key metrics.", "h2"),
-                    table(
-                        "Metric,April,May,Change\nMRR,$214K,$248K,+16%\nNet new logos,9,14,+5\nLogo churn,1.8%,1.1%,-0.7pt\nNRR,118%,124%,+6pt\nGross margin,71%,78%,+7pt\nCash runway,19 mo,21 mo,+2 mo",
-                    ),
+        ),
+        section(
+            "metrics",
+            group(
+                t("By the numbers", "label"),
+                t("Key metrics.", "h2"),
+                table(
+                    "Metric,April,May,Change\nMRR,$214K,$248K,+16%\nNet new logos,9,14,+5\nLogo churn,1.8%,1.1%,-0.7pt\nNRR,118%,124%,+6pt\nGross margin,71%,78%,+7pt\nCash runway,19 mo,21 mo,+2 mo",
                 ),
             ),
-        }),
-        section("product", "split-4060", {
-            a: cell(img("cadence-usage-studio", 1.2)),
-            b: cell(
+        ),
+        section(
+            "product",
+            split(
+                40,
+                img("cadence-usage-studio", 1.2),
                 group(
                     t("Product progress", "label"),
                     t("Usage Studio is live.", "h2"),
@@ -374,36 +354,30 @@ export const investorUpdate: ArtifactContent = doc(
                     ),
                 ),
             ),
-        }),
-        section("ask", "full", {
-            a: cell(
-                group(
-                    t("The ask", "label"),
-                    t("How you can help.", "h2"),
-                    bullets(
-                        "Intros to Series A leads in fintech infra or usage-based SaaS — we open the round in Q3",
-                        "Candidates for VP Sales — taking us from PLG into a sales-led enterprise motion",
-                        "Design partners in fintech and dev-tools with metered-billing pain",
-                        "Anyone wrestling with the limits of Stripe billing — send them our way",
-                    ),
-                    button("elena@cadence.dev"),
+        ),
+        section(
+            "ask",
+            group(
+                t("The ask", "label"),
+                t("How you can help.", "h2"),
+                bullets(
+                    "Intros to Series A leads in fintech infra or usage-based SaaS — we open the round in Q3",
+                    "Candidates for VP Sales — taking us from PLG into a sales-led enterprise motion",
+                    "Design partners in fintech and dev-tools with metered-billing pain",
+                    "Anyone wrestling with the limits of Stripe billing — send them our way",
                 ),
+                button("elena@cadence.dev"),
             ),
-        }),
+        ),
         section(
             "thanks",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t(
-                            "Thank you — for the intros, the candidates and the patience. Reply to this update anytime; I read and answer every one.",
-                            "subtitle",
-                        ),
-                        t("Elena Vossberg · Co-founder & CEO, Cadence · May 2026", "caption"),
-                    ),
+            group(
+                t(
+                    "Thank you — for the intros, the candidates and the patience. Reply to this update anytime; I read and answer every one.",
+                    "subtitle",
                 ),
-            },
+                t("Elena Vossberg · Co-founder & CEO, Cadence · May 2026", "caption"),
+            ),
             { background: bgImage("cadence-team-closing", 0.6) },
         ),
     ],
@@ -421,43 +395,39 @@ export const businessProposal: ArtifactContent = doc(
     [
         section(
             "cover",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("PROPOSAL · PREPARED FOR BRIGHTLINE MANUFACTURING", "label"),
-                        t("Power the plant with the roof you already own.", "h1"),
-                        t(
-                            "Cascade Solar & Energy on a 1.4-megawatt rooftop and carport solar system for the Brightline plant in Reno — engineered to cut energy spend 68% and pay for itself in under six years. Prepared for the Brightline leadership team, June 2026.",
-                            "subtitle",
-                        ),
-                        badge("CONFIDENTIAL · v1.2"),
-                    ),
+            group(
+                t("PROPOSAL · PREPARED FOR BRIGHTLINE MANUFACTURING", "label"),
+                t("Power the plant with the roof you already own.", "h1"),
+                t(
+                    "Cascade Solar & Energy on a 1.4-megawatt rooftop and carport solar system for the Brightline plant in Reno — engineered to cut energy spend 68% and pay for itself in under six years. Prepared for the Brightline leadership team, June 2026.",
+                    "subtitle",
                 ),
-            },
+                badge("CONFIDENTIAL · v1.2"),
+            ),
             { background: bgImage("brightline-solar-rooftop", 0.55) },
         ),
-        section("summary", "full", {
-            a: cell(
-                group(
-                    t("Executive summary", "label"),
-                    t("A 1.4-megawatt system that pays for itself.", "h2"),
+        section(
+            "summary",
+            group(
+                t("Executive summary", "label"),
+                t("A 1.4-megawatt system that pays for itself.", "h2"),
+                t(
+                    "Brightline spent $1.18M on electricity last year, and exposure to peak-demand charges is climbing. This proposal outlines a turnkey solar and storage system that offsets 68% of that load from day one, locks in your energy cost for 25 years, and qualifies for $1.9M in federal and state incentives. Cascade designs, permits, builds, and monitors the entire system — a single point of accountability from contract to commissioning.",
+                    "body",
+                ),
+                callout(
+                    "success",
                     t(
-                        "Brightline spent $1.18M on electricity last year, and exposure to peak-demand charges is climbing. This proposal outlines a turnkey solar and storage system that offsets 68% of that load from day one, locks in your energy cost for 25 years, and qualifies for $1.9M in federal and state incentives. Cascade designs, permits, builds, and monitors the entire system — a single point of accountability from contract to commissioning.",
+                        "Estimated 25-year net savings of $7.4M, with a 5.8-year payback and a 17% internal rate of return.",
                         "body",
-                    ),
-                    callout(
-                        "success",
-                        t(
-                            "Estimated 25-year net savings of $7.4M, with a 5.8-year payback and a 17% internal rate of return.",
-                            "body",
-                        ),
                     ),
                 ),
             ),
-        }),
-        section("needs", "split-6040", {
-            a: cell(
+        ),
+        section(
+            "needs",
+            split(
+                60,
                 group(
                     t("01 — Understanding your needs", "label"),
                     t("What we heard from your team.", "h2"),
@@ -469,11 +439,13 @@ export const businessProposal: ArtifactContent = doc(
                         "A financing structure that protects working capital",
                     ),
                 ),
+                img("brightline-plant-floor", 0.82),
             ),
-            b: cell(img("brightline-plant-floor", 0.82)),
-        }),
-        section("opportunity", "split-6040", {
-            a: cell(
+        ),
+        section(
+            "opportunity",
+            split(
+                60,
                 group(
                     t("02 — The opportunity", "label"),
                     t("Your energy cost is only going one way.", "h2"),
@@ -482,17 +454,17 @@ export const businessProposal: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-            ),
-            b: cell(
                 group(
                     chart("line", "1.18, 1.27, 1.36, 1.47, 1.58, 1.70", 240),
                     t("Projected utility spend without solar, 2026–2031 ($M)", "caption"),
                 ),
             ),
-        }),
-        section("solution", "split-4060", {
-            a: cell(img("brightline-solar-carport", 1.05)),
-            b: cell(
+        ),
+        section(
+            "solution",
+            split(
+                40,
+                img("brightline-solar-carport", 1.05),
                 group(
                     t("03 — Proposed solution", "label"),
                     t("Rooftop, carport, and storage — one integrated system.", "h2"),
@@ -504,9 +476,10 @@ export const businessProposal: ArtifactContent = doc(
                     ),
                 ),
             ),
-        }),
-        section("scope", "three-up", {
-            a: cell(
+        ),
+        section(
+            "scope",
+            row(
                 card(
                     t("Design & Engineering", "h3"),
                     bullets(
@@ -515,8 +488,6 @@ export const businessProposal: ArtifactContent = doc(
                         "Utility interconnection design",
                     ),
                 ),
-            ),
-            b: cell(
                 card(
                     t("Permitting & Build", "h3"),
                     bullets(
@@ -525,8 +496,6 @@ export const businessProposal: ArtifactContent = doc(
                         "Battery & switchgear integration",
                     ),
                 ),
-            ),
-            c: cell(
                 card(
                     t("Monitor & Maintain", "h3"),
                     bullets(
@@ -536,95 +505,86 @@ export const businessProposal: ArtifactContent = doc(
                     ),
                 ),
             ),
-        }),
-        section("timeline", "full", {
-            a: cell(
-                group(
-                    t("04 — Timeline", "label"),
-                    t("Twenty weeks, four phases, zero plant downtime.", "h2"),
-                    diagram("process", "Design, Permit, Install, Commission, Monitor", 180),
-                    bullets(
-                        "Weeks 1–4 · Engineering, production modeling and final design",
-                        "Weeks 5–9 · Permitting and utility interconnection approval",
-                        "Weeks 10–17 · Rooftop, carport and storage install — staged around your production calendar",
-                        "Weeks 18–20 · Commissioning, utility sign-off and dashboard handover",
-                    ),
+        ),
+        section(
+            "timeline",
+            group(
+                t("04 — Timeline", "label"),
+                t("Twenty weeks, four phases, zero plant downtime.", "h2"),
+                diagram("process", "Design, Permit, Install, Commission, Monitor", 180),
+                bullets(
+                    "Weeks 1–4 · Engineering, production modeling and final design",
+                    "Weeks 5–9 · Permitting and utility interconnection approval",
+                    "Weeks 10–17 · Rooftop, carport and storage install — staged around your production calendar",
+                    "Weeks 18–20 · Commissioning, utility sign-off and dashboard handover",
                 ),
             ),
-        }),
-        section("pricing", "full", {
-            a: cell(
-                group(
-                    t("05 — Pricing & terms", "label"),
-                    t("A transparent, fixed-price engagement.", "h2"),
-                    table(
-                        "Line item,Detail,Investment\nSolar array (1.4 MW),Panels racking and inverters,$2.34M\nSolar carport (420 kW),Structure and install,$0.61M\nBattery storage (600 kWh),Hardware and integration,$0.48M\nEngineering & permitting,Design permits and interconnect,$0.27M\nGross system cost,,$3.70M\nIncentives (30% ITC + state),Federal and Nevada credits,-$1.90M\nNet investment,After incentives,$1.80M",
-                    ),
-                    t(
-                        "Financing available: $0-down power purchase agreement at $0.071/kWh, or a cash purchase on the schedule above. 25-year workmanship and production warranty included.",
-                        "caption",
-                    ),
+        ),
+        section(
+            "pricing",
+            group(
+                t("05 — Pricing & terms", "label"),
+                t("A transparent, fixed-price engagement.", "h2"),
+                table(
+                    "Line item,Detail,Investment\nSolar array (1.4 MW),Panels racking and inverters,$2.34M\nSolar carport (420 kW),Structure and install,$0.61M\nBattery storage (600 kWh),Hardware and integration,$0.48M\nEngineering & permitting,Design permits and interconnect,$0.27M\nGross system cost,,$3.70M\nIncentives (30% ITC + state),Federal and Nevada credits,-$1.90M\nNet investment,After incentives,$1.80M",
+                ),
+                t(
+                    "Financing available: $0-down power purchase agreement at $0.071/kWh, or a cash purchase on the schedule above. 25-year workmanship and production warranty included.",
+                    "caption",
                 ),
             ),
-        }),
-        section("why-us", "three-up", {
-            a: cell(stat("142 MW", "Commercial solar installed")),
-            b: cell(stat("99.4%", "Average system uptime")),
-            c: cell(stat("5.8 yr", "Typical payback period")),
-        }),
+        ),
+        section(
+            "why-us",
+            row(
+                stat("142 MW", "Commercial solar installed"),
+                stat("99.4%", "Average system uptime"),
+                stat("5.8 yr", "Typical payback period"),
+            ),
+        ),
         section(
             "reference",
-            "full",
-            {
-                a: cell(
-                    quote(
-                        "Cascade ran the whole project around our production schedule — we never lost an hour on the line, and our power bill dropped 71% the first month it switched on.",
-                        "— Renata Pho · Director of Operations, Sierra Foods",
-                    ),
-                ),
-            },
+            quote(
+                "Cascade ran the whole project around our production schedule — we never lost an hour on the line, and our power bill dropped 71% the first month it switched on.",
+                "— Renata Pho · Director of Operations, Sierra Foods",
+            ),
             { background: bgImage("cascade-install-crew", 0.6) },
         ),
-        section("team", "three-up", {
-            a: cell(
+        section(
+            "team",
+            row(
                 group(
                     img("cascade-team-marcus", 1),
                     t("Marcus Bell", "h3"),
                     t("Lead Project Engineer", "caption"),
                 ),
-            ),
-            b: cell(
                 group(
                     img("cascade-team-yuki", 1),
                     t("Yuki Tanaka", "h3"),
                     t("Energy Modeling & Finance", "caption"),
                 ),
-            ),
-            c: cell(
                 group(
                     img("cascade-team-darnell", 1),
                     t("Darnell Cruz", "h3"),
                     t("Construction Manager", "caption"),
                 ),
             ),
-        }),
+        ),
         section(
             "accept",
-            "split-6040",
-            {
-                a: cell(
-                    group(
-                        t("06 — Acceptance & next steps", "label"),
-                        t("Let’s lock in your rate for the next 25 years.", "h2"),
-                        t(
-                            "To proceed, countersign below and we’ll schedule a site survey within ten business days and hold a Q3 installation slot. This proposal and pricing are valid for 45 days.",
-                            "subtitle",
-                        ),
-                        button("Approve & schedule site survey"),
+            split(
+                60,
+                group(
+                    t("06 — Acceptance & next steps", "label"),
+                    t("Let’s lock in your rate for the next 25 years.", "h2"),
+                    t(
+                        "To proceed, countersign below and we’ll schedule a site survey within ten business days and hold a Q3 installation slot. This proposal and pricing are valid for 45 days.",
+                        "subtitle",
                     ),
+                    button("Approve & schedule site survey"),
                 ),
-                b: empty,
-            },
+                emptyRegion(),
+            ),
             { background: bgImage("brightline-solar-sunset", 0.58) },
         ),
     ],
@@ -641,47 +601,46 @@ export const boardDeck: ArtifactContent = deck(
     [
         section(
             "cover",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("BOARD MEETING · Q2 FY2026", "label"),
-                        t("Tideline", "h1"),
-                        t(
-                            "Product analytics for teams that ship daily. A strong quarter: ARR up 19% to $6.2M, NRR holding at 121%, and the Signals launch already live in 38% of accounts. Prepared for the board, June 2026.",
-                            "subtitle",
-                        ),
-                        t("Priya Anand · Co-founder & CEO", "caption"),
-                    ),
+            group(
+                t("BOARD MEETING · Q2 FY2026", "label"),
+                t("Tideline", "h1"),
+                t(
+                    "Product analytics for teams that ship daily. A strong quarter: ARR up 19% to $6.2M, NRR holding at 121%, and the Signals launch already live in 38% of accounts. Prepared for the board, June 2026.",
+                    "subtitle",
                 ),
-            },
+                t("Priya Anand · Co-founder & CEO", "caption"),
+            ),
             { background: bgImage("tideline-board-cover", 0.55) },
         ),
-        section("agenda", "full", {
-            a: cell(
-                group(
-                    t("Agenda", "label"),
-                    t("What we’ll cover today.", "h2"),
-                    bullets(
-                        "The quarter at a glance — KPIs vs. plan",
-                        "Financials — revenue, burn and runway",
-                        "Growth & funnel — pipeline and conversion",
-                        "Product & ops — what shipped, what’s next",
-                        "Team & hiring — org and key roles",
-                        "Risks & mitigations",
-                        "Priorities for Q3",
-                        "Open discussion",
-                    ),
+        section(
+            "agenda",
+            group(
+                t("Agenda", "label"),
+                t("What we’ll cover today.", "h2"),
+                bullets(
+                    "The quarter at a glance — KPIs vs. plan",
+                    "Financials — revenue, burn and runway",
+                    "Growth & funnel — pipeline and conversion",
+                    "Product & ops — what shipped, what’s next",
+                    "Team & hiring — org and key roles",
+                    "Risks & mitigations",
+                    "Priorities for Q3",
+                    "Open discussion",
                 ),
             ),
-        }),
-        section("glance", "three-up", {
-            a: cell(stat("$6.2M", "ARR · +19% QoQ")),
-            b: cell(stat("121%", "Net revenue retention")),
-            c: cell(stat("16 mo", "Cash runway")),
-        }),
-        section("financials-rev", "split-6040", {
-            a: cell(
+        ),
+        section(
+            "glance",
+            row(
+                stat("$6.2M", "ARR · +19% QoQ"),
+                stat("121%", "Net revenue retention"),
+                stat("16 mo", "Cash runway"),
+            ),
+        ),
+        section(
+            "financials-rev",
+            split(
+                60,
                 group(
                     t("01 — Financials", "label"),
                     t("Six quarters of compounding growth.", "h2"),
@@ -690,27 +649,26 @@ export const boardDeck: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-            ),
-            b: cell(
                 group(
                     chart("line", "2.9, 3.4, 4.0, 4.6, 5.2, 6.2", 240),
                     t("ARR by quarter, Q1 FY25 – Q2 FY26 ($M)", "caption"),
                 ),
             ),
-        }),
-        section("financials-table", "full", {
-            a: cell(
-                group(
-                    t("01 — Financials", "label"),
-                    t("The numbers vs. plan.", "h2"),
-                    table(
-                        "Metric,Q1,Q2,Plan,vs. Plan\nARR,$5.2M,$6.2M,$5.8M,+7%\nNet new ARR,$0.6M,$1.0M,$0.8M,+25%\nNRR,118%,121%,118%,+3pt\nGross margin,79%,81%,80%,+1pt\nNet burn,$0.34M,$0.31M,$0.38M,better\nCash runway,15 mo,16 mo,13 mo,+3 mo",
-                    ),
+        ),
+        section(
+            "financials-table",
+            group(
+                t("01 — Financials", "label"),
+                t("The numbers vs. plan.", "h2"),
+                table(
+                    "Metric,Q1,Q2,Plan,vs. Plan\nARR,$5.2M,$6.2M,$5.8M,+7%\nNet new ARR,$0.6M,$1.0M,$0.8M,+25%\nNRR,118%,121%,118%,+3pt\nGross margin,79%,81%,80%,+1pt\nNet burn,$0.34M,$0.31M,$0.38M,better\nCash runway,15 mo,16 mo,13 mo,+3 mo",
                 ),
             ),
-        }),
-        section("funnel", "split-4060", {
-            a: cell(
+        ),
+        section(
+            "funnel",
+            split(
+                40,
                 group(
                     t("02 — Growth & funnel", "label"),
                     t("The funnel is tightening.", "h2"),
@@ -719,18 +677,18 @@ export const boardDeck: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-            ),
-            b: cell(
                 diagram(
                     "funnel",
                     "12.4K signups, 7.8K activated, 1.9K trials, 540 closed-won",
                     240,
                 ),
             ),
-        }),
-        section("product", "split-4060", {
-            a: cell(img("tideline-signals-dashboard", 1.2)),
-            b: cell(
+        ),
+        section(
+            "product",
+            split(
+                40,
+                img("tideline-signals-dashboard", 1.2),
                 group(
                     t("03 — Product & ops", "label"),
                     t("Signals shipped — and it’s landing.", "h2"),
@@ -742,9 +700,11 @@ export const boardDeck: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
-        section("team", "split-6040", {
-            a: cell(
+        ),
+        section(
+            "team",
+            split(
+                60,
                 group(
                     t("04 — Team & hiring", "label"),
                     t("Scaling the org behind the growth.", "h2"),
@@ -753,26 +713,20 @@ export const boardDeck: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-            ),
-            b: cell(
                 group(chart("bar", "38, 41, 44, 49", 240), t("Headcount by quarter", "caption")),
             ),
-        }),
+        ),
         section(
             "voice",
-            "full",
-            {
-                a: cell(
-                    quote(
-                        "Tideline is the first analytics tool our PMs actually open every morning. Signals caught a checkout regression before our on-call did.",
-                        "— Theo Marsh · Head of Product, Loop Commerce",
-                    ),
-                ),
-            },
+            quote(
+                "Tideline is the first analytics tool our PMs actually open every morning. Signals caught a checkout regression before our on-call did.",
+                "— Theo Marsh · Head of Product, Loop Commerce",
+            ),
             { background: bgImage("tideline-customer-team", 0.6) },
         ),
-        section("risks", "two-col", {
-            a: cell(
+        section(
+            "risks",
+            row(
                 callout(
                     "caution",
                     group(
@@ -783,8 +737,6 @@ export const boardDeck: ArtifactContent = deck(
                         ),
                     ),
                 ),
-            ),
-            b: cell(
                 callout(
                     "warn",
                     group(
@@ -796,9 +748,10 @@ export const boardDeck: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
-        section("priorities", "three-up", {
-            a: cell(
+        ),
+        section(
+            "priorities",
+            row(
                 card(
                     t("Close the Series B", "h3"),
                     bullets(
@@ -807,8 +760,6 @@ export const boardDeck: ArtifactContent = deck(
                         "Two term sheets as the goal",
                     ),
                 ),
-            ),
-            b: cell(
                 card(
                     t("Ship Signals v2", "h3"),
                     bullets(
@@ -817,8 +768,6 @@ export const boardDeck: ArtifactContent = deck(
                         "Forecasting on any metric",
                     ),
                 ),
-            ),
-            c: cell(
                 card(
                     t("Build the sales engine", "h3"),
                     bullets(
@@ -828,25 +777,20 @@ export const boardDeck: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
+        ),
         section(
             "discussion",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("05 — Discussion", "label"),
-                        t("Where we’d value the board’s input.", "h2"),
-                        bullets(
-                            "Series B timing and the target investor list",
-                            "The right pace of sales hiring vs. burn",
-                            "Whether to accelerate the mid-market motion",
-                            "Intros to VP Sales candidates and design partners",
-                        ),
-                        button("Open discussion"),
-                    ),
+            group(
+                t("05 — Discussion", "label"),
+                t("Where we’d value the board’s input.", "h2"),
+                bullets(
+                    "Series B timing and the target investor list",
+                    "The right pace of sales hiring vs. burn",
+                    "Whether to accelerate the mid-market motion",
+                    "Intros to VP Sales candidates and design partners",
                 ),
-            },
+                button("Open discussion"),
+            ),
             { background: bgImage("tideline-board-closing", 0.6) },
         ),
     ],
@@ -865,26 +809,23 @@ export const sponsorshipDeck: ArtifactContent = deck(
         // ── Cover ────────────────────────────────────────────────────────────
         section(
             "cover",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("HARBORLIGHT FESTIVAL 2026 · SPONSORSHIP PROSPECTUS", "label"),
-                        t("Three days on the water. One unforgettable summer.", "h1"),
-                        t(
-                            "Harborlight is Oakhaven’s flagship waterfront festival — three days of live music, regional food, and public art on the working piers. We’re inviting a small circle of partners to help us build the 2026 edition, and to reach the 65,000 people who’ll spend a long weekend with us.",
-                            "subtitle",
-                        ),
-                        badge("AUG 14–16, 2026 · PIER 9, OAKHAVEN"),
-                    ),
+            group(
+                t("HARBORLIGHT FESTIVAL 2026 · SPONSORSHIP PROSPECTUS", "label"),
+                t("Three days on the water. One unforgettable summer.", "h1"),
+                t(
+                    "Harborlight is Oakhaven’s flagship waterfront festival — three days of live music, regional food, and public art on the working piers. We’re inviting a small circle of partners to help us build the 2026 edition, and to reach the 65,000 people who’ll spend a long weekend with us.",
+                    "subtitle",
                 ),
-            },
+                badge("AUG 14–16, 2026 · PIER 9, OAKHAVEN"),
+            ),
             { background: bgImage("harborlight-pier-sunset-crowd", 0.55) },
         ),
 
         // ── The property ─────────────────────────────────────────────────────
-        section("property", "split-6040", {
-            a: cell(
+        section(
+            "property",
+            split(
+                60,
                 group(
                     t("THE PROPERTY", "label"),
                     t("A festival the whole region plans its summer around.", "h2"),
@@ -897,25 +838,28 @@ export const sponsorshipDeck: ArtifactContent = deck(
                         "body",
                     ),
                 ),
+                img("harborlight-main-stage-dusk", 0.82),
             ),
-            b: cell(img("harborlight-main-stage-dusk", 0.82)),
-        }),
+        ),
 
         // ── Our audience ─────────────────────────────────────────────────────
-        section("audience", "three-up", {
-            a: cell(
+        section(
+            "audience",
+            row(
                 group(
                     t("OUR AUDIENCE", "label"),
                     stat("65K", "attendees across the three-day weekend"),
                 ),
+                stat("68%", "aged 21–44, the hard-to-reach experiential spender"),
+                stat("$120", "average per-person spend on-site, beyond the ticket"),
             ),
-            b: cell(stat("68%", "aged 21–44, the hard-to-reach experiential spender")),
-            c: cell(stat("$120", "average per-person spend on-site, beyond the ticket")),
-        }),
+        ),
 
         // ── Reach & engagement ───────────────────────────────────────────────
-        section("reach", "split-4060", {
-            a: cell(
+        section(
+            "reach",
+            split(
+                40,
                 group(
                     chart("bar", "18, 27, 38, 52, 65", 240),
                     t(
@@ -923,8 +867,6 @@ export const sponsorshipDeck: ArtifactContent = deck(
                         "caption",
                     ),
                 ),
-            ),
-            b: cell(
                 group(
                     t("REACH & ENGAGEMENT", "label"),
                     t("The crowd is only half the story.", "h2"),
@@ -939,31 +881,27 @@ export const sponsorshipDeck: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // ── Why partner with us ──────────────────────────────────────────────
         section(
             "why",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("WHY PARTNER WITH US", "label"),
-                        t("A weekend of goodwill you can’t buy in a feed.", "h2"),
-                        t(
-                            "People arrive at Harborlight relaxed, generous, and ready to discover. That’s a context most marketing never gets near. Our partners don’t interrupt the experience — they make it better: shade and water on a hot pier, the charging lockers that save a night, the ferry that gets everyone home. Sponsorship here reads as hosting, not advertising, and the audience remembers who hosted them.",
-                            "body",
-                        ),
-                        button("Talk to our partnerships team"),
-                    ),
+            group(
+                t("WHY PARTNER WITH US", "label"),
+                t("A weekend of goodwill you can’t buy in a feed.", "h2"),
+                t(
+                    "People arrive at Harborlight relaxed, generous, and ready to discover. That’s a context most marketing never gets near. Our partners don’t interrupt the experience — they make it better: shade and water on a hot pier, the charging lockers that save a night, the ferry that gets everyone home. Sponsorship here reads as hosting, not advertising, and the audience remembers who hosted them.",
+                    "body",
                 ),
-            },
+                button("Talk to our partnerships team"),
+            ),
             { background: bgImage("harborlight-crowd-golden-hour", 0.6) },
         ),
 
         // ── On-site activations ──────────────────────────────────────────────
-        section("activations", "three-up", {
-            a: cell(
+        section(
+            "activations",
+            row(
                 card(
                     img("harborlight-brand-lounge", 1.4),
                     t("Branded lounges", "h3"),
@@ -972,8 +910,6 @@ export const sponsorshipDeck: ArtifactContent = deck(
                         "caption",
                     ),
                 ),
-            ),
-            b: cell(
                 card(
                     img("harborlight-sampling-booth", 1.4),
                     t("Sampling & retail", "h3"),
@@ -982,8 +918,6 @@ export const sponsorshipDeck: ArtifactContent = deck(
                         "caption",
                     ),
                 ),
-            ),
-            c: cell(
                 card(
                     img("harborlight-stage-naming", 1.4),
                     t("Stage & moment naming", "h3"),
@@ -993,28 +927,29 @@ export const sponsorshipDeck: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // ── Sponsorship tiers ────────────────────────────────────────────────
-        section("tiers", "full", {
-            a: cell(
-                group(
-                    t("SPONSORSHIP TIERS", "label"),
-                    t("Four ways in. One conversation to find your fit.", "h2"),
-                    table(
-                        "Tier,Investment,Availability,Headline benefit\nPresenting,$120K,1 partner,“Harborlight presented by” lockup across all assets\nStage,$60K,4 partners,Naming rights to a named stage + on-stage moments\nMarket,$28K,8 partners,Premium activation footprint in the food & art market\nCommunity,$9K,12 partners,Logo placement, tickets & a sampling table",
-                    ),
-                    t(
-                        "Every tier is a starting point — we build the activation around your goals, not a fixed menu.",
-                        "caption",
-                    ),
+        section(
+            "tiers",
+            group(
+                t("SPONSORSHIP TIERS", "label"),
+                t("Four ways in. One conversation to find your fit.", "h2"),
+                table(
+                    "Tier,Investment,Availability,Headline benefit\nPresenting,$120K,1 partner,“Harborlight presented by” lockup across all assets\nStage,$60K,4 partners,Naming rights to a named stage + on-stage moments\nMarket,$28K,8 partners,Premium activation footprint in the food & art market\nCommunity,$9K,12 partners,Logo placement, tickets & a sampling table",
+                ),
+                t(
+                    "Every tier is a starting point — we build the activation around your goals, not a fixed menu.",
+                    "caption",
                 ),
             ),
-        }),
+        ),
 
         // ── What sponsors get ────────────────────────────────────────────────
-        section("benefits", "split-6040", {
-            a: cell(
+        section(
+            "benefits",
+            split(
+                60,
                 group(
                     t("WHAT SPONSORS GET", "label"),
                     t("Reach, hospitality, and a story worth telling.", "h2"),
@@ -1026,8 +961,6 @@ export const sponsorshipDeck: ArtifactContent = deck(
                         "Full post-event reporting: footfall, dwell time, sampling and social lift",
                     ),
                 ),
-            ),
-            b: cell(
                 group(
                     img("harborlight-vip-deck-evening", 0.78),
                     t(
@@ -1036,39 +969,37 @@ export const sponsorshipDeck: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // ── Past partners & results ──────────────────────────────────────────
-        section("results", "three-up", {
-            a: cell(
+        section(
+            "results",
+            row(
                 group(
                     t("PAST PARTNERS & RESULTS", "label"),
                     stat("3.1M", "branded impressions delivered for our 2025 presenting partner"),
                 ),
+                stat("42K", "product samples handed out across the weekend"),
+                stat("94%", "of 2025 partners renewed or upgraded for 2026"),
             ),
-            b: cell(stat("42K", "product samples handed out across the weekend")),
-            c: cell(stat("94%", "of 2025 partners renewed or upgraded for 2026")),
-        }),
+        ),
 
         // ── Partner quote (feature background) ────────────────────────────────
         section(
             "quote",
-            "full",
-            {
-                a: cell(
-                    quote(
-                        "Harborlight is the only sponsorship on our calendar where the audience thanks us for being there. We didn’t buy attention — we earned a weekend of it.",
-                        "Priya Anand · VP Brand, Northwater Seltzer · Presenting Partner 2024–25",
-                    ),
-                ),
-            },
+            quote(
+                "Harborlight is the only sponsorship on our calendar where the audience thanks us for being there. We didn’t buy attention — we earned a weekend of it.",
+                "Priya Anand · VP Brand, Northwater Seltzer · Presenting Partner 2024–25",
+            ),
             { background: bgImage("harborlight-fireworks-harbor", 0.62) },
         ),
 
         // ── The ask / next steps ─────────────────────────────────────────────
-        section("ask", "split-4060", {
-            a: cell(img("harborlight-aerial-pier-map", 1.05)),
-            b: cell(
+        section(
+            "ask",
+            split(
+                40,
+                img("harborlight-aerial-pier-map", 1.05),
                 group(
                     t("THE ASK", "label"),
                     t("Let’s build your 2026 weekend.", "h2"),
@@ -1079,7 +1010,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                     button("partners@harborlightfest.org"),
                 ),
             ),
-        }),
+        ),
     ],
     bgImage("harborlight-bg-water-texture", 0.32),
 );
@@ -1096,29 +1027,26 @@ export const sow: ArtifactContent = doc(
         // ── Cover ────────────────────────────────────────────────────────────
         section(
             "cover",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("STATEMENT OF WORK · SOW-2026-014", "label"),
-                        t("Commerce Replatform & Returns Portal", "h1"),
-                        t(
-                            "Prepared by Anvil & Oak Studio for Wexford Outdoor Co. This Statement of Work defines the scope, deliverables, timeline, and commercial terms for a twelve-week engagement to replatform wexfordoutdoor.com and ship a self-service returns experience.",
-                            "subtitle",
-                        ),
-                        t(
-                            "Effective: July 6, 2026 · Master Services Agreement dated March 2, 2026",
-                            "caption",
-                        ),
-                    ),
+            group(
+                t("STATEMENT OF WORK · SOW-2026-014", "label"),
+                t("Commerce Replatform & Returns Portal", "h1"),
+                t(
+                    "Prepared by Anvil & Oak Studio for Wexford Outdoor Co. This Statement of Work defines the scope, deliverables, timeline, and commercial terms for a twelve-week engagement to replatform wexfordoutdoor.com and ship a self-service returns experience.",
+                    "subtitle",
                 ),
-            },
+                t(
+                    "Effective: July 6, 2026 · Master Services Agreement dated March 2, 2026",
+                    "caption",
+                ),
+            ),
             { background: bgImage("sow-blueprint-desk-laptop", 0.55) },
         ),
 
         // ── Project overview ─────────────────────────────────────────────────
-        section("overview", "split-6040", {
-            a: cell(
+        section(
+            "overview",
+            split(
+                60,
                 group(
                     t("1 · PROJECT OVERVIEW", "label"),
                     t("Replatform the storefront, and stop returns from leaking revenue.", "h2"),
@@ -1131,45 +1059,47 @@ export const sow: ArtifactContent = doc(
                         "body",
                     ),
                 ),
+                img("sow-storefront-mockups", 0.82),
             ),
-            b: cell(img("sow-storefront-mockups", 0.82)),
-        }),
+        ),
 
         // ── Objectives ───────────────────────────────────────────────────────
-        section("objectives", "full", {
-            a: cell(
-                group(
-                    t("2 · OBJECTIVES", "label"),
-                    t("What success looks like.", "h2"),
-                    t(
-                        "The engagement is considered successful when the following business outcomes are met within ninety days of launch:",
-                        "body",
-                    ),
-                    bullets(
-                        "Reduce storefront median page load to under 1.5s on 4G, measured by Core Web Vitals",
-                        "Cut return-handling support time by 60% through self-service automation",
-                        "Increase exchange-over-refund rate to 35%, retaining revenue inside the brand",
-                        "Support a 4× traffic spike during the autumn sale with no manual scaling",
-                    ),
+        section(
+            "objectives",
+            group(
+                t("2 · OBJECTIVES", "label"),
+                t("What success looks like.", "h2"),
+                t(
+                    "The engagement is considered successful when the following business outcomes are met within ninety days of launch:",
+                    "body",
+                ),
+                bullets(
+                    "Reduce storefront median page load to under 1.5s on 4G, measured by Core Web Vitals",
+                    "Cut return-handling support time by 60% through self-service automation",
+                    "Increase exchange-over-refund rate to 35%, retaining revenue inside the brand",
+                    "Support a 4× traffic spike during the autumn sale with no manual scaling",
                 ),
             ),
-        }),
+        ),
 
         // ── Engagement at a glance ───────────────────────────────────────────
-        section("at-a-glance", "three-up", {
-            a: cell(
+        section(
+            "at-a-glance",
+            row(
                 group(
                     t("AT A GLANCE", "label"),
                     stat("12 wks", "engagement, kickoff to production launch"),
                 ),
+                stat("5", "named deliverables across two workstreams"),
+                stat("$186K", "fixed fee, billed against five milestones"),
             ),
-            b: cell(stat("5", "named deliverables across two workstreams")),
-            c: cell(stat("$186K", "fixed fee, billed against five milestones")),
-        }),
+        ),
 
         // ── Our approach ─────────────────────────────────────────────────────
-        section("approach", "split-4060", {
-            a: cell(
+        section(
+            "approach",
+            split(
+                40,
                 group(
                     img("sow-team-whiteboard-planning", 1.05),
                     t(
@@ -1177,8 +1107,6 @@ export const sow: ArtifactContent = doc(
                         "caption",
                     ),
                 ),
-            ),
-            b: cell(
                 group(
                     t("3 · OUR APPROACH", "label"),
                     t("Five phases, weekly demos, no surprises.", "h2"),
@@ -1189,30 +1117,31 @@ export const sow: ArtifactContent = doc(
                     diagram("process", "Discovery, Design, Build, QA & UAT, Launch", 180),
                 ),
             ),
-        }),
+        ),
 
         // ── Scope of work ────────────────────────────────────────────────────
-        section("scope", "full", {
-            a: cell(
-                group(
-                    t("4 · SCOPE OF WORK", "label"),
-                    t("In scope.", "h2"),
-                    t("Anvil & Oak will design, build, and deliver the following:", "body"),
-                    bullets(
-                        "A headless storefront (Next.js) consuming Shopify’s Storefront API, with ISR and edge caching",
-                        "Responsive design system covering 18 templates: home, collection, product, cart, and account",
-                        "A self-service returns & exchange portal with policy rules, label generation, and status tracking",
-                        "Integrations with the existing OMS, ShipStation, and the Klaviyo marketing stack",
-                        "Analytics instrumentation, a staging environment, and CI/CD on the client’s Vercel account",
-                        "Content migration of the existing catalog, redirects, and SEO metadata",
-                    ),
+        section(
+            "scope",
+            group(
+                t("4 · SCOPE OF WORK", "label"),
+                t("In scope.", "h2"),
+                t("Anvil & Oak will design, build, and deliver the following:", "body"),
+                bullets(
+                    "A headless storefront (Next.js) consuming Shopify’s Storefront API, with ISR and edge caching",
+                    "Responsive design system covering 18 templates: home, collection, product, cart, and account",
+                    "A self-service returns & exchange portal with policy rules, label generation, and status tracking",
+                    "Integrations with the existing OMS, ShipStation, and the Klaviyo marketing stack",
+                    "Analytics instrumentation, a staging environment, and CI/CD on the client’s Vercel account",
+                    "Content migration of the existing catalog, redirects, and SEO metadata",
                 ),
             ),
-        }),
+        ),
 
         // ── Out of scope ─────────────────────────────────────────────────────
-        section("out-of-scope", "split-6040", {
-            a: cell(
+        section(
+            "out-of-scope",
+            split(
+                60,
                 callout(
                     "warn",
                     group(
@@ -1230,116 +1159,110 @@ export const sow: ArtifactContent = doc(
                         ),
                     ),
                 ),
+                img("sow-checklist-documents", 0.78),
             ),
-            b: cell(img("sow-checklist-documents", 0.78)),
-        }),
+        ),
 
         // ── Deliverables ─────────────────────────────────────────────────────
-        section("deliverables", "full", {
-            a: cell(
-                group(
-                    t("6 · DELIVERABLES", "label"),
-                    t("What you receive, and when.", "h2"),
-                    table(
-                        "Deliverable,Description,Format,Due\nD1 · Discovery brief,Technical audit, scope lock & architecture diagram,PDF + Figma,Week 2\nD2 · Design system,Component library & 18 responsive templates,Figma,Week 4\nD3 · Storefront,Production-ready headless build with CI/CD,Git repo + staging,Week 9\nD4 · Returns portal,Self-service returns & exchange flow,Git repo + staging,Week 10\nD5 · Launch package,Cutover plan, runbook & analytics dashboards,PDF + Looker,Week 12",
-                    ),
+        section(
+            "deliverables",
+            group(
+                t("6 · DELIVERABLES", "label"),
+                t("What you receive, and when.", "h2"),
+                table(
+                    "Deliverable,Description,Format,Due\nD1 · Discovery brief,Technical audit, scope lock & architecture diagram,PDF + Figma,Week 2\nD2 · Design system,Component library & 18 responsive templates,Figma,Week 4\nD3 · Storefront,Production-ready headless build with CI/CD,Git repo + staging,Week 9\nD4 · Returns portal,Self-service returns & exchange flow,Git repo + staging,Week 10\nD5 · Launch package,Cutover plan, runbook & analytics dashboards,PDF + Looker,Week 12",
                 ),
             ),
-        }),
+        ),
 
         // ── Timeline & milestones ────────────────────────────────────────────
-        section("timeline", "full", {
-            a: cell(
-                group(
-                    t("7 · TIMELINE & MILESTONES", "label"),
-                    t("A twelve-week path to launch.", "h2"),
-                    diagram(
-                        "process",
-                        "Wk 1–2 Discovery, Wk 3–4 Design, Wk 5–9 Build, Wk 10–11 QA & UAT, Wk 12 Launch",
-                        200,
-                    ),
-                    t(
-                        "Milestone acceptance is due within five business days of delivery; absent written objection, a deliverable is deemed accepted.",
-                        "caption",
-                    ),
+        section(
+            "timeline",
+            group(
+                t("7 · TIMELINE & MILESTONES", "label"),
+                t("A twelve-week path to launch.", "h2"),
+                diagram(
+                    "process",
+                    "Wk 1–2 Discovery, Wk 3–4 Design, Wk 5–9 Build, Wk 10–11 QA & UAT, Wk 12 Launch",
+                    200,
+                ),
+                t(
+                    "Milestone acceptance is due within five business days of delivery; absent written objection, a deliverable is deemed accepted.",
+                    "caption",
                 ),
             ),
-        }),
+        ),
 
         // ── Roles & responsibilities ─────────────────────────────────────────
-        section("roles", "full", {
-            a: cell(
-                group(
-                    t("8 · ROLES & RESPONSIBILITIES", "label"),
-                    t("Who owns what.", "h2"),
-                    table(
-                        "Role,Name,Responsibility,Party\nEngagement lead,Dana Okonkwo,Scope, schedule & weekly status,Anvil & Oak\nTech lead,Marcus Vey,Architecture & code review,Anvil & Oak\nProduct designer,Lena Sørensen,Design system & UX,Anvil & Oak\nProduct owner,Tom Bryce,Decisions, approvals & content,Wexford\nIT liaison,Sara Whitlock,System access & integrations,Wexford",
-                    ),
-                    t(
-                        "Wexford will provide environment access and consolidated feedback within two business days of each request.",
-                        "caption",
-                    ),
+        section(
+            "roles",
+            group(
+                t("8 · ROLES & RESPONSIBILITIES", "label"),
+                t("Who owns what.", "h2"),
+                table(
+                    "Role,Name,Responsibility,Party\nEngagement lead,Dana Okonkwo,Scope, schedule & weekly status,Anvil & Oak\nTech lead,Marcus Vey,Architecture & code review,Anvil & Oak\nProduct designer,Lena Sørensen,Design system & UX,Anvil & Oak\nProduct owner,Tom Bryce,Decisions, approvals & content,Wexford\nIT liaison,Sara Whitlock,System access & integrations,Wexford",
+                ),
+                t(
+                    "Wexford will provide environment access and consolidated feedback within two business days of each request.",
+                    "caption",
                 ),
             ),
-        }),
+        ),
 
         // ── Pricing & payment terms ──────────────────────────────────────────
-        section("pricing", "full", {
-            a: cell(
-                group(
-                    t("9 · PRICING & PAYMENT TERMS", "label"),
-                    t("Fixed fee, billed against milestones.", "h2"),
-                    table(
-                        "Milestone,Trigger,Amount,Payment terms\nM1 · Kickoff,SOW execution,$37,200,Due on signing\nM2 · Design accepted,D2 sign-off,$46,500,Net 15\nM3 · Build complete,D3 sign-off,$55,800,Net 15\nM4 · UAT passed,D4 sign-off,$28,000,Net 15\nM5 · Launch,Production cutover,$18,500,Net 15\nTotal,,$186,000,",
-                    ),
-                    t(
-                        "Fees are fixed for the scope above. Approved change orders are billed at a blended rate of $215/hour.",
-                        "caption",
-                    ),
+        section(
+            "pricing",
+            group(
+                t("9 · PRICING & PAYMENT TERMS", "label"),
+                t("Fixed fee, billed against milestones.", "h2"),
+                table(
+                    "Milestone,Trigger,Amount,Payment terms\nM1 · Kickoff,SOW execution,$37,200,Due on signing\nM2 · Design accepted,D2 sign-off,$46,500,Net 15\nM3 · Build complete,D3 sign-off,$55,800,Net 15\nM4 · UAT passed,D4 sign-off,$28,000,Net 15\nM5 · Launch,Production cutover,$18,500,Net 15\nTotal,,$186,000,",
+                ),
+                t(
+                    "Fees are fixed for the scope above. Approved change orders are billed at a blended rate of $215/hour.",
+                    "caption",
                 ),
             ),
-        }),
+        ),
 
         // ── Assumptions ──────────────────────────────────────────────────────
-        section("assumptions", "full", {
-            a: cell(
-                group(
-                    t("10 · ASSUMPTIONS & DEPENDENCIES", "label"),
-                    t("What this plan relies on.", "h2"),
-                    callout(
-                        "info",
-                        t(
-                            "The timeline and fee in this SOW assume the conditions below hold. A material change to any of them may trigger a written change order adjusting scope, schedule, or cost.",
-                            "body",
-                        ),
-                    ),
-                    bullets(
-                        "Wexford’s Shopify Plus plan and existing API credentials remain available throughout",
-                        "Product, pricing, and inventory data are supplied in a clean, agreed export format by Week 2",
-                        "A single product owner is empowered to give binding approvals within the agreed SLAs",
-                        "Third-party services (ShipStation, Klaviyo, OMS) expose stable, documented APIs",
-                    ),
-                ),
-            ),
-        }),
-
-        // ── Acceptance / signatures ──────────────────────────────────────────
-        section("acceptance", "full", {
-            a: cell(
-                group(
-                    t("11 · ACCEPTANCE", "label"),
-                    t("Authorization to proceed.", "h2"),
+        section(
+            "assumptions",
+            group(
+                t("10 · ASSUMPTIONS & DEPENDENCIES", "label"),
+                t("What this plan relies on.", "h2"),
+                callout(
+                    "info",
                     t(
-                        "By signing below, the parties agree to the scope, deliverables, timeline, and commercial terms set out in this Statement of Work, governed by the Master Services Agreement dated March 2, 2026.",
+                        "The timeline and fee in this SOW assume the conditions below hold. A material change to any of them may trigger a written change order adjusting scope, schedule, or cost.",
                         "body",
                     ),
-                    table(
-                        "Party,Signatory,Title,Date\nAnvil & Oak Studio,Dana Okonkwo,Principal,_______________\nWexford Outdoor Co.,Tom Bryce,VP Digital,_______________",
-                    ),
-                    button("Sign & return this SOW"),
+                ),
+                bullets(
+                    "Wexford’s Shopify Plus plan and existing API credentials remain available throughout",
+                    "Product, pricing, and inventory data are supplied in a clean, agreed export format by Week 2",
+                    "A single product owner is empowered to give binding approvals within the agreed SLAs",
+                    "Third-party services (ShipStation, Klaviyo, OMS) expose stable, documented APIs",
                 ),
             ),
-        }),
+        ),
+
+        // ── Acceptance / signatures ──────────────────────────────────────────
+        section(
+            "acceptance",
+            group(
+                t("11 · ACCEPTANCE", "label"),
+                t("Authorization to proceed.", "h2"),
+                t(
+                    "By signing below, the parties agree to the scope, deliverables, timeline, and commercial terms set out in this Statement of Work, governed by the Master Services Agreement dated March 2, 2026.",
+                    "body",
+                ),
+                table(
+                    "Party,Signatory,Title,Date\nAnvil & Oak Studio,Dana Okonkwo,Principal,_______________\nWexford Outdoor Co.,Tom Bryce,VP Digital,_______________",
+                ),
+                button("Sign & return this SOW"),
+            ),
+        ),
     ],
     bgImage("sow-bg-grid-paper", 0.3),
 );

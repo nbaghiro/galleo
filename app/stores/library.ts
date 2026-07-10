@@ -1,6 +1,7 @@
 // The client-side artifact store: the library list + content cache, blank-artifact factory, and format labels / relative-time helpers.
 
 import type { ArtifactContent } from "@model/artifact";
+import { emptyRegion } from "@model/section";
 import { createSignal } from "solid-js";
 import { api, type ArtifactSummary } from "../api";
 import { PROFILES } from "@engine/profile";
@@ -144,7 +145,7 @@ export function blankArtifact(format: string, theme = "studio"): ArtifactContent
     return {
         format,
         theme,
-        sections: [{ id: "s-1", grid: "full", cells: { a: {} } }],
+        sections: [{ id: "s-1", root: emptyRegion() }],
     };
 }
 

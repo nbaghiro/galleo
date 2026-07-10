@@ -24,6 +24,13 @@ const THEME_VARS = [
     "--border-width",
     "--shadow",
     "--radius",
+    "--radius-xs",
+    "--radius-sm",
+    "--radius-md",
+    "--radius-lg",
+    "--radius-xl",
+    "--radius-2xl",
+    "--radius-3xl",
     "--font-display",
     "--font-body",
     "--font-mono",
@@ -53,7 +60,7 @@ export const Popover: Component<{
     estHeight?: number;
     minWidth?: number; // min-width = max(anchorWidth, minWidth); ignored when fixedWidth is set
     fixedWidth?: number; // panel is exactly this wide, left clamped into the viewport
-    align?: "start" | "end"; // horizontal edge aligned to the anchor (default start = left; end = right)
+    align?: "start" | "end" | "center"; // edge/center aligned to the anchor (default start = left; center needs fixedWidth)
     panelClass?: string;
     toolbar?: boolean;
     children: JSX.Element;
@@ -107,36 +114,49 @@ export const Popover: Component<{
                     />
                     <div
                         {...tb()}
-                        class={`fixed z-[71] rounded-lg border border-line bg-panel font-body text-ink shadow-2xl ${props.panelClass ?? ""}`}
+                        class={`fixed z-[71] overflow-y-auto rounded-lg border border-line bg-panel font-body text-ink shadow-2xl ${props.panelClass ?? ""}`}
                         style={{
                             ...vars(),
                             // `end` pins the panel's right edge to the anchor's right edge (right-aligned
-                            // dropdowns); otherwise left-align, clamped into the viewport for fixedWidth.
+                            // dropdowns); `center` (needs fixedWidth) centers the panel on the anchor's
+                            // horizontal midpoint; otherwise left-align. All clamped into the viewport.
                             ...(props.align === "end"
                                 ? {
                                       right: `${Math.max(8, window.innerWidth - (r().left + r().width))}px`,
                                   }
-                                : {
-                                      left: `${
-                                          props.fixedWidth
-                                              ? Math.max(
-                                                    8,
-                                                    Math.min(
-                                                        r().left,
-                                                        window.innerWidth - props.fixedWidth - 12,
-                                                    ),
-                                                )
-                                              : r().left
-                                      }px`,
-                                  }),
+                                : props.align === "center" && props.fixedWidth
+                                  ? {
+                                        left: `${Math.max(8, Math.min(r().left + r().width / 2 - props.fixedWidth / 2, window.innerWidth - props.fixedWidth - 8))}px`,
+                                    }
+                                  : {
+                                        left: `${
+                                            props.fixedWidth
+                                                ? Math.max(
+                                                      8,
+                                                      Math.min(
+                                                          r().left,
+                                                          window.innerWidth - props.fixedWidth - 12,
+                                                      ),
+                                                  )
+                                                : r().left
+                                        }px`,
+                                    }),
                             ...(props.fixedWidth
                                 ? { width: `${props.fixedWidth}px` }
                                 : {
                                       "min-width": `${Math.max(r().width, props.minWidth ?? 140)}px`,
                                   }),
+                            // Pin to whichever side we open toward, and cap the height to the space actually
+                            // available on that side (scrolling inside) so the panel never runs off-screen.
                             ...(r().up
-                                ? { bottom: `${window.innerHeight - r().top}px` }
-                                : { top: `${r().top}px` }),
+                                ? {
+                                      bottom: `${window.innerHeight - r().top}px`,
+                                      "max-height": `${Math.max(120, r().top - 12)}px`,
+                                  }
+                                : {
+                                      top: `${r().top}px`,
+                                      "max-height": `${Math.max(120, window.innerHeight - r().top - 12)}px`,
+                                  }),
                         }}
                     >
                         {props.children}

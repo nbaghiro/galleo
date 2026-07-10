@@ -9,6 +9,7 @@ export const DROP_GHOST = "__dropghost";
 
 interface GhostData {
     type: string; // the dragged element's type, whose skeleton this mirrors
+    data?: unknown; // the dragged element's real data, so a MOVE ghost matches that element (not a default)
 }
 
 // Retint a hand-authored skeleton's GHOST fills to a theme-derived tone, so custom skeletons (charts,
@@ -20,11 +21,15 @@ function retint(node: EngineNode, to: string): EngineNode {
     return out;
 }
 
-// Internal, palette-hidden element rendered ONLY as the live drop preview. It lays out the dragged
-// element's own structural skeleton inline, so when spliced into a preview artifact the section reflows
-// and auto-sizes to the post-drop state — instead of squishing a fixed overlay into the current gap. A
-// dashed accent outline + theme-toned ghost mark it as a pending drop. An element that declares a custom
-// `skeleton` (chart/diagram shapes) uses it verbatim; everything else auto-skeletonizes its real layout.
+// Internal, palette-hidden element rendered ONLY as the live drop preview, spliced inline into a preview
+// artifact so the section reflows and auto-sizes to the post-drop state — instead of squishing a fixed
+// overlay into the current gap. A dashed accent outline marks it as a pending drop. The inner content
+// depends on the drag: a MOVE carries the dragged element's real data, so we render the ACTUAL element
+// dimmed (via engine opacity) — the drop target previews exactly what will land, then switches to the
+// solid element once dropped. A NEW-element drop has no data, so it shows the element's structural
+// skeleton (custom `skeleton` verbatim for charts/diagrams, else auto-skeletonized real layout).
+const DIM = 0.45; // opacity of the real element while previewed at the drop target
+
 export const dropGhostElement: ElementSpec<GhostData> = {
     type: DROP_GHOST,
     label: "Drop preview",
@@ -38,12 +43,14 @@ export const dropGhostElement: ElementSpec<GhostData> = {
             panel: ctx.theme.surface,
             line: ctx.theme.line,
         };
-        const ghost: EngineNode =
-            spec && spec.type !== DROP_GHOST
-                ? spec.skeleton
-                    ? retint(spec.skeleton(ctx), colors.bar)
-                    : skeletonize(spec.layout(spec.create(), ctx), colors)
-                : skeletonize({ w: grow(), h: fit(28) }, colors);
+        const inner: EngineNode = ((): EngineNode => {
+            if (!spec || spec.type === DROP_GHOST)
+                return skeletonize({ w: grow(), h: fit(28) }, colors);
+            if (data.data !== undefined) return { ...spec.layout(data.data, ctx), opacity: DIM };
+            return spec.skeleton
+                ? retint(spec.skeleton(ctx), colors.bar)
+                : skeletonize(spec.layout(spec.create(), ctx), colors);
+        })();
         return {
             w: grow(),
             h: fit(),
@@ -53,7 +60,7 @@ export const dropGhostElement: ElementSpec<GhostData> = {
                 radius: 10,
                 border: { color: ctx.theme.accent, width: 2, style: "dashed" },
             },
-            children: [ghost],
+            children: [inner],
         };
     },
     controls: [],

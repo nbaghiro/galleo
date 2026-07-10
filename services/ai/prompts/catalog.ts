@@ -1,4 +1,4 @@
-import { ELEMENTS, GRIDS } from "@model/ai";
+import { ELEMENTS, LAYOUTS } from "@model/ai";
 import type { ElementSchema, FieldSpec } from "@model/ai";
 import { TEXT_STYLES } from "@model/elements";
 import { THEME_LIST, resolveTheme } from "@themes";
@@ -26,23 +26,24 @@ function elementBlock(e: ElementSchema): string {
 export function elementCatalog(): string {
     return [
         "## Elements",
-        "Each cell holds one element: `{ type, data }`. Containers nest elements in `data.children`. Available element types:",
+        "A section's content is ONE element tree. A leaf is `{ type, data }`; a container (`group`/`card`/…) nests children in `data.children`. Available element types:",
         "",
         ELEMENTS.map(elementBlock).join("\n"),
         "",
         `Text \`style\` values (typographic roles): ${TEXT_STYLES.join(", ")}. Use exactly one \`h1\` per section.`,
-        "For several elements in one cell, wrap them in a `group` (or `card`). Set `group.columns` to lay out an N-up grid.",
+        "To place several elements together, wrap them in a `group` (direction 'col' to stack, 'row' for side-by-side) or a `card`. Set `group.columns` for an N-up grid.",
     ].join("\n");
 }
 
-// The section grid reference.
-export function gridCatalog(): string {
-    const rows = GRIDS.map(
-        (g) => `- \`${g.id}\` — ${g.widths}; cells [${g.cells.join(", ")}] — ${g.when}`,
+// The section layout reference — how `root` forms columns, plus the named starter presets.
+export function layoutCatalog(): string {
+    const rows = LAYOUTS.map(
+        (g) =>
+            `- \`${g.id}\` — ${g.widths} (${g.columns} column${g.columns > 1 ? "s" : ""}) — ${g.when}`,
     ).join("\n");
     return [
-        "## Section grids",
-        "A section is `{ id, grid, cells }`. `grid` names a column template; put one element in each of the grid's cells:",
+        "## Section layout",
+        'A section is `{ id, root }`, where `root` is one element tree. For side-by-side columns, make `root` a `group` with `direction: "row"` whose children each carry `layout: { width: { pct } }` (their column share, summing to ~100). To stack, use `direction: "col"`. Nest to any depth. For a full-width section, `root` is a single element. These named presets are handy starting splits (custom widths are fine too):',
         "",
         rows,
     ].join("\n");

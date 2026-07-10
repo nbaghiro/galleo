@@ -21,28 +21,33 @@ function countEls(el: ElementInstance): number {
     return 1 + (Array.isArray(kids) ? kids.reduce((n, k) => n + countEls(k), 0) : 0);
 }
 function sectionSize(s: Section): number {
-    return Object.values(s.cells).reduce((n, c) => n + (c.element ? countEls(c.element) : 0), 0);
+    return countEls(s.root);
 }
 
-// Strip an element to exactly what the AI emits — { type, data } with children cleaned the same way — so the
-// exemplar is valid target JSON, not studio-only noise (drops `layout` and any other extra fields).
-function cleanElement(el: ElementInstance): { type: string; data: Record<string, unknown> } {
+// Strip an element to exactly what the AI emits — { type, data, layout? } with children cleaned the same
+// way — so the exemplar is valid target JSON. `layout` (a child's column width) is KEPT: it's load-bearing
+// in the recursive model, so exemplars must show the model how columns carry their widths.
+function cleanElement(el: ElementInstance): Record<string, unknown> {
     const data: Record<string, unknown> = { ...(el.data as Record<string, unknown>) };
     if (Array.isArray(data.children)) {
         data.children = (data.children as ElementInstance[]).map(cleanElement);
     }
-    return { type: el.type, data };
+    return el.layout ? { type: el.type, data, layout: el.layout } : { type: el.type, data };
 }
 function cleanSection(s: Section): unknown {
-    const cells: Record<string, unknown> = {};
-    for (const [key, cell] of Object.entries(s.cells)) {
-        if (cell.element) cells[key] = { element: cleanElement(cell.element) };
-    }
-    return { id: s.id, grid: s.grid, cells };
+    return { id: s.id, root: cleanElement(s.root) };
 }
 
-// Two rich, grid-varied gold sections for the surface, as compact JSON. Capped by element count so the
-// prompt stays lean, and picked for grid variety so the model sees more than one layout shape.
+// The structural shape of a section's root — its top-level direction + column count — so exemplars can be
+// picked for layout variety (a stacked section vs a split one).
+function shapeOf(s: Section): string {
+    const d = s.root.data as { direction?: string; children?: unknown[] };
+    if (!Array.isArray(d.children)) return "leaf";
+    return `${d.direction ?? "col"}:${d.children.length}`;
+}
+
+// Two rich, structurally-varied gold sections for the surface, as compact JSON. Capped by element count so
+// the prompt stays lean, and picked for layout variety so the model sees more than one shape.
 export function sectionExemplars(surface: Surface): string {
     const art = GOLD[surface] ?? GOLD.deck;
     const ranked = art.sections
@@ -50,11 +55,15 @@ export function sectionExemplars(surface: Surface): string {
         .filter((x) => x.n >= 3 && x.n <= 12)
         .sort((a, b) => b.n - a.n);
     const first = ranked[0]?.s;
-    const second = (ranked.find((x) => x.s.grid !== first?.grid) ?? ranked[1])?.s;
+    const second = (ranked.find((x) => shapeOf(x.s) !== (first ? shapeOf(first) : "")) ?? ranked[1])
+        ?.s;
     const picks = [first, second].filter((s): s is Section => !!s);
     if (!picks.length) return "";
     const body = picks
-        .map((s, i) => `Example ${i + 1} — grid "${s.grid}":\n${JSON.stringify(cleanSection(s))}`)
+        .map(
+            (s, i) =>
+                `Example ${i + 1} — layout ${shapeOf(s)}:\n${JSON.stringify(cleanSection(s))}`,
+        )
         .join("\n\n");
     return heading(
         `Gold-standard ${surface} sections — match this richness and density`,

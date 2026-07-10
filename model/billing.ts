@@ -8,7 +8,7 @@
 // Three tiers: Free (solo, flat) · Pro · Premium. Both paid tiers are PER SEAT — a solo user buys 1 seat,
 // a team buys N — so tier (what you can do) and seats (how many of you) move independently.
 
-import { typicalCost } from "@model/ai";
+import { typicalCost } from "@model/tools";
 
 export type PlanId = "free" | "pro" | "premium";
 export type BillingModel = "flat" | "per_seat";
@@ -80,10 +80,10 @@ export interface Plan {
     features: PlanFeatures;
 }
 
-// A typical AI generation's credit cost. Derived from the metered catalog (@model/ai +
+// A typical AI generation's credit cost. Derived from the metered tool catalog (@model/tools +
 // @model/credits): the real charge scales with the artifact's length, but this typical value stays for
 // callers/copy that want one representative number. The catalog is the source of truth. 🔶 AI session.
-export const CREDITS_PER_GENERATION = typicalCost("generate");
+export const CREDITS_PER_GENERATION = typicalCost("generate-artifact");
 
 export const PLANS: Record<PlanId, Plan> = {
     free: {

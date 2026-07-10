@@ -6,14 +6,15 @@ import {
     button,
     callout,
     card,
-    cell,
     chart,
     diagram,
     doc,
     group,
     img,
     quote,
+    row,
     section,
+    split,
     stat,
     t,
     table,
@@ -25,50 +26,49 @@ export const helios: ArtifactContent = doc(
         // 01 — Cover
         section(
             "s1",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("ANNUAL CLIMATE REPORT · 2026", "label"),
-                        t("The Year in Degrees", "h1"),
-                        t(
-                            "The state of the global climate — one year measured in degrees, gigatonnes, and the distance still left to 1.5°C.",
-                            "subtitle",
-                        ),
-                        t(
-                            "Helios Climate Institute · Lead authors Dr. Amara Síle & Dr. Kenji Watanabe · Published June 2026",
-                            "caption",
-                        ),
-                        badge("PEER-REVIEWED · 214 CONTRIBUTORS · 41 COUNTRIES"),
-                    ),
+            group(
+                t("ANNUAL CLIMATE REPORT · 2026", "label"),
+                t("The Year in Degrees", "h1"),
+                t(
+                    "The state of the global climate — one year measured in degrees, gigatonnes, and the distance still left to 1.5°C.",
+                    "subtitle",
                 ),
-            },
+                t(
+                    "Helios Climate Institute · Lead authors Dr. Amara Síle & Dr. Kenji Watanabe · Published June 2026",
+                    "caption",
+                ),
+                badge("PEER-REVIEWED · 214 CONTRIBUTORS · 41 COUNTRIES"),
+            ),
             { background: bgImage("helios-earth-from-space-blue-marble-night", 0.55) },
         ),
 
         // 02 — The year in one sentence
-        section("s2", "full", {
-            a: cell(
-                group(
-                    t("The year in one sentence", "label"),
-                    t(
-                        "2025 was the warmest year in the instrumental record — the first twelve months to breach 1.5°C above pre-industrial levels — and global emissions still climbed to a new high.",
-                        "subtitle",
-                    ),
+        section(
+            "s2",
+            group(
+                t("The year in one sentence", "label"),
+                t(
+                    "2025 was the warmest year in the instrumental record — the first twelve months to breach 1.5°C above pre-industrial levels — and global emissions still climbed to a new high.",
+                    "subtitle",
                 ),
             ),
-        }),
+        ),
 
         // 03 — Headline numbers
-        section("s3", "three-up", {
-            a: cell(stat("+1.49°C", "global mean temperature above the 1850–1900 baseline")),
-            b: cell(stat("424.6 ppm", "atmospheric CO₂ — the highest in over 3 million years")),
-            c: cell(stat("37.8 Gt", "fossil CO₂ emitted — a new record high")),
-        }),
+        section(
+            "s3",
+            row(
+                stat("+1.49°C", "global mean temperature above the 1850–1900 baseline"),
+                stat("424.6 ppm", "atmospheric CO₂ — the highest in over 3 million years"),
+                stat("37.8 Gt", "fossil CO₂ emitted — a new record high"),
+            ),
+        ),
 
         // 04 — Executive summary
-        section("s4", "split-6040", {
-            a: cell(
+        section(
+            "s4",
+            split(
+                60,
                 group(
                     t("Executive summary", "label"),
                     t("The hottest year on record — again", "h2"),
@@ -81,23 +81,24 @@ export const helios: ArtifactContent = doc(
                         "body",
                     ),
                 ),
+                img("helios-glacier-meltwater-stream", 0.82),
             ),
-            b: cell(img("helios-glacier-meltwater-stream", 0.82)),
-        }),
+        ),
 
         // 05 — Pull quote
-        section("s5", "full", {
-            a: cell(
-                quote(
-                    "We have not run out of time. We have run out of excuses for wasting it.",
-                    "— Dr. Amara Síle, lead author",
-                ),
+        section(
+            "s5",
+            quote(
+                "We have not run out of time. We have run out of excuses for wasting it.",
+                "— Dr. Amara Síle, lead author",
             ),
-        }),
+        ),
 
         // 06 — Global temperature trend
-        section("s6", "split-6040", {
-            a: cell(
+        section(
+            "s6",
+            split(
+                60,
                 group(
                     t("01 — The year in degrees", "label"),
                     t("Warming is accelerating", "h2"),
@@ -107,8 +108,6 @@ export const helios: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-            ),
-            b: cell(
                 group(
                     chart("line", "1.01, 1.10, 1.16, 1.24, 1.29, 1.34, 1.42, 1.49", 300),
                     t(
@@ -117,61 +116,65 @@ export const helios: ArtifactContent = doc(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // 07 — Temperature context
-        section("s7", "three-up", {
-            a: cell(
+        section(
+            "s7",
+            row(
                 stat("4.6 mm/yr", "rate of global sea-level rise — nearly double the 1990s pace"),
+                stat("−13.1%", "Arctic sea-ice extent, per decade"),
+                stat("+1.06°C", "ocean surface anomaly — warmest in the satellite record"),
             ),
-            b: cell(stat("−13.1%", "Arctic sea-ice extent, per decade")),
-            c: cell(stat("+1.06°C", "ocean surface anomaly — warmest in the satellite record")),
-        }),
+        ),
 
         // 08 — Threshold crossed
-        section("s8", "full", {
-            a: cell(
-                callout(
-                    "warn",
-                    t("The 1.5°C line was crossed", "h3"),
-                    t(
-                        "For the rolling twelve-month period ending February 2026, global temperature ran 1.52°C above pre-industrial levels — the first sustained breach of the Paris aspiration. A single year above 1.5°C is not yet a permanent one, but it narrows the remaining carbon budget to roughly 200 Gt CO₂ — about five years at today's rate of emission.",
-                        "body",
-                    ),
+        section(
+            "s8",
+            callout(
+                "warn",
+                t("The 1.5°C line was crossed", "h3"),
+                t(
+                    "For the rolling twelve-month period ending February 2026, global temperature ran 1.52°C above pre-industrial levels — the first sustained breach of the Paris aspiration. A single year above 1.5°C is not yet a permanent one, but it narrows the remaining carbon budget to roughly 200 Gt CO₂ — about five years at today's rate of emission.",
+                    "body",
                 ),
             ),
-        }),
+        ),
 
         // 09 — Emissions by sector
-        section("s9", "full", {
-            a: cell(
-                group(
-                    t("02 — Emissions by sector", "label"),
-                    t("Where the carbon comes from", "h2"),
-                    t(
-                        "Power and heat remain the largest single source — and the fastest-growing in absolute terms. Buildings were the only sector to fall, as heat pumps and a milder northern winter cut fossil use in homes and offices.",
-                        "body",
-                    ),
-                    table(
-                        "Sector,2024 Gt,2025 Gt,Share,Δ YoY\nPower & heat,15.1,15.4,39.1%,+2.0%\nTransport,8.4,8.6,21.8%,+2.4%\nIndustry,6.4,6.5,16.5%,+1.6%\nAgriculture & land,5.8,5.9,15.0%,+1.7%\nBuildings,3.1,3.0,7.6%,−3.2%",
-                    ),
-                    chart("bar", "15.4, 8.6, 6.5, 5.9, 3.0", 260),
-                    t("Sector emissions, Gt CO₂-equivalent · 2025", "caption"),
+        section(
+            "s9",
+            group(
+                t("02 — Emissions by sector", "label"),
+                t("Where the carbon comes from", "h2"),
+                t(
+                    "Power and heat remain the largest single source — and the fastest-growing in absolute terms. Buildings were the only sector to fall, as heat pumps and a milder northern winter cut fossil use in homes and offices.",
+                    "body",
                 ),
+                table(
+                    "Sector,2024 Gt,2025 Gt,Share,Δ YoY\nPower & heat,15.1,15.4,39.1%,+2.0%\nTransport,8.4,8.6,21.8%,+2.4%\nIndustry,6.4,6.5,16.5%,+1.6%\nAgriculture & land,5.8,5.9,15.0%,+1.7%\nBuildings,3.1,3.0,7.6%,−3.2%",
+                ),
+                chart("bar", "15.4, 8.6, 6.5, 5.9, 3.0", 260),
+                t("Sector emissions, Gt CO₂-equivalent · 2025", "caption"),
             ),
-        }),
+        ),
 
         // 10 — Emissions stats
-        section("s10", "three-up", {
-            a: cell(stat("+0.9%", "rise in fossil CO₂ — the slowest growth in a decade")),
-            b: cell(stat("57%", "of global emissions from just three economies")),
-            c: cell(stat("8.4 Gt", "absorbed by land and ocean sinks — and weakening")),
-        }),
+        section(
+            "s10",
+            row(
+                stat("+0.9%", "rise in fossil CO₂ — the slowest growth in a decade"),
+                stat("57%", "of global emissions from just three economies"),
+                stat("8.4 Gt", "absorbed by land and ocean sinks — and weakening"),
+            ),
+        ),
 
         // 11 — Regional breakdown (intro)
-        section("s11", "split-4060", {
-            a: cell(img("helios-world-night-lights-from-space", 1.1)),
-            b: cell(
+        section(
+            "s11",
+            split(
+                40,
+                img("helios-world-night-lights-from-space", 1.1),
                 group(
                     t("03 — Regional breakdown", "label"),
                     t("A divided ledger", "h2"),
@@ -181,11 +184,13 @@ export const helios: ArtifactContent = doc(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // 12 — Regional ledger (table + pie)
-        section("s12", "split-6040", {
-            a: cell(
+        section(
+            "s12",
+            split(
+                60,
                 group(
                     t("By region", "label"),
                     t("The 2025 ledger", "h2"),
@@ -197,18 +202,18 @@ export const helios: ArtifactContent = doc(
                         "caption",
                     ),
                 ),
-            ),
-            b: cell(
                 group(
                     chart("pie", "19.4, 5.9, 4.1, 2.9, 2.0, 1.6", 260),
                     t("Share of 2025 emissions by region · Gt CO₂", "caption"),
                 ),
             ),
-        }),
+        ),
 
         // 13 — What's driving it
-        section("s13", "split-6040", {
-            a: cell(
+        section(
+            "s13",
+            split(
+                60,
                 group(
                     t("04 — What's driving it", "label"),
                     t("Heat, demand, and a slow turn", "h2"),
@@ -221,27 +226,27 @@ export const helios: ArtifactContent = doc(
                         "body",
                     ),
                 ),
+                img("helios-coal-plant-cooling-towers-steam", 0.85),
             ),
-            b: cell(img("helios-coal-plant-cooling-towers-steam", 0.85)),
-        }),
+        ),
 
         // 14 — Tipping points (intro)
-        section("s14", "full", {
-            a: cell(
-                group(
-                    t("05 — Tipping points", "label"),
-                    t("Lines you don't want to cross", "h2"),
-                    t(
-                        "Some parts of the climate system do not respond gradually. Pushed past a threshold, they shift to a new state and stay there — on timescales no policy can reverse. Three are now close enough to watch by the year.",
-                        "body",
-                    ),
+        section(
+            "s14",
+            group(
+                t("05 — Tipping points", "label"),
+                t("Lines you don't want to cross", "h2"),
+                t(
+                    "Some parts of the climate system do not respond gradually. Pushed past a threshold, they shift to a new state and stay there — on timescales no policy can reverse. Three are now close enough to watch by the year.",
+                    "body",
                 ),
             ),
-        }),
+        ),
 
         // 15 — Tipping points (callouts)
-        section("s15", "two-col", {
-            a: cell(
+        section(
+            "s15",
+            row(
                 callout(
                     "caution",
                     t("Amazon rainforest", "h3"),
@@ -250,8 +255,6 @@ export const helios: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-            ),
-            b: cell(
                 callout(
                     "warn",
                     t("West Antarctic ice", "h3"),
@@ -261,11 +264,13 @@ export const helios: ArtifactContent = doc(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // 16 — What's working
-        section("s16", "split-6040", {
-            a: cell(
+        section(
+            "s16",
+            split(
+                60,
                 group(
                     t("06 — What's working", "label"),
                     t("The transition is real — and uneven", "h2"),
@@ -283,18 +288,18 @@ export const helios: ArtifactContent = doc(
                         ),
                     ),
                 ),
-            ),
-            b: cell(
                 group(
                     chart("line", "11, 12, 14, 16, 19, 22, 26, 30", 280),
                     t("Wind & solar share of global electricity, % · 2018–2025", "caption"),
                 ),
             ),
-        }),
+        ),
 
         // 17 — Projections
-        section("s17", "split-6040", {
-            a: cell(
+        section(
+            "s17",
+            split(
+                60,
                 group(
                     t("07 — Three paths to 2035", "label"),
                     t("The decade that decides it", "h2"),
@@ -303,44 +308,43 @@ export const helios: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-            ),
-            b: cell(
                 group(
                     chart("line", "37.8, 38.0, 37.7, 36.9, 35.4, 33.1, 30.0", 280),
                     t("Emissions under stated policies, Gt CO₂ · 2025–2031", "caption"),
                 ),
             ),
-        }),
+        ),
 
         // 18 — What must happen next
-        section("s18", "full", {
-            a: cell(
-                group(
-                    t("08 — What must happen next", "label"),
-                    t("From pledges to delivered tonnes", "h2"),
-                    t(
-                        "The gap between climate ambition and climate reality is not, at root, a gap of technology or even of money. It is a gap of delivery — the long attrition from a stated pledge to a tonne that never reaches the air.",
-                        "body",
-                    ),
-                    diagram(
-                        "funnel",
-                        "Stated pledges, Financed projects, Permitted capacity, Delivered abatement",
-                        200,
-                    ),
-                    bullets(
-                        "1 · Triple grid-scale storage to absorb the renewables already built",
-                        "2 · Cut transmission permitting from years to months",
-                        "3 · Price methane leakage and retire the dirtiest 5% of coal first",
-                        "4 · Redirect $1.3T in fossil-fuel subsidies toward clean capacity",
-                        "5 · Fund adaptation across the 40 most-exposed economies",
-                    ),
+        section(
+            "s18",
+            group(
+                t("08 — What must happen next", "label"),
+                t("From pledges to delivered tonnes", "h2"),
+                t(
+                    "The gap between climate ambition and climate reality is not, at root, a gap of technology or even of money. It is a gap of delivery — the long attrition from a stated pledge to a tonne that never reaches the air.",
+                    "body",
+                ),
+                diagram(
+                    "funnel",
+                    "Stated pledges, Financed projects, Permitted capacity, Delivered abatement",
+                    200,
+                ),
+                bullets(
+                    "1 · Triple grid-scale storage to absorb the renewables already built",
+                    "2 · Cut transmission permitting from years to months",
+                    "3 · Price methane leakage and retire the dirtiest 5% of coal first",
+                    "4 · Redirect $1.3T in fossil-fuel subsidies toward clean capacity",
+                    "5 · Fund adaptation across the 40 most-exposed economies",
                 ),
             ),
-        }),
+        ),
 
         // 19 — Methodology & sources
-        section("s19", "split-6040", {
-            a: cell(
+        section(
+            "s19",
+            split(
+                60,
                 group(
                     t("09 — Methodology", "label"),
                     t("How these numbers were built", "h2"),
@@ -353,8 +357,6 @@ export const helios: ArtifactContent = doc(
                         "caption",
                     ),
                 ),
-            ),
-            b: cell(
                 card(
                     t("Sources & uncertainty", "h3"),
                     bullets(
@@ -365,29 +367,24 @@ export const helios: ArtifactContent = doc(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // 20 — Closing call to action
         section(
             "s20",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("The work continues", "label"),
-                        t("The next degree is still ours to decide.", "h1"),
-                        t(
-                            "Every tonne avoided buys time. Every fraction of a degree spared is counted in harvests kept, coastlines held, and lives not displaced. The data is open. The decade is now.",
-                            "subtitle",
-                        ),
-                        button("Explore the full dataset →"),
-                        t(
-                            "Helios Climate Institute · Dr. Amara Síle & Dr. Kenji Watanabe · helios.report · June 2026",
-                            "caption",
-                        ),
-                    ),
+            group(
+                t("The work continues", "label"),
+                t("The next degree is still ours to decide.", "h1"),
+                t(
+                    "Every tonne avoided buys time. Every fraction of a degree spared is counted in harvests kept, coastlines held, and lives not displaced. The data is open. The decade is now.",
+                    "subtitle",
                 ),
-            },
+                button("Explore the full dataset →"),
+                t(
+                    "Helios Climate Institute · Dr. Amara Síle & Dr. Kenji Watanabe · helios.report · June 2026",
+                    "caption",
+                ),
+            ),
             { background: bgImage("helios-sunrise-over-ocean-horizon-hope", 0.55) },
         ),
     ],

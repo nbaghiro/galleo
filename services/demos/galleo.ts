@@ -6,14 +6,15 @@ import {
     button,
     callout,
     card,
-    cell,
     chart,
     deck,
     diagram,
     group,
     img,
     quote,
+    row,
     section,
+    split,
     stat,
     t,
     table,
@@ -25,26 +26,23 @@ export const galleo: ArtifactContent = deck(
         // ── Cover ────────────────────────────────────────────────────────────
         section(
             "s1",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("GALLEO", "label"),
-                        t("Everyone can generate. We make it good.", "h1"),
-                        t(
-                            "Galleo is the taste-first content studio. Describe an idea once and it becomes a deck, a document, or a website — drafted in seconds, then polished into something you’d actually be proud to send.",
-                            "subtitle",
-                        ),
-                        badge("SEED ROUND · 2026"),
-                    ),
+            group(
+                t("GALLEO", "label"),
+                t("Everyone can generate. We make it good.", "h1"),
+                t(
+                    "Galleo is the taste-first content studio. Describe an idea once and it becomes a deck, a document, or a website — drafted in seconds, then polished into something you’d actually be proud to send.",
+                    "subtitle",
                 ),
-            },
+                badge("SEED ROUND · 2026"),
+            ),
             { background: bgImage("galleo-cover-studio", 0.55) },
         ),
 
         // ── 01 The problem ───────────────────────────────────────────────────
-        section("s2", "split-6040", {
-            a: cell(
+        section(
+            "s2",
+            split(
+                60,
                 group(
                     t("01 — The problem", "label"),
                     t("AI made the first draft free. It also made the average one worse.", "h2"),
@@ -53,13 +51,14 @@ export const galleo: ArtifactContent = deck(
                         "body",
                     ),
                 ),
+                img("galleo-problem-desk", 0.82),
             ),
-            b: cell(img("galleo-problem-desk", 0.82)),
-        }),
+        ),
 
         // ── The cost (stats) ─────────────────────────────────────────────────
-        section("s3", "three-up", {
-            a: cell(
+        section(
+            "s3",
+            row(
                 group(
                     t("THE COST", "label"),
                     stat(
@@ -67,25 +66,26 @@ export const galleo: ArtifactContent = deck(
                         "of knowledge workers start with AI — and ship it nearly untouched",
                     ),
                 ),
+                stat("1 in 6", "say the result is something they’re genuinely proud of"),
+                stat("9 hrs", "lost every week reformatting the same content across tools"),
             ),
-            b: cell(stat("1 in 6", "say the result is something they’re genuinely proud of")),
-            c: cell(stat("9 hrs", "lost every week reformatting the same content across tools")),
-        }),
+        ),
 
         // ── Thesis ───────────────────────────────────────────────────────────
-        section("s4", "full", {
-            a: cell(
-                quote(
-                    "Speed turned everyone into a publisher overnight. Taste is the only moat left — and it’s the one thing a prompt can’t hand you.",
-                    "— The Galleo thesis",
-                ),
+        section(
+            "s4",
+            quote(
+                "Speed turned everyone into a publisher overnight. Taste is the only moat left — and it’s the one thing a prompt can’t hand you.",
+                "— The Galleo thesis",
             ),
-        }),
+        ),
 
         // ── 02 The product ───────────────────────────────────────────────────
-        section("s5", "split-4060", {
-            a: cell(img("galleo-editor-canvas", 1.05)),
-            b: cell(
+        section(
+            "s5",
+            split(
+                40,
+                img("galleo-editor-canvas", 1.05),
                 group(
                     t("02 — The product", "label"),
                     t("One canonical artifact. Every format is just a view.", "h2"),
@@ -100,11 +100,12 @@ export const galleo: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // ── One source, three formats ────────────────────────────────────────
-        section("s6", "three-up", {
-            a: cell(
+        section(
+            "s6",
+            row(
                 card(
                     img("galleo-format-deck", 1.4),
                     t("Deck", "h3"),
@@ -113,26 +114,24 @@ export const galleo: ArtifactContent = deck(
                         "caption",
                     ),
                 ),
-            ),
-            b: cell(
                 card(
                     img("galleo-format-doc", 1.4),
                     t("Document", "h3"),
                     t("The same blocks reflow into a readable, shareable document.", "caption"),
                 ),
-            ),
-            c: cell(
                 card(
                     img("galleo-format-site", 1.4),
                     t("Website", "h3"),
                     t("Publish a responsive, hosted page in a single click.", "caption"),
                 ),
             ),
-        }),
+        ),
 
         // ── 03 How it works ──────────────────────────────────────────────────
-        section("s7", "split-6040", {
-            a: cell(
+        section(
+            "s7",
+            split(
+                60,
                 group(
                     t("03 — How it works", "label"),
                     t("Draft in seconds. Then live in the editor.", "h2"),
@@ -146,33 +145,30 @@ export const galleo: ArtifactContent = deck(
                         180,
                     ),
                 ),
+                img("galleo-howitworks-refine", 0.9),
             ),
-            b: cell(img("galleo-howitworks-refine", 0.9)),
-        }),
+        ),
 
         // ── 04 The moat (feature background) ──────────────────────────────────
         section(
             "s8",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("04 — The moat", "label"),
-                        t("Generation is a commodity. Judgment isn’t.", "h2"),
-                        t(
-                            "Every rival is racing to produce the draft faster. We’re building the surface where the draft becomes good — an agent with real editorial taste, a layout engine that holds composition under pressure, and controls that reward the person who cares how it looks. Models get cheaper every quarter. Taste compounds.",
-                            "body",
-                        ),
-                        button("See the editor in motion"),
-                    ),
+            group(
+                t("04 — The moat", "label"),
+                t("Generation is a commodity. Judgment isn’t.", "h2"),
+                t(
+                    "Every rival is racing to produce the draft faster. We’re building the surface where the draft becomes good — an agent with real editorial taste, a layout engine that holds composition under pressure, and controls that reward the person who cares how it looks. Models get cheaper every quarter. Taste compounds.",
+                    "body",
                 ),
-            },
+                button("See the editor in motion"),
+            ),
             { background: bgImage("galleo-taste-studio", 0.6) },
         ),
 
         // ── 05 Why now ───────────────────────────────────────────────────────
-        section("s9", "split-6040", {
-            a: cell(
+        section(
+            "s9",
+            split(
+                60,
                 group(
                     t("05 — Why now", "label"),
                     t("The first draft just became free — for everyone, all at once.", "h2"),
@@ -181,25 +177,28 @@ export const galleo: ArtifactContent = deck(
                         "body",
                     ),
                 ),
+                chart("bar", "8, 19, 38, 67, 110, 180", 240),
             ),
-            b: cell(chart("bar", "8, 19, 38, 67, 110, 180", 240)),
-        }),
+        ),
 
         // ── 06 Market ────────────────────────────────────────────────────────
-        section("s10", "three-up", {
-            a: cell(
+        section(
+            "s10",
+            row(
                 group(
                     t("06 — Market", "label"),
                     stat("$48B", "spent on presentation + document software every year"),
                 ),
+                stat("400M", "knowledge workers making content for a living"),
+                stat("12×", "more content created since 2022 — and climbing"),
             ),
-            b: cell(stat("400M", "knowledge workers making content for a living")),
-            c: cell(stat("12×", "more content created since 2022 — and climbing")),
-        }),
+        ),
 
         // ── 07 Traction ──────────────────────────────────────────────────────
-        section("s11", "split-6040", {
-            a: cell(
+        section(
+            "s11",
+            split(
+                60,
                 group(
                     t("07 — Traction", "label"),
                     badge("NOW IN PAID BETA"),
@@ -216,47 +215,47 @@ export const galleo: ArtifactContent = deck(
                         ),
                     ),
                 ),
+                chart("line", "8, 14, 23, 38, 59, 92", 240),
             ),
-            b: cell(chart("line", "8, 14, 23, 38, 59, 92", 240)),
-        }),
+        ),
 
         // ── Customer love ────────────────────────────────────────────────────
-        section("s12", "two-col", {
-            a: cell(
+        section(
+            "s12",
+            row(
                 quote(
                     "We replaced three tools with Galleo and our decks stopped looking like everyone else’s. That’s the whole job.",
                     "Dana Whitfield · Head of Brand, Northwind",
                 ),
-            ),
-            b: cell(
                 quote(
                     "I sent the same story as a board deck and a press site in one afternoon. It used to take a week.",
                     "Marcus True · Founder, Cadence",
                 ),
             ),
-        }),
+        ),
 
         // ── 08 Business model ────────────────────────────────────────────────
-        section("s13", "full", {
-            a: cell(
-                group(
-                    t("08 — Business model", "label"),
-                    t("Bottom-up SaaS with a free tier that does real work.", "h2"),
-                    table(
-                        "Plan,Price,Built for,The hook\nFree,$0,Individuals,One published artifact + the full editor\nPro,$20/mo,Founders & freelancers,Unlimited artifacts + custom domains\nTeam,$36/seat,Design-led teams,Brand kits + shared library + roles\nEnterprise,Custom,Brand governance at scale,SSO + audit log + dedicated support",
-                    ),
-                    t(
-                        "Land on Free, convert the individual on Pro, expand across the org on Team.",
-                        "caption",
-                    ),
+        section(
+            "s13",
+            group(
+                t("08 — Business model", "label"),
+                t("Bottom-up SaaS with a free tier that does real work.", "h2"),
+                table(
+                    "Plan,Price,Built for,The hook\nFree,$0,Individuals,One published artifact + the full editor\nPro,$20/mo,Founders & freelancers,Unlimited artifacts + custom domains\nTeam,$36/seat,Design-led teams,Brand kits + shared library + roles\nEnterprise,Custom,Brand governance at scale,SSO + audit log + dedicated support",
+                ),
+                t(
+                    "Land on Free, convert the individual on Pro, expand across the org on Team.",
+                    "caption",
                 ),
             ),
-        }),
+        ),
 
         // ── 09 Why we win ────────────────────────────────────────────────────
-        section("s14", "split-4060", {
-            a: cell(img("galleo-compete-grid", 0.82)),
-            b: cell(
+        section(
+            "s14",
+            split(
+                40,
+                img("galleo-compete-grid", 0.82),
                 group(
                     t("09 — Why we win", "label"),
                     t("Generators race to the draft. We own the finish.", "h2"),
@@ -268,11 +267,13 @@ export const galleo: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // ── 10 Go-to-market ──────────────────────────────────────────────────
-        section("s15", "split-6040", {
-            a: cell(
+        section(
+            "s15",
+            split(
+                60,
                 group(
                     t("10 — Go-to-market", "label"),
                     t("Land with a designer. Expand to the org.", "h2"),
@@ -281,59 +282,55 @@ export const galleo: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-            ),
-            b: cell(
                 diagram(
                     "funnel",
                     "Designer discovers, Free artifact, Team adopts, Org standard",
                     220,
                 ),
             ),
-        }),
+        ),
 
         // ── The team ─────────────────────────────────────────────────────────
-        section("s16", "three-up", {
-            a: cell(
+        section(
+            "s16",
+            row(
                 group(
                     img("galleo-team-mara", 1),
                     t("Mara Okafor", "h3"),
                     t("CEO · early Figma, led template systems", "caption"),
                 ),
-            ),
-            b: cell(
                 group(
                     img("galleo-team-theo", 1),
                     t("Theo Klein", "h3"),
                     t("CTO · ex-Linear, built the sync engine", "caption"),
                 ),
-            ),
-            c: cell(
                 group(
                     img("galleo-team-su", 1),
                     t("Su Lin", "h3"),
                     t("Head of Design · ex-Stripe brand", "caption"),
                 ),
             ),
-        }),
+        ),
 
         // ── 11 Roadmap ───────────────────────────────────────────────────────
-        section("s17", "full", {
-            a: cell(
-                group(
-                    t("11 — Roadmap", "label"),
-                    t("From editor to platform.", "h2"),
-                    diagram(
-                        "process",
-                        "Taste-first editor, One-click publishing, Brand kits & teams, API & embeds",
-                        180,
-                    ),
+        section(
+            "s17",
+            group(
+                t("11 — Roadmap", "label"),
+                t("From editor to platform.", "h2"),
+                diagram(
+                    "process",
+                    "Taste-first editor, One-click publishing, Brand kits & teams, API & embeds",
+                    180,
                 ),
             ),
-        }),
+        ),
 
         // ── 12 The ask ───────────────────────────────────────────────────────
-        section("s18", "split-4060", {
-            a: cell(
+        section(
+            "s18",
+            split(
+                40,
                 group(
                     t("12 — The ask", "label"),
                     t("Raising a $4M seed to own the finishing surface.", "h2"),
@@ -343,8 +340,6 @@ export const galleo: ArtifactContent = deck(
                     ),
                     button("hello@galleo.app"),
                 ),
-            ),
-            b: cell(
                 group(
                     t("Use of funds", "h3"),
                     bullets(
@@ -354,25 +349,20 @@ export const galleo: ArtifactContent = deck(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // ── Vision close (feature background) ─────────────────────────────────
         section(
             "s19",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("THE VISION", "label"),
-                        t("A world where good is the default.", "h1"),
-                        t(
-                            "When the draft is free, the only thing worth paying for is judgment. Galleo is where it lives — the place your best ideas go to become something you’re proud to send.",
-                            "subtitle",
-                        ),
-                        button("Let’s build it together"),
-                    ),
+            group(
+                t("THE VISION", "label"),
+                t("A world where good is the default.", "h1"),
+                t(
+                    "When the draft is free, the only thing worth paying for is judgment. Galleo is where it lives — the place your best ideas go to become something you’re proud to send.",
+                    "subtitle",
                 ),
-            },
+                button("Let’s build it together"),
+            ),
             { background: bgImage("galleo-vision-horizon", 0.55) },
         ),
     ],

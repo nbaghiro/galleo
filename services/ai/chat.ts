@@ -62,11 +62,7 @@ function firstText(section: Section): string {
         }
         return "";
     };
-    for (const cell of Object.values(section.cells)) {
-        const t = visit(cell.element);
-        if (t) return t;
-    }
-    return "section";
+    return visit(section.root) || "section";
 }
 const clip = (s: string, n: number): string =>
     s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s;
@@ -166,6 +162,10 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         instructions: chatSystem(input.context),
         tools,
         stopWhen: stepCountIs(6),
+        // Ask Gemini to RETURN its thinking summaries in the stream — thinking stays ON (it's what makes the
+        // agent reason well); the client renders the summaries as a collapsible "thinking" bubble, so the
+        // pre-answer latency reads as visible progress instead of a dead loader.
+        providerOptions: { google: { thinkingConfig: { includeThoughts: true } } },
     });
 
     const messages: ModelMessage[] = [
@@ -174,14 +174,19 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
     ];
 
     // Run the loop and stream its output concurrently: the tools push their blocks as they execute (a
-    // working-shell, then the finished proposal), while the model's prose streams token-by-token off
-    // textStream. Draining textStream is also what DRIVES the loop (executes the tools), so consuming it
-    // fully is what makes the whole turn run. Then the channel closes and the drain (and turn) end.
+    // working-shell, then the finished proposal), while the model's reasoning + prose stream off fullStream.
+    // We split fullStream into two channels — `reasoning-delta` → the thinking bubble, `text-delta` → the
+    // answer — and ignore the tool-call parts (the wrapped tools handle their own presentation). Draining
+    // fullStream is also what DRIVES the loop (executes the tools), so consuming it fully runs the whole turn.
     const pump = (async () => {
         try {
             const result = await agent.stream({ messages, abortSignal: opts.signal });
-            for await (const delta of result.textStream) {
-                if (delta) ch.push({ type: "chat.text", delta });
+            for await (const part of result.fullStream) {
+                if (part.type === "reasoning-delta") {
+                    if (part.text) ch.push({ type: "chat.reasoning", delta: part.text });
+                } else if (part.type === "text-delta") {
+                    if (part.text) ch.push({ type: "chat.text", delta: part.text });
+                }
             }
         } catch (e) {
             if (!opts.signal?.aborted)

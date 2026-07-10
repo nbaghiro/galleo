@@ -26,9 +26,7 @@ function focusLine(ctx: ChatContext): string | undefined {
     const what =
         f.kind === "section"
             ? `section [${f.sectionId}]`
-            : f.kind === "cell"
-              ? `cell "${f.cell}"${where}`
-              : `a ${f.elementType ?? "element"}${where}`;
+            : `a ${f.elementType ?? "element"}${where}`;
     return heading(
         "The user's current selection",
         `They have ${what} selected${f.headline ? ` (“${f.headline}”)` : ""}. If they say "this", "it", or "here", they most likely mean that.`,

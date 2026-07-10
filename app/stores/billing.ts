@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
 import type { Interval, PlanId } from "@model/billing";
-import type { AiActionId, MeterParams } from "@model/ai";
+import type { ToolId, MeterParams } from "@model/tools";
 import type { BillingState } from "../api";
 import { api, ApiError } from "../api";
 
@@ -44,10 +44,10 @@ export async function openPortal(): Promise<void> {
     if (url) window.location.href = url;
 }
 
-// Reserve credits for an AI action (priced from the @model/ai action catalog). Pass a `meter` for
-// size-aware actions (e.g. the generation length) so the gate reserves the real cost. Returns false when
-// the allowance is spent (the caller should send the user to pricing), true once the spend is recorded.
-export async function spendCredit(action: AiActionId, meter?: MeterParams): Promise<boolean> {
+// Reserve credits for a tool (priced from the @model/tools catalog). Pass a `meter` for size-aware tools
+// (e.g. the generation length) so the gate reserves the real cost. Returns false when the allowance is spent
+// (the caller should send the user to pricing), true once the spend is recorded.
+export async function spendCredit(action: ToolId, meter?: MeterParams): Promise<boolean> {
     try {
         await api.spendCredits({ action, meter });
         await loadBilling();
@@ -60,4 +60,4 @@ export async function spendCredit(action: AiActionId, meter?: MeterParams): Prom
 
 // The intake flow's gate — a generation, priced by the chosen length (pass e.g. { length: "In-depth" }).
 export const spendGenerationCredit = (meter?: MeterParams): Promise<boolean> =>
-    spendCredit("generate", meter);
+    spendCredit("generate-artifact", meter);

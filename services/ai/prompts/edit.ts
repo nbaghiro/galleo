@@ -1,7 +1,7 @@
 import type { EditInput, Surface } from "@model/ai";
 import type { ArtifactContent } from "@model/artifact";
 import { PERSONA, surfaceVoice } from "./persona";
-import { describeTheme, elementCatalog, gridCatalog } from "./catalog";
+import { describeTheme, elementCatalog, layoutCatalog } from "./catalog";
 import { VOICE } from "./rubric";
 import { OUTPUT_NOTE, SECTION_RULES, artifactDigest, heading, stack } from "./system";
 import type { PromptParts } from "./system";
@@ -21,7 +21,7 @@ export function editParts(input: EditInput, content: ArtifactContent): PromptPar
             surfaceVoice(content.format as Surface),
             describeTheme(content.theme),
             elementCatalog(),
-            gridCatalog(),
+            layoutCatalog(),
             SECTION_RULES,
             VOICE,
             EDIT_JOB,

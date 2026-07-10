@@ -1,49 +1,57 @@
 import type { Component } from "solid-js";
-import { createSignal, For, Show } from "solid-js";
+import { createEffect, createSignal, For, Show } from "solid-js";
 import { Icon } from "@ui/icons";
-import { Button, Chip, Eyebrow, IconButton, Spinner } from "@ui/button";
+import { Chip, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { FloatingPanel } from "@ui/overlay";
+import { Separator } from "@ui/inputs";
 import { textSelection } from "../text/text-format";
 import { LANGUAGES, REWRITE_PRESETS, runRewrite, runTranslate, textAssist } from "./text-assist";
 
-// The text AI menu — the ✨ action in the text format bar. Rewrites or translates the current selection (or
-// the whole field when the caret is collapsed). It captures the selection when the popover opens, so a custom
-// instruction typed into its input (which steals focus from the contenteditable) still targets the right span.
-// Lives inside the ContextBar (data-galleo-toolbar), so interacting here doesn't end the text edit.
+// The text AI intake panel — the ✨ action in the text format bar. A prompt-first popup for editing the current
+// selection (or the whole field when the caret is collapsed): type a free-form instruction, or one-click a
+// shortcut (rewrite preset) or a translate target. It captures the selection when the panel opens — the prompt
+// input steals focus from the contenteditable, so the captured range is what every action targets. Lives inside
+// the ContextBar (data-galleo-toolbar), so interacting here doesn't end the text edit.
 
 type Range = { from: number; to: number };
 
 const noBlur = (e: MouseEvent): void => e.preventDefault();
 
-const row =
-    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-ink hover:bg-canvas disabled:opacity-40";
-
 export const TextAiMenu: Component = () => {
     const [open, setOpen] = createSignal(false);
-    const [custom, setCustom] = createSignal("");
-    const [showLangs, setShowLangs] = createSignal(false);
-    // The selection snapshot taken when the menu opens (a plain ref — read at action time, not reactive).
+    const [prompt, setPrompt] = createSignal("");
+    // The selection snapshot taken when the panel opens (a plain ref — read at action time, not reactive).
     let captured: Range | null = null;
+    let field: HTMLInputElement | undefined;
 
     const toggle = (): void => {
         if (!open()) {
             captured = textSelection();
-            setCustom("");
-            setShowLangs(false);
+            setPrompt("");
         }
         setOpen((o) => !o);
     };
 
-    // Run an action, then close on success (leave the menu open on error so the message shows + they retry).
+    // Focus the prompt as the panel opens, so the user can type immediately (the captured range keeps the edit
+    // targeted even though the contenteditable loses its visual selection).
+    createEffect(() => {
+        if (open()) queueMicrotask(() => field?.focus());
+    });
+
+    // Run an action, then close on success (leave the panel open on error so the message shows + they retry).
     const act = async (p: Promise<void>): Promise<void> => {
         await p;
         if (!textAssist.error) {
             setOpen(false);
-            setCustom("");
+            setPrompt("");
         }
     };
 
     const busy = (): boolean => textAssist.busy;
+    const submit = (): void => {
+        const t = prompt().trim();
+        if (t) void act(runRewrite(t, captured));
+    };
 
     return (
         <div class="relative">
@@ -63,93 +71,90 @@ export const TextAiMenu: Component = () => {
                 <FloatingPanel
                     rounded="xl"
                     pad="sm"
-                    class="absolute left-1/2 top-full z-50 mt-2 max-h-[340px] w-64 -translate-x-1/2 overflow-y-auto"
+                    class="absolute right-0 top-full z-50 mt-2 max-h-[400px] w-72 overflow-y-auto"
                 >
-                    {/* custom instruction */}
-                    <div class="flex items-center gap-1 rounded-lg border border-line bg-canvas px-2 py-1 focus-within:border-accent">
-                        <Icon name="sparkle" size={13} />
+                    {/* the prompt */}
+                    <div class="flex items-center gap-1.5 rounded-lg border border-line bg-canvas px-2 py-1.5 focus-within:border-accent">
+                        <Icon name="sparkle" size={14} />
                         <input
-                            class="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink outline-none placeholder:text-muted"
-                            placeholder="Tell the AI to edit…"
-                            value={custom()}
+                            ref={field}
+                            class="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-muted"
+                            placeholder="Describe an edit…"
+                            value={prompt()}
                             disabled={busy()}
-                            onInput={(e) => setCustom(e.currentTarget.value)}
+                            onInput={(e) => setPrompt(e.currentTarget.value)}
                             onKeyDown={(e) => {
-                                if (e.key === "Enter" && custom().trim()) {
+                                if (e.key === "Enter") {
                                     e.preventDefault();
-                                    void act(runRewrite(custom().trim(), captured));
+                                    submit();
                                 }
                             }}
                         />
-                        <Show when={custom().trim()}>
-                            <Button
-                                variant="primary"
+                        <Show when={prompt().trim()}>
+                            <IconButton
                                 size="sm"
-                                class="flex-none"
+                                rounded="md"
+                                tone="accent"
+                                title="Apply"
                                 disabled={busy()}
                                 onMouseDown={noBlur}
-                                onClick={() => void act(runRewrite(custom().trim(), captured))}
+                                onClick={submit}
                             >
-                                <Icon name="chevronRight" size={13} />
-                            </Button>
+                                <Icon name="chevronRight" size={14} />
+                            </IconButton>
                         </Show>
                     </div>
 
                     <Show when={busy()}>
-                        <div class="flex items-center gap-2 px-2 py-1.5 text-[11.5px] text-soft">
+                        <div class="flex items-center gap-2 px-1 py-2 text-[11.5px] text-soft">
                             <Spinner size={12} tone="accent" />
                             Working…
                         </div>
                     </Show>
                     <Show when={!busy() && textAssist.error}>
-                        <div class="px-2 py-1.5 text-[11.5px] text-[#e5484d]">
-                            {textAssist.error}
-                        </div>
+                        <div class="px-1 py-2 text-[11.5px] text-[#e5484d]">{textAssist.error}</div>
                     </Show>
 
-                    {/* rewrite presets */}
-                    <Eyebrow as="div" mono={false} class="px-2 pb-0.5 pt-1.5">
-                        Rewrite
+                    {/* shortcuts — one-click rewrite presets */}
+                    <Eyebrow as="div" mono={false} class="px-0.5 pb-1.5 pt-2.5">
+                        Shortcuts
                     </Eyebrow>
-                    <For each={REWRITE_PRESETS}>
-                        {(p) => (
-                            <button
-                                class={row}
-                                disabled={busy()}
-                                onMouseDown={noBlur}
-                                onClick={() => void act(runRewrite(p.instruction, captured))}
-                            >
-                                {p.label}
-                            </button>
-                        )}
-                    </For>
+                    <div class="flex flex-wrap gap-1">
+                        <For each={REWRITE_PRESETS}>
+                            {(p) => (
+                                <Chip
+                                    variant="outline"
+                                    disabled={busy()}
+                                    title={p.instruction}
+                                    onMouseDown={noBlur}
+                                    onClick={() => void act(runRewrite(p.instruction, captured))}
+                                >
+                                    {p.label}
+                                </Chip>
+                            )}
+                        </For>
+                    </div>
+
+                    <Separator class="my-2.5" />
 
                     {/* translate */}
-                    <button
-                        class={row}
-                        disabled={busy()}
-                        onMouseDown={noBlur}
-                        onClick={() => setShowLangs((v) => !v)}
-                    >
-                        <span class="flex-1">Translate to…</span>
-                        <Icon name={showLangs() ? "chevronDown" : "chevronRight"} size={13} />
-                    </button>
-                    <Show when={showLangs()}>
-                        <div class="flex flex-wrap gap-1 px-2 pb-1 pt-0.5">
-                            <For each={LANGUAGES}>
-                                {(l) => (
-                                    <Chip
-                                        variant="outline"
-                                        disabled={busy()}
-                                        onMouseDown={noBlur}
-                                        onClick={() => void act(runTranslate(l, captured))}
-                                    >
-                                        {l}
-                                    </Chip>
-                                )}
-                            </For>
-                        </div>
-                    </Show>
+                    <Eyebrow as="div" mono={false} class="px-0.5 pb-1.5">
+                        Translate to
+                    </Eyebrow>
+                    <div class="flex flex-wrap gap-1">
+                        <For each={LANGUAGES}>
+                            {(l) => (
+                                <Chip
+                                    variant="outline"
+                                    disabled={busy()}
+                                    onMouseDown={noBlur}
+                                    onClick={() => void act(runTranslate(l, captured))}
+                                >
+                                    {l}
+                                </Chip>
+                            )}
+                        </For>
+                    </div>
                 </FloatingPanel>
             </Show>
         </div>

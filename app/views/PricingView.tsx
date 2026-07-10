@@ -2,7 +2,7 @@ import type { Component } from "solid-js";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import type { Interval, Plan, PlanId } from "@model/billing";
-import { AI_ACTION_LIST, costRange, isMetered, typicalCost } from "@model/ai";
+import { PRICED_TOOLS, costRange, isMetered, typicalCost } from "@model/tools";
 import { CheckIcon } from "@ui/icons";
 import { Badge, Eyebrow } from "@ui/button";
 import { TextField } from "@ui/inputs";
@@ -287,7 +287,7 @@ export const PricingView: Component = () => {
                             Every AI action draws from your monthly credits — bigger jobs cost more.
                         </p>
                         <div class="mt-4 overflow-hidden rounded-xl border border-line bg-panel">
-                            <For each={AI_ACTION_LIST}>
+                            <For each={PRICED_TOOLS}>
                                 {(a, i) => {
                                     const r = costRange(a.id);
                                     const cost = r.min === r.max ? `${r.min}` : `${r.min}–${r.max}`;
@@ -300,7 +300,7 @@ export const PricingView: Component = () => {
                                             <div class="min-w-0 flex-1">
                                                 <div class="flex items-center gap-2">
                                                     <span class="text-[13px] font-medium text-ink">
-                                                        {a.label}
+                                                        {a.title}
                                                     </span>
                                                     <Show when={isMetered(a.id)}>
                                                         <Badge
@@ -324,7 +324,7 @@ export const PricingView: Component = () => {
                                                     </Show>
                                                 </div>
                                                 <div class="truncate text-[12px] text-muted">
-                                                    {a.description}
+                                                    {a.summary}
                                                 </div>
                                             </div>
                                             <div class="flex-none text-right tabular-nums">

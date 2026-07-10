@@ -1,11 +1,10 @@
 import type { ElementInstance, Section } from "@model/artifact";
-import { GRID_TEMPLATES } from "@model/elements";
 
 // Deterministic quality checks on a generated section — the gate for the inline auto-repair (a section that
 // trips a check is regenerated once, with the issues fed back to the model). These are structure + content
 // heuristics only: `services` may not import `canvas`, so true layout metrics (fill ratio, overflow, text
 // clipping) belong to the offline eval harness, which can run the engine. What's here catches the common,
-// unambiguous failures — empty cells, missing headline, placeholder copy, a near-empty slide.
+// unambiguous failures — empty regions, missing headline, placeholder copy, a near-empty slide.
 
 const PLACEHOLDER_RE =
     /lorem ipsum|placeholder text|to-?do|tbd|your (?:text|content) here|\bx{3,}\b/i;
@@ -39,24 +38,27 @@ export interface SectionCheck {
     issues: string[];
 }
 
+// Count empty containers (an empty column / region) anywhere in the tree — the blank-section failure.
+function countEmptyRegions(el: ElementInstance): number {
+    const kids = (el.data as { children?: ElementInstance[] }).children;
+    if (!Array.isArray(kids)) return 0;
+    if (kids.length === 0) return 1;
+    return kids.reduce((n, k) => n + countEmptyRegions(k), 0);
+}
+
 // Check one section. `surface` tunes expectations — a deck slide should carry more than a doc paragraph.
 export function checkSection(section: Section, surface: string): SectionCheck {
     const issues: string[] = [];
-    const keys = GRID_TEMPLATES.find((g) => g.id === section.grid)?.cells ?? ["a"];
 
-    // 1. every cell the grid exposes must hold a real element (the blank-section failure)
-    for (const k of keys) {
-        if (!section.cells[k]?.element) {
-            issues.push(`cell "${k}" is empty — fill it with a real element`);
-        }
+    // 1. no empty region — every column/container must hold a real element (the blank-section failure)
+    const empties = countEmptyRegions(section.root);
+    if (empties > 0) {
+        issues.push(`${empties} empty region(s) — fill every column with a real element`);
     }
 
-    // gather all content across the filled cells
+    // gather all content across the tree
     const acc: Content = { texts: [], types: [], headings: 0 };
-    for (const k of keys) {
-        const el = section.cells[k]?.element;
-        if (el) walk(el, acc);
-    }
+    walk(section.root, acc);
     const chars = acc.texts.join(" ").trim().length;
     const hasFocal = acc.types.some((t) => FOCAL_TYPES.has(t));
 

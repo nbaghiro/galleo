@@ -1,31 +1,27 @@
 import { z } from "zod";
-import { GRID_IDS } from "@model/elements";
 
 // The Zod schemas the AI module hands to `generateObject`/`streamObject` — the machine half of the contract
-// whose human half is the prompt catalog. They keep the *shape* honest (a section is grid + cells of
-// elements; an outline is titled beats) while leaving each element's `data` open, because the prompt (not a
-// rigid schema) is what teaches the model the per-element fields — and `applyPatch` + the element specs
-// already tolerate extra/missing keys. Tighten later into a discriminated element union if drift shows up.
-
-const gridEnum = z.enum(GRID_IDS as [string, ...string[]]);
+// whose human half is the prompt catalog. They keep the *shape* honest (a section is ONE recursive `root`
+// element tree; an outline is titled beats) while leaving each element's `data` open, because the prompt
+// (not a rigid schema) is what teaches the model the per-element fields — and `applyPatch` + the element
+// specs already tolerate extra/missing keys. Tighten later into a discriminated element union if drift shows.
 
 // One element instance — `{ type, data }`, matching @model/artifact ElementInstance. `data` is an open
-// object (children nest as elements inside it); the catalog in the system prompt constrains the contents.
+// object (children nest as elements inside `data.children`); the catalog in the system prompt constrains the
+// contents. `layout.width` on a child sets its column share.
 export const zElement = z.object({
     type: z.string().describe("element type from the catalog (text, image, group, stat, chart, …)"),
     data: z.record(z.string(), z.unknown()).describe("element data per the catalog for this type"),
     layout: z.record(z.string(), z.unknown()).optional(),
 });
 
-export const zCell = z.object({ element: zElement.optional() });
-
 export const zSection = z.object({
     id: z.string().describe("a stable, unique section id (e.g. 's1', 's2')"),
-    grid: gridEnum.describe("the column template; fill the cells it exposes"),
-    cells: z
-        .record(z.string(), zCell)
-        .describe("cell key → { element }; keys must be the grid's cell keys"),
+    root: zElement.describe(
+        "the section's content as ONE element: a `group` with direction 'row' for side-by-side columns (each child carries layout.width, e.g. {pct:60}), 'col' to stack — nestable to any depth; or a single element for a full-width section",
+    ),
     background: z.record(z.string(), z.unknown()).optional(),
+    bleed: z.boolean().optional(),
 });
 
 // --- generate: outline (plan) then per-section ---
@@ -34,13 +30,18 @@ export const zBeat = z.object({
     id: z.string().describe("the section id this beat becomes (s1, s2, …)"),
     label: z.string().describe("a 2–5 word working title for the section"),
     role: z.string().describe("narrative role: scene | tension | turn | proof | momentum | close"),
-    grid: gridEnum.optional().describe("the intended grid, so the canvas can pre-shape a skeleton"),
+    layout: z
+        .string()
+        .optional()
+        .describe(
+            "a named layout preset (full · split-6040 · split-4060 · two-col · three-up) whose column count + widths pre-shape the skeleton",
+        ),
     image: z.boolean().optional().describe("true if this section leads with a prominent image"),
     blocks: z
         .array(z.string())
         .optional()
         .describe(
-            "the block leading each grid cell, in cell order (a, b, c) — each one of: text, bullets, image, stat, chart, diagram, table, quote, cards. Length = the grid's cell count.",
+            "the block leading each column, in order — each one of: text, bullets, image, stat, chart, diagram, table, quote, cards. Length = the layout's column count.",
         ),
     brief: z
         .string()

@@ -28,7 +28,7 @@ export const ScaledSectionCanvas: Component<{
     onOpen?: (e: MouseEvent) => void;
     title?: string;
     index?: number;
-    radius?: number; // card corner radius in px (default 8)
+    radius?: number; // card corner radius in px (default: theme `--radius-lg`, 8px at the neutral theme)
     bordered?: boolean; // 1px theme-line border
     baseShadow?: boolean; // subtle resting drop shadow (combines with the selection ring)
     class?: string;
@@ -101,7 +101,10 @@ export const ScaledSectionCanvas: Component<{
         width: `${w()}px`,
         height: `${boxH()}px`,
         background: props.theme.bg,
-        "border-radius": `${props.radius ?? 8}px`,
+        // No explicit radius → the theme-derived card radius (`--radius-lg`, = 8px at the neutral theme,
+        // so no change there) so filmstrip/library tiles round in step with the rest of the chrome and
+        // their own `rounded-lg` skeletons. An explicit `radius` (incl. 0 for a bleed mini-canvas) wins.
+        "border-radius": props.radius !== undefined ? `${props.radius}px` : "var(--radius-lg)",
         ...(props.bordered ? { border: "1px solid var(--color-line)" } : {}),
         ...(boxShadow() ? { "box-shadow": boxShadow() } : {}),
     });

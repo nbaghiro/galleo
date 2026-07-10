@@ -1,22 +1,18 @@
 import type { Section, ElementInstance } from "@model/artifact";
-import { GRID_TEMPLATES } from "@model/elements";
+import { LAYOUT_PRESETS, rowGroup } from "@model/section";
 
-// Blueprint sections — a planned-but-unwritten section stood up from its grid + per-cell block plan, so
-// its real engine skeleton (layoutSectionSkeleton) shows the exact layout the writer is told to fill. Used
-// by the generation modal's build view and the editor's insert-a-section flow, so both preview the same
-// ghost the model then fills in.
+// Blueprint sections — a planned-but-unwritten section stood up from its column plan, so its real engine
+// skeleton (layoutSectionSkeleton) shows the exact layout the writer is told to fill. Used by the
+// generation modal's build view and the editor's insert-a-section flow, so both preview the same ghost the
+// model then fills in.
 
 // The minimal plan a blueprint needs — a Beat (@model/ai) or the modal's SectionSlot both satisfy it.
 export interface SectionBlueprint {
     id: string;
-    grid?: string;
-    blocks?: string[]; // the block kind leading each grid cell, in cell order
-    image?: boolean; // the section leads with a prominent image (used to guess a trailing image cell)
+    layout?: string; // a named layout preset (its column count + widths), e.g. "split-6040"
+    blocks?: string[]; // the block kind leading each column, in order
+    image?: boolean; // the section leads with a prominent image (used to guess a trailing image column)
 }
-
-// The cell keys a grid exposes (fill each with one element).
-export const gridKeys = (id: string | undefined): readonly string[] =>
-    GRID_TEMPLATES.find((g) => g.id === id)?.cells ?? ["a"];
 
 const t = (text: string, style: string): ElementInstance => ({
     type: "text",
@@ -75,7 +71,10 @@ export function placeholderBlock(kind: string): ElementInstance {
                 type: "card",
                 data: { children: [t("Card title", "h3"), t("A short supporting line.", "body")] },
             });
-            return { type: "group", data: { columns: 3, children: [card(), card(), card()] } };
+            return {
+                type: "group",
+                data: { direction: "row", children: [card(), card(), card()] },
+            };
         }
         default:
             return {
@@ -94,16 +93,16 @@ export function placeholderBlock(kind: string): ElementInstance {
     }
 }
 
-// A stand-in section for a planned beat — each cell filled with ITS planned block's placeholder, so the
+// A stand-in section for a planned beat — each column filled with ITS planned block's placeholder, so the
 // skeleton is the exact layout the writer will fill. Falls back to a text default when a beat has no blocks.
 export function placeholderSection(plan: SectionBlueprint): Section {
-    const keys = gridKeys(plan.grid);
-    const cells: Record<string, { element: ElementInstance }> = {};
-    keys.forEach((key, i) => {
-        const kind =
-            plan.blocks?.[i] ??
-            (plan.image && keys.length > 1 && i === keys.length - 1 ? "image" : "text");
-        cells[key] = { element: placeholderBlock(kind) };
+    const fractions = LAYOUT_PRESETS[plan.layout ?? "full"] ?? [1];
+    const n = plan.blocks?.length ?? fractions.length;
+    const columns = Array.from({ length: n }, (_, i) => {
+        const kind = plan.blocks?.[i] ?? (plan.image && n > 1 && i === n - 1 ? "image" : "text");
+        return placeholderBlock(kind);
     });
-    return { id: plan.id, grid: plan.grid ?? "full", cells } as Section;
+    const root =
+        n === 1 ? columns[0]! : rowGroup(columns, fractions.length === n ? fractions : undefined);
+    return { id: plan.id, root };
 }

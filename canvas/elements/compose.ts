@@ -2,49 +2,15 @@ import type { LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import type { ElementAddress } from "@model/target";
 import type { ElementInstance, Section, SectionBackground } from "@model/artifact";
-import type { ElementLayout, Size } from "@model/geometry";
+import type { ElementLayout } from "@model/geometry";
 import type { Tokens } from "@themes";
 import { getElement } from "@elements/spec";
-import { cellRegionId, elementRegionId, sectionRegionId } from "@model/target";
+import { elementRegionId, sectionRegionId } from "@model/target";
 import { fit, grow, percent } from "@model/geometry";
 import { fontStack, luminance, mixWhite } from "@themes";
 
-// --- section grid templates: predefined per-cell width specs + one-click preset inserts ---
-// composeSection() (below) builds each cell's box from these and tags it for selection; spacing is via
-// per-cell padding so widths sum to the full width without gap math.
-
-export interface Template {
-    id: string;
-    cells: string[];
-    widths: Size[];
-}
-
-const full: Template = { id: "full", cells: ["a"], widths: [grow()] };
-
-export const TEMPLATES: Record<string, Template> = {
-    full,
-    "split-6040": { id: "split-6040", cells: ["a", "b"], widths: [percent(0.6), percent(0.4)] },
-    "split-4060": { id: "split-4060", cells: ["a", "b"], widths: [percent(0.4), percent(0.6)] },
-    "two-col": { id: "two-col", cells: ["a", "b"], widths: [percent(0.5), percent(0.5)] },
-    "three-up": {
-        id: "three-up",
-        cells: ["a", "b", "c"],
-        widths: [percent(1 / 3), percent(1 / 3), percent(1 / 3)],
-    },
-};
-
-export const fallbackTemplate = full;
-
-export const TEMPLATE_LABELS: Record<string, string> = {
-    full: "Full",
-    "split-6040": "60 / 40",
-    "split-4060": "40 / 60",
-    "two-col": "Two columns",
-    "three-up": "Three up",
-};
-
 // One-click "smart layout" inserts — pre-built structures assembled from normal, freely-editable
-// elements (a group grid of styled cards). Not element types: the picker inserts the built instance,
+// elements (a row of styled cards). Not element types: the picker inserts the built instance,
 // after which every piece (each card, its title/body) selects/edits/deletes like any other element.
 
 const card = (title: string, body: string): ElementInstance => ({
@@ -73,7 +39,7 @@ export const PRESETS: Preset[] = [
         build: () => ({
             type: "group",
             data: {
-                columns: 3,
+                direction: "row",
                 children: [
                     card("First idea", "A short supporting line."),
                     card("Second idea", "A short supporting line."),
@@ -84,14 +50,14 @@ export const PRESETS: Preset[] = [
     },
 ];
 
-// Compose one Section into an EngineNode tree, tagging section / cell / element nodes with region ids
-// (so the engine can report their geometry for selection + drop-targets). Containers recurse here so
-// nested elements get addressable paths.
+// Compose one Section into an EngineNode tree, tagging section + element nodes with region ids (so the
+// engine can report their geometry for selection + drop-targets). Containers recurse here so nested
+// elements get addressable paths.
 
-export const GUTTER = 14; // per-cell padding — a top-level element's content width is cellW - 2*GUTTER
+export const GUTTER = 14; // inset around a section column's top-level element (its content width is colW - 2*GUTTER)
 const pad = (n: number) => ({ top: n, right: n, bottom: n, left: n });
 
-function emptyCell(ctx: LayoutCtx): EngineNode {
+function emptyRegionNode(ctx: LayoutCtx): EngineNode {
     return {
         w: grow(),
         h: fit(90),
@@ -153,14 +119,16 @@ function composeElement(inst: ElementInstance, ctx: LayoutCtx, addr: ElementAddr
     }
     let node: EngineNode;
     if (spec.container) {
-        const kids = spec.container.children(inst.data).map((child, i) =>
-            composeElement(child, ctx, {
-                section: addr.section,
-                cell: addr.cell,
-                path: [...addr.path, i],
-            }),
-        );
-        node = spec.container.arrange(inst.data, ctx, kids);
+        const childInstances = spec.container.children(inst.data);
+        if (childInstances.length === 0) {
+            // An empty container — an empty column, or a group a drag/delete emptied — is a drop region.
+            node = emptyRegionNode(ctx);
+        } else {
+            const kids = childInstances.map((child, i) =>
+                composeElement(child, ctx, { section: addr.section, path: [...addr.path, i] }),
+            );
+            node = spec.container.arrange(inst.data, ctx, kids);
+        }
     } else {
         node = spec.layout(inst.data, ctx);
     }
@@ -222,31 +190,14 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
     const contentTheme = bgIsDark(bg) ? onDark(ctx.theme) : ctx.theme;
     const cctx: LayoutCtx = { ...ctx, theme: contentTheme };
 
-    const tmpl = TEMPLATES[section.grid] ?? fallbackTemplate;
-    // Custom column fractions (from a divider drag) override the preset when they match the cell count.
-    const custom =
-        section.widths && section.widths.length === tmpl.cells.length ? section.widths : null;
-    const cells = tmpl.cells.map((cellKey, i): EngineNode => {
-        const inst = section.cells[cellKey]?.element;
-        const content = inst
-            ? composeElement(inst, cctx, { section: section.id, cell: cellKey, path: [] })
-            : emptyCell(cctx);
-        return {
-            id: cellRegionId(section.id, cellKey),
-            w: custom ? percent(custom[i]!) : (tmpl.widths[i] ?? grow()),
-            h: fit(),
-            padding: pad(GUTTER),
-            direction: "col",
-            children: [content],
-        };
-    });
+    // The section's content is one recursive tree; compose it from the root. Columns are just the root
+    // row's children — the engine sizes them from each child's own width. The section only frames it.
+    const content = composeElement(section.root, cctx, { section: section.id, path: [] });
     const inner: EngineNode = {
         w: webBand ? grow(undefined, innerMax) : grow(),
         h: fit(),
-        direction: "row",
-        gap: 0,
-        alignY: "center",
-        children: cells,
+        padding: pad(GUTTER),
+        children: [content],
     };
 
     // Continuous formats (doc/web) merge sections into one seamless surface: no card radius/border,

@@ -96,28 +96,10 @@ export type DiagramType = (typeof DIAGRAM_TYPES)[number];
 
 export const GRAPH_DIAGRAM_TYPES = ["flow", "tree", "org", "mindmap"] as const;
 
-// --- section grids: the column-layout ids + their cell keys (fill each cell with one element). The
-// column *widths* are canvas geometry (Size[] in compose.ts), keyed by these ids. Section-level rather
-// than an element category, but part of the same authoring contract, so it sits with the value-sets. ---
-
-export interface GridTemplate {
-    id: string;
-    cells: readonly string[];
-}
-
-export const GRID_TEMPLATES: readonly GridTemplate[] = [
-    { id: "full", cells: ["a"] },
-    { id: "split-6040", cells: ["a", "b"] },
-    { id: "split-4060", cells: ["a", "b"] },
-    { id: "two-col", cells: ["a", "b"] },
-    { id: "three-up", cells: ["a", "b", "c"] },
-] as const;
-
-export const GRID_IDS = GRID_TEMPLATES.map((g) => g.id);
-
-// The layout vocabulary the outline plans with — the "block" that leads each grid cell, a curated subset of
-// the element library (the content-leading types). A beat carries one block per grid cell; the live skeleton
+// The layout vocabulary the outline plans with — the "block" that leads each column, a curated subset of
+// the element library (the content-leading types). A beat carries one block per column; the live skeleton
 // and the section writer both key off them, so the planned layout and the generated one match by construction.
+// (Named layout presets — the column count + width ratios a beat can reach for — live in @model/section.)
 export const BLOCK_KINDS = [
     "text", // a headline + supporting copy
     "bullets", // a short list

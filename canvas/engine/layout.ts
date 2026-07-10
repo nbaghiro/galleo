@@ -69,7 +69,8 @@ function layoutWidths(node: EngineNode, w: number, measure: MeasureText): Layout
     if (isRow(node)) {
         const gaps = (node.gap ?? 0) * Math.max(0, kids.length - 1);
         const avail = Math.max(0, contentW - gaps);
-        const widths = kids.map((c) => assignWidth(c, contentW, avail, measure));
+        // percent/fit resolve against the space left after gaps, so 60% + 40% + a gap fills exactly.
+        const widths = kids.map((c) => assignWidth(c, avail, avail, measure));
         const fixedSum = widths.filter((x) => x >= 0).reduce((a, b) => a + b, 0);
         const growCount = widths.filter((x) => x < 0).length;
         const growEach = growCount > 0 ? Math.max(0, avail - fixedSum) / growCount : 0;
@@ -210,17 +211,20 @@ function layoutPositions(ln: LayoutNode, x: number, y: number): void {
 
 // --- flatten to render commands (background fill first, then children) ---
 
-function emit(ln: LayoutNode, commands: RenderCommand[], regions: Region[]): void {
+function emit(ln: LayoutNode, commands: RenderCommand[], regions: Region[], opacity = 1): void {
     const { node } = ln;
+    const acc = node.opacity !== undefined ? opacity * node.opacity : opacity;
+    const o = acc < 1 ? acc : undefined; // carried on each command in the subtree
     const box: Rect = { x: ln.x, y: ln.y, w: ln.w, h: ln.h };
     if (node.id)
         regions.push({ id: node.id, box, radius: node.fill?.radius ?? node.image?.radius });
-    if (node.fill) commands.push({ kind: "rect", box, fill: node.fill, id: node.id });
-    if (node.image) commands.push({ kind: "image", box, image: node.image, id: node.id });
-    if (node.text) commands.push({ kind: "text", box, text: node.text, id: node.id });
+    if (node.fill) commands.push({ kind: "rect", box, fill: node.fill, id: node.id, opacity: o });
+    if (node.image)
+        commands.push({ kind: "image", box, image: node.image, id: node.id, opacity: o });
+    if (node.text) commands.push({ kind: "text", box, text: node.text, id: node.id, opacity: o });
     if (node.surface)
-        commands.push({ kind: "surface", box, paint: node.surface.paint, id: node.id });
-    for (const c of ln.children) emit(c, commands, regions);
+        commands.push({ kind: "surface", box, paint: node.surface.paint, id: node.id, opacity: o });
+    for (const c of ln.children) emit(c, commands, regions, acc);
 }
 
 // Resolve a node tree into absolute-positioned paint commands + interaction regions (for nodes

@@ -2,11 +2,12 @@ import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import type { Section, ElementInstance } from "@model/artifact";
-import { GRID_TEMPLATES } from "@model/elements";
+import { row, split } from "@model/authoring";
 import { resolveProfile } from "@engine/profile";
 import { resolveTheme, themeCssVars, mix } from "@themes";
 import { paint } from "@canvas/render/backends";
 import { measureText, layoutSection, layoutSectionSkeleton } from "@canvas/render/commands";
+import { placeholderSection } from "@canvas/elements/blueprint";
 import { appTheme } from "../../theme";
 import { CloseIcon } from "@ui/icons";
 import { MiniCanvas } from "../../components/previews";
@@ -79,7 +80,7 @@ const EXAMPLE_PROMPTS: { text: string; format: Surface }[] = [
 
 const FORMATS: [Surface, string][] = [
     ["deck", "Deck"],
-    ["doc", "Document"],
+    ["doc", "Doc"],
     ["web", "Website"],
 ];
 const LENGTHS = ["Short", "Standard", "In-depth"];
@@ -95,33 +96,29 @@ const img = (seed: string, aspect = 1.5): ElementInstance => ({
     type: "image",
     data: { src: `https://picsum.photos/seed/${seed}/1200/800`, aspect },
 });
-const cl = (element: ElementInstance): { element: ElementInstance } => ({ element });
 const SAMPLE_SECTIONS: Section[] = [
     {
         id: "sa1",
-        grid: "full",
         background: {
             kind: "image",
             image: "https://picsum.photos/seed/galleo-hero/1600/900",
             scrim: 0.5,
         },
-        cells: {
-            a: cl({
-                type: "group",
-                data: {
-                    children: [
-                        st("Design at the speed of thought", "h1"),
-                        st("A calmer way to build decks, docs, and sites.", "subtitle"),
-                    ],
-                },
-            }),
+        root: {
+            type: "group",
+            data: {
+                children: [
+                    st("Design at the speed of thought", "h1"),
+                    st("A calmer way to build decks, docs, and sites.", "subtitle"),
+                ],
+            },
         },
     },
     {
         id: "sa2",
-        grid: "split-6040",
-        cells: {
-            a: cl({
+        root: split(
+            60,
+            {
                 type: "group",
                 data: {
                     children: [
@@ -164,47 +161,40 @@ const SAMPLE_SECTIONS: Section[] = [
                         },
                     ],
                 },
-            }),
-            b: cl(img("galleo-metrics", 0.9)),
-        },
+            },
+            img("galleo-metrics", 0.9),
+        ),
     },
     {
         id: "sa3",
-        grid: "full",
-        cells: {
-            a: cl({
-                type: "quote",
-                data: {
-                    children: [
-                        st("It writes every section, then gets out of the way.", "h2"),
-                        st("— A very happy designer", "caption"),
-                    ],
-                },
-            }),
+        root: {
+            type: "quote",
+            data: {
+                children: [
+                    st("It writes every section, then gets out of the way.", "h2"),
+                    st("— A very happy designer", "caption"),
+                ],
+            },
         },
     },
     {
         id: "sa4",
-        grid: "split-4060",
-        cells: {
-            a: cl(img("galleo-studio", 1)),
-            b: cl({
-                type: "group",
-                data: {
-                    children: [
-                        st("Made for real work", "h2"),
-                        st("Photos, charts, and copy — composed, never templated.", "body"),
-                        st("Every block sized to fit the point it makes.", "body"),
-                    ],
-                },
-            }),
-        },
+        root: split(40, img("galleo-studio", 1), {
+            type: "group",
+            data: {
+                children: [
+                    st("Made for real work", "h2"),
+                    st("Photos, charts, and copy — composed, never templated.", "body"),
+                    st("Every block sized to fit the point it makes.", "body"),
+                ],
+            },
+        }),
     },
     {
         id: "sa5",
-        grid: "split-4060",
-        cells: {
-            a: cl({
+        root: split(
+            40,
+            {
                 type: "group",
                 data: {
                     children: [
@@ -212,8 +202,8 @@ const SAMPLE_SECTIONS: Section[] = [
                         st("Adoption across the first weeks.", "body"),
                     ],
                 },
-            }),
-            b: cl({
+            },
+            {
                 type: "chart",
                 data: {
                     type: "area",
@@ -221,14 +211,13 @@ const SAMPLE_SECTIONS: Section[] = [
                     categories: "W1, W2, W3, W4, W5",
                     smooth: true,
                 },
-            }),
-        },
+            },
+        ),
     },
     {
         id: "sa6",
-        grid: "three-up",
-        cells: {
-            a: cl({
+        root: row(
+            {
                 type: "card",
                 data: {
                     children: [
@@ -237,8 +226,8 @@ const SAMPLE_SECTIONS: Section[] = [
                         st("Real, specific copy.", "body"),
                     ],
                 },
-            }),
-            b: cl({
+            },
+            {
                 type: "card",
                 data: {
                     children: [
@@ -247,8 +236,8 @@ const SAMPLE_SECTIONS: Section[] = [
                         st("Grids that fit the point.", "body"),
                     ],
                 },
-            }),
-            c: cl({
+            },
+            {
                 type: "card",
                 data: {
                     children: [
@@ -257,8 +246,8 @@ const SAMPLE_SECTIONS: Section[] = [
                         st("Export in one click.", "body"),
                     ],
                 },
-            }),
-        },
+            },
+        ),
     },
 ] as Section[];
 
@@ -276,102 +265,6 @@ const frameWidth = (avail: number): number => {
         p.id === "web" ? avail - 48 : Math.min(avail - 48, p.maxContentWidth ?? 1080),
     );
 };
-
-// The grid's cell keys — used to build a placeholder section whose real skeleton (layoutSectionSkeleton)
-// stands in until the beat's content lands, so the build view reuses the engine's own ghost.
-const gridKeys = (id: string): readonly string[] =>
-    GRID_TEMPLATES.find((g) => g.id === id)?.cells ?? ["a"];
-
-// A placeholder element for a planned block kind — a real element the engine can skeletonize, so the live
-// skeleton shows the exact block the plan assigned to each cell (a stat cell reads as a stat ghost, a chart
-// cell as a chart ghost, …), matching what the section writer is told to produce.
-function placeholderBlock(kind: string): ElementInstance {
-    const t = (text: string, style: string): ElementInstance => ({
-        type: "text",
-        data: { text, style },
-    });
-    switch (kind) {
-        case "image":
-            return { type: "image", data: { src: "", aspect: 1.4 } };
-        case "stat":
-            return {
-                type: "stat",
-                data: { children: [t("92%", "h1"), t("key metric", "caption")] },
-            };
-        case "chart":
-            return {
-                type: "chart",
-                data: { type: "bar", values: "48, 62, 55, 71", categories: "A, B, C, D" },
-            };
-        case "diagram":
-            return {
-                type: "diagram",
-                data: { type: "process", items: "Step one, Step two, Step three" },
-            };
-        case "table":
-            return {
-                type: "table",
-                data: { data: "Plan, Price\nBasic, $9\nPro, $29", header: true },
-            };
-        case "bullets":
-            return {
-                type: "bullets",
-                data: {
-                    children: [
-                        t("First supporting point", "body"),
-                        t("Second supporting point", "body"),
-                        t("Third supporting point", "body"),
-                    ],
-                },
-            };
-        case "quote":
-            return {
-                type: "quote",
-                data: {
-                    children: [
-                        t("A pulled quotation that carries the point.", "h3"),
-                        t("— Attribution", "caption"),
-                    ],
-                },
-            };
-        case "cards": {
-            const card = (): ElementInstance => ({
-                type: "card",
-                data: { children: [t("Card title", "h3"), t("A short supporting line.", "body")] },
-            });
-            return { type: "group", data: { columns: 3, children: [card(), card(), card()] } };
-        }
-        default:
-            return {
-                type: "group",
-                data: {
-                    children: [
-                        t("Section heading", "h2"),
-                        t(
-                            "A supporting line of body copy that runs the width of the column.",
-                            "body",
-                        ),
-                        t("Another line of supporting copy.", "body"),
-                    ],
-                },
-            };
-    }
-}
-
-// A stand-in section for a planned-but-unwritten beat — each cell filled with ITS planned block's placeholder,
-// so the skeleton is the exact layout the writer will fill. Falls back to a default when a beat has no blocks
-// (older plans / the loader tiles).
-function placeholderSection(slot: SectionSlot): Section {
-    const keys = gridKeys(slot.grid);
-    const cells: Record<string, { element: ElementInstance }> = {};
-    keys.forEach((key, i) => {
-        const kind =
-            slot.blocks[i] ??
-            (slot.image && keys.length > 1 && i === keys.length - 1 ? "image" : "text");
-        cells[key] = { element: placeholderBlock(kind) };
-    });
-    return { id: slot.id, grid: slot.grid, cells } as Section;
-}
 
 // The macro phase stepper — the backend's fine-grained turn phases collapsed into four user-facing steps.
 const STEPS: { label: string; phases: string[] }[] = [
@@ -1073,7 +966,7 @@ const Frame: Component<{ slot: SectionSlot; index: number; avail: () => number }
                 class="absolute left-3 top-2 z-[2] font-mono text-[9px] tracking-[0.14em] text-accent/80 transition-opacity"
                 classList={{ "opacity-0": doneReady() }}
             >
-                {String(props.index + 1).padStart(2, "0")} · {props.slot.grid.toUpperCase()}
+                {String(props.index + 1).padStart(2, "0")} · {props.slot.layout.toUpperCase()}
                 {props.slot.image ? " · IMG" : ""}
             </span>
             <div

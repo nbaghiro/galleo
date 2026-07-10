@@ -121,20 +121,12 @@ const group = (...children: ElementInstance[]): ElementInstance => ({
 
 export const THEME_SAMPLE: Section = {
     id: "theme-sample",
-    grid: "full",
-    cells: {
-        a: {
-            element: group(
-                tx("Galleo · design system", "label"),
-                tx("A theme you can feel", "h1"),
-                tx(
-                    "One token set themes every surface — decks, docs, and sites alike.",
-                    "subtitle",
-                ),
-                button("Get started"),
-            ),
-        },
-    },
+    root: group(
+        tx("Galleo · design system", "label"),
+        tx("A theme you can feel", "h1"),
+        tx("One token set themes every surface — decks, docs, and sites alike.", "subtitle"),
+        button("Get started"),
+    ),
 };
 
 // ── custom (user-created) themes: loaded from the backend + registered into @themes ──

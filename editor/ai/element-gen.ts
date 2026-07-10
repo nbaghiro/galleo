@@ -2,7 +2,20 @@ import type { ArtifactContent } from "@model/artifact";
 import type { ElementAddress } from "@model/target";
 import { createStore } from "solid-js/store";
 import { getElementAt, setElementAt } from "@elements/ops";
-import { commit, content, editor, getReviseElement, setSelection } from "../editor";
+import {
+    commit,
+    content,
+    editing,
+    editor,
+    getReviseElement,
+    setSelection,
+    stopEditing,
+} from "../editor";
+
+// Is `path` at or under `ancestor` (a prefix match)? Used to tell whether the element being inline-edited sits
+// inside a just-regenerated subtree.
+const isAtOrUnder = (path: number[], ancestor: number[]): boolean =>
+    ancestor.every((v, i) => path[i] === v);
 
 // Regenerate-an-element flow — the ContextBar's Regenerate action. One call swaps the selected element for a
 // fresh AI version, in place, as a single undoable step. It "handles both cases": a self-contained element
@@ -78,6 +91,13 @@ export async function regenerateElement(addr: ElementAddress, instruction?: stri
     try {
         const next = await reviser(base, target.section, current, instruction);
         if (getElementAt(content(), target)) {
+            // Drop the inline editor BEFORE committing if the regenerated element (or a piece of it) is being
+            // edited: the contenteditable overlay holds the old text, and the browser won't repaint an in-place
+            // external change to a live field (that's why it only showed on deselect). Exiting editing lets the
+            // section repaint from the new model — the element shows selected, with its fresh content.
+            const ed = editing();
+            if (ed && ed.section === target.section && isAtOrUnder(ed.path, target.path))
+                stopEditing();
             commit(setElementAt(content(), target, next));
             setSelection({ kind: "element", address: target });
         }

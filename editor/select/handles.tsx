@@ -1,20 +1,161 @@
-// Direct-manipulation drag handles: element height/aspect resize, container spacing, and the in-between
-// region dividers that resize side-by-side regions (cells + row-arranged element siblings, any depth).
+// Direct-manipulation drag handles: element height/aspect resize, the generic move grip, and the in-between
+// region dividers that resize any row of side-by-side siblings — the section's top-level columns and every
+// nested row group, one uniform mechanism at every depth.
 
 import type { ElementLayout } from "@model/geometry";
 import type { ElementAddress } from "@model/target";
 import type { ArtifactContent } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { getElementAt, setElementLayout, setSectionWidths, updateDataAt } from "@elements/ops";
+import { getElementAt, setElementLayout, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
-import { cellRegionId, elementRegionId } from "@model/target";
-import { commit, editor, editorAccent, hover, regions, selection, stageEl } from "../editor";
+import { elementRegionId, sectionRegionId } from "@model/target";
+import {
+    commit,
+    editor,
+    editorAccent,
+    hover,
+    moveSectionTo,
+    regions,
+    selection,
+    setSelection,
+    stageEl,
+} from "../editor";
+import { startDrag, drag } from "../canvas/dnd";
+import { Icon } from "@ui/icons";
 import type { Rect, Region } from "@engine/node";
-import { fallbackTemplate, TEMPLATES } from "@elements/compose";
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 const EDGE = 8; // draggable border thickness
+const DRAG_THRESHOLD = 5; // px of pointer travel before a grip press becomes an actual drag (vs. a click)
+
+// The section reorder target (a drop position 0..n) while a section is being dragged, else null.
+export const [sectionDrop, setSectionDrop] = createSignal<number | null>(null);
+// The id of the section being drag-reordered — the canvas dims it and reflows the stack to its drop slot (a
+// section-level echo of the element drag preview), else null.
+export const [sectionDragId, setSectionDragId] = createSignal<string | null>(null);
+
+// Which section gap the cursor sits in, measured against the given (pre-drag) section tops.
+function sectionTargetAt(clientY: number, tops: number[]): number {
+    const stage = stageEl();
+    if (!stage || !tops.length) return 0;
+    const y = clientY - stage.getBoundingClientRect().top;
+    for (let i = 0; i < tops.length; i++) {
+        const next = tops[i + 1] ?? tops[i]! + 600;
+        if (y < (tops[i]! + next) / 2) return i;
+    }
+    return tops.length;
+}
+
+// Begin a section drag-reorder (from the section grip); commits via moveSectionTo on release. The canvas
+// paints a live preview — the dragged section dimmed and reflowed into its drop slot — so target detection
+// runs against a snapshot of the pre-drag tops, staying stable while the stack reorders under the cursor.
+export function startSectionDrag(id: string): void {
+    const tops = [...editor.sectionTops];
+    const start = editor.artifact.sections.findIndex((s) => s.id === id);
+    setSectionDragId(id);
+    setSectionDrop(Math.max(0, start)); // dim in place immediately (a no-op reorder) until the first move
+    const move = (e: PointerEvent): void => {
+        setSectionDrop(sectionTargetAt(e.clientY, tops));
+    };
+    const up = (): void => {
+        const target = sectionDrop();
+        setSectionDragId(null);
+        setSectionDrop(null);
+        if (target !== null) moveSectionTo(id, target);
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+}
+
+// The one generic move affordance: a small grip that appears on HOVER over whatever's under the cursor —
+// any nested element/column, or the section itself. It sits in the left MARGIN (outside the element, never
+// over its content); its hit-zone runs flush to the element's left edge and swallows pointer-move, so the
+// region stays hovered while you reach across to grab it. A MOVE starts ONLY from here, so ordinary clicks /
+// text editing never turn into an accidental drag. Element → move within the section; section → reorder.
+export const DragHandle: Component = () => {
+    const ctx = createMemo(() => {
+        if (drag() || sectionDragId()) return null; // hide the grip while any drag is in flight
+        const t = hover() ?? selection();
+        if (t?.kind === "element") {
+            const box = regions().find((r) => r.id === elementRegionId(t.address))?.box;
+            return box ? { kind: "element" as const, box, address: t.address } : null;
+        }
+        if (t?.kind === "section") {
+            const box = regions().find((r) => r.id === sectionRegionId(t.section))?.box;
+            return box ? { kind: "section" as const, box, section: t.section } : null;
+        }
+        return null;
+    });
+    const onDown = (e: PointerEvent): void => {
+        e.preventDefault();
+        e.stopPropagation();
+        const c = ctx();
+        if (!c) return;
+        // Arm the drag but don't start it until the pointer travels past a small threshold: a plain click on
+        // the grip (no movement) must NOT lift the element out of the layout — it should only select it. The
+        // move listener is capture-phase so it fires even while the pointer is still over the grip (whose own
+        // onPointerMove stops bubbling). startDrag → the lift + preview only happen once you actually drag.
+        const sx = e.clientX;
+        const sy = e.clientY;
+        const begin = (): void => {
+            if (c.kind === "element") {
+                const inst = getElementAt(editor.artifact, c.address);
+                const label = (inst && getElement(inst.type)?.label) || "Element";
+                startDrag({ kind: "move", from: c.address }, sx, sy, label);
+            } else {
+                startSectionDrag(c.section);
+            }
+        };
+        const done = (): void => {
+            window.removeEventListener("pointermove", onMove, true);
+            window.removeEventListener("pointerup", onUp, true);
+        };
+        const onMove = (ev: PointerEvent): void => {
+            if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < DRAG_THRESHOLD) return;
+            done();
+            begin();
+        };
+        const onUp = (): void => {
+            done();
+            setSelection(
+                c.kind === "element"
+                    ? { kind: "element", address: c.address }
+                    : { kind: "section", section: c.section },
+            );
+        };
+        window.addEventListener("pointermove", onMove, true);
+        window.addEventListener("pointerup", onUp, true);
+    };
+    return (
+        <Show when={ctx()}>
+            {(c) => (
+                // The hit-zone spans the margin AND runs flush to the element's left edge, so crossing from
+                // the element onto it keeps the region hovered; `onPointerMove` stops the canvas from
+                // recomputing hover while you're over it. The visible grip sits at its left, in the margin.
+                <div
+                    class="absolute z-30 flex cursor-grab items-center active:cursor-grabbing"
+                    style={{
+                        left: `${c().box.x - 26}px`,
+                        top: `${c().box.y}px`,
+                        width: "26px",
+                        height: "26px",
+                        "touch-action": "none",
+                    }}
+                    title="Drag to move"
+                    onPointerDown={onDown}
+                    onPointerMove={(e) => e.stopPropagation()}
+                >
+                    <div class="pointer-events-none flex h-5 w-4 items-center justify-center rounded-md border border-line bg-panel/90 text-muted shadow-sm backdrop-blur-md">
+                        <Icon name="grip" size={12} />
+                    </div>
+                </div>
+            )}
+        </Show>
+    );
+};
 
 // Height / aspect resize on the SELECTED element's bottom edge only. Width + corner handles were removed:
 // they overlapped neighbouring elements' own affordances, and width is now sized via the in-between
@@ -90,147 +231,9 @@ export const ResizeHandles: Component = () => {
     );
 };
 
-// Container spacing handles (canvas coords) for a selected group/card: a grip in each gap between
-// children (drag along the flow → gap), and a corner grip at the content inset (drag → padding). Both
-// live-preview through the shared liveEdit signal, committing on release.
-
-export const SpacingHandles: Component = () => {
-    const ctx = createMemo(() => {
-        const sel = selection();
-        if (sel?.kind !== "element") return null;
-        const inst = getElementAt(editor.artifact, sel.address);
-        const spec = inst ? getElement(inst.type) : undefined;
-        if (!inst || !spec?.spacing) return null;
-        const kids: Rect[] = [];
-        for (let i = 0; ; i++) {
-            const box = regions().find(
-                (r) => r.id === elementRegionId({ ...sel.address, path: [...sel.address.path, i] }),
-            )?.box;
-            if (!box) break;
-            kids.push(box);
-        }
-        return {
-            address: sel.address,
-            kids,
-            data: inst.data as Record<string, unknown>,
-            spacing: spec.spacing,
-        };
-    });
-
-    // A gap grip at each boundary between consecutive children (along the container's inferred axis).
-    const gaps = createMemo(() => {
-        const c = ctx();
-        if (!c?.spacing.gap || c.kids.length < 2) return [];
-        const xs = c.kids.map((k) => k.x);
-        const ys = c.kids.map((k) => k.y);
-        const row = Math.max(...xs) - Math.min(...xs) >= Math.max(...ys) - Math.min(...ys);
-        const sorted = [...c.kids].sort((a, b) => (row ? a.x - b.x : a.y - b.y));
-        const out: { x: number; y: number; row: boolean }[] = [];
-        for (let i = 0; i < sorted.length - 1; i++) {
-            const a = sorted[i]!;
-            const b = sorted[i + 1]!;
-            out.push(
-                row
-                    ? { x: (a.x + a.w + b.x) / 2, y: a.y + a.h / 2, row: true }
-                    : { x: a.x + a.w / 2, y: (a.y + a.h + b.y) / 2, row: false },
-            );
-        }
-        return out;
-    });
-
-    // The content-inset grip at the top-left child corner.
-    const pad = createMemo(() => {
-        const c = ctx();
-        if (!c?.spacing.padding || c.kids.length === 0) return null;
-        const first = c.kids.reduce(
-            (m, k) => (k.y < m.y || (k.y === m.y && k.x < m.x) ? k : m),
-            c.kids[0]!,
-        );
-        return { x: first.x, y: first.y };
-    });
-
-    const begin = (
-        e: PointerEvent,
-        cfg: { key: string; min: number; max: number; def: number },
-        mode: "row" | "col" | "both",
-    ): void => {
-        e.preventDefault();
-        e.stopPropagation();
-        const c = ctx();
-        if (!c) return;
-        const start = Number(c.data[cfg.key] ?? cfg.def);
-        const sx = e.clientX;
-        const sy = e.clientY;
-        const move = (ev: PointerEvent): void => {
-            const dx = ev.clientX - sx;
-            const dy = ev.clientY - sy;
-            const delta = mode === "row" ? dx : mode === "col" ? dy : (dx + dy) / 2;
-            const val = Math.round(clamp(start + delta, cfg.min, cfg.max));
-            setLiveEdit({ kind: "element", address: c.address, dataPatch: { [cfg.key]: val } });
-        };
-        const up = (): void => {
-            const edit = liveEdit();
-            setLiveEdit(null);
-            if (edit) commit(applyLiveEdit(editor.artifact, edit));
-            window.removeEventListener("pointermove", move);
-            window.removeEventListener("pointerup", up);
-        };
-        window.addEventListener("pointermove", move);
-        window.addEventListener("pointerup", up);
-    };
-
-    return (
-        <Show when={ctx()}>
-            {(c) => (
-                <>
-                    <For each={gaps()}>
-                        {(g) => (
-                            <div
-                                class="absolute z-20 rounded-full opacity-70 hover:opacity-100"
-                                style={{
-                                    left: `${g.x}px`,
-                                    top: `${g.y}px`,
-                                    width: g.row ? "4px" : "18px",
-                                    height: g.row ? "18px" : "4px",
-                                    transform: "translate(-50%, -50%)",
-                                    background: editorAccent(),
-                                    cursor: g.row ? "ew-resize" : "ns-resize",
-                                    "touch-action": "none",
-                                }}
-                                onPointerDown={(e) =>
-                                    begin(e, c().spacing.gap!, g.row ? "row" : "col")
-                                }
-                            />
-                        )}
-                    </For>
-                    <Show when={pad()}>
-                        {(p) => (
-                            <div
-                                class="absolute z-20 h-2.5 w-2.5 rounded-[2px] border-2 bg-panel"
-                                style={{
-                                    left: `${p().x}px`,
-                                    top: `${p().y}px`,
-                                    transform: "translate(-50%, -50%)",
-                                    "border-color": editorAccent(),
-                                    cursor: "nwse-resize",
-                                    "touch-action": "none",
-                                }}
-                                onPointerDown={(e) => begin(e, c().spacing.padding!, "both")}
-                            />
-                        )}
-                    </Show>
-                </>
-            )}
-        </Show>
-    );
-};
-
-// In-between region dividers — the primary resize affordance. A draggable bar sits between two
-// horizontally-adjacent regions and reallocates their combined width on drag. Covered regions: a
-// section's grid cells (→ section.widths) AND the row-arranged children of ANY container at any nesting
-// depth (→ each child's ElementLayout.width %). Revealed while the region's section is hovered (so they
-// never overlap an element's own selection affordances), fading in on hover of the individual divider.
-const round = (n: number): number => Math.round(n * 1000) / 1000;
+// In-between region dividers — the primary width affordance. A bar between two side-by-side siblings
+// reallocates their combined width on drag, writing each child's ElementLayout.width %. One mechanism at
+// every depth (top-level columns + any nested row). Shown while the section is hovered.
 
 interface Divider {
     key: string;
@@ -240,55 +243,23 @@ interface Divider {
     apply: (stageX: number) => LiveEdit; // stageX = clientX − stage.left
 }
 
-function cellDividers(sid: string, grid: string, regs: Region[]): Divider[] {
-    const tmpl = TEMPLATES[grid] ?? fallbackTemplate;
-    if (tmpl.cells.length < 2) return [];
-    const boxes = tmpl.cells.map((k) => regs.find((r) => r.id === cellRegionId(sid, k))?.box);
-    if (boxes.some((b) => !b)) return [];
-    const b = boxes as Rect[];
-    const rowLeft = b[0]!.x;
-    const rowWidth = b[b.length - 1]!.x + b[b.length - 1]!.w - rowLeft;
-    const fractions = b.map((x) => x.w / rowWidth);
-    const top = Math.min(...b.map((x) => x.y));
-    const h = Math.max(...b.map((x) => x.y + x.h)) - top;
-    const out: Divider[] = [];
-    for (let i = 0; i < b.length - 1; i++) {
-        const before = fractions.slice(0, i).reduce((a, x) => a + x, 0);
-        const combined = fractions[i]! + fractions[i + 1]!;
-        out.push({
-            key: `cell:${sid}:${i}`,
-            x: (b[i]!.x + b[i]!.w + b[i + 1]!.x) / 2,
-            top,
-            h,
-            apply: (stageX) => {
-                const fi = clamp((stageX - rowLeft) / rowWidth - before, 0.12, combined - 0.12);
-                const widths = [...fractions];
-                widths[i] = round(fi);
-                widths[i + 1] = round(combined - fi);
-                return { kind: "columns", section: sid, widths };
-            },
-        });
-    }
-    return out;
-}
-
 function siblingDividers(sid: string, regs: Region[]): Divider[] {
-    // Group every element region in the section by its parent (cell + parent path) → its sibling set.
+    // Group every element region in the section by its parent path → its sibling set. The root's children
+    // (parent path []) are the section columns; deeper groups are nested rows — same code for both.
     const groups = new Map<
         string,
-        { cell: string; parentPath: number[]; members: { index: number; box: Rect }[] }
+        { parentPath: number[]; members: { index: number; box: Rect }[] }
     >();
     for (const r of regs) {
-        if (!r.id.startsWith(`el:${sid}:`)) continue;
         const parts = r.id.split(":");
-        const cell = parts[2]!;
-        const pathStr = parts[3] ?? "";
-        if (pathStr === "") continue; // the cell's root element has no in-cell sibling boundary
+        if (parts[0] !== "el" || parts[1] !== sid) continue;
+        const pathStr = parts[2] ?? "";
+        if (pathStr === "") continue; // the root has no sibling boundary
         const path = pathStr.split(".").map(Number);
-        const key = `${cell}|${path.slice(0, -1).join(".")}`;
+        const key = path.slice(0, -1).join(".");
         let g = groups.get(key);
         if (!g) {
-            g = { cell, parentPath: path.slice(0, -1), members: [] };
+            g = { parentPath: path.slice(0, -1), members: [] };
             groups.set(key, g);
         }
         g.members.push({ index: path[path.length - 1]!, box: r.box });
@@ -315,9 +286,9 @@ function siblingDividers(sid: string, regs: Region[]): Divider[] {
             const combined = fractions[i]! + fractions[i + 1]!;
             const idxL = sorted[i]!.index;
             const idxR = sorted[i + 1]!.index;
-            const parent: ElementAddress = { section: sid, cell: g.cell, path: g.parentPath };
+            const parent: ElementAddress = { section: sid, path: g.parentPath };
             out.push({
-                key: `el:${sid}:${g.cell}:${g.parentPath.join(".")}:${i}`,
+                key: `el:${sid}:${g.parentPath.join(".")}:${i}`,
                 x: (sorted[i]!.box.x + sorted[i]!.box.w + sorted[i + 1]!.box.x) / 2,
                 top,
                 h,
@@ -339,8 +310,10 @@ function siblingDividers(sid: string, regs: Region[]): Divider[] {
 }
 
 export const RegionDividers: Component = () => {
-    // The section whose dividers are shown: the hovered one, else the selected one.
+    // The section whose dividers are shown: the hovered one, else the selected one. Hidden mid-drag — the
+    // dragged element's region is stale, and resize affordances don't apply while a drop is in flight.
     const sid = createMemo<string | null>(() => {
+        if (drag() || sectionDragId()) return null;
         const t = hover() ?? selection();
         if (!t) return null;
         return t.kind === "element" ? t.address.section : t.section;
@@ -348,11 +321,7 @@ export const RegionDividers: Component = () => {
 
     const dividers = createMemo((): Divider[] => {
         const id = sid();
-        if (!id) return [];
-        const section = editor.artifact.sections.find((s) => s.id === id);
-        if (!section) return [];
-        const regs = regions();
-        return [...cellDividers(id, section.grid, regs), ...siblingDividers(id, regs)];
+        return id ? siblingDividers(id, regions()) : [];
     });
 
     const onDown = (e: PointerEvent, d: Divider): void => {
@@ -410,19 +379,16 @@ export type LiveEdit =
           layoutPatch?: Partial<ElementLayout>; // cross-axis (ElementLayout)
           dataPatch?: Record<string, unknown>; // height / aspect / gap / padding (element data)
       }
-    | { kind: "columns"; section: string; widths: number[] }
     | { kind: "siblings"; parent: ElementAddress; entries: { index: number; pct: number }[] };
 
 export const [liveEdit, setLiveEdit] = createSignal<LiveEdit | null>(null);
 
 export function applyLiveEdit(art: ArtifactContent, edit: LiveEdit): ArtifactContent {
-    if (edit.kind === "columns") return setSectionWidths(art, edit.section, edit.widths);
     if (edit.kind === "siblings") {
         let out = art;
         for (const e of edit.entries) {
             const addr: ElementAddress = {
                 section: edit.parent.section,
-                cell: edit.parent.cell,
                 path: [...edit.parent.path, e.index],
             };
             const inst = getElementAt(out, addr);

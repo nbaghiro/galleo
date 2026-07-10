@@ -26,14 +26,13 @@ function firstText(section: Section): string {
         }
         d.children?.forEach(visit);
     };
-    for (const cell of Object.values(section.cells)) visit(cell.element);
+    visit(section.root);
     return found;
 }
 
 function typesOf(content: ArtifactContent): Set<string> {
     const types = new Set<string>();
-    for (const s of content.sections)
-        for (const cell of Object.values(s.cells)) collectTypes(cell.element, types);
+    for (const s of content.sections) collectTypes(s.root, types);
     return types;
 }
 

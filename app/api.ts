@@ -9,7 +9,8 @@ import type { Folder, Template, User } from "@model/workspace";
 import type { ThemeSummary as Theme, ThemeInput, Tokens } from "@themes";
 import type { Interval, Plan, PlanId } from "@model/billing";
 import type { FeatureKey, FeatureStatus, Features } from "@model/features";
-import type { TurnEvent, TurnRequest, AiActionId, AiActionInfo, MeterParams } from "@model/ai";
+import type { TurnEvent, TurnRequest } from "@model/ai";
+import type { ToolId, MeterParams } from "@model/tools";
 import type { Usage } from "@model/credits";
 import type {
     IconPick,
@@ -37,7 +38,6 @@ export interface BillingState {
     usage: { artifacts: number; maxArtifacts: number };
     seats: number;
     catalog: Plan[];
-    aiActions: AiActionInfo[]; // per-action credit costs ("what a credit buys")
     stripeReady: boolean;
 }
 
@@ -263,7 +263,7 @@ export const api = {
     portal: () => req<{ url: string }>("/billing/portal", { method: "POST" }),
     spendCredits: (body?: {
         amount?: number;
-        action?: AiActionId;
+        action?: ToolId;
         meter?: MeterParams;
         usage?: Usage;
     }) =>

@@ -85,15 +85,6 @@ views, a backend (`services/` Hono + Postgres/Drizzle; artifact content lives in
 flow that is a **client-side simulator** (`app/views/generate`, replaying hand-built fixtures section by
 section). A real backend LLM pipeline for the `@model/ai` protocol is future work.
 
-## Project management (Linear)
-
-The backlog lives in Linear (team `GAL`, workspace `galleo`) — **14 projects = tech epics (E1–E14),
-issues = chunky tickets** titled `[E#-#] …`. Process, the epic→code map, field conventions, and the
-workflows are in `.docs/pm-process.md`. A repo subagent, **`galleo-pm`**, keeps tickets and code in
-sync: hand it a one-liner — or use `/pm-sync`, `/pm-plan`, `/pm-build`, `/pm-ticket` — to reconcile
-tickets against the code, plan a ticket, implement it, or capture a change. It queries Linear live via
-the `linear-server` MCP (in `.mcp.json`; each user authenticates once with `/mcp`).
-
 ## Commits
 
 Single-line, imperative; ticket prefix if the branch has one; **no co-author trailer**.

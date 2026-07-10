@@ -8,11 +8,12 @@ import {
     button,
     callout,
     card,
-    cell,
     doc,
     group,
     img,
     quote,
+    row,
+    split,
     section,
     stat,
     t,
@@ -24,8 +25,10 @@ import {
 export const resume: ArtifactContent = doc(
     "manuscript",
     [
-        section("r1", "split-6040", {
-            a: cell(
+        section(
+            "r1",
+            split(
+                60,
                 group(
                     t("PRODUCT DESIGNER", "label"),
                     t("Elena Maris Vance", "h1"),
@@ -38,74 +41,77 @@ export const resume: ArtifactContent = doc(
                         "caption",
                     ),
                 ),
+                img("elena-vance-portrait", 0.82, 200),
             ),
-            b: cell(img("elena-vance-portrait", 0.82, 200)),
-        }),
-        section("r2", "full", {
-            a: cell(
-                group(
-                    t("Summary", "label"),
-                    t(
-                        "I design end-to-end product experiences — from the first scrappy prototype to the pixels that ship — for tools people open every day. Nine years across fintech, developer platforms, and consumer health, most recently leading design for a payments product used by 40,000+ small businesses. I care about systems that scale, interfaces that disappear, and shipping work that actually makes it to production.",
-                        "subtitle",
-                    ),
+        ),
+        section(
+            "r2",
+            group(
+                t("Summary", "label"),
+                t(
+                    "I design end-to-end product experiences — from the first scrappy prototype to the pixels that ship — for tools people open every day. Nine years across fintech, developer platforms, and consumer health, most recently leading design for a payments product used by 40,000+ small businesses. I care about systems that scale, interfaces that disappear, and shipping work that actually makes it to production.",
+                    "subtitle",
                 ),
             ),
-        }),
-        section("r3", "three-up", {
-            a: cell(stat("9 yrs", "designing shipping product")),
-            b: cell(stat("40k+", "businesses on my last product")),
-            c: cell(stat("$12M", "ARR influenced by 2024 redesign")),
-        }),
-        section("r4", "split-4060", {
-            a: cell(
+        ),
+        section(
+            "r3",
+            row(
+                stat("9 yrs", "designing shipping product"),
+                stat("40k+", "businesses on my last product"),
+                stat("$12M", "ARR influenced by 2024 redesign"),
+            ),
+        ),
+        section(
+            "r4",
+            split(
+                40,
                 group(
                     t("Northwind", "h3"),
                     t("Lead Product Designer", "caption"),
                     t("2022 — Present · San Francisco", "caption"),
                 ),
-            ),
-            b: cell(
                 bullets(
                     "Led the end-to-end redesign of the merchant payments dashboard, lifting weekly active use 34% and cutting time-to-first-invoice from 11 minutes to under 3.",
                     "Built and now maintain Aster, the company's first cross-platform design system — 80+ components adopted by four product teams.",
                     "Mentor two designers and run the weekly critique that the whole product org now attends.",
                 ),
             ),
-        }),
-        section("r5", "split-4060", {
-            a: cell(
+        ),
+        section(
+            "r5",
+            split(
+                40,
                 group(
                     t("Cadence Health", "h3"),
                     t("Senior Product Designer", "caption"),
                     t("2019 — 2022 · Remote", "caption"),
                 ),
-            ),
-            b: cell(
                 bullets(
                     "Designed the onboarding and daily-tracking flows for a chronic-care app that grew from 5k to 220k monthly users.",
                     "Ran a 6-week research sprint with 40 patients that reframed the entire care-plan model the team had been building.",
                     "Shipped an accessibility overhaul that took the app from WCAG A to AA across every core flow.",
                 ),
             ),
-        }),
-        section("r6", "split-4060", {
-            a: cell(
+        ),
+        section(
+            "r6",
+            split(
+                40,
                 group(
                     t("Foglight Studio", "h3"),
                     t("Product Designer", "caption"),
                     t("2017 — 2019 · Portland", "caption"),
                 ),
-            ),
-            b: cell(
                 bullets(
                     "Sole designer on client products for early-stage startups — brand, web, and product across a dozen launches.",
                     "Established the studio's first reusable Figma libraries, cutting average project setup from days to hours.",
                 ),
             ),
-        }),
-        section("r7", "three-up", {
-            a: cell(
+        ),
+        section(
+            "r7",
+            row(
                 card(
                     t("Craft", "label"),
                     bullets(
@@ -115,8 +121,6 @@ export const resume: ArtifactContent = doc(
                         "Motion & micro-interaction",
                     ),
                 ),
-            ),
-            b: cell(
                 card(
                     t("Method", "label"),
                     bullets(
@@ -126,8 +130,6 @@ export const resume: ArtifactContent = doc(
                         "Design ops",
                     ),
                 ),
-            ),
-            c: cell(
                 card(
                     t("Tools", "label"),
                     bullets(
@@ -138,9 +140,11 @@ export const resume: ArtifactContent = doc(
                     ),
                 ),
             ),
-        }),
-        section("r8", "split-6040", {
-            a: cell(
+        ),
+        section(
+            "r8",
+            split(
+                60,
                 group(
                     t("Selected projects", "label"),
                     t("Aster Design System", "h3"),
@@ -153,19 +157,18 @@ export const resume: ArtifactContent = doc(
                         "caption",
                     ),
                 ),
+                img("aster-design-system-screens", 0.82, 12),
             ),
-            b: cell(img("aster-design-system-screens", 0.82, 12)),
-        }),
-        section("r9", "two-col", {
-            a: cell(
+        ),
+        section(
+            "r9",
+            row(
                 group(
                     t("Education", "label"),
                     t("Rhode Island School of Design", "h3"),
                     t("BFA, Graphic Design · 2013 — 2017", "caption"),
                     t("Senior thesis on type systems for data-dense interfaces.", "caption"),
                 ),
-            ),
-            b: cell(
                 group(
                     t("Recognition", "label"),
                     bullets(
@@ -175,32 +178,30 @@ export const resume: ArtifactContent = doc(
                     ),
                 ),
             ),
-        }),
-        section("r10", "full", {
-            a: cell(
-                callout(
-                    "note",
-                    group(
-                        t("What I value", "label"),
-                        t(
-                            "The best design work is quiet. I'd rather ship one flow that genuinely respects a person's time than ten features that demo well. I show up for the unglamorous middle — the edge cases, the empty states, the error copy — because that's where products earn trust. Always learning in public, always shipping.",
-                            "body",
-                        ),
-                    ),
-                ),
-            ),
-        }),
-        section("r11", "full", {
-            a: cell(
+        ),
+        section(
+            "r10",
+            callout(
+                "note",
                 group(
+                    t("What I value", "label"),
                     t(
-                        "Open to senior and lead product design roles, full-time or fractional.",
-                        "subtitle",
+                        "The best design work is quiet. I'd rather ship one flow that genuinely respects a person's time than ten features that demo well. I show up for the unglamorous middle — the edge cases, the empty states, the error copy — because that's where products earn trust. Always learning in public, always shipping.",
+                        "body",
                     ),
-                    t("elena@vance.design · vance.design · in/elenavance", "caption"),
                 ),
             ),
-        }),
+        ),
+        section(
+            "r11",
+            group(
+                t(
+                    "Open to senior and lead product design roles, full-time or fractional.",
+                    "subtitle",
+                ),
+                t("elena@vance.design · vance.design · in/elenavance", "caption"),
+            ),
+        ),
     ],
     bgImage("manuscript-paper-bg", 0.2),
 );
@@ -210,24 +211,21 @@ export const portfolio: ArtifactContent = web(
     [
         section(
             "p1",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("STUDIO HALVORSEN", "label"),
-                        t("Light, made deliberate.", "h1"),
-                        t(
-                            "An independent design studio working at the edge of architecture, brand, and the objects in between — for people who believe a space should be felt before it's understood.",
-                            "subtitle",
-                        ),
-                    ),
+            group(
+                t("STUDIO HALVORSEN", "label"),
+                t("Light, made deliberate.", "h1"),
+                t(
+                    "An independent design studio working at the edge of architecture, brand, and the objects in between — for people who believe a space should be felt before it's understood.",
+                    "subtitle",
                 ),
-            },
+            ),
             { background: bgImage("halvorsen-hero-architecture", 0.55) },
         ),
-        section("p2", "split-4060", {
-            a: cell(img("halvorsen-portrait-studio", 0.82)),
-            b: cell(
+        section(
+            "p2",
+            split(
+                40,
+                img("halvorsen-portrait-studio", 0.82),
                 group(
                     t("Statement", "label"),
                     t("We design the pause before the room speaks.", "h2"),
@@ -237,65 +235,65 @@ export const portfolio: ArtifactContent = web(
                     ),
                 ),
             ),
-        }),
-        section("p3", "three-up", {
-            a: cell(stat("120+", "projects completed")),
-            b: cell(stat("16", "years independent")),
-            c: cell(stat("9", "design awards")),
-        }),
-        section("p4", "full", {
-            a: cell(
-                group(
-                    t("Selected work", "label"),
-                    t("A few rooms we're proud of.", "h2"),
-                    t(
-                        "Residential, hospitality, and retail — each a study in light, material, and the discipline of leaving things out.",
-                        "body",
-                    ),
+        ),
+        section(
+            "p3",
+            row(
+                stat("120+", "projects completed"),
+                stat("16", "years independent"),
+                stat("9", "design awards"),
+            ),
+        ),
+        section(
+            "p4",
+            group(
+                t("Selected work", "label"),
+                t("A few rooms we're proud of.", "h2"),
+                t(
+                    "Residential, hospitality, and retail — each a study in light, material, and the discipline of leaving things out.",
+                    "body",
                 ),
             ),
-        }),
-        section("p5", "two-col", {
-            a: cell(
+        ),
+        section(
+            "p5",
+            row(
                 card(
                     img("halvorsen-fjord-house-interior", 1.2),
                     t("Fjord House", "h3"),
                     t("Private residence · Bergen · 2025", "caption"),
                 ),
-            ),
-            b: cell(
                 card(
                     img("halvorsen-amber-hotel-lobby", 1.2),
                     t("Hotel Amber", "h3"),
                     t("28-room boutique hotel · Copenhagen · 2024", "caption"),
                 ),
             ),
-        }),
-        section("p6", "three-up", {
-            a: cell(
+        ),
+        section(
+            "p6",
+            row(
                 card(
                     img("halvorsen-glasshouse-cafe", 1),
                     t("The Glasshouse", "h3"),
                     t("Café & roastery · Oslo", "caption"),
                 ),
-            ),
-            b: cell(
                 card(
                     img("halvorsen-marble-flagship-retail", 1),
                     t("Marlowe Flagship", "h3"),
                     t("Retail identity · London", "caption"),
                 ),
-            ),
-            c: cell(
                 card(
                     img("halvorsen-linen-apartment", 1),
                     t("Linen Apartment", "h3"),
                     t("Pied-à-terre · Paris", "caption"),
                 ),
             ),
-        }),
-        section("p7", "split-6040", {
-            a: cell(
+        ),
+        section(
+            "p7",
+            split(
+                60,
                 group(
                     t("In focus", "label"),
                     badge("FEATURED"),
@@ -305,14 +303,13 @@ export const portfolio: ArtifactContent = web(
                         "body",
                     ),
                 ),
+                img("halvorsen-amber-detail-brass", 0.92),
             ),
-            b: cell(img("halvorsen-amber-detail-brass", 0.92)),
-        }),
-        section("p8", "full", {
-            a: cell(group(t("What we do", "label"), t("Three ways to work with us.", "h2"))),
-        }),
-        section("p9", "three-up", {
-            a: cell(
+        ),
+        section("p8", group(t("What we do", "label"), t("Three ways to work with us.", "h2"))),
+        section(
+            "p9",
+            row(
                 card(
                     t("Interiors", "h3"),
                     t(
@@ -320,8 +317,6 @@ export const portfolio: ArtifactContent = web(
                         "body",
                     ),
                 ),
-            ),
-            b: cell(
                 card(
                     t("Identity", "h3"),
                     t(
@@ -329,8 +324,6 @@ export const portfolio: ArtifactContent = web(
                         "body",
                     ),
                 ),
-            ),
-            c: cell(
                 card(
                     t("Objects", "h3"),
                     t(
@@ -339,32 +332,29 @@ export const portfolio: ArtifactContent = web(
                     ),
                 ),
             ),
-        }),
-        section("p10", "full", {
-            a: cell(
-                quote(
-                    "They handed us a building we'd stopped seeing and gave it back as somewhere we never want to leave.",
-                    "Ines Lund · Owner, Hotel Amber",
-                ),
+        ),
+        section(
+            "p10",
+            quote(
+                "They handed us a building we'd stopped seeing and gave it back as somewhere we never want to leave.",
+                "Ines Lund · Owner, Hotel Amber",
             ),
-        }),
+        ),
         section(
             "p11",
-            "split-6040",
-            {
-                a: cell(
-                    group(
-                        t("Let's begin", "label"),
-                        t("Tell us about the space.", "h2"),
-                        t(
-                            "We take on a handful of projects a year so each one gets all of us. If you've got a room, a brand, or an idea that deserves restraint, we'd love to hear it.",
-                            "subtitle",
-                        ),
-                        button("Start a project"),
+            split(
+                60,
+                group(
+                    t("Let's begin", "label"),
+                    t("Tell us about the space.", "h2"),
+                    t(
+                        "We take on a handful of projects a year so each one gets all of us. If you've got a room, a brand, or an idea that deserves restraint, we'd love to hear it.",
+                        "subtitle",
                     ),
+                    button("Start a project"),
                 ),
-                b: cell(img("halvorsen-studio-materials-flatlay", 0.92)),
-            },
+                img("halvorsen-studio-materials-flatlay", 0.92),
+            ),
             { background: bgImage("halvorsen-contact-texture", 0.4) },
         ),
     ],
@@ -377,8 +367,10 @@ export const portfolio: ArtifactContent = web(
 export const personalSite: ArtifactContent = web(
     "aura",
     [
-        section("s1", "split-6040", {
-            a: cell(
+        section(
+            "s1",
+            split(
+                60,
                 group(
                     t("WRITER · DESIGNER · FOUNDER", "label"),
                     t("Wren Halloran", "h1"),
@@ -388,28 +380,29 @@ export const personalSite: ArtifactContent = web(
                     ),
                     button("Say hello"),
                 ),
+                img("wren-halloran-portrait", 0.78),
             ),
-            b: cell(img("wren-halloran-portrait", 0.78)),
-        }),
-        section("s2", "full", {
-            a: cell(
-                group(
-                    t("A few words", "label"),
-                    t("I build things meant to be kept.", "h2"),
-                    t(
-                        "Most software is designed to be replaced — by the next version, the next funding round, the next acquirer. I’m interested in the other kind: tools that earn a permanent place on your desk, that get quieter and more useful the longer you live with them.",
-                        "body",
-                    ),
-                    t(
-                        "For ten years I’ve moved between writing and design, and I’ve stopped pretending they’re different jobs. Both are really about deciding what to leave out. Everything here is an attempt at the same thing: less, but better, and made to last.",
-                        "body",
-                    ),
+        ),
+        section(
+            "s2",
+            group(
+                t("A few words", "label"),
+                t("I build things meant to be kept.", "h2"),
+                t(
+                    "Most software is designed to be replaced — by the next version, the next funding round, the next acquirer. I’m interested in the other kind: tools that earn a permanent place on your desk, that get quieter and more useful the longer you live with them.",
+                    "body",
+                ),
+                t(
+                    "For ten years I’ve moved between writing and design, and I’ve stopped pretending they’re different jobs. Both are really about deciding what to leave out. Everything here is an attempt at the same thing: less, but better, and made to last.",
+                    "body",
                 ),
             ),
-        }),
-        section("s3", "split-4060", {
-            a: cell(img("wren-studio-desk", 1.05)),
-            b: cell(
+        ),
+        section(
+            "s3",
+            split(
+                40,
+                img("wren-studio-desk", 1.05),
                 group(
                     t("About", "label"),
                     t("A short version of a long story.", "h2"),
@@ -424,9 +417,10 @@ export const personalSite: ArtifactContent = web(
                     ),
                 ),
             ),
-        }),
-        section("s4", "three-up", {
-            a: cell(
+        ),
+        section(
+            "s4",
+            row(
                 card(
                     badge("SHIPPING"),
                     t("Margin 2.0", "h3"),
@@ -435,8 +429,6 @@ export const personalSite: ArtifactContent = web(
                         "caption",
                     ),
                 ),
-            ),
-            b: cell(
                 card(
                     badge("WRITING"),
                     t("The Attention Book", "h3"),
@@ -445,8 +437,6 @@ export const personalSite: ArtifactContent = web(
                         "caption",
                     ),
                 ),
-            ),
-            c: cell(
                 card(
                     badge("ADVISING"),
                     t("Two founders", "h3"),
@@ -456,9 +446,11 @@ export const personalSite: ArtifactContent = web(
                     ),
                 ),
             ),
-        }),
-        section("s5", "split-6040", {
-            a: cell(
+        ),
+        section(
+            "s5",
+            split(
+                60,
                 group(
                     t("Selected writing", "label"),
                     t("Essays people actually finished.", "h2"),
@@ -475,12 +467,14 @@ export const personalSite: ArtifactContent = web(
                     t("Notes on Making Things Small", "h3"),
                     t("A working theory of why less software outlives more · 7 min", "caption"),
                 ),
+                img("wren-essay-spread", 0.82),
             ),
-            b: cell(img("wren-essay-spread", 0.82)),
-        }),
-        section("s6", "split-4060", {
-            a: cell(img("wren-margin-app", 1)),
-            b: cell(
+        ),
+        section(
+            "s6",
+            split(
+                40,
+                img("wren-margin-app", 1),
                 group(
                     t("Featured", "label"),
                     badge("LIVE"),
@@ -492,56 +486,54 @@ export const personalSite: ArtifactContent = web(
                     button("Visit Margin"),
                 ),
             ),
-        }),
-        section("s7", "three-up", {
-            a: cell(stat("24K", "readers of the weekly “Slow Tools” letter")),
-            b: cell(stat("3", "products shipped and still maintained, years on")),
-            c: cell(stat("10 yrs", "moving between writing and design")),
-        }),
-        section("s8", "two-col", {
-            a: cell(
+        ),
+        section(
+            "s7",
+            row(
+                stat("24K", "readers of the weekly “Slow Tools” letter"),
+                stat("3", "products shipped and still maintained, years on"),
+                stat("10 yrs", "moving between writing and design"),
+            ),
+        ),
+        section(
+            "s8",
+            row(
                 quote(
                     "Wren is the rare maker who treats restraint as a feature. Working with her, the best ideas were always the ones she talked us out of.",
                     "Aoife Brennan · co-founder, Cadence",
                 ),
-            ),
-            b: cell(
                 quote(
                     "Half my saved-articles graveyard is now things I’ve actually read, because of Margin. It’s the only software I’ve paid for twice.",
                     "Theo Marsh · reader since 2021",
                 ),
             ),
-        }),
-        section("s9", "three-up", {
-            a: cell(
+        ),
+        section(
+            "s9",
+            row(
                 group(
                     t("Offscreen", "h3"),
                     t("“A quiet manifesto for durable software.”", "caption"),
                 ),
-            ),
-            b: cell(
                 group(t("The Verge", "h3"), t("“Margin is reading, minus the noise.”", "caption")),
-            ),
-            c: cell(
                 group(
                     t("Dense Discovery", "h3"),
                     t("“Wren’s letter is a weekly exhale.”", "caption"),
                 ),
             ),
-        }),
-        section("s10", "full", {
-            a: cell(
-                group(
-                    t("Say hello", "label"),
-                    t("Let’s make something that lasts.", "h2"),
-                    t(
-                        "I take on a couple of small collaborations a year — writing, design, or the early shape of a product. If that sounds like you, I’d love to hear what you’re building.",
-                        "subtitle",
-                    ),
-                    button("Email me"),
+        ),
+        section(
+            "s10",
+            group(
+                t("Say hello", "label"),
+                t("Let’s make something that lasts.", "h2"),
+                t(
+                    "I take on a couple of small collaborations a year — writing, design, or the early shape of a product. If that sounds like you, I’d love to hear what you’re building.",
+                    "subtitle",
                 ),
+                button("Email me"),
             ),
-        }),
+        ),
     ],
     bgImage("wren-halloran-bg", 0.32),
 );
@@ -552,33 +544,30 @@ export const personalSite: ArtifactContent = web(
 export const coverLetter: ArtifactContent = doc(
     "sumi",
     [
-        section("c1", "full", {
-            a: cell(
-                group(
-                    t("COVER LETTER", "label"),
-                    t("Camille Laurent", "h1"),
-                    t("Application — Senior Product Designer, Northwind", "caption"),
-                    t(
-                        "camille.laurent@hey.com · (415) 555-0142 · Portland, OR · June 2026",
-                        "caption",
-                    ),
+        section(
+            "c1",
+            group(
+                t("COVER LETTER", "label"),
+                t("Camille Laurent", "h1"),
+                t("Application — Senior Product Designer, Northwind", "caption"),
+                t("camille.laurent@hey.com · (415) 555-0142 · Portland, OR · June 2026", "caption"),
+            ),
+        ),
+        section(
+            "c2",
+            group(
+                t("Dear Northwind team,", "subtitle"),
+                t(
+                    "I recommend your app to people without being asked — which, for a money product, is almost unheard of. Northwind is the rare financial tool that lowers my pulse instead of raising it. You design for calm in a category that profits from anxiety, and I’ve wanted to work on something like it for a long time. So when I saw the Senior Product Designer role open, I didn’t want to send the usual letter. I wanted to send a real one.",
+                    "body",
                 ),
             ),
-        }),
-        section("c2", "full", {
-            a: cell(
-                group(
-                    t("Dear Northwind team,", "subtitle"),
-                    t(
-                        "I recommend your app to people without being asked — which, for a money product, is almost unheard of. Northwind is the rare financial tool that lowers my pulse instead of raising it. You design for calm in a category that profits from anxiety, and I’ve wanted to work on something like it for a long time. So when I saw the Senior Product Designer role open, I didn’t want to send the usual letter. I wanted to send a real one.",
-                        "body",
-                    ),
-                ),
-            ),
-        }),
-        section("c3", "split-4060", {
-            a: cell(img("camille-onboarding-flow", 1.15)),
-            b: cell(
+        ),
+        section(
+            "c3",
+            split(
+                40,
+                img("camille-onboarding-flow", 1.15),
                 group(
                     t("What I’d bring", "label"),
                     t("I design for trust, not just clicks.", "h2"),
@@ -588,71 +577,65 @@ export const coverLetter: ArtifactContent = doc(
                     ),
                 ),
             ),
-        }),
-        section("c4", "full", {
-            a: cell(
-                group(
-                    t("Systems", "label"),
-                    t("Tools that scale past me.", "h3"),
-                    t(
-                        "Good design shouldn’t depend on the designer being in the room. I built and shipped Atlas, Folio’s design system, and grew it from a Figma file into a living library adopted by six product teams. The point was never consistency for its own sake — it was speed and trust: designers stopped reinventing the same date picker, and engineers stopped guessing.",
-                        "body",
-                    ),
-                    stat("−40%", "time from design to shipped after Atlas was adopted"),
+        ),
+        section(
+            "c4",
+            group(
+                t("Systems", "label"),
+                t("Tools that scale past me.", "h3"),
+                t(
+                    "Good design shouldn’t depend on the designer being in the room. I built and shipped Atlas, Folio’s design system, and grew it from a Figma file into a living library adopted by six product teams. The point was never consistency for its own sake — it was speed and trust: designers stopped reinventing the same date picker, and engineers stopped guessing.",
+                    "body",
+                ),
+                stat("−40%", "time from design to shipped after Atlas was adopted"),
+            ),
+        ),
+        section(
+            "c5",
+            group(
+                t("Craft", "label"),
+                t("Accessible by default, not as an afterthought.", "h3"),
+                t(
+                    "Last year I led an accessibility overhaul that brought our core flows to WCAG 2.2 AA — re-thinking contrast, focus order, and screen-reader copy across the product. I also mentored three junior designers through it, because the surest way to keep standards high is to make sure you’re not the only one who can hold them.",
+                    "body",
                 ),
             ),
-        }),
-        section("c5", "full", {
-            a: cell(
-                group(
-                    t("Craft", "label"),
-                    t("Accessible by default, not as an afterthought.", "h3"),
-                    t(
-                        "Last year I led an accessibility overhaul that brought our core flows to WCAG 2.2 AA — re-thinking contrast, focus order, and screen-reader copy across the product. I also mentored three junior designers through it, because the surest way to keep standards high is to make sure you’re not the only one who can hold them.",
-                        "body",
-                    ),
+        ),
+        section(
+            "c6",
+            quote(
+                "Camille is the rare designer who can hold the whole system in her head and still sweat a single label. She raised the bar for the entire team — and made the rest of us want to clear it.",
+                "Devin Park · Head of Design, Folio",
+            ),
+        ),
+        section(
+            "c7",
+            callout(
+                "note",
+                t(
+                    "A few practical notes: I’m based in Portland and happy to relocate or keep to your hours. I’m available from August, and I’d be glad to begin with a short paid design exercise — it’s the fastest honest way for both of us to see how we work together.",
+                    "body",
                 ),
             ),
-        }),
-        section("c6", "full", {
-            a: cell(
-                quote(
-                    "Camille is the rare designer who can hold the whole system in her head and still sweat a single label. She raised the bar for the entire team — and made the rest of us want to clear it.",
-                    "Devin Park · Head of Design, Folio",
+        ),
+        section(
+            "c8",
+            group(
+                t(
+                    "I’ve admired Northwind from the outside for two years; I’d love the chance to make it better from the inside. Thank you for reading this far — I know your time is short, and I’ve tried to be worth it.",
+                    "body",
                 ),
             ),
-        }),
-        section("c7", "full", {
-            a: cell(
-                callout(
-                    "note",
-                    t(
-                        "A few practical notes: I’m based in Portland and happy to relocate or keep to your hours. I’m available from August, and I’d be glad to begin with a short paid design exercise — it’s the fastest honest way for both of us to see how we work together.",
-                        "body",
-                    ),
-                ),
+        ),
+        section(
+            "c9",
+            group(
+                divider(),
+                t("Warmly,", "body"),
+                t("Camille Laurent", "h3"),
+                t("Portfolio: camillelaurent.design · LinkedIn: in/camille-laurent", "caption"),
             ),
-        }),
-        section("c8", "full", {
-            a: cell(
-                group(
-                    t(
-                        "I’ve admired Northwind from the outside for two years; I’d love the chance to make it better from the inside. Thank you for reading this far — I know your time is short, and I’ve tried to be worth it.",
-                        "body",
-                    ),
-                ),
-            ),
-        }),
-        section("c9", "full", {
-            a: cell(
-                group(
-                    divider(),
-                    t("Warmly,", "body"),
-                    t("Camille Laurent", "h3"),
-                    t("Portfolio: camillelaurent.design · LinkedIn: in/camille-laurent", "caption"),
-                ),
-            ),
-        }),
+        ),
     ],
     bgImage("camille-laurent-paper", 0.28),
 );
@@ -663,46 +646,42 @@ export const eventInvite: ArtifactContent = web(
         // 1 — Hero
         section(
             "s1",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("WITH JOYFUL HEARTS, TOGETHER WITH THEIR FAMILIES", "label"),
-                        badge("SATURDAY · 12 SEPTEMBER 2026"),
-                        t("Amara & Théo", "h1"),
-                        t(
-                            "are getting married — and they would be overjoyed for you to be there, under the olive trees, when they say yes.",
-                            "subtitle",
-                        ),
-                        t("Quinta da Lua · Sintra, Portugal", "caption"),
-                        button("RSVP by 1 August"),
-                    ),
+            group(
+                t("WITH JOYFUL HEARTS, TOGETHER WITH THEIR FAMILIES", "label"),
+                badge("SATURDAY · 12 SEPTEMBER 2026"),
+                t("Amara & Théo", "h1"),
+                t(
+                    "are getting married — and they would be overjoyed for you to be there, under the olive trees, when they say yes.",
+                    "subtitle",
                 ),
-            },
+                t("Quinta da Lua · Sintra, Portugal", "caption"),
+                button("RSVP by 1 August"),
+            ),
             { background: bgImage("wedding-hero-olive-grove-dusk", 0.55) },
         ),
 
         // 2 — The invitation note
-        section("s2", "full", {
-            a: cell(
-                group(
-                    t("A NOTE FROM US", "label"),
-                    t("Eight years, two cities, and one very good dog later.", "h2"),
-                    t(
-                        "We met in a rained-out queue for a film neither of us ended up seeing, and we have been choosing each other on purpose every day since.",
-                        "subtitle",
-                    ),
-                    t(
-                        "This September we're gathering the people who made us who we are — in a hillside grove above Sintra, with the sea somewhere over the trees — to make it official and then to dance about it for as long as the band will let us. There's no part of this day that matters more than having you in it. So please: come early, stay late, wear shoes you can lose.",
-                        "body",
-                    ),
+        section(
+            "s2",
+            group(
+                t("A NOTE FROM US", "label"),
+                t("Eight years, two cities, and one very good dog later.", "h2"),
+                t(
+                    "We met in a rained-out queue for a film neither of us ended up seeing, and we have been choosing each other on purpose every day since.",
+                    "subtitle",
+                ),
+                t(
+                    "This September we're gathering the people who made us who we are — in a hillside grove above Sintra, with the sea somewhere over the trees — to make it official and then to dance about it for as long as the band will let us. There's no part of this day that matters more than having you in it. So please: come early, stay late, wear shoes you can lose.",
+                    "body",
                 ),
             ),
-        }),
+        ),
 
         // 3 — The couple (split, image right)
-        section("s3", "split-6040", {
-            a: cell(
+        section(
+            "s3",
+            split(
+                60,
                 group(
                     t("THE TWO OF US", "label"),
                     t("Amara, who plans everything. Théo, who plans nothing.", "h2"),
@@ -712,70 +691,62 @@ export const eventInvite: ArtifactContent = web(
                     ),
                     t("— Amara & Théo", "caption"),
                 ),
+                img("wedding-couple-portrait-laughing", 0.84),
             ),
-            b: cell(img("wedding-couple-portrait-laughing", 0.84)),
-        }),
+        ),
 
         // 4 — The details (three-up cards)
-        section("s4", "three-up", {
-            a: cell(
+        section(
+            "s4",
+            row(
                 card(
                     img("wedding-detail-ceremony-arch", 1),
                     t("The Ceremony", "h3"),
                     t("4:00 PM · The Olive Terrace · please be seated by 3:45", "caption"),
                 ),
-            ),
-            b: cell(
                 card(
                     img("wedding-detail-dinner-table", 1),
                     t("The Reception", "h3"),
                     t("6:00 PM · The Stone Barn · dinner, toasts & dancing to follow", "caption"),
                 ),
-            ),
-            c: cell(
                 card(
                     img("wedding-detail-dress-code-linen", 1),
                     t("What to Wear", "h3"),
                     t("Garden formal · soft colours · flat-friendly for grass & gravel", "caption"),
                 ),
             ),
-        }),
+        ),
 
         // 5 — The schedule (table)
-        section("s5", "full", {
-            a: cell(
-                group(
-                    t("THE DAY, HOUR BY HOUR", "label"),
-                    t("How Saturday will unfold.", "h2"),
-                    table(
-                        "Time,What's happening,Where\n3:30 PM,Arrival & welcome drinks,The Lower Courtyard\n4:00 PM,Ceremony,The Olive Terrace\n4:45 PM,Photos & golden-hour aperitivo,The Garden\n6:00 PM,Dinner & toasts,The Stone Barn\n8:30 PM,First dance & the band,The Barn\n11:00 PM,Late-night snacks & last orders,The Courtyard\n12:00 AM,Sparkler send-off,The Drive",
-                    ),
+        section(
+            "s5",
+            group(
+                t("THE DAY, HOUR BY HOUR", "label"),
+                t("How Saturday will unfold.", "h2"),
+                table(
+                    "Time,What's happening,Where\n3:30 PM,Arrival & welcome drinks,The Lower Courtyard\n4:00 PM,Ceremony,The Olive Terrace\n4:45 PM,Photos & golden-hour aperitivo,The Garden\n6:00 PM,Dinner & toasts,The Stone Barn\n8:30 PM,First dance & the band,The Barn\n11:00 PM,Late-night snacks & last orders,The Courtyard\n12:00 AM,Sparkler send-off,The Drive",
                 ),
             ),
-        }),
+        ),
 
         // 6 — The venue (bgImage feature)
         section(
             "s6",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("THE PLACE", "label"),
-                        t("Quinta da Lua", "h2"),
-                        t(
-                            "A working olive farm folded into the green hills above Sintra — terracotta, old stone, and rows of silver trees that go gold at dusk. It's a forty-minute drive from Lisbon and feels a hundred years from anywhere.",
-                            "subtitle",
-                        ),
-                    ),
+            group(
+                t("THE PLACE", "label"),
+                t("Quinta da Lua", "h2"),
+                t(
+                    "A working olive farm folded into the green hills above Sintra — terracotta, old stone, and rows of silver trees that go gold at dusk. It's a forty-minute drive from Lisbon and feels a hundred years from anywhere.",
+                    "subtitle",
                 ),
-            },
+            ),
             { background: bgImage("wedding-venue-quinta-hillside", 0.5) },
         ),
 
         // 7 — Travel & stay (two-col bullets)
-        section("s7", "two-col", {
-            a: cell(
+        section(
+            "s7",
+            row(
                 group(
                     t("GETTING THERE", "label"),
                     t("Finding the grove", "h3"),
@@ -786,8 +757,6 @@ export const eventInvite: ArtifactContent = web(
                         "Taxis and rideshare reach the gate, but book the return ahead — signal is thin in the hills",
                     ),
                 ),
-            ),
-            b: cell(
                 group(
                     t("WHERE TO STAY", "label"),
                     t("A few nights nearby", "h3"),
@@ -799,77 +768,67 @@ export const eventInvite: ArtifactContent = web(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // 8 — Gallery (three-up image grid)
-        section("s8", "three-up", {
-            a: cell(
+        section(
+            "s8",
+            row(
                 group(
                     img("wedding-gallery-olive-rows-light", 0.8),
                     t("The grove at the hour we'll marry.", "caption"),
                 ),
-            ),
-            b: cell(
                 group(
                     img("wedding-gallery-table-figs-candles", 0.8),
                     t("Long tables, figs, and far too many candles.", "caption"),
                 ),
-            ),
-            c: cell(
                 group(
                     img("wedding-gallery-dancing-string-lights", 0.8),
                     t("And then, the part with the dancing.", "caption"),
                 ),
             ),
-        }),
+        ),
 
         // 9 — A word from a friend (quote)
-        section("s9", "full", {
-            a: cell(
-                quote(
-                    "These two make everyone around them feel like the most interesting person in the room. Come September, that room has a sea view.",
-                    "Lena · maid of honour",
-                ),
+        section(
+            "s9",
+            quote(
+                "These two make everyone around them feel like the most interesting person in the room. Come September, that room has a sea view.",
+                "Lena · maid of honour",
             ),
-        }),
+        ),
 
         // 10 — RSVP (bgImage CTA)
         section(
             "s10",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("THE ONLY HOMEWORK", "label"),
-                        t("Let us know you're coming.", "h2"),
-                        t(
-                            "Kindly reply by 1 August so we can save you a seat, a glass, and a place at the long table. Tell us about dietary needs, songs that will get you dancing, and whether you'll need a shuttle.",
-                            "subtitle",
-                        ),
-                        button("RSVP at amaraandtheo.love"),
-                        callout(
-                            "tip",
-                            t(
-                                "Bringing little ones? We adore them and have a quiet room with a sitter from 8 PM — just say the word when you reply.",
-                                "body",
-                            ),
-                        ),
+            group(
+                t("THE ONLY HOMEWORK", "label"),
+                t("Let us know you're coming.", "h2"),
+                t(
+                    "Kindly reply by 1 August so we can save you a seat, a glass, and a place at the long table. Tell us about dietary needs, songs that will get you dancing, and whether you'll need a shuttle.",
+                    "subtitle",
+                ),
+                button("RSVP at amaraandtheo.love"),
+                callout(
+                    "tip",
+                    t(
+                        "Bringing little ones? We adore them and have a quiet room with a sitter from 8 PM — just say the word when you reply.",
+                        "body",
                     ),
                 ),
-            },
+            ),
             { background: bgImage("wedding-rsvp-string-lights-evening", 0.55) },
         ),
 
         // 11 — Footer
-        section("s11", "three-up", {
-            a: cell(
+        section(
+            "s11",
+            row(
                 group(
                     t("Amara & Théo", "h3"),
                     t("12 September 2026 · Sintra", "caption"),
                     t("hello@amaraandtheo.love", "caption"),
                 ),
-            ),
-            b: cell(
                 group(
                     t("GIFTS", "label"),
                     t(
@@ -877,28 +836,25 @@ export const eventInvite: ArtifactContent = web(
                         "caption",
                     ),
                 ),
-            ),
-            c: cell(
                 group(
                     t("SHARE THE DAY", "label"),
                     t("Tag your photos #AmaraAndTheo so we don't miss a single one.", "caption"),
                     t("amaraandtheo.love", "caption"),
                 ),
             ),
-        }),
+        ),
 
         // 12 — Fine print
-        section("s12", "full", {
-            a: cell(
-                group(
-                    divider(),
-                    t(
-                        "With love, and with thanks to our parents — Ngozi & Emeka Okonkwo and Inês & Rui Almeida — who started all of this.",
-                        "caption",
-                    ),
+        section(
+            "s12",
+            group(
+                divider(),
+                t(
+                    "With love, and with thanks to our parents — Ngozi & Emeka Okonkwo and Inês & Rui Almeida — who started all of this.",
+                    "caption",
                 ),
             ),
-        }),
+        ),
     ],
     bgImage("wedding-paper-texture-bg", 0.3),
 );
@@ -909,61 +865,56 @@ export const photoEssay: ArtifactContent = doc(
         // 1 — Cover
         section(
             "s1",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("A PHOTO ESSAY", "label"),
-                        t("Before the City Wakes", "h1"),
-                        t(
-                            "One hour in Kyoto, between the last streetlight and the first delivery bike — when the old city briefly belongs to no one.",
-                            "subtitle",
-                        ),
-                        t("Photographs & words by Rei Tanaka · winter, 5:40 AM", "caption"),
-                    ),
+            group(
+                t("A PHOTO ESSAY", "label"),
+                t("Before the City Wakes", "h1"),
+                t(
+                    "One hour in Kyoto, between the last streetlight and the first delivery bike — when the old city briefly belongs to no one.",
+                    "subtitle",
                 ),
-            },
+                t("Photographs & words by Rei Tanaka · winter, 5:40 AM", "caption"),
+            ),
             { background: bgImage("kyoto-dawn-cover-misty-lane", 0.55) },
         ),
 
         // 2 — Opening reflection
-        section("s2", "full", {
-            a: cell(
-                group(
-                    t("The opening", "label"),
-                    t(
-                        "I started waking before the city to find out who it is when nobody is watching.",
-                        "subtitle",
-                    ),
-                    t(
-                        "There is a particular hour here — too late to be night, too early to be morning — when Kyoto sets itself down like a held breath. The shutters are still drawn. The lanterns have gone out but the sky hasn't quite caught up. For maybe sixty minutes the streets are returned to the stones, the river, the mist, and the few of us foolish enough to be out in the cold to see it.",
-                        "body",
-                    ),
-                    t(
-                        "These are the pictures I came home with — and the small things I noticed only because there was nothing else to look at.",
-                        "body",
-                    ),
+        section(
+            "s2",
+            group(
+                t("The opening", "label"),
+                t(
+                    "I started waking before the city to find out who it is when nobody is watching.",
+                    "subtitle",
+                ),
+                t(
+                    "There is a particular hour here — too late to be night, too early to be morning — when Kyoto sets itself down like a held breath. The shutters are still drawn. The lanterns have gone out but the sky hasn't quite caught up. For maybe sixty minutes the streets are returned to the stones, the river, the mist, and the few of us foolish enough to be out in the cold to see it.",
+                    "body",
+                ),
+                t(
+                    "These are the pictures I came home with — and the small things I noticed only because there was nothing else to look at.",
+                    "body",
                 ),
             ),
-        }),
+        ),
 
         // 3 — Full image
-        section("s3", "full", {
-            a: cell(
-                group(
-                    img("kyoto-dawn-gion-empty-lane-lanterns", 1.6),
-                    t(
-                        "Gion, 5:48. The teahouse lanterns are dark, the cobbles wet from a rain that came and went while the city slept. Not a single footprint yet — only mine, and I keep them to the edge.",
-                        "caption",
-                    ),
+        section(
+            "s3",
+            group(
+                img("kyoto-dawn-gion-empty-lane-lanterns", 1.6),
+                t(
+                    "Gion, 5:48. The teahouse lanterns are dark, the cobbles wet from a rain that came and went while the city slept. Not a single footprint yet — only mine, and I keep them to the edge.",
+                    "caption",
                 ),
             ),
-        }),
+        ),
 
         // 4 — Split, image left
-        section("s4", "split-4060", {
-            a: cell(img("kyoto-dawn-river-heron-mist", 1.05)),
-            b: cell(
+        section(
+            "s4",
+            split(
+                40,
+                img("kyoto-dawn-river-heron-mist", 1.05),
                 group(
                     t("Kamo River", "label"),
                     t("The first to clock in", "h2"),
@@ -973,24 +924,25 @@ export const photoEssay: ArtifactContent = doc(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // 5 — Full image
-        section("s5", "full", {
-            a: cell(
-                group(
-                    img("kyoto-dawn-fushimi-torii-tunnel", 1.6),
-                    t(
-                        "Fushimi Inari before the crowds — ten thousand vermilion gates and not one other soul. The light comes through sideways and turns the whole tunnel the colour of a lit ember.",
-                        "caption",
-                    ),
+        section(
+            "s5",
+            group(
+                img("kyoto-dawn-fushimi-torii-tunnel", 1.6),
+                t(
+                    "Fushimi Inari before the crowds — ten thousand vermilion gates and not one other soul. The light comes through sideways and turns the whole tunnel the colour of a lit ember.",
+                    "caption",
                 ),
             ),
-        }),
+        ),
 
         // 6 — Split, image right
-        section("s6", "split-6040", {
-            a: cell(
+        section(
+            "s6",
+            split(
+                60,
                 group(
                     t("Nishiki", "label"),
                     t("The market, half-awake", "h2"),
@@ -1003,13 +955,14 @@ export const photoEssay: ArtifactContent = doc(
                         "body",
                     ),
                 ),
+                img("kyoto-dawn-nishiki-shutter-steam", 0.82),
             ),
-            b: cell(img("kyoto-dawn-nishiki-shutter-steam", 0.82)),
-        }),
+        ),
 
         // 7 — Triptych gallery
-        section("s7", "three-up", {
-            a: cell(
+        section(
+            "s7",
+            row(
                 group(
                     img("kyoto-dawn-detail-frost-moss", 0.8),
                     t(
@@ -1017,8 +970,6 @@ export const photoEssay: ArtifactContent = doc(
                         "caption",
                     ),
                 ),
-            ),
-            b: cell(
                 group(
                     img("kyoto-dawn-detail-bicycle-alley", 0.8),
                     t(
@@ -1026,8 +977,6 @@ export const photoEssay: ArtifactContent = doc(
                         "caption",
                     ),
                 ),
-            ),
-            c: cell(
                 group(
                     img("kyoto-dawn-detail-paper-window-glow", 0.8),
                     t(
@@ -1036,27 +985,24 @@ export const photoEssay: ArtifactContent = doc(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // 8 — Quote / interlude (bgImage)
         section(
             "s8",
-            "full",
-            {
-                a: cell(
-                    quote(
-                        "I came to photograph the temples and stayed for the silence between them, which no lens has ever once held still.",
-                        "— field notes, the third morning",
-                    ),
-                ),
-            },
+            quote(
+                "I came to photograph the temples and stayed for the silence between them, which no lens has ever once held still.",
+                "— field notes, the third morning",
+            ),
             { background: bgImage("kyoto-dawn-bamboo-grove-fog", 0.55) },
         ),
 
         // 9 — Split, image left
-        section("s9", "split-4060", {
-            a: cell(img("kyoto-dawn-arashiyama-bamboo-path", 1.08)),
-            b: cell(
+        section(
+            "s9",
+            split(
+                40,
+                img("kyoto-dawn-arashiyama-bamboo-path", 1.08),
                 group(
                     t("Arashiyama", "label"),
                     t("Among the bamboo", "h2"),
@@ -1066,24 +1012,25 @@ export const photoEssay: ArtifactContent = doc(
                     ),
                 ),
             ),
-        }),
+        ),
 
         // 10 — Full image
-        section("s10", "full", {
-            a: cell(
-                group(
-                    img("kyoto-dawn-monk-sweeping-courtyard", 1.6),
-                    t(
-                        "A monk sweeps the courtyard of a temple that won't open for hours, drawing the same lines in the same gravel he drew yesterday. The point, I think, was never to finish.",
-                        "caption",
-                    ),
+        section(
+            "s10",
+            group(
+                img("kyoto-dawn-monk-sweeping-courtyard", 1.6),
+                t(
+                    "A monk sweeps the courtyard of a temple that won't open for hours, drawing the same lines in the same gravel he drew yesterday. The point, I think, was never to finish.",
+                    "caption",
                 ),
             ),
-        }),
+        ),
 
         // 11 — Split, image right
-        section("s11", "split-6040", {
-            a: cell(
+        section(
+            "s11",
+            split(
+                60,
                 group(
                     t("Pontocho", "label"),
                     t("The narrowest street", "h2"),
@@ -1092,27 +1039,22 @@ export const photoEssay: ArtifactContent = doc(
                         "body",
                     ),
                 ),
+                img("kyoto-dawn-pontocho-narrow-alley", 0.82),
             ),
-            b: cell(img("kyoto-dawn-pontocho-narrow-alley", 0.82)),
-        }),
+        ),
 
         // 12 — Closing thought (bgImage)
         section(
             "s12",
-            "full",
-            {
-                a: cell(
-                    group(
-                        t("The closing", "label"),
-                        t("And then the bicycles", "h2"),
-                        t(
-                            "It ends the same way each time. A delivery bike turns the corner, a shutter rolls up with a clatter, a phone rings somewhere behind a wall — and the spell, which was never really mine to keep, lifts. The city stretches, remembers itself, and takes its streets back. I put the lens cap on and walk home into the noise, already a little homesick for an hour that hasn't even finished leaving.",
-                            "body",
-                        ),
-                        t("— Rei, walking back along the Kamo", "caption"),
-                    ),
+            group(
+                t("The closing", "label"),
+                t("And then the bicycles", "h2"),
+                t(
+                    "It ends the same way each time. A delivery bike turns the corner, a shutter rolls up with a clatter, a phone rings somewhere behind a wall — and the spell, which was never really mine to keep, lifts. The city stretches, remembers itself, and takes its streets back. I put the lens cap on and walk home into the noise, already a little homesick for an hour that hasn't even finished leaving.",
+                    "body",
                 ),
-            },
+                t("— Rei, walking back along the Kamo", "caption"),
+            ),
             { background: bgImage("kyoto-dawn-closing-sunrise-rooftops", 0.5) },
         ),
     ],

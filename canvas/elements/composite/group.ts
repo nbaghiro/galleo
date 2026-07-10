@@ -6,7 +6,9 @@ import { fit, grow } from "@model/geometry";
 import type { FlexDirection } from "@model/elements";
 import { DIRECTION_OPTIONS } from "@elements/composite/shared";
 
-// A transparent container that stacks several elements inside one cell (no background of its own).
+// A transparent container that stacks several elements in one flow (no background of its own). A grid of
+// columns is expressed as a nested row group (or nested row/col groups), not a special mode here — the same
+// nested-flex layout the whole editor uses.
 
 type Align = "start" | "center" | "end";
 
@@ -16,14 +18,7 @@ interface GroupData {
     gap?: number;
     align?: Align; // cross-axis (across the flow)
     distribute?: Align; // main-axis (along the flow)
-    columns?: number; // >1 → arrange children as an N-column grid (the engine has no wrap, so we chunk)
 }
-
-const chunk = <T>(arr: T[], n: number): T[][] => {
-    const out: T[][] = [];
-    for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
-    return out;
-};
 
 // The cross-axis alignment for a stacked (column) group. If it isn't set explicitly, infer it from the
 // text children: when they're all centered (or all end-aligned) via their own text-align, mirror that onto
@@ -42,28 +37,6 @@ function crossAlign(d: GroupData): Align | undefined {
 
 const arrangeGroup = (d: GroupData, _ctx: LayoutCtx, kids: EngineNode[]): EngineNode => {
     const gap = d.gap ?? 14;
-    const cols = Math.max(1, Math.min(6, Math.round(Number(d.columns ?? 1))));
-    if (cols > 1) {
-        return {
-            w: grow(),
-            h: fit(),
-            direction: "col",
-            gap,
-            children: chunk(kids, cols).map((row): EngineNode => {
-                const cells = [...row];
-                // Pad short final rows so columns stay aligned across rows.
-                while (cells.length < cols) cells.push({ w: grow(), h: fit() });
-                return {
-                    w: grow(),
-                    h: fit(),
-                    direction: "row",
-                    gap,
-                    alignY: d.align ?? "start",
-                    children: cells,
-                };
-            }),
-        };
-    }
     const dir = d.direction ?? "col";
     // A column group's cross axis (horizontal) mirrors centered text; a row group keeps its explicit align.
     const cross = dir === "col" ? crossAlign(d) : d.align;
@@ -98,22 +71,13 @@ export const groupElement: ElementSpec<GroupData> = {
         arrange: arrangeGroup,
         withChildren: (d, children) => ({ ...d, children }),
     },
-    bar: ["columns", "direction", "align", "distribute"],
-    spacing: { gap: { key: "gap", min: 0, max: 48, def: 14 } },
+    bar: ["direction", "align", "distribute"],
     controls: [
-        {
-            key: "columns",
-            label: "Columns",
-            control: "segmented",
-            icon: "columns", // leading glyph names the numeric picker on the bar
-            options: [1, 2, 3, 4, 5, 6].map((n) => ({ label: `${n} columns`, value: String(n) })),
-        },
         {
             key: "direction",
             label: "Direction",
             control: "segmented",
             options: DIRECTION_OPTIONS,
-            visibleWhen: (d) => Number(d.columns ?? 1) <= 1,
         },
         {
             key: "align",
@@ -134,7 +98,6 @@ export const groupElement: ElementSpec<GroupData> = {
                 { label: "Distribute center", value: "center", icon: "distCenter" },
                 { label: "Distribute end", value: "end", icon: "distEnd" },
             ],
-            visibleWhen: (d) => Number(d.columns ?? 1) <= 1,
         },
     ],
     skeleton: (): EngineNode => ({
