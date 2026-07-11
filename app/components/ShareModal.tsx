@@ -5,17 +5,19 @@ import { api, type LinkState, type Visibility } from "../api";
 import { closeShare, shareRequest, type ShareRequest } from "../share";
 import { flushAutosave } from "../stores/save";
 import { can, isComingSoon } from "../stores/features";
+import { relativeTime } from "../stores/library";
 import { overlayThemeVars } from "../theme";
-import { CheckIcon, CloseIcon } from "@ui/icons";
+import { ArrowUpRightIcon, CheckIcon, CloseIcon } from "@ui/icons";
 import { Modal } from "@ui/overlay";
 import { Button, Chip, IconButton } from "@ui/button";
 import { Segmented, TextField } from "@ui/inputs";
 import { StatusDot } from "@ui/status";
 
-// The unified Share modal — publish an artifact and manage its public link across all three access
-// policies (public · protected · private) from one surface. Mounted once at the app root (like the theme
-// editor + media picker); opened from the editor topbar via the `requestShare` bridge. Follows the theme
-// editor's overlay conventions (light scrim, mount-on-open theming, segmented mode header).
+// The Share modal — link-forward: the shareable URL (copy + open) is the hero once a link exists, and
+// "Who can access" (public · protected · private) reads as a setting beneath it rather than a gate in
+// front of it. Mounted once at the app root (like the theme editor + media picker); opened from the editor
+// topbar via the `requestShare` bridge. Follows the theme editor's overlay conventions (light scrim,
+// mount-on-open theming).
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isEmail = (s: string): boolean => EMAIL_RE.test(s.trim());
@@ -61,7 +63,7 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                 setVis(l.visibility);
             }
         } catch {
-            /* not published / signed out — start fresh */
+            /* not shared yet / signed out — start fresh (the user turns sharing on explicitly) */
         }
         setLoading(false);
     });
@@ -204,16 +206,6 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
         }
     };
 
-    const CopyBtn: Component<{ url: string }> = (p) => (
-        <Button variant="tool" size="sm" onClick={() => copy(p.url)}>
-            <Show when={copied() === p.url} fallback="Copy link">
-                <span class="inline-flex items-center gap-1 text-accent">
-                    <CheckIcon size={12} /> Copied
-                </span>
-            </Show>
-        </Button>
-    );
-
     return (
         <Modal
             onClose={() => closeShare()}
@@ -242,36 +234,93 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
             <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
                 <Show when={!loading()} fallback={<Loading />}>
                     <Show when={!gated()} fallback={<Upgrade onGo={() => navigate("/pricing")} />}>
-                        {/* ── access-policy segmented control ── */}
+                        {/* ── the share link (public / protected): create action when off, URL when on ── */}
+                        <Show when={vis() !== "private"}>
+                            <div class="mb-1.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted">
+                                Share link
+                            </div>
+                            <Show
+                                when={published()}
+                                fallback={
+                                    <div class="flex items-center gap-3 rounded-xl border border-line bg-canvas px-3 py-2.5">
+                                        <span class="min-w-0 flex-1 text-[12px] text-muted">
+                                            {vis() === "protected" && !password()
+                                                ? "Add a password below, then create the link."
+                                                : "Not shared yet — create a link to share this."}
+                                        </span>
+                                        <Button
+                                            variant="primary"
+                                            size="sm"
+                                            loading={busy()}
+                                            disabled={vis() === "protected" && !password()}
+                                            onClick={() => void publish()}
+                                        >
+                                            {busy() ? "Creating…" : "Create link"}
+                                        </Button>
+                                    </div>
+                                }
+                            >
+                                <div class="flex items-center gap-2 rounded-xl border border-line bg-canvas px-3 py-2.5">
+                                    <span class="min-w-0 flex-1 truncate font-mono text-[12.5px] text-ink">
+                                        {link()!.url}
+                                    </span>
+                                    <a
+                                        href={link()!.url}
+                                        target="_blank"
+                                        rel="noopener"
+                                        class="grid h-8 w-8 flex-none place-items-center rounded-lg text-muted transition-colors hover:bg-panel hover:text-ink"
+                                        title="Open link"
+                                    >
+                                        <ArrowUpRightIcon size={15} />
+                                    </a>
+                                    <Button
+                                        variant="primary"
+                                        size="sm"
+                                        onClick={() => copy(link()!.url)}
+                                    >
+                                        <Show when={copied() === link()!.url} fallback="Copy">
+                                            <span class="inline-flex items-center gap-1">
+                                                <CheckIcon size={12} /> Copied
+                                            </span>
+                                        </Show>
+                                    </Button>
+                                </div>
+                            </Show>
+                        </Show>
+
+                        {/* ── who can access ── */}
+                        <div class="mb-1.5 mt-4 font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted">
+                            Who can access
+                        </div>
                         <Segmented
                             variant="accent"
                             value={vis()}
                             options={TYPES.map((t) => ({ label: t.label, value: t.id }))}
                             onChange={(v) => selectVis(v as Visibility)}
                         />
-                        <p class="mb-3 mt-2 text-[11.5px] text-muted">
+                        <p class="mb-3 mt-1.5 text-[11.5px] text-muted">
                             {TYPES.find((t) => t.id === vis())?.hint}
                         </p>
 
                         {/* ── protected: password ── */}
                         <Show when={vis() === "protected"}>
-                            <div class="mb-3">
+                            <div class="mb-1">
                                 <TextField
                                     type="password"
                                     placeholder={
                                         link()?.hasPassword
                                             ? "Set a new password (leave blank to keep)"
-                                            : "Set a password"
+                                            : "Choose a password"
                                     }
                                     value={password()}
                                     onChange={setPassword}
                                 />
-                                <Show when={published()}>
+                                <Show when={published() && password()}>
                                     <Button
                                         variant="tool"
                                         size="sm"
                                         class="mt-2"
-                                        disabled={busy() || !password()}
+                                        disabled={busy()}
                                         onClick={() =>
                                             applyUpdate({
                                                 visibility: "protected",
@@ -279,64 +328,78 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                                             })
                                         }
                                     >
-                                        {link()?.hasPassword ? "Change password" : "Set password"}
+                                        {link()?.hasPassword ? "Update password" : "Set password"}
                                     </Button>
                                 </Show>
                             </div>
                         </Show>
 
-                        {/* ── private: recipient composer ── */}
+                        {/* ── private: invite people ── */}
                         <Show when={vis() === "private"}>
-                            <div class="mb-3">
-                                <div class="flex flex-wrap gap-1.5 rounded-lg border border-line bg-canvas px-2 py-2">
-                                    <For each={pending()}>
-                                        {(e) => (
-                                            <Chip
-                                                variant="soft"
-                                                rounded="md"
-                                                onRemove={() =>
-                                                    setPending(pending().filter((x) => x !== e))
-                                                }
-                                            >
-                                                {e}
-                                            </Chip>
-                                        )}
-                                    </For>
-                                    <input
-                                        class="min-w-[140px] flex-1 bg-transparent px-1 py-0.5 text-[13px] text-ink outline-none placeholder:text-muted"
-                                        placeholder="Add people by email…"
-                                        value={emailDraft()}
-                                        onInput={(e) => setEmailDraft(e.currentTarget.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter" || e.key === ",") {
-                                                e.preventDefault();
-                                                stageEmail();
+                            <div class="flex flex-wrap gap-1.5 rounded-lg border border-line bg-canvas px-2 py-2">
+                                <For each={pending()}>
+                                    {(e) => (
+                                        <Chip
+                                            variant="soft"
+                                            rounded="md"
+                                            onRemove={() =>
+                                                setPending(pending().filter((x) => x !== e))
                                             }
-                                        }}
-                                        onBlur={() => stageEmail()}
-                                    />
-                                </div>
-                                <Show when={published()}>
+                                        >
+                                            {e}
+                                        </Chip>
+                                    )}
+                                </For>
+                                <input
+                                    class="min-w-[140px] flex-1 bg-transparent px-1 py-0.5 text-[13px] text-ink outline-none placeholder:text-muted"
+                                    placeholder="Add people by email…"
+                                    value={emailDraft()}
+                                    onInput={(e) => setEmailDraft(e.currentTarget.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === ",") {
+                                            e.preventDefault();
+                                            stageEmail();
+                                        }
+                                    }}
+                                    onBlur={() => stageEmail()}
+                                />
+                            </div>
+                            <Show
+                                when={published()}
+                                fallback={
                                     <Button
-                                        variant="tool"
+                                        variant="primary"
                                         size="sm"
                                         class="mt-2"
-                                        disabled={busy()}
-                                        onClick={() => void invite()}
+                                        loading={busy()}
+                                        onClick={() => {
+                                            stageEmail();
+                                            void publish();
+                                        }}
                                     >
-                                        Send invites
+                                        {busy() ? "Creating…" : "Create link & invite"}
                                     </Button>
-                                </Show>
-                            </div>
+                                }
+                            >
+                                <Button
+                                    variant="tool"
+                                    size="sm"
+                                    class="mt-2"
+                                    disabled={busy()}
+                                    onClick={() => void invite()}
+                                >
+                                    Send invites
+                                </Button>
+                            </Show>
 
                             <Show when={published() && !link()!.recipients.length}>
-                                <p class="mb-3 text-[11.5px] text-muted">
+                                <p class="mt-3 text-[11.5px] text-muted">
                                     No one can view this yet — add people above to grant access.
                                 </p>
                             </Show>
 
                             <Show when={published() && link()!.recipients.length}>
-                                <div class="mb-3 rounded-lg border border-line">
+                                <div class="mt-3 rounded-lg border border-line">
                                     <For each={link()!.recipients}>
                                         {(r) => (
                                             <div class="flex items-center gap-2 border-b border-line px-3 py-2 text-[12px] last:border-0">
@@ -371,36 +434,18 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                             </Show>
                         </Show>
 
-                        {/* ── the live link (public / protected) ── */}
-                        <Show when={published() && vis() !== "private"}>
-                            <div class="mb-3 flex items-center gap-2 rounded-lg border border-line bg-canvas px-3 py-2">
-                                <span class="min-w-0 flex-1 truncate text-[12px] text-soft">
-                                    {link()!.url}
-                                </span>
-                                <CopyBtn url={link()!.url} />
-                            </div>
-                        </Show>
-
                         <Show when={err()}>
-                            <p class="mb-3 text-[12px] text-red-500">{err()}</p>
+                            <p class="mt-3 text-[12px] text-red-500">{err()}</p>
                         </Show>
 
-                        {/* ── actions ── */}
-                        <div class="flex items-center gap-2">
-                            <Show
-                                when={published()}
-                                fallback={
-                                    <Button
-                                        variant="primary"
-                                        loading={busy()}
-                                        onClick={() => void publish()}
-                                    >
-                                        {busy() ? "Publishing…" : "Publish"}
-                                    </Button>
-                                }
-                            >
+                        {/* ── management (only once sharing is on) ── */}
+                        <Show when={published()}>
+                            <div class="mt-4 flex items-center gap-2 border-t border-line pt-3">
                                 <span class="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent">
-                                    <StatusDot tone="accent" /> Live
+                                    <StatusDot tone="accent" /> Sharing is on
+                                </span>
+                                <span class="text-[11px] text-muted">
+                                    · shared {relativeTime(link()!.publishedAt)}
                                 </span>
                                 <span class="flex-1" />
                                 <Button
@@ -408,9 +453,9 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                                     size="sm"
                                     disabled={busy()}
                                     onClick={() => void republish()}
-                                    title="Push the current draft to the live link"
+                                    title="Push the current draft to the shared link"
                                 >
-                                    Update to current
+                                    Update to latest
                                 </Button>
                                 <Button
                                     variant="dangerGhost"
@@ -418,10 +463,10 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                                     disabled={busy()}
                                     onClick={() => void unpublish()}
                                 >
-                                    Unpublish
+                                    Stop sharing
                                 </Button>
-                            </Show>
-                        </div>
+                            </div>
+                        </Show>
                     </Show>
                 </Show>
             </div>
