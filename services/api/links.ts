@@ -455,6 +455,19 @@ links.post("/artifacts/:id/unpublish", async (c) => {
     return c.json({ ok: true });
 });
 
+// A workspace custom theme's record (tokens etc.) for an anonymous viewer to registerThemes() — or null
+// for a built-in theme id (already in the viewer's registry) or an unknown/foreign id.
+async function customThemeRecord(themeId: unknown, workspaceId: string) {
+    if (typeof themeId !== "string" || !UUID_RE.test(themeId)) return null;
+    const [t] = await db
+        .select()
+        .from(schema.themes)
+        .where(and(eq(schema.themes.id, themeId), eq(schema.themes.workspaceId, workspaceId)));
+    return t
+        ? { id: t.id, name: t.name, tag: t.mood ?? "custom", dark: t.isDark, tokens: t.tokens }
+        : null;
+}
+
 // ── UNAUTHENTICATED public read — the one anonymous surface ──────────────────────────────────────────
 links.get("/p/:slug/content", async (c) => {
     const slug = c.req.param("slug");
@@ -488,18 +501,47 @@ links.get("/p/:slug/content", async (c) => {
     if (!owner.publicLinks) return c.json({ error: "not found" }, 404);
     const branded = !owner.removeBranding;
 
+    // The published theme + format drive the read-only render AND the (protected) password page. Resolve
+    // them up front — cheap jsonb field extracts — so the password gate returns them: the prompt matches
+    // the artifact's theme and its "view" button names the format ("View deck / document / site").
+    const [tv] = await db
+        .select({
+            theme: sql<string>`content->>'theme'`,
+            format: sql<string>`content->>'format'`,
+        })
+        .from(schema.versions)
+        .where(eq(schema.versions.id, link.publishedVersionId));
+    const themeId = typeof tv?.theme === "string" ? tv.theme : "studio";
+    const format = typeof tv?.format === "string" ? tv.format : undefined;
+    const customTheme = await customThemeRecord(themeId, artifact.workspaceId);
+
     // Access policy. Never reveal existence on a failed private/unknown check → 404.
     let recipientId: string | null = null;
     if (link.visibility === "protected") {
         if (pwLocked(slug))
             return c.json(
-                { error: "Too many attempts. Try again later.", needsPassword: true },
+                {
+                    error: "Too many attempts. Try again later.",
+                    needsPassword: true,
+                    theme: themeId,
+                    customTheme,
+                    format,
+                },
                 429,
             );
         const pw = c.req.query("pw");
         if (!pw || !verifyPassword(pw, link.password)) {
             if (pw) pwFail(slug); // count only real wrong guesses, not the initial promptless GET
-            return c.json({ error: "password required", needsPassword: true }, 401);
+            return c.json(
+                {
+                    error: "password required",
+                    needsPassword: true,
+                    theme: themeId,
+                    customTheme,
+                    format,
+                },
+                401,
+            );
         }
         pwFails.delete(slug); // correct password clears the counter
     } else if (link.visibility === "private") {
@@ -524,29 +566,8 @@ links.get("/p/:slug/content", async (c) => {
         .where(eq(schema.versions.id, link.publishedVersionId));
     if (!version) return c.json({ error: "not found" }, 404);
     const content = version.content as ArtifactContent;
-
-    // A workspace custom theme won't be in the anonymous viewer's registry — ship its record so the
-    // viewer can registerThemes() before painting. Built-in ids (non-uuid) are already in the registry.
-    let customTheme = null;
-    if (typeof content.theme === "string" && UUID_RE.test(content.theme)) {
-        const [t] = await db
-            .select()
-            .from(schema.themes)
-            .where(
-                and(
-                    eq(schema.themes.id, content.theme),
-                    eq(schema.themes.workspaceId, artifact.workspaceId),
-                ),
-            );
-        if (t)
-            customTheme = {
-                id: t.id,
-                name: t.name,
-                tag: t.mood ?? "custom",
-                dark: t.isDark,
-                tokens: t.tokens,
-            };
-    }
+    // `customTheme` was resolved up front from the same published version's theme, so the payload the
+    // viewer paints with matches the theme the password page (if any) was shown in.
 
     // View analytics (04) hooks in here: a fire-and-forget insert into artifact_views keyed by
     // link.id (+ recipientId for private). We already track per-recipient "opened" for the Share UI.

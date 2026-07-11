@@ -89,12 +89,32 @@ export interface LinkState {
 
 // The UNAUTHENTICATED GET /p/:slug/content response — everything the public viewer needs to paint. A
 // workspace custom theme rides along in `customTheme` (built-ins are already in the viewer's registry).
+// A workspace custom theme shipped to the anonymous viewer (built-in themes are already in its registry).
+export interface CustomThemeRecord {
+    id: string;
+    name: string;
+    tag: string;
+    dark: boolean;
+    tokens: Tokens;
+}
 export interface PublicContent {
     title: string;
     content: ArtifactContent;
     branded: boolean;
-    customTheme: { id: string; name: string; tag: string; dark: boolean; tokens: Tokens } | null;
+    customTheme: CustomThemeRecord | null;
 }
+// The public read resolves to either the content, or a gate. A gated (password / rate-limited) response
+// still carries the artifact's theme so the prompt can be shown in it rather than a neutral fallback.
+export type PublicResult =
+    | { ok: true; content: PublicContent }
+    | {
+          ok: false;
+          status: number;
+          needsPassword?: boolean;
+          theme?: string;
+          customTheme?: CustomThemeRecord | null;
+          format?: string;
+      };
 
 // Typed client over the backend (proxied at /api/* in dev → :8601). Cookies carry the session. The wire
 // shapes live in @model (shared with the backend); re-exported here under the app's names.
@@ -303,12 +323,34 @@ export const api = {
     unpublishArtifact: (id: string) =>
         req<{ ok: true }>(`/artifacts/${id}/unpublish`, { method: "POST" }),
     // UNAUTHENTICATED — used by the public viewer (publish/ build).
-    getPublicContent: (slug: string, opts?: { pw?: string; k?: string }) => {
+    getPublicContent: async (
+        slug: string,
+        opts?: { pw?: string; k?: string },
+    ): Promise<PublicResult> => {
         const q = new URLSearchParams();
         if (opts?.pw) q.set("pw", opts.pw);
         if (opts?.k) q.set("k", opts.k);
         const qs = q.toString();
-        return req<PublicContent>(`/p/${slug}/content${qs ? `?${qs}` : ""}`);
+        // Not via req(): a gated 401/429 isn't an error here — we read its body for the theme + password flag.
+        const res = await fetch(`/api/p/${slug}/content${qs ? `?${qs}` : ""}`, {
+            credentials: "same-origin",
+        });
+        let data: Record<string, unknown> = {};
+        try {
+            const text = await res.text();
+            if (text) data = JSON.parse(text);
+        } catch {
+            /* non-JSON body */
+        }
+        if (res.ok) return { ok: true, content: data as unknown as PublicContent };
+        return {
+            ok: false,
+            status: res.status,
+            needsPassword: data.needsPassword === true,
+            theme: typeof data.theme === "string" ? data.theme : undefined,
+            customTheme: (data.customTheme as CustomThemeRecord | null | undefined) ?? null,
+            format: typeof data.format === "string" ? data.format : undefined,
+        };
     },
 };
 
