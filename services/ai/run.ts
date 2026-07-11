@@ -26,6 +26,7 @@ import { runChat } from "./chat";
 import "./tools/register"; // side-effect: register the whole tool catalog
 import { generateArtifactTool } from "./tools/generate";
 import { makeContext } from "./tools/registry";
+import type { WorkspaceReader } from "./tools/registry";
 import { searchStock, stockReady } from "../media/providers";
 import { zElement, zOutline, zSection, zSectionPlan } from "./schema";
 import type { Outline, Beat, SectionPlan } from "./schema";
@@ -190,6 +191,21 @@ async function resolveImages(section: Section, opts: ImageOptions): Promise<Sect
     return { ...section, root, background };
 }
 
+// Flatten an artifact's readable text — every text/label run across its section trees — into one string,
+// for source-grounded generation (repurpose: "turn my report into a deck" reads the report's text as source).
+export function extractArtifactText(content: ArtifactContent): string {
+    const parts: string[] = [];
+    const visit = (el: ElementInstance | undefined): void => {
+        if (!el) return;
+        const d = el.data as { text?: string; label?: string; children?: ElementInstance[] };
+        if (typeof d.text === "string" && d.text.trim()) parts.push(d.text.trim());
+        if (typeof d.label === "string" && d.label.trim()) parts.push(d.label.trim());
+        for (const k of d.children ?? []) visit(k);
+    };
+    for (const s of content.sections) visit(s.root);
+    return parts.join("\n");
+}
+
 const toPlanBeat = (b: Beat): PlanBeat => ({
     id: b.id,
     label: b.label,
@@ -202,6 +218,7 @@ const toPlanBeat = (b: Beat): PlanBeat => ({
 export interface RunOpts {
     signal?: AbortSignal;
     image?: ImageOptions; // how images resolve — stock (default) vs ai + its generator; set by the route
+    workspace?: WorkspaceReader; // read access to the user's library (find / read artifacts); set by the route
 }
 
 // Dispatch a turn to its capability — the DIRECT surface over the tool registry. `generate` runs through
@@ -212,7 +229,11 @@ export async function* runTurn(req: TurnRequest, opts: RunOpts = {}): AsyncGener
         case "generate":
             yield* generateArtifactTool.run(
                 req.input,
-                makeContext({ image: opts.image ?? {}, signal: opts.signal }),
+                makeContext({
+                    image: opts.image ?? {},
+                    workspace: opts.workspace,
+                    signal: opts.signal,
+                }),
             );
             return;
         case "edit":

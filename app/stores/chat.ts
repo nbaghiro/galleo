@@ -5,19 +5,35 @@ import type {
     ChatLibrary,
     GenBrief,
     GenerateInput,
+    Patch,
     TurnEvent,
     TurnRequest,
+    WorkspaceAction,
 } from "@model/ai";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import type { Target } from "@model/target";
+import type { Template } from "@model/workspace";
 import { applyPatch } from "@model/ai";
 import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { commit, currentArtifactId, editor, selection } from "@editor/editor";
-import { streamTurn } from "../api";
+import { api, streamTurn } from "../api";
 import { appTheme } from "../theme";
-import { loadBilling } from "./billing";
-import { artifactTitle, artifacts, formatLabel, persistArtifact } from "./library";
+import { openShare } from "../share";
+import { billing, loadBilling } from "./billing";
+import {
+    artifactTitle,
+    artifacts,
+    duplicateArtifact,
+    formatLabel,
+    loadLibrary,
+    moveArtifact,
+    persistArtifact,
+    removeArtifact,
+    renameArtifactById,
+    restoreFromTrash,
+} from "./library";
+import { addFolder, folders } from "./folders";
 
 // The chat panel's session — an in-memory thread (ephemeral for now) + the streaming dispatch that folds the
 // backend's TurnEvents into an ordered list of blocks per assistant message. Context is assembled per message
@@ -33,6 +49,12 @@ export type UIBlock =
     | { k: "tool"; blockId: string; tool: string; title: string; done: boolean }
     | { k: "brief"; brief: GenBrief } // a "Generate →" confirm card the agent handed back
     | { k: "draft"; draftId: string } // an in-chat generated artifact (streams into `drafts[draftId]`)
+    | {
+          k: "action";
+          blockId: string;
+          action: WorkspaceAction;
+          state: "pending" | "done" | "dismissed";
+      } // a workspace op (reversible → done on arrival; trash → pending until confirmed)
     | { k: "widget"; blockId: string; block: ChatBlock; applied?: "applied" | "discarded" };
 
 export interface ChatMsg {
@@ -95,6 +117,7 @@ export function previewSource(): { theme: string; format: string } {
 }
 export const openChat = (): void => {
     setChatOpen(true);
+    void loadBilling(); // warm the credit balance so the agent can answer "how many credits do I have"
 };
 export const closeChat = (): void => {
     setChatOpen(false);
@@ -139,7 +162,26 @@ function buildLibrary(): ChatLibrary {
         .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))
         .slice(0, 6)
         .map((a) => ({ title: a.title, format: formatLabel(a.formatId) }));
-    return { view: "library", artifactCount: artifacts().length, recent };
+    return {
+        view: "library",
+        artifactCount: artifacts().length,
+        recent,
+        folders: folders().map((f) => ({ id: f.id, name: f.name })), // so the agent can resolve a move target
+    };
+}
+
+// The plan + credit balance, from the billing store, so the agent can answer "how many credits do I have"
+// and hint at gated capabilities. Undefined until billing loads (openChat kicks it off).
+function meta(): Pick<ChatContext, "plan" | "credits"> {
+    const b = billing();
+    if (!b) return {};
+    return {
+        plan: b.plan,
+        credits: {
+            remaining: Math.max(0, b.credits.limit - b.credits.used),
+            limit: b.credits.limit,
+        },
+    };
 }
 
 function buildContext(): ChatContext {
@@ -150,12 +192,13 @@ function buildContext(): ChatContext {
             artifactId: id,
             content: editor.artifact,
             focus: deriveFocus(),
+            ...meta(),
         };
     // A live in-chat draft is an editable (but unsaved) artifact — refine it through the same editor
     // toolset; proposals patch the draft (applyProposal), not the library, until the user opens it.
     const d = activeDraft();
-    if (d) return { surface: "editor", content: d.content };
-    return { surface: "library", library: buildLibrary() };
+    if (d) return { surface: "editor", content: d.content, ...meta() };
+    return { surface: "library", library: buildLibrary(), ...meta() };
 }
 
 // ---- streaming ----
@@ -212,6 +255,12 @@ function dispatch(ev: TurnEvent, aid: number): void {
             );
             break;
         case "chat.block":
+            // A workspace action has side effects (it runs against the library stores), so it's handled
+            // outside the store updater — reversible ops execute on arrival, trash waits for a confirm.
+            if (ev.block.type === "action") {
+                handleActionBlock(aid, ev.blockId, ev.block.action);
+                break;
+            }
             updateMsg(aid, (m) => {
                 const shell = m.blocks.find(
                     (b): b is Extract<UIBlock, { k: "tool" }> =>
@@ -323,6 +372,22 @@ function draftDispatch(id: string, ev: TurnEvent): void {
 
 let draftSeq = 0;
 
+// The most recent user message's text — the source material when the agent flags a build "from what they
+// pasted" (sourceFromMessage), so a long paste never has to round-trip through the model.
+function lastUserText(): string | undefined {
+    for (let i = thread.messages.length - 1; i >= 0; i--) {
+        const m = thread.messages[i]!;
+        if (m.role === "user") {
+            const t = m.blocks
+                .map((b) => (b.k === "text" ? b.text : ""))
+                .join(" ")
+                .trim();
+            return t || undefined;
+        }
+    }
+    return undefined;
+}
+
 // Run a real `generate` turn from a confirmed brief, streaming it into a fresh in-chat draft (a new assistant
 // message hosting the draft card). The generation is a normal top-level turn — metered server-side exactly
 // like the modal — and the result lives only in `drafts` until the user opens it. Becomes the active refine
@@ -339,6 +404,10 @@ export async function generateFromBrief(brief: GenBrief): Promise<void> {
         goal: brief.goal,
         audience: brief.audience,
         tone: brief.tone,
+        // Source-grounded generation: the client resolves the source here (rather than round-tripping long
+        // text through the model) — the user's pasted message, and/or an existing artifact to repurpose.
+        source: brief.sourceFromMessage ? lastUserText() : undefined,
+        sourceArtifactId: brief.sourceArtifactId,
     };
     setDrafts(id, {
         id,
@@ -374,6 +443,39 @@ export async function generateFromBrief(brief: GenBrief): Promise<void> {
     }
 }
 
+// Start an in-chat draft from a starter template — instant (no generation), the template's content dropped
+// straight into a live draft the user can refine and open. Same draft machinery as a generated one, so
+// refine + Open in editor work identically. Templates are fetched once and cached.
+let templateCache: Template[] | null = null;
+export async function startDraftFromTemplate(templateId: string): Promise<void> {
+    if (busy()) return;
+    if (!templateCache) {
+        try {
+            templateCache = (await api.listTemplates()).templates;
+        } catch {
+            return;
+        }
+    }
+    const t = templateCache.find((x) => x.id === templateId);
+    if (!t) return;
+    const id = `d-${++draftSeq}`;
+    setDrafts(id, {
+        id,
+        content: t.content,
+        title: artifactTitle(t.content),
+        status: "ready",
+        total: t.content.sections.length,
+        done: t.content.sections.length,
+        state: "live",
+    });
+    setActiveDraftId(id);
+    const aid = ++mid;
+    setThread("messages", (arr) => [
+        ...arr,
+        { id: aid, role: "assistant", blocks: [{ k: "draft", draftId: id }], streaming: false },
+    ]);
+}
+
 // "Open in editor" — the ONE point an in-chat draft becomes a real library artifact. Persists it, marks the
 // draft opened (so it stops being the refine target), and returns the new id for the caller to navigate to.
 export async function persistDraft(id: string): Promise<string | null> {
@@ -393,6 +495,107 @@ export function discardDraft(id: string): void {
     if (activeDraftId() === id) setActiveDraftId(null);
 }
 
+// ---- workspace actions: run against the (optimistic) library stores ----
+
+// Execute one workspace action through the existing library/folder store functions — the same optimistic
+// paths the sidebar + card menus use, so the UI updates instantly and the server catches up.
+function runAction(a: WorkspaceAction): void {
+    switch (a.kind) {
+        case "rename":
+            renameArtifactById(a.id, a.title);
+            break;
+        case "move":
+            moveArtifact(a.id, a.folderId);
+            break;
+        case "duplicate": {
+            const art = artifacts().find((x) => x.id === a.id);
+            if (art) void duplicateArtifact(art);
+            break;
+        }
+        case "trash":
+            removeArtifact(a.id);
+            break;
+        case "restore":
+            restoreFromTrash(a.id);
+            break;
+        case "create-folder":
+            void addFolder(a.name);
+            break;
+    }
+}
+
+// A human label for an action card, resolved from the client's own stores (which hold the titles/folders).
+export function actionLabel(a: WorkspaceAction): string {
+    const titleOf = (id: string): string =>
+        artifacts().find((x) => x.id === id)?.title ?? "this artifact";
+    switch (a.kind) {
+        case "rename":
+            return `Rename “${titleOf(a.id)}” to “${a.title}”`;
+        case "move": {
+            const name = a.folderId ? folders().find((f) => f.id === a.folderId)?.name : null;
+            return name
+                ? `Move “${titleOf(a.id)}” to ${name}`
+                : `Remove “${titleOf(a.id)}” from its folder`;
+        }
+        case "duplicate":
+            return `Duplicate “${titleOf(a.id)}”`;
+        case "trash":
+            return `Move “${titleOf(a.id)}” to Trash`;
+        case "restore":
+            return `Restore “${titleOf(a.id)}”`;
+        case "create-folder":
+            return `Create folder “${a.name}”`;
+        case "share":
+            return `Share “${titleOf(a.id)}”`;
+        case "export":
+            return `Export “${titleOf(a.id)}”`;
+    }
+}
+
+// Outward-facing routing — open the Share panel (publishing is opt-in there). Export navigation lives in the
+// component (it needs the router); this covers share, which only opens a modal.
+export function shareArtifactAction(id: string): void {
+    const art = artifacts().find((x) => x.id === id);
+    openShare({ artifactId: id, title: art?.title ?? "Untitled" });
+}
+
+// Policy (client-side, so the tools stay tiny): trash waits for an explicit confirm; share/export are
+// outward-facing → a one-click routing card handled by the component (never auto-run); everything else is
+// reversible and runs on arrival.
+const needsConfirm = (a: WorkspaceAction): boolean => a.kind === "trash";
+const isRouting = (a: WorkspaceAction): boolean => a.kind === "share" || a.kind === "export";
+
+function handleActionBlock(msgId: number, blockId: string, action: WorkspaceAction): void {
+    const confirm = needsConfirm(action);
+    updateMsg(msgId, (m) => {
+        const shell = m.blocks.find(
+            (b): b is Extract<UIBlock, { k: "tool" }> => b.k === "tool" && b.blockId === blockId,
+        );
+        if (shell) shell.done = true;
+        m.blocks.push({ k: "action", blockId, action, state: confirm ? "pending" : "done" });
+    });
+    if (!confirm && !isRouting(action)) runAction(action);
+}
+
+// The confirm card's buttons (destructive actions only).
+export function confirmAction(msgId: number, blockId: string): void {
+    let toRun: WorkspaceAction | null = null;
+    updateMsg(msgId, (m) => {
+        const b = m.blocks.find((x) => x.k === "action" && x.blockId === blockId);
+        if (b && b.k === "action" && b.state === "pending") {
+            b.state = "done";
+            toRun = b.action;
+        }
+    });
+    if (toRun) runAction(toRun);
+}
+export function dismissAction(msgId: number, blockId: string): void {
+    updateMsg(msgId, (m) => {
+        const b = m.blocks.find((x) => x.k === "action" && x.blockId === blockId);
+        if (b && b.k === "action" && b.state === "pending") b.state = "dismissed";
+    });
+}
+
 // ---- proposals: apply to the editor (undoable) or discard ----
 
 function findWidget(msgId: number, blockId: string): Extract<UIBlock, { k: "widget" }> | undefined {
@@ -401,14 +604,33 @@ function findWidget(msgId: number, blockId: string): Extract<UIBlock, { k: "widg
     return b && b.k === "widget" ? b : undefined;
 }
 
+// Apply a proposal's patch to a NAMED library artifact (one that isn't open): fetch its current content,
+// patch it, save it back, and refresh the library so its thumbnail updates. The single write-to-a-library-
+// artifact path — the "edit my Aria deck from here" case, saved without ever opening it.
+async function saveProposalToArtifact(id: string, patch: Patch): Promise<void> {
+    try {
+        const { artifact } = await api.getArtifact(id);
+        const next = applyPatch(artifact.draftContent, patch);
+        await api.saveArtifact(id, { draftContent: next });
+        void loadLibrary();
+    } catch {
+        /* a rare failed save shows as the thumbnail simply not updating; the thread keeps the proposal */
+    }
+}
+
 export function applyProposal(msgId: number, blockId: string): void {
     const w = findWidget(msgId, blockId);
     if (!w || w.block.type !== "proposal" || w.applied) return;
-    // A refine proposal on a live draft patches the DRAFT (still unsaved); otherwise it commits to the open
-    // editor artifact (undoable). Either way the source re-renders — the draft card, or the editor canvas.
-    const d = activeDraft();
-    if (d) setDrafts(d.id, "content", applyPatch(d.content, w.block.patch));
-    else commit(applyPatch(editor.artifact, w.block.patch));
+    const p = w.block;
+    // Three targets, one widget: a NAMED artifact (save via API) · a live draft (patch it) · else the open
+    // editor artifact (undoable commit). Each re-renders its own surface — thumbnail, draft card, or canvas.
+    if (p.targetArtifactId) {
+        void saveProposalToArtifact(p.targetArtifactId, p.patch);
+    } else {
+        const d = activeDraft();
+        if (d) setDrafts(d.id, "content", applyPatch(d.content, p.patch));
+        else commit(applyPatch(editor.artifact, p.patch));
+    }
     updateMsg(msgId, (m) => {
         const b = m.blocks.find((x) => x.k === "widget" && x.blockId === blockId);
         if (b && b.k === "widget") b.applied = "applied";

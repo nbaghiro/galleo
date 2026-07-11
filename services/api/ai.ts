@@ -13,6 +13,7 @@ import { currentUser, currentWorkspace, readJson } from "./context";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import { aiReady } from "../ai/provider";
 import { reviseElement, runTurn } from "../ai/run";
+import { makeWorkspaceReader } from "./workspace-reader";
 import { rewriteText, translateText } from "../ai/text";
 import { suggestSections } from "../ai/suggest";
 import { generateThemeFromPrompt } from "../ai/theme";
@@ -82,7 +83,8 @@ ai.post("/ai/turn", async (c) => {
         const send = (event: TurnEvent): Promise<void> =>
             stream.writeSSE({ data: JSON.stringify({ seq: seq++, event }) });
         try {
-            for await (const ev of runTurn(req, { signal: ctrl.signal })) await send(ev);
+            const workspace = makeWorkspaceReader(ws.id);
+            for await (const ev of runTurn(req, { signal: ctrl.signal, workspace })) await send(ev);
         } catch (e) {
             if (!ctrl.signal.aborted)
                 await send({

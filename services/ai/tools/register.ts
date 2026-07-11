@@ -8,5 +8,8 @@ import "./element";
 import "./text";
 import "./suggest";
 import "./inspect";
+import "./library";
+import "./manage";
+import "./structure";
 import "./media";
 import "./theme";

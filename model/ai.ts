@@ -42,6 +42,8 @@ export interface GenerateInput {
     tone?: string;
     length?: string;
     contextRefs?: string[]; // ids of attached context (doc/url) in the artifact's ContextPack
+    source?: string; // raw source material to build FROM (pasted text, or an artifact's extracted text)
+    sourceArtifactId?: string; // repurpose an existing artifact — the runtime reads it + uses its text as source
 }
 
 export interface EditInput {
@@ -73,6 +75,31 @@ export interface ChatLibrary {
     artifactCount?: number; // how many artifacts they have
     recent?: { title: string; format: string }[]; // a few most-recent titles, for grounding
     folder?: string; // the folder they're filtered to, if any
+    folders?: { id: string; name: string }[]; // the workspace's folders, so the agent can resolve a move target
+}
+
+// A workspace management action the agent proposes and the CLIENT executes against its (optimistic) library
+// stores — the app owns these mutations, not the server turn. The client decides policy: reversible ones run
+// on arrival; destructive ones (trash) go through a confirm card. Targets are real ids (from find-artifacts).
+export type WorkspaceAction =
+    | { kind: "rename"; id: string; title: string }
+    | { kind: "move"; id: string; folderId: string | null } // null ⇒ remove from any folder
+    | { kind: "duplicate"; id: string }
+    | { kind: "trash"; id: string } // destructive → confirmed
+    | { kind: "restore"; id: string }
+    | { kind: "create-folder"; name: string }
+    // Outward-facing → the client ROUTES to the proper guarded UI (never publishes/downloads directly): a
+    // one-click card that opens the Share modal (publishing is opt-in there) or opens the artifact to export.
+    | { kind: "share"; id: string }
+    | { kind: "export"; id: string };
+
+// A lightweight reference to a library artifact — what `find-artifacts` returns and the `artifacts` block
+// renders (a pick-list the user can open). Carries just enough to identify + label it, never the content.
+export interface ArtifactRef {
+    id: string;
+    title: string;
+    format: string; // "deck" | "doc" | "web"
+    updatedAt?: string;
 }
 
 export interface ChatContext {
@@ -82,6 +109,15 @@ export interface ChatContext {
     focus?: ChatFocus;
     library?: ChatLibrary; // present on the "library" surface (no open artifact) — the workspace summary
     plan?: string; // workspace plan, so the agent can hint at gated capabilities
+    credits?: { remaining: number; limit: number }; // AI credit balance, so the agent can answer "how many left"
+}
+
+// A reference to a starter template — what `find-templates` returns and the `templates` block renders (a
+// pick-list; picking one starts an in-chat draft from it). Content stays server-side until the user picks.
+export interface TemplateRef {
+    id: string;
+    name: string;
+    category: string;
 }
 
 export interface ChatTurnRef {
@@ -107,6 +143,10 @@ export interface GenBrief {
     goal?: string;
     audience?: string;
     tone?: string;
+    // Source-grounded generation: build FROM material rather than just a topic. The client resolves the
+    // source at generate time (avoiding re-emitting long text through the model):
+    sourceFromMessage?: boolean; // build from the content the user just pasted (their last message)
+    sourceArtifactId?: string; // repurpose an existing artifact (e.g. "turn my report into a deck")
 }
 
 // A rich block in an assistant message — a chat response is an ordered list of these. Text streams in as
@@ -115,10 +155,24 @@ export interface GenBrief {
 export type ChatBlock =
     | { type: "text"; text: string }
     | { type: "suggestions"; items: string[] }
-    | { type: "proposal"; summary: string; patch: Patch; preview?: Section }
+    // A mutation the user applies/discards. `targetArtifactId` (+ its theme/format for the preview) makes it
+    // apply to a NAMED library artifact instead of the open one / the active draft — the same widget, three
+    // targets. Absent target ⇒ the open editor artifact or the live in-chat draft.
+    | {
+          type: "proposal";
+          summary: string;
+          patch: Patch;
+          preview?: Section;
+          targetArtifactId?: string;
+          theme?: string;
+          format?: string;
+      }
     | { type: "preview"; section?: Section; format?: string }
     | { type: "sections"; sections: Section[]; format?: string } // a scrollable carousel of existing sections
-    | { type: "brief"; brief: GenBrief }; // a proposed generation the user confirms to build into an in-chat draft
+    | { type: "brief"; brief: GenBrief } // a proposed generation the user confirms to build into an in-chat draft
+    | { type: "artifacts"; items: ArtifactRef[] } // library search results — a pick-list the user can open
+    | { type: "templates"; items: TemplateRef[] } // starter templates — a pick-list that starts a draft
+    | { type: "action"; action: WorkspaceAction }; // a workspace management action the client runs (or confirms)
 
 export type TurnRequest =
     | { kind: "generate"; input: GenerateInput }

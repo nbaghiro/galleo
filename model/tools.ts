@@ -15,6 +15,11 @@ export type ToolId =
     | "revise-artifact" // revise the whole piece per an instruction (may restructure)
     | "add-section" // generate a new section + propose inserting it
     | "rewrite-section" // rewrite one existing section in place
+    | "edit-artifact" // edit a section of another (not-open) library artifact in place
+    | "reorder-section" // move a section to a new position
+    | "remove-section" // delete a section
+    | "set-format" // re-render the artifact as deck / doc / web
+    | "set-theme" // switch the artifact to a built-in theme
     | "revise-element" // rework a single element or cell
     | "ask-assistant" // the conversational assistant turn (reasons + picks + chains the tools below)
     // atomic user-actions — single call
@@ -29,6 +34,17 @@ export type ToolId =
     | "write-speaker-notes" // write presenter notes for slides
     | "suggest-sections" // propose "what to add next" ideas
     | "show-sections" // display the artifact's existing sections as a carousel
+    | "find-artifacts" // search the user's library by title/topic
+    | "read-artifact" // load one artifact's content, to summarize or edit it
+    | "rename-artifact" // rename an artifact
+    | "move-artifact" // move an artifact into a folder (or out)
+    | "duplicate-artifact" // copy an artifact
+    | "trash-artifact" // move an artifact to Trash (confirmed)
+    | "restore-artifact" // restore an artifact from Trash
+    | "create-folder" // make a new folder
+    | "share-artifact" // open the share options for an artifact (publish is opt-in there)
+    | "export-artifact" // open an artifact to export it
+    | "find-templates" // list the starter templates
     | "find-stock-image" // search stock libraries for a photo
     // primitives — internal building blocks composites are made of
     | "plan-outline" // plan the arc: title, backdrop, ordered beats
@@ -98,6 +114,11 @@ export const TOOL_CATALOG: Record<ToolId, ToolMeta> = {
     "revise-artifact": meta("revise-artifact", "Revise artifact", "Revise the whole piece per an instruction", "composite", AGENT_DIRECT, { category: "edit", live: true, usage: { section: 10 }, meter: (m) => ({ section: Math.max(3, m.sections ?? 10) }) }), // prettier-ignore
     "add-section": meta("add-section", "Add section", "Generate a new section and propose inserting it", "composite", AGENT_DIRECT, { category: "create", usage: { section: 1 } }), // prettier-ignore
     "rewrite-section": meta("rewrite-section", "Rewrite section", "Rewrite one existing section in place", "composite", AGENT_DIRECT, { category: "edit", live: true, usage: { section: 1 } }), // prettier-ignore
+    "edit-artifact": meta("edit-artifact", "Edit artifact", "Edit a section of another library artifact in place", "composite", ["agent", "direct"], { category: "edit", live: true, usage: { section: 1 } }), // prettier-ignore
+    "reorder-section": meta("reorder-section", "Reorder section", "Move a section to a new position", "action", ["agent", "direct"]), // prettier-ignore
+    "remove-section": meta("remove-section", "Remove section", "Delete a section", "action", ["agent", "direct"]), // prettier-ignore
+    "set-format": meta("set-format", "Set format", "Re-render as deck / doc / web", "action", ["agent", "direct"]), // prettier-ignore
+    "set-theme": meta("set-theme", "Set theme", "Switch the artifact to a built-in theme", "action", ["agent", "direct"]), // prettier-ignore
     "revise-element": meta("revise-element", "Revise element", "Rework a single element or cell", "composite", AGENT_DIRECT, { category: "edit", live: true, usage: { text: 2 } }), // prettier-ignore
     "ask-assistant": meta("ask-assistant", "Ask the assistant", "A conversational agent turn — reasons over your artifact and chains the tools above", "composite", ["direct"], { category: "assist", live: true, usage: { reply: 1 } }), // prettier-ignore
     // atomic user-actions
@@ -112,6 +133,17 @@ export const TOOL_CATALOG: Record<ToolId, ToolMeta> = {
     "write-speaker-notes": meta("write-speaker-notes", "Write speaker notes", "Write presenter notes for slides", "action", AGENT_DIRECT, { category: "assist", usage: { reply: 1 } }), // prettier-ignore
     "suggest-sections": meta("suggest-sections", "Suggest sections", "Propose what to add next", "action", AGENT_DIRECT), // prettier-ignore
     "show-sections": meta("show-sections", "Show sections", "Display the existing sections as a carousel", "action", ["agent", "direct"]), // prettier-ignore
+    "find-artifacts": meta("find-artifacts", "Find artifacts", "Search the user's library by title or topic", "action", ["agent", "direct"]), // prettier-ignore
+    "read-artifact": meta("read-artifact", "Read artifact", "Load one artifact's content to summarize or edit it", "action", ["agent", "direct"]), // prettier-ignore
+    "rename-artifact": meta("rename-artifact", "Rename artifact", "Rename an artifact", "action", ["agent", "direct"]), // prettier-ignore
+    "move-artifact": meta("move-artifact", "Move artifact", "Move an artifact into a folder (or out)", "action", ["agent", "direct"]), // prettier-ignore
+    "duplicate-artifact": meta("duplicate-artifact", "Duplicate artifact", "Make a copy of an artifact", "action", ["agent", "direct"]), // prettier-ignore
+    "trash-artifact": meta("trash-artifact", "Trash artifact", "Move an artifact to Trash", "action", ["agent", "direct"]), // prettier-ignore
+    "restore-artifact": meta("restore-artifact", "Restore artifact", "Restore an artifact from Trash", "action", ["agent", "direct"]), // prettier-ignore
+    "create-folder": meta("create-folder", "Create folder", "Make a new folder", "action", ["agent", "direct"]), // prettier-ignore
+    "share-artifact": meta("share-artifact", "Share artifact", "Open the share options for an artifact", "action", ["agent", "direct"]), // prettier-ignore
+    "export-artifact": meta("export-artifact", "Export artifact", "Open an artifact to export it", "action", ["agent", "direct"]), // prettier-ignore
+    "find-templates": meta("find-templates", "Find templates", "List the starter templates", "action", ["agent", "direct"]), // prettier-ignore
     "find-stock-image": meta("find-stock-image", "Find stock image", "Search stock libraries for a photo", "action", ["direct", "internal"]), // prettier-ignore
     // primitives
     "plan-outline": meta("plan-outline", "Plan outline", "Plan the arc: title, backdrop, ordered beats", "primitive", INTERNAL), // prettier-ignore

@@ -1,6 +1,6 @@
 import type { ZodType } from "zod";
 import type { ToolId } from "@model/tools";
-import type { TurnEvent } from "@model/ai";
+import type { ArtifactRef, TurnEvent } from "@model/ai";
 import type { ArtifactContent } from "@model/artifact";
 import type { ImageOptions } from "../run";
 
@@ -10,9 +10,18 @@ import type { ImageOptions } from "../run";
 // progress, capture its result). The three surfaces — direct dispatch, the chat agent, and MCP — all read
 // tools from this one registry; none of them redefines a capability.
 
+// Read access to the user's library, scoped to their workspace. Injected by the route (which holds the DB
+// + the authed workspace), so the tools stay decoupled from the data layer — the same way `image.generate`
+// is injected. Absent when a turn runs without a workspace (e.g. the generate modal), so tools guard on it.
+export interface WorkspaceReader {
+    find(query?: string): Promise<ArtifactRef[]>; // search live artifacts by title/topic (recent when blank)
+    read(id: string): Promise<{ ref: ArtifactRef; content: ArtifactContent } | null>; // load one, or null
+}
+
 export interface ToolContext {
     artifact?: ArtifactContent; // the open artifact (edit / section tools need it)
     image: ImageOptions; // how images resolve (stock vs ai)
+    workspace?: WorkspaceReader; // read access to the user's library (find / read artifacts)
     signal?: AbortSignal;
     // Run another tool with this same context — forwards its events (used via `yield*`) + returns its result.
     use<I, R>(tool: Tool<I, R>, input: I): AsyncGenerator<TurnEvent, R>;
@@ -47,6 +56,7 @@ export function makeContext(base: Omit<ToolContext, "use">): ToolContext {
     const ctx: ToolContext = {
         artifact: base.artifact,
         image: base.image,
+        workspace: base.workspace,
         signal: base.signal,
         use: <I, R>(tool: Tool<I, R>, input: I): AsyncGenerator<TurnEvent, R> =>
             tool.run(input, ctx),

@@ -30,6 +30,18 @@ import type { PromptParts } from "./system";
 const OUTLINE_JOB = `## Your job
 Plan the artifact: a title, a backdrop, and an ordered list of beats (sections). The backdrop is the artifact's full-bleed background image — describe a moody, on-theme atmospheric scene that evokes the subject (a wide, low-detail environment, since it sits behind every section under a scrim), never a generic abstract texture. Give the piece a real narrative arc that fits the topic — the beat roles (scene, tension, turn, proof, momentum, close) are a toolbox to draw on, not a fixed sequence: use the ones the story needs, in the order it needs, and repeat proof/momentum beats where the argument earns them. For each beat: an id (s1, s2, …), a short working label, its narrative role, the layout you intend (\`layout\` — a named preset: full · split-6040 · split-4060 · two-col · three-up), and — crucially — design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Vary layouts and blocks across the piece, and place visual blocks (image / stat / chart / diagram / table) where they earn their spot rather than defaulting to walls of text — the layout you choose is rendered as a live skeleton and the section writer must fill it exactly. Also give each beat whether it leads with an image and a one-line brief of what it must say. Give the opening (scene) and closing (close) sections a full-bleed background image — set image=true for them; they anchor the piece. Don't pad and don't truncate.`;
 
+// Source material to build FROM (pasted text, or an existing artifact's extracted text) — only the outline
+// sees it (the sections follow the outline's beats), so grounding stays cheap even for a long source.
+function sourceMaterial(source?: string): string | undefined {
+    const s = source?.trim();
+    if (!s) return undefined;
+    const clipped = s.length > 6000 ? `${s.slice(0, 6000)}…` : s;
+    return heading(
+        "Source material — build the piece FROM this",
+        `Ground the outline in this material: use its real facts, structure, and specifics — don't invent competing ones. Distill and reorganize it into a strong narrative that fits this format.\n\n${clipped}`,
+    );
+}
+
 export function outlineParts(input: GenerateInput): PromptParts {
     return {
         system: stack(
@@ -43,6 +55,7 @@ export function outlineParts(input: GenerateInput): PromptParts {
         ),
         prompt: stack(
             briefContext(input),
+            sourceMaterial(input.source),
             lengthGuidance(input.length),
             arcGuidance(input),
             "Produce the outline now.",

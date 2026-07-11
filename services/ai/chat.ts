@@ -10,7 +10,24 @@ import type { RunOpts } from "./run";
 import { makeContext } from "./tools/registry";
 import type { Tool } from "./tools/registry";
 import { showSectionsTool } from "./tools/inspect";
-import { addSectionTool, rewriteSectionTool } from "./tools/section";
+import { findArtifactsTool, findTemplatesTool, readArtifactTool } from "./tools/library";
+import { addSectionTool, editArtifactTool, rewriteSectionTool } from "./tools/section";
+import {
+    createFolderTool,
+    duplicateArtifactTool,
+    exportArtifactTool,
+    moveArtifactTool,
+    renameArtifactTool,
+    restoreArtifactTool,
+    shareArtifactTool,
+    trashArtifactTool,
+} from "./tools/manage";
+import {
+    removeSectionTool,
+    reorderSectionTool,
+    setFormatTool,
+    setThemeTool,
+} from "./tools/structure";
 import { suggestSectionsTool } from "./tools/suggest";
 
 // The chat agent — a real multi-step tool-calling loop (AI SDK ToolLoopAgent) whose toolset is BUILT FROM THE
@@ -75,6 +92,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
     const ctx = makeContext({
         artifact: input.context.content,
         image: opts.image ?? {},
+        workspace: opts.workspace,
         signal: opts.signal,
     });
 
@@ -133,9 +151,27 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
                 .enum(["Short", "Standard", "In-depth"])
                 .optional()
                 .describe("how long it should be — defaults to Standard"),
+            sourceFromMessage: z
+                .boolean()
+                .optional()
+                .describe(
+                    "set true to build FROM the content the user just pasted in their message (turn THIS into a deck) — don't re-type their text into the prompt",
+                ),
+            sourceArtifactId: z
+                .string()
+                .optional()
+                .describe(
+                    "to repurpose an existing artifact into a new format (e.g. 'turn my report into a deck'), its id from find-artifacts",
+                ),
         }),
         execute: async (
-            brief: { prompt: string; surface: "deck" | "doc" | "web"; length?: string },
+            brief: {
+                prompt: string;
+                surface: "deck" | "doc" | "web";
+                length?: string;
+                sourceFromMessage?: boolean;
+                sourceArtifactId?: string;
+            },
             { toolCallId }: { toolCallId: string },
         ) => {
             ch.push({ type: "chat.block", blockId: toolCallId, block: { type: "brief", brief } });
@@ -187,9 +223,73 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
                           ? `Showing ${sections.length} section${sections.length === 1 ? "" : "s"}.`
                           : "There are no sections to show yet.",
               ),
+              // Structural edits — deterministic patch-op proposals (no preview): reorder / remove a section,
+              // switch format / theme. Applying runs the op on the open artifact or the active draft.
+              "reorder-section": wrap(reorderSectionTool, "Reordering", (r) => ({ type: "proposal", summary: r.summary, patch: r.patch }), (r) => r.summary), // prettier-ignore
+              "remove-section": wrap(removeSectionTool, "Removing", (r) => ({ type: "proposal", summary: r.summary, patch: r.patch }), (r) => r.summary), // prettier-ignore
+              "set-format": wrap(setFormatTool, "Reformatting", (r) => ({ type: "proposal", summary: r.summary, patch: r.patch }), (r) => r.summary), // prettier-ignore
+              "set-theme": wrap(setThemeTool, "Restyling", (r) => ({ type: "proposal", summary: r.summary, patch: r.patch }), (r) => r.summary), // prettier-ignore
           }
         : {};
-    const tools: ToolSet = { "propose-generation": proposeGeneration, ...artifactTools };
+    // Always-available tools (every surface, incl. the empty library): propose a new build, and the READ
+    // spine — search the library + load an artifact — so the agent can ground itself in the user's real work
+    // (summarize, compare, find the one they mean) from anywhere, not just when a document is open.
+    const tools: ToolSet = {
+        "propose-generation": proposeGeneration,
+        "find-artifacts": wrap(
+            findArtifactsTool,
+            "Searching your library",
+            (items) => (items.length ? { type: "artifacts", items } : null),
+            // The note is the model's tool result — it MUST carry the ids so a follow-up read-artifact /
+            // edit can target the right one. (The user-facing block shows titles; the model sees this.)
+            (items) =>
+                items.length
+                    ? `Found ${items.length}:\n${items.map((i) => `- ${i.id} — “${i.title}” (${i.format})`).join("\n")}`
+                    : "No matching artifacts in the library.",
+        ),
+        "read-artifact": wrap(
+            readArtifactTool,
+            "Reading",
+            () => null,
+            (digest) => digest, // the digest IS the tool result the model reasons over
+        ),
+        "find-templates": wrap(
+            findTemplatesTool,
+            "Browsing templates",
+            (items) => (items.length ? { type: "templates", items } : null),
+            (items) =>
+                items.length
+                    ? `Templates: ${items.map((t) => `${t.name} (${t.category})`).join(", ")}. The user can pick one to start from.`
+                    : "No matching templates.",
+        ),
+        "edit-artifact": wrap(
+            editArtifactTool,
+            "Editing",
+            (res, input) => ({
+                type: "proposal",
+                summary: `Update “${clip(firstText(res.section), 40)}”`,
+                patch: [{ op: "replaceSection", id: input.sectionId, section: res.section }],
+                preview: res.section,
+                targetArtifactId: res.artifactId,
+                theme: res.theme,
+                format: res.format,
+            }),
+            (_res, input) => `Proposed an edit to a section of that artifact (${input.sectionId}).`,
+        ),
+        // Workspace management — each proposes a typed action the client runs (reversible ones on arrival,
+        // trash behind a confirm card). The label + confirm policy live client-side, so these just package it.
+        "rename-artifact": wrap(renameArtifactTool, "Renaming", (action) => ({ type: "action", action }), () => "Proposed a rename."), // prettier-ignore
+        "move-artifact": wrap(moveArtifactTool, "Moving", (action) => ({ type: "action", action }), () => "Proposed a move."), // prettier-ignore
+        "duplicate-artifact": wrap(duplicateArtifactTool, "Duplicating", (action) => ({ type: "action", action }), () => "Proposed a duplicate."), // prettier-ignore
+        "trash-artifact": wrap(trashArtifactTool, "Trashing", (action) => ({ type: "action", action }), () => "Proposed moving it to Trash — the user confirms before it happens."), // prettier-ignore
+        "restore-artifact": wrap(restoreArtifactTool, "Restoring", (action) => ({ type: "action", action }), () => "Proposed a restore."), // prettier-ignore
+        "create-folder": wrap(createFolderTool, "New folder", (action) => ({ type: "action", action }), () => "Proposed a new folder."), // prettier-ignore
+        // Outward-facing → a one-click routing card (open the share panel / open to export); publishing +
+        // downloading stay behind the proper UI, never done automatically.
+        "share-artifact": wrap(shareArtifactTool, "Sharing", (action) => ({ type: "action", action }), () => "Opened the share options for the user to publish a link."), // prettier-ignore
+        "export-artifact": wrap(exportArtifactTool, "Exporting", (action) => ({ type: "action", action }), () => "Opened the artifact for the user to export."), // prettier-ignore
+        ...artifactTools,
+    };
 
     const agent = new ToolLoopAgent({
         model: resolveModel(defaultModelFor("chat")),

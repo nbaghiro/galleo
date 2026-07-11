@@ -1,8 +1,10 @@
-import type { Component } from "solid-js";
+import type { Component, JSX } from "solid-js";
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import type { ChatBlock, GenBrief } from "@model/ai";
+import type { ChatBlock, GenBrief, WorkspaceAction } from "@model/ai";
+import type { Section } from "@model/artifact";
 import { estimateCost } from "@model/tools";
+import { placeholderSection } from "@canvas/elements/blueprint";
 import { AgentIcon, Icon } from "@ui/icons";
 import { Markdown } from "@ui/markdown";
 import { MiniCanvas } from "../components/previews";
@@ -13,13 +15,18 @@ import type { ChatMsg, UIBlock } from "../stores/chat";
 type Proposal = Extract<ChatBlock, { type: "proposal" }>;
 type Suggestions = Extract<ChatBlock, { type: "suggestions" }>;
 type Sections = Extract<ChatBlock, { type: "sections" }>;
+type Artifacts = Extract<ChatBlock, { type: "artifacts" }>;
+type Templates = Extract<ChatBlock, { type: "templates" }>;
 import {
+    actionLabel,
     applyProposal,
     busy,
     chatOpen,
     closeChat,
+    confirmAction,
     discardDraft,
     discardProposal,
+    dismissAction,
     drafts,
     editorActive,
     generateFromBrief,
@@ -28,6 +35,8 @@ import {
     previewSource,
     resetThread,
     sendChat,
+    shareArtifactAction,
+    startDraftFromTemplate,
     stopChat,
     thread,
     toggleChat,
@@ -55,14 +64,20 @@ const ProposalCard: Component<{
         setW(box.clientWidth);
         onCleanup(() => ro.disconnect());
     });
+    // Preview in the target's own theme/format when editing a NAMED library artifact (the proposal carries
+    // them); otherwise the open artifact / active draft's, via previewSource().
+    const src = (): { theme: string; format: string } =>
+        props.proposal.targetArtifactId && props.proposal.theme && props.proposal.format
+            ? { theme: props.proposal.theme, format: props.proposal.format }
+            : previewSource();
     return (
         <div ref={box} class="mt-1 overflow-hidden rounded-xl border border-line bg-canvas">
             <Show when={props.proposal.preview}>
                 {(sec) => (
                     <MiniCanvas
                         section={sec()}
-                        themeId={previewSource().theme}
-                        formatId={previewSource().format}
+                        themeId={src().theme}
+                        formatId={src().format}
                         width={w()}
                     />
                 )}
@@ -105,6 +120,58 @@ const ProposalCard: Component<{
     );
 };
 
+// Smooth "typewriter" reveal — decouples the visual stream from the provider's bursty delivery. Gemini (Pro,
+// thinking ON) emits reasoning as thought-summaries in ~2s chunks and flushes the answer's first ~450 chars
+// in one burst, so a short reply pops in whole. This reveals whatever text has ARRIVED at a steady,
+// backlog-aware pace (fast catch-up on a burst, then a min pace so the tail never lags), so reasoning + reply
+// appear to stream token-by-token no matter how the backend chunks them — the same trick polished chat UIs
+// use. `done` fast-forwards to the full text (a finished thought re-opened shows instantly, doesn't re-type).
+// A pulse bumped on every reveal frame, so the scroll container can keep the newest typed text in view.
+const [revealPulse, setRevealPulse] = createSignal(0);
+
+const SmoothText: Component<{
+    text: string;
+    done?: boolean;
+    render: (shown: string) => JSX.Element;
+}> = (props) => {
+    const [shown, setShown] = createSignal(0);
+    let raf = 0;
+    let running = false;
+    const tick = (): void => {
+        const target = props.text.length;
+        const cur = shown();
+        if (cur >= target) {
+            running = false;
+            return;
+        }
+        // reveal proportional to the backlog (snappy on a burst) but at least a few chars/frame (no trailing
+        // trickle) — ~60fps, so a 450-char burst clears in ~0.4s and a steady stream reveals continuously.
+        const step = Math.max(2, Math.ceil((target - cur) / 7));
+        setShown(Math.min(target, cur + step));
+        setRevealPulse((n) => n + 1);
+        raf = requestAnimationFrame(tick);
+    };
+    const kick = (): void => {
+        if (!running) {
+            running = true;
+            raf = requestAnimationFrame(tick);
+        }
+    };
+    createEffect(() => {
+        const len = props.text.length;
+        if (props.done) {
+            cancelAnimationFrame(raf);
+            running = false;
+            setShown(len); // finished → show it all, don't animate (e.g. re-opening a collapsed thought)
+            return;
+        }
+        if (shown() > len) setShown(len); // guard a reset (target shrank)
+        if (len > 0) kick();
+    });
+    onCleanup(() => cancelAnimationFrame(raf));
+    return <>{props.render(props.text.slice(0, shown()))}</>;
+};
+
 // The agent's thinking trace — streams into an expanded bubble while the model reasons, then auto-collapses
 // when the answer starts (but stays, so the user can re-open and read the reasoning). Turns the pre-answer
 // wait into visible progress instead of a dead loader.
@@ -129,7 +196,11 @@ const ReasoningBlock: Component<{ text: string; done: boolean }> = (props) => {
             </button>
             <Show when={open()}>
                 <div class="border-t border-line px-2.5 py-2">
-                    <Markdown text={props.text} muted />
+                    <SmoothText
+                        text={props.text}
+                        done={props.done}
+                        render={(s) => <Markdown text={s} muted />}
+                    />
                 </div>
             </Show>
         </div>
@@ -174,18 +245,34 @@ const BriefCard: Component<{ brief: GenBrief }> = (props) => {
 };
 
 // An in-chat generated artifact — the streamed draft. Renders the real sections (same engine as the editor)
-// stacked in a scroll box, filling in as generation streams. Lives only in `drafts` until the user clicks
-// "Open in editor" (persists → navigates) or "Discard". While live, follow-up chat messages refine it.
+// as a horizontal filmstrip that auto-scrolls to the newest section as generation streams it in. Lives only
+// in `drafts` until the user clicks "Open in editor" (persists → navigates) or "Discard". While live,
+// follow-up chat messages refine it.
+const DRAFT_SECTION_W = 168; // filmstrip thumbnail width
+const prefersReduced = (): boolean =>
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+// A real engine-rendered placeholder for the section being written — the SAME MiniCanvas path as the real
+// sections, so its slide-frame dimensions match exactly (and it's engine-drawn, not a CSS mock). Faded under
+// a spinner so it reads as "a section forming here" rather than finished content.
+const LOADING_SECTION: Section = placeholderSection({
+    id: "loading",
+    layout: "split-6040",
+    blocks: ["text", "text"],
+});
 const ArtifactDraftCard: Component<{ draftId: string }> = (props) => {
     const navigate = useNavigate();
     const d = (): (typeof drafts)[string] | undefined => drafts[props.draftId];
-    let box!: HTMLDivElement;
-    const [w, setW] = createSignal(320);
-    onMount(() => {
-        const ro = new ResizeObserver(() => setW(box.clientWidth));
-        ro.observe(box);
-        setW(box.clientWidth);
-        onCleanup(() => ro.disconnect());
+    let strip!: HTMLDivElement;
+    // Follow the build: scroll the filmstrip to the rightmost (newest) section whenever one lands.
+    createEffect(() => {
+        void d()?.content.sections.length;
+        void d()?.status;
+        queueMicrotask(() =>
+            strip?.scrollTo({
+                left: strip.scrollWidth,
+                behavior: prefersReduced() ? "auto" : "smooth",
+            }),
+        );
     });
     const open = async (): Promise<void> => {
         const id = await persistDraft(props.draftId);
@@ -195,7 +282,7 @@ const ArtifactDraftCard: Component<{ draftId: string }> = (props) => {
         }
     };
     return (
-        <div ref={box} class="mt-1 overflow-hidden rounded-xl border border-line bg-canvas">
+        <div class="mt-1 overflow-hidden rounded-xl border border-line bg-canvas">
             <Show when={d()}>
                 {(draft) => (
                     <>
@@ -217,27 +304,45 @@ const ArtifactDraftCard: Component<{ draftId: string }> = (props) => {
                                 </span>
                             </Show>
                         </div>
-                        <div class="max-h-[380px] overflow-y-auto">
+                        {/* horizontal filmstrip — each section a fixed-width thumbnail; auto-scrolls to the
+                            newest as it streams in (see the createEffect above) */}
+                        <div ref={strip} class="flex gap-2.5 overflow-x-auto px-3 py-3">
                             <For each={draft().content.sections}>
-                                {(sec) => (
-                                    <div class="border-b border-line/60 last:border-0">
+                                {(sec, i) => (
+                                    <div class="flex-none">
                                         <MiniCanvas
                                             section={sec}
                                             themeId={draft().content.theme}
                                             formatId={draft().content.format}
-                                            width={w()}
+                                            width={DRAFT_SECTION_W}
+                                            class="rounded-lg border border-line"
                                         />
+                                        <div class="mt-1 text-center font-mono text-[9px] text-muted">
+                                            {String(i() + 1).padStart(2, "0")}
+                                        </div>
                                     </div>
                                 )}
                             </For>
-                            <Show
-                                when={
-                                    draft().status === "building" &&
-                                    !draft().content.sections.length
-                                }
-                            >
-                                <div class="flex items-center justify-center gap-2 py-8 text-[11.5px] text-muted">
-                                    <Spinner size={12} /> Planning the outline…
+                            {/* while building: the section being written — a real engine-rendered placeholder
+                                at the SAME slide frame as the finished tiles (so it never jumps size), faded
+                                under a spinner. Doubles as the initial "planning" state before any land. */}
+                            <Show when={draft().status === "building"}>
+                                <div class="flex-none">
+                                    <div class="relative animate-pulse">
+                                        <MiniCanvas
+                                            section={LOADING_SECTION}
+                                            themeId={draft().content.theme}
+                                            formatId={draft().content.format}
+                                            width={DRAFT_SECTION_W}
+                                            class="rounded-lg border border-dashed border-accent/40 opacity-25"
+                                        />
+                                        <div class="absolute inset-0 grid place-items-center">
+                                            <Spinner size={14} tone="accent" />
+                                        </div>
+                                    </div>
+                                    <div class="mt-1 text-center font-mono text-[9px] text-muted">
+                                        {draft().content.sections.length ? "writing" : "planning"}
+                                    </div>
                                 </div>
                             </Show>
                         </div>
@@ -290,6 +395,131 @@ const ArtifactDraftCard: Component<{ draftId: string }> = (props) => {
     );
 };
 
+// Library search results — a pick-list of the user's real artifacts (from find-artifacts). Each opens in
+// the editor on click, so "find my Series A deck" → tap → you're editing it.
+const ArtifactsList: Component<{ items: Artifacts["items"] }> = (props) => {
+    const navigate = useNavigate();
+    const open = (id: string): void => {
+        closeChat();
+        navigate(`/edit/${id}`);
+    };
+    return (
+        <div class="mt-1 flex flex-col gap-1">
+            <For each={props.items}>
+                {(a) => (
+                    <button
+                        class="flex items-center gap-2.5 rounded-lg border border-line bg-canvas px-2.5 py-2 text-left transition-colors hover:border-accent"
+                        onClick={() => open(a.id)}
+                    >
+                        <Icon name="sparkle" size={13} />
+                        <span class="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">
+                            {a.title}
+                        </span>
+                        <span class="flex-none font-mono text-[9.5px] uppercase tracking-[0.1em] text-muted">
+                            {formatLabel(a.format)}
+                        </span>
+                    </button>
+                )}
+            </For>
+        </div>
+    );
+};
+
+// A workspace management action. Outward-facing ops (share/export) render a one-click routing card that
+// opens the proper guarded UI. Trash arrives "pending" — a confirm card, the one destructive op. Everything
+// else (rename/move/duplicate/…) arrives already done — a quiet one-line confirmation.
+const ActionCard: Component<{
+    msgId: number;
+    blockId: string;
+    action: WorkspaceAction;
+    state: "pending" | "done" | "dismissed";
+}> = (props) => {
+    const navigate = useNavigate();
+    const route = (): void => {
+        const a = props.action;
+        if (a.kind === "share") shareArtifactAction(a.id);
+        else if (a.kind === "export") {
+            closeChat();
+            navigate(`/edit/${a.id}`);
+        }
+    };
+    const routing = (): boolean => props.action.kind === "share" || props.action.kind === "export";
+    return (
+        <Show
+            when={routing()}
+            fallback={
+                <Show
+                    when={props.state === "pending"}
+                    fallback={
+                        <div
+                            class="mt-1 text-[11.5px]"
+                            classList={{
+                                "text-soft": props.state === "done",
+                                "text-muted line-through": props.state === "dismissed",
+                            }}
+                        >
+                            {actionLabel(props.action)}
+                            {props.state === "done" ? " ✓" : ""}
+                        </div>
+                    }
+                >
+                    <div class="mt-1 rounded-xl border border-line bg-canvas p-3">
+                        <p class="text-[12.5px] text-ink">{actionLabel(props.action)}?</p>
+                        <div class="mt-2.5 flex items-center gap-1.5">
+                            <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => confirmAction(props.msgId, props.blockId)}
+                            >
+                                Move to Trash
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => dismissAction(props.msgId, props.blockId)}
+                            >
+                                Cancel
+                            </Button>
+                        </div>
+                    </div>
+                </Show>
+            }
+        >
+            <button
+                class="mt-1 flex w-full items-center gap-2 rounded-lg border border-line bg-canvas px-2.5 py-2 text-left text-[12.5px] font-medium text-ink transition-colors hover:border-accent"
+                onClick={route}
+            >
+                <Icon name="sparkle" size={13} />
+                <span class="min-w-0 flex-1 truncate">{actionLabel(props.action)}</span>
+                <span class="flex-none text-muted">→</span>
+            </button>
+        </Show>
+    );
+};
+
+// Starter templates — a pick-list; picking one drops that template straight into a live in-chat draft
+// (instant, no generation) the user can refine and open.
+const TemplatesList: Component<{ items: Templates["items"] }> = (props) => (
+    <div class="mt-1 flex flex-col gap-1">
+        <For each={props.items}>
+            {(t) => (
+                <button
+                    class="flex items-center gap-2.5 rounded-lg border border-line bg-canvas px-2.5 py-2 text-left transition-colors hover:border-accent"
+                    onClick={() => void startDraftFromTemplate(t.id)}
+                >
+                    <Icon name="sparkle" size={13} />
+                    <span class="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">
+                        {t.name}
+                    </span>
+                    <span class="flex-none font-mono text-[9.5px] uppercase tracking-[0.1em] text-muted">
+                        {t.category}
+                    </span>
+                </button>
+            )}
+        </For>
+    </div>
+);
+
 const BlockView: Component<{ msgId: number; b: UIBlock }> = (props) => (
     <>
         <Show when={props.b.k === "reasoning" ? props.b : null}>
@@ -298,11 +528,21 @@ const BlockView: Component<{ msgId: number; b: UIBlock }> = (props) => (
         <Show when={props.b.k === "brief" ? props.b : null}>
             {(b) => <BriefCard brief={b().brief} />}
         </Show>
+        <Show when={props.b.k === "action" ? props.b : null}>
+            {(b) => (
+                <ActionCard
+                    msgId={props.msgId}
+                    blockId={b().blockId}
+                    action={b().action}
+                    state={b().state}
+                />
+            )}
+        </Show>
         <Show when={props.b.k === "draft" ? props.b : null}>
             {(b) => <ArtifactDraftCard draftId={b().draftId} />}
         </Show>
         <Show when={props.b.k === "text" ? props.b : null}>
-            {(b) => <Markdown text={b().text} />}
+            {(b) => <SmoothText text={b().text} render={(s) => <Markdown text={s} />} />}
         </Show>
         <Show when={props.b.k === "tool" && !props.b.done ? props.b : null}>
             {(b) => (
@@ -336,6 +576,12 @@ const BlockView: Component<{ msgId: number; b: UIBlock }> = (props) => (
                     </For>
                 </div>
             )}
+        </Show>
+        <Show when={props.b.k === "widget" && props.b.block.type === "artifacts" ? props.b : null}>
+            {(b) => <ArtifactsList items={(b().block as Artifacts).items} />}
+        </Show>
+        <Show when={props.b.k === "widget" && props.b.block.type === "templates" ? props.b : null}>
+            {(b) => <TemplatesList items={(b().block as Templates).items} />}
         </Show>
         <Show when={props.b.k === "widget" && props.b.block.type === "sections" ? props.b : null}>
             {(b) => (
@@ -431,6 +677,15 @@ export const ChatPanel: Component = () => {
         );
         void tick;
         queueMicrotask(() => list?.scrollTo({ top: list.scrollHeight }));
+    });
+
+    // Keep the newest typed text pinned as SmoothText reveals it — but only when the user is already near the
+    // bottom, so scrolling up to read earlier messages mid-reply isn't yanked back down.
+    createEffect(() => {
+        revealPulse();
+        if (list && list.scrollHeight - list.scrollTop - list.clientHeight < 80) {
+            list.scrollTo({ top: list.scrollHeight });
+        }
     });
 
     const submit = (): void => {
