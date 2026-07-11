@@ -139,6 +139,11 @@ export interface EngineNode {
     alignX?: Align;
     alignY?: Align;
     alignSelf?: Align; // overrides the parent's cross-axis alignment for this child
+    // A floating child (Clay-style): laid out but lifted OUT of the parent's flex flow — it doesn't affect
+    // siblings or the parent's fit size — then positioned within the parent box by x/y alignment + a dx/dy
+    // offset, and painted on top of the parent's flow (higher `z` paints later). For element-attached
+    // overlays: badges, ribbons, corner markers. Inert until set, so ordinary flow is unaffected.
+    float?: { x?: Align; y?: Align; dx?: number; dy?: number; z?: number };
     opacity?: number; // 0..1, multiplied down the subtree — for the dimmed drag/drop preview
     text?: TextLeaf;
     image?: ImageLeaf;

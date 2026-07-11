@@ -3,7 +3,7 @@ import type { ArtifactContent } from "@model/artifact";
 import type { Tokens } from "@themes";
 import { PDFDocument } from "pdf-lib";
 import { fragment } from "@engine/layout";
-import { resolveProfile } from "@engine/profile";
+import { resolveProfile, slideFrame } from "@engine/profile";
 import { renderSlide, renderToCanvas, paint } from "./backends";
 import { measureText, layoutSection } from "./commands";
 
@@ -11,12 +11,11 @@ import { measureText, layoutSection } from "./commands";
 // resolved theme tokens, so the studio, a present surface, or a publish page can all export the same way.
 
 const PRINT_W = 1100;
-// Slide geometry (matches Present) + the PDF page size in points (13.33in × 7.5in widescreen).
+// Default slide geometry (matches Present) + the PDF page width in points. Per-section frames come from
+// `slideFrame`; page height flexes with each section's aspect.
 const SLIDE_W = 1280;
-const SLIDE_H = 720;
 const SCALE = 2; // raster supersampling for crisp output
 const PAGE_W = 960;
-const PAGE_H = 540;
 // A4 page geometry (points) for the continuous Document format.
 const A4_W = 595;
 const A4_H = 842;
@@ -70,14 +69,17 @@ async function exportSlidePdf(
     tk: Tokens,
     brand: boolean,
 ): Promise<void> {
+    const profile = resolveProfile(artifact.format);
     const pdf = await PDFDocument.create();
     for (const section of artifact.sections) {
-        const { canvas } = await renderSlide(section, tk, { w: SLIDE_W, h: SLIDE_H, scale: SCALE });
+        const { w, h } = slideFrame(section, profile);
+        const { canvas } = await renderSlide(section, tk, { w, h, scale: SCALE });
         const cx = canvas.getContext("2d");
         if (brand && cx) stampBrand(cx, canvas.width, canvas.height, SCALE);
         const img = await pdf.embedPng(await canvasPng(canvas));
-        const page = pdf.addPage([PAGE_W, PAGE_H]);
-        page.drawImage(img, { x: 0, y: 0, width: PAGE_W, height: PAGE_H });
+        const pageH = Math.round((PAGE_W * h) / w); // PDF page matches the section's aspect
+        const page = pdf.addPage([PAGE_W, pageH]);
+        page.drawImage(img, { x: 0, y: 0, width: PAGE_W, height: pageH });
     }
     download(await pdf.save(), "galleo.pdf", "application/pdf");
 }
@@ -136,20 +138,23 @@ export async function exportDeckPng(
     tk: Tokens,
     opts?: ExportOptions,
 ): Promise<void> {
+    const profile = resolveProfile(artifact.format);
     const sections = artifact.sections;
+    const frames = sections.map((s) => slideFrame(s, profile));
+    const outW = Math.max(SLIDE_W, ...frames.map((f) => f.w));
+    const totalH = frames.reduce((sum, f) => sum + f.h, 0);
     const out = document.createElement("canvas");
-    out.width = SLIDE_W * SCALE;
-    out.height = SLIDE_H * SCALE * sections.length;
+    out.width = outW * SCALE;
+    out.height = totalH * SCALE;
     const cx = out.getContext("2d");
     if (!cx) return;
+    let y = 0;
     for (let i = 0; i < sections.length; i++) {
-        const { canvas } = await renderSlide(sections[i]!, tk, {
-            w: SLIDE_W,
-            h: SLIDE_H,
-            scale: SCALE,
-        });
-        cx.drawImage(canvas, 0, i * SLIDE_H * SCALE);
-        if (opts?.brand) stampBrand(cx, out.width, (i + 1) * SLIDE_H * SCALE, SCALE);
+        const f = frames[i]!;
+        const { canvas } = await renderSlide(sections[i]!, tk, { w: f.w, h: f.h, scale: SCALE });
+        cx.drawImage(canvas, 0, y * SCALE);
+        y += f.h;
+        if (opts?.brand) stampBrand(cx, out.width, y * SCALE, SCALE);
     }
     download(await canvasPng(out), "galleo-deck.png", "image/png");
 }

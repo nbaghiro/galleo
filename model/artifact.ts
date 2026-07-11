@@ -33,11 +33,20 @@ export interface SectionBackground {
     dark?: boolean; // override auto contrast (light text on dark backgrounds)
 }
 
+// A section's own frame override — how it wants to be sized independent of the format default. `aspect`
+// (width : height) drives paged rendering (Present/export), so a deck can hold a 21:9 hero or a square
+// panel among its 16:9 slides ("custom section dimensions"). Absent → the format's frame. Continuous
+// formats size to content, so a frame is only consulted for paged rendering.
+export interface SectionFrame {
+    aspect?: number;
+}
+
 export interface Section {
     id: Id;
     root: ElementInstance; // the section's content: one recursive container/leaf tree
     background?: SectionBackground;
     bleed?: boolean; // full-bleed (edge-to-edge) vs a contained card
+    frame?: SectionFrame; // optional per-section size override (see SectionFrame)
 }
 
 export interface ArtifactContent {

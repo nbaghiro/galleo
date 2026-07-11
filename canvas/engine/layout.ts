@@ -25,6 +25,51 @@ const clamp = (v: number, s: Size): number => {
     return out;
 };
 
+// --- Clay-style grow/shrink sizing along the main axis ---
+
+// A child's resolvable size range on one axis: its natural `base`, the `min` it can shrink to, the `max`
+// it can grow to, and whether it participates in growing. Fixed/percent are exact (min == base == max).
+interface Span {
+    base: number;
+    min: number;
+    max: number;
+    grow: boolean;
+}
+
+// Grow/shrink children to fit `avail` (Clay's grow/shrink pass). Underflow → grow the `grow` children
+// toward max, sharing the surplus; overflow → shrink any child still above its min toward min, sharing the
+// deficit. Fixed/percent (min == base == max) never move; once everything is at its limit the remainder
+// just overflows (nothing left to give). Returns the resolved sizes, index-aligned with `spans`.
+function distribute(spans: Span[], avail: number): number[] {
+    const size = spans.map((s) => s.base);
+    let slack = avail - size.reduce((a, b) => a + b, 0);
+    let guard = 0;
+    while (Math.abs(slack) > 0.5 && guard++ < 64) {
+        const growing = slack > 0;
+        const movable = spans.flatMap((s, i) =>
+            growing
+                ? s.grow && size[i]! < s.max - 0.5
+                    ? [i]
+                    : []
+                : size[i]! > s.min + 0.5
+                  ? [i]
+                  : [],
+        );
+        if (!movable.length) break;
+        const step = slack / movable.length;
+        let moved = 0;
+        for (const i of movable) {
+            const room = growing ? spans[i]!.max - size[i]! : spans[i]!.min - size[i]!;
+            const delta = growing ? Math.min(step, room) : Math.max(step, room);
+            size[i]! += delta;
+            moved += delta;
+        }
+        slack -= moved;
+        if (Math.abs(moved) < 0.5) break;
+    }
+    return size;
+}
+
 // --- intrinsic ("fit") width: the natural content width a node wants ---
 
 function intrinsicWidth(n: EngineNode, measure: MeasureText): number {
@@ -42,21 +87,43 @@ function intrinsicWidth(n: EngineNode, measure: MeasureText): number {
 
 // --- pass 1: widths (top-down; parent assigns each child's final width) ---
 
-function assignWidth(
-    c: EngineNode,
-    parentContentW: number,
-    fitAvail: number,
-    measure: MeasureText,
-): number {
+// A child's width range for the main-axis distribute. percent/fit resolve against `avail` (the row's
+// space after gaps), so 60% + 40% + a gap fills exactly; fit carries its content width as base and can
+// shrink to `min` on overflow (which reflows its text taller in the height pass).
+function widthSpan(c: EngineNode, avail: number, measure: MeasureText): Span {
     switch (c.w.mode) {
+        case "fixed":
+            return { base: c.w.value, min: c.w.value, max: c.w.value, grow: false };
+        case "percent": {
+            const v = avail * c.w.value;
+            return { base: v, min: v, max: v, grow: false };
+        }
+        case "fit": {
+            const base = clamp(intrinsicWidth(c, measure), c.w);
+            return { base, min: c.w.min ?? 0, max: base, grow: false };
+        }
+        case "grow":
+            return {
+                base: c.w.min ?? 0,
+                min: c.w.min ?? 0,
+                max: c.w.max ?? Number.POSITIVE_INFINITY,
+                grow: true,
+            };
+    }
+}
+
+// Cross-axis width for a column's children (each sizes independently to the column's content width; no
+// grow/shrink between siblings). grow fills, others take their intrinsic/percent/fixed width.
+function crossWidth(c: EngineNode, contentW: number, measure: MeasureText): number {
+    switch (c.w.mode) {
+        case "grow":
+            return clamp(contentW, c.w);
         case "fixed":
             return c.w.value;
         case "percent":
-            return parentContentW * c.w.value;
+            return contentW * c.w.value;
         case "fit":
-            return clamp(Math.min(intrinsicWidth(c, measure), fitAvail), c.w);
-        case "grow":
-            return -1; // resolved by distributing leftover
+            return clamp(Math.min(intrinsicWidth(c, measure), contentW), c.w);
     }
 }
 
@@ -67,24 +134,22 @@ function layoutWidths(node: EngineNode, w: number, measure: MeasureText): Layout
 
     const contentW = Math.max(0, w - padX(node));
     if (isRow(node)) {
-        const gaps = (node.gap ?? 0) * Math.max(0, kids.length - 1);
+        // Only flow children share the row's width; floats are sized independently against the content box.
+        const flow = kids.filter((c) => !c.float);
+        const gaps = (node.gap ?? 0) * Math.max(0, flow.length - 1);
         const avail = Math.max(0, contentW - gaps);
-        // percent/fit resolve against the space left after gaps, so 60% + 40% + a gap fills exactly.
-        const widths = kids.map((c) => assignWidth(c, avail, avail, measure));
-        const fixedSum = widths.filter((x) => x >= 0).reduce((a, b) => a + b, 0);
-        const growCount = widths.filter((x) => x < 0).length;
-        const growEach = growCount > 0 ? Math.max(0, avail - fixedSum) / growCount : 0;
-        kids.forEach((c, i) => {
-            const cw = widths[i]! < 0 ? clamp(growEach, c.w) : widths[i]!;
+        const widths = distribute(
+            flow.map((c) => widthSpan(c, avail, measure)),
+            avail,
+        );
+        let fi = 0;
+        for (const c of kids) {
+            const cw = c.float ? crossWidth(c, contentW, measure) : widths[fi++]!;
             ln.children.push(layoutWidths(c, cw, measure));
-        });
+        }
     } else {
         for (const c of kids) {
-            const cw =
-                c.w.mode === "grow"
-                    ? clamp(contentW, c.w)
-                    : assignWidth(c, contentW, contentW, measure);
-            ln.children.push(layoutWidths(c, cw, measure));
+            ln.children.push(layoutWidths(c, crossWidth(c, contentW, measure), measure));
         }
     }
     return ln;
@@ -132,6 +197,10 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText):
         let maxH = 0;
         const growKids: LayoutNode[] = [];
         for (const c of ln.children) {
+            if (c.node.float) {
+                layoutHeights(c, contentH, measure); // independent of the row's cross height
+                continue;
+            }
             if (c.node.h.mode === "grow") {
                 growKids.push(c);
                 continue;
@@ -148,22 +217,26 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText):
         return;
     }
 
-    // column
-    const gaps = (node.gap ?? 0) * Math.max(0, ln.children.length - 1);
-    const growKids: LayoutNode[] = [];
-    let used = gaps;
-    for (const c of ln.children) {
+    // column: non-grow children resolve to their natural height; grow children start at their floor and
+    // fill the leftover (up to max) via the same grow/shrink pass. fit children keep their content height
+    // (pinned min == base == max) — vertical shrink would clip content, which is a clip-container concern.
+    const flow = ln.children.filter((c) => !c.node.float);
+    const gaps = (node.gap ?? 0) * Math.max(0, flow.length - 1);
+    const spans: Span[] = flow.map((c) => {
         if (c.node.h.mode === "grow") {
-            growKids.push(c);
-        } else {
-            layoutHeights(c, contentH, measure);
-            used += c.h;
+            const min = c.node.h.min ?? 0;
+            return { base: min, min, max: c.node.h.max ?? Number.POSITIVE_INFINITY, grow: true };
         }
-    }
-    const growEach = growKids.length > 0 ? Math.max(0, contentH - used) / growKids.length : 0;
-    for (const c of growKids) layoutHeights(c, growEach, measure);
+        layoutHeights(c, contentH, measure);
+        return { base: c.h, min: c.h, max: c.h, grow: false };
+    });
+    const heights = distribute(spans, Math.max(0, contentH - gaps));
+    flow.forEach((c, i) => {
+        if (c.node.h.mode === "grow") layoutHeights(c, heights[i]!, measure);
+    });
+    for (const c of ln.children) if (c.node.float) layoutHeights(c, contentH, measure);
 
-    const childrenH = ln.children.reduce((sum, c) => sum + c.h, 0) + gaps;
+    const childrenH = flow.reduce((sum, c) => sum + c.h, 0) + gaps;
     ln.h = resolveHeight(node.h, assignedH, childrenH + padY(node));
 }
 
@@ -187,25 +260,32 @@ function layoutPositions(ln: LayoutNode, x: number, y: number): void {
     const contentW = Math.max(0, ln.w - padX(node));
     const contentH = Math.max(0, ln.h - padY(node));
     const gap = node.gap ?? 0;
+    const flow = ln.children.filter((c) => !c.node.float);
 
     if (isRow(node)) {
-        const totalW =
-            ln.children.reduce((s, c) => s + c.w, 0) + gap * Math.max(0, ln.children.length - 1);
+        const totalW = flow.reduce((s, c) => s + c.w, 0) + gap * Math.max(0, flow.length - 1);
         let cx = x + cl + mainOffset(contentW - totalW, node.alignX);
-        for (const c of ln.children) {
+        for (const c of flow) {
             const cy = y + ct + mainOffset(contentH - c.h, c.node.alignSelf ?? node.alignY);
             layoutPositions(c, cx, cy);
             cx += c.w + gap;
         }
     } else {
-        const totalH =
-            ln.children.reduce((s, c) => s + c.h, 0) + gap * Math.max(0, ln.children.length - 1);
+        const totalH = flow.reduce((s, c) => s + c.h, 0) + gap * Math.max(0, flow.length - 1);
         let cy = y + ct + mainOffset(contentH - totalH, node.alignY);
-        for (const c of ln.children) {
+        for (const c of flow) {
             const cx = x + cl + mainOffset(contentW - c.w, c.node.alignSelf ?? node.alignX);
             layoutPositions(c, cx, cy);
             cy += c.h + gap;
         }
+    }
+    // Floating children are placed over the flow, aligned within the content box + a dx/dy offset.
+    for (const c of ln.children) {
+        if (!c.node.float) continue;
+        const f = c.node.float;
+        const fx = x + cl + mainOffset(contentW - c.w, f.x) + (f.dx ?? 0);
+        const fy = y + ct + mainOffset(contentH - c.h, f.y) + (f.dy ?? 0);
+        layoutPositions(c, fx, fy);
     }
 }
 
@@ -224,7 +304,12 @@ function emit(ln: LayoutNode, commands: RenderCommand[], regions: Region[], opac
     if (node.text) commands.push({ kind: "text", box, text: node.text, id: node.id, opacity: o });
     if (node.surface)
         commands.push({ kind: "surface", box, paint: node.surface.paint, id: node.id, opacity: o });
-    for (const c of ln.children) emit(c, commands, regions, acc);
+    // Flow first, then floats (ascending `z`) so an attached overlay paints on top of its parent's content.
+    for (const c of ln.children) if (!c.node.float) emit(c, commands, regions, acc);
+    ln.children
+        .filter((c) => c.node.float)
+        .sort((a, b) => (a.node.float?.z ?? 0) - (b.node.float?.z ?? 0))
+        .forEach((c) => emit(c, commands, regions, acc));
 }
 
 // Resolve a node tree into absolute-positioned paint commands + interaction regions (for nodes

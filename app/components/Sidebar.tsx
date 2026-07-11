@@ -35,7 +35,7 @@ import {
 } from "@ui/icons";
 import { CreateModal } from "../components/modals";
 import { openThemeEditor } from "../theme";
-import { openGenerate } from "../views/generate/session";
+import { openGenerate } from "../stores/generate";
 import { Button, Eyebrow, IconButton } from "@ui/button";
 import { TextField } from "@ui/inputs";
 import { Meter } from "@ui/status";

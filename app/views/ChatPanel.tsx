@@ -1,12 +1,14 @@
 import type { Component } from "solid-js";
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import type { ChatBlock } from "@model/ai";
-import { currentArtifactId, editor } from "@editor/editor";
+import { useNavigate } from "@solidjs/router";
+import type { ChatBlock, GenBrief } from "@model/ai";
+import { estimateCost } from "@model/tools";
 import { AgentIcon, Icon } from "@ui/icons";
 import { Markdown } from "@ui/markdown";
-import { MiniCanvas } from "../../components/previews";
-import { Button, IconButton, Chip, Spinner } from "@ui/button";
-import type { ChatMsg, UIBlock } from "./session";
+import { MiniCanvas } from "../components/previews";
+import { Button, IconButton, Chip, Eyebrow, Spinner } from "@ui/button";
+import { formatLabel } from "../stores/library";
+import type { ChatMsg, UIBlock } from "../stores/chat";
 
 type Proposal = Extract<ChatBlock, { type: "proposal" }>;
 type Suggestions = Extract<ChatBlock, { type: "suggestions" }>;
@@ -16,14 +18,20 @@ import {
     busy,
     chatOpen,
     closeChat,
+    discardDraft,
     discardProposal,
+    drafts,
+    editorActive,
+    generateFromBrief,
     openChat,
+    persistDraft,
+    previewSource,
     resetThread,
     sendChat,
     stopChat,
     thread,
     toggleChat,
-} from "./session";
+} from "../stores/chat";
 
 // The chat panel — an app-layer singleton dock (mounted in AppShell). Sends a chat turn per message and
 // renders the streamed blocks: text, a "working…" tool shell, a proposal (a real MiniCanvas of the section +
@@ -53,8 +61,8 @@ const ProposalCard: Component<{
                 {(sec) => (
                     <MiniCanvas
                         section={sec()}
-                        themeId={editor.artifact.theme}
-                        formatId={editor.artifact.format}
+                        themeId={previewSource().theme}
+                        formatId={previewSource().format}
                         width={w()}
                     />
                 )}
@@ -120,9 +128,163 @@ const ReasoningBlock: Component<{ text: string; done: boolean }> = (props) => {
                 </span>
             </button>
             <Show when={open()}>
-                <div class="whitespace-pre-wrap border-t border-line px-2.5 py-2 text-[11.5px] leading-relaxed text-muted">
-                    {props.text}
+                <div class="border-t border-line px-2.5 py-2">
+                    <Markdown text={props.text} muted />
                 </div>
+            </Show>
+        </div>
+    );
+};
+
+// A "Generate →" confirm card — the agent hands back a one-line brief; the user clicks to build it into an
+// in-chat draft (below). Shows the estimated credit cost so committing is a deliberate, priced choice.
+const SURFACE_VERB: Record<string, string> = { deck: "deck", doc: "doc", web: "site" };
+const BriefCard: Component<{ brief: GenBrief }> = (props) => {
+    const [started, setStarted] = createSignal(false);
+    const cost = (): number => estimateCost("generate-artifact", { length: props.brief.length });
+    const label = (): string =>
+        !started()
+            ? `Generate ${SURFACE_VERB[props.brief.surface] ?? "artifact"} →`
+            : busy()
+              ? "Generating…"
+              : "Generated ✓";
+    return (
+        <div class="mt-1 rounded-xl border border-line bg-canvas p-3">
+            <Eyebrow as="div" class="pb-1.5">
+                Brief · {formatLabel(props.brief.surface)}
+                {props.brief.length ? ` · ${props.brief.length}` : ""}
+            </Eyebrow>
+            <p class="text-[13px] leading-relaxed text-ink">{props.brief.prompt}</p>
+            <div class="mt-2.5 flex items-center gap-2.5">
+                <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={started()}
+                    onClick={() => {
+                        setStarted(true);
+                        void generateFromBrief(props.brief);
+                    }}
+                >
+                    {label()}
+                </Button>
+                <span class="text-[11px] text-muted">~{cost()} credits</span>
+            </div>
+        </div>
+    );
+};
+
+// An in-chat generated artifact — the streamed draft. Renders the real sections (same engine as the editor)
+// stacked in a scroll box, filling in as generation streams. Lives only in `drafts` until the user clicks
+// "Open in editor" (persists → navigates) or "Discard". While live, follow-up chat messages refine it.
+const ArtifactDraftCard: Component<{ draftId: string }> = (props) => {
+    const navigate = useNavigate();
+    const d = (): (typeof drafts)[string] | undefined => drafts[props.draftId];
+    let box!: HTMLDivElement;
+    const [w, setW] = createSignal(320);
+    onMount(() => {
+        const ro = new ResizeObserver(() => setW(box.clientWidth));
+        ro.observe(box);
+        setW(box.clientWidth);
+        onCleanup(() => ro.disconnect());
+    });
+    const open = async (): Promise<void> => {
+        const id = await persistDraft(props.draftId);
+        if (id) {
+            closeChat();
+            navigate(`/edit/${id}`);
+        }
+    };
+    return (
+        <div ref={box} class="mt-1 overflow-hidden rounded-xl border border-line bg-canvas">
+            <Show when={d()}>
+                {(draft) => (
+                    <>
+                        <div class="flex items-center gap-2 border-b border-line px-3 py-2">
+                            <Show
+                                when={draft().status === "building"}
+                                fallback={<Icon name="sparkle" size={13} />}
+                            >
+                                <Spinner size={12} tone="accent" />
+                            </Show>
+                            <span class="min-w-0 flex-1 truncate text-[12px] font-medium text-ink">
+                                {draft().title}
+                            </span>
+                            <Show when={draft().status === "building"}>
+                                <span class="flex-none font-mono text-[10px] text-muted">
+                                    {draft().total
+                                        ? `${draft().done}/${draft().total}`
+                                        : (draft().phase ?? "…")}
+                                </span>
+                            </Show>
+                        </div>
+                        <div class="max-h-[380px] overflow-y-auto">
+                            <For each={draft().content.sections}>
+                                {(sec) => (
+                                    <div class="border-b border-line/60 last:border-0">
+                                        <MiniCanvas
+                                            section={sec}
+                                            themeId={draft().content.theme}
+                                            formatId={draft().content.format}
+                                            width={w()}
+                                        />
+                                    </div>
+                                )}
+                            </For>
+                            <Show
+                                when={
+                                    draft().status === "building" &&
+                                    !draft().content.sections.length
+                                }
+                            >
+                                <div class="flex items-center justify-center gap-2 py-8 text-[11.5px] text-muted">
+                                    <Spinner size={12} /> Planning the outline…
+                                </div>
+                            </Show>
+                        </div>
+                        <div class="flex items-center justify-between gap-2 border-t border-line px-3 py-2">
+                            <span class="min-w-0 truncate text-[11px] text-muted">
+                                <Show
+                                    when={draft().status === "error"}
+                                    fallback={`${draft().content.sections.length} section${draft().content.sections.length === 1 ? "" : "s"}`}
+                                >
+                                    <span class="text-[#e5484d]">{draft().error}</span>
+                                </Show>
+                            </span>
+                            <Show
+                                when={draft().state === "live"}
+                                fallback={
+                                    <span
+                                        class="flex-none text-[11px] font-semibold uppercase tracking-[0.1em]"
+                                        classList={{
+                                            "text-accent": draft().state === "opened",
+                                            "text-muted": draft().state === "discarded",
+                                        }}
+                                    >
+                                        {draft().state === "opened" ? "Opened ✓" : "Discarded"}
+                                    </span>
+                                }
+                            >
+                                <span class="flex flex-none gap-1.5">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => discardDraft(props.draftId)}
+                                    >
+                                        Discard
+                                    </Button>
+                                    <Button
+                                        variant="primary"
+                                        size="sm"
+                                        disabled={draft().status !== "ready"}
+                                        onClick={() => void open()}
+                                    >
+                                        Open in editor →
+                                    </Button>
+                                </span>
+                            </Show>
+                        </div>
+                    </>
+                )}
             </Show>
         </div>
     );
@@ -132,6 +294,12 @@ const BlockView: Component<{ msgId: number; b: UIBlock }> = (props) => (
     <>
         <Show when={props.b.k === "reasoning" ? props.b : null}>
             {(b) => <ReasoningBlock text={b().text} done={b().done} />}
+        </Show>
+        <Show when={props.b.k === "brief" ? props.b : null}>
+            {(b) => <BriefCard brief={b().brief} />}
+        </Show>
+        <Show when={props.b.k === "draft" ? props.b : null}>
+            {(b) => <ArtifactDraftCard draftId={b().draftId} />}
         </Show>
         <Show when={props.b.k === "text" ? props.b : null}>
             {(b) => <Markdown text={b().text} />}
@@ -177,9 +345,9 @@ const BlockView: Component<{ msgId: number; b: UIBlock }> = (props) => (
                             <div class="flex-none">
                                 <MiniCanvas
                                     section={sec}
-                                    themeId={editor.artifact.theme}
+                                    themeId={previewSource().theme}
                                     formatId={
-                                        (b().block as Sections).format ?? editor.artifact.format
+                                        (b().block as Sections).format ?? previewSource().format
                                     }
                                     width={152}
                                     class="rounded-lg border border-line"
@@ -225,15 +393,15 @@ const EDITOR_EXAMPLES = [
     "Make the intro punchier",
 ];
 const LIBRARY_EXAMPLES = [
-    "Help me plan a new deck",
-    "Ideas for a landing page",
-    "What can you do here?",
+    "Design a pitch deck for a travel startup",
+    "Make a landing page for a meal-kit app",
+    "Help me plan a report",
 ];
-const inEditor = (): boolean => !!currentArtifactId();
+const inEditor = (): boolean => editorActive();
 const emptyPrompt = (): string =>
     inEditor()
         ? "Ask about the open artifact, or tell me what to add or change — I'll propose it for you to apply."
-        : "No document open — I'm your workspace assistant. Tell me what you'd like to make and I'll help you shape it, or ask me anything.";
+        : "No document open — tell me what you'd like to make and I'll build it right here for you to refine, or ask me anything.";
 const emptyExamples = (): string[] => (inEditor() ? EDITOR_EXAMPLES : LIBRARY_EXAMPLES);
 
 export const ChatPanel: Component = () => {

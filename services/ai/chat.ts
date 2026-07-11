@@ -1,5 +1,6 @@
 import { ToolLoopAgent, stepCountIs, tool } from "ai";
-import type { ModelMessage } from "ai";
+import type { ModelMessage, ToolSet } from "ai";
+import { z } from "zod";
 import type { ChatBlock, ChatInput, TurnEvent } from "@model/ai";
 import type { ElementInstance, Section } from "@model/artifact";
 import { resolveModel } from "./provider";
@@ -111,10 +112,42 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
             },
         });
 
-    // The toolset is artifact-scoped, so it's only wired when an artifact is OPEN. In the library (no open
-    // document) the agent runs tool-less — purely conversational (plan / getting-started help) — which is why
-    // it never tries add-section on nothing. The system prompt (chatSystem) matches this per surface.
-    const tools = input.context.content
+    // propose-generation — the one tool available on EVERY surface (incl. the empty library). It doesn't
+    // build anything: it hands the user a one-line brief as a confirm card. Only when they click "Generate"
+    // does the client run a real `generate` turn into an in-chat draft. So the agent can start a brand-new
+    // artifact from the library — the thing it otherwise has no document to do — without spending a credit
+    // until the user commits. Chat-only (pure presentation), so it lives here rather than in the registry.
+    const proposeGeneration = tool({
+        description:
+            "Propose building a whole NEW artifact (deck, doc, or site) from a one-line brief. This does NOT build it — it shows the user a confirm card with the brief; they click Generate to build it right here. Reach for this the moment the user wants to CREATE something new (there's no open document to edit). Distill the conversation to ONE tight, specific sentence — subject, angle, and audience — and pick the surface that fits.",
+        inputSchema: z.object({
+            prompt: z
+                .string()
+                .describe(
+                    "the one-sentence brief the generator builds from — subject + angle + audience in a single line",
+                ),
+            surface: z
+                .enum(["deck", "doc", "web"])
+                .describe("deck (slides), doc (a written document), or web (a landing page)"),
+            length: z
+                .enum(["Short", "Standard", "In-depth"])
+                .optional()
+                .describe("how long it should be — defaults to Standard"),
+        }),
+        execute: async (
+            brief: { prompt: string; surface: "deck" | "doc" | "web"; length?: string },
+            { toolCallId }: { toolCallId: string },
+        ) => {
+            ch.push({ type: "chat.block", blockId: toolCallId, block: { type: "brief", brief } });
+            return `Proposed a ${brief.surface} to generate. The user can review the brief and click Generate to build it here — nothing is created until they do.`;
+        },
+    });
+
+    // The artifact-scoped tools are wired only when there's CONTENT to act on — an open artifact OR an
+    // in-chat draft (both arrive as context.content). In the empty library the agent has only
+    // propose-generation, so it can start something new but never tries to edit a document that isn't there.
+    // The system prompt (chatSystem) matches this per surface.
+    const artifactTools: ToolSet = input.context.content
         ? {
               "suggest-sections": wrap(
                   suggestSectionsTool,
@@ -155,7 +188,8 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
                           : "There are no sections to show yet.",
               ),
           }
-        : undefined;
+        : {};
+    const tools: ToolSet = { "propose-generation": proposeGeneration, ...artifactTools };
 
     const agent = new ToolLoopAgent({
         model: resolveModel(defaultModelFor("chat")),

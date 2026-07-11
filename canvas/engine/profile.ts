@@ -1,4 +1,5 @@
 import type { FormatDescriptor } from "@model/geometry";
+import type { Section } from "@model/artifact";
 
 // Format-as-view presets. The same artifact lays out as a deck (paged slides), a document
 // (continuous reading column, paginated only on export), or a web page (full-bleed, fills width).
@@ -44,6 +45,21 @@ export const DEFAULT_PROFILE = PROFILES.deck!;
 
 export function resolveProfile(id: string | undefined): FormatDescriptor {
     return (id && PROFILES[id]) || DEFAULT_PROFILE;
+}
+
+// The paged frame (in logical px) a section renders into: the format's page size, overridden by the
+// section's own `frame.aspect` (custom section dimensions — a 21:9 hero or square panel among 16:9 slides).
+// The single source of truth every paged surface (present, thumbnails, export) resolves its slide box from,
+// so a format is pure config over the engine and per-section sizing is a one-line override. `width` is kept
+// at the format's logical page width; only the height flexes with the aspect.
+const SLIDE_W = 1280;
+const SLIDE_H = 720;
+export function slideFrame(section: Section, profile: FormatDescriptor): { w: number; h: number } {
+    const w = typeof profile.width === "number" ? profile.width : SLIDE_W;
+    const base =
+        typeof profile.height === "number" ? profile.height : Math.round((w * 9) / 16) || SLIDE_H;
+    const aspect = section.frame?.aspect;
+    return { w, h: aspect && aspect > 0 ? Math.round(w / aspect) : base };
 }
 
 // A document's `maxContentWidth` is tuned for *authoring* — a fixed, narrowish reading column that stays

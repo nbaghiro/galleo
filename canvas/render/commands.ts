@@ -73,55 +73,62 @@ export function layoutSectionSkeleton(
     return { commands, height: bottom(commands) };
 }
 
-// The first aspect-sized image leaf within a subtree (a column's image), whose height = width / aspect.
-function findAspectImage(n: EngineNode): EngineNode | null {
-    if (n.image && n.aspect !== undefined) return n;
+// The first aspect-ratio media leaf within a subtree — an image OR a video (any node whose height derives
+// from a fixed width:height ratio). These are what make a section taller than a fixed slide.
+function findAspectMedia(n: EngineNode): EngineNode | null {
+    if (n.aspect !== undefined) return n;
     for (const c of n.children ?? []) {
-        const found = findAspectImage(c);
+        const found = findAspectMedia(c);
         if (found) return found;
     }
     return null;
 }
 
-// A deck slide only has to fit 16:9. A portrait image sized by its aspect can make its column taller than
-// the slide, forcing the whole slide to scale down (letterboxing the width). When a section overflows and
-// at least one column is NOT image-driven, convert the image columns to cover-fit (grow + crop) so the
-// section height is driven by the text, not the image. Returns the inner rows it changed (to grow later).
-function coverFitColumns(root: EngineNode): EngineNode[] {
-    // A "column" is an addressable element node (composeElement tags each with an `el:…` region id). Rows
-    // whose children carry those ids are real content columns (a section's top-level split, or a nested row
-    // group) — as opposed to a leaf element's internal layout rows, whose parts have no id. (This used to key
-    // off `cell:` ids, which the recursive-section refactor removed, silently disabling cover-fit.)
-    const rows: EngineNode[] = [];
+// A deck slide only has to fit 16:9. Aspect media (a portrait image, a 16:9 video) sized by its ratio can
+// make its section taller than the slide, forcing the whole thing to scale down and letterbox. When a
+// section overflows and has at least one NON-media flow sibling to set the height, convert the media to
+// fill-and-crop (grow height, drop the ratio, cover images) so it absorbs the slack instead of dictating a
+// tall fixed height. Works for media BESIDE text (a row column) and media UNDER text (a column). Returns the
+// flow containers changed + the media nodes flexed (the caller grows the containers + probes the fit).
+function coverFitMedia(root: EngineNode): { containers: EngineNode[]; media: EngineNode[] } {
+    // A "cell" is an addressable element node (composeElement tags each with an `el:…` id). A row/col whose
+    // children carry those ids is a real content flow (a section's split, or a nested group) — not a leaf
+    // element's internal layout, whose parts have no id.
+    const flows: EngineNode[] = [];
     const collect = (n: EngineNode): void => {
-        if (n.direction === "row" && (n.children ?? []).some((c) => c.id?.startsWith("el:")))
-            rows.push(n);
+        if (
+            (n.direction === "row" || n.direction === "col") &&
+            (n.children ?? []).some((c) => c.id?.startsWith("el:"))
+        )
+            flows.push(n);
         n.children?.forEach(collect);
     };
     collect(root);
-    const changed: EngineNode[] = [];
-    for (const row of rows) {
-        const cells = (row.children ?? []).filter((c) => c.id?.startsWith("el:"));
-        const imageCells = cells.filter((c) => findAspectImage(c));
-        // Need a text column to set the height and an image column to convert; skip all-image rows.
-        if (cells.length < 2 || imageCells.length === 0 || imageCells.length === cells.length)
+    const containers: EngineNode[] = [];
+    const media: EngineNode[] = [];
+    for (const flow of flows) {
+        const cells = (flow.children ?? []).filter((c) => c.id?.startsWith("el:"));
+        const mediaCells = cells.filter((c) => findAspectMedia(c));
+        // Need a non-media cell to set the height and a media cell to flex; skip all-media / all-text flows.
+        if (cells.length < 2 || mediaCells.length === 0 || mediaCells.length === cells.length)
             continue;
-        for (const cell of imageCells) {
-            const img = findAspectImage(cell)!;
+        for (const cell of mediaCells) {
+            const m = findAspectMedia(cell)!;
             cell.h = grow();
-            img.h = grow();
-            img.aspect = undefined;
-            if (img.image) img.image = { ...img.image, fit: "cover" };
+            m.h = grow();
+            m.aspect = undefined;
+            if (m.image) m.image = { ...m.image, fit: "cover" };
+            media.push(m);
         }
-        changed.push(row);
+        containers.push(flow);
     }
-    return changed;
+    return { containers, media };
 }
 
 // Prepare a full-bleed slide node: drop corner radii/borders and stretch it to FILL the slide (content
-// centered). A short section sizes up to the whole frame. A taller text+image split cover-fits its image
-// column so it fills the 16:9 slide instead of scaling down; anything still too tall keeps its natural
-// height (the caller scales it down). Returns the node + resolved height for a final layout pass.
+// centered). A short section sizes up to the whole frame. A taller text+media section cover-fits its media
+// (beside OR under the text) so it fills the frame instead of scaling down; anything still too tall (long
+// text) keeps its natural height and the caller scales it down. Returns the node + resolved height.
 function prepareSlideNode(
     section: Section,
     w: number,
@@ -135,17 +142,21 @@ function prepareSlideNode(
     if (node.image) node.image = { ...node.image, radius: 0 };
     let natural = bottom(layout(node, { x: 0, y: 0, w, h: 100000 }, measure).commands);
     if (natural > h) {
-        const rows = coverFitColumns(node);
-        if (rows.length) {
-            const covered = bottom(layout(node, { x: 0, y: 0, w, h: 100000 }, measure).commands);
-            if (covered <= h) {
-                // Fits once the image cover-fits → fill the slide height so the image covers it.
-                for (const row of rows) row.h = grow();
+        const { containers, media } = coverFitMedia(node);
+        if (containers.length) {
+            // Probe: collapse the now-flexible media to nothing and measure the rest. If the non-media
+            // content fits the slide, the media can absorb the overflow (cross-axis fill beside the text,
+            // main-axis fill under it), so grow the containers and pin the section to the frame.
+            for (const m of media) m.h = fixed(0);
+            const minH = bottom(layout(node, { x: 0, y: 0, w, h: 100000 }, measure).commands);
+            for (const m of media) m.h = grow();
+            if (minH <= h) {
+                for (const c of containers) c.h = grow();
                 node.h = fixed(h);
                 node.alignY = "center";
                 return { node, targetH: h };
             }
-            natural = Math.min(natural, covered); // still overflowing (long text) → less to scale down
+            natural = Math.min(natural, minH); // still overflowing (long text) → less to scale down
         }
     }
     const targetH = Math.max(h, natural);

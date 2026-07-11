@@ -256,3 +256,19 @@ body {
     padding: 0.3em 0.55em;
     text-align: left;
 }
+
+/* Markdown, muted variant — for secondary prose like the agent's thinking trace. Children inherit the
+   container color, so recoloring the container recolors the block; links stay accent, headings a touch
+   brighter than body so the trace's structure still reads. */
+.md-muted {
+    color: var(--color-muted);
+    font-size: 12px;
+    line-height: 1.55;
+}
+.md-muted strong,
+.md-muted h1,
+.md-muted h2,
+.md-muted h3,
+.md-muted h4 {
+    color: var(--color-soft);
+}

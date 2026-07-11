@@ -35,6 +35,7 @@ import { openShare } from "../share";
 import { can } from "../stores/features";
 import { renameArtifactById } from "../stores/library";
 import { billing, loadBilling } from "../stores/billing";
+import { setEditorActive } from "../stores/chat";
 import { appTheme, setFaviconOverride, openThemeEditor } from "../theme";
 import { flushAutosave, installAutosave } from "../stores/save";
 
@@ -48,6 +49,12 @@ export const EditorView: Component = () => {
     const [error, setError] = createSignal("");
 
     installAutosave();
+
+    // Tell the (global) chat panel the editor is the active view, so it chats about — and can edit — THIS
+    // artifact. Cleared on unmount so the chat falls back to the library surface when we navigate away
+    // (the editor store keeps the artifact loaded, but it's no longer on screen).
+    setEditorActive(true);
+    onCleanup(() => setEditorActive(false));
 
     // reflect the open artifact's theme in the browser-tab favicon; revert to the app theme on exit
     createEffect(() => setFaviconOverride(editor.artifact.theme));

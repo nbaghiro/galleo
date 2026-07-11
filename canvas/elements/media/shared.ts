@@ -46,6 +46,7 @@ export function imageLike(cfg: MediaConfig): ElementSpec<ImageData> {
                 zoom: (data.zoom ?? 100) / 100,
             },
         }),
+        frame: true, // opts into the universal corner-radius slider — rounds the image frame (radius default 14)
         resize: { aspect: { min: 0.4, max: 2.6 } },
         bar: ["src", "fit", "zoom"],
         controls: [

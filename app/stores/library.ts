@@ -1,6 +1,6 @@
 // The client-side artifact store: the library list + content cache, blank-artifact factory, and format labels / relative-time helpers.
 
-import type { ArtifactContent } from "@model/artifact";
+import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import { emptyRegion } from "@model/section";
 import { createSignal } from "solid-js";
 import { api, type ArtifactSummary } from "../api";
@@ -17,10 +17,21 @@ const [draggingArtifact, setDraggingArtifact] = createSignal<string | null>(null
 
 export { contents, artifacts, artifactsLoaded, draggingArtifact, setDraggingArtifact, trash };
 
+// Cached content whose artifact has changed on the server (an editor edit) since we fetched it — so the
+// next loadContents() re-pulls a fresh thumbnail. Transient client bookkeeping, not reactive.
+const staleContent = new Set<string>();
+
 export async function loadLibrary(): Promise<void> {
     try {
-        const { artifacts } = await api.listArtifacts();
-        setArtifacts(artifacts);
+        const { artifacts: fresh } = await api.listArtifacts();
+        // Stale-while-revalidate: flag cached content for any artifact whose server `updatedAt` moved, so
+        // loadContents() refetches its thumbnail. Without this the cache keeps serving the pre-edit render.
+        const seenAt = new Map(artifacts().map((a) => [a.id, a.updatedAt]));
+        for (const a of fresh) {
+            const was = seenAt.get(a.id);
+            if (was !== undefined && was !== a.updatedAt) staleContent.add(a.id);
+        }
+        setArtifacts(fresh);
     } catch {
         /* keep whatever we have */
     } finally {
@@ -28,11 +39,12 @@ export async function loadLibrary(): Promise<void> {
     }
 }
 
-// fetch full content for any artifacts we don't have yet (for the section thumbnails)
+// Fetch full content for thumbnails: artifacts we don't have yet, plus any flagged stale by loadLibrary
+// (re-fetched in place so the card updates without a blank flash).
 export async function loadContents(): Promise<void> {
-    const missing = artifacts().filter((d) => !contents()[d.id]);
+    const need = artifacts().filter((d) => !contents()[d.id] || staleContent.has(d.id));
     const entries = await Promise.all(
-        missing.map(async (d): Promise<[string, ArtifactContent] | null> => {
+        need.map(async (d): Promise<[string, ArtifactContent] | null> => {
             try {
                 const { artifact } = await api.getArtifact(d.id);
                 return [d.id, artifact.draftContent];
@@ -45,6 +57,7 @@ export async function loadContents(): Promise<void> {
         ...contents(),
         ...Object.fromEntries(entries.filter((e): e is [string, ArtifactContent] => e !== null)),
     });
+    for (const d of need) staleContent.delete(d.id);
 }
 
 // Move an artifact in/out of a folder (folderId = null → no folder). Optimistic local update.
@@ -133,6 +146,60 @@ export async function duplicateArtifact(orig: ArtifactSummary): Promise<string |
         });
         const dup: ArtifactSummary = { ...orig, id, title, updatedAt: new Date().toISOString() };
         setArtifacts([dup, ...artifacts()]);
+        setContents({ ...contents(), [id]: content });
+        return id;
+    } catch {
+        return null;
+    }
+}
+
+// The artifact's title = the first text run in its first section (its headline), clipped, else a fallback.
+// Shared by every "create from generated content" path (the generate modal + the in-chat draft) so a new
+// piece is named the same way however it was made.
+const clipTitle = (s: string, n = 60): string =>
+    s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s;
+const firstTextOf = (inst: ElementInstance | undefined): string | undefined => {
+    if (!inst) return undefined;
+    const d = inst.data as { text?: string; children?: ElementInstance[] } | undefined;
+    if (inst.type === "text" && typeof d?.text === "string" && d.text.trim()) return d.text.trim();
+    for (const k of d?.children ?? []) {
+        const found = firstTextOf(k);
+        if (found) return found;
+    }
+    return undefined;
+};
+export function artifactTitle(content: ArtifactContent): string {
+    const first = content.sections[0];
+    const t = first ? firstTextOf(first.root) : undefined;
+    return t ? clipTitle(t) : "Untitled";
+}
+
+// Persist a fully-formed artifact as a NEW library artifact and return its id (to navigate to). The one
+// create path for content that was generated rather than authored in the editor — the generate modal's
+// "Open in editor" and the chat draft's "Open in editor" both land here, so an in-chat draft only ever
+// touches the library at this single, explicit call. Optimistically inserts it into the library list.
+export async function persistArtifact(
+    content: ArtifactContent,
+    title = artifactTitle(content),
+    folderId: string | null = null,
+): Promise<string | null> {
+    try {
+        const { id } = await api.createArtifact({
+            title,
+            formatId: content.format,
+            themeId: content.theme,
+            draftContent: content,
+            folderId,
+        });
+        const summary: ArtifactSummary = {
+            id,
+            title,
+            formatId: content.format,
+            themeId: content.theme,
+            folderId,
+            updatedAt: new Date().toISOString(),
+        };
+        setArtifacts([summary, ...artifacts()]);
         setContents({ ...contents(), [id]: content });
         return id;
     } catch {

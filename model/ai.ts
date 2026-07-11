@@ -95,6 +95,20 @@ export interface ChatInput {
     history?: ChatTurnRef[];
 }
 
+// A one-line generation brief the agent hands back for the user to confirm — the `brief` chat block. The
+// agent distills the conversation to this; the client renders a "Generate →" card (with a cost estimate),
+// and only on click does it run a real `generate` turn into an in-chat draft. Nothing is built or saved
+// until the user commits. `theme` is filled by the client (the app theme) at generate time, so the agent
+// only owns the editorial choices (what to build, which surface, how long).
+export interface GenBrief {
+    prompt: string; // the one-sentence brief the generator builds from
+    surface: Surface; // deck | doc | web
+    length?: string; // "Short" | "Standard" | "In-depth"
+    goal?: string;
+    audience?: string;
+    tone?: string;
+}
+
 // A rich block in an assistant message — a chat response is an ordered list of these. Text streams in as
 // `chat.text` deltas; the widget blocks arrive whole as `chat.block`. `proposal` carries a mutation the user
 // applies or discards (with a real section preview); `preview` shows content without changing anything.
@@ -103,7 +117,8 @@ export type ChatBlock =
     | { type: "suggestions"; items: string[] }
     | { type: "proposal"; summary: string; patch: Patch; preview?: Section }
     | { type: "preview"; section?: Section; format?: string }
-    | { type: "sections"; sections: Section[]; format?: string }; // a scrollable carousel of existing sections
+    | { type: "sections"; sections: Section[]; format?: string } // a scrollable carousel of existing sections
+    | { type: "brief"; brief: GenBrief }; // a proposed generation the user confirms to build into an in-chat draft
 
 export type TurnRequest =
     | { kind: "generate"; input: GenerateInput }
@@ -615,7 +630,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 type: "enum",
                 values: BUTTON_VARIANTS,
                 default: "filled",
-                desc: "filled or outline",
+                desc: "filled, outline, soft, or ghost",
             },
         ],
     },

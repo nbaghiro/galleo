@@ -15,7 +15,19 @@ export const spacerElement: ElementSpec<SpacerData> = {
     create: () => ({ height: 32 }),
     layout: (d: SpacerData, _ctx: LayoutCtx): EngineNode => ({ w: grow(), h: fixed(d.height) }),
     resize: { width: false, height: { key: "height", min: 8, max: 240, step: 4 } },
-    controls: [],
+    // A number field for exact height entry (the resize handle covers coarse dragging); without it the
+    // panel reads "No editable properties" despite height being the spacer's whole purpose.
+    controls: [
+        {
+            key: "height",
+            label: "Height",
+            control: "number",
+            min: 8,
+            max: 240,
+            step: 4,
+            unit: "px",
+        },
+    ],
     skeleton: (): EngineNode => ({
         w: grow(),
         h: fixed(22),

@@ -60,7 +60,7 @@ export const textElement: ElementSpec<TextData> = {
     tier: "primitive",
     create: () => ({ text: "New text", style: "body" }),
     richText: true, // inline marks (bold/italic/link/color/…) via the marks-aware editor + format bar
-    bar: ["style", "align"], // surfaced compactly in the on-canvas format bar (marks come from richText)
+    bar: ["style", "align", "color"], // surfaced compactly in the on-canvas format bar (marks come from richText); `color` is the block-level override (per-range color still comes from marks)
     layout: (data: TextData, ctx: LayoutCtx): EngineNode => {
         const s = STYLE[data.style] ?? FALLBACK;
         const text: TextLeaf = {

@@ -1,10 +1,10 @@
 import type { ArtifactContent } from "@model/artifact";
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
-import { previewContentProfile, resolveProfile } from "@engine/profile";
+import { previewContentProfile, resolveProfile, slideFrame } from "@engine/profile";
 import { resolveTheme } from "@themes";
 import { paintSectionStack } from "@canvas/render/backends";
-import { slideElement, SLIDE_W, SLIDE_H } from "@canvas/render/present";
+import { slideElement } from "@canvas/render/present";
 import { backdropHostStyle, SlideProgress } from "./section";
 import { FloatingBar } from "./overlay";
 import { IconButton } from "./button";
@@ -41,8 +41,9 @@ export const PresentSurface: Component<{
     const renderPaged = (): void => {
         const section = props.artifact.sections[index()];
         if (!host || !section) return;
+        const { w, h } = slideFrame(section, profile());
         const slide = slideElement(section, tokens(), profile());
-        const k = Math.min((window.innerWidth - 24) / SLIDE_W, (window.innerHeight - 24) / SLIDE_H);
+        const k = Math.min((window.innerWidth - 24) / w, (window.innerHeight - 24) / h);
         slide.style.transform = `scale(${k})`;
         slide.style.transformOrigin = "center center";
         slide.style.borderRadius = "4px";

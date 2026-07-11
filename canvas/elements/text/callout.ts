@@ -96,6 +96,7 @@ export const calloutElement: ElementSpec<CalloutData> = {
         arrange: arrangeCallout,
         withChildren: (d, children) => ({ ...d, children }),
     },
+    bar: ["tone"], // a container hides the docked panel, so the one control must live on the bar
     controls: [
         {
             key: "tone",

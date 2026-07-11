@@ -1,9 +1,10 @@
-import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
+import type { ArtifactContent, Section } from "@model/artifact";
 import type { TurnEvent, Beat as PlanBeat, GenerateInput, Phase as TurnPhase } from "@model/ai";
 import { createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import { applyPatch } from "@model/ai";
-import { api, streamTurn } from "../../api";
+import { streamTurn } from "../api";
+import { persistArtifact } from "./library";
 
 // The generation session — a reactive store the generate modal subscribes to. `startRealSession` runs a
 // generate turn (POST /ai/turn) and streams the backend's TurnEvents through `dispatch`, so the modal
@@ -225,43 +226,13 @@ export async function startRealSession(input: GenerateInput): Promise<void> {
     }
 }
 
-// ---------- title helper (for saveGenerated) ----------
-
-const childrenOf = (inst: ElementInstance): ElementInstance[] => {
-    const kids = (inst.data as Record<string, unknown> | undefined)?.children;
-    return Array.isArray(kids) ? (kids as ElementInstance[]) : [];
-};
-const firstText = (inst: ElementInstance | undefined): string | undefined => {
-    if (!inst) return undefined;
-    const d = inst.data as Record<string, unknown> | undefined;
-    if (inst.type === "text" && typeof d?.text === "string") return d.text;
-    for (const k of childrenOf(inst)) {
-        const found = firstText(k);
-        if (found) return found;
-    }
-    return undefined;
-};
-// The artifact title = the first text run in the first section (its headline), else a fallback.
-const sectionLabel = (s: Section, i: number): string => firstText(s.root) || `Section ${i + 1}`;
-
 // "Open" persists the streamed artifact as a fresh library artifact and returns its id to navigate to. An
 // optional `formatId` overrides the surface (the modal passes the currently-previewed format, so opening
 // honors the live preview switcher) — the content is surface-agnostic, so it renders correctly either way.
+// Persistence goes through the shared library helper — the same single create path the in-chat draft uses.
 export async function saveGenerated(formatId?: string): Promise<string | null> {
     const base = gen.finalContent;
     if (!base) return null;
     const content = formatId ? { ...base, format: formatId } : base;
-    const title = content.sections[0] ? clip(sectionLabel(content.sections[0], 0), 60) : "Untitled";
-    try {
-        const { id } = await api.createArtifact({
-            title,
-            formatId: content.format,
-            themeId: content.theme,
-            draftContent: content,
-            folderId: null,
-        });
-        return id;
-    } catch {
-        return null;
-    }
+    return persistArtifact(content);
 }

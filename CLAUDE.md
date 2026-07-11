@@ -39,12 +39,17 @@ with high-fidelity export. Net-new, TypeScript.
 ## Conventions (enforced)
 
 - **No `index.ts` barrels.** Each concept is a named file (`engine/layout.ts`, `elements/spec.ts`).
-- **Shared components → `ui/`.** A Solid component (or hook/primitive) used by more than one frontend
-  module belongs in `@ui`, not in `editor`/`app`/`publish`. Before hand-rolling a button, input, menu,
-  modal, popover, icon, badge, spinner, or thumbnail in a view, use the `@ui` primitive (extend it with a
-  new prop/variant if it's close) — the ESLint layering makes cross-module reuse (`app → @editor`) illegal,
-  so the shared home is `@ui`. Keep genuinely one-off, view-specific UI local; promote it to `@ui` the
-  moment a second module needs it.
+- **Building UI in any module → go through `@ui`** (the layering makes cross-module reuse like
+  `app → @editor` illegal, so `@ui` is the only shared home). The recipe, in order: **(1) reuse** the
+  existing `@ui` primitive; **(2) extend** it with a prop/variant when it's ~90% there (don't fork the
+  styling — grow the atom's variant/size/tone maps); **(3) create** a new primitive only when a genuinely
+  shared one is missing (rule of thumb: needed by ≥2 modules or ≥3 sites) — drop it into the fitting flat
+  category file (`ui/<family>.tsx`, no barrels; base atoms first, composites below), never a per-view copy;
+  **(4) keep** true one-offs local to the view, and promote them the moment a second module needs them.
+  Every `@ui` component **must**: style only through the theme CSS-var utilities (`text-ink`, `bg-accent`,
+  `var(--radius)`… — zero hardcoded colors, so it recolors with the theme), forward native attrs + `class`
+  via `splitProps`, and import nothing above `@ui` (`model` + `canvas` + `@themes` only). Catalog + build
+  spec: `.docs/ui-component-library.md`.
 - **Path aliases** (directory aliases): `@model`, `@themes`, `@engine`, `@elements`, `@canvas`, `@ui`,
   `@editor` (e.g. `@model/artifact`, `@ui/button`). Backend + frontend both import the shared wire shapes
   from `@model` + `@themes`; `services` otherwise use relative imports.

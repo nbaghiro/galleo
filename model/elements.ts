@@ -50,10 +50,18 @@ export const FLEX_DIRECTION = ["row", "col"] as const;
 export type FlexDirection = (typeof FLEX_DIRECTION)[number];
 
 // --- basic: the small standalone elements (button / badge / embed / gradient / divider / spacer /
-// shape). Only `button` carries a shared enum today; others are plain scalar fields. ---
+// shape). `button` carries the shared style/size/shape enums; others are plain scalar fields. ---
 
-export const BUTTON_VARIANTS = ["filled", "outline"] as const;
+export const BUTTON_VARIANTS = ["filled", "outline", "soft", "ghost"] as const;
 export type ButtonVariant = (typeof BUTTON_VARIANTS)[number];
+
+export const BUTTON_SIZES = ["sm", "md", "lg"] as const;
+export type ButtonSize = (typeof BUTTON_SIZES)[number];
+
+// Roundness as a semantic choice, not a pixel value: `rounded` (the default) tracks the theme's radius
+// token, `sharp` is crisp, `pill` is fully round — so a button's corners follow the selected theme.
+export const BUTTON_SHAPES = ["sharp", "rounded", "pill"] as const;
+export type ButtonShape = (typeof BUTTON_SHAPES)[number];
 
 // --- chart: the `data.type` discriminant (which chart is drawn). The render implementations live in
 // the canvas chart registry; this is the emittable set, kept in lockstep via the drift guard. ---

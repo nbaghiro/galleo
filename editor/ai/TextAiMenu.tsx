@@ -3,9 +3,15 @@ import { createEffect, createSignal, For, Show } from "solid-js";
 import { Icon } from "@ui/icons";
 import { Chip, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { FloatingPanel } from "@ui/overlay";
-import { Separator } from "@ui/inputs";
 import { textSelection } from "../text/text-format";
-import { LANGUAGES, REWRITE_PRESETS, runRewrite, runTranslate, textAssist } from "./text-assist";
+import {
+    LANGUAGES,
+    REWRITE_PRESETS,
+    runRegenerate,
+    runRewrite,
+    runTranslate,
+    textAssist,
+} from "./text-assist";
 
 // The text AI intake panel — the ✨ action in the text format bar. A prompt-first popup for editing the current
 // selection (or the whole field when the caret is collapsed): type a free-form instruction, or one-click a
@@ -115,6 +121,17 @@ export const TextAiMenu: Component = () => {
                         <div class="px-1 py-2 text-[11.5px] text-[#e5484d]">{textAssist.error}</div>
                     </Show>
 
+                    {/* regenerate the whole field — a fresh re-roll of the entire text, ignoring the selection */}
+                    <button
+                        class="mt-2 flex w-full items-center gap-2 rounded-lg border border-line px-2.5 py-1.5 text-left text-[12.5px] font-medium text-ink transition-colors hover:border-accent hover:bg-canvas disabled:opacity-40"
+                        disabled={busy()}
+                        onMouseDown={noBlur}
+                        onClick={() => void act(runRegenerate())}
+                    >
+                        <Icon name="sparkle" size={14} />
+                        Regenerate whole text
+                    </button>
+
                     {/* shortcuts — one-click rewrite presets */}
                     <Eyebrow as="div" mono={false} class="px-0.5 pb-1.5 pt-2.5">
                         Shortcuts
@@ -135,25 +152,26 @@ export const TextAiMenu: Component = () => {
                         </For>
                     </div>
 
-                    <Separator class="my-2.5" />
-
-                    {/* translate */}
-                    <Eyebrow as="div" mono={false} class="px-0.5 pb-1.5">
-                        Translate to
-                    </Eyebrow>
-                    <div class="flex flex-wrap gap-1">
-                        <For each={LANGUAGES}>
-                            {(l) => (
-                                <Chip
-                                    variant="outline"
-                                    disabled={busy()}
-                                    onMouseDown={noBlur}
-                                    onClick={() => void act(runTranslate(l, captured))}
-                                >
-                                    {l}
-                                </Chip>
-                            )}
-                        </For>
+                    {/* translate — a block wrapper so the top margin + divider actually apply (Separator is an
+                        inline span, which drops vertical margins) */}
+                    <div class="mt-4 border-t border-line pt-3.5">
+                        <Eyebrow as="div" mono={false} class="px-0.5 pb-1.5">
+                            Translate to
+                        </Eyebrow>
+                        <div class="flex flex-wrap gap-1">
+                            <For each={LANGUAGES}>
+                                {(l) => (
+                                    <Chip
+                                        variant="outline"
+                                        disabled={busy()}
+                                        onMouseDown={noBlur}
+                                        onClick={() => void act(runTranslate(l, captured))}
+                                    >
+                                        {l}
+                                    </Chip>
+                                )}
+                            </For>
+                        </div>
                     </div>
                 </FloatingPanel>
             </Show>

@@ -8,9 +8,9 @@ import { resolveTheme, themeCssVars, mix } from "@themes";
 import { paint } from "@canvas/render/backends";
 import { measureText, layoutSection, layoutSectionSkeleton } from "@canvas/render/commands";
 import { placeholderSection } from "@canvas/elements/blueprint";
-import { appTheme } from "../../theme";
+import { appTheme } from "../theme";
 import { CloseIcon } from "@ui/icons";
-import { MiniCanvas } from "../../components/previews";
+import { MiniCanvas } from "../components/previews";
 import { Button, IconButton, Spinner, Eyebrow } from "@ui/button";
 import { Segmented, TextArea } from "@ui/inputs";
 import { Modal } from "@ui/overlay";
@@ -24,7 +24,7 @@ import {
     placedSections,
     type SectionSlot,
     type Surface,
-} from "./session";
+} from "../stores/generate";
 
 // The generate modal — the single artifact-generation surface, mounted once in the app shell (like the
 // theme editor). It opens on a brief (left rail: prompt + format + length), runs a real generate turn,

@@ -32,7 +32,7 @@ import {
     setDraggingArtifact,
 } from "../stores/library";
 import { appTheme } from "../theme";
-import { openGenerate } from "./generate/session";
+import { openGenerate } from "../stores/generate";
 import { folders } from "../stores/folders";
 import { ConfirmModal, FloatingBar, Popover } from "@ui/overlay";
 import { Button, Chip, Eyebrow, IconButton } from "@ui/button";
@@ -153,7 +153,9 @@ export const LibraryView: Component = () => {
 
     onMount(() => {
         (async () => {
-            if (!artifactsLoaded()) await loadLibrary();
+            // Always revalidate on entry so edits made in the editor + newly created artifacts show on
+            // return. Cached data (if any) is already on screen — this refreshes it in the background.
+            await loadLibrary();
             setLoading(false);
             await loadContents();
         })();

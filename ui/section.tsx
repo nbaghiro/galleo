@@ -6,13 +6,12 @@ import type { Tokens } from "@themes";
 import { paint, backdropCss } from "@canvas/render/backends";
 import { measureText, layoutSlide, layoutSection } from "@canvas/render/commands";
 import { scaledHostCss } from "@canvas/render/geometry";
+import { slideFrame } from "@engine/profile";
 
 // A real engine render of one Section, painted at a logical width then CSS-scaled to `width` — a true
 // zoomed-out copy (identical text wraps), not a re-wrap in a narrow box. Unifies the four former
-// thumbnails (MiniCanvas · SectionThumb · StoryTile · Thumb). `frame="slide"` fits a uniform 16:9 card
-// (filmstrips/decks); `frame="natural"` keeps the section's own height (the minimap rail).
-const SLIDE_LW = 1280;
-const SLIDE_SH = 720;
+// thumbnails (MiniCanvas · SectionThumb · StoryTile · Thumb). `frame="slide"` fits the section's paged
+// frame (16:9 by default, or its own aspect); `frame="natural"` keeps the section's own height (minimap).
 
 export const ScaledSectionCanvas: Component<{
     section: Section;
@@ -40,7 +39,9 @@ export const ScaledSectionCanvas: Component<{
 
     const w = (): number => props.width ?? 176;
     const frame = (): "slide" | "natural" => props.frame ?? "slide";
-    const boxH = (): number => (frame() === "slide" ? Math.round((w() * 9) / 16) : naturalH());
+    const slideBox = (): { w: number; h: number } => slideFrame(props.section, props.profile);
+    const boxH = (): number =>
+        frame() === "slide" ? Math.round((w() * slideBox().h) / slideBox().w) : naturalH();
 
     createEffect(() => {
         if (!visible()) return;
@@ -58,16 +59,17 @@ export const ScaledSectionCanvas: Component<{
             paint(commands, inner);
             setNaturalH(Math.round(height * scale));
         } else {
-            const scale = w() / SLIDE_LW;
+            const fr = slideBox();
+            const scale = w() / fr.w;
             const { commands, height } = layoutSlide(
                 props.section,
-                SLIDE_LW,
-                SLIDE_SH,
+                fr.w,
+                fr.h,
                 measureText,
                 props.theme,
                 props.profile,
             );
-            inner.style.cssText = scaledHostCss(SLIDE_LW, height, scale);
+            inner.style.cssText = scaledHostCss(fr.w, height, scale);
             paint(commands, inner);
         }
     });

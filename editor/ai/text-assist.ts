@@ -112,3 +112,16 @@ export function runRewrite(instruction: string, range?: Range | null): Promise<v
 export function runTranslate(language: string, range?: Range | null): Promise<void> {
     return run("translate", { language }, range);
 }
+
+// Regenerate the WHOLE text field — a fresh re-roll of the entire passage, ignoring any selection (the
+// collapsed range makes resolvePassage fall through to the whole field).
+export function runRegenerate(): Promise<void> {
+    return run(
+        "rewrite",
+        {
+            instruction:
+                "Rewrite this from scratch — a genuinely fresh, stronger version that makes the same point a different way. Keep it roughly the same length; don't just hand the same text back.",
+        },
+        { from: 0, to: 0 },
+    );
+}
