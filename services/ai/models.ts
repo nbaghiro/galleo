@@ -139,9 +139,11 @@ export const DEFAULT_MODELS: Record<AiTask, string> = {
     edit: "google:gemini-2.5-pro",
     rewrite: "google:gemini-2.5-flash",
     translate: "google:gemini-2.5-flash",
-    // The chat AGENT reasons — it picks + chains tools and reads nuance — so it runs on Pro with thinking ON
-    // (chat.ts sets no thinkingBudget). The content tools it calls keep their own fast, thinkless models.
-    chat: "google:gemini-2.5-pro",
+    // The chat AGENT picks + chains tools and reads nuance. An eval harness A/B (services/ai/eval) measured
+    // 3.5-flash at 100% tool-routing vs 2.5-pro's inconsistent 80% (it intermittently skipped the tool call
+    // on edit/management asks), at ~1.5× the speed and finer streaming — so the agent runs on 3.5-flash.
+    // Re-run `pnpm ai:eval` before changing this. (2.5-pro is one line away as a fallback.)
+    chat: "google:gemini-3.5-flash",
     // A theme is a tiny structured output — Flash lands it in ~7s vs Pro's ~12s (up to 17s) at comparable
     // quality, since the deterministic contrast/OKLCH finalize pass guarantees safety regardless of model.
     theme: "google:gemini-2.5-flash",

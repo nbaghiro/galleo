@@ -1,14 +1,18 @@
 import type { Component, JSX } from "solid-js";
-import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import type { ChatBlock, GenBrief, WorkspaceAction } from "@model/ai";
 import type { Section } from "@model/artifact";
 import { estimateCost } from "@model/tools";
+import type { Tokens } from "@themes";
+import { resolveTheme, themeCssVars } from "@themes";
 import { placeholderSection } from "@canvas/elements/blueprint";
-import { AgentIcon, Icon } from "@ui/icons";
+import { AgentIcon, Icon, UiThemeProvider } from "@ui/icons";
 import { Markdown } from "@ui/markdown";
 import { MiniCanvas } from "../components/previews";
 import { Button, IconButton, Chip, Eyebrow, Spinner } from "@ui/button";
+import { editor } from "@editor/editor";
+import { appTheme, appThemeOverride, appThemeVars, customThemes } from "../theme";
 import { formatLabel } from "../stores/library";
 import type { ChatMsg, UIBlock } from "../stores/chat";
 
@@ -120,12 +124,13 @@ const ProposalCard: Component<{
     );
 };
 
-// Smooth "typewriter" reveal — decouples the visual stream from the provider's bursty delivery. Gemini (Pro,
-// thinking ON) emits reasoning as thought-summaries in ~2s chunks and flushes the answer's first ~450 chars
-// in one burst, so a short reply pops in whole. This reveals whatever text has ARRIVED at a steady,
-// backlog-aware pace (fast catch-up on a burst, then a min pace so the tail never lags), so reasoning + reply
-// appear to stream token-by-token no matter how the backend chunks them — the same trick polished chat UIs
-// use. `done` fast-forwards to the full text (a finished thought re-opened shows instantly, doesn't re-type).
+// Smooth "typewriter" reveal — decouples the visual stream from the provider's bursty delivery. Gemini
+// streams in coarse chunks (measured: sentence-sized, ~125–220 chars — NOT token-by-token, confirmed against
+// the raw REST API, so no SDK/model setting makes it finer), plus thinking arrives as summaries in ~2s
+// chunks. This reveals whatever text has ARRIVED at a steady, backlog-aware pace (fast catch-up on a burst,
+// then a min pace so the tail never lags), so reasoning + reply appear to stream token-by-token no matter how
+// the backend chunks them — the same trick polished chat UIs use. `done` fast-forwards to the full text (a
+// finished thought re-opened shows instantly, doesn't re-type).
 // A pulse bumped on every reveal frame, so the scroll container can keep the newest typed text in view.
 const [revealPulse, setRevealPulse] = createSignal(0);
 
@@ -695,117 +700,133 @@ export const ChatPanel: Component = () => {
         void sendChat(t);
     };
 
+    // The chat is a global dock mounted in AppShell — a SIBLING of the editor, so it would otherwise inherit
+    // the app-chrome theme. When the editor is the active view, follow the OPEN ARTIFACT's theme (incl. a live
+    // theme preview, which mutates editor.artifact.theme) so the panel + launcher recolor with it; otherwise
+    // the app theme. Touch customThemes() so a custom artifact theme re-resolves once it loads.
+    const chatTokens = createMemo((): Tokens => {
+        customThemes();
+        if (editorActive()) return resolveTheme(editor.artifact.theme).tokens;
+        return appThemeOverride() ?? resolveTheme(appTheme()).tokens;
+    });
+    const chatVars = createMemo((): JSX.CSSProperties => {
+        customThemes();
+        return editorActive() ? (themeCssVars(chatTokens()) as JSX.CSSProperties) : appThemeVars();
+    });
+
     return (
-        <>
-            {/* launcher */}
-            <Show when={!chatOpen()}>
-                <button
-                    class="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-accent text-onaccent shadow-xl transition-transform hover:scale-105"
-                    title="Chat with Galleo Agent"
-                    onClick={openChat}
-                >
-                    <AgentIcon size={24} />
-                </button>
-            </Show>
-
-            {/* dock */}
-            <div
-                class="fixed right-0 top-0 z-40 flex h-full w-[400px] max-w-[92vw] flex-col border-l border-line bg-panel shadow-2xl transition-transform duration-200"
-                style={{ transform: chatOpen() ? "translateX(0)" : "translateX(105%)" }}
-            >
-                <header class="flex flex-none items-center justify-between border-b border-line px-4 py-3">
-                    <span class="flex items-center gap-2 text-[13px] font-semibold text-ink">
-                        <span class="text-accent">
-                            <AgentIcon size={17} />
-                        </span>
-                        Galleo Agent
-                    </span>
-                    <span class="flex items-center gap-1">
-                        <Button variant="ghost" size="sm" onClick={resetThread}>
-                            Clear
-                        </Button>
-                        <IconButton
-                            tone="muted"
-                            rounded="md"
-                            class="text-[15px] leading-none"
-                            title="Close"
-                            onClick={closeChat}
-                        >
-                            ×
-                        </IconButton>
-                    </span>
-                </header>
-
-                <div ref={list} class="flex-1 space-y-4 overflow-y-auto px-4 py-4">
-                    <Show
-                        when={thread.messages.length}
-                        fallback={
-                            <div class="flex h-full flex-col items-center justify-center gap-3 text-center">
-                                <p class="max-w-[240px] text-[13px] leading-relaxed text-muted">
-                                    {emptyPrompt()}
-                                </p>
-                                <div class="flex flex-wrap justify-center gap-1.5">
-                                    <For each={emptyExamples()}>
-                                        {(e) => (
-                                            <Chip
-                                                variant="outline"
-                                                onClick={() => void sendChat(e)}
-                                            >
-                                                {e}
-                                            </Chip>
-                                        )}
-                                    </For>
-                                </div>
-                            </div>
-                        }
+        <UiThemeProvider tokens={chatTokens}>
+            <div style={chatVars()}>
+                {/* launcher */}
+                <Show when={!chatOpen()}>
+                    <button
+                        class="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-accent text-onaccent shadow-xl transition-transform hover:scale-105"
+                        title="Chat with Galleo Agent"
+                        onClick={openChat}
                     >
-                        <For each={thread.messages}>{(m) => <MessageView m={m} />}</For>
-                    </Show>
-                </div>
+                        <AgentIcon size={24} />
+                    </button>
+                </Show>
 
-                <div class="flex-none border-t border-line p-3">
-                    <div class="flex items-center gap-2 rounded-xl border border-line bg-canvas px-2.5 py-2 focus-within:border-accent">
-                        <textarea
-                            ref={field}
-                            class="block max-h-32 flex-1 resize-none overflow-y-auto bg-transparent align-middle text-[13px] leading-[1.4] text-ink outline-none placeholder:text-muted"
-                            rows={1}
-                            placeholder="Message the agent…"
-                            value={input()}
-                            onInput={(e) => setInput(e.currentTarget.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter" && !e.shiftKey) {
-                                    e.preventDefault();
-                                    submit();
-                                }
-                            }}
-                        />
+                {/* dock */}
+                <div
+                    class="fixed right-0 top-0 z-40 flex h-full w-[400px] max-w-[92vw] flex-col border-l border-line bg-panel shadow-2xl transition-transform duration-200"
+                    style={{ transform: chatOpen() ? "translateX(0)" : "translateX(105%)" }}
+                >
+                    <header class="flex flex-none items-center justify-between border-b border-line px-4 py-3">
+                        <span class="flex items-center gap-2 text-[13px] font-semibold text-ink">
+                            <span class="text-accent">
+                                <AgentIcon size={17} />
+                            </span>
+                            Galleo Agent
+                        </span>
+                        <span class="flex items-center gap-1">
+                            <Button variant="ghost" size="sm" onClick={resetThread}>
+                                Clear
+                            </Button>
+                            <IconButton
+                                tone="muted"
+                                rounded="md"
+                                class="text-[15px] leading-none"
+                                title="Close"
+                                onClick={closeChat}
+                            >
+                                ×
+                            </IconButton>
+                        </span>
+                    </header>
+
+                    <div ref={list} class="flex-1 space-y-4 overflow-y-auto px-4 py-4">
                         <Show
-                            when={!busy()}
+                            when={thread.messages.length}
                             fallback={
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    class="flex-none"
-                                    onClick={stopChat}
-                                >
-                                    Stop
-                                </Button>
+                                <div class="flex h-full flex-col items-center justify-center gap-3 text-center">
+                                    <p class="max-w-[240px] text-[13px] leading-relaxed text-muted">
+                                        {emptyPrompt()}
+                                    </p>
+                                    <div class="flex flex-wrap justify-center gap-1.5">
+                                        <For each={emptyExamples()}>
+                                            {(e) => (
+                                                <Chip
+                                                    variant="outline"
+                                                    onClick={() => void sendChat(e)}
+                                                >
+                                                    {e}
+                                                </Chip>
+                                            )}
+                                        </For>
+                                    </div>
+                                </div>
                             }
                         >
-                            <Button
-                                variant="primary"
-                                size="sm"
-                                class="flex-none"
-                                disabled={!input().trim()}
-                                onClick={submit}
-                            >
-                                Send
-                            </Button>
+                            <For each={thread.messages}>{(m) => <MessageView m={m} />}</For>
                         </Show>
+                    </div>
+
+                    <div class="flex-none border-t border-line p-3">
+                        <div class="flex items-center gap-2 rounded-xl border border-line bg-canvas px-2.5 py-2 focus-within:border-accent">
+                            <textarea
+                                ref={field}
+                                class="block max-h-32 flex-1 resize-none overflow-y-auto bg-transparent align-middle text-[13px] leading-[1.4] text-ink outline-none placeholder:text-muted"
+                                rows={1}
+                                placeholder="Message the agent…"
+                                value={input()}
+                                onInput={(e) => setInput(e.currentTarget.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && !e.shiftKey) {
+                                        e.preventDefault();
+                                        submit();
+                                    }
+                                }}
+                            />
+                            <Show
+                                when={!busy()}
+                                fallback={
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        class="flex-none"
+                                        onClick={stopChat}
+                                    >
+                                        Stop
+                                    </Button>
+                                }
+                            >
+                                <Button
+                                    variant="primary"
+                                    size="sm"
+                                    class="flex-none"
+                                    disabled={!input().trim()}
+                                    onClick={submit}
+                                >
+                                    Send
+                                </Button>
+                            </Show>
+                        </div>
                     </div>
                 </div>
             </div>
-        </>
+        </UiThemeProvider>
     );
 };
 
