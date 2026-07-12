@@ -20,7 +20,7 @@ Milestones M1–M6 are **built and landed** — the canvas module is covered end
 | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Runner   | **Vitest 4** (`vitest.config.ts`), `node` env default, v8 coverage, happy-dom per-file                                                                                |
 | Scripts  | `pnpm test` · `test:watch` · `test:coverage`                                                                                                                          |
-| Suite    | **283 tests** across 24 files, co-located; `canvas/testkit.ts` is the whole doubles surface                                                                           |
+| Suite    | **283 tests** across 24 files in per-folder `__tests__/`; `canvas/testkit.ts` is the whole doubles surface                                                            |
 | Gate     | `pnpm test` in **CI** and the **pre-commit hook**; `coverage/` git-ignored                                                                                            |
 | Coverage | **~70% overall** (canvas+model); engine **98%**, elements **88%**, charts/diagrams **90%+**, render bridge **52%** (raster/IO tail honestly bounded). Started at ~6%. |
 
@@ -104,8 +104,10 @@ All live in the shared `canvas/testkit.ts` (Phase 0b). Everything else a test to
 
 ## Toolchain & conventions
 
-- **Location.** Co-located `*.test.ts` next to source; shared helpers `*.testkit.ts` (not matched by the
-  `**/*.test.ts` include, excluded from coverage).
+- **Location.** Each folder's tests live in its own `__tests__/` subdirectory (`canvas/engine/__tests__/layout.test.ts`
+  tests `canvas/engine/layout.ts`). Vitest's `**/*.test.ts` include finds them anywhere; imports use path
+  aliases so a test's depth doesn't matter. Shared helpers are `canvas/testkit.ts` / `*.testkit.ts` (not
+  matched by the include, excluded from coverage).
 - **Environment.** `node` default; DOM files add `// @vitest-environment happy-dom` at the top.
 - **Imports.** Explicit `import { describe, it, expect } from "vitest"` (no globals → no tsconfig change).
 - **Strictness.** Tests are linted + typechecked like source (`no-explicit-any`, `noUncheckedIndexedAccess`,
