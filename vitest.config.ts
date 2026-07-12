@@ -32,7 +32,15 @@ export default defineConfig({
             // The pure, engine-level surface this suite targets. UI/editor/app/services are out of scope
             // here (component + backend tracks come later) so they don't drag the denominator down.
             include: ["canvas/**", "model/**"],
-            exclude: ["**/*.test.ts", "**/testkit.ts", "**/*.testkit.ts", "**/*.d.ts"],
+            exclude: [
+                "**/*.test.ts",
+                "**/testkit.ts",
+                "**/*.testkit.ts",
+                "**/*.d.ts",
+                // PDF/PNG/print IO shell (pdf-lib, canvas.toBlob, URL.createObjectURL, window.print).
+                // Its pure page geometry should be extracted into a helper and tested; see .docs/testing.md.
+                "canvas/render/export.ts",
+            ],
         },
     },
 });

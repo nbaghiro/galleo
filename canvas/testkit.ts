@@ -153,3 +153,32 @@ export function recordingDrawContext(): { ctx: DrawContext; calls: DrawCall[] } 
     };
     return { ctx, calls };
 }
+
+// A minimal Canvas 2D stand-in exposing only `.font` (a no-op setter) + deterministic `.measureText` —
+// enough to drive the real run-aware wrap in commands.ts (`layoutRuns`). Glyph width is the seam; the wrap
+// algorithm runs for real.
+export function textMetricsCtx(): CanvasRenderingContext2D {
+    return {
+        set font(_v: string) {},
+        measureText: (t: string) => ({ width: t.length * 8 }),
+    } as unknown as CanvasRenderingContext2D;
+}
+
+// Patch HTMLCanvasElement.getContext("2d") (happy-dom) so the module-level `measureText` / raster paths run
+// without a native canvas: the returned context answers `measureText` deterministically and no-ops every
+// other call. The raster/IO seam — call once in a `beforeAll` of a `*.dom.test.ts` before any measurement.
+export function installCanvas2D(): void {
+    const HC = (globalThis as Record<string, unknown>).HTMLCanvasElement as
+        | { prototype: Record<string, unknown> }
+        | undefined;
+    if (!HC) return;
+    const noop = (): void => {};
+    const fake = new Proxy(
+        {
+            measureText: (t: string) => ({ width: t.length * 8 }),
+            createLinearGradient: () => ({ addColorStop: noop }),
+        } as Record<string, unknown>,
+        { get: (t, p) => (p in t ? t[p as string] : noop), set: () => true },
+    );
+    HC.prototype.getContext = () => fake;
+}
