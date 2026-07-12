@@ -184,7 +184,7 @@ export const ContextBar: Component = () => {
                     anchor="free"
                     gap="0.5"
                     data-galleo-toolbar="true"
-                    class="absolute z-40 -translate-x-1/2"
+                    class="absolute z-chrome -translate-x-1/2"
                     style={{ left: `${p().left}px`, top: `${p().top}px` }}
                     onPointerDown={(e) => e.stopPropagation()}
                 >
@@ -298,7 +298,7 @@ const BOOL: { type: MarkType; icon: string; title: string }[] = [
 
 const noBlur = (e: MouseEvent): void => e.preventDefault();
 // Positioning + padding for the color/highlight flyout; FloatingPanel owns the surface chrome.
-const popCls = "absolute left-1/2 top-full z-50 mt-2 w-60 -translate-x-1/2 p-2.5";
+const popCls = "absolute left-1/2 top-full z-overlay mt-2 w-60 -translate-x-1/2 p-2.5";
 
 export const MarkControls: Component = () => {
     const [pop, setPop] = createSignal<null | "color" | "hl" | "link">(null);
@@ -454,7 +454,7 @@ export const MarkControls: Component = () => {
                     <FloatingPanel
                         rounded="xl"
                         pad="none"
-                        class="absolute left-1/2 top-full z-50 mt-2 flex w-[248px] -translate-x-1/2 items-center gap-1.5 p-2"
+                        class="absolute left-1/2 top-full z-overlay mt-2 flex w-[248px] -translate-x-1/2 items-center gap-1.5 p-2"
                     >
                         <TextField
                             compact

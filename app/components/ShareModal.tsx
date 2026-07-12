@@ -211,7 +211,6 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
             onClose={() => closeShare()}
             scrim="light"
             size="md"
-            z={60}
             vars={vars}
             class="flex max-h-[90vh] flex-col overflow-hidden"
         >

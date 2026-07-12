@@ -178,7 +178,7 @@ export const Present: Component = () => {
 
     return (
         <Show when={presenting()}>
-            <div ref={overlay} class="fixed inset-0 z-50 bg-[#0a0a0c]">
+            <div ref={overlay} class="fixed inset-0 z-present bg-[#0a0a0c]">
                 <div
                     ref={host}
                     class={

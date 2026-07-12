@@ -151,7 +151,7 @@ export const EditorView: Component = () => {
                 <Studio />
             </Show>
             <Show when={previewingTheme()}>
-                <div class="pointer-events-none absolute inset-0 z-50">
+                <div class="pointer-events-none absolute inset-0 z-overlay">
                     <FloatingBar
                         tone="panel"
                         rounded="full"

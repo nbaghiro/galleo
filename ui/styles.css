@@ -5,6 +5,37 @@
    explicit @source list is needed. */
 @import "tailwindcss";
 
+/* Overlay stacking scale — one named tier per layer so modules reference intent, not a magic number
+   (this is what prevents mis-stacking like a drawer under a rail). Mirrors the `Z` constants in ui/z.ts
+   used for inline z-index; keep the two in lockstep. See ui/z.ts for the rationale + ordering. */
+@utility z-raised {
+    z-index: 10;
+}
+@utility z-panel {
+    z-index: 20;
+}
+@utility z-menu {
+    z-index: 30;
+}
+@utility z-chrome {
+    z-index: 40;
+}
+@utility z-overlay {
+    z-index: 50;
+}
+@utility z-drawer {
+    z-index: 60;
+}
+@utility z-present {
+    z-index: 65;
+}
+@utility z-modal {
+    z-index: 70;
+}
+@utility z-popover {
+    z-index: 80;
+}
+
 @theme {
     --color-canvas: #f4f0e8;
     --color-panel: #fbf8f1;

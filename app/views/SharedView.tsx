@@ -436,7 +436,7 @@ const InsightsModal: Component<{
         (id) => api.getLinkState(id).then((r) => r.link),
     );
     return (
-        <Modal onClose={p.onClose} scrim="light" size="md" z={60} class="flex flex-col">
+        <Modal onClose={p.onClose} scrim="light" size="md" class="flex flex-col">
             <header class="flex items-center gap-3 border-b border-line px-5 py-4">
                 <span class="grid h-9 w-9 flex-none place-items-center rounded-lg bg-accent/12 text-accent">
                     <Glyph name={meta.glyph} size={16} />
@@ -587,7 +587,6 @@ const ArtifactPicker: Component<{
         onClose={p.onClose}
         scrim="light"
         size="md"
-        z={60}
         class="flex max-h-[80vh] flex-col overflow-hidden"
     >
         <header class="flex-none border-b border-line px-5 py-4">

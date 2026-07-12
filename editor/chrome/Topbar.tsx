@@ -204,7 +204,7 @@ const FormatSwitcher: Component = () => (
 );
 
 export const Topbar: Component = () => (
-    <header class="relative z-30 flex items-center gap-3.5 border-b border-line bg-panel px-[18px]">
+    <header class="relative z-menu flex items-center gap-3.5 border-b border-line bg-panel px-[18px]">
         <button
             class="cursor-pointer font-mono text-[15px] font-bold tracking-wide text-accent hover:opacity-80"
             title="Back to library"

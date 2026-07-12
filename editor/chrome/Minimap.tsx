@@ -61,7 +61,7 @@ export const Minimap: Component = () => {
             pad="md"
             shadow="panel"
             ref={(el) => (asideEl = el)}
-            class="absolute left-3 top-1/2 z-20 flex max-h-[calc(100%-44px)] w-[182px] -translate-y-1/2 flex-col gap-3 overflow-y-auto"
+            class="absolute left-3 top-1/2 z-panel flex max-h-[calc(100%-44px)] w-[182px] -translate-y-1/2 flex-col gap-3 overflow-y-auto"
         >
             <div class="flex items-center justify-between pl-1">
                 <Eyebrow mono={false}>Sections</Eyebrow>
@@ -85,7 +85,7 @@ export const Minimap: Component = () => {
                                         <Thumb section={s()} index={i()} root={() => asideEl} />
                                     </div>
                                     <button
-                                        class="absolute left-0 top-1/2 z-10 flex h-6 w-4 -translate-y-1/2 cursor-grab items-center justify-center rounded text-muted opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
+                                        class="absolute left-0 top-1/2 z-raised flex h-6 w-4 -translate-y-1/2 cursor-grab items-center justify-center rounded text-muted opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
                                         title="Drag to reorder"
                                         onPointerDown={(e) => startReorder(i(), e)}
                                     >

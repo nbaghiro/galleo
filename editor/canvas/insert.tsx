@@ -55,7 +55,7 @@ export const EmptyRegionAdd: Component = () => {
         <Show when={box()}>
             {(b) => (
                 <div
-                    class="absolute z-30 -translate-x-1/2 -translate-y-1/2"
+                    class="absolute z-menu -translate-x-1/2 -translate-y-1/2"
                     style={{ left: `${b().x + b().w / 2}px`, top: `${b().y + b().h / 2}px` }}
                     onPointerDown={(e) => e.stopPropagation()}
                 >
@@ -239,7 +239,7 @@ export const ContextMenu: Component = () => (
 // visibility toggled.
 export const DragGhost: Component = () => (
     <div
-        class="pointer-events-none fixed z-50 rounded-full border border-line bg-panel/95 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-lg backdrop-blur-md"
+        class="pointer-events-none fixed z-overlay rounded-full border border-line bg-panel/95 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-lg backdrop-blur-md"
         style={{
             display: drag() ? "block" : "none",
             left: `${(drag()?.x ?? 0) + 14}px`,

@@ -136,7 +136,7 @@ export const DragHandle: Component = () => {
                 // the element onto it keeps the region hovered; `onPointerMove` stops the canvas from
                 // recomputing hover while you're over it. The visible grip sits at its left, in the margin.
                 <div
-                    class="absolute z-30 flex cursor-grab items-center active:cursor-grabbing"
+                    class="absolute z-menu flex cursor-grab items-center active:cursor-grabbing"
                     style={{
                         left: `${c().box.x - 26}px`,
                         top: `${c().box.y}px`,
@@ -210,7 +210,7 @@ export const ResizeHandles: Component = () => {
         <Show when={ctx()}>
             {(c) => (
                 <div
-                    class="group absolute z-20"
+                    class="group absolute z-panel"
                     style={{
                         left: `${c().box.x}px`,
                         top: `${c().box.y + c().box.h - EDGE / 2}px`,
@@ -348,7 +348,7 @@ export const RegionDividers: Component = () => {
         <For each={dividers()}>
             {(d) => (
                 <div
-                    class="group absolute z-10 flex justify-center"
+                    class="group absolute z-raised flex justify-center"
                     style={{
                         left: `${d.x - 6}px`,
                         top: `${d.top}px`,

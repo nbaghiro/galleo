@@ -53,12 +53,12 @@ export const AuthPage: Component = () => {
                     <Visual />
                 </div>
                 <div
-                    class="relative z-10 text-[16px] font-bold tracking-wide text-white"
+                    class="relative z-raised text-[16px] font-bold tracking-wide text-white"
                     style={{ "font-family": serif }}
                 >
                     GALLEO
                 </div>
-                <div class="relative z-10 max-w-[34ch]">
+                <div class="relative z-raised max-w-[34ch]">
                     <p
                         class="text-[clamp(28px,3vw,40px)] italic leading-[1.15] tracking-tight text-white"
                         style={{ "font-family": serif }}

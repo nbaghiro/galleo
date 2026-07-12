@@ -720,7 +720,7 @@ export const ChatPanel: Component = () => {
                 {/* launcher */}
                 <Show when={!chatOpen()}>
                     <button
-                        class="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-accent text-onaccent shadow-xl transition-transform hover:scale-105"
+                        class="fixed bottom-6 right-6 z-drawer flex h-12 w-12 items-center justify-center rounded-full bg-accent text-onaccent shadow-xl transition-transform hover:scale-105"
                         title="Chat with Galleo Agent"
                         onClick={openChat}
                     >
@@ -730,7 +730,7 @@ export const ChatPanel: Component = () => {
 
                 {/* dock */}
                 <div
-                    class="fixed right-0 top-0 z-40 flex h-full w-[400px] max-w-[92vw] flex-col border-l border-line bg-panel shadow-2xl transition-transform duration-200"
+                    class="fixed right-0 top-0 z-drawer flex h-full w-[400px] max-w-[92vw] flex-col border-l border-line bg-panel shadow-2xl transition-transform duration-200"
                     style={{ transform: chatOpen() ? "translateX(0)" : "translateX(105%)" }}
                 >
                     <header class="flex flex-none items-center justify-between border-b border-line px-4 py-3">

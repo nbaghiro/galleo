@@ -91,7 +91,7 @@ export const SectionGenPopup: Component = () => {
                     ref={panel}
                     rounded="2xl"
                     pad="md"
-                    class="absolute z-30 w-[420px] max-w-[80vw] -translate-x-1/2"
+                    class="absolute z-menu w-[420px] max-w-[80vw] -translate-x-1/2"
                     style={{
                         left: `${b().x + b().w / 2}px`,
                         top: `${b().y + b().h + 12}px`,

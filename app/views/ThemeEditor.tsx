@@ -536,7 +536,6 @@ const ThemeEditorPanel: Component = () => {
         <Modal
             size="full"
             scrim="light"
-            z={60}
             vars={panelVars()}
             class="flex h-[90vh] max-h-[1000px] overflow-hidden"
             onClose={() => closeThemeEditor()}
@@ -732,7 +731,7 @@ const ThemeEditorPanel: Component = () => {
                     {/* ── token editor: shared by Customize + a generated result ── */}
                     <Show when={editorActive()}>
                         <div class="px-4 pb-6">
-                            <div class="sticky top-0 z-10 -mx-4 flex items-center gap-2 border-b border-line bg-panel px-4 py-3">
+                            <div class="sticky top-0 z-raised -mx-4 flex items-center gap-2 border-b border-line bg-panel px-4 py-3">
                                 <Show when={mode() === "generate"}>
                                     <IconButton
                                         size="lg"

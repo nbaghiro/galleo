@@ -358,7 +358,6 @@ const GenerateModalPanel: Component = () => {
         <Modal
             size="full"
             scrim="light"
-            z={60}
             vars={panelVars()}
             class="flex h-[90vh] max-h-[1000px] overflow-hidden"
             onClose={() => closeGenerate()}

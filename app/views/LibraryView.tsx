@@ -112,7 +112,7 @@ const EmptyLibrary: Component<{ onGenerate: () => void; onTemplates: () => void 
             </Index>
         </div>
 
-        <div class="relative z-10 max-w-[440px] rounded-2xl border border-line bg-panel/95 px-9 py-8 text-center shadow-2xl backdrop-blur-sm">
+        <div class="relative z-raised max-w-[440px] rounded-2xl border border-line bg-panel/95 px-9 py-8 text-center shadow-2xl backdrop-blur-sm">
             <Eyebrow as="div" tracking="widest" class="mb-2">
                 A clean slate
             </Eyebrow>
@@ -301,7 +301,7 @@ export const LibraryView: Component = () => {
                         {/* selection ring + checkbox — the checkbox shows on hover or once selecting is active */}
                         <Show when={isSelected(p.d.id)}>
                             <span
-                                class="pointer-events-none absolute inset-0 z-10 border-2 border-accent"
+                                class="pointer-events-none absolute inset-0 z-raised border-2 border-accent"
                                 style={{ "border-radius": "var(--radius)" }}
                             />
                         </Show>
@@ -335,7 +335,7 @@ export const LibraryView: Component = () => {
                     </button>
                     <Show when={hovered() || selectMode()}>
                         <button
-                            class={`absolute left-2 top-2 z-20 grid h-6 w-6 place-items-center rounded-md border transition-colors ${
+                            class={`absolute left-2 top-2 z-panel grid h-6 w-6 place-items-center rounded-md border transition-colors ${
                                 isSelected(p.d.id)
                                     ? "border-accent bg-accent text-onaccent"
                                     : "border-line bg-panel/90 text-transparent hover:border-accent hover:text-soft"
@@ -637,7 +637,7 @@ export const LibraryView: Component = () => {
                     tone="panel"
                     rounded="2xl"
                     anchor="free"
-                    class="fixed bottom-6 left-1/2 z-40 -translate-x-1/2"
+                    class="fixed bottom-6 left-1/2 z-chrome -translate-x-1/2"
                 >
                     <span class="px-2 text-[13px] font-semibold text-ink">
                         {selectedVisible().length} selected

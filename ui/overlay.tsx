@@ -2,6 +2,7 @@ import type { Component, JSX } from "solid-js";
 import { createEffect, createSignal, onCleanup, onMount, Show, splitProps } from "solid-js";
 import { Dynamic, Portal } from "solid-js/web";
 import { Button } from "./button";
+import { Z } from "./z";
 
 // Positioned surfaces. `Popover` and `Modal` are the two base primitives every menu/dropdown/dialog
 // builds on; `ConfirmModal`/`FloatingBar` are thin composites.
@@ -109,12 +110,12 @@ export const Popover: Component<{
                 <Portal>
                     <div
                         {...tb()}
-                        class="fixed inset-0 z-[70]"
+                        class="fixed inset-0 z-popover"
                         onPointerDown={() => props.onClose()}
                     />
                     <div
                         {...tb()}
-                        class={`fixed z-[71] overflow-y-auto rounded-lg border border-line bg-panel font-body text-ink shadow-2xl ${props.panelClass ?? ""}`}
+                        class={`fixed z-popover overflow-y-auto rounded-lg border border-line bg-panel font-body text-ink shadow-2xl ${props.panelClass ?? ""}`}
                         style={{
                             ...vars(),
                             // `end` pins the panel's right edge to the anchor's right edge (right-aligned
@@ -218,7 +219,7 @@ export const Modal: Component<{
     return (
         <div
             class="fixed inset-0 flex items-center justify-center p-4 text-ink"
-            style={{ "z-index": props.z ?? 50, ...(props.vars ?? {}) }}
+            style={{ "z-index": props.z ?? Z.modal, ...(props.vars ?? {}) }}
         >
             <div
                 class={`absolute inset-0 ${SCRIM[props.scrim ?? "blur"]}`}
@@ -248,7 +249,6 @@ export const ConfirmModal: Component<{
     <Modal
         size="sm"
         scrim="dim"
-        z={60}
         vars={props.vars}
         class="p-6"
         onClose={() => !props.busy && props.onCancel()}

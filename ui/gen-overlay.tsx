@@ -1,6 +1,7 @@
 import type { Component, JSX } from "solid-js";
 import { Show } from "solid-js";
 import type { Rect } from "@engine/node";
+import { Z } from "./z";
 
 // The in-place "generating" treatment painted over a region's box while it forms — an accent light sweeping
 // down through it with the frame glowing (busy), a brief danger ring (error), or nothing extra (done). Used
@@ -20,7 +21,7 @@ export const GenOverlay: Component<{
     accentMix?: number; // sweep gradient accent-mix % (default 20)
     ringWidth?: string; // frame-glow inset ring width (default "2px")
     wash?: boolean; // a faint accent wash over the whole box (the old element shows through)
-    z?: number; // z-index (default 20)
+    z?: number; // z-index (default Z.panel — sits with the canvas panels)
     blockPointer?: boolean; // stop canvas pointer events (else pointer-transparent)
     base?: JSX.Element; // content painted UNDER the light (e.g. an opaque cover + skeleton)
     children?: JSX.Element; // content painted OVER the light (e.g. a centre status chip)
@@ -33,7 +34,7 @@ export const GenOverlay: Component<{
             width: `${props.box.w}px`,
             height: `${props.box.h}px`,
             "border-radius": `${props.radius ?? 8}px`,
-            "z-index": props.z ?? 20,
+            "z-index": props.z ?? Z.panel,
             "--gen-speed": `${props.speed ?? 2.4}s`,
         }}
         onPointerDown={props.blockPointer ? (e) => e.stopPropagation() : undefined}

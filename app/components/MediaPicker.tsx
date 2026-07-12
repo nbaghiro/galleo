@@ -504,7 +504,6 @@ export const MediaPicker: Component = () => {
             <Modal
                 onClose={closeMediaPicker}
                 scrim="blur"
-                z={70}
                 vars={themeVars()}
                 class="flex h-[600px] max-h-[86vh] max-w-[900px] flex-col overflow-hidden"
             >

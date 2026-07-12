@@ -90,7 +90,6 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
         <Modal
             scrim="blur"
             size="full"
-            z={80}
             class="flex h-[760px] max-h-[90vh] w-[min(1140px,96vw)] flex-col overflow-hidden"
             onClose={close}
         >

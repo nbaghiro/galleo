@@ -7,6 +7,7 @@ import { paintSectionStack } from "@canvas/render/backends";
 import { slideElement, sectionSlideCount } from "@canvas/render/present";
 import { backdropHostStyle, SlideProgress } from "./section";
 import { FloatingBar } from "./overlay";
+import { Z } from "./z";
 import { IconButton } from "./button";
 import { Icon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "./icons";
 
@@ -17,7 +18,7 @@ import { Icon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "./icons";
 // nav + control-bar logic lives here once instead of forked across the two surfaces.
 export const PresentSurface: Component<{
     artifact: ArtifactContent;
-    z?: number; // overlay z-index (default 50)
+    z?: number; // overlay z-index (default Z.present — the fullscreen takeover tier)
     autoFullscreen?: boolean; // best-effort requestFullscreen on mount (in-app present)
     onExit?: () => void; // when set, shows an Exit control + wires Esc-to-exit
     children?: JSX.Element; // extra overlay content (e.g. a branding watermark)
@@ -133,7 +134,11 @@ export const PresentSurface: Component<{
     );
 
     return (
-        <div ref={overlay} class="fixed inset-0 bg-[#0a0a0c]" style={{ "z-index": props.z ?? 50 }}>
+        <div
+            ref={overlay}
+            class="fixed inset-0 bg-[#0a0a0c]"
+            style={{ "z-index": props.z ?? Z.present }}
+        >
             <div
                 ref={host}
                 class={

@@ -77,7 +77,7 @@ export const TextAiMenu: Component = () => {
                 <FloatingPanel
                     rounded="xl"
                     pad="sm"
-                    class="absolute right-0 top-full z-50 mt-2 max-h-[400px] w-72 overflow-y-auto"
+                    class="absolute right-0 top-full z-overlay mt-2 max-h-[400px] w-72 overflow-y-auto"
                 >
                     {/* the prompt */}
                     <div class="flex items-center gap-1.5 rounded-lg border border-line bg-canvas px-2 py-1.5 focus-within:border-accent">

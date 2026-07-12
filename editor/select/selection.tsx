@@ -119,7 +119,7 @@ export const SectionActions: Component = () => {
                         shadow="lg"
                         gap="0.5"
                         anchor="free"
-                        class="absolute z-20 -translate-x-1/2"
+                        class="absolute z-panel -translate-x-1/2"
                         style={{ left: `${b().x + b().w / 2}px`, top: `${b().y + b().h - 16}px` }}
                         onPointerMove={(e) => e.stopPropagation()}
                         onPointerDown={(e) => e.stopPropagation()}
@@ -185,7 +185,7 @@ export const SectionToolbar: Component = () => {
                     pad="sm"
                     shadow="lg"
                     anchor="free"
-                    class="absolute z-20"
+                    class="absolute z-panel"
                     style={{ left: `${b().x + 10}px`, top: `${b().y + 10}px` }}
                     onPointerDown={(e) => e.stopPropagation()}
                 >

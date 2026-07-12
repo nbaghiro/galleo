@@ -88,7 +88,7 @@ export const Panel: Component = () => {
     );
 
     return (
-        <div class="absolute right-3 top-1/2 z-20 flex -translate-y-1/2 items-stretch gap-2">
+        <div class="absolute right-3 top-1/2 z-chrome flex -translate-y-1/2 items-stretch gap-2">
             <Show when={rightTab()}>
                 {(tab) => (
                     <FloatingPanel

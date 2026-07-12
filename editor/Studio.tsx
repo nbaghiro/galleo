@@ -68,7 +68,7 @@ export const Studio: Component = () => {
                                 bordered
                                 tone="muted"
                                 rounded="xl"
-                                class="absolute left-3 top-1/2 z-20 -translate-y-1/2 bg-panel/95 shadow-lg backdrop-blur-md"
+                                class="absolute left-3 top-1/2 z-panel -translate-y-1/2 bg-panel/95 shadow-lg backdrop-blur-md"
                                 title="Sections"
                                 onClick={() => setLeftOpen(true)}
                             >
