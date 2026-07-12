@@ -37,8 +37,8 @@ export default defineConfig({
                 "**/testkit.ts",
                 "**/*.testkit.ts",
                 "**/*.d.ts",
-                // PDF/PNG/print IO shell (pdf-lib, canvas.toBlob, URL.createObjectURL, window.print).
-                // Its pure page geometry should be extracted into a helper and tested; see .docs/testing.md.
+                // PDF/PNG/print IO shell (pdf-lib, canvas.toBlob, URL.createObjectURL, window.print). Its
+                // pure page geometry now lives in export-geometry.ts (tested); only this shell is excluded.
                 "canvas/render/export.ts",
             ],
         },

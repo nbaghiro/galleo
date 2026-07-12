@@ -7,6 +7,7 @@ import {
     fitSlideContent,
     paint,
     paintSectionStack,
+    renderSlidePage,
     renderToCanvas,
 } from "@canvas/render/backends";
 import { resolveProfile } from "@engine/profile";
@@ -86,18 +87,16 @@ describe("canvasDrawContext", () => {
     });
 });
 
-describe("renderToCanvas (raster smoke)", () => {
-    it("produces a canvas without throwing", async () => {
-        const canvas = await renderToCanvas(
-            [
-                {
-                    kind: "rect",
-                    box: { x: 0, y: 0, w: 50, h: 50 },
-                    fill: { color: "#000", radius: 4 },
-                },
-            ],
-            100,
-            100,
+describe("renderToCanvas / renderSlidePage (raster smoke)", () => {
+    const cmds: RenderCommand[] = [
+        { kind: "rect", box: { x: 0, y: 0, w: 50, h: 50 }, fill: { color: "#000", radius: 4 } },
+    ];
+    it("renderToCanvas produces a canvas without throwing", async () => {
+        expect(await renderToCanvas(cmds, 100, 100, "#fff", 1)).toBeInstanceOf(HTMLCanvasElement);
+    });
+    it("renderSlidePage produces a canvas without throwing", async () => {
+        const canvas = await renderSlidePage(
+            { commands: cmds, w: 1280, h: 720, contentH: 1440 },
             "#fff",
             1,
         );

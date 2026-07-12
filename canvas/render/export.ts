@@ -6,20 +6,20 @@ import { fragment } from "@engine/layout";
 import { resolveProfile } from "@engine/profile";
 import { renderSlidePage, renderToCanvas, paint } from "./backends";
 import { measureText, layoutSection, sectionSlides } from "./commands";
+import {
+    A4_H,
+    A4_W,
+    DOC_MARGIN,
+    EXPORT_SCALE,
+    PRINT_W,
+    deckPngCanvasSize,
+    docPageGeometry,
+    slidePdfPageSize,
+} from "./export-geometry";
 
 // Export an artifact to PDF / PNG / print — editor-free: every entry point takes the artifact + its
 // resolved theme tokens, so the studio, a present surface, or a publish page can all export the same way.
-
-const PRINT_W = 1100;
-// Default slide geometry (matches Present) + the PDF page width in points. Per-section frames come from
-// `slideFrame`; page height flexes with each section's aspect.
-const SLIDE_W = 1280;
-const SCALE = 2; // raster supersampling for crisp output
-const PAGE_W = 960;
-// A4 page geometry (points) for the continuous Document format.
-const A4_W = 595;
-const A4_H = 842;
-const DOC_MARGIN = 48;
+// Page/raster geometry lives in export-geometry.ts (pure, tested); this file is the IO shell over it.
 
 async function canvasPng(canvas: HTMLCanvasElement): Promise<Uint8Array> {
     const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/png"));
@@ -74,13 +74,13 @@ async function exportSlidePdf(
     for (const section of artifact.sections) {
         // A tall section paginates into several 16:9 pages; a short one is a single page.
         for (const slide of sectionSlides(section, tk, profile)) {
-            const canvas = await renderSlidePage(slide, tk.bg, SCALE);
+            const canvas = await renderSlidePage(slide, tk.bg, EXPORT_SCALE);
             const cx = canvas.getContext("2d");
-            if (brand && cx) stampBrand(cx, canvas.width, canvas.height, SCALE);
+            if (brand && cx) stampBrand(cx, canvas.width, canvas.height, EXPORT_SCALE);
             const img = await pdf.embedPng(await canvasPng(canvas));
-            const pageH = Math.round((PAGE_W * slide.h) / slide.w); // PDF page matches the slide's aspect
-            const page = pdf.addPage([PAGE_W, pageH]);
-            page.drawImage(img, { x: 0, y: 0, width: PAGE_W, height: pageH });
+            const { w: pageW, h: pageH } = slidePdfPageSize(slide); // PDF page matches the slide's aspect
+            const page = pdf.addPage([pageW, pageH]);
+            page.drawImage(img, { x: 0, y: 0, width: pageW, height: pageH });
         }
     }
     download(await pdf.save(), "galleo.pdf", "application/pdf");
@@ -100,16 +100,14 @@ async function exportDocPdf(artifact: ArtifactContent, tk: Tokens, brand: boolea
         y += height; // continuous: sections merge seamlessly
     }
 
-    const contentPtW = A4_W - 2 * DOC_MARGIN;
-    const scale = contentPtW / layoutW;
-    const pageContentPxH = (A4_H - 2 * DOC_MARGIN) / scale;
+    const { contentPtW, pageContentPxH } = docPageGeometry(layoutW);
     const pages = fragment(all, y, pageContentPxH);
 
     const pdf = await PDFDocument.create();
     for (const pageCmds of pages) {
-        const canvas = await renderToCanvas(pageCmds, layoutW, pageContentPxH, tk.bg, SCALE);
+        const canvas = await renderToCanvas(pageCmds, layoutW, pageContentPxH, tk.bg, EXPORT_SCALE);
         const cx = canvas.getContext("2d");
-        if (brand && cx) stampBrand(cx, canvas.width, canvas.height, SCALE);
+        if (brand && cx) stampBrand(cx, canvas.width, canvas.height, EXPORT_SCALE);
         const img = await pdf.embedPng(await canvasPng(canvas));
         const page = pdf.addPage([A4_W, A4_H]);
         page.drawImage(img, {
@@ -143,19 +141,18 @@ export async function exportDeckPng(
     const profile = resolveProfile(artifact.format);
     // Every 16:9 slide the deck produces (tall sections paginate into several), stacked into one tall PNG.
     const slides = artifact.sections.flatMap((s) => sectionSlides(s, tk, profile));
-    const outW = Math.max(SLIDE_W, ...slides.map((s) => s.w));
-    const totalH = slides.reduce((sum, s) => sum + s.h, 0);
     const out = document.createElement("canvas");
-    out.width = outW * SCALE;
-    out.height = totalH * SCALE;
+    const size = deckPngCanvasSize(slides, EXPORT_SCALE);
+    out.width = size.width;
+    out.height = size.height;
     const cx = out.getContext("2d");
     if (!cx) return;
     let y = 0;
     for (const slide of slides) {
-        const canvas = await renderSlidePage(slide, tk.bg, SCALE);
-        cx.drawImage(canvas, 0, y * SCALE);
+        const canvas = await renderSlidePage(slide, tk.bg, EXPORT_SCALE);
+        cx.drawImage(canvas, 0, y * EXPORT_SCALE);
         y += slide.h;
-        if (opts?.brand) stampBrand(cx, out.width, y * SCALE, SCALE);
+        if (opts?.brand) stampBrand(cx, out.width, y * EXPORT_SCALE, EXPORT_SCALE);
     }
     download(await canvasPng(out), "galleo-deck.png", "image/png");
 }

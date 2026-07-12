@@ -20,18 +20,19 @@ Milestones M1–M6 are **built and landed** — the canvas module is covered end
 | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Runner   | **Vitest 4** (`vitest.config.ts`), `node` env default, v8 coverage, happy-dom per-file                                                                                |
 | Scripts  | `pnpm test` · `test:watch` · `test:coverage`                                                                                                                          |
-| Suite    | **277 tests** across 23 files, co-located; `canvas/testkit.ts` is the whole doubles surface                                                                           |
+| Suite    | **283 tests** across 24 files, co-located; `canvas/testkit.ts` is the whole doubles surface                                                                           |
 | Gate     | `pnpm test` in **CI** and the **pre-commit hook**; `coverage/` git-ignored                                                                                            |
 | Coverage | **~70% overall** (canvas+model); engine **98%**, elements **88%**, charts/diagrams **90%+**, render bridge **52%** (raster/IO tail honestly bounded). Started at ~6%. |
 
 Achieved coverage by area:
 
-| Area                                                                    | Stmts | Notes                                                                 |
-| ----------------------------------------------------------------------- | ----- | --------------------------------------------------------------------- |
-| `canvas/engine` (layout · fragment · profile)                           | 98%   | the solver, fully                                                     |
-| `canvas/elements` (ops · compose · layouts · specs · charts · diagrams) | ~89%  | real registry + real theme, no faked specs                            |
-| `canvas/render` (commands · backends · present · geometry)              | 52%   | logic covered; raster/IO smoke-only or excluded                       |
-| `canvas/render/export.ts`                                               | —     | excluded (PDF/PNG/print IO shell; geometry-extraction is future work) |
+| Area                                                                    | Stmts | Notes                                                                           |
+| ----------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------- |
+| `canvas/engine` (layout · fragment · profile)                           | 98%   | the solver, fully                                                               |
+| `canvas/elements` (ops · compose · layouts · specs · charts · diagrams) | ~89%  | real registry + real theme, no faked specs                                      |
+| `canvas/render` (commands · backends · present · geometry)              | 52%   | logic covered; raster/IO smoke-only or excluded                                 |
+| `canvas/render/export-geometry.ts`                                      | 100%  | page/raster geometry, extracted out of the IO shell                             |
+| `canvas/render/export.ts`                                               | —     | IO shell excluded (pdf-lib · toBlob · print); geometry lives + tested next door |
 
 ---
 
@@ -95,9 +96,9 @@ All live in the shared `canvas/testkit.ts` (Phase 0b). Everything else a test to
   over the real `@model/section` builders).
 - **Finders** — `regionById`, `commandsFor(id)`, `bottomOf`, `find(pred)`.
 - **`installCanvas2D()`** (happy-dom only) — patches `HTMLCanvasElement.getContext("2d")` to return a
-  recording/text-metrics 2D context and stubs `Image`/`toBlob`, so `measureText`, `sectionSlides`,
-  `paintSectionStack` run under happy-dom without a native canvas. This is the IO seam, applied in a setup
-  file for `*.dom.test.ts`.
+  deterministic 2D context (measureText → length × 8, every other call a no-op), so `measureText`,
+  `sectionSlides`, `paintSectionStack`, and the raster smoke tests run under happy-dom without a native
+  canvas. This is the raster seam, called in a `beforeAll` of each `*.dom.test.ts`.
 
 ---
 
@@ -349,12 +350,12 @@ Split the pure bridge from the DOM-measure part.
 - `sectionSlideCount` (l.13): short section → 1; a `>1.2×` section → `>1`.
 - `slideElement` (l.25): builds a slide `<div>`, clamps `page` to `[0, len−1]`.
 
-### `canvas/render/export.ts` → **pure geometry only** (see honesty section)
+### `canvas/render/export-geometry.ts` → **100%** · pure
 
-- Extract + test the pagination arithmetic in `exportDocPdf`: `pageContentPxH = (A4_H − 2·margin)/scale`,
-  `scale = contentPtW/layoutW`. `stampBrand` coordinates via recording ctx. `exportPdfAuto` routing
-  (continuous → doc, paged → slide) can be asserted with pdf-lib real + images stubbed if we want it; the
-  `download`/`print`/`toBlob` shell is excluded (below).
+Done — the page/raster arithmetic was extracted out of `export.ts` into this module and unit-tested:
+`slidePdfPageSize` (fixed page width, aspect-preserving height), `docPageGeometry` (`contentPtW`, px→pt
+`scale`, `pageContentPxH = (A4_H − 2·margin)/scale`), `deckPngCanvasSize` (widest slide × summed heights).
+`export.ts` is now a thin IO shell that calls these — excluded from coverage (below).
 
 ---
 
@@ -364,11 +365,10 @@ Chasing 100% on these produces fake tests. We handle them explicitly instead of 
 the number:
 
 - **Pure type files** (`engine/node.ts`): no runtime. Inert in coverage; nothing to write.
-- **IO shells** — `download()`, `window.print()` (`export.ts`), `canvas.toBlob`, `URL.createObjectURL`,
-  `Image` decode, `document.fonts` listener. The move is **extract the pure geometry out** (page/slide math)
-  and test that; the remaining ~3-line shell gets **one** happy-dom smoke test (appends then removes its DOM
-  without throwing) and is otherwise added to `coverage.exclude` with a one-line comment naming why. We do
-  **not** "cover" them by asserting a stub was called.
+- **IO shells** — `download()`, `window.print()`, `canvas.toBlob`, `URL.createObjectURL`, `Image` decode,
+  `document.fonts` listener. The move — **done for `export.ts`** — is to extract the pure geometry out (into
+  `export-geometry.ts`, tested) and leave only the shell, which is added to `coverage.exclude` with a
+  one-line comment naming why. We do **not** "cover" a shell by asserting a stub was called.
 - **Per-type chart/diagram renderers**: covered at the "draws the right call kinds / doesn't crash on empty"
   level, not pixel-exact. Exact geometry is d3's job (its own tests), not ours.
 
