@@ -3,8 +3,8 @@ import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
 import { getElement, register, bar, GHOST_LINE, GHOST_PANEL } from "@elements/spec";
 import { fit, fixed, grow } from "@model/geometry";
-import { CARD_STYLES } from "@model/elements";
-import type { CardStyle, FlexDirection } from "@model/elements";
+import { CARD_SHAPES, CARD_STYLES } from "@model/elements";
+import type { CardShape, CardStyle, FlexDirection } from "@model/elements";
 import { DIRECTION_OPTIONS } from "@elements/composite/shared";
 
 interface CardData {
@@ -13,7 +13,8 @@ interface CardData {
     gap?: number;
     padding?: number;
     bg?: string;
-    radius?: number;
+    radius?: number; // legacy explicit radius (pre-`shape`); still honored when `shape` is unset
+    shape?: CardShape;
     style?: CardStyle;
 }
 
@@ -29,6 +30,10 @@ const STYLE_LABELS: Record<CardStyle, string> = {
 // (the solver stretches grow on the cross axis, so the bar runs the full edge).
 const arrangeCard = (d: CardData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode => {
     const t = ctx.theme;
+    // Corner radius from `shape` (sharp → crisp, rounded → theme); else a legacy numeric radius; else theme.
+    let rad = d.radius ?? t.radius;
+    if (d.shape === "sharp") rad = 2;
+    else if (d.shape === "rounded") rad = t.radius;
     const p = d.padding ?? 24;
     const inset = { top: p, right: p, bottom: p, left: p };
     const stack = (padding: typeof inset): EngineNode => ({
@@ -60,10 +65,10 @@ const arrangeCard = (d: CardData, ctx: LayoutCtx, kids: EngineNode[]): EngineNod
         };
     const fill =
         style === "outline"
-            ? { radius: d.radius ?? t.radius, border: { color: t.line, width: 1.5 } }
+            ? { radius: rad, border: { color: t.line, width: 1.5 } }
             : {
                   color: d.bg ?? t.surface,
-                  radius: d.radius ?? t.radius,
+                  radius: rad,
                   border: { color: t.line, width: 1 },
               };
     return { ...stack(inset), fill };
@@ -74,7 +79,7 @@ export const cardElement: ElementSpec<CardData> = {
     label: "Card",
     category: "composite",
     tier: "container",
-    create: () => ({ children: [] }),
+    create: () => ({ children: [], shape: "rounded" }),
     layout: (d, ctx) =>
         arrangeCard(
             d,
@@ -90,7 +95,7 @@ export const cardElement: ElementSpec<CardData> = {
         arrange: arrangeCard,
         withChildren: (d, children) => ({ ...d, children }),
     },
-    bar: ["style", "direction", "radius", "bg"],
+    bar: ["style", "direction", "shape", "bg"],
     controls: [
         {
             key: "style",
@@ -105,13 +110,13 @@ export const cardElement: ElementSpec<CardData> = {
             options: DIRECTION_OPTIONS,
         },
         {
-            key: "radius",
-            label: "Corner radius",
-            control: "slider",
-            min: 0,
-            max: 40,
-            step: 1,
-            unit: "px",
+            key: "shape",
+            label: "Corners",
+            control: "segmented",
+            options: CARD_SHAPES.map((v) => ({
+                value: v,
+                label: v === "sharp" ? "Sharp" : "Rounded",
+            })),
             group: "Appearance",
             // Only the solid + outline branches paint a rounded fill; plain/sideline/topline have no frame.
             visibleWhen: (d) => {

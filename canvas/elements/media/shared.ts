@@ -16,9 +16,9 @@ export interface ImageData {
 // The "image-like" media family: photo · gif · illustration · sticker. They all paint a url in a frame
 // (the engine renders any of them — gifs animate as-is, svgs/illustrations are just images), so one
 // factory builds them all. They differ only in defaults (fit / aspect) and the media kind their picker
-// opens for (the palette tile art lives in insert.tsx's PREVIEWS map). Editing is entirely on-canvas:
-// Replace + Fit + Zoom on the context bar (covers every control → the docked panel is skipped) plus the
-// aspect resize handle and the universal radius.
+// opens for (the palette tile art lives in insert.tsx's PREVIEWS map). Editing: Replace + Fit are the
+// frequent one-click toggles on the context bar; the Zoom + corner-radius *sliders* live in the docked
+// panel (sliders are too wide to sit on the bar). Plus the aspect resize handle.
 export interface MediaConfig {
     type: string;
     label: string;
@@ -46,9 +46,8 @@ export function imageLike(cfg: MediaConfig): ElementSpec<ImageData> {
                 zoom: (data.zoom ?? 100) / 100,
             },
         }),
-        frame: true, // opts into the universal corner-radius slider — rounds the image frame (radius default 14)
         resize: { aspect: { min: 0.4, max: 2.6 } },
-        bar: ["src", "fit", "zoom"],
+        bar: ["src", "fit"], // only the frequent one-click toggles; Zoom + radius sliders live in the panel
         controls: [
             { key: "src", label: cfg.label, control: "media", mediaKind: cfg.kind },
             {
@@ -72,6 +71,16 @@ export function imageLike(cfg: MediaConfig): ElementSpec<ImageData> {
                 group: "Frame",
                 // Zoom crops in, which only reads against a cover fit; hide it for contain (sticker/illustration).
                 visibleWhen: (d) => ((d.fit as string) ?? cfg.fit) === "cover",
+            },
+            {
+                key: "radius",
+                label: "Corner radius",
+                control: "slider",
+                min: 0,
+                max: 40,
+                step: 1,
+                unit: "px",
+                group: "Frame",
             },
         ],
     };

@@ -46,6 +46,11 @@ export type ImageFit = (typeof IMAGE_FIT)[number];
 export const CARD_STYLES = ["solid", "outline", "sideline", "topline", "plain"] as const;
 export type CardStyle = (typeof CARD_STYLES)[number];
 
+// Card corner rounding as a compact, theme-tracking choice (a slider is too wide for the card's
+// container bar): `rounded` (the default) uses the theme radius, `sharp` is crisp.
+export const CARD_SHAPES = ["sharp", "rounded"] as const;
+export type CardShape = (typeof CARD_SHAPES)[number];
+
 export const FLEX_DIRECTION = ["row", "col"] as const;
 export type FlexDirection = (typeof FLEX_DIRECTION)[number];
 

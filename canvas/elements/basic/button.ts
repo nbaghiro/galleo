@@ -118,8 +118,8 @@ export const buttonElement: ElementSpec<ButtonData> = {
             children,
         };
     },
-    // Bar = the two frequent visual toggles; roundness (Shape) + label/link/icon live in the panel.
-    bar: ["variant", "size"],
+    // Bar = just the primary Style toggle (kept uncrowded); Size/Shape/label/link/icon live in the panel.
+    bar: ["variant"],
     controls: [
         { key: "label", label: "Label", control: "text" },
         {
