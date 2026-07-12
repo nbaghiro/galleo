@@ -67,7 +67,6 @@ const TONE_LABELS: Record<CalloutTone, string> = {
 export const calloutElement: ElementSpec<CalloutData> = {
     type: "callout",
     label: "Callout",
-    frame: true,
     category: "text",
     tier: "smart",
     create: () => ({

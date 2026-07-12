@@ -42,6 +42,8 @@ export const CHART_CONTROLS: ControlField[] = [
             { label: "Accent", value: "ramp" },
             { label: "Multi-hue", value: "categorical" },
         ],
+        // gauge + heatmap paint straight from theme.accent and never read the palette — hide it there.
+        visibleWhen: (d) => d.type !== "gauge" && d.type !== "heatmap",
     },
     {
         key: "stacked",
@@ -65,8 +67,14 @@ export const CHART_CONTROLS: ControlField[] = [
         key: "showGrid",
         label: "Gridlines",
         control: "toggle",
+        // Only the cartesian charts draw a grid; pie/donut/gauge/treemap/funnel/heatmap ignore it.
         visibleWhen: (d) =>
-            d.type !== "pie" && d.type !== "donut" && d.type !== "gauge" && d.type !== "treemap",
+            d.type !== "pie" &&
+            d.type !== "donut" &&
+            d.type !== "gauge" &&
+            d.type !== "treemap" &&
+            d.type !== "funnel" &&
+            d.type !== "heatmap",
     },
 ];
 
@@ -101,6 +109,7 @@ function chartSpec(
             surface: { paint: (g, box) => renderChart(g, box, d, ctx.theme) },
         }),
         resize: { height: { key: "height", min: 160, max: 460, step: 10 } },
+        bar: ["type", "palette"], // the two highest-value quick actions; data lives in the panel grid
         controls: CHART_CONTROLS,
         skeleton,
     };

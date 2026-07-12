@@ -11,7 +11,6 @@ interface CodeData {
 export const codeElement: ElementSpec<CodeData> = {
     type: "code",
     label: "Code",
-    frame: true,
     category: "text",
     tier: "smart",
     create: () => ({ code: "const galleo = createEditor();\ngalleo.render(artifact);" }),

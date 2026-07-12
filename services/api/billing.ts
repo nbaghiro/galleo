@@ -98,6 +98,9 @@ billing.post("/billing/checkout", async (c) => {
         client_reference_id: ws.id,
         subscription_data: { metadata: { workspaceId: ws.id } },
         allow_promotion_codes: true,
+        custom_text: {
+            submit: { message: "Change or cancel your plan anytime from Billing." },
+        },
         success_url: `${APP_URL}/app/pricing?status=success`,
         cancel_url: `${APP_URL}/app/pricing?status=cancel`,
     });
@@ -114,6 +117,11 @@ billing.post("/billing/portal", async (c) => {
     const session = await stripe().billingPortal.sessions.create({
         customer: ws.stripeCustomerId,
         return_url: `${APP_URL}/app/pricing`,
+        // Our configured portal (plan-switching across Pro/Premium, seat changes, invoices, cancel flow)
+        // when STRIPE_PORTAL_CONFIG is set; falls back to the account's default portal otherwise.
+        ...(process.env.STRIPE_PORTAL_CONFIG
+            ? { configuration: process.env.STRIPE_PORTAL_CONFIG }
+            : {}),
     });
     return c.json({ url: session.url });
 });

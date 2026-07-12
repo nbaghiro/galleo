@@ -15,13 +15,11 @@ import {
     MONO_FONT_STACK,
     layoutRuns,
     measureText,
-    layoutSlide,
     layoutSection,
     SECTION_GAP,
 } from "./commands";
 import type { Section, SectionBackground } from "@model/artifact";
 import type { Tokens } from "@themes";
-import { resolveProfile } from "@engine/profile";
 import type { FormatDescriptor } from "@model/geometry";
 
 // A DOM render backend: paints absolute-positioned divs from the engine's render commands.
@@ -149,6 +147,18 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
     el.style.height = `${c.box.h}px`;
     el.style.boxSizing = "border-box";
     if (c.opacity !== undefined) el.style.opacity = String(c.opacity);
+    // Clip: cut this element to the effective clip rect via clip-path insets, measured in the element's box.
+    // (Reused elements are reset to cssText:"" first, so only clipped commands carry a clip-path.)
+    if (c.clip) {
+        const b = c.box;
+        const cl = c.clip;
+        const top = Math.max(0, cl.y - b.y);
+        const left = Math.max(0, cl.x - b.x);
+        const right = Math.max(0, b.x + b.w - (cl.x + cl.w));
+        const bottom = Math.max(0, b.y + b.h - (cl.y + cl.h));
+        if (top || right || bottom || left)
+            el.style.clipPath = `inset(${top}px ${right}px ${bottom}px ${left}px)`;
+    }
     if (c.kind === "rect") {
         const g = c.fill?.gradient;
         if (g) el.style.background = `linear-gradient(${g.angle ?? 135}deg, ${g.from}, ${g.to})`;
@@ -363,8 +373,14 @@ function drawCommands(
 ): void {
     for (const c of commands) {
         const b = c.box;
-        if (c.opacity !== undefined) cx.save();
+        const guarded = c.opacity !== undefined || c.clip !== undefined;
+        if (guarded) cx.save();
         if (c.opacity !== undefined) cx.globalAlpha = c.opacity;
+        if (c.clip) {
+            cx.beginPath();
+            cx.rect(c.clip.x, c.clip.y, c.clip.w, c.clip.h);
+            cx.clip();
+        }
         if (c.kind === "rect") {
             const f = c.fill;
             roundRectPath(cx, b.x, b.y, b.w, b.h, f?.radius ?? 0);
@@ -430,7 +446,7 @@ function drawCommands(
             c.paint(canvasDrawContext(cx), { x: 0, y: 0, w: b.w, h: b.h });
             cx.restore();
         }
-        if (c.opacity !== undefined) cx.restore();
+        if (guarded) cx.restore();
     }
 }
 
@@ -482,43 +498,25 @@ export async function renderToCanvas(
     return canvas;
 }
 
-interface SlideRender {
-    canvas: HTMLCanvasElement;
-    commands: RenderCommand[];
-    layoutW: number;
-    height: number;
-    fit: number;
-    offsetX: number;
-    offsetY: number;
-}
-
-// Render one section into a fixed page (w×h), section centered + scaled to fit. Returns the canvas
-// plus the placement transform (so a vector backend can reuse the same geometry).
-export async function renderSlide(
-    section: Section,
-    tk: Tokens,
-    opts: { w: number; h: number; scale: number },
-): Promise<SlideRender> {
-    const { w, h, scale } = opts;
-    const { commands, height } = layoutSlide(
-        section,
-        w,
-        h,
-        measureText,
-        tk,
-        resolveProfile("deck"),
-    );
-    const fit = Math.min(1, h / height);
+// Render one prepared slide page (from `sectionSlides`) — its commands scaled to fit `contentH` into the
+// frame and centered — onto a w×h canvas at device `scale`. Used by export; present paints the same page
+// into the DOM via `fitSlideContent`.
+export async function renderSlidePage(
+    page: { commands: RenderCommand[]; w: number; h: number; contentH: number },
+    bg: string,
+    scale: number,
+): Promise<HTMLCanvasElement> {
+    const { commands, w, h, contentH } = page;
+    const fit = Math.min(1, h / contentH);
     const offsetX = (w - w * fit) / 2;
-    const offsetY = (h - height * fit) / 2;
-
+    const offsetY = (h - contentH * fit) / 2;
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(w * scale);
     canvas.height = Math.round(h * scale);
     const cx = canvas.getContext("2d");
     if (cx) {
         cx.scale(scale, scale);
-        cx.fillStyle = tk.bg;
+        cx.fillStyle = bg;
         cx.fillRect(0, 0, w, h);
         const images = await loadImages(commands);
         cx.save();
@@ -527,7 +525,7 @@ export async function renderSlide(
         drawCommands(cx, commands, images);
         cx.restore();
     }
-    return { canvas, commands, layoutW: w, height, fit, offsetX, offsetY };
+    return canvas;
 }
 
 // CSS `background` value for a document/section backdrop: image+scrim, gradient, color, or theme bg.

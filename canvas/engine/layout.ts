@@ -11,7 +11,16 @@ interface LayoutNode {
     w: number;
     h: number;
     children: LayoutNode[];
+    // The resolved clip for this node: the node's explicit `clip`, plus an axis the height pass adds when a
+    // BOUNDED box (fixed/percent/aspect height) ends up shorter than its content — so the overflow is cut
+    // cleanly instead of spilling. `emit` reads this (not `node.clip`).
+    clip?: { x?: boolean; y?: boolean };
 }
+
+const mergeClip = (
+    a: { x?: boolean; y?: boolean } | undefined,
+    b: { x?: boolean; y?: boolean },
+): { x?: boolean; y?: boolean } => ({ x: a?.x || b.x, y: a?.y || b.y });
 
 const padX = (n: EngineNode): number => (n.padding?.left ?? 0) + (n.padding?.right ?? 0);
 const padY = (n: EngineNode): number => (n.padding?.top ?? 0) + (n.padding?.bottom ?? 0);
@@ -128,7 +137,7 @@ function crossWidth(c: EngineNode, contentW: number, measure: MeasureText): numb
 }
 
 function layoutWidths(node: EngineNode, w: number, measure: MeasureText): LayoutNode {
-    const ln: LayoutNode = { node, x: 0, y: 0, w, h: 0, children: [] };
+    const ln: LayoutNode = { node, x: 0, y: 0, w, h: 0, children: [], clip: node.clip };
     const kids = node.children ?? [];
     if (kids.length === 0) return ln;
 
@@ -179,6 +188,7 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText):
         ln.h = resolveHeight(node.h, assignedH, ln.w / node.aspect);
         const inner = Math.max(0, ln.h - padY(node));
         for (const c of ln.children) layoutHeights(c, inner, measure);
+        ln.clip = mergeClip(ln.clip, { x: true, y: true }); // a fixed-ratio frame crops overflowing children
         return;
     }
 
@@ -214,6 +224,8 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText):
             maxH = Math.max(maxH, c.h);
         }
         ln.h = resolveHeight(node.h, assignedH, maxH + padY(node));
+        // A bounded row shorter than its tallest child clips the vertical overflow.
+        if (ln.h + 0.5 < maxH + padY(node)) ln.clip = mergeClip(ln.clip, { y: true });
         return;
     }
 
@@ -238,6 +250,9 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText):
 
     const childrenH = flow.reduce((sum, c) => sum + c.h, 0) + gaps;
     ln.h = resolveHeight(node.h, assignedH, childrenH + padY(node));
+    // A BOUNDED column (fixed/percent/grow — anything but `fit`, which grows to contain its content) that
+    // resolves shorter than its content clips the overflow cleanly instead of spilling past its frame.
+    if (ln.h + 0.5 < childrenH + padY(node)) ln.clip = mergeClip(ln.clip, { y: true });
 }
 
 // --- pass 3: positions (top-down) ---
@@ -291,25 +306,54 @@ function layoutPositions(ln: LayoutNode, x: number, y: number): void {
 
 // --- flatten to render commands (background fill first, then children) ---
 
-function emit(ln: LayoutNode, commands: RenderCommand[], regions: Region[], opacity = 1): void {
+const CLIP_INF = 1e7; // stand-in for "unbounded" on a non-clipped axis
+
+// Intersect the incoming clip with `box` on the axes a `clip` node bounds — the rect this node's descendants
+// are clipped to. Undefined incoming clip = unbounded on both axes.
+function clipRect(parent: Rect | undefined, box: Rect, cfg: { x?: boolean; y?: boolean }): Rect {
+    const l = Math.max(cfg.x ? box.x : -CLIP_INF, parent ? parent.x : -CLIP_INF);
+    const t = Math.max(cfg.y ? box.y : -CLIP_INF, parent ? parent.y : -CLIP_INF);
+    const r = Math.min(cfg.x ? box.x + box.w : CLIP_INF, parent ? parent.x + parent.w : CLIP_INF);
+    const b = Math.min(cfg.y ? box.y + box.h : CLIP_INF, parent ? parent.y + parent.h : CLIP_INF);
+    return { x: l, y: t, w: Math.max(0, r - l), h: Math.max(0, b - t) };
+}
+
+function emit(
+    ln: LayoutNode,
+    commands: RenderCommand[],
+    regions: Region[],
+    opacity = 1,
+    clip?: Rect,
+): void {
     const { node } = ln;
     const acc = node.opacity !== undefined ? opacity * node.opacity : opacity;
     const o = acc < 1 ? acc : undefined; // carried on each command in the subtree
     const box: Rect = { x: ln.x, y: ln.y, w: ln.w, h: ln.h };
     if (node.id)
         regions.push({ id: node.id, box, radius: node.fill?.radius ?? node.image?.radius });
-    if (node.fill) commands.push({ kind: "rect", box, fill: node.fill, id: node.id, opacity: o });
+    // This node's own paint carries the incoming (ancestor) clip; its descendants clip to its box too.
+    if (node.fill)
+        commands.push({ kind: "rect", box, fill: node.fill, id: node.id, opacity: o, clip });
     if (node.image)
-        commands.push({ kind: "image", box, image: node.image, id: node.id, opacity: o });
-    if (node.text) commands.push({ kind: "text", box, text: node.text, id: node.id, opacity: o });
+        commands.push({ kind: "image", box, image: node.image, id: node.id, opacity: o, clip });
+    if (node.text)
+        commands.push({ kind: "text", box, text: node.text, id: node.id, opacity: o, clip });
     if (node.surface)
-        commands.push({ kind: "surface", box, paint: node.surface.paint, id: node.id, opacity: o });
+        commands.push({
+            kind: "surface",
+            box,
+            paint: node.surface.paint,
+            id: node.id,
+            opacity: o,
+            clip,
+        });
+    const childClip = ln.clip ? clipRect(clip, box, ln.clip) : clip;
     // Flow first, then floats (ascending `z`) so an attached overlay paints on top of its parent's content.
-    for (const c of ln.children) if (!c.node.float) emit(c, commands, regions, acc);
+    for (const c of ln.children) if (!c.node.float) emit(c, commands, regions, acc, childClip);
     ln.children
         .filter((c) => c.node.float)
         .sort((a, b) => (a.node.float?.z ?? 0) - (b.node.float?.z ?? 0))
-        .forEach((c) => emit(c, commands, regions, acc));
+        .forEach((c) => emit(c, commands, regions, acc, childClip));
 }
 
 // Resolve a node tree into absolute-positioned paint commands + interaction regions (for nodes
@@ -338,7 +382,8 @@ export function layout(
 const EPS = 0.5;
 
 function shiftY(c: RenderCommand, dy: number): RenderCommand {
-    return { ...c, box: { ...c.box, y: c.box.y + dy } };
+    const box = { ...c.box, y: c.box.y + dy };
+    return c.clip ? { ...c, box, clip: { ...c.clip, y: c.clip.y + dy } } : { ...c, box };
 }
 
 export function fragment(

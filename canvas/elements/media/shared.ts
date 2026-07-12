@@ -70,6 +70,8 @@ export function imageLike(cfg: MediaConfig): ElementSpec<ImageData> {
                 step: 5,
                 unit: "%",
                 group: "Frame",
+                // Zoom crops in, which only reads against a cover fit; hide it for contain (sticker/illustration).
+                visibleWhen: (d) => ((d.fit as string) ?? cfg.fit) === "cover",
             },
         ],
     };

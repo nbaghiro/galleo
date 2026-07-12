@@ -124,7 +124,46 @@ const row = (kids: EngineNode[], w: number, gap = 0): EngineNode => ({
     ok("col height: grow fills the leftover", near(boxOf("b", r).h, 150));
 }
 
-// 8. floating: a badge lifted out of flow, aligned bottom-right, painted on top of the flow
+// 8. clip: a container clips its descendants to its box; its own paint stays unclipped
+{
+    const parent: EngineNode = {
+        w: fixed(100),
+        h: fixed(60),
+        clip: { x: true, y: true },
+        fill: { color: "#000" },
+        children: [{ id: "child", w: fixed(200), h: fixed(200), fill: { color: "#f00" } }],
+    };
+    const { commands } = layout(parent, { x: 0, y: 0, w: 100, h: 60 }, measure);
+    const child = commands.find((c) => c.id === "child");
+    ok(
+        "clip: overflowing child carries the parent's clip rect",
+        !!child?.clip &&
+            near(child.clip.x, 0) &&
+            near(child.clip.y, 0) &&
+            near(child.clip.w, 100) &&
+            near(child.clip.h, 60),
+    );
+    const own = commands.find((c) => c.kind === "rect" && near(c.box.w, 100) && !c.id);
+    ok("clip: the clipping node's own paint is unclipped", own?.clip === undefined);
+}
+
+// 8b. clip-on-overflow: a bounded (fixed-height) column clips content taller than its box
+{
+    const col: EngineNode = {
+        w: fixed(100),
+        h: fixed(50),
+        direction: "col",
+        children: [{ id: "tall", w: grow(), h: fixed(200), fill: { color: "#000" } }],
+    };
+    const { commands } = layout(col, { x: 0, y: 0, w: 100, h: 50 }, measure);
+    const tall = commands.find((c) => c.id === "tall");
+    ok(
+        "clip: a bounded column crops content taller than its frame",
+        !!tall?.clip && near(tall.clip.y, 0) && near(tall.clip.h, 50),
+    );
+}
+
+// 9. floating: a badge lifted out of flow, aligned bottom-right, painted on top of the flow
 {
     const parent: EngineNode = {
         w: fixed(200),

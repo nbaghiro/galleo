@@ -13,7 +13,6 @@ interface EmbedData {
 export const embedElement: ElementSpec<EmbedData> = {
     type: "embed",
     label: "Embed",
-    frame: true,
     category: "basic",
     tier: "interactive",
     create: () => ({ title: "Embedded link", url: "https://galleo.app" }),

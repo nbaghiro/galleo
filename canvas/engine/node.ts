@@ -139,6 +139,10 @@ export interface EngineNode {
     alignX?: Align;
     alignY?: Align;
     alignSelf?: Align; // overrides the parent's cross-axis alignment for this child
+    // Clip this node's descendants to its box on the given axes (Clay-style). Content that overflows the
+    // box is cut off rather than painted past it — for fixed/custom-aspect frames and (later) scroll regions.
+    // Inert until set. The engine carries the resolved clip rect on each affected command (`RenderCommand.clip`).
+    clip?: { x?: boolean; y?: boolean };
     // A floating child (Clay-style): laid out but lifted OUT of the parent's flex flow — it doesn't affect
     // siblings or the parent's fit size — then positioned within the parent box by x/y alignment + a dx/dy
     // offset, and painted on top of the parent's flow (higher `z` paints later). For element-attached
@@ -154,11 +158,20 @@ export interface EngineNode {
 
 // --- render output (flattened from the node tree) + interaction geometry ---
 
+// `clip`, when present, is the effective (ancestor-intersected) rectangle this command is clipped to — the
+// backends honor it (CSS clip-path / canvas clip). Absent = no clip.
 export type RenderCommand =
-    | { kind: "rect"; box: Rect; fill?: FillLeaf; id?: string; opacity?: number }
-    | { kind: "text"; box: Rect; text: TextLeaf; id?: string; opacity?: number }
-    | { kind: "image"; box: Rect; image: ImageLeaf; id?: string; opacity?: number }
-    | { kind: "surface"; box: Rect; paint: SurfaceLeaf["paint"]; id?: string; opacity?: number };
+    | { kind: "rect"; box: Rect; fill?: FillLeaf; id?: string; opacity?: number; clip?: Rect }
+    | { kind: "text"; box: Rect; text: TextLeaf; id?: string; opacity?: number; clip?: Rect }
+    | { kind: "image"; box: Rect; image: ImageLeaf; id?: string; opacity?: number; clip?: Rect }
+    | {
+          kind: "surface";
+          box: Rect;
+          paint: SurfaceLeaf["paint"];
+          id?: string;
+          opacity?: number;
+          clip?: Rect;
+      };
 
 // Interaction geometry: the final box of every node that carries an id (sections, cells, elements).
 // Separate from paint so selection/hit-testing/overlays don't depend on what was drawn.

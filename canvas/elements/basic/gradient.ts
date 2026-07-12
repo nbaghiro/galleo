@@ -13,7 +13,6 @@ interface GradientData {
 export const gradientElement: ElementSpec<GradientData> = {
     type: "gradient",
     label: "Gradient",
-    frame: true,
     category: "basic",
     tier: "primitive",
     create: () => ({ from: "#9a4f24", to: "#f4f0e8", angle: 135, height: 200 }),

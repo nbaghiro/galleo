@@ -113,6 +113,11 @@ export const cardElement: ElementSpec<CardData> = {
             step: 1,
             unit: "px",
             group: "Appearance",
+            // Only the solid + outline branches paint a rounded fill; plain/sideline/topline have no frame.
+            visibleWhen: (d) => {
+                const s = (d.style as string) ?? "solid";
+                return s === "solid" || s === "outline";
+            },
         },
         {
             key: "bg",

@@ -12,7 +12,6 @@ interface VideoData {
 export const videoElement: ElementSpec<VideoData> = {
     type: "video",
     label: "Video",
-    frame: true,
     category: "media",
     tier: "interactive",
     create: () => ({ url: "" }),

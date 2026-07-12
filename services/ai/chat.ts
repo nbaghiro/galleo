@@ -292,7 +292,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
     };
 
     const agent = new ToolLoopAgent({
-        model: resolveModel(defaultModelFor("chat")),
+        model: resolveModel(opts.model ?? defaultModelFor("chat")),
         instructions: chatSystem(input.context),
         tools,
         stopWhen: stepCountIs(6),

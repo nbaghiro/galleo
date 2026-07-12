@@ -71,6 +71,7 @@ function diagramSpec(
             surface: { paint: (g, box) => renderDiagram(g, box, d, ctx.theme) },
         }),
         resize: { height: { key: "height", min: 140, max: 440, step: 10 } },
+        bar: ["type", "palette"], // the two highest-value quick actions; items/links live in the panel grid
         controls: DIAGRAM_CONTROLS,
         skeleton,
     };

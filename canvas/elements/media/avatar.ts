@@ -43,9 +43,10 @@ export const avatarElement: ElementSpec<AvatarData> = {
     },
     resize: { width: false, height: { key: "size", min: 40, max: 240, step: 4 } },
     skeleton: (): EngineNode => dot(72),
+    // Size is driven by the resize handle (mirrors `icon`), so no redundant slider. Photo + ring on the bar.
+    bar: ["src", "ring"],
     controls: [
         { key: "src", label: "Photo", control: "media" },
-        { key: "size", label: "Size", control: "slider", min: 40, max: 240, step: 4, unit: "px" },
         { key: "ring", label: "Accent ring", control: "toggle", group: "Appearance" },
     ],
 };

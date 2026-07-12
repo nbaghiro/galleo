@@ -4,7 +4,7 @@ import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from
 import { previewContentProfile, resolveProfile, slideFrame } from "@engine/profile";
 import { resolveTheme } from "@themes";
 import { paintSectionStack } from "@canvas/render/backends";
-import { slideElement } from "@canvas/render/present";
+import { slideElement, sectionSlideCount } from "@canvas/render/present";
 import { backdropHostStyle, SlideProgress } from "./section";
 import { FloatingBar } from "./overlay";
 import { IconButton } from "./button";
@@ -28,7 +28,25 @@ export const PresentSurface: Component<{
     const tokens = createMemo(() => resolveTheme(props.artifact.theme).tokens);
     const profile = createMemo(() => resolveProfile(props.artifact.format));
     const paged = createMemo(() => profile().kind === "paged");
-    const total = (): number => props.artifact.sections.length;
+    // In a paged deck a tall section spans several 16:9 slides (paginated); build the per-section slide
+    // counts and map a flat slide index ↔ (section, page). doc/web scroll as one surface (no slide list).
+    const slideCounts = createMemo(() =>
+        paged()
+            ? props.artifact.sections.map((s) => sectionSlideCount(s, tokens(), profile()))
+            : [],
+    );
+    const total = (): number =>
+        paged() ? slideCounts().reduce((a, b) => a + b, 0) : props.artifact.sections.length;
+    const locate = (flat: number): { si: number; page: number } => {
+        const counts = slideCounts();
+        let n = Math.max(0, flat);
+        for (let i = 0; i < counts.length; i++) {
+            if (n < counts[i]!) return { si: i, page: n };
+            n -= counts[i]!;
+        }
+        const last = counts.length - 1;
+        return { si: Math.max(0, last), page: Math.max(0, (counts[last] ?? 1) - 1) };
+    };
     const clamp = (i: number): number => Math.max(0, Math.min(total() - 1, i));
     const next = (): void => {
         setIndex((i) => clamp(i + 1));
@@ -36,13 +54,20 @@ export const PresentSurface: Component<{
     const prev = (): void => {
         setIndex((i) => clamp(i - 1));
     };
+    // Keep the index in range if the slide count changes mid-present (e.g. a theme swap re-paginates).
+    createEffect(() => {
+        const t = total();
+        setIndex((i) => Math.max(0, Math.min(t - 1, i)));
+    });
 
-    // deck: the current section as a scaled 16:9 slide. doc/web: all sections stacked + scrollable.
+    // deck: the current slide (a section, or one page of a tall paginated section). doc/web: all stacked.
     const renderPaged = (): void => {
-        const section = props.artifact.sections[index()];
-        if (!host || !section) return;
+        if (!host) return;
+        const { si, page } = locate(index());
+        const section = props.artifact.sections[si];
+        if (!section) return;
         const { w, h } = slideFrame(section, profile());
-        const slide = slideElement(section, tokens(), profile());
+        const slide = slideElement(section, tokens(), profile(), page);
         const k = Math.min((window.innerWidth - 24) / w, (window.innerHeight - 24) / h);
         slide.style.transform = `scale(${k})`;
         slide.style.transformOrigin = "center center";

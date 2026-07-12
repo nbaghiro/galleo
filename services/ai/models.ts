@@ -100,6 +100,15 @@ export const MODELS: readonly ModelInfo[] = [
         json: true,
         vision: true,
     },
+    {
+        id: "google:gemini-3.5-flash",
+        provider: "google",
+        model: "gemini-3.5-flash",
+        label: "Gemini 3.5 Flash",
+        contextWindow: 1_000_000,
+        json: true,
+        vision: true,
+    },
     // xAI
     {
         id: "xai:grok-4",

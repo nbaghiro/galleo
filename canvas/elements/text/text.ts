@@ -80,13 +80,8 @@ export const textElement: ElementSpec<TextData> = {
         return { w: grow(), h: fit(), text };
     },
     controls: [
-        {
-            key: "text",
-            label: "Content",
-            control: "text",
-            multiline: true,
-            placeholder: "Type text…",
-        },
+        // No "Content" control: text is richText (panel hidden) and edited inline on the canvas, so a
+        // docked textarea for `text` renders nowhere — it was dead. Style/align/color drive the bar.
         {
             key: "style",
             label: "Style",

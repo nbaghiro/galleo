@@ -18,6 +18,7 @@
         "api": "tsx watch services/server.ts",
         "api:watch": "tsx watch services/server.ts",
         "seed": "tsx services/seed.ts",
+        "ai:eval": "tsx services/ai/eval/harness.ts",
         "db:push": "drizzle-kit push",
         "db:generate": "drizzle-kit generate",
         "db:migrate": "drizzle-kit migrate"

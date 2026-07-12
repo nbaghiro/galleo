@@ -219,6 +219,7 @@ export interface RunOpts {
     signal?: AbortSignal;
     image?: ImageOptions; // how images resolve — stock (default) vs ai + its generator; set by the route
     workspace?: WorkspaceReader; // read access to the user's library (find / read artifacts); set by the route
+    model?: string; // override the task's default model (registry id) — used by the eval harness / A/B
 }
 
 // Dispatch a turn to its capability — the DIRECT surface over the tool registry. `generate` runs through

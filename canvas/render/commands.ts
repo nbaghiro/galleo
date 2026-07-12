@@ -15,8 +15,8 @@ import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
 import { composeSection } from "@elements/compose";
 import { skeletonize } from "@elements/spec";
-import { layout } from "@engine/layout";
-import { DEFAULT_PROFILE } from "@engine/profile";
+import { fragment, layout } from "@engine/layout";
+import { DEFAULT_PROFILE, slideFrame } from "@engine/profile";
 import { fixed, grow } from "@model/geometry";
 import { DEFAULT_THEME, mix } from "@themes";
 
@@ -109,9 +109,10 @@ function coverFitMedia(root: EngineNode): { containers: EngineNode[]; media: Eng
     for (const flow of flows) {
         const cells = (flow.children ?? []).filter((c) => c.id?.startsWith("el:"));
         const mediaCells = cells.filter((c) => findAspectMedia(c));
-        // Need a non-media cell to set the height and a media cell to flex; skip all-media / all-text flows.
-        if (cells.length < 2 || mediaCells.length === 0 || mediaCells.length === cells.length)
-            continue;
+        // Cover-fit only a SINGLE dominant media (image/video) beside or under text. A section with several
+        // stacked media is better PAGINATED into multiple full-size slides (sectionSlides) than crammed into
+        // one, so leave it tall here and let pagination handle it.
+        if (cells.length < 2 || mediaCells.length !== 1) continue;
         for (const cell of mediaCells) {
             const m = findAspectMedia(cell)!;
             cell.h = grow();
@@ -177,6 +178,32 @@ export function layoutSlide(
     const { node, targetH } = prepareSlideNode(section, w, h, measure, theme, format);
     const { commands } = layout(node, { x: 0, y: 0, w, h: targetH }, measure);
     return { commands, height: targetH };
+}
+
+export interface SlidePage {
+    commands: RenderCommand[];
+    w: number;
+    h: number;
+    contentH: number; // height the commands span within [w × ?]; caller scales it to fit h (== h for a page)
+}
+
+const PAGINATE_ABOVE = 1.2; // a section taller than 1.2× its frame paginates; below, it scales onto one slide
+
+// The 16:9 slides a section renders as in a paged deck: ONE slide (scaled to fit when only slightly tall),
+// or — for a genuinely tall section (many stacked media/blocks that can't cover-fit) — SEVERAL full-size
+// slides paginated from the content flow via fragment(), each a readable window instead of one crammed
+// slide. Each page carries its commands + frame + the content height to fit (== h for a paginated window;
+// == the natural height for the single scaled slide). Present + export both render from this.
+export function sectionSlides(
+    section: Section,
+    theme: Tokens = DEFAULT_THEME.tokens,
+    format: FormatDescriptor = DEFAULT_PROFILE,
+): SlidePage[] {
+    const { w, h } = slideFrame(section, format);
+    const { node, targetH } = prepareSlideNode(section, w, h, measureText, theme, format);
+    const { commands } = layout(node, { x: 0, y: 0, w, h: targetH }, measureText);
+    if (targetH <= h * PAGINATE_ABOVE) return [{ commands, w, h, contentH: targetH }];
+    return fragment(commands, targetH, h).map((cmds) => ({ commands: cmds, w, h, contentH: h }));
 }
 
 // The same slide as a structural ghost — the "generating" state at slide geometry (Spotlight strip).

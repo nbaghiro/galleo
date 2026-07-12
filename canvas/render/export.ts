@@ -3,9 +3,9 @@ import type { ArtifactContent } from "@model/artifact";
 import type { Tokens } from "@themes";
 import { PDFDocument } from "pdf-lib";
 import { fragment } from "@engine/layout";
-import { resolveProfile, slideFrame } from "@engine/profile";
-import { renderSlide, renderToCanvas, paint } from "./backends";
-import { measureText, layoutSection } from "./commands";
+import { resolveProfile } from "@engine/profile";
+import { renderSlidePage, renderToCanvas, paint } from "./backends";
+import { measureText, layoutSection, sectionSlides } from "./commands";
 
 // Export an artifact to PDF / PNG / print — editor-free: every entry point takes the artifact + its
 // resolved theme tokens, so the studio, a present surface, or a publish page can all export the same way.
@@ -72,14 +72,16 @@ async function exportSlidePdf(
     const profile = resolveProfile(artifact.format);
     const pdf = await PDFDocument.create();
     for (const section of artifact.sections) {
-        const { w, h } = slideFrame(section, profile);
-        const { canvas } = await renderSlide(section, tk, { w, h, scale: SCALE });
-        const cx = canvas.getContext("2d");
-        if (brand && cx) stampBrand(cx, canvas.width, canvas.height, SCALE);
-        const img = await pdf.embedPng(await canvasPng(canvas));
-        const pageH = Math.round((PAGE_W * h) / w); // PDF page matches the section's aspect
-        const page = pdf.addPage([PAGE_W, pageH]);
-        page.drawImage(img, { x: 0, y: 0, width: PAGE_W, height: pageH });
+        // A tall section paginates into several 16:9 pages; a short one is a single page.
+        for (const slide of sectionSlides(section, tk, profile)) {
+            const canvas = await renderSlidePage(slide, tk.bg, SCALE);
+            const cx = canvas.getContext("2d");
+            if (brand && cx) stampBrand(cx, canvas.width, canvas.height, SCALE);
+            const img = await pdf.embedPng(await canvasPng(canvas));
+            const pageH = Math.round((PAGE_W * slide.h) / slide.w); // PDF page matches the slide's aspect
+            const page = pdf.addPage([PAGE_W, pageH]);
+            page.drawImage(img, { x: 0, y: 0, width: PAGE_W, height: pageH });
+        }
     }
     download(await pdf.save(), "galleo.pdf", "application/pdf");
 }
@@ -139,21 +141,20 @@ export async function exportDeckPng(
     opts?: ExportOptions,
 ): Promise<void> {
     const profile = resolveProfile(artifact.format);
-    const sections = artifact.sections;
-    const frames = sections.map((s) => slideFrame(s, profile));
-    const outW = Math.max(SLIDE_W, ...frames.map((f) => f.w));
-    const totalH = frames.reduce((sum, f) => sum + f.h, 0);
+    // Every 16:9 slide the deck produces (tall sections paginate into several), stacked into one tall PNG.
+    const slides = artifact.sections.flatMap((s) => sectionSlides(s, tk, profile));
+    const outW = Math.max(SLIDE_W, ...slides.map((s) => s.w));
+    const totalH = slides.reduce((sum, s) => sum + s.h, 0);
     const out = document.createElement("canvas");
     out.width = outW * SCALE;
     out.height = totalH * SCALE;
     const cx = out.getContext("2d");
     if (!cx) return;
     let y = 0;
-    for (let i = 0; i < sections.length; i++) {
-        const f = frames[i]!;
-        const { canvas } = await renderSlide(sections[i]!, tk, { w: f.w, h: f.h, scale: SCALE });
+    for (const slide of slides) {
+        const canvas = await renderSlidePage(slide, tk.bg, SCALE);
         cx.drawImage(canvas, 0, y * SCALE);
-        y += f.h;
+        y += slide.h;
         if (opts?.brand) stampBrand(cx, out.width, y * SCALE, SCALE);
     }
     download(await canvasPng(out), "galleo-deck.png", "image/png");
