@@ -1,22 +1,53 @@
-// The agent-quality eval suite — a spread of real chat requests with the tool/block behavior each SHOULD
-// produce, so a model's tool routing (not just its prose) can be scored objectively and compared. Covers
-// the read spine, edit-a-target, management, generation, repurpose, guarded share/export, editor-surface
-// refine, and — crucially — RESTRAINT (conversational asks that must NOT trigger a tool). Grounded in the
-// demo library (Series A Deck, Newsletter, Aria …); run the seed first so `find-artifacts` resolves.
+// The agent-quality eval suite — real chat requests with the behavior each SHOULD produce, so a model's tool
+// routing (and, with --judge, its output quality) can be scored objectively and compared. Covers the read
+// spine, edit-a-target, management, generation, repurpose, guarded share/export, editor-surface refine,
+// RESTRAINT (asks that must NOT trigger a tool), and MULTI-TURN conversations. Each case asserts not just
+// WHICH tools/blocks fired but their ARGUMENTS (right artifact / folder / surface / title). Grounded in the
+// demo library (Series A Deck, Newsletter, Aria …); run `pnpm seed` first so `find-artifacts` resolves.
 
 export type EvalSurface = "library" | "editor";
 
-export interface EvalCase {
-    id: string;
-    category: string;
-    surface: EvalSurface;
+// Argument assertions against the emitted blocks — the block content carries the tool's real arguments, so
+// this verifies the agent acted on the RIGHT thing, not just that it called the right tool. String targets
+// (`*Artifact`, `*Folder`) are resolved to real ids from the demo library at score time.
+export interface ExpectArgs {
+    targetArtifact?: string; // proposal.targetArtifactId === the artifact whose title contains this
+    actionKind?: string; // action.kind
+    actionArtifact?: string; // action.id === the artifact whose title contains this
+    actionFolder?: string; // move → action.folderId === the folder with this name
+    actionTitleContains?: string; // rename → action.title contains this
+    actionName?: string; // create-folder → action.name contains this
+    briefSurface?: string; // brief.surface
+    briefSource?: string; // repurpose → brief.sourceArtifactId === the artifact whose title contains this
+}
+
+// An LLM-judge rubric for output QUALITY (only runs under --judge). Scores 1–5; below `min` fails the step.
+export type JudgeWhat = "reply" | "proposalSection" | "brief";
+export interface JudgeSpec {
+    what: JudgeWhat; // what to judge: the text reply · the proposed section's copy · the generation brief
+    rubric: string; // what "good" means — scored against this + the user's request
+    min?: number; // pass threshold (default 3)
+}
+
+// One conversational turn's expectations. A case is either single-turn (these fields inline) or multi-turn
+// (a `turns` array of these).
+export interface Step {
     message: string;
-    intent: string; // what a correct run does
     expectTools?: string[]; // ALL must be called (any order)
     forbidTools?: string[]; // NONE may be called
     expectBlocks?: string[]; // block types that must appear (proposal/brief/action/artifacts/templates/…)
     forbidBlocks?: string[]; // block types that must NOT appear
     conversational?: boolean; // pass ⇒ no tools AND no blocks (pure text answer)
+    expectArgs?: ExpectArgs; // argument assertions on the emitted blocks
+    judge?: JudgeSpec; // output-quality rubric (only under --judge)
+}
+
+export interface EvalCase extends Partial<Step> {
+    id: string;
+    category: string;
+    surface: EvalSurface;
+    intent: string; // what a correct run does
+    turns?: Step[]; // multi-turn: a sequence of steps (threaded history + applied proposals); overrides `message`
 }
 
 export const EVAL_CASES: EvalCase[] = [
@@ -29,6 +60,10 @@ export const EVAL_CASES: EvalCase[] = [
         intent: "find it, read it, summarize from real content",
         expectTools: ["find-artifacts", "read-artifact"],
         forbidBlocks: ["proposal", "action", "brief"],
+        judge: {
+            what: "reply",
+            rubric: "A crisp ≤2-sentence summary of the Series A deck, grounded in its real content — no invented facts, no filler.",
+        },
     },
     {
         id: "read-topic",
@@ -38,6 +73,10 @@ export const EVAL_CASES: EvalCase[] = [
         intent: "find + read Aria, answer from content",
         expectTools: ["find-artifacts", "read-artifact"],
         forbidBlocks: ["proposal", "action", "brief"],
+        judge: {
+            what: "reply",
+            rubric: "Accurately describes what the Aria artifact is about, grounded in its content (not a guess from the title).",
+        },
     },
     {
         id: "read-search",
@@ -48,79 +87,103 @@ export const EVAL_CASES: EvalCase[] = [
         expectTools: ["find-artifacts"],
         forbidBlocks: ["proposal", "action", "brief"],
     },
-    // ---- edit a named artifact ----
+    // ---- edit a named artifact (with arg + quality checks) ----
     {
         id: "edit-title",
         category: "edit-target",
         surface: "library",
         message: "Make the title/opening of my Series A deck punchier.",
-        intent: "find → read → edit-artifact → a proposal",
+        intent: "find → read → edit-artifact on the RIGHT deck → a good, punchier proposal",
         expectTools: ["find-artifacts", "read-artifact", "edit-artifact"],
         expectBlocks: ["proposal"],
+        expectArgs: { targetArtifact: "Series A" },
+        judge: {
+            what: "proposalSection",
+            rubric: "The rewritten opening is punchier — shorter, more confident, higher-impact — while preserving the same meaning. Not generic filler or lorem.",
+        },
     },
     {
         id: "edit-formal",
         category: "edit-target",
         surface: "library",
         message: "Rewrite the opening section of my Series A deck to sound more formal.",
-        intent: "find → read → edit-artifact → a proposal",
+        intent: "find → read → edit-artifact on the RIGHT deck → a more-formal proposal",
         expectTools: ["find-artifacts", "read-artifact", "edit-artifact"],
         expectBlocks: ["proposal"],
+        expectArgs: { targetArtifact: "Series A" },
+        judge: {
+            what: "proposalSection",
+            rubric: "The rewritten opening reads more formal/professional in tone while keeping the same substance and specifics.",
+        },
     },
-    // ---- management ----
+    // ---- management (with arg checks) ----
     {
         id: "rename",
         category: "manage",
         surface: "library",
         message: "Rename my Newsletter to Weekly Digest.",
-        intent: "find → rename-artifact → action",
+        intent: "find → rename the RIGHT artifact to the RIGHT title → action",
         expectTools: ["find-artifacts", "rename-artifact"],
         expectBlocks: ["action"],
+        expectArgs: {
+            actionKind: "rename",
+            actionArtifact: "Newsletter",
+            actionTitleContains: "Weekly Digest",
+        },
     },
     {
         id: "move",
         category: "manage",
         surface: "library",
         message: "Move my Series A deck into the Personal folder.",
-        intent: "find → move-artifact (resolve folder id) → action",
+        intent: "find → move the RIGHT artifact into the RIGHT folder → action",
         expectTools: ["find-artifacts", "move-artifact"],
         expectBlocks: ["action"],
+        expectArgs: { actionKind: "move", actionArtifact: "Series A", actionFolder: "Personal" },
     },
     {
         id: "duplicate",
         category: "manage",
         surface: "library",
         message: "Duplicate my Series A deck so I can make a variant.",
-        intent: "find → duplicate-artifact → action",
+        intent: "find → duplicate the RIGHT artifact → action",
         expectTools: ["find-artifacts", "duplicate-artifact"],
         expectBlocks: ["action"],
+        expectArgs: { actionKind: "duplicate", actionArtifact: "Series A" },
     },
     {
         id: "trash",
         category: "manage-destructive",
         surface: "library",
         message: "Delete my Newsletter.",
-        intent: "find → trash-artifact (client confirms) → action",
+        intent: "find → trash the RIGHT artifact (client confirms) → action",
         expectTools: ["find-artifacts", "trash-artifact"],
         expectBlocks: ["action"],
+        expectArgs: { actionKind: "trash", actionArtifact: "Newsletter" },
     },
     {
         id: "create-folder",
         category: "manage",
         surface: "library",
         message: "Create a new folder called Clients.",
-        intent: "create-folder → action",
+        intent: "create-folder with the RIGHT name → action",
         expectTools: ["create-folder"],
         expectBlocks: ["action"],
+        expectArgs: { actionKind: "create-folder", actionName: "Clients" },
     },
-    // ---- generation + repurpose ----
+    // ---- generation + repurpose (with arg + quality checks) ----
     {
         id: "generate",
         category: "generate",
         surface: "library",
         message: "Make me a short deck about a coffee subscription startup for busy professionals.",
-        intent: "propose-generation → a brief card",
+        intent: "propose-generation → a deck brief",
         expectBlocks: ["brief"],
+        expectArgs: { briefSurface: "deck" },
+        judge: {
+            what: "brief",
+            rubric: "A tight, specific one-line brief for the coffee-subscription deck — subject + angle + audience (busy professionals) — not a vague restatement.",
+        },
     },
     {
         id: "generate-vague",
@@ -135,9 +198,10 @@ export const EVAL_CASES: EvalCase[] = [
         category: "generate",
         surface: "library",
         message: "Turn my Series A deck into a one-page document.",
-        intent: "find → propose-generation with sourceArtifactId + doc surface",
+        intent: "find → propose-generation grounded in the RIGHT deck, as a doc",
         expectTools: ["find-artifacts"],
         expectBlocks: ["brief"],
+        expectArgs: { briefSurface: "doc", briefSource: "Series A" },
     },
     {
         id: "templates",
@@ -154,18 +218,20 @@ export const EVAL_CASES: EvalCase[] = [
         category: "guarded",
         surface: "library",
         message: "Share my Series A deck with a colleague.",
-        intent: "find → share-artifact (routes to the share panel) → action",
+        intent: "find → share the RIGHT artifact (routes to the share panel) → action",
         expectTools: ["find-artifacts", "share-artifact"],
         expectBlocks: ["action"],
+        expectArgs: { actionKind: "share", actionArtifact: "Series A" },
     },
     {
         id: "export",
         category: "guarded",
         surface: "library",
         message: "Export my Series A deck as a PDF.",
-        intent: "find → export-artifact (routes to the editor) → action",
+        intent: "find → export the RIGHT artifact (routes to the editor) → action",
         expectTools: ["find-artifacts", "export-artifact"],
         expectBlocks: ["action"],
+        expectArgs: { actionKind: "export", actionArtifact: "Series A" },
     },
     // ---- restraint (must NOT call a tool) ----
     {
@@ -227,5 +293,66 @@ export const EVAL_CASES: EvalCase[] = [
         intent: "set-theme → proposal",
         expectTools: ["set-theme"],
         expectBlocks: ["proposal"],
+    },
+    // ---- multi-turn conversations (threaded history + applied proposals) ----
+    {
+        id: "mt-refine-chain",
+        category: "multi-turn",
+        surface: "editor",
+        intent: "a refine sequence on one open artifact: add a section, reformat, restyle — each still routes right",
+        turns: [
+            {
+                message: "Add a section on the market size.",
+                expectTools: ["add-section"],
+                expectBlocks: ["proposal"],
+            },
+            {
+                message: "Good. Now turn the whole thing into a document.",
+                expectTools: ["set-format"],
+                expectBlocks: ["proposal"],
+            },
+            {
+                message: "And give it a darker theme.",
+                expectTools: ["set-theme"],
+                expectBlocks: ["proposal"],
+            },
+        ],
+    },
+    {
+        id: "mt-read-then-edit",
+        category: "multi-turn",
+        surface: "library",
+        intent: "read an artifact, then edit it using the reference from earlier in the conversation",
+        turns: [
+            {
+                message: "What's my Series A deck about?",
+                expectTools: ["find-artifacts", "read-artifact"],
+                forbidBlocks: ["proposal", "action"],
+            },
+            {
+                message: "Make its opening punchier.",
+                expectTools: ["edit-artifact"],
+                expectBlocks: ["proposal"],
+                expectArgs: { targetArtifact: "Series A" },
+            },
+        ],
+    },
+    {
+        id: "mt-ambiguous-clarify",
+        category: "multi-turn",
+        surface: "library",
+        intent: "an ambiguous ask — clarify first (no action), then act once the target is named",
+        turns: [
+            {
+                message: "Can you fix my deck?",
+                forbidBlocks: ["proposal", "action", "brief"],
+            },
+            {
+                message: "The Series A one — tighten the opening.",
+                expectTools: ["edit-artifact"],
+                expectBlocks: ["proposal"],
+                expectArgs: { targetArtifact: "Series A" },
+            },
+        ],
     },
 ];

@@ -1,21 +1,28 @@
 import "dotenv/config";
 import { writeFileSync } from "fs";
 import { and, desc, eq, isNull } from "drizzle-orm";
-import type { ChatContext, ChatInput, ChatLibrary } from "@model/ai";
-import type { ArtifactContent } from "@model/artifact";
+import { z } from "zod";
+import { generateObject } from "ai";
+import type { ChatBlock, ChatContext, ChatInput, ChatLibrary, ChatTurnRef } from "@model/ai";
+import { applyPatch } from "@model/ai";
+import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import { limitsFor } from "@model/billing";
 import { db, schema } from "../../schema";
 import { makeWorkspaceReader } from "../../api/workspace-reader";
+import { resolveModel } from "../provider";
 import { runChat } from "../chat";
-import { EVAL_CASES, type EvalCase } from "./cases";
+import { EVAL_CASES, type EvalCase, type Step } from "./cases";
 
 // The agent-quality eval harness — runs every case in cases.ts through the REAL runChat agent (real tools,
-// real DB) against one or more models, N times each, and scores tool routing objectively (expected tools +
-// blocks present, forbidden ones absent, restraint cases tool-free). Reports per-model pass rate, latency,
-// and per-case variance so a model switch is a measured decision, not a vibe.
+// real DB) against one or more models, N times each, and scores:
+//   • tool routing   — expected tools/blocks present, forbidden absent, restraint cases tool-free
+//   • arguments      — the emitted blocks acted on the RIGHT artifact / folder / surface / title
+//   • quality (--judge) — an LLM judge scores the reply / proposed section / brief 1–5 against a rubric
+//   • multi-turn     — conversations run in sequence with threaded history + applied proposals
+// Errors (timeouts / rate limits) are tracked SEPARATELY from routing failures, not counted as misses.
 //
-//   pnpm ai:eval                      # defaults: 3 runs, 2.5-pro vs 3.5-flash, all cases
-//   pnpm ai:eval --runs=3 --models=google:gemini-2.5-pro,google:gemini-3.5-flash --filter=edit --out=report.md
+//   pnpm ai:eval                                            # 3 runs, 2.5-pro vs 3.5-flash, routing only
+//   pnpm ai:eval --runs=5 --judge --filter=edit --out=r.md  # + quality judging, filtered, written to file
 //
 // Requires the demo library to be seeded (find-artifacts resolves against it).
 
@@ -38,17 +45,22 @@ const MODELS = arg("models", "google:gemini-2.5-pro,google:gemini-3.5-flash")
 const FILTER = arg("filter", "");
 const CONCURRENCY = Math.max(1, parseInt(arg("concurrency", "4"), 10));
 const OUT = arg("out", "");
+const JUDGE = process.argv.includes("--judge");
+const JUDGE_MODEL = arg("judge-model", "google:gemini-2.5-flash");
 const shortModel = (id: string): string => id.split(":").pop() ?? id;
 
 const fmtLabel = (id: string): string => (id === "web" ? "Site" : id === "doc" ? "Doc" : "Deck");
+const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 
-// ---- environment: the demo workspace, its library summary, and a sample open artifact ----
+// ---- environment: the demo workspace, its library, a sample open artifact, + id resolvers ----
 interface Env {
     workspace: ReturnType<typeof makeWorkspaceReader>;
     library: ChatLibrary;
     sample: ArtifactContent;
     plan: string;
     credits: { remaining: number; limit: number };
+    artifactId(titleSubstr: string): string | undefined;
+    folderId(name: string): string | undefined;
 }
 
 async function loadEnv(): Promise<Env> {
@@ -96,42 +108,32 @@ async function loadEnv(): Promise<Env> {
         sample,
         plan: ws.plan,
         credits: { remaining: Math.max(0, limit - ws.aiCreditsUsed), limit },
+        artifactId: (sub) =>
+            rows.find((r) => r.title.toLowerCase().includes(sub.toLowerCase()))?.id,
+        folderId: (name) => flds.find((f) => f.name.toLowerCase() === name.toLowerCase())?.id,
     };
 }
 
-// ---- run + score one case ----
-interface RunResult {
-    pass: boolean;
-    reasons: string[];
-    ms: number;
+// ---- one turn: run runChat, capture tools + full blocks + reply text ----
+interface Turn {
     tools: string[];
-    blocks: string[];
+    blocks: ChatBlock[];
+    reply: string;
+    ms: number;
     error?: string;
 }
 
-function score(c: EvalCase, tools: string[], blocks: string[]): string[] {
-    const reasons: string[] = [];
-    const T = new Set(tools);
-    const B = new Set(blocks);
-    if (c.conversational) {
-        if (tools.length) reasons.push(`should be tool-free, called: ${tools.join(", ")}`);
-        if (blocks.length) reasons.push(`should be block-free, emitted: ${blocks.join(", ")}`);
-    }
-    for (const t of c.expectTools ?? []) if (!T.has(t)) reasons.push(`missing tool ${t}`);
-    for (const t of c.forbidTools ?? []) if (T.has(t)) reasons.push(`forbidden tool ${t}`);
-    for (const b of c.expectBlocks ?? []) if (!B.has(b)) reasons.push(`missing block ${b}`);
-    for (const b of c.forbidBlocks ?? []) if (B.has(b)) reasons.push(`forbidden block ${b}`);
-    return reasons;
-}
-
-async function runOne(model: string, c: EvalCase, env: Env): Promise<RunResult> {
-    const context: ChatContext =
-        c.surface === "editor"
-            ? { surface: "editor", content: env.sample, plan: env.plan, credits: env.credits }
-            : { surface: "library", library: env.library, plan: env.plan, credits: env.credits };
-    const input: ChatInput = { message: c.message, context };
+async function runTurn(
+    model: string,
+    message: string,
+    context: ChatContext,
+    history: ChatTurnRef[],
+    env: Env,
+): Promise<Turn> {
+    const input: ChatInput = { message, context, history };
     const tools: string[] = [];
-    const blocks: string[] = [];
+    const blocks: ChatBlock[] = [];
+    let reply = "";
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 150_000);
     const t0 = Date.now();
@@ -142,22 +144,191 @@ async function runOne(model: string, c: EvalCase, env: Env): Promise<RunResult> 
             signal: ctrl.signal,
         })) {
             if (ev.type === "chat.tool") tools.push(ev.tool);
-            else if (ev.type === "chat.block") blocks.push(ev.block.type);
+            else if (ev.type === "chat.block") blocks.push(ev.block);
+            else if (ev.type === "chat.text") reply += ev.delta;
         }
     } catch (e) {
         clearTimeout(timer);
         return {
-            pass: false,
-            reasons: [`error: ${e instanceof Error ? e.message : String(e)}`],
-            ms: Date.now() - t0,
             tools,
             blocks,
+            reply,
+            ms: Date.now() - t0,
             error: e instanceof Error ? e.message : String(e),
         };
     }
     clearTimeout(timer);
-    const reasons = score(c, tools, blocks);
-    return { pass: reasons.length === 0, reasons, ms: Date.now() - t0, tools, blocks };
+    return { tools, blocks, reply, ms: Date.now() - t0 };
+}
+
+// ---- scoring: routing + arguments ----
+const first = <T extends ChatBlock["type"]>(
+    blocks: ChatBlock[],
+    type: T,
+): Extract<ChatBlock, { type: T }> | undefined =>
+    blocks.find((b): b is Extract<ChatBlock, { type: T }> => b.type === type);
+
+function score(step: Step, tools: string[], blocks: ChatBlock[], env: Env): string[] {
+    const reasons: string[] = [];
+    const T = new Set(tools);
+    const types = new Set<string>(blocks.map((b) => b.type));
+    if (step.conversational) {
+        if (tools.length) reasons.push(`should be tool-free, called: ${tools.join(", ")}`);
+        if (blocks.length) reasons.push(`should be block-free, emitted: ${[...types].join(", ")}`);
+    }
+    for (const t of step.expectTools ?? []) if (!T.has(t)) reasons.push(`missing tool ${t}`);
+    for (const t of step.forbidTools ?? []) if (T.has(t)) reasons.push(`forbidden tool ${t}`);
+    for (const b of step.expectBlocks ?? []) if (!types.has(b)) reasons.push(`missing block ${b}`);
+    for (const b of step.forbidBlocks ?? []) if (types.has(b)) reasons.push(`forbidden block ${b}`);
+
+    const a = step.expectArgs;
+    if (a) {
+        if (a.targetArtifact) {
+            const p = first(blocks, "proposal");
+            const want = env.artifactId(a.targetArtifact);
+            if (!p) reasons.push(`no proposal to check target`);
+            else if (p.targetArtifactId !== want)
+                reasons.push(`wrong target artifact (want "${a.targetArtifact}")`);
+        }
+        if (
+            a.actionKind ||
+            a.actionArtifact ||
+            a.actionFolder ||
+            a.actionTitleContains ||
+            a.actionName
+        ) {
+            const act = first(blocks, "action")?.action;
+            if (!act) reasons.push(`no action block`);
+            else {
+                if (a.actionKind && act.kind !== a.actionKind)
+                    reasons.push(`wrong action (${act.kind} ≠ ${a.actionKind})`);
+                if (a.actionArtifact && "id" in act) {
+                    if (act.id !== env.artifactId(a.actionArtifact))
+                        reasons.push(`action on wrong artifact (want "${a.actionArtifact}")`);
+                }
+                if (a.actionFolder && act.kind === "move") {
+                    if (act.folderId !== env.folderId(a.actionFolder))
+                        reasons.push(`wrong folder (want "${a.actionFolder}")`);
+                }
+                if (a.actionTitleContains && act.kind === "rename") {
+                    if (!act.title.toLowerCase().includes(a.actionTitleContains.toLowerCase()))
+                        reasons.push(`wrong new title (want "${a.actionTitleContains}")`);
+                }
+                if (a.actionName && act.kind === "create-folder") {
+                    if (!act.name.toLowerCase().includes(a.actionName.toLowerCase()))
+                        reasons.push(`wrong folder name (want "${a.actionName}")`);
+                }
+            }
+        }
+        if (a.briefSurface || a.briefSource) {
+            const b = first(blocks, "brief")?.brief;
+            if (!b) reasons.push(`no brief block`);
+            else {
+                if (a.briefSurface && b.surface !== a.briefSurface)
+                    reasons.push(`wrong surface (${b.surface} ≠ ${a.briefSurface})`);
+                if (a.briefSource && b.sourceArtifactId !== env.artifactId(a.briefSource))
+                    reasons.push(`wrong/absent source artifact (want "${a.briefSource}")`);
+            }
+        }
+    }
+    return reasons;
+}
+
+// ---- LLM judge (only under --judge): score output quality 1–5 against a rubric ----
+function sectionText(section: Section): string {
+    const parts: string[] = [];
+    const visit = (el?: ElementInstance): void => {
+        if (!el) return;
+        const d = el.data as { text?: string; children?: ElementInstance[] };
+        if (typeof d.text === "string" && d.text.trim()) parts.push(d.text.trim());
+        for (const k of d.children ?? []) visit(k);
+    };
+    visit(section.root);
+    return parts.join("\n");
+}
+
+const JUDGE_SCHEMA = z.object({ score: z.number().min(1).max(5), reason: z.string() });
+
+async function runJudge(step: Step, turn: Turn): Promise<{ score: number; reason: string }> {
+    const j = step.judge!;
+    let output = "";
+    if (j.what === "reply") output = turn.reply.trim();
+    else if (j.what === "brief") output = first(turn.blocks, "brief")?.brief.prompt ?? "";
+    else {
+        const p = first(turn.blocks, "proposal");
+        output = p?.preview ? sectionText(p.preview) : "";
+    }
+    if (!output.trim()) return { score: 1, reason: "no output to judge" };
+    const { object } = await generateObject({
+        model: resolveModel(JUDGE_MODEL),
+        schema: JUDGE_SCHEMA,
+        system: "You are a strict evaluator. Score the OUTPUT from 1–5 on how well it satisfies the RUBRIC for the user's REQUEST (5 = excellent, 1 = fails). Judge only what's asked; be terse in `reason`.",
+        prompt: `REQUEST: ${step.message}\n\nRUBRIC: ${j.rubric}\n\nOUTPUT:\n${output.slice(0, 4000)}`,
+        providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
+    });
+    return object;
+}
+
+// ---- one case (single- or multi-turn): thread history, apply proposals between turns ----
+interface StepResult {
+    pass: boolean;
+    reasons: string[];
+    judge?: number;
+}
+interface CaseResult {
+    errored: boolean;
+    error?: string;
+    pass: boolean;
+    steps: StepResult[];
+    ms: number;
+}
+
+const stepsOf = (c: EvalCase): Step[] =>
+    c.turns?.length ? c.turns : [{ message: c.message ?? "", ...c }];
+
+async function runCase(model: string, c: EvalCase, env: Env): Promise<CaseResult> {
+    const steps = stepsOf(c);
+    let content: ArtifactContent | undefined =
+        c.surface === "editor" ? clone(env.sample) : undefined;
+    const history: ChatTurnRef[] = [];
+    const results: StepResult[] = [];
+    let ms = 0;
+    for (const step of steps) {
+        const context: ChatContext =
+            c.surface === "editor"
+                ? { surface: "editor", content: content!, plan: env.plan, credits: env.credits }
+                : {
+                      surface: "library",
+                      library: env.library,
+                      plan: env.plan,
+                      credits: env.credits,
+                  };
+        const turn = await runTurn(model, step.message, context, history, env);
+        ms += turn.ms;
+        if (turn.error)
+            return { errored: true, error: turn.error, pass: false, steps: results, ms };
+        // simulate the user clicking Apply, so later turns in the conversation see the change
+        if (content)
+            for (const b of turn.blocks)
+                if (b.type === "proposal") content = applyPatch(content, b.patch);
+        history.push({ role: "user", text: step.message });
+        if (turn.reply.trim()) history.push({ role: "assistant", text: turn.reply.trim() });
+
+        const reasons = score(step, turn.tools, turn.blocks, env);
+        let judge: number | undefined;
+        if (JUDGE && step.judge) {
+            try {
+                const v = await runJudge(step, turn);
+                judge = v.score;
+                if (v.score < (step.judge.min ?? 3))
+                    reasons.push(`judge ${v.score}/5: ${v.reason}`);
+            } catch {
+                /* judge failure ≠ routing failure; skip the score */
+            }
+        }
+        results.push({ pass: reasons.length === 0, reasons, judge });
+    }
+    return { errored: false, pass: results.every((r) => r.pass), steps: results, ms };
 }
 
 // bounded-concurrency pool
@@ -181,6 +352,14 @@ interface Task {
     c: EvalCase;
     run: number;
 }
+interface Cell {
+    pass: number;
+    ran: number; // non-errored runs (the pass-rate denominator)
+    errors: number;
+    ms: number[];
+    judges: number[];
+    fails: string[];
+}
 
 async function main(): Promise<void> {
     const env = await loadEnv();
@@ -192,38 +371,47 @@ async function main(): Promise<void> {
         for (const c of cases) for (let r = 0; r < RUNS; r++) tasks.push({ model, c, run: r });
 
     log(
-        `Eval: ${cases.length} cases × ${RUNS} runs × ${MODELS.length} models = ${tasks.length} turns (concurrency ${CONCURRENCY})`,
+        `Eval: ${cases.length} cases × ${RUNS} runs × ${MODELS.length} models = ${tasks.length} conversations` +
+            ` (concurrency ${CONCURRENCY}${JUDGE ? `, judge ${shortModel(JUDGE_MODEL)}` : ""})`,
     );
     let done = 0;
     const results = await pool(tasks, CONCURRENCY, async (t) => {
-        const res = await runOne(t.model, t.c, env);
+        const res = await runCase(t.model, t.c, env);
         done++;
         if (done % 10 === 0 || done === tasks.length) log(`  … ${done}/${tasks.length}`);
         return { ...t, res };
     });
 
     // ---- aggregate ----
-    interface CellAgg {
-        pass: number;
-        total: number;
-        ms: number[];
-        fails: string[];
-    }
-    const byModelCase = new Map<string, CellAgg>(); // key `${model}|${caseId}`
-    const byModel = new Map<string, { pass: number; total: number; ms: number[] }>();
-    for (const model of MODELS) byModel.set(model, { pass: 0, total: 0, ms: [] });
+    const cellOf = new Map<string, Cell>();
+    const modelOf = new Map<string, Cell>();
+    const blank = (): Cell => ({ pass: 0, ran: 0, errors: 0, ms: [], judges: [], fails: [] });
+    for (const model of MODELS) modelOf.set(model, blank());
     for (const r of results) {
-        const key = `${r.model}|${r.c.id}`;
-        const cell = byModelCase.get(key) ?? { pass: 0, total: 0, ms: [], fails: [] };
-        cell.total++;
-        cell.ms.push(r.res.ms);
-        if (r.res.pass) cell.pass++;
-        else cell.fails.push(r.res.reasons.join("; "));
-        byModelCase.set(key, cell);
-        const mm = byModel.get(r.model)!;
-        mm.total++;
-        mm.ms.push(r.res.ms);
-        if (r.res.pass) mm.pass++;
+        const cell = cellOf.get(`${r.model}|${r.c.id}`) ?? blank();
+        const mm = modelOf.get(r.model)!;
+        if (r.res.errored) {
+            cell.errors++;
+            mm.errors++;
+            cell.fails.push(`error: ${r.res.error}`);
+        } else {
+            cell.ran++;
+            mm.ran++;
+            cell.ms.push(r.res.ms);
+            mm.ms.push(r.res.ms);
+            if (r.res.pass) {
+                cell.pass++;
+                mm.pass++;
+            } else {
+                cell.fails.push(r.res.steps.flatMap((s) => s.reasons).join("; "));
+            }
+            for (const s of r.res.steps)
+                if (s.judge !== undefined) {
+                    cell.judges.push(s.judge);
+                    mm.judges.push(s.judge);
+                }
+        }
+        cellOf.set(`${r.model}|${r.c.id}`, cell);
     }
     const avg = (a: number[]): number => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
     const pct = (p: number, t: number): string => `${t ? Math.round((p / t) * 100) : 0}%`;
@@ -234,17 +422,19 @@ async function main(): Promise<void> {
         lines.push(s);
         log(s);
     };
+    const jHead = JUDGE ? " avg judge |" : "";
     w(`# Agent-quality eval — ${new Date().toISOString().slice(0, 16).replace("T", " ")}`);
     w(
-        `\n${cases.length} cases · ${RUNS} runs each · models: ${MODELS.map(shortModel).join(" vs ")}\n`,
+        `\n${cases.length} cases · ${RUNS} runs each · models: ${MODELS.map(shortModel).join(" vs ")}${JUDGE ? " · quality-judged" : ""}\n`,
     );
     w("## Overall");
-    w("| model | pass rate | avg latency |");
-    w("|---|---|---|");
+    w(`| model | pass rate | errors | avg latency |${jHead}`);
+    w(`|---|---|---|---|${JUDGE ? "---|" : ""}`);
     for (const model of MODELS) {
-        const mm = byModel.get(model)!;
+        const mm = modelOf.get(model)!;
+        const jCell = JUDGE ? ` ${mm.judges.length ? avg(mm.judges).toFixed(1) : "–"}/5 |` : "";
         w(
-            `| ${shortModel(model)} | **${pct(mm.pass, mm.total)}** (${mm.pass}/${mm.total}) | ${(avg(mm.ms) / 1000).toFixed(1)}s |`,
+            `| ${shortModel(model)} | **${pct(mm.pass, mm.ran)}** (${mm.pass}/${mm.ran}) | ${mm.errors} | ${(avg(mm.ms) / 1000).toFixed(1)}s |${jCell}`,
         );
     }
     w("\n## Per case");
@@ -252,23 +442,31 @@ async function main(): Promise<void> {
     w(`|---|---|${MODELS.map(() => "---").join("|")}|`);
     for (const c of cases) {
         const cells = MODELS.map((model) => {
-            const cell = byModelCase.get(`${model}|${c.id}`)!;
-            const flag = cell.pass === cell.total ? "✅" : cell.pass === 0 ? "❌" : "⚠️";
-            return `${flag} ${cell.pass}/${cell.total} · ${(avg(cell.ms) / 1000).toFixed(1)}s`;
+            const cell = cellOf.get(`${model}|${c.id}`)!;
+            const flag =
+                cell.ran === 0
+                    ? "🛑"
+                    : cell.pass === cell.ran
+                      ? "✅"
+                      : cell.pass === 0
+                        ? "❌"
+                        : "⚠️";
+            const j = JUDGE && cell.judges.length ? ` · J${avg(cell.judges).toFixed(1)}` : "";
+            const e = cell.errors ? ` · ${cell.errors}e` : "";
+            return `${flag} ${cell.pass}/${cell.ran} · ${(avg(cell.ms) / 1000).toFixed(1)}s${j}${e}`;
         });
         w(`| ${c.id} | ${c.category} | ${cells.join(" | ")} |`);
     }
-    // failures detail
     w("\n## Failures");
     let any = false;
     for (const model of MODELS)
         for (const c of cases) {
-            const cell = byModelCase.get(`${model}|${c.id}`)!;
-            if (cell.pass < cell.total) {
+            const cell = cellOf.get(`${model}|${c.id}`)!;
+            if (cell.pass < cell.ran || cell.errors) {
                 any = true;
-                const uniq = [...new Set(cell.fails)];
+                const uniq = [...new Set(cell.fails)].filter(Boolean);
                 w(
-                    `- **${shortModel(model)} / ${c.id}** (${cell.pass}/${cell.total}): ${uniq.join(" — ")}`,
+                    `- **${shortModel(model)} / ${c.id}** (${cell.pass}/${cell.ran}${cell.errors ? `, ${cell.errors} errored` : ""}): ${uniq.join(" — ")}`,
                 );
             }
         }
