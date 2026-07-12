@@ -12,4 +12,7 @@ pnpm lint
 echo "▸ typecheck"
 pnpm typecheck
 
+echo "▸ test"
+pnpm test
+
 echo "✓ pre-commit checks passed"

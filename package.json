@@ -6,7 +6,9 @@
     "packageManager": "pnpm@10.33.2",
     "scripts": {
         "typecheck": "tsc --noEmit",
-        "test": "tsx tests/engine.test.ts",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
         "lint": "eslint .",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
@@ -51,16 +53,19 @@
         "@types/d3-scale": "^4.0.9",
         "@types/d3-shape": "^3.1.8",
         "@types/node": "^22.10.5",
+        "@vitest/coverage-v8": "^4.1.10",
         "dotenv": "^17.4.2",
         "drizzle-kit": "^0.30.1",
         "eslint": "^9.18.0",
         "eslint-plugin-import": "^2.31.0",
+        "happy-dom": "^20.10.6",
         "prettier": "^3.4.2",
         "tailwindcss": "^4.3.1",
         "tsx": "^4.22.4",
         "typescript": "^5.7.3",
         "typescript-eslint": "^8.19.1",
         "vite": "^8.1.0",
-        "vite-plugin-solid": "^2.11.12"
+        "vite-plugin-solid": "^2.11.12",
+        "vitest": "^4.1.10"
     }
 }
