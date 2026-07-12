@@ -1,5 +1,5 @@
 import type { Component, JSX } from "solid-js";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, Show } from "solid-js";
 import { setArtifactFormat } from "@elements/ops";
 import {
     canRedo,
@@ -16,18 +16,19 @@ import {
     renameArtifact,
     requestHome,
     requestShare,
-    requestSwitchArtifact,
     requestThemePicker,
     requestUpgrade,
     undo,
 } from "../editor";
 import { exportDeckPng, exportPdfAuto, exportPrint } from "@canvas/render/export";
 import { Button, IconButton, Badge } from "@ui/button";
-import { Segmented, inputCls } from "@ui/inputs";
+import { Segmented } from "@ui/inputs";
 import { Icon } from "@ui/icons";
-import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@ui/menu";
+import { Menu, MenuItem } from "@ui/menu";
 
-const ArtifactMenu: Component = () => {
+// The artifact title: click the text to rename it inline (Enter commits, Esc cancels). No dropdown —
+// switching between artifacts happens from the library, not here.
+const ArtifactName: Component = () => {
     const [renaming, setRenaming] = createSignal(false);
     const [draft, setDraft] = createSignal("");
     const current = createMemo(
@@ -52,38 +53,19 @@ const ArtifactMenu: Component = () => {
         <Show
             when={renaming()}
             fallback={
-                <Menu
-                    width={240}
-                    trigger={(m) => (
-                        <button
-                            ref={m.ref}
-                            class="flex items-center gap-1.5 text-[13px] text-muted hover:text-ink"
-                            title="Rename or switch artifact"
-                            onClick={m.toggle}
-                        >
-                            {current()} <Icon name="chevron" size={12} />
-                        </button>
-                    )}
+                <button
+                    class="cursor-text rounded px-1 text-[13px] text-muted hover:text-ink"
+                    title="Rename"
+                    onClick={startRename}
                 >
-                    <MenuItem onClick={startRename}>Rename…</MenuItem>
-                    <MenuSeparator />
-                    <MenuLabel>Switch to</MenuLabel>
-                    <For each={artifacts()}>
-                        {(d) => (
-                            <MenuItem
-                                selected={d.id === currentArtifactId()}
-                                onClick={() => requestSwitchArtifact(d.id)}
-                            >
-                                {d.title}
-                            </MenuItem>
-                        )}
-                    </For>
-                </Menu>
+                    {current()}
+                </button>
             }
         >
             <input
                 ref={(el) => (inputEl = el)}
-                class={`${inputCls} w-56 font-semibold`}
+                class="rounded-md border border-line bg-canvas px-2 py-1.5 text-[13px] font-semibold text-ink outline-none focus:border-accent"
+                size={Math.max(draft().length, 8)}
                 value={draft()}
                 onInput={(e) => setDraft(e.currentTarget.value)}
                 onBlur={commitRename}
@@ -230,7 +212,7 @@ export const Topbar: Component = () => (
         >
             GALLEO
         </button>
-        <ArtifactMenu />
+        <ArtifactName />
         <HistoryButtons />
         <span class="flex-1" />
         <FormatSwitcher />
