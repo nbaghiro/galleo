@@ -14,13 +14,24 @@ a hundred view bugs, and here we catch it with a millisecond unit test.
 
 ## Current status
 
-| Piece    | State                                                                                                        |
-| -------- | ------------------------------------------------------------------------------------------------------------ |
-| Runner   | **Vitest 4** (`vitest.config.ts`), `node` env default, v8 coverage, happy-dom per-file                       |
-| Scripts  | `pnpm test` · `test:watch` · `test:coverage`                                                                 |
-| Migrated | `canvas/engine/layout.test.ts` + `canvas/engine/profile.test.ts` — 16 tests, replaced `tests/engine.test.ts` |
-| Gate     | `pnpm test` in **CI** and the **pre-commit hook**; `coverage/` git-ignored                                   |
-| Baseline | **~6%** over `canvas/**`+`model/**` (only `engine/layout.ts` 73%, `engine/profile.ts` 69%; rest 0%)          |
+Milestones M1–M6 are **built and landed** — the canvas module is covered end to end.
+
+| Piece    | State                                                                                                                                                                 |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runner   | **Vitest 4** (`vitest.config.ts`), `node` env default, v8 coverage, happy-dom per-file                                                                                |
+| Scripts  | `pnpm test` · `test:watch` · `test:coverage`                                                                                                                          |
+| Suite    | **277 tests** across 23 files, co-located; `canvas/testkit.ts` is the whole doubles surface                                                                           |
+| Gate     | `pnpm test` in **CI** and the **pre-commit hook**; `coverage/` git-ignored                                                                                            |
+| Coverage | **~70% overall** (canvas+model); engine **98%**, elements **88%**, charts/diagrams **90%+**, render bridge **52%** (raster/IO tail honestly bounded). Started at ~6%. |
+
+Achieved coverage by area:
+
+| Area                                                                    | Stmts | Notes                                                                 |
+| ----------------------------------------------------------------------- | ----- | --------------------------------------------------------------------- |
+| `canvas/engine` (layout · fragment · profile)                           | 98%   | the solver, fully                                                     |
+| `canvas/elements` (ops · compose · layouts · specs · charts · diagrams) | ~89%  | real registry + real theme, no faked specs                            |
+| `canvas/render` (commands · backends · present · geometry)              | 52%   | logic covered; raster/IO smoke-only or excluded                       |
+| `canvas/render/export.ts`                                               | —     | excluded (PDF/PNG/print IO shell; geometry-extraction is future work) |
 
 ---
 
