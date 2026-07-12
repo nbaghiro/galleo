@@ -1,8 +1,12 @@
 import { expect } from "vitest";
 import type { EngineNode, MeasureText, Rect, Region, RenderCommand } from "@engine/node";
-import type { Size } from "@model/geometry";
+import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
+import type { ElementLayout, FormatDescriptor, Size } from "@model/geometry";
+import type { LayoutCtx } from "@elements/spec";
 import { fit, fixed, grow } from "@model/geometry";
 import { layout } from "@engine/layout";
+import { resolveProfile } from "@engine/profile";
+import { DEFAULT_THEME } from "@themes";
 
 // Shared helpers for the canvas suite. The ONLY substitute for a real dependency here is `measure` (glyph
 // metrics) — see the mocking contract in .docs/testing.md. Everything else (builders, finders) is plumbing
@@ -75,3 +79,26 @@ export const commandById = (commands: RenderCommand[], id: string): RenderComman
 };
 export const bottomOf = (commands: RenderCommand[]): number =>
     commands.reduce((mx, c) => Math.max(mx, c.box.y + c.box.h), 0);
+
+// --- content-model helpers (for registry-dependent element/ops/compose tests) ---
+
+// The real default theme tokens — element/compose tests run against real theme values, not a fake fixture.
+export const tokens = DEFAULT_THEME.tokens;
+
+export const inst = (type: string, data: unknown = {}, lyt?: ElementLayout): ElementInstance =>
+    lyt ? { type, data, layout: lyt } : { type, data };
+export const sectionOf = (root: ElementInstance, extra?: Partial<Section>): Section => ({
+    id: "s1",
+    root,
+    ...extra,
+});
+export const artifactOf = (sections: Section[]): ArtifactContent => ({
+    format: "deck",
+    theme: "default",
+    sections,
+});
+export const layoutCtx = (
+    width = 800,
+    format: FormatDescriptor = resolveProfile("deck"),
+    theme = tokens,
+): LayoutCtx => ({ box: { x: 0, y: 0, w: width, h: 600 }, availWidth: width, format, theme });
