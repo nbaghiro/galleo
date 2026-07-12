@@ -1,5 +1,13 @@
 import { expect } from "vitest";
-import type { EngineNode, MeasureText, Rect, Region, RenderCommand } from "@engine/node";
+import type {
+    DrawContext,
+    EngineNode,
+    MeasureText,
+    PathSink,
+    Rect,
+    Region,
+    RenderCommand,
+} from "@engine/node";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import type { ElementLayout, FormatDescriptor, Size } from "@model/geometry";
 import type { LayoutCtx } from "@elements/spec";
@@ -102,3 +110,46 @@ export const layoutCtx = (
     format: FormatDescriptor = resolveProfile("deck"),
     theme = tokens,
 ): LayoutCtx => ({ box: { x: 0, y: 0, w: width, h: 600 }, availWidth: width, format, theme });
+
+// --- recording DrawContext (surface renderers: shape, charts, diagrams) ---
+
+// A real DrawContext (not a mock of the logic) that records every primitive call. The renderer computes
+// real geometry (incl. d3); tests assert the resulting call stream, not pixels. `measureText` returns the
+// deterministic glyph width so label-aware chrome lays out without a canvas.
+export interface DrawCall {
+    op: string;
+    [k: string]: unknown;
+}
+export function recordingDrawContext(): { ctx: DrawContext; calls: DrawCall[] } {
+    const calls: DrawCall[] = [];
+    const push = (op: string, rest: Record<string, unknown>): void => {
+        calls.push({ op, ...rest });
+    };
+    const sink: PathSink = {
+        moveTo: (x, y) => push("moveTo", { x, y }),
+        lineTo: (x, y) => push("lineTo", { x, y }),
+        bezierCurveTo: (cp1x, cp1y, cp2x, cp2y, x, y) =>
+            push("bezierCurveTo", { cp1x, cp1y, cp2x, cp2y, x, y }),
+        quadraticCurveTo: (cpx, cpy, x, y) => push("quadraticCurveTo", { cpx, cpy, x, y }),
+        arc: (cx, cy, r, startRad, endRad, ccw) =>
+            push("arc", { cx, cy, r, startRad, endRad, ccw }),
+        arcTo: (x1, y1, x2, y2, r) => push("arcTo", { x1, y1, x2, y2, r }),
+        rect: (x, y, w, h) => push("path.rect", { x, y, w, h }),
+        closePath: () => push("closePath", {}),
+    };
+    const ctx: DrawContext = {
+        rect: (x, y, w, h, style) => push("rect", { x, y, w, h, style }),
+        line: (x1, y1, x2, y2, style) => push("line", { x1, y1, x2, y2, style }),
+        circle: (cx, cy, r, style) => push("circle", { cx, cy, r, style }),
+        polyline: (points, style) => push("polyline", { points, style }),
+        wedge: (cx, cy, r, startRad, endRad, style) =>
+            push("wedge", { cx, cy, r, startRad, endRad, style }),
+        path: (build, style) => {
+            push("path", { style });
+            build(sink);
+        },
+        text: (text, x, y, style) => push("text", { text, x, y, style }),
+        measureText: (text) => ({ width: text.length * 8 }),
+    };
+    return { ctx, calls };
+}
