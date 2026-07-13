@@ -18,10 +18,10 @@ import {
     createSectionStackCache,
     paint,
     paintSectionStack,
+    scaledHostCss,
     sectionLayoutWidth,
 } from "@canvas/render/backends";
 import { measureText, layoutSection } from "@canvas/render/commands";
-import { scaledHostCss } from "@canvas/render/geometry";
 import { applyDrop, computeDropTarget, drag, previewDrop, setDrag } from "./dnd";
 import { applyLiveEdit, liveEdit, sectionDrop, sectionDragId } from "../select/handles";
 import {

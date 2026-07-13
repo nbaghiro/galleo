@@ -3,12 +3,12 @@ import {
     A4_H,
     A4_W,
     DOC_MARGIN,
-    EXPORT_SCALE,
     SLIDE_W,
     deckPngCanvasSize,
     docPageGeometry,
     slidePdfPageSize,
-} from "@canvas/render/export-geometry";
+} from "@canvas/render/export";
+import { EXPORT_SCALE } from "@canvas/render/backends";
 
 describe("slidePdfPageSize", () => {
     it("keeps a fixed page width and preserves the slide aspect", () => {

@@ -208,8 +208,19 @@ One `RenderCommand[]` → multiple serializers:
 
 **Built:** the engine, all three format views, compose from the recursive root + the layout presets, the
 full element contract with skeletons + direct-manipulation sizing (one divider system, edge-drop columns,
-collapse-on-empty), DOM + canvas backends, PDF/PNG export, deck present.
+collapse-on-empty), DOM + canvas backends, PDF/PNG export, deck present, PPTX export.
+
+**PPTX export** (`render/pptx.ts` — the whole exporter in one file: RenderCommand→spec mappers, font
+embedding, and the slide-assembly shell) — every artifact exports as a **deck** (all formats run through the deck profile's
+`sectionSlides`; tall sections paginate into several slides), one PowerPoint slide per page. It's a
+**native hybrid**: `rect` → autoshape, `text` → an editable text box per leaf with styled runs and the
+engine's own line breaks baked in (`wrap`/`autoFit` off, so PowerPoint never re-flows — the reflow
+concern is designed out, not lived with); `image` + self-painted `surface` (charts/diagrams) rasterize to
+PNGs positioned at their box, so nothing is dropped. Theme fonts are **embedded**: the woff2 the app
+already loads is fetched from Google, transcoded to TTF (wawoff2), and injected as OOXML embedded fonts
+(zip post-process via JSZip) so the exact typeface renders anywhere with no "missing fonts" prompt —
+degrading gracefully to an un-embedded export on any failure.
 
 **Deferred by design:** engine-native rich text (`@model/text` is scaffolded; the editor uses a
-contenteditable overlay today); free-form / bento grid spanning; PPTX export (PowerPoint re-flows text —
-fundamentally approximate); relayout-boundary caching (not needed at current scale).
+contenteditable overlay today); free-form / bento grid spanning; native (editable) PowerPoint charts —
+charts export as images today; relayout-boundary caching (not needed at current scale).

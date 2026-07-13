@@ -40,11 +40,14 @@
         "dompurify": "^3.4.11",
         "drizzle-orm": "^0.38.0",
         "hono": "^4.12.27",
+        "jszip": "^3.10.1",
         "marked": "^18.0.6",
         "pdf-lib": "^1.17.1",
         "postgres": "^3.4.5",
+        "pptxgenjs": "^4.0.1",
         "solid-js": "^1.9.13",
         "stripe": "^22.3.0",
+        "wawoff2": "^2.0.1",
         "zod": "^4.4.3"
     },
     "devDependencies": {

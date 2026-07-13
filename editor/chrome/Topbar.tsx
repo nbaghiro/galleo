@@ -21,6 +21,8 @@ import {
     undo,
 } from "../editor";
 import { exportDeckPng, exportPdfAuto, exportPrint } from "@canvas/render/export";
+import { exportPptx } from "@canvas/render/pptx";
+import type { ExportFormat } from "@model/billing";
 import { Button, IconButton, Badge } from "@ui/button";
 import { Segmented } from "@ui/inputs";
 import { Icon } from "@ui/icons";
@@ -130,7 +132,7 @@ const FORMATS = [
 const ExportMenu: Component = () => {
     const [busy, setBusy] = createSignal(false);
     // The workspace plan decides which formats are unlocked and whether exports carry the Galleo mark.
-    const allows = (f: "png" | "pdf" | "print"): boolean => features().exportFormats.includes(f);
+    const allows = (f: ExportFormat): boolean => features().exportFormats.includes(f);
     const brand = (): boolean => !features().removeBranding;
     const run = async (fn: () => void | Promise<void>): Promise<void> => {
         setBusy(true);
@@ -144,7 +146,7 @@ const ExportMenu: Component = () => {
     // tagged "Pro" that sends the user to the pricing page instead.
     const item = (
         label: string,
-        format: "png" | "pdf" | "print",
+        format: ExportFormat,
         fn: () => void | Promise<void>,
     ): JSX.Element =>
         allows(format) ? (
@@ -187,6 +189,9 @@ const ExportMenu: Component = () => {
             {item("PDF", "pdf", () =>
                 exportPdfAuto(editor.artifact, editorTokens(), { brand: brand() }),
             )}
+            {item("PowerPoint", "pptx", () =>
+                exportPptx(editor.artifact, editorTokens(), { brand: brand() }),
+            )}
             {item("PNG — deck", "png", () =>
                 exportDeckPng(editor.artifact, editorTokens(), { brand: brand() }),
             )}
@@ -217,10 +222,6 @@ export const Topbar: Component = () => (
         <span class="flex-1" />
         <FormatSwitcher />
         <ThemeMenu />
-        <Button variant="tool" size="sm" onClick={() => present()}>
-            <Icon name={editor.artifact.format === "deck" ? "present" : "preview"} size={14} />
-            {editor.artifact.format === "deck" ? "Present" : "Preview"}
-        </Button>
         <Button
             variant="tool"
             size="sm"
@@ -231,5 +232,9 @@ export const Topbar: Component = () => (
             Share
         </Button>
         <ExportMenu />
+        <Button variant="tool" size="sm" onClick={() => present()}>
+            <Icon name={editor.artifact.format === "deck" ? "present" : "preview"} size={14} />
+            {editor.artifact.format === "deck" ? "Present" : "Preview"}
+        </Button>
     </header>
 );

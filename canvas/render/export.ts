@@ -4,22 +4,57 @@ import type { Tokens } from "@themes";
 import { PDFDocument } from "pdf-lib";
 import { fragment } from "@engine/layout";
 import { resolveProfile } from "@engine/profile";
-import { renderSlidePage, renderToCanvas, paint } from "./backends";
+import { EXPORT_SCALE, paint, renderSlidePage, renderToCanvas } from "./backends";
 import { measureText, layoutSection, sectionSlides } from "./commands";
-import {
-    A4_H,
-    A4_W,
-    DOC_MARGIN,
-    EXPORT_SCALE,
-    PRINT_W,
-    deckPngCanvasSize,
-    docPageGeometry,
-    slidePdfPageSize,
-} from "./export-geometry";
 
 // Export an artifact to PDF / PNG / print — editor-free: every entry point takes the artifact + its
 // resolved theme tokens, so the studio, a present surface, or a publish page can all export the same way.
-// Page/raster geometry lives in export-geometry.ts (pure, tested); this file is the IO shell over it.
+// The pure page/raster geometry (arithmetic turning engine output into paper/raster dimensions) sits at
+// the top of this file, unit-tested in export.test.ts; the rest is the IO shell (pdf-lib, canvas.toBlob,
+// download, window.print) over it.
+
+// --- page / raster geometry (pure, tested) ---
+
+export const PRINT_W = 1100; // fallback print-column width (px) when a format has no maxContentWidth
+export const SLIDE_W = 1280; // default deck slide width (matches Present)
+export const PDF_SLIDE_W = 960; // deck PDF page width (points); page height flexes with the slide aspect
+// A4 page geometry (points) for the continuous Document format.
+export const A4_W = 595;
+export const A4_H = 842;
+export const DOC_MARGIN = 48;
+
+// A deck slide → its PDF page size (points): a fixed page width, the height preserving the slide's aspect.
+export function slidePdfPageSize(
+    slide: { w: number; h: number },
+    pageW: number = PDF_SLIDE_W,
+): { w: number; h: number } {
+    return { w: pageW, h: Math.round((pageW * slide.h) / slide.w) };
+}
+
+// A4 document-flow geometry for a reading column laid out at `layoutW` px: the printable content width
+// (points), the px→pt scale, and the page's content height back in layout px (what fragment() slices at).
+export function docPageGeometry(layoutW: number): {
+    contentPtW: number;
+    scale: number;
+    pageContentPxH: number;
+} {
+    const contentPtW = A4_W - 2 * DOC_MARGIN;
+    const scale = contentPtW / layoutW;
+    return { contentPtW, scale, pageContentPxH: (A4_H - 2 * DOC_MARGIN) / scale };
+}
+
+// The stacked-PNG canvas size (device px) for a deck: the widest slide (never below SLIDE_W) by the summed
+// slide heights, at `scale`.
+export function deckPngCanvasSize(
+    slides: { w: number; h: number }[],
+    scale: number = EXPORT_SCALE,
+): { width: number; height: number } {
+    const outW = Math.max(SLIDE_W, ...slides.map((s) => s.w));
+    const totalH = slides.reduce((sum, s) => sum + s.h, 0);
+    return { width: outW * scale, height: totalH * scale };
+}
+
+// --- IO shell ---
 
 async function canvasPng(canvas: HTMLCanvasElement): Promise<Uint8Array> {
     const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/png"));

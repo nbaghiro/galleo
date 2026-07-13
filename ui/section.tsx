@@ -3,9 +3,8 @@ import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { Section, SectionBackground } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
-import { paint, backdropCss } from "@canvas/render/backends";
+import { paint, backdropCss, scaledHostCss } from "@canvas/render/backends";
 import { measureText, layoutSlide, layoutSection } from "@canvas/render/commands";
-import { scaledHostCss } from "@canvas/render/geometry";
 import { slideFrame } from "@engine/profile";
 
 // A real engine render of one Section, painted at a logical width then CSS-scaled to `width` — a true

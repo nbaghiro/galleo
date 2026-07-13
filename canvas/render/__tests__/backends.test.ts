@@ -1,9 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { backdropCss, createSectionStackCache, sectionLayoutWidth } from "@canvas/render/backends";
+import {
+    backdropCss,
+    createSectionStackCache,
+    scaledHostCss,
+    sectionLayoutWidth,
+} from "@canvas/render/backends";
 import { resolveProfile } from "@engine/profile";
 import { inst, sectionOf, tokens } from "@canvas/testkit";
 
 // Pure helpers — no DOM (the painters are in backends.dom.test.ts).
+
+describe("scaledHostCss", () => {
+    it("scales from the top-left in the base variant", () => {
+        expect(scaledHostCss(400, 300, 0.5)).toBe(
+            "width:400px;height:300px;transform:scale(0.5);transform-origin:top left",
+        );
+    });
+    it("absolutely positions and centers within a frame in the center variant", () => {
+        expect(scaledHostCss(400, 300, 0.5, { frameW: 800, frameH: 600 })).toBe(
+            "position:absolute;width:400px;height:300px;transform:scale(0.5);transform-origin:top left;left:200px;top:225px",
+        );
+    });
+});
 
 describe("backdropCss", () => {
     it("no background → theme bg", () => {

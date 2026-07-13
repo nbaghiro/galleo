@@ -22,6 +22,11 @@ import type { Section, SectionBackground } from "@model/artifact";
 import type { Tokens } from "@themes";
 import type { FormatDescriptor } from "@model/geometry";
 
+// Raster supersampling factor for crisp export output — the `scale` both exporters pass to
+// renderToCanvas / renderSlidePage. Lives with the raster backend so either exporter can import it
+// without pulling in the other's IO deps.
+export const EXPORT_SCALE = 2;
+
 // A DOM render backend: paints absolute-positioned divs from the engine's render commands.
 
 // Fill a text element with styled <span>s (one per run), letting the browser wrap them inside the
@@ -675,4 +680,21 @@ export function fitSlideContent(
     content.style.cssText = `position:absolute;width:${slideW}px;height:${contentH}px;transform:scale(${fit});transform-origin:top left;left:${(slideW - slideW * fit) / 2}px;top:${(slideH - contentH * fit) / 2}px`;
     paint(commands, content);
     return content;
+}
+
+// The cssText for a scaled-canvas host: a box laid out at logical (layoutW × height), CSS-scaled by
+// `scale` from the top-left so it shrinks in place with identical text wrapping (the minimap/library
+// thumbnails and the scaled section canvas). Pass `center` to fit-scale and center within a fixed frame
+// (the present-slide letterbox variant) instead. Pure string builder — the sibling of fitSlideContent.
+export function scaledHostCss(
+    layoutW: number,
+    height: number,
+    scale: number,
+    center?: { frameW: number; frameH: number },
+): string {
+    const base = `width:${layoutW}px;height:${height}px;transform:scale(${scale});transform-origin:top left`;
+    if (!center) return base;
+    const left = (center.frameW - center.frameW * scale) / 2;
+    const top = (center.frameH - height * scale) / 2;
+    return `position:absolute;${base};left:${left}px;top:${top}px`;
 }
