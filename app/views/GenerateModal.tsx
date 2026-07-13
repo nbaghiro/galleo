@@ -307,6 +307,7 @@ const GenerateModalPanel: Component = () => {
     const fmt = previewFormat;
     const setFmt = setPreviewFormat;
     const [length, setLength] = createSignal("Standard");
+    const [imageSource, setImageSource] = createSignal<"stock" | "ai">("stock");
     // The idea bank is shuffled once per open (fresh random order); the list shows four at a time and the
     // shuffle icon advances the window through the shuffled deck — all hardcoded, no LLM call.
     const deck = shuffledPrompts();
@@ -335,6 +336,7 @@ const GenerateModalPanel: Component = () => {
             surface: fmt(),
             theme: appTheme(),
             length: length(),
+            imageSource: imageSource(),
         });
     };
     const openInEditor = async (): Promise<void> => {
@@ -424,6 +426,25 @@ const GenerateModalPanel: Component = () => {
                             options={LENGTHS.map((l) => ({ value: l, label: l }))}
                             onChange={(v) => setLength(v)}
                         />
+
+                        <Eyebrow as="div" weight="normal" tracking="widest" class="mb-1.5 mt-4">
+                            Images
+                        </Eyebrow>
+                        <Segmented
+                            variant="accent"
+                            value={imageSource()}
+                            options={[
+                                { value: "stock", label: "Stock" },
+                                { value: "ai", label: "AI-generated" },
+                            ]}
+                            onChange={(v) => setImageSource(v as "stock" | "ai")}
+                        />
+                        <Show when={imageSource() === "ai"}>
+                            <p class="mt-1.5 text-[11px] leading-snug text-muted">
+                                Bespoke, on-brief images — richer, but the build takes noticeably
+                                longer.
+                            </p>
+                        </Show>
 
                         <div class="mb-2 mt-5 flex items-center justify-between">
                             <Eyebrow weight="normal" tracking="widest">

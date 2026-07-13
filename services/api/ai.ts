@@ -15,6 +15,8 @@ import { currentUser, currentWorkspace, readJson } from "./context";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import { aiReady } from "../ai/provider";
 import { reviseElement, runTurn } from "../ai/run";
+import type { ImageOptions } from "../ai/run";
+import { generateImage, imageGenReady } from "../media/generate";
 import { makeWorkspaceReader } from "./workspace-reader";
 import { rewriteText, translateText } from "../ai/text";
 import { suggestSections } from "../ai/suggest";
@@ -88,6 +90,43 @@ ai.post("/ai/turn", async (c) => {
         extra = mergeUsage(extra, u);
     };
 
+    // Images: stock by default (instant, free). When a generate brief asks for AI images and the key is set,
+    // inject a generator that renders each art-director phrase with the image model and stores it as a
+    // workspace asset; the runtime falls back to stock on any miss. (Images are already priced into
+    // generate-artifact, so AI vs stock doesn't change the reserve.)
+    const image: ImageOptions =
+        req.kind === "generate" && req.input.imageSource === "ai" && imageGenReady()
+            ? {
+                  source: "ai",
+                  generate: async (phrase, orientation) => {
+                      const aspect =
+                          orientation === "portrait"
+                              ? "3:4"
+                              : orientation === "square"
+                                ? "1:1"
+                                : "16:9";
+                      const img = await generateImage(phrase, aspect);
+                      if (!img) return null;
+                      const id = crypto.randomUUID();
+                      await db.insert(schema.assets).values({
+                          id,
+                          workspaceId: ws.id,
+                          kind: "image",
+                          source: "generated",
+                          url: `/api/media/asset/${id}`,
+                          width: img.width,
+                          height: img.height,
+                          bytes: Buffer.from(img.dataBase64, "base64").length,
+                          alt: phrase.slice(0, 160),
+                          meta: { prompt: phrase },
+                          data: img.dataBase64,
+                          mime: img.mime,
+                      });
+                      return `/api/media/asset/${id}`;
+                  },
+              }
+            : {};
+
     const ctrl = new AbortController();
     return streamSSE(c, async (stream) => {
         stream.onAbort(() => ctrl.abort()); // client navigated away / canceled → stop the run
@@ -96,7 +135,7 @@ ai.post("/ai/turn", async (c) => {
             stream.writeSSE({ data: JSON.stringify({ seq: seq++, event }) });
         try {
             const workspace = makeWorkspaceReader(ws.id);
-            for await (const ev of runTurn(req, { signal: ctrl.signal, workspace, onUsage }))
+            for await (const ev of runTurn(req, { signal: ctrl.signal, workspace, onUsage, image }))
                 await send(ev);
         } catch (e) {
             if (!ctrl.signal.aborted)

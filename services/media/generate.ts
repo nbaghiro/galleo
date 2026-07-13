@@ -99,6 +99,16 @@ async function generateOne(
     return { dataBase64: img.data, mime: img.mime, ...dims(aspect) };
 }
 
+// One image for a phrase — the single-shot generator the artifact pipeline injects (via the /ai route) when
+// a build is set to AI images. Never throws (returns null on any failure so generation falls back to stock).
+export async function generateImage(
+    prompt: string,
+    aspect: string | undefined,
+    style: MediaGenStyle = "photo",
+): Promise<GeneratedImage | null> {
+    return generateOne(prompt, aspect, style).catch(() => null);
+}
+
 // Stream each variation the moment it finishes — so a fast image can reveal while the slow ones still render,
 // instead of blocking on the whole batch. Kicks off all N in parallel and yields them as they settle; a
 // failed variation yields null so the caller can drop its placeholder.

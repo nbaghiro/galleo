@@ -44,6 +44,7 @@ export interface GenerateInput {
     contextRefs?: string[]; // ids of attached context (doc/url) in the artifact's ContextPack
     source?: string; // raw source material to build FROM (pasted text, or an artifact's extracted text)
     sourceArtifactId?: string; // repurpose an existing artifact — the runtime reads it + uses its text as source
+    imageSource?: "stock" | "ai"; // how images are sourced: stock photos (default, instant/free) or AI-generated
 }
 
 export interface EditInput {
