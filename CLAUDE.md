@@ -56,7 +56,13 @@ with high-fidelity export. Net-new, TypeScript.
   from `@model` + `@themes`; `services` otherwise use relative imports.
 - **TS style:** 4-space indent, double quotes, semicolons, `printWidth` 100, **no `any`**, **no
   `console`** in app code. (ESLint + Prettier enforce these.)
-- **No build-phase/iteration numbers** in code comments or docstrings (plan docs are fine).
+- **Comments — terse, and only when needed.** Names + types carry the meaning; a comment earns its place
+  only by saying something the code cannot. When one is warranted, make it a short fragment for a genuine
+  _why_: an invariant, a gotcha, a unit/range, a magic value's meaning, a "must stay in sync with X". Do
+  **not** write file-header narrative essays, decorative section banners (`// ===== … =====`, `// --- … ---`,
+  box-drawing rules), or comments that restate the code/name/type. Always keep directive comments
+  (`eslint-disable`, `@ts-expect-error`, `@vitest-environment`, `/* @refresh reload */`), `TODO`/`FIXME`, and
+  license headers. No build-phase/iteration numbers in comments or docstrings (plan docs are fine).
 - **Boundaries** (ESLint, linear `model ← canvas ← ui ← editor ← app`): model ⇏ canvas/ui/editor/services/app;
   canvas ⇏ ui/editor/services/app; **ui ⇏ editor/services/app** (shared UI depends only on model + canvas +
   `@themes`); services ⇏ canvas/ui/editor/app.
