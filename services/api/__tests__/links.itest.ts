@@ -3,13 +3,8 @@ import { eq } from "drizzle-orm";
 import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
 import { db, schema } from "../../schema";
 
-// Integration: the public sharing routes. Publishing is a paid feature (free plan can't), so most tests
-// seed a `pro` workspace; the unauthenticated /p/:slug/content surface is driven with the plain `request`
-// helper (no cookie). Mail is unconfigured, so invite sends are silent no-ops — publishing still succeeds.
-
 const CONTENT = { format: "deck", theme: "studio", sections: [] };
 
-// A live artifact owned by `workspaceId`, with a readable draftContent.
 async function insertArtifact(
     workspaceId: string,
     content: unknown = CONTENT,
@@ -51,12 +46,10 @@ describe("publish — version reuse vs snapshot", () => {
         const v1 = afterFirst!.v;
         expect(v1).toBeTruthy();
 
-        // Re-publish, content unchanged → reuse the same version row (no history bloat).
         const again = await authed(userId, `/artifacts/${id}/publish`, jsonInit("POST", {}));
         expect(again.status).toBe(200);
         expect(await versionCount(id)).toBe(1);
 
-        // Edit the draft, then publish → a brand-new snapshot the link now points at.
         await db
             .update(schema.artifacts)
             .set({
@@ -91,7 +84,6 @@ describe("publish — version reuse vs snapshot", () => {
 });
 
 describe("public read — GET /p/:slug/content access policy", () => {
-    // Publish an artifact and return its slug (+ ids) for the anonymous read tests.
     async function publish(
         body: Record<string, unknown>,
         opts: { plan?: string; overrides?: unknown } = {},
@@ -123,9 +115,7 @@ describe("public read — GET /p/:slug/content access policy", () => {
 
     it("404s once the owning artifact is trashed", async () => {
         const { slug, artifactId } = await publish({ visibility: "public" });
-        // Live → readable.
         expect((await request(`/p/${slug}/content`)).status).toBe(200);
-        // Trash it → the link goes dark.
         await db
             .update(schema.artifacts)
             .set({ trashedAt: new Date() })
@@ -167,7 +157,6 @@ describe("public read — GET /p/:slug/content access policy", () => {
             recipients: ["friend@example.com"],
         });
 
-        // Resolve the link + its recipient token straight from the DB.
         const [link] = await db
             .select({ id: schema.links.id })
             .from(schema.links)
@@ -184,14 +173,13 @@ describe("public read — GET /p/:slug/content access policy", () => {
     });
 
     it("branded flag reflects the owner's removeBranding grant", async () => {
-        // Pro removes branding → branded:false.
         const pro = await publish({ visibility: "public" }, { plan: "pro" });
         const proBody = (await (await request(`/p/${pro.slug}/content`)).json()) as {
             branded: boolean;
         };
         expect(proBody.branded).toBe(false);
 
-        // A free workspace granted publicLinks (but not removeBranding) via an override → branded:true.
+        // free workspace: publicLinks override, no removeBranding → branded:true
         const free = await publish(
             { visibility: "public" },
             { plan: "free", overrides: { publicLinks: true } },

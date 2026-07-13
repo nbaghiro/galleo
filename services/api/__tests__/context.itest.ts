@@ -3,16 +3,11 @@ import { eq } from "drizzle-orm";
 import { authed, seedUser } from "../../__tests__/harness";
 import { db, schema } from "../../schema";
 
-// Integration: the lazy monthly-credit-window rollover in currentWorkspace() (services/api/context.ts).
-// The clock is exercised by writing timestamps directly — set creditsResetAt in the past, hit any route
-// that reads the workspace (GET /features calls currentWorkspace), and assert the window rolled over.
-
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 
 describe("credit-window rollover (currentWorkspace)", () => {
     it("zeroes aiCreditsUsed and pushes creditsResetAt ~30 days out once the window has passed", async () => {
         const { userId, workspaceId } = await seedUser();
-        // Simulate a spent, expired window.
         await db
             .update(schema.workspaces)
             .set({ aiCreditsUsed: 99, creditsResetAt: new Date(Date.now() - 60_000) })

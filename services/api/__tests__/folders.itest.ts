@@ -3,9 +3,6 @@ import { eq } from "drizzle-orm";
 import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
 import { db, schema } from "../../schema";
 
-// Integration: the folder routes — create, rename, and the delete-cascade that removes descendant
-// subfolders and un-files (rather than deletes) their artifacts.
-
 describe("folder routes", () => {
     it("POST /folders creates a folder row", async () => {
         const { userId, workspaceId } = await seedUser();
@@ -85,7 +82,6 @@ describe("folder routes", () => {
             .values({ workspaceId, name: "Grandchild", parentId: child!.id })
             .returning({ id: schema.folders.id });
 
-        // An artifact filed in the parent and one in the child.
         const [inParent] = await db
             .insert(schema.artifacts)
             .values({ workspaceId, formatId: "deck", themeId: "studio", folderId: parent!.id })
@@ -98,7 +94,6 @@ describe("folder routes", () => {
         const res = await authed(userId, `/folders/${parent!.id}`, { method: "DELETE" });
         expect(res.status).toBe(200);
 
-        // All three folders are gone.
         const folders = await db
             .select({ id: schema.folders.id })
             .from(schema.folders)
@@ -106,7 +101,6 @@ describe("folder routes", () => {
         expect(folders).toHaveLength(0);
         void grandchild;
 
-        // Both artifacts survive, un-filed back to the library root.
         const arts = await db
             .select({ id: schema.artifacts.id, folderId: schema.artifacts.folderId })
             .from(schema.artifacts)

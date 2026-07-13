@@ -3,8 +3,6 @@ import { and, eq } from "drizzle-orm";
 import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
 import { db, schema } from "../../schema";
 
-// Integration: the artifact + trash routes against a real Postgres. Real auth, real SQL, real plan gates.
-
 // A minimal-but-valid content tree the cover/filmstrip derivation can read.
 const draftWithCover = {
     format: "deck",
@@ -27,7 +25,7 @@ const draftWithCover = {
     ],
 };
 
-// Insert a live artifact straight into the DB (bypasses the create route — used to set up fixtures).
+// bypasses the create route (fixture setup)
 async function insertArtifact(
     workspaceId: string,
     over: Partial<typeof schema.artifacts.$inferInsert> = {},
@@ -103,14 +101,13 @@ describe("artifact routes", () => {
             .values({ workspaceId, name: "Folder" })
             .returning({ id: schema.folders.id });
 
-        // Pin updatedAt to a known point in the past so any bump is unambiguous.
+        // pin updatedAt in the past so any bump is unambiguous
         const past = new Date("2020-06-01T00:00:00.000Z");
         await db
             .update(schema.artifacts)
             .set({ updatedAt: past })
             .where(eq(schema.artifacts.id, id));
 
-        // Folder-only move → updatedAt must stay put.
         const move = await authed(
             userId,
             `/artifacts/${id}`,
@@ -120,7 +117,6 @@ describe("artifact routes", () => {
         const afterMove = (await move.json()) as { updatedAt: string };
         expect(new Date(afterMove.updatedAt).getTime()).toBe(past.getTime());
 
-        // Real content edit → updatedAt must advance.
         const edit = await authed(
             userId,
             `/artifacts/${id}`,
@@ -225,7 +221,6 @@ describe("artifact routes", () => {
         );
         expect(patch.status).toBe(404);
 
-        // The owner's copy is untouched.
         const [row] = await db
             .select()
             .from(schema.artifacts)

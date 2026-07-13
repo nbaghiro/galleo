@@ -2,18 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
 import { db, schema } from "../../schema";
 
-// Integration: the AI routes with the model provider UNCONFIGURED (no ANTHROPIC/OPENAI/GOOGLE/XAI key) —
-// exactly the seam this tier tests. In every metered AI route the `!aiReady()` guard sits at the very top
-// (right after the auth + workspace lookups), so with no key the reachable branches are: 401 (no session),
-// 400 (no workspace), and 503 (not configured). The downstream branches — request validation (400 per
-// kind), the 501 "not built yet", and the credit gate (402) — all sit AFTER that guard, so they are only
-// reachable once a provider key is present (the later, keyed tier). See the report for that gap.
-
 const PROVIDER_KEYS = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY", "XAI_API_KEY"];
 const saved: Record<string, string | undefined> = {};
 
-// Guarantee the documented "unconfigured" invariant regardless of the runner's shell (removes keys only —
-// never fakes the LLM), then restore afterwards so nothing leaks to other files.
 beforeAll(() => {
     for (const k of PROVIDER_KEYS) {
         saved[k] = process.env[k];
@@ -33,7 +24,7 @@ describe("AI routes — unconfigured provider", () => {
     });
 
     it("POST /ai/turn 400s for an authed user with no workspace", async () => {
-        // A user row with no membership → currentWorkspace() returns null before the aiReady() guard.
+        // no membership → currentWorkspace() returns null before the aiReady() guard
         const [u] = await db
             .insert(schema.users)
             .values({ email: "no-ws@test.local", passwordHash: "x:y" })

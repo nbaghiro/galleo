@@ -82,7 +82,6 @@ describe("slideTransform", () => {
         expect(t.offY).toBeCloseTo(0, 6); // 1440·0.5 == 720 fills the frame
     });
     it("letterboxes an odd-aspect page into the fixed 16:9 slide", () => {
-        // a 21:9-ish page (1280×548) contains into 1280×720 at scale 1, centered vertically
         const t = slideTransform({ w: 1280, h: 548, contentH: 548 });
         expect(t.fit).toBeCloseTo(1, 6);
         expect(t.offY).toBeCloseTo((720 - 548) / 2, 6);
@@ -245,7 +244,6 @@ describe("textSpec", () => {
         ];
         const { runs, options } = textSpec(leaf, { x: 96, y: 96, w: 480, h: 108 }, lines);
         expect(runs.map((r) => r.text)).toEqual(["Line", "one", "Line", "two"]);
-        // breakLine only on the last frag of the first line
         expect(runs[1]!.options!.breakLine).toBe(true);
         expect(runs[3]!.options!.breakLine).toBeUndefined();
         expect(runs[0]!.options!.bold).toBe(true); // weight 600 → bold
@@ -287,8 +285,6 @@ describe("textSpec", () => {
         expect(runs[0]).toEqual({ text: "", options: { breakLine: true } });
     });
 });
-
-// ---- font embedding ----
 
 describe("slotFor", () => {
     it("buckets weight (>=600 bold) × italic into the four PowerPoint slots", () => {
