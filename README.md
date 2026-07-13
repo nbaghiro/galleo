@@ -61,6 +61,6 @@ checks locally (wired up automatically by `pnpm install`).
 
 ## Docs
 
-Deep-dives live in [`.docs/`](.docs/) — [product](.docs/product.md), [architecture](.docs/architecture.md),
-[rendering & elements](.docs/rendering.md), and [data model](.docs/data-model.md). Full index:
-[`.docs/README.md`](.docs/README.md).
+Deep-dives live in [`.docs/`](.docs/) — [architecture](.docs/architecture.md),
+[rendering](.docs/rendering.md), [ai](.docs/ai.md), [frontend](.docs/frontend.md), and
+[testing](.docs/testing.md). Full index: [`.docs/README.md`](.docs/README.md).

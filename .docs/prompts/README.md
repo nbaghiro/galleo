@@ -19,4 +19,4 @@ capacity allows.
 
 Each prompt tells the session to: build the feature, gate it via `can(featuresFor(ws), "<flag>")`, and flip
 `FEATURES["<flag>"].status` from `"planned"` → `"live"` once verified. Plan grants are already set in
-`model/billing.ts`; billing internals are off-limits. Full spec + rationale lives in `.docs/billing.md`.
+`model/billing.ts`; billing internals are off-limits. Full spec + rationale lives in `.docs/architecture.md`.

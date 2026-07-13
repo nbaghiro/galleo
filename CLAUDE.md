@@ -5,12 +5,14 @@ with high-fidelity export. Net-new, TypeScript.
 
 ## Read first
 
-- `.docs/architecture.md` — factual codebase map: what's in each package, the layering law, data flow,
-  local ports. Start here for "where does X live".
+- `.docs/architecture.md` — what Galleo is, the layering law, the factual codebase map, the data model
+  (Postgres + JSONB), billing/credits, and ports. Start here for "where does X live".
 - `.docs/rendering.md` — the rendering core + element system (engine, format-as-view, compose, elements,
-  editing).
-- `.docs/data-model.md` — persistence (Postgres + the JSONB content tree).
-- `.docs/product.md` — product framing (what Galleo is, the "why").
+  editing, charts/diagrams).
+- `.docs/ai.md` — the AI pipeline: the streamed turn protocol, tools, runtime, chat/workspace agent,
+  prompts, routes + credit gate.
+- `.docs/frontend.md` — the shared `@ui` component library + the keyboard/command system.
+- `.docs/testing.md` — the test philosophy, the mocking contract, and the coverage map.
 
 ## Structure (model · canvas · ui · editor · app)
 
@@ -29,7 +31,7 @@ with high-fidelity export. Net-new, TypeScript.
   higher. **Any Solid component shared across editor + app (or publish) lives here — never duplicated
   per-module or reached across a sibling boundary.** Theme-reactive by construction (styled only through the
   theme CSS-var utilities — `text-ink`, `bg-accent`, `var(--radius)`… — zero hardcoded colors, so every
-  primitive recolors with the active theme). See `.docs/ui-component-library.md`.
+  primitive recolors with the active theme). See `.docs/frontend.md`.
 - **`editor/`** (`@editor`) — the SolidJS studio: selection, inspectors, inline text, drag-drop over
   `model` + `canvas` + `ui`. `register.ts` side-effect-registers the elements.
 - **`services/`** — backend (Hono + Postgres/Drizzle), depends only on `model`: `schema.ts` + `auth.ts` + a thin `server.ts` mounting per-resource routers in `api/`; `seed.ts` + `demos/` + `templates/` are seed content.
@@ -50,7 +52,7 @@ with high-fidelity export. Net-new, TypeScript.
   Every `@ui` component **must**: style only through the theme CSS-var utilities (`text-ink`, `bg-accent`,
   `var(--radius)`… — zero hardcoded colors, so it recolors with the theme), forward native attrs + `class`
   via `splitProps`, and import nothing above `@ui` (`model` + `canvas` + `@themes` only). Catalog + build
-  spec: `.docs/ui-component-library.md`.
+  spec: `.docs/frontend.md`.
 - **Path aliases** (directory aliases): `@model`, `@themes`, `@engine`, `@elements`, `@canvas`, `@ui`,
   `@editor` (e.g. `@model/artifact`, `@ui/button`). Backend + frontend both import the shared wire shapes
   from `@model` + `@themes`; `services` otherwise use relative imports.
@@ -95,7 +97,7 @@ The product SPA (`app/`, served at `/app`) wraps the studio: library / templates
 editor views, a backend (`services/` Hono + Postgres/Drizzle; artifact content lives in the
 `draft_content` jsonb), a singular theme editor (`app/views/ThemeEditor.tsx`), and a **real** streamed
 AI pipeline — generation, chat, section/element/text edits over the `@model/ai` turn protocol (SSE),
-served by `services/ai` (see `.docs/ai-module.md`). The `app/views/generate` client-side simulator is gone.
+served by `services/ai` (see `.docs/ai.md`). The `app/views/generate` client-side simulator is gone.
 
 ## Commits
 

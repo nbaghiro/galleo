@@ -3,7 +3,7 @@
 ## Shared context
 
 You're working in **Galleo** — a TypeScript AI content tool where one engine renders the same block tree
-as a **deck, document, or website**. Read `.docs/architecture.md`, `.docs/data-model.md`, and `CLAUDE.md`
+as a **deck, document, or website**. Read `.docs/architecture.md` and `CLAUDE.md`
 before starting.
 
 **Layering law (ESLint-enforced):** `model ← canvas ← editor ← app`; `services` imports only `model`.

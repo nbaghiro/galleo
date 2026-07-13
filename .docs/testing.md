@@ -1,42 +1,31 @@
-# testing.md — test setup + the near-full-coverage plan for canvas
+# testing.md — how Galleo is tested, today
 
-Factual map of Galleo's test system and the plan to bring the **canvas module** (engine · elements ·
-render) to near-full, _meaningful_ coverage. Sibling of `.docs/architecture.md` (where things live) and
-`.docs/rendering.md` (the render core this targets). Executed in phases; each phase is independently green.
+Factual map of Galleo's test system as it stands. Sibling of `.docs/architecture.md` (where things live),
+`.docs/rendering.md` (the render core), `.docs/ai.md` (the AI pipeline), and `.docs/frontend.md` (the Solid
+shells). One rule governs the whole suite: **fake only true external oracles, run everything else for real**
+(§2). The canvas near-full-coverage push and the codebase-wide inventory that seeded this suite are folded
+in below; the still-unbuilt tracks are in §8.
 
-## Why canvas first
+## 1. Overview — three surfaces
 
-`canvas/` is the pure, framework-free heart: the Clay-style layout solver, the element library, and the
-render bridge that every surface (editor, present, export, publish) paints through. A sizing or reflow
-regression here silently corrupts every deck/doc/site. It is also the _easiest_ high-value thing to test —
-most of it is deterministic TS with an **injected** `measure` function and no DOM. One engine bug is worth
-a hundred view bugs, and here we catch it with a millisecond unit test.
+| Surface           | Runner                               | Glob            | Env                                  | Deps                         | State                        |
+| ----------------- | ------------------------------------ | --------------- | ------------------------------------ | ---------------------------- | ---------------------------- |
+| **`unit`**        | `vitest.config.ts`                   | `**/*.test.ts`  | `node` (+ per-file happy-dom opt-in) | none (pure + injected seams) | **813 tests / 74 files**     |
+| **`integration`** | `vitest.integration.config.ts`       | `**/*.itest.ts` | `node`, `fileParallelism:false`      | real `galleo_test` Postgres  | **6 files** (route policies) |
+| **`component`**   | _not built_ — a Solid-render project | `**/*.test.tsx` | happy-dom + `vite-plugin-solid`      | `@solidjs/testing-library`   | **0 tests** (§8b)            |
 
-## Current status
-
-Milestones M1–M6 are **built and landed** — the canvas module is covered end to end.
-
-| Piece    | State                                                                                                                                                                 |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runner   | **Vitest 4** (`vitest.config.ts`), `node` env default, v8 coverage, happy-dom per-file                                                                                |
-| Scripts  | `pnpm test` · `test:watch` · `test:coverage`                                                                                                                          |
-| Suite    | **283 tests** across 24 files in per-folder `__tests__/`; `canvas/testkit.ts` is the whole doubles surface                                                            |
-| Gate     | `pnpm test` in **CI** and the **pre-commit hook**; `coverage/` git-ignored                                                                                            |
-| Coverage | **~70% overall** (canvas+model); engine **98%**, elements **88%**, charts/diagrams **90%+**, render bridge **52%** (raster/IO tail honestly bounded). Started at ~6%. |
-
-Achieved coverage by area:
-
-| Area                                                                    | Stmts | Notes                                                                           |
-| ----------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------- |
-| `canvas/engine` (layout · fragment · profile)                           | 98%   | the solver, fully                                                               |
-| `canvas/elements` (ops · compose · layouts · specs · charts · diagrams) | ~89%  | real registry + real theme, no faked specs                                      |
-| `canvas/render` (commands · backends · present · geometry)              | 52%   | logic covered; raster/IO smoke-only or excluded                                 |
-| `canvas/render/export-geometry.ts`                                      | 100%  | page/raster geometry, extracted out of the IO shell                             |
-| `canvas/render/export.ts`                                               | —     | IO shell excluded (pdf-lib · toBlob · print); geometry lives + tested next door |
+The `unit` suite is one vitest run in `node`; DOM-touching files opt in per file with a
+`// @vitest-environment happy-dom` docblock. Coverage instrumentation targets **`canvas/**`+`model/**`**
+only (`coverage.include`) — the layout engine ~**98%**, elements ~**89%**, charts/diagrams ~**90%+**, render
+bridge logic covered (raster/IO tail honestly bounded, §7), model pure helpers high; realistic near-full
+ceiling ~**87%** (the IO shells are excluded, not faked). The `model`/`services`/`editor`/`app`/`ui` suites
+beyond `canvas`+`model` are correctness tests, not yet under a per-directory coverage gate. `integration` is
+a separate config (no shared `projects` file yet) exercising Hono routes against a throwaway Postgres.
+`component` is planned only — **no `.test.tsx` exists**.
 
 ---
 
-## The mocking contract (read this first)
+## 2. The mocking contract (the single canonical statement — read this first)
 
 "Near-full coverage" is worthless if it's reached by stubbing out the logic under test. The rule for this
 suite: **fake exactly two things, because they are the only true external oracles. Everything above them
@@ -75,11 +64,41 @@ runs for real.**
 If a test needs more than the two seams above to run, that's a signal the code has a hidden coupling worth
 fixing — not a signal to add a mock.
 
+This is the **single** statement of the contract. The layers below extend it (a real DB / real Router /
+real theme provider is not a mock either); they add seams, never restatements.
+
 ---
 
-## Test doubles catalog (the only doubles that exist)
+## 3. The seam budget
 
-All live in the shared `canvas/testkit.ts` (Phase 0b). Everything else a test touches is the real thing.
+Per-layer expansion of §2 — the only things any layer is ever allowed to fake, so the cheapest,
+highest-confidence coverage floats to the top.
+
+| Layer                          | Legit seams (the only fakes)                                        | Everything else runs real                     |
+| ------------------------------ | ------------------------------------------------------------------- | --------------------------------------------- |
+| `model/`                       | **one** — the module-level custom-theme registry (`registerThemes`) | all color/text/pricing/protocol math          |
+| `canvas/`                      | **glyph metrics** (`measure`) + **raster/IO** (`installCanvas2D`)   | solver, registry, `@themes`, d3, DOM, pdf-lib |
+| `services/` (logic)            | none — prompts/schema/quality/pure helpers                          | real registries, real `@themes`, real `zod`   |
+| `services/` (routes)           | **DB** (throwaway Postgres) + **auth** cookie                       | validation, gating, shaping, real SQL         |
+| `services/` (AI runtime)       | **LLM** (fake the `ai` SDK) + clock/env/network                     | the reducers, repair loop, id/query logic     |
+| `editor/` (logic)              | none — drop-target math, data round-trips                           | real `@elements` ops, real `applyPatch`       |
+| `editor/` (store + AI)         | **clock** (coalesce) + **injected transports**                      | history, selection, commit reducers           |
+| `app/`                         | **fetch** · **localStorage** · **clock**                            | URL/body building, response mapping, derivers |
+| `ui`/`editor`/`app` components | **Solid render** (component project, §8b)                           | prop→class, keyboard, open/close logic        |
+
+Zero clock/random/crypto hides anywhere in `model/`. The backend's `Date.now`/`crypto.randomUUID` are all in
+named spots (credit rollover, lockout, slug/id gen) — each a clean clock/random seam.
+
+> The same contract extends **verbatim** to the two higher levels: at the component-render level fake only
+> network/nav/time (a real Router/theme provider is not a mock); at the DB-integration level fake only
+> LLM/Stripe/mail/clock (the real Postgres, real SQL, real auth cookie are not mocks).
+
+---
+
+## 4. Test-doubles catalog (the only doubles that exist)
+
+The canvas doubles all live in the shared `canvas/testkit.ts`. Everything else a test touches is the real
+thing.
 
 - **`measure: MeasureText`** — `text.length * 8` per unwrapped line, 16px line height, wraps at `maxWidth`.
   The one substitute for font metrics. Injected into `layout`, `layoutSection`, `layoutSlide`,
@@ -100,9 +119,15 @@ All live in the shared `canvas/testkit.ts` (Phase 0b). Everything else a test to
   `sectionSlides`, `paintSectionStack`, and the raster smoke tests run under happy-dom without a native
   canvas. This is the raster seam, called in a `beforeAll` of each `*.dom.test.ts`.
 
+**Integration harness** (`services/__tests__/harness.ts`) — `app` (a Hono app mounting the real per-resource
+routers), `request(path, init)` / `authed(userId, path, init)` (attaches a real `makeSession` cookie) /
+`jsonInit(method, body)` request helpers, `seedUser({plan})` (inserts a real user + workspace + owner
+member, returns ids + cookie), and `resetDb()` — `TRUNCATE … RESTART IDENTITY CASCADE` over every public
+table, run in `beforeEach` (`setup.ts`) for per-test isolation.
+
 ---
 
-## Toolchain & conventions
+## 5. Toolchain & conventions
 
 - **Location.** Each folder's tests live in its own `__tests__/` subdirectory (`canvas/engine/__tests__/layout.test.ts`
   tests `canvas/engine/layout.ts`). Vitest's `**/*.test.ts` include finds them anywhere; imports use path
@@ -113,255 +138,73 @@ All live in the shared `canvas/testkit.ts` (Phase 0b). Everything else a test to
 - **Strictness.** Tests are linted + typechecked like source (`no-explicit-any`, `noUncheckedIndexedAccess`,
   prettier). A feature: they exercise the real types.
 - **Boundaries.** A `canvas/**` test may import `model` + `canvas` only — not `editor`/`ui`/`app` (eslint
-  `no-restricted-paths`). This is why registration must have a canvas-side entry (Phase 0a).
+  `no-restricted-paths`). This is why the element library has a canvas-side registration entry
+  (`canvas/elements/register.ts`, imported in-boundary as `@elements/register`).
+- **Scripts.** `pnpm test` (`vitest run`) · `test:watch` · `test:coverage`. Runs in **CI** and the
+  **pre-commit hook**; `coverage/` is git-ignored.
+
+**Integration config** (`vitest.integration.config.ts`) — same aliases, `node` env, `include:
+["**/*.itest.ts"]`. It injects `env.DATABASE_URL` (`…/galleo_test`) + `env.SESSION_SECRET` and sets
+`fileParallelism:false` (one shared DB — files serialize so truncation can't race). `globalSetup`
+(`services/__tests__/global-setup.ts`) creates `galleo_test` if absent and `drizzle-kit push`es the schema;
+`setupFiles` (`setup.ts`) truncates in `beforeEach`. AI/Stripe/mail keys are left unset so
+`aiReady()`/`stripeReady()`/`mailReady()` resolve false (the "not configured" branches are real behavior).
+
+**Invoking integration tests** — there is **no `test:int` npm script yet**; run the config directly:
+
+```
+vitest run -c vitest.integration.config.ts        # needs Docker Postgres on :8602 (docker-compose.yml)
+```
 
 ---
 
-## Phase 0 — foundation
+## 6. Coverage map
 
-### 0a. Canvas-side element registration
+One row per area: what runs, against which real deps (proof it isn't over-mocked), the allowed seam, and
+status. `canvas/**` + `model/**` are the coverage-instrumented core; the rest are correctness suites.
 
-The registry is a `Map` in `canvas/elements/spec.ts`, populated purely by _importing_ each element file
-(side-effect `register(...)`). Today the only aggregate importer is `editor/register.ts` — which a
-`canvas/**` test **cannot import** (boundary law). Without it, `getElement` returns `undefined`,
-`composeSection` emits red error boxes, and every container op is a silent no-op.
+| Area                         | Test file(s)                                                                                                         | Real deps (run for real)                             | Allowed seam                              | Status   |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------- | -------- |
+| model pure contract          | `model/__tests__/{theme,text,ai,credits,features,billing,tools,target,authoring,geometry,section}`                   | color/text/pricing/protocol math, real `@themes`     | — (theme: `registerThemes`)               | DONE     |
+| engine solver                | `canvas/engine/__tests__/{layout,fragment,profile}`                                                                  | Clay 3-pass solver, pagination, profile math         | `measure`                                 | DONE     |
+| elements ops + compose       | `canvas/elements/__tests__/{ops,compose,layouts,skeletons,spec,blueprint}`                                           | real registry, `DEFAULT_THEME.tokens`, profiles      | `measure`                                 | DONE     |
+| element specs (per category) | `canvas/elements/{text,media,basic,table,composite}/__tests__/*`                                                     | real registry (self + children), `tokens`            | `recordingDrawContext`                    | DONE     |
+| charts                       | `canvas/elements/chart/__tests__/chart`                                                                              | d3-scale / d3-shape, registry                        | `recordingDrawContext`                    | DONE     |
+| diagrams                     | `canvas/elements/diagram/__tests__/diagram`                                                                          | d3-hierarchy, registry                               | `recordingDrawContext`                    | DONE     |
+| render bridge (pure+measure) | `canvas/render/__tests__/{commands,commands.dom}`                                                                    | compose + registry + solver                          | `measure` / `textMetricsCtx`              | DONE     |
+| render backends (DOM+raster) | `canvas/render/__tests__/{backends,backends.dom}`                                                                    | real `document` (happy-dom), real inline styles      | `installCanvas2D`, image IO               | DONE     |
+| present slides               | `canvas/render/__tests__/present.dom`                                                                                | happy-dom slide build                                | `installCanvas2D`                         | DONE     |
+| export geometry              | `canvas/render/__tests__/export`                                                                                     | pure page/raster arithmetic (pdf-lib real)           | —                                         | DONE     |
+| pptx sections                | `canvas/render/__tests__/pptx`                                                                                       | pure slide/section mapping                           | —                                         | DONE     |
+| editor dnd + inspect         | `editor/canvas/__tests__/dnd`, `editor/inspect/__tests__/data-model`                                                 | `@elements` ops, real `ArtifactContent`              | —                                         | DONE     |
+| editor store + commands      | `editor/__tests__/{editor,commands,keymap,clipboard}`                                                                | history/selection/commit reducers, `applyPatch`      | clock (coalesce), injected transports     | DONE     |
+| editor AI flows              | `editor/ai/__tests__/{element-gen,suggest}`                                                                          | ops, `applyPatch`, ranking                           | injected transport                        | DONE     |
+| app HTTP client              | `app/__tests__/api`                                                                                                  | URL/body build, response mapping, SSE parse          | `fetch`                                   | DONE     |
+| app route + stores           | `app/__tests__/route-context`, `app/stores/__tests__/library`                                                        | route derivers, title/format/time formatters         | clock                                     | DONE     |
+| services auth                | `services/__tests__/auth`                                                                                            | scrypt crypto round-trip, HMAC session sign/verify   | env (`SESSION_SECRET`)                    | DONE     |
+| services AI prompts          | `services/ai/prompts/__tests__/*` (14 files)                                                                         | pure string assembly, real `ELEMENTS` catalog        | —                                         | DONE     |
+| services AI schema + quality | `services/ai/__tests__/{schema,quality}`                                                                             | real `zod`, deterministic gate                       | —                                         | DONE     |
+| services AI tools            | `services/ai/tools/__tests__/{structure,manage,library,registry}`                                                    | deterministic patch producers                        | —                                         | DONE     |
+| services media/mail/billing  | `services/media/__tests__/{generate,providers}`, `services/mail/__tests__/send`, `services/billing/__tests__/stripe` | pure dims/dispatch/escape/price mapping              | env (price ids, stock keys)               | DONE     |
+| ui primitives (pure)         | `ui/__tests__/{focus,fuzzy,keys,palette}`                                                                            | focus-trap, fuzzy match, keymap, palette-model       | —                                         | DONE     |
+| route policies (integration) | `services/api/__tests__/{session,artifacts,links,ai,context,folders}.itest.ts`                                       | real Postgres, real SQL, auth cookie, gating/shaping | DB (`galleo_test`), LLM/Stripe/mail/clock | DONE (6) |
 
-**Fix:** create `canvas/elements/register.ts` holding the ~33 `import "@elements/…"` side-effect lines;
-`editor/register.ts` becomes `import "@elements/register"` (+ any editor-only registration). Registration of
-the element _library_ now lives in the _canvas_ layer where the library lives, and any canvas test does
-`import "@elements/register"` in-boundary. (Touches `editor/register.ts` → coordinate with the in-flight
-`@ui` refactor. Fallback: import the specific specs a test needs — all within canvas.)
+**Honestly excluded (named here and in `vitest.config.ts` `coverage.exclude`):**
 
-### 0b. The shared testkit
+- **`canvas/render/export.ts`** — IO shell (pdf-lib · `canvas.toBlob` · `window.print`). Pure page/raster
+  geometry was extracted and is tested in `export.test.ts`; the shell is excluded, not stubbed.
+- **`canvas/render/pptx.ts`** — IO shell (pptxgenjs · jszip · fetch). Pure slide/section mapping is tested in
+  `pptx.test.ts`; the shell is excluded.
+- **`canvas/engine/node.ts`** and other pure type files — no runtime; inert in coverage, nothing to test.
+- **Raster path** (`renderToCanvas`/`drawCommands`/`drawImageFit`/`roundRectPath`) — **smoke-only**: assert
+  no-throw and that the expected draw-call kinds fire, never pixels. Images stubbed (the IO seam).
 
-`canvas/testkit.ts` — the doubles catalog above. This is the whole "mock surface" for the entire suite.
-
----
-
-## The coverage map (per file, enumerated)
-
-Each entry lists the target, the **real** dependencies it runs against (proof it's not over-mocked), the
-allowed seam (if any), and the concrete cases needed to reach the target. `file:line` anchors are current.
-
-### `canvas/engine/layout.ts` → **≥95%** · real: solver + geometry; seam: `measure`
-
-Existing tests cover distribute (even/max/min/fixed/percent/fit-shrink/col-grow), explicit + implicit clip,
-and 2-float ordering. Add:
-
-- `distribute` (l.52) termination: all-movable-at-max with leftover slack → overflows and halts inside the
-  `64` guard; a mixed set where some children are already at `min` under overflow → only the above-min ones
-  shrink; the `0.5` slack no-op boundary.
-- `intrinsicWidth` (l.84): text → `measure(∞).width`; row → `padX + gap·(n−1) + Σ childW`; col → `padX +
-max(childW)`; a `percent`/`grow` child contributes **0**; a childless image/fill leaf → 0; a nested
-  row-inside-col intrinsic.
-- `widthSpan`/`crossWidth` (l.102/126): main-axis percent = `avail·value` (post-gap); cross-axis percent =
-  `contentW·value`; fit cross clamps to `contentW`; grow cross fills.
-- `layoutHeights` (l.182): an **aspect** leaf → `h = w/aspect` **and** always carries `clip{x,y}` (l.191);
-  a **bounded row** shorter than its tallest child → `clip{y}` (l.228, test both sides of the `+0.5`).
-- `mainOffset` (l.260): `extra≤0 → 0`, center → `extra/2`, end → `extra`.
-- `layoutPositions` (l.267): `alignSelf` overrides parent `alignY`/`alignX`; centered child cross-position;
-  gaps with N>2 children.
-- `emit` (l.321): `opacity<1` multiplies down a subtree and is carried per-command only when `acc<1`;
-  a node with `id` produces a `Region` with `radius` from fill/image; within a node paint order is
-  rect→image→text→surface; **3+ floats emit in ascending `z`**.
-- `clipRect`/`mergeClip` (l.313/20): nested parent∩child (both bounded) → intersection; one axis unbounded →
-  `±CLIP_INF` (`1e7`); non-overlapping clips → `w/h` floored at 0; `mergeClip` OR semantics.
-
-### `canvas/engine/layout.ts` — `fragment` → **≥95%** · real: pure; **highest-priority gap**
-
-Pagination — present + export both depend on it, zero tests today.
-
-- Short-circuit: `totalHeight ≤ pageHeight + EPS` → one page (test the `EPS=0.5` boundary); `pageHeight ≤ 0`
-  → one page.
-- 3 stacked 100px blocks, page 150 → break falls **between** blocks (never mid-block); assert page 2's
-  commands are shifted to `y≈0`.
-- A command straddling the limit pushes the break **up** to before it.
-- A single block taller than a full page → hard break at `limit` (unavoidable split).
-- A **clipped** command paginated: `shiftY` moves `clip.y` with `box.y` (l.384).
-- A large stack terminates within the `4096` guard.
-
-### `canvas/engine/profile.ts` → **≥95%** · real: pure
-
-- `resolveProfile` (l.46): deck/doc/web by id; unknown → deck; undefined → deck.
-- Pin `PROFILES` (l.8): deck 1280×720 / maxContent 1120 / splitMin 520 / paginate "always"; doc / web rows.
-- `slideFrame` (l.57): deck default 1280×720 ✓; aspect override ✓; `aspect ≤ 0` falls back; a **continuous**
-  profile (doc) frame.
-- `previewContentProfile` (l.74): web + deck pass through unchanged (same ref); doc grows with viewport;
-  floored at `editorMax` (small `fullW`) and capped at `1440` (huge `fullW`); returns the same ref when
-  `wide === editorMax`.
-
-### `canvas/engine/node.ts` — types only
-
-No runtime; N/A for coverage (v8 reports it as inert). Nothing to test.
-
-### `canvas/render/geometry.ts` → **100%** · real: pure; seam: `window` dims
-
-- `scaledHostCss` (l.9): base string + `center` variant offsets — inline snapshot.
-- `fitToViewport` (l.24): width-bound vs height-bound `min`, with `window.innerWidth/Height` set (happy-dom).
-
-### `model/section.ts` → **100%** · real: pure, registry-free
-
-- `LAYOUT_PRESETS` values; `withWidth`; `rowGroup` even vs explicit widths (pct rounding); `colGroup`;
-  `emptyRegion`; `childrenRaw` array vs non-array; `updateAtPath` root/deep/missing-path; `removeAtPath`
-  root (→ empty region) / deep.
-
-### `canvas/elements/ops.ts` → **≥95%** · real: **real registry** (group/card/text/image) + real section builders
-
-The drag/drop/inspector safety net. Register real elements — never fake `getElement`. Assert both the result
-tree **and** input immutability.
-
-- Access: `getElementAt` deep path; `stripWidth` drops now-empty `layout` (l.56); `updateDataAt` /
-  `setElementAt` / `setElementLayout` leave the input unmutated.
-- Remove/collapse: `removeAt` root → `emptyRegion` (l.137); `renormalizeWidths` — delete 1 of 3 equal cols →
-  50/50 (l.155); `fixContainer` unwraps a redundant single-child group, hoisting width (l.170);
-  `collapseAlong` collapses **only** the emptied path, leaving unrelated empty regions (l.179);
-  `deleteElement` = remove + collapse (l.205).
-- Insert: `insertChild` clamps index, no-ops on a non-container (l.213); `wrapWith` before/after strips the
-  wrapped width (l.230); `replaceAt`.
-- Duplicate: `duplicateAt` deep + root (→ `colGroup([inst, clone])`, l.259); `duplicatedAddr` landing slot.
-- Columns/presets: `addColumn` even-splits + single-col path `[]` (l.288); `splitRoot` pad-grow vs
-  merge-shrink-into-last (l.306); `splitSection` / `applyLayoutPreset` known + unknown preset;
-  `columnFractions` even vs explicit (l.336).
-- Section-level: `insertSection` clamp; `removeSection` **keeps ≥1** (l.374); `moveSection` clamp/no-op;
-  `duplicateSection` newId + clone; `setSectionBackground/Bleed`, `setArtifactTheme/Format`.
-
-### `canvas/elements/compose.ts` → **≥90%** · real: registry + `DEFAULT_THEME.tokens` + real profiles; seam: `measure`
-
-Run real composition of real sections; assert the produced `EngineNode` + region ids.
-
-- `applyLayout` (l.89): width fit/fill/pct; height "fill" **clears aspect** (l.97); `align → alignSelf`;
-  radius targets `image.radius` then `fill.radius`.
-- `readableAccentOnDark` (l.144): accent ≥0.45 luminance passthrough; darker → lifted toward 0.62; non-6-hex
-  passthrough.
-- `bgIsDark` (l.151): none → false; explicit `dark`; image → **always true**; color/gradient via luminance.
-- `sectionContentTokens` (l.180): dark bg → `onDark` tokens; light → theme.
-- `composeElement` (l.110): unknown type → red error box carrying the element id; empty container →
-  `emptyRegionNode`; nested container recurses; node tagged with `elementRegionId(addr)`.
-- `composeSection` (l.184): dark-bg theme swap; `web` band widens inner to `innerMax` + centers;
-  `radius = 0` when bleed/continuous else `theme.radius`; `framed = !bleed && !continuous` gates shadow;
-  border only when framed **and** light bg; background branch order image → gradient → color → surface.
-
-### `canvas/elements/layouts.ts` → **≥90%** · real: registry (roleOf by category) + section builders
-
-- `sectionBlocks` (l.37): role tagging + `flatten` unwrapping nested `group` scaffolding.
-- `fractionsMatch` (l.94): the `0.02` tolerance, just inside vs just outside.
-- each `splitPreset`: `matches` via `columnFractions`, `transform` via `splitSection`.
-- `media-right`/`-left`/`-top`: `applies` (has media + content), `matches` (`twoUp` role order), `transform`.
-- `media-bleed` (l.159): an image with a `src` → `background.kind:"image"`, `bleed:true`, `scrim ?? 0.4`.
-
-### `canvas/elements/skeletons.ts` → **100%** · real: pure, no theme
-
-`barsSkel` / `discSkel` / `twinDiscSkel` / `dotsSkel` / `bandsSkel` / `boxesSkel` / `gridSkel(rows,cols)` /
-`treeSkel` — assert node structure + child counts (e.g. `gridSkel(2,3)` → 6 cells).
-
-### `canvas/elements/blueprint.ts` → **≥95%** · real: pure, no theme/registry
-
-- `placeholderBlock(kind)` (l.26): each mapped kind (image/stat/chart/diagram/table/bullets/quote/cards) +
-  the default.
-- `placeholderSection(plan)` (l.98): uses `LAYOUT_PRESETS[plan.layout ?? "full"]`, one column per block,
-  trailing-image guess (`plan.image && n>1 && i===n−1`).
-
-### `canvas/elements/spec.ts` → **≥90%** · real: registry + real theme for `skeletonFor`
-
-- `register`/`getElement`/`listElements` (l.13-21): register a spec, read it back; unknown → undefined.
-- `walkElements` (l.27): DFS order; undefined root → no-op; non-array `children` ignored.
-- `SECTION_CONTROLS` (l.118): the `visibleWhen` closures (bgColor iff `bgKind==="color"`, bgImage iff image,
-  scrim iff image, gradient stops iff gradient).
-- Ghost builders `bar`/`pill`/`dot`/`block` (l.203-222): radius rules (`bar` `min(4,h/2)`, `pill` 99).
-- `textBars` line-count thresholds (`>60→3`, `>20→2`, else 1) and the width-fraction clamp.
-- `skeletonize` (l.256): text → bars; media leaf → single panel (`aspect ?? 16/9`, radius); container →
-  panel fill + recurse, border preserved only if the original had one.
-- `skeletonFor` (l.299): honors `spec.skeleton` when present, else `skeletonize(spec.layout(create()))` —
-  run against a real registered element.
-
-### Element specs — `text/ media/ basic/ table/ composite/` → **≥85% per category** · real: registry (self + children) + `tokens`; seam: `recordingDrawContext` for shape surfaces
-
-Each `layout`/`arrange` is pure given a real `LayoutCtx`; containers compose real children. Assert the
-produced node (sizes, `fill`/`text`/`image` leaves, structure) — not pixels. One file per category:
-
-- **text**: `text` STYLE table per role (l.31) + display weight from `theme.headingWeight` + marks → runs
-  only when non-empty (l.77); `bullets` marker kinds number/dash/check/dot; `callout` `toneColor` table;
-  `quote`; `code` line-split, empty line → `" "`.
-- **media**: `imageLike` — `zoom` percent→fraction (l.38), aspect/radius defaults, `fit` cover/contain,
-  resize bounds `{0.4,2.6}`; `avatar` round + accent ring; `video` 16:9 dark box + play glyph; `icon` bakes
-  `currentColor → iconColor(role)`.
-- **basic**: `shape` `ellipsePath` kappa `0.5523` / `starPath` inner `0.42` / stroke inset — via recording
-  ctx; `button` `SIZES` + `shapeRadius` sharp/pill/rounded + variant fills; `divider`/`spacer`/`gradient`/
-  `badge`/`embed` node shapes.
-- **table**: `grid(d)` legacy string parse + cell pad to `rows*cols` (l.56), `MAX_COLS/ROWS` clamps;
-  `arrangeTable` header bold/body soft, zebra, cell width `1/cols`.
-- **composite**: `group.crossAlign` **inferred from text children** (l.27) + explicit override — the
-  high-value one; `card` 5 styles + unknown-child throw; `faq` pairs kids two-at-a-time; `stat`/`feature`/
-  `profile`/`testimonial`/`pricing`/`cta` arrange shape (pricing embeds bullets → children registered).
-
-### Charts — `canvas/elements/chart/` → **≥85%** · real: d3-scale/shape + registry; seam: `recordingDrawContext`
-
-- **`utils.ts`** (pure): `parseSeries` drops non-finite/empty, legacy single-line (l.98); `normalize` type
-  fallback chain + `showGrid` default true (l.113); `catList`; `seriesColors` ramp steps
-  `[1,.7,.48,.32,.22]` + categorical hue offsets + **saturation `<0.14` → lightness-ramp fallback** (l.171);
-  `fmt` `1e3`/`1e6` thresholds (l.211); `yMax` stacked vs plain (l.222).
-- **`render.ts`** `renderChart` (l.23): bail on no points; type fallback "bar".
-- **per-type render**: a data-driven suite over all 13 (`bar/line/area/pie/donut/radar/column/scatter/
-bubble/funnel/gauge/heatmap/treemap`) asserting via recording ctx — "valid data → ≥N draw calls of the
-  expected kind, no throw"; "empty series → no throw, no marks". Then spot-check the notable gating: bar
-  value labels only when `groups===1`, treemap skips cells `<46×24`, gauge `frac=clamp(value/max)`.
-
-### Diagrams — `canvas/elements/diagram/` → **≥85%** · real: d3-hierarchy + registry; seam: `recordingDrawContext`
-
-- **`utils.ts`** (pure): `parseEdges` `"A->B:label"` drops malformed (l.89); `normalizeDiagram` (l.110);
-  **`buildTree`** root = node never a `to`, else first; no edges → star; cycles/diamonds cut by visited set
-  (l.311); `layoutTree` scale-to-fit, **never upscales** (l.369).
-- **per-type render**: data-driven over all 12 (`process/cycle/pyramid/funnel/timeline/venn/quadrant/matrix/
-tree/org/mindmap/flow`) — "valid → draws, empty → no throw" + spot-check `venn` 3 circles, `matrix`
-  `ncol=ceil(sqrt(n))`.
-
-### `canvas/render/commands.ts` → **≥85%** · real: compose + registry + solver; seam: `measure` / `textMetricsCtx`
-
-Split the pure bridge from the DOM-measure part.
-
-- Pure/injectable: `runFont` (l.255) italic/bold/code/size combos — inline snapshot; `ctxFor` defaults
-  (l.28); `layoutSection` (l.40) height container `100000`, `height = bottom`; `layoutNode` (l.227);
-  `layoutSlide`/`prepareSlideNode` (l.170/133) — the collapse-probe: a section that fits → single scaled
-  node; a **tall** section with one media cell → `coverFitMedia` grows the media (cover) and the probe pins
-  `node.h`; the `targetH ≤ h·1.2 → one page else fragment` decision. Drive via the **measure-injecting**
-  entry points (real compose, real registry, stub `measure`) — no DOM.
-- Text wrap/measure (via `textMetricsCtx`, the real algorithm): `layoutRuns` (l.351) greedy run-aware wrap,
-  `lineHeight = size·1.35` default, noWrap when `wrap==="none"`/`!isFinite`, width clamp; `measureUncached`
-  plain path (split `\n`, widest hard line, greedy wrap, empty line still one row); `tokenize` collapses
-  consecutive whitespace to one glue; `measureKey` collapses width-independent measures to `"*"` (l.470);
-  `measureText` **FIFO-evicts** the oldest quarter at `6000` (insert cap+1 distinct keys, assert eviction);
-  `clearMeasureCache`.
-
-### `canvas/render/backends.ts` → **≥75%** · split pure / DOM / raster
-
-- **Pure → 100%**: `backdropCss` (l.532) branch table none/image+scrim/gradient/color — inline snapshot;
-  `sectionLayoutWidth` (l.571) bleed/web → fullW else `min(fullW−64, maxContent ?? 1080)`;
-  `createSectionStackCache` factory; the `renderSlidePage` fit/offset arithmetic (`fit=min(1,h/contentH)`,
-  centered offsets — extract if needed to assert without raster).
-- **DOM (happy-dom, real `document`) → ~70%**: `applyCommand` (l.142) — a div gets the right position/size/
-  opacity/`clip-path` insets/fill/gradient/border/image/text (assert real inline styles); `paint` → N
-  children; `paintReconcile` reuses slots + drops extras; `canvasDrawContext` (l.63) align mapping +
-  `measureText` passthrough (via recording 2D ctx); `paintSectionStack` (l.585) `tops` accumulation,
-  region-offset, `y += height + gap`, hide/dim (needs `installCanvas2D`); `fitSlideContent`.
-- **Raster (happy-dom + recording 2D, smoke)**: `renderToCanvas`/`drawCommands`/`drawImageFit`/
-  `roundRectPath` — assert **no-throw** and that the expected draw calls fire; never assert pixels. Images
-  stubbed (IO seam).
-
-### `canvas/render/present.ts` → **≥85%** · happy-dom + `installCanvas2D`
-
-- `sectionSlideCount` (l.13): short section → 1; a `>1.2×` section → `>1`.
-- `slideElement` (l.25): builds a slide `<div>`, clamps `page` to `[0, len−1]`.
-
-### `canvas/render/export-geometry.ts` → **100%** · pure
-
-Done — the page/raster arithmetic was extracted out of `export.ts` into this module and unit-tested:
-`slidePdfPageSize` (fixed page width, aspect-preserving height), `docPageGeometry` (`contentPtW`, px→pt
-`scale`, `pageContentPxH = (A4_H − 2·margin)/scale`), `deckPngCanvasSize` (widest slide × summed heights).
-`export.ts` is now a thin IO shell that calls these — excluded from coverage (below).
+_(The former `canvas/render/geometry.ts` and `export-geometry.ts` are gone — their arithmetic folded into
+the modules tested by `export.test.ts`.)_
 
 ---
 
-## What can't (and shouldn't) hit 100% — and how we stay honest
+## 7. What can't (and shouldn't) hit 100% — and how we stay honest
 
 Chasing 100% on these produces fake tests. We handle them explicitly instead of letting them silently drag
 the number:
@@ -379,45 +222,71 @@ a green run never reads as "everything is verified" when it isn't.
 
 ---
 
-## Coverage milestones & enforcement
+## 8. Planned / deferred
 
-Baseline **~6%**. Targets are for `canvas/**` (+ the pure `model/**` helpers pulled in). The realistic
-near-full ceiling is **~87%** overall — the IO shell is honestly excluded, not faked.
+The pure + one-seam + DB-integration surfaces are covered. What remains needs either the LLM seam wired into
+the AI reducers, or a new Solid-render project — neither is started.
 
-| Milestone | Tiers                                         | Overall canvas | Per-dir thresholds turned on          |
-| --------- | --------------------------------------------- | -------------- | ------------------------------------- |
-| M1        | engine (layout+fragment+profile) + geometry   | ~30%           | `engine/**` ≥ 95                      |
-| M2        | ops + section + compose + layouts + skeletons | ~55%           | `elements/{ops,compose,layouts}` ≥ 90 |
-| M3        | element specs + spec.ts + blueprint           | ~70%           | `elements/**` ≥ 85                    |
-| M4        | chart/diagram utils + renderers               | ~78%           | `elements/{chart,diagram}/**` ≥ 82    |
-| M5        | commands (pure + measure) + render geometry   | ~83%           | `render` pure ≥ 90                    |
-| M6        | backends DOM + present (happy-dom)            | ~87%           | `render/**` ≥ 70                      |
+### (a) LLM-seam reducer tests — not started
 
-Enforcement: thresholds stay **off** until a directory is populated, then flip on **per-directory** in
-`vitest.config.ts` (`coverage.thresholds`) as each milestone lands — so a regression that drops covered code
-fails CI, without one global number blocking early progress. Ratchet up, never down.
+There's no DI hook for the model call; the seam is the module boundary. Faking
+`generateObject`/`generateText`/`streamText`/`ToolLoopAgent` via `vi.mock("ai", …)` lets the **real
+reducers** run (this pattern runs on the existing `unit` setup — no new infra):
 
----
+- **`services/ai/run.ts` `writeSectionFrom`** — the auto-repair loop (bad-JSON → retry, `checkSection` trips
+  → retry, throw after 2 fails). Composes real `extractJson` + `zSection` + `checkSection`.
+- **`services/ai/run.ts` `runGenerate`** — assert the exact `TurnEvent` sequence (intake → outline → plan →
+  build → per-beat status/patch → cover injects a background → done). Also `reviseElement`/`chatEditSection`.
+- **`services/ai/chat.ts` `runChat`** — toolset assembly. The one place to prove "fake stream → correct
+  ops/state." (Prompt builders, schema, quality, and the tool patch-producers underneath are already DONE,
+  §6.)
 
-## Out of scope here (later tracks)
+### (b) Solid component project (Track A) — not started
 
-- **Solid component tests** (`ui/`, `editor/`, `app/`): a separate Vitest _project_ with `vite-plugin-solid`
-    - happy-dom + `@solidjs/testing-library`. The canvas suite avoids the Solid transform to stay fast. Plan
-      after M2.
-- **Backend/services** (`services/`): Hono routes + Drizzle against a throwaway Postgres — its own track.
-- **Export byte output**: geometry tested here; the actual PDF/PNG bytes stay manual QA.
-- **Visual regression**: replaced by structural assertions; revisit only if a rendering bug slips the
-  invariant tests.
+`vitest.config.ts` `include` is `**/*.test.ts`, which excludes `.test.tsx`; the `unit` project runs in node
+where `solid-js` resolves to its **server** build, so `.tsx`/JSX doesn't transform and any module that
+top-level-imports `@solidjs/router` throws _"Client-only API called on the server side."_ That is why `ui/`,
+`app/` views, and several store helpers can't be rendered yet.
 
----
+**Setup (one-time):**
 
-## Immediate next actions
+1. Add dev dep **`@solidjs/testing-library`** (`vite-plugin-solid`, `happy-dom` already present).
+2. Restructure into vitest `projects` (or a second config): a `component` project with `plugins: [solid()]`,
+   `environment: "happy-dom"`, `include: ["**/*.test.tsx"]`, and a `setupFiles` calling `cleanup()` in
+   `afterEach`. `solid-js` then resolves to the **client** build and `render()` mounts into a real DOM.
+3. A `renderWithRouter(ui)` helper (memory `<Router>` for components using `useLocation`/`useNavigate`) and
+   `renderWithTheme` where a theme context is needed — real providers, not mocks.
+4. Scripts: `test:unit` / `test:component` for focused runs.
 
-1. **Phase 0a** — `canvas/elements/register.ts` (coordinate on `editor/register.ts`).
-2. **Phase 0b** — `canvas/testkit.ts` (measure · textMetricsCtx · recordingDrawContext · tokens · builders ·
-   finders · installCanvas2D).
-3. **M1** — finish the engine: `fragment` (top gap), `clipRect` intersection, multi-float z, opacity,
-   aspect-clip; then `profile`/`geometry`.
-4. **M2** — `ops.test.ts` + `section.test.ts` (the drag/drop/inspector safety net), then compose/layouts.
+**Contract at this level (extends §2):** render the real component with real props/stores/context; fake only
+network (`fetch`/the `api` module), navigation side-effects, and time. Assert user-visible behavior —
+rendered text/DOM, the specific class a variant produces, and the _result_ of an interaction
+(`fireEvent.click`/`keyDown` → callback fired, class toggled, store value changed). Never assert internal
+signals; never snapshot a whole subtree.
 
-Land each milestone as its own green commit that moves a directory's number.
+**What to test (prioritized):**
+
+1. **Gated pure helpers** (quick wins — stop crashing on import under the client build; some need a one-line
+   `export`): `ui/color` `isHex`/`textColorSwatches`, `ui/z` ordering, `publish` `viewLabel`, `app/theme`
+   `toTheme`, `app/stores/folders` `hexToHsl`, `GenerateModal` `stepIndex`, `ShareModal` `isEmail`,
+   `ThemeEditor` `shadowCss`↔`inferShadow` round-trip.
+2. **`editor/` components** (interaction-dense): `Canvas` keyboard map (Delete/⌘D/⌘Z/arrows) + the Esc-walk
+   (`parentTarget` chain) + sticky drop-target + `hitTest`; `format-bar` placement/`canAlign` slack math;
+   `Panel` `elementInline`; `insert` `itemsFor` per target kind; the selection `Overlay`.
+3. **`app/` views**: `PricingView` label/price/`pick`/`ctaLabel` branching; `GenerateModal` `stepIndex` + the
+   `dispatch` reducer (sections placed in fixture order); `ShareModal`; `LibraryView`/`TemplatesView`/
+   `TrashView` selection + filtering; **`publish/PublicView`** `load()` gate machine (fake
+   `api.getPublicContent` per variant → assert `ok`/`password`/`notfound`/`error`).
+4. **`ui/` primitives — after the in-flight refactor settles**: `Button`/`IconButton`/`Chip`/`Badge`
+   variant→class maps; `Dropdown` open/close + keyboard nav; `Modal` Escape + focus + reduced-motion;
+   `Popover` flip/viewport-clamp + Esc dismiss; inputs onChange contract; `Meter` clamp; `Segmented`; `Menu`.
+
+**Conventions:** `*.test.tsx` co-located in `__tests__/`; `render`/`fireEvent`/`screen`/`cleanup`; the
+`renderWithRouter` helper for router-context components. Hold `ui/` primitive tests until its refactor lands;
+do the gated helpers + editor/app/publish first.
+
+### (c) Residual pure helpers still untested
+
+Cheap, node-testable now (no project needed), not yet covered: `ui/color` (`isHex`/`textColorSwatches`/
+`highlightSwatches`), `ui/z` (`Z` ordering), `ui/section` (`backdropHostStyle`), `ui/icons` (`ICON_NAMES`
+drift), and `publish/PublicView` `viewLabel`. Fold these in alongside (b)'s gated-helper batch.
