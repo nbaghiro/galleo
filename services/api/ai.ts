@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import type { TurnEvent, TurnRequest, TurnKind } from "@model/ai";
 import { isKind } from "@model/ai";
 import type { ToolId, MeterParams } from "@model/tools";
-import { estimateCost } from "@model/tools";
+import { estimateCost, estimateUsage } from "@model/tools";
 import type { Usage } from "@model/credits";
 import { costOf, mergeUsage } from "@model/credits";
 import { limitsFor } from "@model/billing";
@@ -36,9 +36,10 @@ const ACTION_FOR: Record<TurnKind, ToolId> = {
     chat: "ask-assistant",
 };
 
-// The size knobs each kind meters by pre-flight — only generate scales here, by its length chip.
+// The size knobs each kind meters by pre-flight — only generate scales here, by its length chip and whether
+// its images are AI-generated (stock images are free; AI images are metered per image, reconciled after).
 const meterFor = (req: TurnRequest): MeterParams =>
-    req.kind === "generate" ? { length: req.input.length } : {};
+    req.kind === "generate" ? { length: req.input.length, imageSource: req.input.imageSource } : {};
 
 // The kinds whose runtime is actually built. Others 501 before any charge (runTurn also guards them, but
 // blocking here keeps us from reserving credits for a capability that can't run).
@@ -91,41 +92,44 @@ ai.post("/ai/turn", async (c) => {
     };
 
     // Images: stock by default (instant, free). When a generate brief asks for AI images and the key is set,
-    // inject a generator that renders each art-director phrase with the image model and stores it as a
-    // workspace asset; the runtime falls back to stock on any miss. (Images are already priced into
-    // generate-artifact, so AI vs stock doesn't change the reserve.)
-    const image: ImageOptions =
-        req.kind === "generate" && req.input.imageSource === "ai" && imageGenReady()
-            ? {
-                  source: "ai",
-                  generate: async (phrase, orientation) => {
-                      const aspect =
-                          orientation === "portrait"
-                              ? "3:4"
-                              : orientation === "square"
-                                ? "1:1"
-                                : "16:9";
-                      const img = await generateImage(phrase, aspect);
-                      if (!img) return null;
-                      const id = crypto.randomUUID();
-                      await db.insert(schema.assets).values({
-                          id,
-                          workspaceId: ws.id,
-                          kind: "image",
-                          source: "generated",
-                          url: `/api/media/asset/${id}`,
-                          width: img.width,
-                          height: img.height,
-                          bytes: Buffer.from(img.dataBase64, "base64").length,
-                          alt: phrase.slice(0, 160),
-                          meta: { prompt: phrase },
-                          data: img.dataBase64,
-                          mime: img.mime,
-                      });
-                      return `/api/media/asset/${id}`;
-                  },
-              }
-            : {};
+    // inject a generator that renders each art-director phrase with the image model, stores it as a workspace
+    // asset, and COUNTS it — the reserve priced only an estimate of images, so after the turn we reconcile the
+    // generate cost to the real number produced (falling back to stock, unbilled, on any miss).
+    const wantsAiImages =
+        req.kind === "generate" && req.input.imageSource === "ai" && imageGenReady();
+    let aiImages = 0;
+    const image: ImageOptions = wantsAiImages
+        ? {
+              source: "ai",
+              generate: async (phrase, orientation) => {
+                  const aspect =
+                      orientation === "portrait"
+                          ? "3:4"
+                          : orientation === "square"
+                            ? "1:1"
+                            : "16:9";
+                  const img = await generateImage(phrase, aspect);
+                  if (!img) return null;
+                  const id = crypto.randomUUID();
+                  await db.insert(schema.assets).values({
+                      id,
+                      workspaceId: ws.id,
+                      kind: "image",
+                      source: "generated",
+                      url: `/api/media/asset/${id}`,
+                      width: img.width,
+                      height: img.height,
+                      bytes: Buffer.from(img.dataBase64, "base64").length,
+                      alt: phrase.slice(0, 160),
+                      meta: { prompt: phrase },
+                      data: img.dataBase64,
+                      mime: img.mime,
+                  });
+                  aiImages++;
+                  return `/api/media/asset/${id}`;
+              },
+          }
+        : {};
 
     const ctrl = new AbortController();
     return streamSSE(c, async (stream) => {
@@ -144,12 +148,22 @@ ai.post("/ai/turn", async (c) => {
                     message: e instanceof Error ? e.message : "the turn failed",
                 });
         } finally {
-            // Reconcile: charge the sub-tool work that actually ran on top of the up-front reserve. Runs even
-            // on a mid-turn error so completed sub-tools are still billed (the model spend already happened).
-            if (Object.keys(extra).length)
+            // Reconcile the reserve to what actually ran. Chat: the content sub-tools it chained, billed on top
+            // of the flat reply reserve. Generate with AI images: re-price the whole turn with the REAL number
+            // of images produced (the reserve used an estimate), so AI images cost their true amount while a
+            // failed one that fell back to stock costs nothing. Runs even on a mid-turn error, so the model
+            // spend that already happened is still billed.
+            let owed = cost;
+            if (Object.keys(extra).length) owed += costOf(extra);
+            if (wantsAiImages)
+                owed = costOf({
+                    ...estimateUsage("generate-artifact", meterFor(req)),
+                    image: aiImages,
+                });
+            if (owed !== cost)
                 await db
                     .update(schema.workspaces)
-                    .set({ aiCreditsUsed: ws.aiCreditsUsed + cost + costOf(extra) })
+                    .set({ aiCreditsUsed: ws.aiCreditsUsed + owed })
                     .where(eq(schema.workspaces.id, ws.id));
         }
     });

@@ -69,6 +69,7 @@ export interface MeterParams {
     length?: string; // "Short" | "Standard" | "In-depth" — the intake length chip (generate-artifact)
     sections?: number; // sections to write / reason over (generate-artifact, revise-artifact, add-section)
     images?: number; // images generated within a generation
+    imageSource?: "stock" | "ai"; // generate-artifact: stock images are free; AI images are metered per image
     textRuns?: number; // text elements to translate (translate-artifact)
     variations?: number; // image variations (generate-image)
 }
@@ -110,7 +111,7 @@ export function sectionsForLength(length?: string): number {
 
 export const TOOL_CATALOG: Record<ToolId, ToolMeta> = {
     // composites
-    "generate-artifact": meta("generate-artifact", "Generate artifact", "Build a whole deck, doc, or site from a brief", "composite", AGENT_DIRECT, { category: "create", live: true, usage: { plan: 1, section: 12, image: 3 }, meter: (m) => { const n = m.sections ?? sectionsForLength(m.length); return { plan: 1, section: n, image: m.images ?? Math.ceil(n / 4) }; } }), // prettier-ignore
+    "generate-artifact": meta("generate-artifact", "Generate artifact", "Build a whole deck, doc, or site from a brief", "composite", AGENT_DIRECT, { category: "create", live: true, usage: { plan: 1, section: 12, image: 3 }, meter: (m) => { const n = m.sections ?? sectionsForLength(m.length); return { plan: 1, section: n, image: m.imageSource === "ai" ? (m.images ?? Math.ceil(n / 4)) : 0 }; } }), // prettier-ignore
     "revise-artifact": meta("revise-artifact", "Revise artifact", "Revise the whole piece per an instruction", "composite", AGENT_DIRECT, { category: "edit", usage: { section: 10 }, meter: (m) => ({ section: Math.max(3, m.sections ?? 10) }) }), // prettier-ignore
     "add-section": meta("add-section", "Add section", "Generate a new section and propose inserting it", "composite", AGENT_DIRECT, { category: "create", live: true, usage: { section: 1 } }), // prettier-ignore
     "rewrite-section": meta("rewrite-section", "Rewrite section", "Rewrite one existing section in place", "composite", AGENT_DIRECT, { category: "edit", live: true, usage: { section: 1 } }), // prettier-ignore
@@ -194,13 +195,21 @@ export function isMetered(id: ToolId): boolean {
 }
 
 // The cost range a metered tool spans (a small job → a large one); min == max for fixed-cost tools.
-const SMALL: MeterParams = { length: "Short", sections: 6, textRuns: 5, images: 2, variations: 1 };
+const SMALL: MeterParams = {
+    length: "Short",
+    sections: 6,
+    textRuns: 5,
+    images: 2,
+    variations: 1,
+    imageSource: "stock",
+};
 const LARGE: MeterParams = {
     length: "In-depth",
     sections: 20,
     textRuns: 40,
     images: 6,
     variations: 4,
+    imageSource: "ai",
 };
 export function costRange(id: ToolId): { min: number; max: number } {
     const t = TOOL_CATALOG[id];

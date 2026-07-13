@@ -13,18 +13,25 @@ import {
 // the metered credit engine, so a bigger job costs more without special-casing.
 
 describe("estimateUsage", () => {
-    it("scales generate-artifact by the intake length", () => {
+    it("scales generate-artifact by the intake length (stock images are free)", () => {
         expect(estimateUsage("generate-artifact", { length: "Short" })).toEqual({
+            plan: 1,
+            section: 7,
+            image: 0,
+        });
+    });
+    it("meters AI images per image within a generation", () => {
+        expect(estimateUsage("generate-artifact", { length: "Short", imageSource: "ai" })).toEqual({
             plan: 1,
             section: 7,
             image: 2,
         });
     });
-    it("uses the default size when nothing is passed", () => {
+    it("uses the default size when nothing is passed (stock — no image cost)", () => {
         expect(estimateUsage("generate-artifact", {})).toEqual({
             plan: 1,
             section: 12,
-            image: 3,
+            image: 0,
         });
     });
     it("honors an explicit section count", () => {
@@ -33,8 +40,10 @@ describe("estimateUsage", () => {
 });
 
 describe("estimateCost / typicalCost", () => {
-    it("prices a default generate at 42 credits", () => {
-        expect(estimateCost("generate-artifact", {})).toBe(42);
+    it("prices a default (stock) generate below an AI-image one", () => {
+        // stock: plan 3 + 12 sections × 2 = 27; AI adds 3 images × 5 = 42
+        expect(estimateCost("generate-artifact", {})).toBe(27);
+        expect(estimateCost("generate-artifact", { imageSource: "ai" })).toBe(42);
         expect(typicalCost("generate-artifact")).toBe(42);
     });
     it("prices a single text rewrite at 1 credit", () => {
