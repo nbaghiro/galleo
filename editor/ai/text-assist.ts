@@ -4,11 +4,6 @@ import { getElementAt } from "@elements/ops";
 import { editing, editor, getTextAssist } from "../editor";
 import { replaceTextRange, textSelection } from "../text/text-format";
 
-// The text AI action — rewrite / translate the selected passage from the text format bar. Resolves the range
-// (the live selection, or the whole field when the caret is collapsed), sends the passage through the injected
-// transport (onTextAssist), and splices the result back into the field via the text bridge — one call, edited
-// text in place. The menu (ai/TextAiMenu) drives this; the transport carries the model choice (fast Flash).
-
 type Range = { from: number; to: number };
 
 interface TextAssistState {
@@ -19,7 +14,6 @@ const [textAssist, setTextAssist] = createStore<TextAssistState>({ busy: false, 
 export { textAssist };
 export const textAssistBusy = (): boolean => textAssist.busy;
 
-// Whether the text AI menu should be offered — a transport must be wired (studio running inside the app).
 export const canAssistText = (): boolean => getTextAssist() !== null;
 
 export interface RewritePreset {
@@ -27,7 +21,6 @@ export interface RewritePreset {
     instruction: string;
 }
 
-// The rewrite presets shown in the menu — each a plain-English directive the fast model handles well.
 export const REWRITE_PRESETS: RewritePreset[] = [
     { label: "Improve writing", instruction: "Improve the writing — clearer, more polished and compelling — without changing its meaning or length much." }, // prettier-ignore
     { label: "Make it punchier", instruction: "Make it punchier and more confident: short, declarative, high-impact." }, // prettier-ignore
@@ -38,7 +31,7 @@ export const REWRITE_PRESETS: RewritePreset[] = [
     { label: "More casual", instruction: "Make the tone more casual and conversational." },
 ];
 
-// Common translation targets shown as chips; the model accepts any language name, so this is just a shortlist.
+// shortlist only — the model accepts any language name
 export const LANGUAGES: string[] = [
     "Spanish",
     "French",
@@ -56,9 +49,6 @@ export const LANGUAGES: string[] = [
 
 let errTimer = 0;
 
-// Resolve which passage to edit: the given range (captured before a menu input stole focus), else the live
-// selection, and — when that's collapsed — the whole text field. Returns the passage + its offsets + the full
-// text (for sub-range context), or null if there's nothing editable.
 function resolvePassage(
     range?: Range | null,
 ): { from: number; to: number; text: string; passage: string } | null {
@@ -72,7 +62,7 @@ function resolvePassage(
     let to = sel?.to ?? 0;
     if (to <= from) {
         from = 0;
-        to = text.length; // collapsed caret → operate on the whole field
+        to = text.length; // collapsed caret → whole field
     }
     return { from, to, text, passage: text.slice(from, to) };
 }
@@ -92,7 +82,7 @@ async function run(
     setTextAssist({ busy: true, error: null });
     try {
         const out = await assist({ op, text: r.passage, context, ...extra });
-        // apply only if still editing the same field (the user may have clicked away mid-call)
+        // apply only if still editing (the user may have clicked away mid-call)
         if (editing() && out) replaceTextRange(r.from, r.to, out);
         setTextAssist({ busy: false, error: null });
     } catch (e) {
@@ -104,8 +94,7 @@ async function run(
     }
 }
 
-// Rewrite the passage per an instruction (a preset or a custom directive). `range` is the selection captured
-// when the menu opened, used so a custom-instruction input that steals focus doesn't lose the target.
+// `range` = selection captured at menu-open, so a focus-stealing input doesn't lose the target
 export function runRewrite(instruction: string, range?: Range | null): Promise<void> {
     return run("rewrite", { instruction }, range);
 }
@@ -113,8 +102,7 @@ export function runTranslate(language: string, range?: Range | null): Promise<vo
     return run("translate", { language }, range);
 }
 
-// Regenerate the WHOLE text field — a fresh re-roll of the entire passage, ignoring any selection (the
-// collapsed range makes resolvePassage fall through to the whole field).
+// collapsed range → resolvePassage falls through to the whole field
 export function runRegenerate(): Promise<void> {
     return run(
         "rewrite",

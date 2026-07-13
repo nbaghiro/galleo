@@ -2,11 +2,6 @@ import { z } from "zod";
 import { register } from "./registry";
 import { rewriteText, translateText } from "../text";
 
-// The text tools — rewrite / translate ONE passage. Thin wrappers over the fast text runtime (services/ai/
-// text.ts); each surface presents the returned string its own way (the editor → splices it into the live
-// selection; the chat agent / MCP → hands back the text). Operate on a passage passed in the input, so they
-// need no artifact context.
-
 export const rewriteTextTool = register({
     id: "rewrite-text",
     describe:

@@ -2,16 +2,13 @@ import "@elements/register";
 import { describe, expect, it } from "vitest";
 import type { EngineNode } from "@engine/node";
 import { GUTTER, composeSection, sectionContentTokens } from "@elements/compose";
-import { emptyRegion } from "@model/section";
+import { emptyRegion, rowGroup } from "@model/section";
+import { layout } from "@engine/layout";
 import { resolveProfile } from "@engine/profile";
-import { inst, layoutCtx, sectionOf, tokens } from "@canvas/testkit";
+import { commandById, inst, layoutCtx, measure, sectionOf, tokens } from "@canvas/testkit";
 
-// The composed content node: section → [inner] → [content].
+// section → [inner] → [content]
 const contentOf = (section: EngineNode): EngineNode => section.children![0]!.children![0]!;
-
-// Section → EngineNode composition against the real registry + real theme tokens. Assert the framing the
-// section wears (radius/border/shadow), the content-theme swap on dark backgrounds, and the background
-// branch — not pixels.
 
 const deckCtx = layoutCtx(800, resolveProfile("deck"));
 const webCtx = layoutCtx(1200, resolveProfile("web"));
@@ -89,6 +86,29 @@ describe("composeSection", () => {
 
     it("GUTTER is the section content inset", () => {
         expect(GUTTER).toBe(14);
+    });
+
+    it("clips its content to the section box on the horizontal axis (the containment boundary)", () => {
+        expect(composeSection(sectionOf(textRoot()), deckCtx).clip).toEqual({ x: true });
+    });
+
+    it("crops an over-100% column row at the section edge instead of spilling past the card", () => {
+        // two 70% columns = 140% → the second overflows the row (percent can't shrink); the clip must contain it
+        const section = sectionOf(
+            rowGroup([inst("text", { text: "L" }), inst("text", { text: "R" })], [0.7, 0.7]),
+        );
+        const W = 400;
+        const { commands } = layout(
+            composeSection(section, deckCtx),
+            { x: 0, y: 0, w: W, h: 400 },
+            measure,
+        );
+        const overflowing = commandById(commands, "el:s1:1");
+        // the column's own box overflows past the section's right edge...
+        expect(overflowing.box.x + overflowing.box.w).toBeGreaterThan(W);
+        // ...but its clip is bounded to the section box, so nothing paints past the card edge.
+        expect(overflowing.clip).toBeDefined();
+        expect(overflowing.clip!.x + overflowing.clip!.w).toBeLessThanOrEqual(W + 0.5);
     });
 });
 

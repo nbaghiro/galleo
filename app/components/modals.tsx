@@ -1,11 +1,7 @@
-// The create-artifact modal — a hero card for the AI flow + the three blank formats, built on the shared
-// @ui Modal shell (theme snapshot via overlayThemeVars so it stays themed at the app root). The confirm
-// dialog is @ui's `ConfirmModal`, used directly at the call sites (no wrapper needed).
-
 import type { Component, JSX } from "solid-js";
 import { For } from "solid-js";
 import { CloseIcon, DeckIcon, DocIcon, SiteIcon, SparkleIcon } from "@ui/icons";
-import { overlayThemeVars } from "../theme";
+import { overlayThemeVars } from "../stores/theme";
 import { Modal } from "@ui/overlay";
 import { Eyebrow, IconButton } from "@ui/button";
 
@@ -15,7 +11,6 @@ const FORMATS: { id: string; label: string; desc: string; icon: () => JSX.Elemen
     { id: "web", label: "Site", desc: "A web page", icon: () => <SiteIcon size={20} /> },
 ];
 
-// The "New artifact" create dialog — a hero card for the AI flow + the three blank formats one click away.
 export const CreateModal: Component<{
     onClose: () => void;
     onGenerate: () => void;
@@ -31,7 +26,6 @@ export const CreateModal: Component<{
             </IconButton>
         </div>
 
-        {/* hero — generate with AI */}
         <button
             class="group mb-5 flex w-full items-center gap-4 rounded-[var(--radius)] border border-accent/40 bg-accent/10 p-5 text-left transition hover:bg-accent/15"
             onClick={props.onGenerate}

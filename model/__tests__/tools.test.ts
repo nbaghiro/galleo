@@ -9,9 +9,6 @@ import {
     typicalCost,
 } from "@model/tools";
 
-// Tier-A pure: the tool catalog's pricing math. A tool declares its units of work; cost composes through
-// the metered credit engine, so a bigger job costs more without special-casing.
-
 describe("estimateUsage", () => {
     it("scales generate-artifact by the intake length (stock images are free)", () => {
         expect(estimateUsage("generate-artifact", { length: "Short" })).toEqual({

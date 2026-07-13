@@ -3,7 +3,6 @@ import { register, bar, dot } from "@elements/spec";
 import { fit, grow } from "@model/geometry";
 import { composite, t } from "@elements/composite/shared";
 
-// --- feature: icon + heading + body, stacked ---
 export const featureElement = composite(
     "feature",
     "Feature",

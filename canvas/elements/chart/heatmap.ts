@@ -2,8 +2,6 @@ import { hexA } from "@themes";
 import { registerChart, catList, fmt, labelStyle } from "./utils";
 import type { PlotCtx, ResolvedChart } from "./utils";
 
-// Grid heatmap: rows = series (label = series name), columns = categories. Cell opacity encodes the
-// value across the whole grid's range; optional value text when `showValues`.
 function drawHeatmap(chart: ResolvedChart, ctx: PlotCtx): void {
     const { g, W, H, theme, opts } = ctx;
     const rows = chart.series;

@@ -8,9 +8,8 @@ import { bandsSkel, boxesSkel, discSkel, gridSkel, treeSkel, twinDiscSkel } from
 
 const GRAPH_TYPES = new Set(["flow", "tree", "org", "mindmap"]);
 
-// Controls shared by every diagram element. `links` only applies to the graph/hierarchy types.
 export const DIAGRAM_CONTROLS: ControlField[] = [
-    // `options` is a getter so it reads the live type registry on each render (see charts/elements.ts).
+    // getter so `options` reads the live type registry each render (see charts/elements.ts).
     {
         key: "type",
         label: "Type",
@@ -71,14 +70,12 @@ function diagramSpec(
             surface: { paint: (g, box) => renderDiagram(g, box, d, ctx.theme) },
         }),
         resize: { height: { key: "height", min: 140, max: 440, step: 10 } },
-        bar: ["type", "palette"], // the two highest-value quick actions; items/links live in the panel grid
+        bar: ["type", "palette"],
         controls: DIAGRAM_CONTROLS,
         skeleton,
     };
 }
 
-// Each entry is a palette tile: element type key, label, the diagram-registry type it renders,
-// realistic default items/links, and a matching skeleton ghost.
 const VARIANTS: {
     key: string;
     label: string;
@@ -186,8 +183,7 @@ const VARIANTS: {
 
 VARIANTS.forEach((v) => register(diagramSpec(v.key, v.label, v.type, v.preset, v.skel)));
 
-// Back-compat: the original `diagram` element (hidden from the palette) so existing `{ type: "diagram",
-// data: { kind, items } }` content keeps rendering through the new subsystem.
+// Back-compat: hidden `diagram` element so existing `{ type: "diagram" }` content keeps rendering.
 register(
     diagramSpec(
         "diagram",

@@ -82,7 +82,7 @@ export const bulletsElement: ElementSpec<BulletsData> = {
         arrange: arrangeBullets,
         withChildren: (d, children) => ({ ...d, children }),
     },
-    bar: ["marker"], // a container hides the docked panel, so the one control must live on the bar
+    bar: ["marker"], // container hides the docked panel, so the control lives on the bar
     controls: [
         {
             key: "marker",

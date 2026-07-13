@@ -6,8 +6,6 @@ import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
 import { currentUser, firstWorkspaceId, readJson } from "./context";
 
-// Folder routes: list, create, rename, and delete (which cascades to subfolders and un-files their
-// artifacts back to the library root rather than deleting them).
 export const folders = new Hono();
 
 folders.get("/folders", async (c) => {

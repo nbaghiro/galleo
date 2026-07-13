@@ -3,19 +3,12 @@ import { resolveModel, thinklessOpts } from "./provider";
 import { defaultModelFor } from "./models";
 import { rewriteTextParts, translateTextParts } from "./prompts/text";
 
-// Text-level AI edits — rewrite and translate ONE passage of text. The fastest, highest-volume ops (a user
-// polishing a headline / a body line), so they run on the fast, thinkless model (DEFAULT_MODELS.rewrite /
-// .translate = Gemini Flash, thinking off) via plain generateText — no JSON envelope, no retries, minimal
-// latency. The editor splices the returned string back into the selection; the chat/MCP surfaces call the
-// same functions through the rewrite-text / translate-text tools.
-
 export interface TextOpts {
-    context?: string; // the full surrounding text, when only a sub-range is being edited
+    context?: string; // surrounding text, when only a sub-range is edited
     signal?: AbortSignal;
 }
 
-// Strip anything a model wraps around the bare text — a code fence, or a pair of quotes it added (but only
-// when the original wasn't already quoted, so a genuinely quoted passage keeps its quotes).
+// strip fences/quotes the model added — but keep quotes if the original was already quoted
 function clean(out: string, original: string): string {
     let t = out
         .trim()

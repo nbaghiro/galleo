@@ -1,12 +1,6 @@
 import type { Accessor, Component, JSX } from "solid-js";
 import { For, Show } from "solid-js";
 
-// Public landing page — the standalone website build (served at "/"). It is NOT part of the product
-// SPA; its CTAs link across to the app at /app/. Theme-aware via the persisted app theme (applied to the
-// root in main.tsx), so it matches whatever design the user last selected. Styles live in website.css
-// (scoped under `.web`); inverted `band-ink` sections flip on dark themes via the ink/canvas tokens.
-
-// ---------- content ----------
 const announceItems = [
     "Now in public beta",
     "One source — three polished views",
@@ -261,15 +255,13 @@ const footerCols = [
     },
 ];
 
-// ---------- primitives ----------
 const Strip: Component<{ text: string; sep?: string }> = (props) => (
     <span class="strip">
         {props.text} <span class="star">{props.sep ?? "✺"}</span>
     </span>
 );
 
-// Self-duplicating marquee: the group is rendered twice (the second copy is aria-hidden) so the
-// `web-mq` keyframe can translateX(-50%) for a seamless infinite loop.
+// group rendered twice (2nd copy aria-hidden) so `web-mq` can translateX(-50%) for a seamless loop
 function Marquee<T>(props: {
     items: readonly T[];
     speed: string;
@@ -327,7 +319,6 @@ const Wordmark: Component = () => (
 
 export const WebsitePage: Component = () => (
     <div class="web h-full w-full overflow-y-auto bg-canvas font-body text-ink">
-        {/* 0 · announcement marquee */}
         <Marquee
             items={announceItems}
             speed="30s"
@@ -341,7 +332,6 @@ export const WebsitePage: Component = () => (
             {(t) => <Strip text={t} />}
         </Marquee>
 
-        {/* 1 · nav */}
         <header
             class="sticky top-0 z-50"
             style={{
@@ -383,7 +373,6 @@ export const WebsitePage: Component = () => (
             </div>
         </header>
 
-        {/* 2 · hero */}
         <section id="top" class="relative overflow-hidden">
             <div
                 class="shape ring float hidden md:block"
@@ -483,7 +472,6 @@ export const WebsitePage: Component = () => (
                 </div>
             </div>
 
-            {/* value-prop marquee */}
             <Marquee
                 items={valueProps}
                 speed="34s"
@@ -499,7 +487,6 @@ export const WebsitePage: Component = () => (
             </Marquee>
         </section>
 
-        {/* 3 · format ticker */}
         <section class="band-ink py-7 md:py-9 overflow-hidden">
             <Marquee items={formatTicker} speed="26s">
                 {(f) => (
@@ -511,7 +498,6 @@ export const WebsitePage: Component = () => (
             </Marquee>
         </section>
 
-        {/* 4 · one source, three views */}
         <section id="views" class="max-w-[1280px] mx-auto px-5 md:px-8 py-20 md:py-28">
             <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-12">
                 <div>
@@ -530,7 +516,6 @@ export const WebsitePage: Component = () => (
             </div>
 
             <div class="grid lg:grid-cols-12 gap-6">
-                {/* source */}
                 <div
                     class="lg:col-span-4 card p-6 flex flex-col"
                     style={{
@@ -562,7 +547,6 @@ export const WebsitePage: Component = () => (
                     </div>
                 </div>
 
-                {/* three views */}
                 <div class="lg:col-span-8 grid sm:grid-cols-3 gap-6">
                     <For each={viewCards}>
                         {(v) => (
@@ -593,7 +577,6 @@ export const WebsitePage: Component = () => (
             </div>
         </section>
 
-        {/* 5 · block-type ticker */}
         <section
             class="overflow-hidden py-5"
             style={{
@@ -607,7 +590,6 @@ export const WebsitePage: Component = () => (
             </Marquee>
         </section>
 
-        {/* 6 · features */}
         <section id="features" class="max-w-[1280px] mx-auto px-5 md:px-8 py-20 md:py-28">
             <div class="mb-12 max-w-3xl">
                 <div class="lab text-accent mb-4">✺ What's under the hood</div>
@@ -632,7 +614,6 @@ export const WebsitePage: Component = () => (
             </div>
         </section>
 
-        {/* 7 · positioning statement */}
         <section class="band-ink py-20 md:py-28 relative overflow-hidden">
             <div
                 class="shape disc float hidden md:block"
@@ -678,7 +659,6 @@ export const WebsitePage: Component = () => (
             </div>
         </section>
 
-        {/* 8 · theme ticker */}
         <section id="themes" class="py-20 md:py-28 overflow-hidden">
             <div class="max-w-[1280px] mx-auto px-5 md:px-8 mb-12 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
                 <div>
@@ -712,7 +692,6 @@ export const WebsitePage: Component = () => (
             </Marquee>
         </section>
 
-        {/* 9 · proof — stats */}
         <section class="max-w-[1280px] mx-auto px-5 md:px-8 pb-6">
             <div
                 class="grid grid-cols-2 lg:grid-cols-4 gap-px"
@@ -738,7 +717,6 @@ export const WebsitePage: Component = () => (
             </div>
         </section>
 
-        {/* logo marquee */}
         <section class="py-12 overflow-hidden">
             <div class="max-w-[1280px] mx-auto px-5 md:px-8 mb-6">
                 <div class="lab text-muted text-center">
@@ -757,7 +735,6 @@ export const WebsitePage: Component = () => (
             </Marquee>
         </section>
 
-        {/* testimonial */}
         <section class="max-w-[1280px] mx-auto px-5 md:px-8 pb-20 md:pb-28">
             <div class="card p-8 md:p-14 relative overflow-hidden">
                 <span
@@ -793,7 +770,6 @@ export const WebsitePage: Component = () => (
             </div>
         </section>
 
-        {/* 10 · pricing */}
         <section id="pricing" class="band-ink py-20 md:py-28">
             <div class="max-w-[1280px] mx-auto px-5 md:px-8">
                 <div class="text-center mb-14">
@@ -907,7 +883,6 @@ export const WebsitePage: Component = () => (
             </div>
         </section>
 
-        {/* 11 · final CTA */}
         <section class="relative overflow-hidden py-20 md:py-32">
             <div
                 class="shape ring float hidden md:block"
@@ -959,7 +934,6 @@ export const WebsitePage: Component = () => (
             </div>
         </section>
 
-        {/* closing wordmark marquee */}
         <Marquee
             items={wordmark}
             speed="30s"
@@ -977,7 +951,6 @@ export const WebsitePage: Component = () => (
             )}
         </Marquee>
 
-        {/* 12 · footer */}
         <footer class="max-w-[1280px] mx-auto px-5 md:px-8 py-16 md:py-20">
             <div class="grid md:grid-cols-12 gap-10">
                 <div class="md:col-span-4">

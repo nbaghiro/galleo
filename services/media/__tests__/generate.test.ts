@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { imageGenReady } from "../generate";
 
-// The image generator's only pure, non-network, exported seam is the env-driven readiness flag
-// (`GOOGLE_API_KEY`). `dims`, `extractImage`, and `STYLE_PREFIX` are module-private (not exported), and
-// `generateImage` / `streamImages` call the Gemini REST API — all skipped (see the task report).
-
 describe("imageGenReady", () => {
     afterEach(() => {
         vi.unstubAllEnvs();

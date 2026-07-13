@@ -1,10 +1,4 @@
-// The single source of truth for overlay stacking order. Two consumers, kept in lockstep:
-//   • Tailwind class usages reference the matching `z-*` utilities defined in ui/styles.css (@utility).
-//   • Inline-style usages (a component's `z` prop default) reference these constants.
-// Ascending, each a distinct layer so modules name their intent instead of picking a magic number:
-//   chrome (context bar / rail) < overlay (flyouts spawned from chrome) < drawer (chat) <
-//   present (fullscreen) < modal (dialogs) < popover (dropdowns — must sit above a modal so an
-//   in-modal menu is usable).
+// Overlay stacking order; the `z-*` utilities in ui/styles.css must match these.
 export const Z = {
     raised: 10, // sticky headers, minor raised bits
     panel: 20, // docked canvas panels, selection box, in-place generation overlay

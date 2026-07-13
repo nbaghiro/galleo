@@ -10,10 +10,6 @@ import { runChat } from "../chat";
 import { EVAL_CASES, type EvalCase, type Step } from "./cases";
 import { arg, avg, hasFlag, int, judge, list, log, pct, pool, reporter, shortModel } from "./kit";
 
-// The AGENT eval — runs each case in cases.ts through the REAL runChat agent (real tools, real DB) against
-// one or more models, N times each, scoring tool routing + argument correctness + (with --judge) reply
-// quality, across single- and multi-turn conversations. Errors are tracked separately from routing misses.
-
 const DEMO_EMAIL = "demo@galleo.app";
 const RUNS = int("runs", 3);
 const MODELS = list("models", "google:gemini-2.5-pro,google:gemini-3.5-flash");
@@ -26,7 +22,6 @@ const JUDGE_MODEL = arg("judge-model", "google:gemini-2.5-flash");
 const fmtLabel = (id: string): string => (id === "web" ? "Site" : id === "doc" ? "Doc" : "Deck");
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 
-// ---- environment: the demo workspace, its library, a sample open artifact, + id resolvers ----
 interface Env {
     workspace: ReturnType<typeof makeWorkspaceReader>;
     library: ChatLibrary;
@@ -88,7 +83,6 @@ async function loadEnv(): Promise<Env> {
     };
 }
 
-// ---- one turn: run runChat, capture tools + full blocks + reply text ----
 interface Turn {
     tools: string[];
     blocks: ChatBlock[];
@@ -135,7 +129,6 @@ async function runTurn(
     return { tools, blocks, reply, ms: Date.now() - t0 };
 }
 
-// ---- scoring: routing + arguments ----
 const first = <T extends ChatBlock["type"]>(
     blocks: ChatBlock[],
     type: T,
@@ -208,7 +201,6 @@ function score(step: Step, tools: string[], blocks: ChatBlock[], env: Env): stri
     return reasons;
 }
 
-// ---- LLM judge (only under --judge): score reply / proposed section / brief quality 1–5 ----
 function sectionText(section: Section): string {
     const parts: string[] = [];
     const visit = (el?: ElementInstance): void => {
@@ -240,7 +232,6 @@ async function runJudge(step: Step, turn: Turn): Promise<{ score: number; reason
     });
 }
 
-// ---- one case (single- or multi-turn): thread history, apply proposals between turns ----
 interface StepResult {
     pass: boolean;
     reasons: string[];

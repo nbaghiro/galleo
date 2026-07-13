@@ -4,13 +4,7 @@ import type { ArtifactRef } from "@model/ai";
 import type { WorkspaceReader } from "../ai/tools/registry";
 import { db, schema } from "../schema";
 
-// The DB-backed WorkspaceReader — read access to one workspace's library, scoped by id. Built on the route
-// side (where the DB + authed workspace live) and injected into the turn, so the chat agent's find/read
-// tools reach the user's real work without the data layer leaking into services/ai. Live artifacts only
-// (Trash is excluded); content is the stored draft.
-
-// Guard a caller-supplied id before it reaches a `uuid` column — a model can pass a title or a truncated
-// id, and Postgres would throw "invalid input syntax for type uuid" rather than simply not matching.
+// Guard before a uuid column — Postgres throws on a bad uuid (a model may pass a title/truncated id) instead of just not matching.
 const isUuid = (s: string): boolean =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 

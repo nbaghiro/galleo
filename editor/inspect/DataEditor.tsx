@@ -1,7 +1,3 @@
-// The full-screen data editor modal: a live preview + config on the left, the reusable spreadsheet grid
-// (see DataGrid) on the right. Opened from the inspector's expand button; the same grid also renders
-// inline in the inspector. The Body is keyed on the element's type so a type switch re-parses the grid.
-
 import type { Component } from "solid-js";
 import { createEffect, createSignal, Show, onMount, onCleanup } from "solid-js";
 import type { ElementAddress } from "@model/target";
@@ -37,8 +33,7 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
     const currentData = (): Record<string, unknown> =>
         (getElementAt(editor.artifact, addr)?.data ?? {}) as Record<string, unknown>;
 
-    // Preview renders the element's committed data — the grid commits on every keystroke, so tracking
-    // `currentData()` in an effect keeps it live.
+    // Grid commits every keystroke; tracking currentData() keeps the preview live.
     function drawPreview(): void {
         if (!cv) return;
         const W = cv.clientWidth || 280;
@@ -76,8 +71,7 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
         onCleanup(() => window.removeEventListener("keydown", onKey));
     });
 
-    // Config = the element's non-data controls (incl. the Type switcher); `type` stays so SchemaFields'
-    // visibleWhen snapshot can gate the per-type toggles.
+    // `type` stays in the config so SchemaFields' visibleWhen snapshot can gate per-type toggles.
     const configControls = (spec?.controls ?? []).filter((c) => !DATA_KEYS.has(c.key));
     const cfgRead = (k: string): unknown => currentData()[k];
     const cfgWrite = (k: string, v: unknown): void => {
@@ -136,8 +130,7 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
 export const DataEditor: Component = () => (
     <Show when={target()} keyed>
         {(addr) => (
-            // Re-mount the body (re-parsing the grid) when the type is switched in the config, since a
-            // different type may have a different data shape (e.g. bar → pie, or process → flowchart).
+            // Re-mount (re-parse the grid) on a type switch — a different type may have a different shape.
             <Show
                 when={
                     String(

@@ -3,11 +3,7 @@ import type { Tokens } from "@themes";
 import { fontStack } from "@themes";
 import { hierarchy, tree, type HierarchyPointNode } from "d3-hierarchy";
 
-// ── Types ──────────────────────────────────────────────────────────────────
-
-// Authored/persisted diagram data (artifact JSONB). String-based like charts: `items` is the label list
-// (templated diagrams), `links` are the edges (graph/hierarchy diagrams). Legacy `{ kind, items }`
-// folds into `type` on normalize.
+// Authored/persisted diagram data (artifact JSONB).
 export interface DiagramData {
     type?: string; // process | cycle | pyramid | funnel | timeline | venn | quadrant | matrix | tree | org | mindmap | flow
     kind?: string; // legacy discriminant (process | pyramid | funnel | cycle)
@@ -28,8 +24,6 @@ export interface DiagEdge {
     label?: string;
 }
 
-// A diagram after parsing — the single shape every diagram renders from. Templated diagrams read
-// `items`; graph/hierarchy diagrams read `nodes` + `edges`.
 export interface ResolvedDiagram {
     type: string;
     items: string[];
@@ -37,8 +31,6 @@ export interface ResolvedDiagram {
     edges: DiagEdge[];
 }
 
-// The surface handed to a diagram renderer: local-origin size, theme tokens, and the same accent-derived
-// palette factory the charts use (so a diagram's fills track the theme accent identically).
 export interface DiagramCtx {
     g: DrawContext;
     W: number;
@@ -53,13 +45,9 @@ export interface DiagramType {
     render: (diagram: ResolvedDiagram, ctx: DiagramCtx) => void;
 }
 
-// The shared renderer signature the type modules implement.
 export type Renderer = (diagram: ResolvedDiagram, ctx: DiagramCtx) => void;
 
-// ── Registry ─────────────────────────────────────────────────────────────────
-
-// The diagram-type registry — mirrors the chart registry (@elements/chart/utils). Grouped modules
-// (process.ts, cycle.ts, … flow.ts) register their types at import; render.ts imports them.
+// Mirrors the chart registry (@elements/chart/utils).
 const registry = new Map<string, DiagramType>();
 
 export function registerDiagram(type: DiagramType): void {
@@ -74,9 +62,6 @@ export function diagramTypeOptions(): { label: string; value: string }[] {
     return [...registry.values()].map((t) => ({ label: t.label, value: t.id }));
 }
 
-// ── Parse / normalize ────────────────────────────────────────────────────────
-
-// Labels split on newline OR comma (either authoring style works), trimmed, blanks dropped.
 function splitItems(s: string | undefined): string[] {
     return (s ?? "")
         .split(/[\n,]/)
@@ -84,8 +69,7 @@ function splitItems(s: string | undefined): string[] {
         .filter(Boolean);
 }
 
-// Edges from a "links" string: entries separated by comma/newline, each "From->To" or "From>To"
-// (arrow spelled -> or >). An optional ":label" tail names the edge ("A->B:yes").
+// "From->To" / "From>To", optional ":label" tail (e.g. "A->B:yes").
 function parseEdges(links: string | undefined): DiagEdge[] {
     return (links ?? "")
         .split(/[\n,]/)
@@ -118,8 +102,6 @@ export function normalizeDiagram(d: DiagramData): ResolvedDiagram {
     };
 }
 
-// ── Chrome (shared drawing helpers) ──────────────────────────────────────────
-
 export const nodeFont = (t: Tokens): string => fontStack("ui", t);
 
 export const nodeText = (theme: Tokens, extra?: Partial<DrawTextStyle>): DrawTextStyle => ({
@@ -132,7 +114,6 @@ export const nodeText = (theme: Tokens, extra?: Partial<DrawTextStyle>): DrawTex
     ...extra,
 });
 
-// Greedy word wrap against measured widths — for labels inside fixed-width nodes.
 export function wrapLabel(
     g: DrawContext,
     text: string,
@@ -156,7 +137,6 @@ export function wrapLabel(
     return lines;
 }
 
-// Centered, wrapped multi-line label inside the box (cx, cy) with the given style.
 export function centerLabel(
     g: DrawContext,
     text: string,
@@ -172,14 +152,13 @@ export function centerLabel(
 }
 
 export interface NodeStyle {
-    fill?: string; // box fill (default theme.surface)
-    stroke?: string; // box stroke (default theme.accent)
-    ink?: string; // label color (default theme.ink)
+    fill?: string;
+    stroke?: string;
+    ink?: string;
     radius?: number;
     width?: number; // stroke width
 }
 
-// A labeled rounded-rect node — the diagram workhorse. Fill/stroke/label default to theme tokens.
 export function drawNode(
     g: DrawContext,
     x: number,
@@ -206,7 +185,6 @@ export function drawNode(
     );
 }
 
-// A line from (x1,y1) to (x2,y2) capped with a filled arrowhead at the end.
 export function arrow(
     g: DrawContext,
     x1: number,
@@ -229,7 +207,6 @@ export function arrow(
     );
 }
 
-// A poly-line edge (already-computed points) capped with an arrowhead at the last segment.
 export function arrowPath(
     g: DrawContext,
     points: [number, number][],
@@ -254,9 +231,7 @@ export function arrowPath(
 
 export const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
-// ── Band stack (shared by the pyramid + funnel types) ────────────────────────
-
-// Stacked trapezoid bands forming a triangle (narrowTop → pyramid) or a funnel (wideTop) silhouette.
+// narrowTop → pyramid (triangle); else funnel (wide top).
 export function bandStack(narrowTop: boolean): Renderer {
     return (diagram, ctx) => {
         const { g, W, H, theme } = ctx;
@@ -297,17 +272,13 @@ export function bandStack(narrowTop: boolean): Renderer {
     };
 }
 
-// ── Hierarchy layout (shared by the tree + org + mindmap types) ──────────────
-
-// The nested shape d3-hierarchy lays out — one per diagram node, `children` in parent→child order.
 export interface TreeDatum {
     label: string;
     children: TreeDatum[];
 }
 
-// Fold `nodes` + `edges` into a rooted tree. Root = the node that is never an edge `to`; with no edges
-// the first node becomes the root and the rest its direct children (a star). Cycles/diamonds are cut by
-// visiting each node once.
+// Root = the node never used as an edge `to`; with no edges the first node roots a star.
+// Cycles/diamonds cut by visiting each node once.
 export function buildTree(diagram: ResolvedDiagram): TreeDatum | null {
     const { nodes, edges } = diagram;
     if (nodes.length === 0) return null;
@@ -344,7 +315,7 @@ export function buildTree(diagram: ResolvedDiagram): TreeDatum | null {
     return build(rootId);
 }
 
-// One measured, uniform box width for the whole tree (clamped so long labels wrap instead of overflowing).
+// Uniform box width for the whole tree; clamped so long labels wrap rather than overflow.
 export function boxWidth(
     g: DrawContext,
     theme: Tokens,
@@ -364,8 +335,8 @@ export interface Placed {
     cy: number;
 }
 
-// Run a d3 `tree()` layout at natural node spacing, then uniformly scale it to fit the (W,H) box (never
-// upscaling past the natural gaps). `horizontal` swaps the axes for a left→right mind-map orientation.
+// d3 tree() at natural spacing, uniformly scaled to fit (W,H); never upscales past natural gaps.
+// `horizontal` swaps axes for a left→right mind-map.
 export function layoutTree(
     data: TreeDatum,
     W: number,

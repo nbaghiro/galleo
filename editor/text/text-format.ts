@@ -1,11 +1,6 @@
 import { createSignal } from "solid-js";
 import type { MarkType } from "@model/text";
 
-// Shared bridge between the active inline text field (which owns the contenteditable) and the format
-// bar in the ContextBar. The field registers a mark-op handler and publishes the live selection, the
-// mark types active over it (pressed state), and the value marks (color/hl/link) covering it (so the
-// pickers can preselect + preview). Boolean marks toggle; value marks set/clear over a range.
-
 type Range = { from: number; to: number };
 type MarkOp = "toggle" | "set" | "clear";
 
@@ -14,9 +9,8 @@ export const [activeMarks, setActiveMarks] = createSignal<MarkType[]>([]);
 export const [activeValues, setActiveValues] = createSignal<Partial<Record<MarkType, string>>>({});
 
 let opFn: ((op: MarkOp, type: MarkType, value?: string, range?: Range) => void) | null = null;
-// The field also registers how to REPLACE a character range with new text (the AI rewrite/translate action):
-// splice the model + re-render the styled DOM + reselect the new span. Kept on the bridge so the text AI menu
-// (in the format bar) can apply a result without reaching into the field's DOM.
+// The field also registers a REPLACE-range handler (AI rewrite/translate), kept on the bridge so the AI
+// menu can apply a result without touching the field's DOM.
 let replaceFn: ((from: number, to: number, text: string) => void) | null = null;
 
 export function registerTextField(
@@ -38,12 +32,10 @@ export function unregisterTextField(): void {
     setActiveValues({});
 }
 
-// b/i/u/s/code — flip on the current selection.
 export function toggleTextMark(type: MarkType): void {
     opFn?.("toggle", type);
 }
-// color/hl/link — apply a value. `range` lets the caller act on a selection captured before focus moved
-// to a toolbar input (the link URL field).
+// color/hl/link — apply a value. `range` acts on a selection captured before focus moved to a toolbar input.
 export function setTextMark(type: MarkType, value: string, range?: Range): void {
     opFn?.("set", type, value, range);
 }

@@ -2,12 +2,6 @@ import { z } from "zod";
 import type { TurnEvent, WorkspaceAction } from "@model/ai";
 import { register } from "./registry";
 
-// Workspace management tools — rename / move / duplicate / trash / restore / create-folder. They own no
-// capability and touch no DB: each just packages the user's intent into a typed WorkspaceAction that the
-// CLIENT executes against its (optimistic) library stores — the app owns these mutations, not the server
-// turn. The client decides policy (reversible ops run on arrival; trash is confirmed) and renders the label
-// from its own stores, so the tools stay tiny. Targets are real ids the agent got from find-artifacts.
-
 type Action<K extends WorkspaceAction["kind"]> = Extract<WorkspaceAction, { kind: K }>;
 
 export const renameArtifactTool = register({

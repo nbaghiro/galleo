@@ -3,8 +3,6 @@ import type { ArtifactContent, ElementInstance, Section } from "@model/artifact"
 import { childrenRaw } from "@model/section";
 import { ELEMENT_TYPES, ELEMENTS, LAYOUTS, applyPatch, isEmittableType, isKind } from "@model/ai";
 
-// Tier-A pure: the immutable AI-edit reducer + the authoring catalog. Real trees in, real trees out.
-
 const leaf = (text: string): ElementInstance => ({ type: "text", data: { text } });
 const sect = (id: string): Section => ({ id, root: leaf(id) });
 const textOf = (i: ElementInstance | undefined): string | undefined =>

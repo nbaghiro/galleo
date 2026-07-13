@@ -1,5 +1,3 @@
-// Insert affordances: the empty-region add, the element picker/palette item, context menu, and drop ghosts.
-
 import type { Rect } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
 import type { Component, JSX } from "solid-js";
@@ -24,11 +22,8 @@ import { getElement } from "@elements/spec";
 import { startDrag, drag } from "./dnd";
 import type { Target } from "@model/target";
 
-// The empty-region affordance: when an empty column/region is selected, a centered "+ Add element" opens
-// the shared picker and drops the chosen element (or a smart-layout preset) into it — no drag required.
 export const EmptyRegionAdd: Component = () => {
     const [open, setOpen] = createSignal(false);
-    // The selected element, when it's an empty container (an empty column / drop region).
     const target = createMemo(() => {
         const s = selection();
         if (s?.kind !== "element") return null;
@@ -80,8 +75,7 @@ export const EmptyRegionAdd: Component = () => {
     );
 };
 
-// A compact insert picker: smart-layout presets first, then the common element types. Each entry builds
-// a full ElementInstance and hands it to `onInsert` — shared by the empty-cell add + the add-beside gap.
+// Insert picker: presets first, then common types. Shared by the empty-cell add + the add-beside gap.
 const QUICK = [
     "text",
     "image",
@@ -120,7 +114,6 @@ export const ElementPicker: Component<{ onInsert: (inst: ElementInstance) => voi
     </div>
 );
 
-// One draggable element: a designed, theme-driven SVG preview (recolors with the active theme) + label.
 export const PaletteItem: Component<{ type: string }> = (props) => {
     const spec = getElement(props.type);
     return (
@@ -147,8 +140,7 @@ export const PaletteItem: Component<{ type: string }> = (props) => {
     );
 };
 
-// The right-click menu. Opened from the canvas with a hit-tested target; its items depend on what was
-// clicked (element · section · empty cell · bare canvas). State lives here so the canvas can open it.
+// Right-click menu; items depend on the hit-tested target. State lives here so the canvas can open it.
 type MenuState = { x: number; y: number; target: Target | null };
 const [menu, setMenu] = createSignal<MenuState | null>(null);
 
@@ -234,9 +226,7 @@ export const ContextMenu: Component = () => (
     </Show>
 );
 
-// A small label pill trailing the cursor — cursor-level feedback while dragging (the dimmed in-place ghost
-// of the dragged element, spliced into the previewed section, shows what/where it lands). Always mounted;
-// visibility toggled.
+// Label pill trailing the cursor while dragging. Always mounted; visibility toggled.
 export const DragGhost: Component = () => (
     <div
         class="pointer-events-none fixed z-overlay rounded-full border border-line bg-panel/95 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-lg backdrop-blur-md"
@@ -250,10 +240,8 @@ export const DragGhost: Component = () => (
     </div>
 );
 
-// Hand-designed, theme-driven SVG previews per element type. Every color is a CSS variable the
-// Studio root sets from the active theme (--color-accent/ink/muted/panel/canvas/line/onaccent), so a
-// theme switch recolors them for free. Returned as a string so both the Solid studio (innerHTML) and
-// the vanilla playground can use them.
+// Theme-driven SVG previews per element type — colors are CSS vars, so a theme switch recolors them.
+// Returned as strings (Solid innerHTML + vanilla playground).
 
 const accent = "var(--color-accent)";
 const ink = "var(--color-ink)";

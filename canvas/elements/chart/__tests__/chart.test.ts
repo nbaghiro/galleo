@@ -3,9 +3,6 @@ import { renderChart, chartTypeOptions } from "@elements/chart/render";
 import { catList, fmt, getChart, normalize, seriesColors, yMax } from "@elements/chart/utils";
 import { recordingDrawContext, tokens } from "@canvas/testkit";
 
-// Pure parsing/palette logic + a render sweep. The renderers compute real geometry (real d3-scale/shape);
-// we assert the call stream from a recording DrawContext, not pixels.
-
 describe("normalize", () => {
     it("parses series (newline) and points (comma), naming unnamed series", () => {
         expect(normalize({ values: "1, 2, 3\n4, 5", seriesNames: "A" }).series).toEqual([
@@ -45,7 +42,7 @@ describe("yMax", () => {
         expect(yMax(normalize({ values: "0, 0" }))).toBe(1);
     });
     it("is the per-category sum when stacked", () => {
-        expect(yMax(normalize({ values: "3, 4\n5, 6", stacked: true }))).toBe(10); // max(3+5, 4+6)
+        expect(yMax(normalize({ values: "3, 4\n5, 6", stacked: true }))).toBe(10);
     });
 });
 

@@ -9,10 +9,6 @@ import { elementRegionId, sectionRegionId } from "@model/target";
 import { fit, grow, percent } from "@model/geometry";
 import { fontStack, luminance, mixWhite } from "@themes";
 
-// One-click "smart layout" inserts — pre-built structures assembled from normal, freely-editable
-// elements (a row of styled cards). Not element types: the picker inserts the built instance,
-// after which every piece (each card, its title/body) selects/edits/deletes like any other element.
-
 const card = (title: string, body: string): ElementInstance => ({
     type: "card",
     data: {
@@ -27,7 +23,7 @@ const card = (title: string, body: string): ElementInstance => ({
 export interface Preset {
     id: string;
     label: string;
-    previewType: string; // element-preview svg key used for the thumbnail
+    previewType: string; // element-preview svg key for the thumbnail
     build: () => ElementInstance;
 }
 
@@ -50,11 +46,7 @@ export const PRESETS: Preset[] = [
     },
 ];
 
-// Compose one Section into an EngineNode tree, tagging section + element nodes with region ids (so the
-// engine can report their geometry for selection + drop-targets). Containers recurse here so nested
-// elements get addressable paths.
-
-export const GUTTER = 14; // inset around a section column's top-level element (its content width is colW - 2*GUTTER)
+export const GUTTER = 14; // inset around a section column's top-level element (content width = colW - 2*GUTTER)
 const pad = (n: number) => ({ top: n, right: n, bottom: n, left: n });
 
 function emptyRegionNode(ctx: LayoutCtx): EngineNode {
@@ -85,21 +77,18 @@ function emptyRegionNode(ctx: LayoutCtx): EngineNode {
     };
 }
 
-// Per-instance layout: how the element sits in its parent row/column (width + cross-axis align).
 function applyLayout(node: EngineNode, layout: ElementLayout | undefined): EngineNode {
     if (!layout) return node;
     if (layout.width === "fit") node.w = fit();
     else if (layout.width === "fill") node.w = grow();
     else if (layout.width && typeof layout.width === "object")
         node.w = percent(layout.width.pct / 100);
-    // Fill = stretch to the row's cross-height; drop any intrinsic aspect so it can grow (images
-    // then cover-fill via their `fit`).
+    // fill = stretch to row cross-height; drop aspect so it can grow (images then cover-fill via `fit`)
     if (layout.height === "fill") {
         node.h = grow();
         node.aspect = undefined;
     }
     if (layout.align) node.alignSelf = layout.align;
-    // Universal corner radius: override whatever frame the element painted (its image or its fill).
     if (layout.radius !== undefined) {
         if (node.image) node.image.radius = layout.radius;
         else if (node.fill) node.fill.radius = layout.radius;
@@ -121,7 +110,7 @@ function composeElement(inst: ElementInstance, ctx: LayoutCtx, addr: ElementAddr
     if (spec.container) {
         const childInstances = spec.container.children(inst.data);
         if (childInstances.length === 0) {
-            // An empty container — an empty column, or a group a drag/delete emptied — is a drop region.
+            // empty container (empty column / drag-emptied group) → drop region
             node = emptyRegionNode(ctx);
         } else {
             const kids = childInstances.map((child, i) =>
@@ -136,9 +125,7 @@ function composeElement(inst: ElementInstance, ctx: LayoutCtx, addr: ElementAddr
     return applyLayout(node, inst.layout);
 }
 
-// An accent dark enough to read as a foreground tone (eyebrows, outline buttons, markers) only on a
-// light surface goes invisible over a dark/scrimmed background. Lift it toward a legible luminance
-// while keeping its hue; leave already-light or vivid-enough accents untouched.
+// lift a too-dark accent toward a legible luminance (keeping hue) so it reads on a dark/scrimmed bg
 const ACCENT_DARK_TRIGGER = 0.45;
 const ACCENT_LIFT_TARGET = 0.62;
 function readableAccentOnDark(hex: string): string {
@@ -157,9 +144,7 @@ function bgIsDark(bg: SectionBackground | undefined): boolean {
     return false;
 }
 
-// Over a dark background, content reads in light tones. The accent is lifted only when it's too dark
-// to read as a foreground (so eyebrows / outline buttons / markers stay legible); when we lift it, we
-// re-pair onAccent dark so solid accent fills (filled buttons, badges, diagram nodes) keep contrast.
+// light-on-dark tokens; lift a too-dark accent, then re-pair onAccent dark so solid fills keep contrast
 function onDark(t: Tokens): Tokens {
     const accent = readableAccentOnDark(t.accent);
     return {
@@ -175,8 +160,7 @@ function onDark(t: Tokens): Tokens {
     };
 }
 
-// The tokens content reads in for a section — light tones over a dark (e.g. image) background, else the
-// base theme. Mirrors what composeSection applies, so callers (e.g. the inline text editor) can match.
+// mirrors composeSection's token swap so callers (e.g. the inline text editor) can match
 export function sectionContentTokens(section: Section, theme: Tokens): Tokens {
     return bgIsDark(section.background) ? onDark(theme) : theme;
 }
@@ -185,13 +169,11 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
     const bg = section.background;
     const bleed = section.bleed ?? false;
     const continuous = ctx.format.kind === "continuous";
-    const webBand = ctx.format.id === "web"; // full-bleed band, but content stays in a centered column
+    const webBand = ctx.format.id === "web"; // full-bleed band, content stays in a centered column
     const innerMax = ctx.format.maxContentWidth ?? 1180;
     const contentTheme = bgIsDark(bg) ? onDark(ctx.theme) : ctx.theme;
     const cctx: LayoutCtx = { ...ctx, theme: contentTheme };
 
-    // The section's content is one recursive tree; compose it from the root. Columns are just the root
-    // row's children — the engine sizes them from each child's own width. The section only frames it.
     const content = composeElement(section.root, cctx, { section: section.id, path: [] });
     const inner: EngineNode = {
         w: webBand ? grow(undefined, innerMax) : grow(),
@@ -200,24 +182,22 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
         children: [content],
     };
 
-    // Continuous formats (doc/web) merge sections into one seamless surface: no card radius/border,
-    // and the canvas stacks them with no gap so they read as one scrolling document / fluid site.
+    // continuous (doc/web) merges sections seamlessly → no card radius/border
     const radius = bleed || continuous ? 0 : ctx.theme.radius;
     const node: EngineNode = {
         id: sectionRegionId(section.id),
         w: grow(),
         h: fit(),
-        alignX: webBand ? "center" : undefined, // center the capped content column in the full-width band
+        alignX: webBand ? "center" : undefined,
         padding: bleed ? { top: 64, bottom: 64, left: 72, right: 72 } : pad(36),
+        // clip X so an over-wide element is cropped at the section edge, not spilling past the card;
+        // height stays unclipped for fit-growth + deck slide-fitting
+        clip: { x: true },
         children: [inner],
     };
 
-    // A framed section (not full-bleed, not a continuous doc/web merge) wears the theme's card decoration.
-    // The shadow (depth/glow) reads on any background, so it applies regardless. The border, though, is a
-    // *delineation* line — it earns its place on a light surface that could blend into the page, but over a
-    // dark background (an image is always scrimmed dark; a dark color/gradient too) a light theme hairline
-    // just reads as an awkward frame, so dark-backed sections take the shadow alone. Full-bleed + continuous
-    // sections merge into the page, so they stay undecorated.
+    // framed sections wear card decoration: shadow always, but the border only on a light bg (over dark a
+    // hairline reads as an awkward frame); bleed/continuous merge into the page → undecorated
     const framed = !bleed && !continuous;
     const shadow = framed ? ctx.theme.shadow : undefined;
     const border =
@@ -226,7 +206,7 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
             : undefined;
 
     if (bg?.kind === "image" && bg.image) {
-        // legibility scrim: per-section override → theme default → built-in fallback
+        // scrim: per-section override → theme default → fallback
         node.image = {
             src: bg.image,
             fit: "cover",

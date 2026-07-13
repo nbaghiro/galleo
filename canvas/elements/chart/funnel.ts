@@ -2,8 +2,6 @@ import { luminance } from "@themes";
 import { registerChart, catList, fmt, uiFont } from "./utils";
 import type { PlotCtx, ResolvedChart } from "./utils";
 
-// Descending funnel stages as centered horizontal bands: each band's top width ∝ its value, its bottom
-// width ∝ the next stage, so the shape tapers. Labeled with category + value.
 function drawFunnel(chart: ResolvedChart, ctx: PlotCtx): void {
     const { g, W, H, theme } = ctx;
     const vals = (chart.series[0]?.points ?? []).map((v) => Math.max(0, v));

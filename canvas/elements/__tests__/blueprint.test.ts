@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import { placeholderBlock, placeholderSection } from "@elements/blueprint";
 import { childrenRaw } from "@model/section";
 
-// Pure plan → placeholder-content builders (no theme, no registry).
-
 describe("placeholderBlock", () => {
     it("maps a block kind to its stand-in element", () => {
         expect(placeholderBlock("image").type).toBe("image");

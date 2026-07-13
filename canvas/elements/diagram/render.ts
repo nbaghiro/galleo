@@ -1,6 +1,4 @@
-// Diagram rendering entry point. Importing this registers every diagram type (via the per-type modules
-// below) and exposes `renderDiagram` — so diagrams flow through every backend + export unchanged, just
-// like charts. Diagram fills reuse the charts' accent-derived palette (categorical, for distinct nodes).
+// Side-effect imports register each diagram type.
 import "./process";
 import "./cycle";
 import "./pyramid";

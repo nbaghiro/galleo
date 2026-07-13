@@ -31,7 +31,7 @@ import {
     removeArtifacts,
     setDraggingArtifact,
 } from "../stores/library";
-import { appTheme } from "../theme";
+import { appTheme } from "../stores/theme";
 import { openGenerate } from "../stores/generate";
 import { folders } from "../stores/folders";
 import { ConfirmModal, FloatingBar, Popover } from "@ui/overlay";
@@ -53,19 +53,15 @@ import {
 import { SectionThumb } from "../components/previews";
 import { Sidebar } from "../components/Sidebar";
 
-// One skeleton artifact behind the empty state — four silhouettes (deck / doc / site / accent deck) so the
-// backdrop reads as a real library. Fills use `soft`/`accent` tints (mid-tones that stay legible on light
-// AND dark themes, unlike `line` which vanishes on dark). Purely decorative.
+// fills use soft/accent tints — legible on light and dark, unlike line
 const GhostCard: Component<{ variant: number }> = (p) => (
     <div class="flex min-h-[150px] flex-col gap-2.5 rounded-xl border border-soft/15 bg-panel p-3">
         <Switch>
             <Match when={p.variant === 0}>
-                {/* deck — a big cover + title */}
                 <div class="flex-1 rounded-lg bg-gradient-to-br from-soft/25 to-soft/6" />
                 <div class="h-2 w-3/4 rounded-full bg-soft/30" />
             </Match>
             <Match when={p.variant === 1}>
-                {/* doc — a header then body lines */}
                 <div class="h-7 rounded-lg bg-soft/18" />
                 <div class="flex flex-1 flex-col justify-center gap-1.5 py-1">
                     <div class="h-1.5 w-full rounded-full bg-soft/16" />
@@ -76,7 +72,6 @@ const GhostCard: Component<{ variant: number }> = (p) => (
                 <div class="h-2 w-1/2 rounded-full bg-soft/28" />
             </Match>
             <Match when={p.variant === 2}>
-                {/* site — a hero over a row of sections */}
                 <div class="flex-1 rounded-lg bg-gradient-to-br from-soft/22 to-soft/6" />
                 <div class="flex gap-1.5">
                     <div class="h-7 flex-1 rounded-md bg-soft/14" />
@@ -85,7 +80,6 @@ const GhostCard: Component<{ variant: number }> = (p) => (
                 </div>
             </Match>
             <Match when={p.variant === 3}>
-                {/* deck — a cover with a hint of the brand accent */}
                 <div class="flex-1 rounded-lg bg-gradient-to-br from-accent/30 to-accent/6" />
                 <div class="h-2 w-2/3 rounded-full bg-soft/30" />
                 <div class="h-1.5 w-2/5 rounded-full bg-soft/16" />
@@ -94,8 +88,6 @@ const GhostCard: Component<{ variant: number }> = (p) => (
     </div>
 );
 
-// The library's first-run empty state: a ghost gallery of faint artifacts fading toward the center,
-// with a card that names the two ways to start — generate one, or begin from a template.
 const EmptyLibrary: Component<{ onGenerate: () => void; onTemplates: () => void }> = (p) => (
     <div class="relative flex min-h-[540px] items-center justify-center overflow-hidden px-6 py-16">
         <div
@@ -153,8 +145,7 @@ export const LibraryView: Component = () => {
 
     onMount(() => {
         (async () => {
-            // Always revalidate on entry so edits made in the editor + newly created artifacts show on
-            // return. Cached data (if any) is already on screen — this refreshes it in the background.
+            // always revalidate on entry so editor edits + new artifacts show on return
             await loadLibrary();
             setLoading(false);
             await loadContents();
@@ -163,7 +154,7 @@ export const LibraryView: Component = () => {
 
     const folderId = (): string | undefined => params.id;
     const folder = createMemo(() => folders().find((f) => f.id === folderId()));
-    // everything in scope (current folder, or all) — before search/format filters
+    // current folder (or all), before search/format filters
     const scope = createMemo(() => {
         const fid = folderId();
         return fid ? artifacts().filter((d) => d.folderId === fid) : artifacts();
@@ -186,11 +177,10 @@ export const LibraryView: Component = () => {
         ...FORMAT_IDS.map((id): [string, string] => [id, formatLabelPlural(id)]),
     ];
 
-    // --- multi-select: shift-click (or click while any is selected) toggles a card; a floating bar then
-    // offers the only two batch actions on artifacts — move-to-folder and delete. ---
+    // multi-select: shift-click toggles; batch actions are move-to-folder and delete
     const [selected, setSelected] = createSignal<Set<string>>(new Set());
     const isSelected = (id: string): boolean => selected().has(id);
-    // The bar reflects what's actually on screen — a filter/folder change narrows it to visible cards.
+    // reflect only on-screen cards — a filter/folder change narrows the selection
     const selectedVisible = createMemo((): string[] => {
         const vis = new Set(shown().map((d) => d.id));
         return [...selected()].filter((id) => vis.has(id));
@@ -211,14 +201,13 @@ export const LibraryView: Component = () => {
         moveArtifacts(selectedVisible(), folderId);
         clearSelection();
     };
-    // Esc clears an active selection.
     const onKey = (e: KeyboardEvent): void => {
         if (e.key === "Escape" && selectMode()) clearSelection();
     };
     onMount(() => window.addEventListener("keydown", onKey));
     onCleanup(() => window.removeEventListener("keydown", onKey));
 
-    // shared confirm modal for the card menu's destructive/duplicating actions + batch delete
+    // confirm modal for delete/duplicate + batch delete
     const [confirm, setConfirm] = createSignal<
         | { kind: "delete" | "duplicate"; doc: ArtifactSummary }
         | { kind: "delete-batch"; ids: string[] }
@@ -241,12 +230,10 @@ export const LibraryView: Component = () => {
         }
     };
 
-    // one artifact = a draggable cover-photo card + a header (with a move menu) + a section carousel
     const Band: Component<{ d: ArtifactSummary }> = (p) => {
         const tk = (): ReturnType<typeof resolveTheme>["tokens"] =>
             resolveTheme(p.d.themeId).tokens;
-        // Previews render in the app theme so the library reads as one cohesive set; each artifact's
-        // saved theme is still shown as metadata + offered on open.
+        // previews use the app theme for a cohesive set; saved theme shown as metadata
         const appTk = (): ReturnType<typeof resolveTheme>["tokens"] =>
             resolveTheme(appTheme()).tokens;
         const cv = (): NonNullable<ArtifactSummary["cover"]> => p.d.cover ?? {};
@@ -254,14 +241,13 @@ export const LibraryView: Component = () => {
         const secs = () => p.d.sections ?? [];
         const content = (): ArtifactContent | undefined => contents()[p.d.id];
         const [askAt, setAskAt] = createSignal<{ x: number; y: number } | null>(null);
-        // open in the saved theme normally; if the app theme differs, offer to view in it instead. The
-        // choice popup opens at the click point (the cover OR the "Open" button), not a fixed corner.
+        // open in the saved theme; if app theme differs, offer it — popup at the click point
         const open = (e: MouseEvent): void => {
             if (p.d.themeId === appTheme()) navigate(`/edit/${p.d.id}`);
             else setAskAt({ x: e.clientX, y: e.clientY });
         };
         const [hovered, setHovered] = createSignal(false);
-        // Shift-click — or any click once a selection is active — toggles selection instead of opening.
+        // shift-click, or any click while selecting, toggles instead of opening
         const onCardClick = (e: MouseEvent): void => {
             if (e.shiftKey || selectMode()) {
                 e.preventDefault();
@@ -298,15 +284,12 @@ export const LibraryView: Component = () => {
                         onDragEnd={() => setDraggingArtifact(null)}
                         onClick={onCardClick}
                     >
-                        {/* selection ring + checkbox — the checkbox shows on hover or once selecting is active */}
                         <Show when={isSelected(p.d.id)}>
                             <span
                                 class="pointer-events-none absolute inset-0 z-raised border-2 border-accent"
                                 style={{ "border-radius": "var(--radius)" }}
                             />
                         </Show>
-                        {/* just the artifact's cover image — clean, no synthesized text overlay (the real slides
-                            live in the carousel, the title/meta in the header beside it) */}
                         <Show
                             when={img()}
                             fallback={
@@ -388,9 +371,7 @@ export const LibraryView: Component = () => {
 
                 <div class="flex min-w-0 flex-1 flex-col gap-3.5">
                     <div class="flex items-center gap-3">
-                        {/* Theme indicator: an "Aa" specimen in the artifact's saved theme — its display
-                            font, palette (surface/ink/accent) and corner radius, so each theme reads
-                            distinctly at a glance. */}
+                        {/* "Aa" specimen in the artifact's saved theme — font, palette, radius */}
                         <span
                             class="grid h-9 w-9 flex-none place-items-center"
                             style={{
@@ -630,8 +611,6 @@ export const LibraryView: Component = () => {
                 </Show>
             </main>
 
-            {/* the batch action bar — appears whenever ≥1 artifact is selected; only two actions apply
-                to a batch of artifacts: move them to a folder, or delete them. */}
             <Show when={selectMode()}>
                 <FloatingBar
                     tone="panel"

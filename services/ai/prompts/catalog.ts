@@ -3,9 +3,7 @@ import type { ElementSchema, FieldSpec } from "@model/ai";
 import { TEXT_STYLES } from "@model/elements";
 import { THEME_LIST, resolveTheme } from "@themes";
 
-// Renders the model-level authoring descriptor (@model/ai) + the theme registry into the reference
-// text the LLM sees. Because it is generated from the same data the Zod schema validates against, the
-// catalog the model reads and the shape the module accepts can never drift.
+// Generated from the same @model/ai data the Zod schema validates against, so catalog and accepted shape can't drift.
 
 function fieldLine(f: FieldSpec): string {
     const bits: string[] = [];
@@ -22,7 +20,6 @@ function elementBlock(e: ElementSchema): string {
     return `${head}\n${fields}`;
 }
 
-// The full element reference — types, when to use each, and the exact `data` fields with their enums.
 export function elementCatalog(): string {
     return [
         "## Elements",
@@ -35,7 +32,6 @@ export function elementCatalog(): string {
     ].join("\n");
 }
 
-// The section layout reference — how `root` forms columns, plus the named starter presets.
 export function layoutCatalog(): string {
     const rows = LAYOUTS.map(
         (g) =>
@@ -49,15 +45,12 @@ export function layoutCatalog(): string {
     ].join("\n");
 }
 
-// A compact description of one theme — what mood the writing should match. The theme is usually the user's
-// pick; the writer only needs its feel, not the palette.
 export function describeTheme(id: string): string {
     const t = resolveTheme(id);
     const mode = t.dark ? "dark" : "light";
     return `The active theme is "${t.name}" (${t.tag}, ${mode}). Write in a register that fits a ${t.tag} ${mode} design.`;
 }
 
-// The full pickable theme list, for the rare turn where the AI chooses a theme itself.
 export function themeCatalog(): string {
     const rows = THEME_LIST.map(
         (t) => `- \`${t.id}\` — ${t.name} (${t.tag}, ${t.dark ? "dark" : "light"})`,

@@ -3,10 +3,6 @@ import type { Section } from "@model/artifact";
 import { register } from "./registry";
 import { chatAddSection, chatEditSection } from "../run";
 
-// The section tools — thin wrappers that expose the existing runtimes as registry tools. `run` yields no
-// progress (the underlying calls are atomic) and RETURNS the produced Section, which each surface presents
-// its own way (the chat agent → a proposal block; a direct call → an addSection/replaceSection patch).
-
 export const addSectionTool = register({
     id: "add-section",
     describe:
@@ -46,9 +42,6 @@ export const rewriteSectionTool = register({
     },
 });
 
-// Edit a section of ANOTHER of the user's artifacts — one that isn't open. Loads the target via the injected
-// workspace reader (Seam A), rewrites the named section, and returns it with the target's id + theme/format
-// so the chat surface can render a faithful preview and, on Apply, save straight back to that artifact.
 export const editArtifactTool = register({
     id: "edit-artifact",
     describe:

@@ -2,9 +2,6 @@ import { describe, it, expect } from "vitest";
 import type { ElementInstance, Section } from "@model/artifact";
 import { checkSection } from "../quality";
 
-// Pure, deterministic quality heuristics — build small Section trees, assert the exact issue each rule adds.
-// No DB, no engine (services may not import canvas), no mocks.
-
 const text = (t: string, style?: string): ElementInstance => ({
     type: "text",
     data: style ? { text: t, style } : { text: t },
@@ -16,7 +13,7 @@ const group = (children: ElementInstance[]): ElementInstance => ({
 const focal = (type: string): ElementInstance => ({ type, data: {} });
 const section = (root: ElementInstance): Section => ({ id: "s1", root });
 
-// The exact issue strings, read from services/ai/quality.ts.
+// exact issue strings — must match services/ai/quality.ts
 const EMPTY = (n: number): string => `${n} empty region(s) — fill every column with a real element`;
 const NO_HEADLINE = "no headline — lead with one text element styled h1 or h2";
 const PLACEHOLDER = "contains placeholder or lorem text — write real, specific copy";
@@ -25,7 +22,6 @@ const NO_CONTENT = "almost no content — write real, finished copy";
 
 describe("rule 1 — empty regions", () => {
     it("flags an empty container/column anywhere in the tree, counting each one", () => {
-        // A healthy heading column beside one empty group column → exactly one empty region.
         const s = section(
             group([text("A real, substantial headline for the section", "h1"), group([])]),
         );
@@ -75,7 +71,7 @@ describe("rule 3 — placeholder copy", () => {
         "your text here please",
         "value is xxx",
     ])("flags placeholder-ish copy: %s", (bad) => {
-        // Give it a heading so only the placeholder rule can fire on the copy itself.
+        // heading so only the placeholder rule fires on the copy
         const s = section(group([text("A proper real headline for this", "h1"), text(bad)]));
         expect(checkSection(s, "doc").issues).toContain(PLACEHOLDER);
     });
@@ -93,7 +89,7 @@ describe("rule 3 — placeholder copy", () => {
 
 describe("rule 4 — too sparse for a deck slide", () => {
     it("deck + <=1 element + <120 chars + no focal trips 'too sparse'", () => {
-        // Single heading element: avoids the no-headline + no-content rules so 'too sparse' is isolated.
+        // single heading isolates 'too sparse' (avoids no-headline / no-content)
         const s = section(text("A short but real headline here", "h1"));
         expect(checkSection(s, "deck").issues).toContain(TOO_SPARSE);
     });

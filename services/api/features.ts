@@ -6,9 +6,6 @@ import { SESSION_COOKIE } from "../auth";
 import { currentUser, currentWorkspace } from "./context";
 import { featuresFor } from "../features";
 
-// GET /features — the workspace's resolved feature set + each capability's launch status, so the app can
-// gate UI and badge "coming soon" from the same source of truth the backend enforces. Read-only; the
-// plan itself is changed through the billing routes.
 export const features = new Hono();
 
 features.get("/features", async (c) => {

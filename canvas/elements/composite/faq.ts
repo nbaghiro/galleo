@@ -3,7 +3,6 @@ import { register, bar } from "@elements/spec";
 import { fit, grow } from "@model/geometry";
 import { composite, t, at } from "@elements/composite/shared";
 
-// --- faq: a list of question + answer pairs (all shown; correct for deck/doc/site + print) ---
 export const faqElement = composite(
     "faq",
     "FAQ",

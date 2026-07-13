@@ -1,13 +1,3 @@
-// The plan catalog — one data-driven source of truth shared by the backend (which enforces the limits)
-// and the app (which renders the pricing page from it). Pure data: no Stripe, no DB. Every lever a plan
-// can vary on is a field, so prices/limits/tiers move by editing values, not code. Stripe price ids are
-// NOT here — they live in server env (STRIPE_PRICE_{ID}_{INTERVAL}), so this file needs no account to
-// exist. See .docs/billing.md for the full model; `model/features.ts` resolves these into the effective
-// features every gate reads.
-//
-// Three tiers: Free (solo, flat) · Pro · Premium. Both paid tiers are PER SEAT — a solo user buys 1 seat,
-// a team buys N — so tier (what you can do) and seats (how many of you) move independently.
-
 import { typicalCost } from "@model/tools";
 
 export type PlanId = "free" | "pro" | "premium";
@@ -16,9 +6,7 @@ export type Interval = "month" | "year";
 export type ModelTier = "basic" | "advanced" | "premium";
 export type ExportFormat = "png" | "pdf" | "print" | "pptx" | "slides";
 
-// How a plan is billed. `priceMonthly`/`priceAnnualMonthly` are per-unit (per seat when per_seat); the
-// annual figure is the effective $/mo when billed yearly (the discount lever). Stripe treats per-seat as
-// price × quantity — this `model` field is what tells our code to show a seat picker + send a quantity.
+// prices are per-unit (per seat when per_seat); annual = effective $/mo billed yearly
 export interface PlanBilling {
     model: BillingModel;
     priceMonthly: number; // USD; 0 = free
@@ -28,27 +16,23 @@ export interface PlanBilling {
     trialDays: number; // 0 = none
 }
 
-// AI limits. VALUES here are owned by the AI/credit session (the contract they read); we own the fields.
-// The monthly credit budget lives here (a plan attribute); per-action cost lives in @model/credits.
-// On a per-seat plan the workspace pool = seats × creditsPerMonth.
+// per-seat pool = seats × creditsPerMonth
 export interface PlanAi {
     creditsPerMonth: number; // per seat when per_seat
     creditsRollover: boolean;
-    maxSectionsPerGeneration: number; // ≈ Gamma "cards per prompt"
+    maxSectionsPerGeneration: number;
     textModelTier: ModelTier;
     imageModelTier: ModelTier;
     creditTopUpsAllowed: boolean;
 }
 
-// Account / workspace caps.
 export interface PlanAccount {
     maxArtifacts: number; // -1 = unlimited
-    maxMembers: number; // base seats included (per_seat: minSeats; real cap = workspace.seats)
+    maxMembers: number; // base seats included; real cap = workspace.seats
     storageMb: number; // -1 = unlimited
 }
 
-// Feature gates. Whether a listed gate is actually granted also depends on its launch status in
-// `features.ts` — a `planned` feature stays off for everyone even if a plan lists it true.
+// a gate is granted only if features.ts also marks it launched
 export interface PlanFeatures {
     removeBranding: boolean;
     customThemes: boolean;
@@ -64,25 +48,21 @@ export interface PlanFeatures {
 }
 
 export interface Plan {
-    // identity / presentation
     id: PlanId;
     name: string;
     tagline: string;
     badge?: string; // e.g. "Most popular"
     highlights: string[]; // the bullet list on the pricing card
     order: number;
-    visible: boolean; // false = staged: in the model, not shown/sold yet
+    visible: boolean; // false = staged: not shown/sold yet
     contactSales: boolean; // "Talk to us" instead of Checkout
-    // enforcement + billing
     billing: PlanBilling;
     ai: PlanAi; // 🔶 values owned by the AI/credit session
     account: PlanAccount;
     features: PlanFeatures;
 }
 
-// A typical AI generation's credit cost. Derived from the metered tool catalog (@model/tools +
-// @model/credits): the real charge scales with the artifact's length, but this typical value stays for
-// callers/copy that want one representative number. The catalog is the source of truth. 🔶 AI session.
+// representative cost; real charge scales with length 🔶
 export const CREDITS_PER_GENERATION = typicalCost("generate-artifact");
 
 export const PLANS: Record<PlanId, Plan> = {
@@ -226,11 +206,9 @@ export const PLANS: Record<PlanId, Plan> = {
 
 export const PLAN_ORDER: PlanId[] = ["free", "pro", "premium"];
 
-// The plans shown/sold on the pricing page (staged tiers are hidden until they ship).
 export const visiblePlans = (): Plan[] =>
     PLAN_ORDER.map((id) => PLANS[id]).filter((p) => p.visible);
 
-// Paid tiers that bill per seat — the ones that show a seat picker + support inviting members.
 export const isPerSeat = (id: string | null | undefined): boolean =>
     planFor(id).billing.model === "per_seat";
 
@@ -240,16 +218,13 @@ export function planFor(id: string | null | undefined): Plan {
     return PLANS[(id ?? "free") as PlanId] ?? PLANS.free;
 }
 
-// Per-unit price for a plan at an interval (monthly bill vs the effective monthly rate billed yearly).
+// year = effective monthly rate billed yearly
 export function priceFor(id: string | null | undefined, interval: Interval): number {
     const b = planFor(id).billing;
     return interval === "year" ? b.priceAnnualMonthly : b.priceMonthly;
 }
 
-// --- legacy flat bridge --------------------------------------------------------------------------
-// The pre-refactor flat feature shape. Kept so the existing gates keep compiling until they migrate
-// to the `features.ts` resolver in P1. New code should use resolveFeatures() instead. Only covers the
-// `live` gates in use today; the resolver is the source of truth for launch status + overrides.
+// legacy flat shape — new code uses resolveFeatures()
 export interface PlanLimits {
     maxArtifacts: number;
     aiCreditsPerMonth: number;

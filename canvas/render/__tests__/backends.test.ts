@@ -8,8 +8,6 @@ import {
 import { resolveProfile } from "@engine/profile";
 import { inst, sectionOf, tokens } from "@canvas/testkit";
 
-// Pure helpers — no DOM (the painters are in backends.dom.test.ts).
-
 describe("scaledHostCss", () => {
     it("scales from the top-left in the base variant", () => {
         expect(scaledHostCss(400, 300, 0.5)).toBe(

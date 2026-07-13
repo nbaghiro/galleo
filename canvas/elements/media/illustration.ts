@@ -1,8 +1,6 @@
 import { register } from "@elements/spec";
 import { imageLike } from "./shared";
 
-// Vector art / drawings — default to `contain` so artwork isn't cropped. Search via Openverse
-// (category=illustration) or generate with the illustration AI style.
 register(
     imageLike({
         type: "illustration",

@@ -1,7 +1,6 @@
 import { hexA } from "@themes";
 import { arrow, drawNode, registerDiagram, type Renderer } from "./utils";
 
-// Horizontal row(s) of boxes, arrows between neighbours, wrapping to further rows when too many fit.
 const process: Renderer = (diagram, ctx) => {
     const { g, W, H, theme } = ctx;
     const items = diagram.items;

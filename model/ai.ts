@@ -1,9 +1,3 @@
-// The AI contract — everything `model` defines for the AI layer, in two parts: (1) the streamed
-// turn PROTOCOL (turns, patches, events) the generation runtime emits and the studio consumes; (2) the
-// authoring CATALOG (the elements + grids the LLM writes against, with hints) that seeds the system
-// prompt and the validator. Pure — no IO, no engine. The tool catalog + metered pricing (what each tool
-// costs) lives in @model/tools; the generic credit math it prices against lives in @model/credits.
-
 import type { ArtifactContent, ElementInstance, Section, SectionBackground } from "@model/artifact";
 import { LAYOUT_PRESETS, removeAtPath, updateAtPath } from "@model/section";
 import {
@@ -19,17 +13,6 @@ import {
     TEXT_STYLES,
 } from "@model/elements";
 
-// ============================================================================================
-// 1. THE TURN PROTOCOL — the streamed turn contract (runtime emits · log persists · studio consumes)
-// ============================================================================================
-
-// The turn protocol — the single contract shared across the boundary: the runtime (services/ai/run)
-// emits it, the event log persists it, and the studio Console + canvas consume it. Pure (no IO, no
-// engine). Swapping the client-side simulator for the real LLM runtime changes nothing on the client,
-// because both speak exactly this.
-
-// --- turns: what the client asks the AI to do ---
-
 export type TurnKind = "generate" | "edit" | "section" | "chat";
 export type Surface = "deck" | "doc" | "web";
 
@@ -41,47 +24,40 @@ export interface GenerateInput {
     audience?: string;
     tone?: string;
     length?: string;
-    contextRefs?: string[]; // ids of attached context (doc/url) in the artifact's ContextPack
-    source?: string; // raw source material to build FROM (pasted text, or an artifact's extracted text)
-    sourceArtifactId?: string; // repurpose an existing artifact — the runtime reads it + uses its text as source
-    imageSource?: "stock" | "ai"; // how images are sourced: stock photos (default, instant/free) or AI-generated
+    contextRefs?: string[]; // ids into the artifact's ContextPack
+    source?: string;
+    sourceArtifactId?: string;
+    imageSource?: "stock" | "ai"; // stock (default, free) or AI-generated
 }
 
 export interface EditInput {
-    instruction: string; // a whole-artifact revision ("make it punchier", "add a competition slide")
+    instruction: string; // whole-artifact revision
 }
 
 export interface SectionInput {
-    instruction: string; // what the new section should be about (the user's prompt)
-    afterId: string | null; // insert the new section after this id (null ⇒ at the front)
-    content: ArtifactContent; // the current artifact — for neighbor context, surface/theme, and id allocation
+    instruction: string;
+    afterId: string | null; // insert after this id; null ⇒ front
+    content: ArtifactContent; // the current artifact, for context + id allocation
 }
 
-// What the chat agent is looking at. Assembled on the client each message. The full `content` rides along
-// for server-side tools (edit/add a section need the real tree), but the MODEL only ever sees the compact
-// digest + focus derived from it — so the model's context stays cheap regardless of artifact size.
 export interface ChatFocus {
     kind: "element" | "section" | "none";
     sectionId?: string;
-    path?: number[]; // the focused element's path within the section's root tree
-    elementType?: string; // the selected element's type (stat, image, …)
-    headline?: string; // the focused section/element's first text, for grounding
+    path?: number[];
+    elementType?: string;
+    headline?: string; // first text, for grounding
 }
 
-// A compact picture of the user's workspace, sent when NO artifact is open (the library / templates / trash
-// views) so the agent can ground itself — reference their recent work, size the workspace, help them start
-// something — instead of only knowing "no artifact is open".
+// sent when no artifact is open
 export interface ChatLibrary {
-    view?: string; // where they are: "library" | "templates" | "trash" | "shared"
-    artifactCount?: number; // how many artifacts they have
-    recent?: { title: string; format: string }[]; // a few most-recent titles, for grounding
-    folder?: string; // the folder they're filtered to, if any
-    folders?: { id: string; name: string }[]; // the workspace's folders, so the agent can resolve a move target
+    view?: string; // "library" | "templates" | "trash" | "shared"
+    artifactCount?: number;
+    recent?: { title: string; format: string }[];
+    folder?: string;
+    folders?: { id: string; name: string }[]; // so the agent can resolve a move target
 }
 
-// A workspace management action the agent proposes and the CLIENT executes against its (optimistic) library
-// stores — the app owns these mutations, not the server turn. The client decides policy: reversible ones run
-// on arrival; destructive ones (trash) go through a confirm card. Targets are real ids (from find-artifacts).
+// agent proposes; the client executes them (destructive ones via a confirm card)
 export type WorkspaceAction =
     | { kind: "rename"; id: string; title: string }
     | { kind: "move"; id: string; folderId: string | null } // null ⇒ remove from any folder
@@ -89,13 +65,10 @@ export type WorkspaceAction =
     | { kind: "trash"; id: string } // destructive → confirmed
     | { kind: "restore"; id: string }
     | { kind: "create-folder"; name: string }
-    // Outward-facing → the client ROUTES to the proper guarded UI (never publishes/downloads directly): a
-    // one-click card that opens the Share modal (publishing is opt-in there) or opens the artifact to export.
+    // client ROUTES to the guarded UI (Share modal / export) — never publishes/downloads directly
     | { kind: "share"; id: string }
     | { kind: "export"; id: string };
 
-// A lightweight reference to a library artifact — what `find-artifacts` returns and the `artifacts` block
-// renders (a pick-list the user can open). Carries just enough to identify + label it, never the content.
 export interface ArtifactRef {
     id: string;
     title: string;
@@ -104,17 +77,15 @@ export interface ArtifactRef {
 }
 
 export interface ChatContext {
-    surface: "editor" | "library"; // where the chat is being used
+    surface: "editor" | "library";
     artifactId?: string;
-    content?: ArtifactContent; // the open artifact (editor surface) — server derives the digest for the model
+    content?: ArtifactContent; // the open artifact; server derives the model's digest from it
     focus?: ChatFocus;
-    library?: ChatLibrary; // present on the "library" surface (no open artifact) — the workspace summary
-    plan?: string; // workspace plan, so the agent can hint at gated capabilities
-    credits?: { remaining: number; limit: number }; // AI credit balance, so the agent can answer "how many left"
+    library?: ChatLibrary; // present on the "library" surface (no open artifact)
+    plan?: string; // so the agent can hint at gated capabilities
+    credits?: { remaining: number; limit: number }; // so the agent can answer "how many left"
 }
 
-// A reference to a starter template — what `find-templates` returns and the `templates` block renders (a
-// pick-list; picking one starts an in-chat draft from it). Content stays server-side until the user picks.
 export interface TemplateRef {
     id: string;
     name: string;
@@ -123,7 +94,7 @@ export interface TemplateRef {
 
 export interface ChatTurnRef {
     role: "user" | "assistant";
-    text: string; // prior messages, compacted (widgets aren't replayed to the model)
+    text: string; // compacted; widgets aren't replayed to the model
 }
 
 export interface ChatInput {
@@ -132,33 +103,23 @@ export interface ChatInput {
     history?: ChatTurnRef[];
 }
 
-// A one-line generation brief the agent hands back for the user to confirm — the `brief` chat block. The
-// agent distills the conversation to this; the client renders a "Generate →" card (with a cost estimate),
-// and only on click does it run a real `generate` turn into an in-chat draft. Nothing is built or saved
-// until the user commits. `theme` is filled by the client (the app theme) at generate time, so the agent
-// only owns the editorial choices (what to build, which surface, how long).
+// a generation brief the user confirms before anything is built
 export interface GenBrief {
-    prompt: string; // the one-sentence brief the generator builds from
-    surface: Surface; // deck | doc | web
+    prompt: string;
+    surface: Surface;
     length?: string; // "Short" | "Standard" | "In-depth"
     goal?: string;
     audience?: string;
     tone?: string;
-    // Source-grounded generation: build FROM material rather than just a topic. The client resolves the
-    // source at generate time (avoiding re-emitting long text through the model):
-    sourceFromMessage?: boolean; // build from the content the user just pasted (their last message)
-    sourceArtifactId?: string; // repurpose an existing artifact (e.g. "turn my report into a deck")
+    sourceFromMessage?: boolean; // build from the user's last pasted message
+    sourceArtifactId?: string;
 }
 
-// A rich block in an assistant message — a chat response is an ordered list of these. Text streams in as
-// `chat.text` deltas; the widget blocks arrive whole as `chat.block`. `proposal` carries a mutation the user
-// applies or discards (with a real section preview); `preview` shows content without changing anything.
+// a chat response is an ordered list of these
 export type ChatBlock =
     | { type: "text"; text: string }
     | { type: "suggestions"; items: string[] }
-    // A mutation the user applies/discards. `targetArtifactId` (+ its theme/format for the preview) makes it
-    // apply to a NAMED library artifact instead of the open one / the active draft — the same widget, three
-    // targets. Absent target ⇒ the open editor artifact or the live in-chat draft.
+    // targetArtifactId ⇒ apply to a named library artifact; absent ⇒ the open artifact / in-chat draft
     | {
           type: "proposal";
           summary: string;
@@ -169,11 +130,11 @@ export type ChatBlock =
           format?: string;
       }
     | { type: "preview"; section?: Section; format?: string }
-    | { type: "sections"; sections: Section[]; format?: string } // a scrollable carousel of existing sections
-    | { type: "brief"; brief: GenBrief } // a proposed generation the user confirms to build into an in-chat draft
-    | { type: "artifacts"; items: ArtifactRef[] } // library search results — a pick-list the user can open
-    | { type: "templates"; items: TemplateRef[] } // starter templates — a pick-list that starts a draft
-    | { type: "action"; action: WorkspaceAction }; // a workspace management action the client runs (or confirms)
+    | { type: "sections"; sections: Section[]; format?: string } // a carousel of existing sections
+    | { type: "brief"; brief: GenBrief } // a proposed generation the user confirms
+    | { type: "artifacts"; items: ArtifactRef[] } // library search results — a pick-list
+    | { type: "templates"; items: TemplateRef[] } // starter templates — a pick-list
+    | { type: "action"; action: WorkspaceAction }; // a workspace action the client runs (or confirms)
 
 export type TurnRequest =
     | { kind: "generate"; input: GenerateInput }
@@ -186,11 +147,6 @@ export type TurnStatus = "pending" | "running" | "done" | "error" | "canceled";
 export const isKind = (k: string): k is TurnKind =>
     k === "generate" || k === "edit" || k === "section" || k === "chat";
 
-// --- patches: the ordered structural ops a turn produces ---
-// Generate streams `addSection`s; regenerate-a-section is one `replaceSection`; edit-a-block is one
-// `replaceElement`. The same model powers streaming, surgical edits, history, and undo (every op has a
-// structural inverse).
-
 export type PatchOp =
     | { op: "setMeta"; theme?: string; format?: string; background?: SectionBackground | null }
     | { op: "addSection"; afterId?: string | null; section: Section } // afterId null/absent ⇒ append
@@ -202,8 +158,7 @@ export type PatchOp =
 
 export type Patch = PatchOp[];
 
-// Shallow-copy each section wrapper; applyOp only ever swaps `root` for a freshly-built tree (updateAtPath
-// is immutable), so the originals are never mutated.
+// shallow-copy; applyOp swaps immutably, so originals are never mutated
 const cloneSections = (sections: Section[]): Section[] => sections.map((s) => ({ ...s }));
 
 function insertAfter(
@@ -263,14 +218,12 @@ function applyOp(content: ArtifactContent, op: PatchOp): ArtifactContent {
     }
 }
 
-// Apply a patch immutably — returns a new ArtifactContent, never mutates the input.
+// immutable — never mutates the input
 export function applyPatch(content: ArtifactContent, patch: Patch): ArtifactContent {
     let next: ArtifactContent = { ...content, sections: cloneSections(content.sections) };
     for (const op of patch) next = applyOp(next, op);
     return next;
 }
-
-// --- events: the streamed protocol the runtime emits + the client consumes ---
 
 export type Phase =
     | "intake"
@@ -289,46 +242,39 @@ export interface Beat {
     id: string;
     label: string;
     role: string;
-    layout?: string; // a named layout preset (its column count + widths) — shapes the pre-content skeleton
-    image?: boolean; // carries a prominent image (drives the sourcing step + ghost)
-    blocks?: string[]; // the block kind leading each column, in order — skeleton + writer both honor it
+    layout?: string; // a named layout preset; shapes the pre-content skeleton
+    image?: boolean; // carries a prominent image (drives sourcing + ghost)
+    blocks?: string[]; // the block kind leading each column, in order
 }
 
 export type TurnEvent =
     | { type: "turn.start"; kind: TurnKind }
     | { type: "phase"; name: Phase }
-    | { type: "narration"; text: string; mono?: string; sub?: string } // the Console terminal lines
+    | { type: "narration"; text: string; mono?: string; sub?: string } // Console terminal lines
     | { type: "plan"; beats: Beat[] }
     | { type: "section.status"; id: string; status: SectionStatus }
     | { type: "patch"; ops: Patch } // apply to the canvas as it streams
     | { type: "reply"; text: string } // chat/research answer
-    | { type: "chat.reasoning"; delta: string } // streamed thinking tokens (the collapsible "thinking" bubble)
-    | { type: "chat.text"; delta: string } // streamed assistant prose (appended to the message's text)
+    | { type: "chat.reasoning"; delta: string } // streamed thinking tokens
+    | { type: "chat.text"; delta: string } // streamed assistant prose
     | { type: "chat.tool"; blockId: string; tool: string; title: string } // a tool started → a widget shell appears
     | { type: "chat.nested"; blockId: string; event: TurnEvent } // a capability event routed to a block's widget
     | { type: "chat.block"; blockId: string; block: ChatBlock } // a finished widget block
     | { type: "turn.done"; summary?: string }
     | { type: "error"; message: string };
 
-// A persisted event = an TurnEvent plus its monotonic sequence in the turn's log (the SSE resume cursor).
+// monotonic seq is the SSE resume cursor
 export interface LoggedEvent {
     seq: number;
     event: TurnEvent;
 }
 
-// ============================================================================================
-// 2. THE AUTHORING CATALOG — the elements + grids the LLM writes against (seeds prompt + validator)
-// ============================================================================================
-
-// --- layout presets: named starter column arrangements the writer can reach for (a section's root is a
-// row of columns; these are just convenient count + width ratios). Guidance only — the model emits the
-// actual recursive tree, and can always author custom widths. ---
-
+// guidance only — the model can author custom widths
 export interface LayoutPreset {
     id: string;
-    columns: number; // how many top-level columns the preset lays out
+    columns: number;
     widths: string; // human description of the column split
-    when: string; // when to reach for this layout
+    when: string;
 }
 
 const LAYOUT_HINTS: Record<string, { widths: string; when: string }> = {
@@ -356,8 +302,6 @@ export const LAYOUTS: readonly LayoutPreset[] = Object.keys(LAYOUT_PRESETS).map(
     return { id, columns: LAYOUT_PRESETS[id]!.length, widths: h.widths, when: h.when };
 });
 
-// --- the element catalog ---
-
 export type FieldType = "string" | "text" | "number" | "boolean" | "enum" | "children";
 
 export interface FieldSpec {
@@ -366,15 +310,15 @@ export interface FieldSpec {
     required?: boolean;
     values?: readonly string[]; // for type "enum"
     default?: string | number | boolean;
-    desc: string; // guidance for the LLM (accepted values, string formats, when to set it)
+    desc: string; // guidance for the LLM
 }
 
 export interface ElementSchema {
     type: string; // the ElementInstance.type to emit
     label: string;
     category: string;
-    container?: boolean; // true → `data.children` is an array of nested elements
-    when: string; // when the AI should reach for this element
+    container?: boolean; // true → data.children holds nested elements
+    when: string;
     fields: readonly FieldSpec[];
 }
 
@@ -386,7 +330,6 @@ const childrenField = (desc: string): FieldSpec => ({
 });
 
 export const ELEMENTS: readonly ElementSchema[] = [
-    // --- text ---
     {
         type: "text",
         label: "Text",
@@ -478,7 +421,6 @@ export const ELEMENTS: readonly ElementSchema[] = [
         ],
     },
 
-    // --- media ---
     {
         type: "image",
         label: "Image",
@@ -519,7 +461,6 @@ export const ELEMENTS: readonly ElementSchema[] = [
         fields: [{ key: "url", type: "string", desc: "the video URL" }],
     },
 
-    // --- data ---
     {
         type: "stat",
         label: "Stat",
@@ -553,7 +494,6 @@ export const ELEMENTS: readonly ElementSchema[] = [
         ],
     },
 
-    // --- charts (self-drawn; one element type, the kind chosen by data.type) ---
     {
         type: "chart",
         label: "Chart",
@@ -588,7 +528,6 @@ export const ELEMENTS: readonly ElementSchema[] = [
         ],
     },
 
-    // --- diagrams (self-drawn; one element type, the kind chosen by data.type) ---
     {
         type: "diagram",
         label: "Diagram",
@@ -616,7 +555,6 @@ export const ELEMENTS: readonly ElementSchema[] = [
         ],
     },
 
-    // --- containers ---
     {
         type: "card",
         label: "Card",
@@ -672,7 +610,6 @@ export const ELEMENTS: readonly ElementSchema[] = [
         ],
     },
 
-    // --- chrome ---
     {
         type: "button",
         label: "Button",
@@ -709,6 +646,5 @@ export const ELEMENTS: readonly ElementSchema[] = [
 
 export const ELEMENT_TYPES = ELEMENTS.map((e) => e.type);
 
-// The element types the AI is allowed to emit (the palette-hidden `__dropghost`, and the raw variant
-// chart/diagram element types, are deliberately excluded — emit `chart`/`diagram` with a `data.type`).
+// excludes the palette-hidden __dropghost + raw chart/diagram variants
 export const isEmittableType = (type: string): boolean => ELEMENT_TYPES.includes(type);

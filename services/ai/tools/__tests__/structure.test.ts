@@ -4,9 +4,6 @@ import { THEMES } from "@themes";
 import { reorderSectionTool, removeSectionTool, setFormatTool, setThemeTool } from "../structure";
 import { makeContext, type Tool, type ToolContext } from "../registry";
 
-// Structural edit tools — each `run` is an async generator that yields nothing and RETURNS { patch, summary }.
-// Drive it to completion and capture the return value. Pure (deterministic patch ops, no DB / model call).
-
 const ctx = (): ToolContext => makeContext({ image: {} });
 
 async function runTool<I, R>(tool: Tool<I, R>, input: I): Promise<R> {

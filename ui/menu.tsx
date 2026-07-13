@@ -1,25 +1,18 @@
 import type { Component, JSX } from "solid-js";
-import { createContext, createSignal, useContext } from "solid-js";
+import { createContext, createSignal, onMount, useContext } from "solid-js";
 import { Popover } from "./overlay";
 import { Eyebrow } from "./button";
-
-// Anchored action menus — the Topbar / library dropdowns. `Menu` owns the open state + trigger ref +
-// Popover; `MenuItem`/`MenuLabel`/`MenuSeparator` are the rows. Built on Popover so every menu is portaled
-// (clip-safe), theme-snapshotted, backdrop-+Esc-dismissable, and flips up near the viewport bottom — the
-// chrome no view should re-implement. Clicking a MenuItem closes the menu (via context); non-item content
-// (e.g. a rename input) stays open.
 
 const MenuCloseContext = createContext<() => void>();
 
 export const Menu: Component<{
-    // The trigger renders the anchor button: wire `ref` to it and `toggle` to its click.
     trigger: (o: {
         open: boolean;
         toggle: () => void;
         ref: (el: HTMLElement) => void;
     }) => JSX.Element;
-    align?: "start" | "end"; // right-align (end) for menus that hang off a right-edge trigger
-    width?: number; // fixed panel width
+    align?: "start" | "end";
+    width?: number;
     minWidth?: number;
     estHeight?: number;
     toolbar?: boolean; // keep an inline text editor alive when used mid-edit
@@ -47,10 +40,36 @@ export const Menu: Component<{
                 panelClass={`p-1.5 ${props.panelClass ?? ""}`}
             >
                 <MenuCloseContext.Provider value={() => setOpen(false)}>
-                    {props.children}
+                    <MenuList>{props.children}</MenuList>
                 </MenuCloseContext.Provider>
             </Popover>
         </>
+    );
+};
+
+// ↑/↓ wrap focus between menuitems; Enter/Space activate natively (button).
+// Exclusive Popover scope keeps these arrows from being shadowed by page shortcuts.
+const MenuList: Component<{ children: JSX.Element }> = (props) => {
+    let el!: HTMLDivElement;
+    onMount(() => {
+        el.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
+    });
+    const onKeyDown = (e: KeyboardEvent): void => {
+        if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+        e.preventDefault();
+        const items = Array.from(
+            el.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])'),
+        );
+        if (!items.length) return;
+        const i = items.indexOf(document.activeElement as HTMLElement);
+        const n =
+            e.key === "ArrowDown" ? (i + 1) % items.length : (i - 1 + items.length) % items.length;
+        items[n]?.focus();
+    };
+    return (
+        <div ref={el} role="menu" onKeyDown={onKeyDown}>
+            {props.children}
+        </div>
     );
 };
 
@@ -58,9 +77,9 @@ type ItemTone = "default" | "accent" | "danger";
 export const MenuItem: Component<{
     icon?: JSX.Element;
     tone?: ItemTone;
-    selected?: boolean; // current/checked row (accent, semibold)
+    selected?: boolean;
     disabled?: boolean;
-    trailing?: JSX.Element; // right-aligned meta (e.g. a "saved" tag)
+    trailing?: JSX.Element;
     onClick?: () => void;
     children: JSX.Element;
 }> = (props) => {
@@ -76,6 +95,7 @@ export const MenuItem: Component<{
     return (
         <button
             type="button"
+            role="menuitem"
             disabled={props.disabled}
             class={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors disabled:pointer-events-none disabled:opacity-40 ${tone()}`}
             onClick={() => {
@@ -90,7 +110,6 @@ export const MenuItem: Component<{
     );
 };
 
-// The mono-uppercase section label inside a menu (= Eyebrow, pre-padded to align with the rows).
 export const MenuLabel: Component<{ children: JSX.Element }> = (props) => (
     <Eyebrow as="div" tracking="wide" class="px-2.5 pb-1 pt-1">
         {props.children}

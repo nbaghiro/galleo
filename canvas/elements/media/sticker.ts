@@ -1,7 +1,6 @@
 import { register } from "@elements/spec";
 import { imageLike } from "./shared";
 
-// Transparent cutouts for accents — small, contained, square by default; the frame stays see-through.
 register(
     imageLike({
         type: "sticker",

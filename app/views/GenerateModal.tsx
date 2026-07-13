@@ -8,7 +8,7 @@ import { resolveTheme, themeCssVars, mix } from "@themes";
 import { paint } from "@canvas/render/backends";
 import { measureText, layoutSection, layoutSectionSkeleton } from "@canvas/render/commands";
 import { placeholderSection } from "@canvas/elements/blueprint";
-import { appTheme } from "../theme";
+import { appTheme } from "../stores/theme";
 import { CloseIcon } from "@ui/icons";
 import { MiniCanvas } from "../components/previews";
 import { Button, IconButton, Spinner, Eyebrow } from "@ui/button";
@@ -26,25 +26,16 @@ import {
     type Surface,
 } from "../stores/generate";
 
-// The generate modal — the single artifact-generation surface, mounted once in the app shell (like the
-// theme editor). It opens on a brief (left rail: prompt + format + length), runs a real generate turn,
-// and paints each section with the SAME engine the editor uses (real section skeleton → render) in the
-// right preview, one at a time as content streams in. The modal wears the theme the artifact will use.
-
 const reduced = (): boolean =>
     window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
 const PLACEHOLDER =
     "A launch deck for a calm operating system that helps solo studios handle projects, invoices, and cashflow in one place…";
-// A comprehensive, real-life idea bank — the "start from an idea" list cycles four at a time through this
-// (a hardcoded set, so shuffling costs no LLM call). Balanced across deck / doc / web and many industries.
 const EXAMPLE_PROMPTS: { text: string; format: Surface }[] = [
-    // the curated first four
     { text: "A launch deck for Meridian, a calm OS for solo studios", format: "deck" },
     { text: "A landing page for a whisper-quiet air purifier", format: "web" },
     { text: "An annual climate report — one year measured in degrees", format: "doc" },
     { text: "A pitch for a maps API that developers actually enjoy", format: "deck" },
-    // decks
     { text: "A seed pitch deck for a B2B fintech automating expense reports", format: "deck" },
     { text: "A Series A deck for a climate startup capturing carbon from cement", format: "deck" },
     { text: "A sales deck for an enterprise cybersecurity platform", format: "deck" },
@@ -55,7 +46,6 @@ const EXAMPLE_PROMPTS: { text: string; format: Surface }[] = [
     { text: "A conference talk on designing for trust in AI products", format: "deck" },
     { text: "A brand strategy deck for a sustainable activewear label", format: "deck" },
     { text: "A board deck reviewing this quarter's growth and burn", format: "deck" },
-    // documents
     { text: "A one-pager for a $3M seed round in healthtech", format: "doc" },
     { text: "A product requirements doc for a mobile checkout redesign", format: "doc" },
     { text: "An annual impact report for a clean-water nonprofit", format: "doc" },
@@ -66,7 +56,6 @@ const EXAMPLE_PROMPTS: { text: string; format: Surface }[] = [
     { text: "A grant proposal for an urban reforestation program", format: "doc" },
     { text: "A market analysis of the EV-charging landscape", format: "doc" },
     { text: "A press release announcing our $12M Series A", format: "doc" },
-    // websites
     { text: "A landing page for a weeknight meal-kit subscription", format: "web" },
     { text: "A pricing page for a team video-hosting platform", format: "web" },
     { text: "A portfolio site for a freelance brand designer", format: "web" },
@@ -85,9 +74,6 @@ const FORMATS: [Surface, string][] = [
 ];
 const LENGTHS = ["Short", "Standard", "In-depth"];
 
-// Real sample sections rendered (scaled) in the empty-state + loader tiles — a taste of what Galleo makes.
-// Engine-drawn (text / stat / quote / bullets / chart / cards), so they paint instantly with no external
-// images. These feed the shared MiniCanvas, which renders them full-size then scales down.
 const st = (text: string, style: string): ElementInstance => ({
     type: "text",
     data: { text, style },
@@ -251,13 +237,10 @@ const SAMPLE_SECTIONS: Section[] = [
     },
 ] as Section[];
 
-// The surface the preview/build board renders in. It IS the brief's format selector before a run, and a
-// live view-toggle during/after it — same content, re-laid-out as deck / doc / web (format-as-view). The
-// switcher top-right of the board drives it; the submitted surface + the saved artifact follow it too.
+// shared by the brief's format selector and the board's live view-toggle
 const [previewFormat, setPreviewFormat] = createSignal<Surface>("deck");
 
-// The natural render width for the previewed format — matches the editor: the format's maxContentWidth
-// clamped to the available board (web bleeds to fill). The frame is sized to exactly this so nothing clips.
+// format's maxContentWidth clamped to the board; web bleeds to fill
 const frameWidth = (avail: number): number => {
     const p = resolveProfile(previewFormat());
     return Math.max(
@@ -266,7 +249,7 @@ const frameWidth = (avail: number): number => {
     );
 };
 
-// The macro phase stepper — the backend's fine-grained turn phases collapsed into four user-facing steps.
+// backend turn phases collapsed into four user-facing steps
 const STEPS: { label: string; phases: string[] }[] = [
     { label: "Reading", phases: ["intake"] },
     { label: "Planning", phases: ["spine", "outline", "plan"] },
@@ -280,7 +263,7 @@ const stepIndex = (phase: string | null, done: boolean): number => {
     return i < 0 ? 0 : i;
 };
 
-// Fisher–Yates: a fresh random order of the idea bank, computed once each time the modal opens.
+// Fisher–Yates shuffle of the idea bank
 function shuffledPrompts(): { text: string; format: Surface }[] {
     const a = [...EXAMPLE_PROMPTS];
     for (let i = a.length - 1; i > 0; i--) {
@@ -292,7 +275,7 @@ function shuffledPrompts(): { text: string; format: Surface }[] {
     return a;
 }
 
-// A thin wrapper so the stateful panel mounts fresh on each open (re-seeds intake, resets refs).
+// wrapper so the panel remounts fresh on each open
 export const GenerateModal: Component = () => (
     <Show when={generateOpen()}>
         <GenerateModalPanel />
@@ -302,14 +285,12 @@ export const GenerateModal: Component = () => (
 const GenerateModalPanel: Component = () => {
     const navigate = useNavigate();
     const [prompt, setPrompt] = createSignal("");
-    // The format lives in the module-level `previewFormat` — the brief's selector and the board's live
-    // switcher are the same control, so switching the preview surface just re-lays-out the same content.
+    // same module-level signal as the board's switcher
     const fmt = previewFormat;
     const setFmt = setPreviewFormat;
     const [length, setLength] = createSignal("Standard");
     const [imageSource, setImageSource] = createSignal<"stock" | "ai">("stock");
-    // The idea bank is shuffled once per open (fresh random order); the list shows four at a time and the
-    // shuffle icon advances the window through the shuffled deck — all hardcoded, no LLM call.
+    // shuffled once per open; shows four at a time, shuffle advances the window
     const deck = shuffledPrompts();
     const [exOffset, setExOffset] = createSignal(0);
     const examples = (): { text: string; format: Surface }[] =>
@@ -321,8 +302,7 @@ const GenerateModalPanel: Component = () => {
     const total = (): number => gen.sections.length;
     const done = (): number => placedSections().length;
 
-    // The modal wears the theme the artifact will be generated in — its own app theme until a run starts,
-    // then the run's theme — so the chrome and the live preview share one palette.
+    // wear the run's theme once building, else the app theme
     const panelVars = createMemo(
         (): JSX.CSSProperties =>
             themeCssVars(
@@ -340,7 +320,7 @@ const GenerateModalPanel: Component = () => {
         });
     };
     const openInEditor = async (): Promise<void> => {
-        // Save in whatever surface the preview is showing — the switcher is a real choice, so "Open" honors it.
+        // save in whatever surface the preview shows
         const id = await saveGenerated(previewFormat());
         if (id) {
             closeGenerate();
@@ -364,7 +344,6 @@ const GenerateModalPanel: Component = () => {
             class="flex h-[90vh] max-h-[1000px] overflow-hidden"
             onClose={() => closeGenerate()}
         >
-            {/* ── left rail: brief (intake) ⇄ progress (building) ── */}
             <aside class="flex w-[360px] flex-none flex-col border-r border-line bg-panel">
                 <header class="flex flex-none items-center justify-between border-b border-line px-4 py-3">
                     <div class="flex items-baseline gap-2">
@@ -385,7 +364,6 @@ const GenerateModalPanel: Component = () => {
 
                 <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
                     <Show when={!building()} fallback={<Progress />}>
-                        {/* ── intake ── */}
                         <Eyebrow as="div" weight="normal" tracking="widest" class="mb-2">
                             Compose
                         </Eyebrow>
@@ -490,7 +468,6 @@ const GenerateModalPanel: Component = () => {
                     </Show>
                 </div>
 
-                {/* ── rail footer: Generate (intake) · steps + CTA (building/done) ── */}
                 <footer class="flex-none border-t border-line px-4 py-3">
                     <Show
                         when={building()}
@@ -578,7 +555,6 @@ const GenerateModalPanel: Component = () => {
                 </footer>
             </aside>
 
-            {/* ── right: the live board ── */}
             <div class="flex min-w-0 flex-1 flex-col" style={{ background: "var(--color-canvas)" }}>
                 <div class="flex flex-none items-center justify-between gap-3 border-b border-line bg-panel px-4 py-2">
                     <Eyebrow weight="normal" tracking="widest" class="flex-none">
@@ -589,7 +565,6 @@ const GenerateModalPanel: Component = () => {
                             {gen.brief?.prompt}
                         </span>
                     </Show>
-                    {/* live preview surface switcher — same content re-laid-out as deck / doc / web */}
                     <Segmented
                         variant="accent"
                         value={previewFormat()}
@@ -607,9 +582,6 @@ const GenerateModalPanel: Component = () => {
     );
 };
 
-// The empty state before a run — a static still-life of scattered mini section previews (the same themed
-// engine skeletons the loader orbits, here fixed in place) behind the prompt, so the pane feels alive
-// without motion.
 const IDLE_CARDS: {
     sample: number;
     x: number;
@@ -666,7 +638,6 @@ const Idle: Component = () => (
     </div>
 );
 
-// The left-rail progress readout during a build: the brief, the outline beats, and the narration feed.
 const Progress: Component = () => {
     return (
         <div class="flex flex-col gap-5">
@@ -767,10 +738,7 @@ const Progress: Component = () => {
     );
 };
 
-// The build loader shown while the outline is being written (the first, longest wait). "Skeleton Cascade":
-// three section skeletons stack and light in sequence, top to bottom — the piece visibly forming — under a
-// caption that tracks the run's narration. Contained + calm (a fraction of the old orbit), and it reuses the
-// same skeleton language as the rest of the build. Ghost/lit tones derive from the artifact theme.
+// build loader while the outline is written — three skeletons light in sequence
 const cascadeVars = (): JSX.CSSProperties => {
     const tk = resolveTheme(gen.theme).tokens;
     return {
@@ -785,8 +753,7 @@ const cascadeVars = (): JSX.CSSProperties => {
 
 const ReadingLoader: Component = () => {
     const line = (): string => gen.narration[gen.narration.length - 1]?.text ?? "Reading the brief";
-    // one skeleton row (a themed frame of ghost bars) — the `d` delay staggers the three so they light in
-    // sequence; children read `--d` so a row's bars light with their frame.
+    // --d staggers the three rows so they light in sequence
     const bar = (cls: string): JSX.Element => <div class={`gc-bar rounded ${cls}`} />;
     return (
         <div class="flex flex-col items-center gap-6" style={cascadeVars()}>
@@ -804,7 +771,6 @@ const ReadingLoader: Component = () => {
             `}</style>
 
             <div class="flex w-full flex-col gap-2.5">
-                {/* image-left */}
                 <div
                     class="gc-row flex items-center gap-3.5 rounded-xl border p-3.5"
                     style={{
@@ -820,7 +786,6 @@ const ReadingLoader: Component = () => {
                         {bar("h-1.5 w-4/5")}
                     </div>
                 </div>
-                {/* image-right */}
                 <div
                     class="gc-row flex items-center gap-3.5 rounded-xl border p-3.5"
                     style={{
@@ -836,7 +801,6 @@ const ReadingLoader: Component = () => {
                     </div>
                     <div class="gc-bar h-10 w-14 flex-none rounded-md" />
                 </div>
-                {/* text-only */}
                 <div
                     class="gc-row flex flex-col gap-2 rounded-xl border p-3.5"
                     style={{
@@ -870,10 +834,7 @@ const Board: Component = () => {
         setAvail(board.clientWidth);
         onCleanup(() => ro.disconnect());
     });
-    // Center the section currently being generated (its skeleton) in view — keeping the just-finished one
-    // partially visible above — instead of jumping to the last skeleton. A short pause after a section goes
-    // active lets the previous section's reveal read; that's client-side pacing only and never gates
-    // generation. Also recenters as earlier reveals shift the layout below.
+    // center the active section's skeleton; a short client-side pause paces reveals (never gates generation)
     const centerActive = (): void => {
         const id = gen.activeSection;
         const el = id ? board?.querySelector<HTMLElement>(`[data-sid="${id}"]`) : null;
@@ -893,8 +854,7 @@ const Board: Component = () => {
         void placedSections().length;
         queueMicrotask(centerActive);
     });
-    // When the run finishes, activeSection goes null (so centerActive no-ops) — settle at the end instead
-    // of freezing wherever the last section was centered, revealing the finished final section.
+    // on finish activeSection is null, so settle at the end instead of freezing mid-scroll
     createEffect(() => {
         if (gen.phase !== "done") return;
         clearTimeout(scrollTimer);
@@ -903,8 +863,7 @@ const Board: Component = () => {
         );
     });
     onCleanup(() => clearTimeout(scrollTimer));
-    // Spacing between frames reads the surface: web bands butt together (continuous scroll), deck cards get
-    // room (slides), a doc's pages sit a touch apart.
+    // web bands butt together, deck cards get room, doc pages sit slightly apart
     const gap = (): string =>
         previewFormat() === "web" ? "2px" : previewFormat() === "doc" ? "14px" : "22px";
     return (
@@ -929,10 +888,7 @@ const Board: Component = () => {
     );
 };
 
-// One section frame: while the beat is being written it shows the engine's OWN section skeleton
-// (layoutSectionSkeleton over a placeholder built from the planned grid — the same ghost the rest of the
-// app uses); when its content lands it swaps to the real engine render with a reveal. One paint box, one
-// paint path for both states.
+// section frame: engine skeleton while writing, real render on land — one paint box for both
 const Frame: Component<{ slot: SectionSlot; index: number; avail: () => number }> = (props) => {
     let box!: HTMLDivElement;
     const [dim, setDim] = createSignal({ w: 0, h: 0 });
@@ -954,7 +910,6 @@ const Frame: Component<{ slot: SectionSlot; index: number; avail: () => number }
         paint(out.commands, box);
         setDim({ w: layoutW, h: out.height });
         if (!done || reduced()) return;
-        // reveal the finished render (skeleton → proof)
         box.animate([{ opacity: 0 }, { opacity: 1 }], {
             duration: 420,
             easing: "cubic-bezier(.2,.7,.2,1)",
@@ -992,7 +947,6 @@ const Frame: Component<{ slot: SectionSlot; index: number; avail: () => number }
             <div
                 class="overflow-hidden transition-colors"
                 classList={{
-                    // deck/doc read as framed cards/pages; web bleeds edge-to-edge as a continuous band
                     "rounded-xl border": !isWeb(),
                     "border-line shadow-[0_30px_60px_-40px_rgba(0,0,0,0.5)]":
                         doneReady() && !isWeb(),

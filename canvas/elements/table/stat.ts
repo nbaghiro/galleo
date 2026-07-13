@@ -4,7 +4,6 @@ import type { ElementInstance } from "@model/artifact";
 import { register, getElement } from "@elements/spec";
 import { fit, grow } from "@model/geometry";
 
-// A stat is a value + caption — both real text children, so each is independently selectable/editable.
 interface StatData {
     children: ElementInstance[];
 }

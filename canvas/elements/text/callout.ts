@@ -7,7 +7,6 @@ import { register, getElement } from "@elements/spec";
 import { fit, grow, fixed } from "@model/geometry";
 import { CALLOUT_TONES } from "@model/elements";
 
-// A note box (note/tip/warn) with an accent bar and real text children — the body edits inline.
 interface CalloutData {
     children: ElementInstance[];
     tone?: CalloutTone;
@@ -95,7 +94,7 @@ export const calloutElement: ElementSpec<CalloutData> = {
         arrange: arrangeCallout,
         withChildren: (d, children) => ({ ...d, children }),
     },
-    bar: ["tone"], // a container hides the docked panel, so the one control must live on the bar
+    bar: ["tone"], // container hides the docked panel, so the control lives on the bar
     controls: [
         {
             key: "tone",

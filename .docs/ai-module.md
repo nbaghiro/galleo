@@ -39,7 +39,7 @@ services/api/
 editor/ + app/                 the client (thin — speaks the protocol, never the model)
   editor/editor.ts             injected seams: onSectionStream · onSuggestSections · onReviseElement · onTextAssist
   editor/ai/                   the in-canvas flows: section-gen · element-gen · text-assist + TextAiMenu
-  app/views/chat/              the chat dock: session.ts (thread + dispatch) + ChatPanel.tsx
+  app/stores/chat.ts + app/views/ChatPanel.tsx    the chat dock: chat.ts (thread + dispatch) + ChatPanel.tsx
   app/api.ts                   streamTurn (SSE reader) + the JSON transports; wired in EditorView.tsx
 ```
 
@@ -324,7 +324,7 @@ onSectionStream             streamTurn (SSE)            /ai/turn       editor/ai
 onSuggestSections           api.suggestSections         /ai/suggest    the insert popup's idea chips
 onReviseElement             api.reviseElement           /ai/element    editor/ai/element-gen.ts (regenerate)
 onTextAssist                api.assistText              /ai/text       editor/ai/text-assist.ts + TextAiMenu
-(chat uses streamTurn directly)                          /ai/turn       app/views/chat/session.ts + ChatPanel
+(chat uses streamTurn directly)                          /ai/turn       app/stores/chat.ts + app/views/ChatPanel.tsx
 ```
 
 - **`streamTurn`** opens `POST /ai/turn`, reads the SSE body, parses each `data:` line back to a `TurnEvent`,

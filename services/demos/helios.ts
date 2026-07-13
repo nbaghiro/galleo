@@ -23,7 +23,6 @@ import {
 export const helios: ArtifactContent = doc(
     "stark",
     [
-        // 01 — Cover
         section(
             "s1",
             group(
@@ -42,7 +41,6 @@ export const helios: ArtifactContent = doc(
             { background: bgImage("helios-earth-from-space-blue-marble-night", 0.55) },
         ),
 
-        // 02 — The year in one sentence
         section(
             "s2",
             group(
@@ -54,7 +52,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 03 — Headline numbers
         section(
             "s3",
             row(
@@ -64,7 +61,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 04 — Executive summary
         section(
             "s4",
             split(
@@ -85,7 +81,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 05 — Pull quote
         section(
             "s5",
             quote(
@@ -94,7 +89,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 06 — Global temperature trend
         section(
             "s6",
             split(
@@ -118,7 +112,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 07 — Temperature context
         section(
             "s7",
             row(
@@ -128,7 +121,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 08 — Threshold crossed
         section(
             "s8",
             callout(
@@ -141,7 +133,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 09 — Emissions by sector
         section(
             "s9",
             group(
@@ -159,7 +150,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 10 — Emissions stats
         section(
             "s10",
             row(
@@ -169,7 +159,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 11 — Regional breakdown (intro)
         section(
             "s11",
             split(
@@ -186,7 +175,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 12 — Regional ledger (table + pie)
         section(
             "s12",
             split(
@@ -209,7 +197,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 13 — What's driving it
         section(
             "s13",
             split(
@@ -230,7 +217,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 14 — Tipping points (intro)
         section(
             "s14",
             group(
@@ -243,7 +229,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 15 — Tipping points (callouts)
         section(
             "s15",
             row(
@@ -266,7 +251,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 16 — What's working
         section(
             "s16",
             split(
@@ -295,7 +279,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 17 — Projections
         section(
             "s17",
             split(
@@ -315,7 +298,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 18 — What must happen next
         section(
             "s18",
             group(
@@ -340,7 +322,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 19 — Methodology & sources
         section(
             "s19",
             split(
@@ -369,7 +350,6 @@ export const helios: ArtifactContent = doc(
             ),
         ),
 
-        // 20 — Closing call to action
         section(
             "s20",
             group(

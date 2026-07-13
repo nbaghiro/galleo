@@ -1,5 +1,3 @@
-// Layout + text metrics: turn a Section's content into positioned render commands, and measure text (the base paint-layer input).
-
 import type { LayoutCtx } from "@elements/spec";
 import type {
     EngineNode,
@@ -19,9 +17,6 @@ import { fragment, layout } from "@engine/layout";
 import { DEFAULT_PROFILE, slideFrame } from "@engine/profile";
 import { fixed, grow } from "@model/geometry";
 import { DEFAULT_THEME, mix } from "@themes";
-
-// Imperative bridge: engine layout → render commands. Components paint these into refs; the engine
-// stays the single source of geometry (the framework never lays out content).
 
 export const SECTION_GAP = 22;
 
@@ -49,15 +44,11 @@ export function layoutSection(
     return { commands, regions, height: bottom(commands) };
 }
 
-// theme-aware ghost palette for skeletons (dark on dark, etc.)
 function ghostColorsFor(theme: Tokens): { bar: string; panel: string; line: string } {
     return { bar: mix(theme.surface, theme.ink, 0.2), panel: theme.surface, line: theme.line };
 }
 
-// The same section laid out as a structural ghost (the "generating" state). It composes the real
-// section then skeletonizes the node tree, so the placeholder occupies the EXACT width/height/grid the
-// finished section will — the live-build skeleton can't drift from the real geometry. Ghost tones are
-// derived from the theme so it respects the active artifact theme (dark on dark, etc.).
+// skeletonize the real composed node so the ghost occupies the exact final geometry (can't drift)
 export function layoutSectionSkeleton(
     section: Section,
     width: number,
@@ -73,8 +64,7 @@ export function layoutSectionSkeleton(
     return { commands, height: bottom(commands) };
 }
 
-// The first aspect-ratio media leaf within a subtree — an image OR a video (any node whose height derives
-// from a fixed width:height ratio). These are what make a section taller than a fixed slide.
+// first aspect-ratio media (image/video) — what makes a section taller than a slide
 function findAspectMedia(n: EngineNode): EngineNode | null {
     if (n.aspect !== undefined) return n;
     for (const c of n.children ?? []) {
@@ -84,16 +74,9 @@ function findAspectMedia(n: EngineNode): EngineNode | null {
     return null;
 }
 
-// A deck slide only has to fit 16:9. Aspect media (a portrait image, a 16:9 video) sized by its ratio can
-// make its section taller than the slide, forcing the whole thing to scale down and letterbox. When a
-// section overflows and has at least one NON-media flow sibling to set the height, convert the media to
-// fill-and-crop (grow height, drop the ratio, cover images) so it absorbs the slack instead of dictating a
-// tall fixed height. Works for media BESIDE text (a row column) and media UNDER text (a column). Returns the
-// flow containers changed + the media nodes flexed (the caller grows the containers + probes the fit).
+// convert a section's dominant aspect media to fill-and-crop so it absorbs slide slack instead of forcing a tall scale-down
 function coverFitMedia(root: EngineNode): { containers: EngineNode[]; media: EngineNode[] } {
-    // A "cell" is an addressable element node (composeElement tags each with an `el:…` id). A row/col whose
-    // children carry those ids is a real content flow (a section's split, or a nested group) — not a leaf
-    // element's internal layout, whose parts have no id.
+    // el:… ids mark real content-flow cells (composeElement tags them), not a leaf's internal layout
     const flows: EngineNode[] = [];
     const collect = (n: EngineNode): void => {
         if (
@@ -109,9 +92,7 @@ function coverFitMedia(root: EngineNode): { containers: EngineNode[]; media: Eng
     for (const flow of flows) {
         const cells = (flow.children ?? []).filter((c) => c.id?.startsWith("el:"));
         const mediaCells = cells.filter((c) => findAspectMedia(c));
-        // Cover-fit only a SINGLE dominant media (image/video) beside or under text. A section with several
-        // stacked media is better PAGINATED into multiple full-size slides (sectionSlides) than crammed into
-        // one, so leave it tall here and let pagination handle it.
+        // only cover-fit a single dominant media; multi-media sections are better paginated (left tall here)
         if (cells.length < 2 || mediaCells.length !== 1) continue;
         for (const cell of mediaCells) {
             const m = findAspectMedia(cell)!;
@@ -126,10 +107,7 @@ function coverFitMedia(root: EngineNode): { containers: EngineNode[]; media: Eng
     return { containers, media };
 }
 
-// Prepare a full-bleed slide node: drop corner radii/borders and stretch it to FILL the slide (content
-// centered). A short section sizes up to the whole frame. A taller text+media section cover-fits its media
-// (beside OR under the text) so it fills the frame instead of scaling down; anything still too tall (long
-// text) keeps its natural height and the caller scales it down. Returns the node + resolved height.
+// full-bleed slide node: drop radii/borders, fill the frame; cover-fit media to absorb slack, else keep natural height for the caller to scale down
 function prepareSlideNode(
     section: Section,
     w: number,
@@ -145,9 +123,7 @@ function prepareSlideNode(
     if (natural > h) {
         const { containers, media } = coverFitMedia(node);
         if (containers.length) {
-            // Probe: collapse the now-flexible media to nothing and measure the rest. If the non-media
-            // content fits the slide, the media can absorb the overflow (cross-axis fill beside the text,
-            // main-axis fill under it), so grow the containers and pin the section to the frame.
+            // probe: collapse media to 0 and measure the rest; if it fits, media can absorb the overflow → grow containers, pin to frame
             for (const m of media) m.h = fixed(0);
             const minH = bottom(layout(node, { x: 0, y: 0, w, h: 100000 }, measure).commands);
             for (const m of media) m.h = grow();
@@ -166,7 +142,6 @@ function prepareSlideNode(
     return { node, targetH };
 }
 
-// A presentation slide: the section full-bleed, stretched to fill the frame (content centered).
 export function layoutSlide(
     section: Section,
     w: number,
@@ -189,11 +164,7 @@ export interface SlidePage {
 
 const PAGINATE_ABOVE = 1.2; // a section taller than 1.2× its frame paginates; below, it scales onto one slide
 
-// The 16:9 slides a section renders as in a paged deck: ONE slide (scaled to fit when only slightly tall),
-// or — for a genuinely tall section (many stacked media/blocks that can't cover-fit) — SEVERAL full-size
-// slides paginated from the content flow via fragment(), each a readable window instead of one crammed
-// slide. Each page carries its commands + frame + the content height to fit (== h for a paginated window;
-// == the natural height for the single scaled slide). Present + export both render from this.
+// a section's 16:9 slides: one scaled slide, or several paginated via fragment() when too tall. Present + export both render from this.
 export function sectionSlides(
     section: Section,
     theme: Tokens = DEFAULT_THEME.tokens,
@@ -206,7 +177,6 @@ export function sectionSlides(
     return fragment(commands, targetH, h).map((cmds) => ({ commands: cmds, w, h, contentH: h }));
 }
 
-// The same slide as a structural ghost — the "generating" state at slide geometry (Spotlight strip).
 export function layoutSlideSkeleton(
     section: Section,
     w: number,
@@ -233,9 +203,7 @@ export function layoutNode(
     return { commands, height: bottom(commands) };
 }
 
-// Canvas-based text measurement injected into the engine (keeps the engine DOM-free).
-
-// Shared inline-code treatment (kept identical across measure + both backends so widths agree).
+// must stay identical across measure + both backends so widths agree
 export const MONO_FONT_STACK = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
 export const CODE_BG = "rgba(120, 120, 120, 0.12)";
 
@@ -251,7 +219,6 @@ function getCtx(): CanvasRenderingContext2D {
     return ctx2d;
 }
 
-// The CSS `font` shorthand for one run: inherits the leaf's base size, overrides weight/style/family.
 export function runFont(leaf: TextLeaf, run: Run): string {
     const weight = run.bold ? 700 : (leaf.weight ?? 400);
     const style = run.italic ? "italic " : "";
@@ -259,9 +226,7 @@ export function runFont(leaf: TextLeaf, run: Run): string {
     return `${style}${weight} ${leaf.size}px ${family}`;
 }
 
-// --- run-aware wrap (shared by measure + the canvas backend so line breaks + geometry match) ---
-
-// A painted piece of a wrapped line: the styled text plus its x offset and width within the line.
+// run-aware wrap: shared by measure + canvas backend so breaks + geometry match
 export interface RunFrag {
     text: string;
     font: string;
@@ -294,8 +259,7 @@ interface Piece {
 
 type Token = { kind: "box" | "glue" | "break"; pieces: Piece[] };
 
-// Break a leaf's runs into layout tokens: boxes (words, which may span run boundaries), glues (a
-// single collapsed space), and hard breaks (\n) — mirroring measure's greedy word-wrap.
+// tokens: boxes (words may span runs), glues (collapsed space), breaks (\n) — mirrors measure's wrap
 function tokenize(leaf: TextLeaf): Token[] {
     const tokens: Token[] = [];
     let word: Piece[] = [];
@@ -347,7 +311,7 @@ function toFrag(cx: CanvasRenderingContext2D, piece: Piece, x: number): RunFrag 
     };
 }
 
-// Greedy word-wrap a runs-carrying leaf into positioned lines (x offsets are line-local, pre-align).
+// x offsets are line-local, pre-align
 export function layoutRuns(
     cx: CanvasRenderingContext2D,
     leaf: TextLeaf,
@@ -383,7 +347,7 @@ export function layoutRuns(
             pendingGlue = tok.pieces[0];
             continue;
         }
-        // A word: measure its pieces (word may cross run/font boundaries) as one indivisible box.
+        // a word (may cross run/font boundaries) is one indivisible box
         let boxW = 0;
         for (const p of tok.pieces) {
             cx.font = p.font;
@@ -419,13 +383,12 @@ const measureUncached = (leaf: TextLeaf, maxWidth: number): Measured => {
     const cx = getCtx();
     const lineHeight = leaf.lineHeight ?? leaf.size * 1.35;
 
-    // Run-aware path: measure across style boundaries (bold/italic/code change advance width).
+    // run-aware: bold/italic/code change advance width
     if (leaf.runs && leaf.runs.length > 0) {
         const laid = layoutRuns(cx, leaf, maxWidth);
         return { width: laid.width, height: laid.height };
     }
 
-    // Plain-text path — unchanged, so text without runs measures exactly as before.
     cx.font = `${leaf.weight ?? 400} ${leaf.size}px ${leaf.fontId}`;
     const hard = leaf.text.split("\n"); // explicit (shift-enter) line breaks
 
@@ -460,10 +423,7 @@ const measureUncached = (leaf: TextLeaf, maxWidth: number): Measured => {
     return { width: Math.min(widest, maxWidth), height: lines * lineHeight };
 };
 
-// Memoized text measurement: measureUncached runs a Canvas measureText per word and is called for every
-// leaf on every layout, and the same (text, font, size, width) recurs constantly across redraws. Key on
-// the metric-affecting inputs only (bold/italic/code change a run's advance; a width-independent measure
-// collapses its maxWidth). Cleared on font load, below.
+// memoized measurement, keyed on metric-affecting inputs only; cleared on font load (below)
 const measureCache = new Map<string, Measured>();
 const MEASURE_CACHE_CAP = 6000;
 
@@ -500,8 +460,7 @@ export const measureText = (leaf: TextLeaf, maxWidth: number): Measured => {
     return result;
 };
 
-// Fonts load after first paint; until then leaves measure with a fallback face. Drop the cache on font
-// load so the next layout re-measures with real metrics (all consumers share this one cache).
+// fonts load after first paint → drop the cache so the next layout re-measures with real metrics
 if (typeof document !== "undefined" && document.fonts) {
     document.fonts.addEventListener("loadingdone", clearMeasureCache);
 }

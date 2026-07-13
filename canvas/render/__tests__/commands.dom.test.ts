@@ -6,9 +6,7 @@ import { clearMeasureCache, measureText, sectionSlides } from "@canvas/render/co
 import { resolveProfile } from "@engine/profile";
 import { inst, installCanvas2D, sectionOf, tokens } from "@canvas/testkit";
 
-// measureText + sectionSlides use the module-level canvas 2D context; installCanvas2D provides a
-// deterministic one (glyph width = length × 8). The wrap/pagination logic is real.
-
+// installCanvas2D gives measureText/sectionSlides a deterministic canvas; the wrap/pagination logic is real
 beforeAll(() => installCanvas2D());
 
 describe("measureText", () => {

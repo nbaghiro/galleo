@@ -1,12 +1,6 @@
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import { getSuggestSections } from "../editor";
 
-// Section suggestions for the insert-a-section popup — "what would strengthen this artifact next." Two
-// tiers, per the agreed hybrid: a free, instant, deterministic default (gap analysis over the content tree,
-// no model call), and an opt-in cheap LLM refresh (one call per artifact, cached here) for content-specific
-// ideas. The deterministic tier is what shows on every open; the LLM tier runs only when the user asks.
-
-// Every element type present anywhere in the tree (including nested group/card/stat children).
 function collectTypes(el: ElementInstance | undefined, into: Set<string>): void {
     if (!el) return;
     into.add(el.type);
@@ -14,7 +8,6 @@ function collectTypes(el: ElementInstance | undefined, into: Set<string>): void 
     if (Array.isArray(kids)) kids.forEach((k) => collectTypes(k, into));
 }
 
-// The first non-empty text run in a section (its headline) — the cheap content fingerprint.
 function firstText(section: Section): string {
     let found = "";
     const visit = (el?: ElementInstance): void => {
@@ -36,9 +29,6 @@ function typesOf(content: ArtifactContent): Set<string> {
     return types;
 }
 
-// Deterministic, zero-cost suggestions: rank a rules table by whether the artifact is MISSING a kind of
-// content that would strengthen it (a stat, a proof point, a call-to-action…), heaviest gaps first, then
-// fill out with evergreen angles. Always returns up to `n` short imperatives — no model call.
 export function suggestSections(content: ArtifactContent, n = 6): string[] {
     const t = typesOf(content);
     const has = (kind: string): boolean => t.has(kind);
@@ -51,7 +41,7 @@ export function suggestSections(content: ArtifactContent, n = 6): string[] {
         { on: !has("table"), text: "Add a comparison table", w: 6 },
         { on: !has("diagram"), text: "Show the process as a diagram", w: 5 },
         { on: !has("card"), text: "Break the highlights into three cards", w: 4 },
-        // evergreen angles — always eligible, low weight, so short artifacts still fill out
+        // evergreen — always eligible, low weight, so short artifacts still fill out
         { on: true, text: "Add a proof or results section", w: 3 },
         { on: true, text: "Add a “how it works” section", w: 2 },
         { on: true, text: "Add an FAQ or objections section", w: 1 },
@@ -67,10 +57,7 @@ export function suggestSections(content: ArtifactContent, n = 6): string[] {
     return out;
 }
 
-// ---- opt-in LLM tier: one cheap call per artifact, cached here ----
-
-// A cheap content fingerprint — a suggestion set is reused until the artifact changes materially (a section
-// added/removed, or its opening headline rewritten), so opening the popup repeatedly costs nothing.
+// cache key: a suggestion set is reused until the section count or opening headline changes
 function cacheKey(id: string, content: ArtifactContent): string {
     const head = content.sections[0] ? firstText(content.sections[0]).slice(0, 48) : "";
     return `${id}:${content.sections.length}:${head}`;
@@ -78,14 +65,10 @@ function cacheKey(id: string, content: ArtifactContent): string {
 
 const llmCache = new Map<string, string[]>();
 
-// Whether a fresh (uncached) LLM fetch would actually hit the model — lets the UI hide the ✨ affordance
-// when there's no host wired (studio-alone) or show "refresh" vs "suggest" state.
 export function hasCachedSuggestions(id: string, content: ArtifactContent): boolean {
     return llmCache.has(cacheKey(id, content));
 }
 
-// Fetch content-specific suggestions via the injected transport, cached per artifact fingerprint. Returns
-// the deterministic set as a fallback if there's no host or the call fails, so the UI always has something.
 export async function fetchSuggestions(
     id: string,
     content: ArtifactContent,

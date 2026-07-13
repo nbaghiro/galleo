@@ -1,5 +1,3 @@
-// Paint backends: the DOM and 2D-canvas drawers, section backdrops, and the shared section-stack painter that drives them.
-
 import type {
     DrawContext,
     DrawStyle,
@@ -22,16 +20,10 @@ import type { Section, SectionBackground } from "@model/artifact";
 import type { Tokens } from "@themes";
 import type { FormatDescriptor } from "@model/geometry";
 
-// Raster supersampling factor for crisp export output — the `scale` both exporters pass to
-// renderToCanvas / renderSlidePage. Lives with the raster backend so either exporter can import it
-// without pulling in the other's IO deps.
+// raster supersampling factor for crisp export
 export const EXPORT_SCALE = 2;
 
-// A DOM render backend: paints absolute-positioned divs from the engine's render commands.
-
-// Fill a text element with styled <span>s (one per run), letting the browser wrap them inside the
-// block just as a single text node would. The base font/size/color/align live on the container `el`;
-// each run only overrides what its marks set. Concatenated span text equals the plain string.
+// concatenated span text equals the plain string
 function appendRuns(el: HTMLElement, runs: Run[]): void {
     for (const run of runs) {
         const span = document.createElement("span");
@@ -64,7 +56,6 @@ function paintText(el: HTMLElement, t: TextLeaf): void {
     else el.textContent = t.text;
 }
 
-// Canvas implementation of the engine's backend-abstract DrawContext (for surface elements).
 export function canvasDrawContext(cx: CanvasRenderingContext2D): DrawContext {
     const apply = (s: DrawStyle): void => {
         if (s.fill) cx.fillStyle = s.fill;
@@ -130,10 +121,7 @@ export function canvasDrawContext(cx: CanvasRenderingContext2D): DrawContext {
     };
 }
 
-// The DOM paint replaces every node on each draw (host.replaceChildren below), which cancels an in-flight
-// background-image fetch. A persistent Image() per URL keeps the browser fetching to completion + caches
-// it, so re-paints (fonts loading, resize) don't reset large images to blank — the background resolves
-// from cache the moment it lands. Not cleared: the browser dedupes the bytes and the map stays small.
+// keep a live Image() per URL so re-paints (replaceChildren) don't cancel in-flight bg fetches
 const warmed = new Map<string, HTMLImageElement>();
 function warmImage(src: string): void {
     if (!src || warmed.has(src)) return;
@@ -142,8 +130,6 @@ function warmImage(src: string): void {
     warmed.set(src, im);
 }
 
-// Apply one render command to an absolutely-positioned <div>. Shared by paint() and paintReconcile() so
-// the editor and every export/present path draw a command identically.
 function applyCommand(el: HTMLElement, c: RenderCommand): void {
     el.style.position = "absolute";
     el.style.left = `${c.box.x}px`;
@@ -152,8 +138,7 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
     el.style.height = `${c.box.h}px`;
     el.style.boxSizing = "border-box";
     if (c.opacity !== undefined) el.style.opacity = String(c.opacity);
-    // Clip: cut this element to the effective clip rect via clip-path insets, measured in the element's box.
-    // (Reused elements are reset to cssText:"" first, so only clipped commands carry a clip-path.)
+    // clip via clip-path insets, box-relative (reused els reset to cssText:"" first)
     if (c.clip) {
         const b = c.box;
         const cl = c.clip;
@@ -181,9 +166,7 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
         }
         if (im.shadow) el.style.boxShadow = im.shadow;
         if (im.zoom !== undefined && im.zoom > 1) {
-            // Zoomed image: an <img> in a clipped frame — `background-size:cover` can't scale past cover,
-            // so the picture becomes a real element we can `transform: scale()` and crop. Unzoomed images
-            // (and section backgrounds) keep the background path below, which reconciles without a reload.
+            // background-size:cover can't scale past cover, so a zoomed image becomes a real <img> we scale + crop
             el.style.overflow = "hidden";
             if (im.radius !== undefined) el.style.borderRadius = `${im.radius}px`;
             const img = document.createElement("img");
@@ -232,9 +215,7 @@ export function paint(commands: RenderCommand[], host: HTMLElement): void {
     }
 }
 
-// Repaint `host` in place, reusing child <div>s slot-for-slot (only the per-section cache repaints the
-// same host, for the one section that changed). A reused slot is reset first so a kind change can't
-// inherit the old styling; a tag mismatch or shortfall makes a fresh node, and extras are dropped.
+// reuse child <div>s slot-for-slot; reset each first so a kind change can't inherit old styling
 function paintReconcile(host: HTMLElement, commands: RenderCommand[]): void {
     const nodes = host.childNodes;
     for (let i = 0; i < commands.length; i++) {
@@ -253,10 +234,7 @@ function paintReconcile(host: HTMLElement, commands: RenderCommand[]): void {
     while (host.childNodes.length > commands.length) host.removeChild(host.lastChild!);
 }
 
-// A Canvas render backend: draws a RenderCommand[] onto a 2D context. Mirrors the DOM backend so the
-// raster output matches the editor. Powers PNG export + the rasterized surfaces inside the PDF.
-
-// Greedy word-wrap identical to measure.ts, so canvas line breaks match what the engine laid out.
+// greedy wrap must match measure.ts so line breaks agree
 function wrapLines(cx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
     const words = text.split(/\s+/).filter(Boolean);
     if (words.length === 0) return [""];
@@ -297,7 +275,7 @@ function drawImageFit(
     zoom = 1,
 ): void {
     cx.save();
-    // Clip to the (rounded) frame — always when zoomed, so a >1 zoom crops instead of bleeding out.
+    // clip when zoomed so a >1 zoom crops instead of bleeding out
     if (radius || zoom !== 1) {
         roundRectPath(cx, b.x, b.y, b.w, b.h, radius ?? 0);
         cx.clip();
@@ -323,9 +301,7 @@ function drawImageFit(
     cx.restore();
 }
 
-// Paint a runs-carrying text leaf: word-wrap it (identical to the engine's measure), then draw each
-// styled fragment at its own x with its own font/color, plus drawn underline/strike and a code bg.
-// This is the export-fidelity path (PNG + rasterized-into-PDF), so per-run geometry must be exact.
+// export-fidelity path (PNG/PDF): wrap identical to engine measure, per-run geometry must be exact
 function drawRuns(cx: CanvasRenderingContext2D, t: TextLeaf, b: Rect): void {
     const laid = layoutRuns(cx, t, b.w);
     const baseColor = t.color ?? "#1a1a1a";
@@ -482,7 +458,6 @@ async function loadImages(commands: RenderCommand[]): Promise<Map<string, HTMLIm
     return map;
 }
 
-// Draw a command flow onto a w×h canvas filled with `bg` (used for paginated pages).
 export async function renderToCanvas(
     commands: RenderCommand[],
     w: number,
@@ -503,9 +478,7 @@ export async function renderToCanvas(
     return canvas;
 }
 
-// Render one prepared slide page (from `sectionSlides`) — its commands scaled to fit `contentH` into the
-// frame and centered — onto a w×h canvas at device `scale`. Used by export; present paints the same page
-// into the DOM via `fitSlideContent`.
+// present mirrors this in the DOM via fitSlideContent
 export async function renderSlidePage(
     page: { commands: RenderCommand[]; w: number; h: number; contentH: number },
     bg: string,
@@ -533,7 +506,6 @@ export async function renderSlidePage(
     return canvas;
 }
 
-// CSS `background` value for a document/section backdrop: image+scrim, gradient, color, or theme bg.
 export function backdropCss(bg: SectionBackground | undefined, tokens: Tokens): string {
     if (!bg || bg.kind === "none") return tokens.bg;
     if (bg.kind === "image" && bg.image) {
@@ -548,10 +520,7 @@ export function backdropCss(bg: SectionBackground | undefined, tokens: Tokens): 
     return tokens.bg;
 }
 
-// Per-host cache for the section stack. Content ops keep the object identity of sections they don't touch
-// (see `ops`), so keying on (section, layoutW, theme, profile, hide-target) lets a redraw reuse the layer
-// of every unchanged section and re-lay-out only the one that changed. Opt-in (only the studio canvas
-// holds one); one cache per host — a cached layer is a live DOM node owned by its host.
+// cache keyed on section identity (ops preserve untouched sections) → redraw reuses unchanged layers; one cache per host
 interface SectionCacheEntry {
     section: Section;
     layoutW: number;
@@ -569,10 +538,7 @@ export function createSectionStackCache(): SectionStackCache {
     return { entries: new Map() };
 }
 
-// The width the section stack lays one section out at: a full-bleed section (or any web-format section)
-// fills the whole board; a contained section uses the format's max content width, clamped to the board.
-// The single source of truth for section width — shared by the stack painter and the minimap thumbnail
-// so a thumb lays out at the editor's exact width and wraps text identically (just scaled down).
+// single source of truth for section width (stack painter + minimap thumb must agree so text wraps identically)
 export function sectionLayoutWidth(
     section: Section,
     profile: FormatDescriptor,
@@ -582,11 +548,7 @@ export function sectionLayoutWidth(
     return bleed ? fullW : Math.min(fullW - 64, profile.maxContentWidth ?? 1080);
 }
 
-// Paint a vertical stack of sections into `host` — deck = centered content columns with gaps, doc/web =
-// seamless full-bleed bands. Each section is laid out by the engine and painted into an absolutely-
-// positioned layer, and `host`'s children are replaced with the current layers. Returns the per-section
-// top offsets, the hit-test regions (in stage coords), and the total height (incl. the trailing gap).
-// Shared by the studio canvas, present view, and read-only preview.
+// regions in stage coords; height includes the trailing gap
 export function paintSectionStack(
     host: HTMLElement,
     sections: Section[],
@@ -612,8 +574,7 @@ export function paintSectionStack(
         live.add(section.id);
         const layoutW = sectionLayoutWidth(section, profile, opts.fullW);
         const x = Math.round((opts.fullW - layoutW) / 2); // bleed → layoutW == fullW → centered at 0
-        // hideId (the inline-edited element's text) only affects its own section, so only that section's
-        // cache key carries it — starting/ending an edit repaints one section, not the whole stack.
+        // hideKey only in the edited section's cache key → an edit repaints one section, not the stack
         const hideKey = opts.hideId?.startsWith(`el:${section.id}:`) ? opts.hideId : "";
         const prev = cache?.entries.get(section.id);
         let entry: SectionCacheEntry;
@@ -625,7 +586,7 @@ export function paintSectionStack(
             prev.profileId === profile.id &&
             prev.hideKey === hideKey
         ) {
-            entry = prev; // unchanged — reuse the laid-out, painted layer as-is
+            entry = prev;
         } else {
             const res = layoutSection(section, layoutW, measureText, theme, profile);
             const commands = hideKey
@@ -667,8 +628,6 @@ export function paintSectionStack(
     return { tops, regions, height: y };
 }
 
-// Fit render commands (of natural height contentH) into a slideW × slideH frame — scaled down + centered
-// — and paint them. Returns the positioned content element; the caller wraps it in its own slide frame.
 export function fitSlideContent(
     commands: RenderCommand[],
     contentH: number,
@@ -682,10 +641,7 @@ export function fitSlideContent(
     return content;
 }
 
-// The cssText for a scaled-canvas host: a box laid out at logical (layoutW × height), CSS-scaled by
-// `scale` from the top-left so it shrinks in place with identical text wrapping (the minimap/library
-// thumbnails and the scaled section canvas). Pass `center` to fit-scale and center within a fixed frame
-// (the present-slide letterbox variant) instead. Pure string builder — the sibling of fitSlideContent.
+// CSS-scale from top-left so text wraps identically (thumbnails); `center` letterboxes into a fixed frame
 export function scaledHostCss(
     layoutW: number,
     height: number,

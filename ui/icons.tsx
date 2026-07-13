@@ -2,9 +2,6 @@ import type { Component, JSX } from "solid-js";
 import { createContext, useContext } from "solid-js";
 import type { Tokens } from "@themes";
 
-// The unified icon set — one 24×24 currentColor registry serving both the `<Icon name>` renderer (the
-// studio's call style) and the named `<CloseIcon>` wrappers (the app's call style). Merged from the two
-// former systems (editor/icons.tsx + app/components/icons.tsx); bars/fills opt out of stroke per glyph.
 const PATHS: Record<string, () => JSX.Element> = {
     search: () => (
         <>
@@ -278,7 +275,6 @@ const PATHS: Record<string, () => JSX.Element> = {
         </>
     ),
     corner: () => <path d="M5 19v-8a6 6 0 0 1 6-6h8" />,
-    // ── app-set glyphs (nav / chrome) ──
     library: () => (
         <>
             <rect x="3" y="3" width="7.5" height="7.5" />
@@ -378,7 +374,6 @@ const PATHS: Record<string, () => JSX.Element> = {
             <path d="M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
         </>
     ),
-    // The Galleo Agent mark — "Beam G": open-ring G with an inward bar + a core beaming out the opening.
     agent: () => (
         <>
             <path d="M17.5 6.5A8 8 0 1 0 17.5 17.5" />
@@ -389,15 +384,12 @@ const PATHS: Record<string, () => JSX.Element> = {
     ),
 };
 
-// Category-rail aliases (the palette keys its rail icon by the @model/elements category id).
+// aliases so element-category ids map to glyphs
 PATHS.table = PATHS.data!;
 PATHS.composite = PATHS.container!;
 PATHS.basic = PATHS.interactive!;
 
-// ── theme context (icon line-work follows the theme) ──
-// Color + shape flow through CSS vars (class utilities); this context carries the few token VALUES that
-// can't be a class — the icon stroke weight/cap, which vary with the theme's heading weight + radius.
-// With no provider, Icon falls back to a neutral mid weight.
+// carries the token values that can't be a class — icon stroke weight/cap (from heading weight + radius)
 const UiThemeContext = createContext<() => Tokens>();
 
 export const UiThemeProvider: Component<{ tokens: () => Tokens; children: JSX.Element }> = (
@@ -431,7 +423,7 @@ export const Icon: Component<{ name: string; size?: number }> = (props) => {
     );
 };
 
-// Named wrappers — keep the app's `<CloseIcon size={…}/>` call style (import path is the only change).
+// named wrappers keep the app's <CloseIcon size=…/> call style
 const named = (name: string): Component<{ size?: number }> => {
     return (p) => <Icon name={name} size={p.size} />;
 };
@@ -464,5 +456,4 @@ export const ArrowUpRightIcon = named("arrowUpRight");
 export const ThemeIcon = named("theme");
 export const AgentIcon = named("agent");
 
-// The full list of glyph names (e.g. for an icon gallery / picker).
 export const ICON_NAMES: string[] = Object.keys(PATHS);

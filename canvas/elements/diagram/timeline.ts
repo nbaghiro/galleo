@@ -1,6 +1,5 @@
 import { centerLabel, nodeText, registerDiagram, type Renderer } from "./utils";
 
-// Horizontal spine with evenly spaced accent dots; labels alternate above/below on connector stems.
 const timeline: Renderer = (diagram, ctx) => {
     const { g, W, H, theme } = ctx;
     const items = diagram.items;

@@ -2,9 +2,6 @@ import type { Component, JSX } from "solid-js";
 import { splitProps, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
 
-// Action + label atoms. All styling flows through theme CSS-var utilities (text-ink, bg-accent,
-// text-onaccent, border-line, …) so every one recolors with the active theme, matching the app exactly.
-
 type Rounded = "md" | "lg" | "xl" | "full";
 const ROUNDED: Record<Rounded, string> = {
     md: "rounded-md",
@@ -13,7 +10,6 @@ const ROUNDED: Record<Rounded, string> = {
     full: "rounded-full",
 };
 
-// ── Spinner ──
 type SpinnerTone = "accent" | "current" | "line";
 const SPINNER_TONE: Record<SpinnerTone, string> = {
     accent: "border-line border-t-accent",
@@ -28,7 +24,6 @@ export const Spinner: Component<{ size?: number; tone?: SpinnerTone }> = (props)
     />
 );
 
-// ── Button ──
 type ButtonVariant = "primary" | "outline" | "tool" | "ghost" | "danger" | "dangerGhost" | "link";
 type ButtonSize = "sm" | "md" | "lg";
 
@@ -42,9 +37,9 @@ const BTN_VARIANT: Record<ButtonVariant, string> = {
     outline: "border border-line text-soft hover:border-accent hover:text-ink",
     tool: "border border-line bg-canvas text-soft hover:border-accent hover:text-ink",
     ghost: "text-soft hover:bg-canvas hover:text-ink",
-    danger: "text-white hover:brightness-110", // semantic red set via style (not a theme token)
-    dangerGhost: "text-[#C0392B] hover:bg-[#C0392B]/10", // red text, tinted hover, no fill/border
-    link: "text-[13px] text-accent underline-offset-2 hover:underline", // inline text link (no box)
+    danger: "text-white hover:brightness-110", // semantic red set via style
+    dangerGhost: "text-[#C0392B] hover:bg-[#C0392B]/10",
+    link: "text-[13px] text-accent underline-offset-2 hover:underline",
 };
 
 export const Button: Component<
@@ -68,7 +63,7 @@ export const Button: Component<
     const cls = (): string =>
         [
             "inline-flex items-center justify-center gap-1.5 font-semibold transition-colors disabled:pointer-events-none disabled:opacity-60",
-            // `link` is a boxless inline text link — no padding/rounding.
+            // link is boxless — no padding/rounding
             link() ? "" : BTN_SIZE[local.size ?? "md"],
             link() ? "" : ROUNDED[local.rounded ?? "lg"],
             BTN_VARIANT[local.variant ?? "primary"],
@@ -89,7 +84,6 @@ export const Button: Component<
     );
 };
 
-// ── IconButton ──
 type IconButtonSize = "2xs" | "xs" | "sm" | "md" | "lg" | "xl";
 type IconButtonTone = "muted" | "soft" | "ink" | "accent" | "tool" | "danger" | "onDark";
 const IB_SIZE: Record<IconButtonSize, string> = {
@@ -100,7 +94,6 @@ const IB_SIZE: Record<IconButtonSize, string> = {
     lg: "h-8 w-8",
     xl: "h-9 w-9",
 };
-// Auto-width variant (icon + optional label / stacked swatch): fixed height, min-width, horizontal pad.
 const IB_AUTO: Record<IconButtonSize, string> = {
     "2xs": "h-3.5 min-w-3.5 px-1",
     xs: "h-5 min-w-5 px-1",
@@ -114,9 +107,9 @@ const IB_TONE: Record<IconButtonTone, string> = {
     soft: "text-soft hover:bg-canvas hover:text-ink",
     ink: "text-ink hover:bg-canvas",
     accent: "text-accent hover:bg-canvas",
-    // bordered outline affordance — hovers to accent border + text, no bg fill (pair with `bordered`).
+    // pair with bordered — no bg fill of its own
     tool: "text-soft hover:border-accent hover:text-accent",
-    // semantic red (matches Button `danger`; set via arbitrary value, not a theme token).
+    // semantic red, not a theme token
     danger: "text-[#C0392B] hover:bg-[#C0392B]/10",
     onDark: "text-white/80 hover:bg-white/10",
 };
@@ -128,7 +121,7 @@ export const IconButton: Component<
         tone?: IconButtonTone;
         active?: boolean;
         bordered?: boolean;
-        auto?: boolean; // auto-width (min-width + horizontal pad) instead of a square box
+        auto?: boolean;
     }
 > = (props) => {
     const [local, rest] = splitProps(props, [
@@ -159,7 +152,6 @@ export const IconButton: Component<
     );
 };
 
-// ── Chip (interactive tag) ──
 type ChipSize = "sm" | "md";
 const CHIP_SIZE: Record<ChipSize, string> = {
     sm: "px-2.5 py-0.5 text-[11px]",
@@ -171,7 +163,7 @@ export const Chip: Component<
         size?: ChipSize;
         selected?: boolean;
         rounded?: "md" | "full";
-        onRemove?: () => void; // renders a dismiss affordance after the label
+        onRemove?: () => void;
     }
 > = (props) => {
     const [local, rest] = splitProps(props, [
@@ -213,7 +205,6 @@ export const Chip: Component<
     );
 };
 
-// ── Badge (static marker) ──
 type BadgeTone = "accentSoft" | "accentSolid" | "muted" | "outline";
 const BADGE_TONE: Record<BadgeTone, string> = {
     accentSoft: "bg-accent/15 text-accent",
@@ -243,7 +234,6 @@ export const Badge: Component<{
     </span>
 );
 
-// ── Eyebrow (mono uppercase label) ──
 type Tracking = "wide" | "wider" | "widest";
 const TRACKING: Record<Tracking, string> = {
     wide: "tracking-[0.12em]",
@@ -259,7 +249,7 @@ export const Eyebrow: Component<{
     tracking?: Tracking;
     size?: number;
     as?: "span" | "div";
-    mono?: boolean; // default true; false → sans (studio labels)
+    mono?: boolean; // default true; false → sans
     weight?: "normal" | "medium" | "semibold"; // default semibold
     tone?: "muted" | "soft"; // default muted
     class?: string;

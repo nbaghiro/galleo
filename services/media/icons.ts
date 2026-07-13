@@ -1,9 +1,5 @@
 import type { IconItem, IconPick } from "@model/media";
 
-// Icon search behind /api/media/icons — Iconify's keyless public API aggregates 200k+ open-source icons
-// (Lucide, Phosphor, Tabler, Material Symbols, …). Search returns ids; picking one fetches its
-// `currentColor`-based SVG body, which the Icon element re-tints per theme. No key required; a premium
-// icon provider could slot in behind this same shape later.
 const BASE = "https://api.iconify.design";
 const UA = { "User-Agent": "Galleo/1.0 (+https://galleo.app)" };
 

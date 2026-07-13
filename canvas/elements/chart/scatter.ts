@@ -1,8 +1,6 @@
 import { registerChart, numericAxes } from "./utils";
 import type { PlotCtx, ResolvedChart } from "./utils";
 
-// Numeric X/Y points: series[0] = X, series[1] = Y (paired by index); one series → index is X. All
-// point-pairs share a single accent color.
 function drawScatter(chart: ResolvedChart, ctx: PlotCtx): void {
     const { g, W, H, theme, opts } = ctx;
     const single = chart.series.length < 2;

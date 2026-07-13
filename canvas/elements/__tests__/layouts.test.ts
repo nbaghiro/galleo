@@ -5,9 +5,6 @@ import { colGroup, rowGroup } from "@model/section";
 import { SECTION_LAYOUTS, sectionBlocks } from "@elements/layouts";
 import { inst, sectionOf } from "@canvas/testkit";
 
-// Section layout presets over a real registry (roleOf reads the element category). Each preset is a pure
-// (section) => section transform; assert applies/matches/transform round-trips.
-
 const img = (src = "photo.png"): ElementInstance => inst("image", { src });
 const txt = (t = "copy"): ElementInstance => inst("text", { text: t });
 const preset = (id: string): (typeof SECTION_LAYOUTS)[number] =>

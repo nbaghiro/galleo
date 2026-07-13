@@ -24,7 +24,6 @@ import {
 export const terra: ArtifactContent = web(
     "clay",
     [
-        // 1 — Hero
         section(
             "s1",
             group(
@@ -40,7 +39,6 @@ export const terra: ArtifactContent = web(
             { background: bgImage("terra-hero-still-life", 0.55) },
         ),
 
-        // 2 — Promise strip
         section(
             "s2",
             row(
@@ -68,7 +66,6 @@ export const terra: ArtifactContent = web(
             ),
         ),
 
-        // 3 — Philosophy / manifesto
         section(
             "s3",
             group(
@@ -85,7 +82,6 @@ export const terra: ArtifactContent = web(
             ),
         ),
 
-        // 4 — Why we exist (image left)
         section(
             "s4",
             split(
@@ -102,7 +98,6 @@ export const terra: ArtifactContent = web(
             ),
         ),
 
-        // 5 — Collection intro
         section(
             "s5",
             group(
@@ -115,7 +110,6 @@ export const terra: ArtifactContent = web(
             ),
         ),
 
-        // 6 — Collection grid 1
         section(
             "s6",
             row(
@@ -137,7 +131,6 @@ export const terra: ArtifactContent = web(
             ),
         ),
 
-        // 7 — Collection grid 2
         section(
             "s7",
             row(
@@ -159,7 +152,6 @@ export const terra: ArtifactContent = web(
             ),
         ),
 
-        // 8 — Featured bestseller (image right)
         section(
             "s8",
             split(
@@ -179,7 +171,6 @@ export const terra: ArtifactContent = web(
             ),
         ),
 
-        // 9 — Materials & craft (image left)
         section(
             "s9",
             split(
@@ -196,7 +187,6 @@ export const terra: ArtifactContent = web(
             ),
         ),
 
-        // 10 — Materials table
         section(
             "s10",
             group(
@@ -207,7 +197,6 @@ export const terra: ArtifactContent = web(
             ),
         ),
 
-        // 11 — How it's made (process diagram)
         section(
             "s11",
             group(
@@ -221,7 +210,6 @@ export const terra: ArtifactContent = web(
             ),
         ),
 
-        // 12 — In the workshop (bgImage feature)
         section(
             "s12",
             group(
@@ -235,7 +223,6 @@ export const terra: ArtifactContent = web(
             { background: bgImage("terra-workshop-interior-warm", 0.5) },
         ),
 
-        // 13 — Our impact (three-up stats)
         section(
             "s13",
             row(
@@ -245,7 +232,6 @@ export const terra: ArtifactContent = web(
             ),
         ),
 
-        // 14 — Impact chart (text left, chart right)
         section(
             "s14",
             split(
@@ -262,7 +248,6 @@ export const terra: ArtifactContent = web(
             ),
         ),
 
-        // 15 — The standards we hold (bullets + callout)
         section(
             "s15",
             group(
@@ -289,7 +274,6 @@ export const terra: ArtifactContent = web(
             ),
         ),
 
-        // 16 — Testimonials
         section(
             "s16",
             row(
@@ -304,7 +288,6 @@ export const terra: ArtifactContent = web(
             ),
         ),
 
-        // 17 — The people behind it (image right)
         section(
             "s17",
             split(
@@ -322,7 +305,6 @@ export const terra: ArtifactContent = web(
             ),
         ),
 
-        // 18 — Join / newsletter (bgImage)
         section(
             "s18",
             group(
@@ -337,7 +319,6 @@ export const terra: ArtifactContent = web(
             { background: bgImage("terra-flax-field-dusk", 0.5) },
         ),
 
-        // 19 — Footer columns
         section(
             "s19",
             row(
@@ -357,7 +338,6 @@ export const terra: ArtifactContent = web(
             ),
         ),
 
-        // 20 — Fine print
         section(
             "s20",
             group(

@@ -10,9 +10,6 @@ import { Meter } from "@ui/status";
 import { Sidebar } from "../components/Sidebar";
 import { billing, changePlan, loadBilling, openPortal, startCheckout } from "../stores/billing";
 
-// The pricing / upgrade page (/pricing). Renders the plan catalog straight from the backend's
-// @model/billing source of truth, shows the workspace's live usage, and hands off to Stripe Checkout /
-// the customer portal. Reachable from the sidebar plan badge and from any paywall (a 402 → here).
 export const PricingView: Component = () => {
     const [params] = useSearchParams();
     onMount(loadBilling);
@@ -27,7 +24,7 @@ export const PricingView: Component = () => {
         return Math.min(100, Math.round((c.used / c.limit) * 100));
     });
 
-    // "≈N/mo" — how many of an action this workspace's monthly credit allowance buys.
+    // how many of an action the monthly credit allowance buys
     const perMonth = (cost: number): number | null => {
         const limit = b()?.credits.limit ?? 0;
         return limit > 0 ? Math.floor(limit / cost) : null;
@@ -119,7 +116,6 @@ export const PricingView: Component = () => {
                         </div>
                     </Show>
 
-                    {/* usage */}
                     <Show when={b()}>
                         {(state) => (
                             <div class="mb-8 grid grid-cols-2 gap-3 sm:max-w-[520px]">
@@ -174,7 +170,6 @@ export const PricingView: Component = () => {
                         )}
                     </Show>
 
-                    {/* billing interval + seat count */}
                     <div class="mb-4 flex flex-wrap items-center gap-3">
                         <div class="inline-flex rounded-lg border border-line bg-panel p-0.5 text-[12px] font-semibold">
                             <button
@@ -203,7 +198,6 @@ export const PricingView: Component = () => {
                         </label>
                     </div>
 
-                    {/* plan cards */}
                     <div class="grid gap-4 md:grid-cols-3">
                         <For each={b()?.catalog ?? []}>
                             {(plan) => {
@@ -278,7 +272,6 @@ export const PricingView: Component = () => {
                         </For>
                     </div>
 
-                    {/* what a credit buys — every AI action mapped to its credit cost */}
                     <section class="mt-12">
                         <h2 class="text-[16px] font-bold tracking-[-0.01em]">
                             What your credits buy

@@ -7,17 +7,12 @@ import { zTheme } from "./schema";
 import type { ThemeGen } from "./schema";
 import { themeFromPromptParts, themeFromArtifactParts } from "./prompts/theme";
 
-// The generate-theme runtime — one small structured call produces a coherent theme (name + mood + isDark +
-// token set). Fast by design: a tiny, tightly-constrained output, so it defaults to the fast model. A later
-// deterministic pass (contrast validation + OKLCH harmony) guarantees quality on top of the model's taste.
-
 export interface ThemeOpts {
     isDark?: boolean;
-    model?: string; // override the task default (e.g. compare Flash vs Pro)
+    model?: string; // override the task default
     signal?: AbortSignal;
 }
 
-// From a free-text mood/brief, e.g. "warm mid-century, terracotta and cream, editorial serif".
 export async function generateThemeFromPrompt(
     prompt: string,
     opts: ThemeOpts = {},
@@ -30,11 +25,9 @@ export async function generateThemeFromPrompt(
         prompt: parts.prompt,
         abortSignal: opts.signal,
     });
-    // Guarantee legibility + tame neon before it ships — the model designs, the math makes it safe.
     return { ...object, tokens: finalizeTheme(object.tokens) };
 }
 
-// Matched to an existing artifact — reads its content's mood and designs a theme that fits it.
 export async function generateThemeFromArtifact(
     content: ArtifactContent,
     hint?: string,
@@ -48,6 +41,5 @@ export async function generateThemeFromArtifact(
         prompt: parts.prompt,
         abortSignal: opts.signal,
     });
-    // Guarantee legibility + tame neon before it ships — the model designs, the math makes it safe.
     return { ...object, tokens: finalizeTheme(object.tokens) };
 }

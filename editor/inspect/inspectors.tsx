@@ -1,6 +1,3 @@
-// Property inspectors: the docked element editor (schema-driven via the controls kit). Sections are edited
-// inline via the canvas Layout popup (@inspect/SectionLayoutPopup), not a docked panel.
-
 import type { ElementAddress } from "@model/target";
 import type { Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
@@ -15,9 +12,6 @@ import { DataGrid } from "./DataGrid";
 import { Icon } from "@ui/icons";
 import { Button, IconButton } from "@ui/button";
 
-// The docked inspector for a selected element: its schema-driven data controls. Spatial properties
-// (width/height resize, cross-axis align, container gap/padding) are manipulated directly on the canvas
-// via handles + the context bar, so they no longer live here.
 export const ElementInspector: Component<{ address: ElementAddress }> = (props) => {
     const inst = createMemo(() => getElementAt(editor.artifact, props.address));
     const spec = createMemo(() => {
@@ -25,8 +19,7 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
         return i ? getElement(i.type) : undefined;
     });
     const data = createMemo(() => (inst()?.data ?? {}) as Record<string, unknown>);
-    // Elements with a structured data shape (charts/diagrams) get the visual data editor; their raw
-    // data text fields are hidden from the panel (the grid owns them).
+    // Charts/diagrams get the visual data editor; their raw data fields are hidden here (the grid owns them).
     const editorShape = createMemo(() => {
         const s = spec();
         return s ? dataShapeFor(s.category, String(data().type ?? "")) : undefined;

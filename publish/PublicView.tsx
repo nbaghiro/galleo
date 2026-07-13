@@ -6,22 +6,14 @@ import { registerThemes, resolveTheme, themeCssVars } from "@themes";
 import { PresentSurface } from "@ui/present";
 import { UiThemeProvider } from "@ui/icons";
 import { api, type PublicContent } from "../app/api";
-import { setFavicon } from "../app/theme";
+import { setFavicon } from "../app/stores/theme";
 
-// The public, UNAUTHENTICATED viewer — a chrome-free read-only render of a published artifact, served at
-// /p/:slug (its own tiny build, no auth/editor/app code). It paints through the same @canvas backends as
-// the in-app present surface, but resolves its content from the public share endpoint and enforces the
-// share's access policy (a protected link prompts for a password; a private link carries a ?k= token).
-
-// The public paint surface: the shared @ui present surface (z-0 so it sits under the neutral state
-// panels), plus its own @ui theme provider (standalone build) and the free-tier branding watermark.
 const Surface: Component<{ artifact: ArtifactContent; branded: boolean }> = (props) => {
     const tokens = createMemo(() => resolveTheme(props.artifact.theme).tokens);
     return (
         <UiThemeProvider tokens={tokens}>
             <PresentSurface artifact={props.artifact} z={0}>
                 <Show when={props.branded}>
-                    {/* Free-tier watermark — mirrors the export path's "Made with Galleo" mark. */}
                     <a
                         href="https://galleo.app"
                         target="_blank"
@@ -36,14 +28,12 @@ const Surface: Component<{ artifact: ArtifactContent; branded: boolean }> = (pro
     );
 };
 
-// A centered neutral message panel for the load / password / error states (independent of any theme).
 const Panel: Component<{ children: JSX.Element }> = (props) => (
     <div class="grid min-h-screen place-items-center bg-[#0a0a0c] px-6 text-center text-white">
         <div class="w-full max-w-[360px]">{props.children}</div>
     </div>
 );
 
-// The unlock button names the format when the gate response reports it, else stays generic.
 const viewLabel = (format?: string): string =>
     format === "deck"
         ? "View deck"
@@ -61,9 +51,9 @@ export const PublicView: Component = () => {
     );
     const [content, setContent] = createSignal<PublicContent | null>(null);
     const [pw, setPw] = createSignal("");
-    const [gateMsg, setGateMsg] = createSignal(""); // password-page error/rate-limit note
-    const [pwTheme, setPwTheme] = createSignal("studio"); // the artifact's theme, for the password page
-    const [pwFormat, setPwFormat] = createSignal<string | undefined>(); // its format, for the unlock button
+    const [gateMsg, setGateMsg] = createSignal("");
+    const [pwTheme, setPwTheme] = createSignal("studio");
+    const [pwFormat, setPwFormat] = createSignal<string | undefined>();
     const [busy, setBusy] = createSignal(false);
 
     const token = (): string | undefined => (typeof search.k === "string" ? search.k : undefined);
@@ -81,7 +71,6 @@ export const PublicView: Component = () => {
                 setContent(res.content);
                 setState("ok");
             } else if (res.status === 401 || res.status === 429) {
-                // Password gate: theme the prompt with the artifact's own theme (shipped in the response).
                 if (res.customTheme) registerThemes([res.customTheme]);
                 if (res.theme) setPwTheme(res.theme);
                 setPwFormat(res.format);
@@ -99,7 +88,7 @@ export const PublicView: Component = () => {
                 setState("error");
             }
         } catch {
-            setState("error"); // network failure
+            setState("error");
         }
         setBusy(false);
     };
@@ -109,8 +98,7 @@ export const PublicView: Component = () => {
         const c = content();
         if (!c) return;
         document.title = c.title;
-        // Theme-aware tab badge — the "G" mark in the published artifact's own theme, matching how the
-        // app + website builds set their favicon. The custom theme (if any) is registered in load() first.
+        // custom theme (if any) is registered in load() first
         setFavicon(resolveTheme(c.content.theme).tokens);
     });
 
@@ -150,7 +138,6 @@ export const PublicView: Component = () => {
                         </Panel>
                     }
                 >
-                    {/* the password page wears the artifact's own theme (tokens applied as CSS vars) */}
                     <div
                         style={themeCssVars(resolveTheme(pwTheme()).tokens)}
                         class="grid min-h-screen place-items-center bg-canvas px-6 text-center font-body text-ink"

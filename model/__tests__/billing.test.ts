@@ -9,8 +9,6 @@ import {
     visiblePlans,
 } from "@model/billing";
 
-// Tier-A pure: the plan catalog + its lookups. Data-driven — real ids in, real plan values out.
-
 describe("planFor", () => {
     it("falls back to Free for null / unknown ids", () => {
         expect(planFor(null)).toBe(PLANS.free);

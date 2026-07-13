@@ -8,10 +8,6 @@ import { getElementAt } from "@elements/ops";
 import { artifactOf, inst, sectionOf } from "@canvas/testkit";
 import { applyDrop, computeDropTarget, previewDrop } from "@editor/canvas/dnd";
 
-// Pure pointer→drop-target math over synthetic engine regions + a real content tree (group/text registered
-// via @elements/register). Regions are hand-placed rects; the artifact mirrors their ids so container
-// lookups line up. Only the pure exports are exercised (startDrag is a signal setter — skipped).
-
 const reg = (id: string, x: number, y: number, w: number, h: number): Region => ({
     id,
     box: { x, y, w, h },
@@ -27,9 +23,6 @@ const collectTexts = (el: ElementInstance | undefined, out: string[] = []): stri
     return out;
 };
 
-// --- fixtures: an artifact and a matching region set for each drop scenario ---
-
-// Two stacked sections, a bare text root each — only the section content boxes matter for gap zones.
 const twoSections = (): ArtifactContent =>
     artifactOf([sectionOf(txt("a"), { id: "s1" }), sectionOf(txt("b"), { id: "s2" })]);
 const sectionRegions = (): Region[] => [
@@ -37,27 +30,24 @@ const sectionRegions = (): Region[] => [
     reg("el:s2", 0, 200, 400, 100),
 ];
 
-// One section, a two-column row root.
 const rowArt = (): ArtifactContent => artifactOf([sectionOf(rowGroup([txt("a"), txt("b")]))]);
 const rowRegions = (): Region[] => [
     reg("section:s1", 0, 0, 400, 200),
-    reg("el:s1", 20, 20, 360, 160), // the root row's content
-    reg("el:s1:0", 20, 20, 170, 160), // column 0
-    reg("el:s1:1", 210, 20, 170, 160), // column 1
+    reg("el:s1", 20, 20, 360, 160),
+    reg("el:s1:0", 20, 20, 170, 160),
+    reg("el:s1:1", 210, 20, 170, 160),
 ];
 
-// One section, a col root wrapping a two-child row — so a leaf ([0,1]) sits inside a non-root container.
 const nestedArt = (): ArtifactContent =>
     artifactOf([sectionOf(colGroup([rowGroup([txt("a"), txt("b")])]))]);
 const nestedRegions = (): Region[] => [
     reg("section:s1", 0, 0, 400, 200),
-    reg("el:s1", 0, 0, 400, 200), // col root
-    reg("el:s1:0", 20, 20, 360, 100), // the row
-    reg("el:s1:0.0", 20, 20, 170, 100), // leaf a
-    reg("el:s1:0.1", 210, 20, 170, 100), // leaf b
+    reg("el:s1", 0, 0, 400, 200),
+    reg("el:s1:0", 20, 20, 360, 100),
+    reg("el:s1:0.0", 20, 20, 170, 100),
+    reg("el:s1:0.1", 210, 20, 170, 100),
 ];
 
-// One section, a bare text root (the section root is itself a leaf).
 const leafArt = (): ArtifactContent => artifactOf([sectionOf(txt("root"))]);
 const leafRegions = (): Region[] => [
     reg("section:s1", 0, 0, 400, 200),
@@ -211,7 +201,6 @@ describe("previewDrop — mirrors applyDrop", () => {
         const target = computeDropTarget(nestedArt(), nestedRegions(), 250, 60)!;
         const applied = applyDrop(nestedArt(), target, { kind: "new", type: "text" });
         const preview = previewDrop(nestedArt(), target, { kind: "new", type: "text" });
-        // same landing slot; a ghost stands in for the real element and the siblings match
         expect(getElementAt(preview, applied.address!)?.type).toBe(DROP_GHOST);
         expect(getElementAt(applied.content, applied.address!)?.type).toBe("text");
         expect(textOf(getElementAt(preview, { section: "s1", path: [0, 2] }))).toBe("b");

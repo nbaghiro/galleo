@@ -1,7 +1,6 @@
 import { hexA } from "@themes";
 import { drawNode, registerDiagram, type Renderer } from "./utils";
 
-// Items in a near-square grid of ceil(sqrt(n)) columns, each a node cell filling the box evenly.
 const matrix: Renderer = (diagram, ctx) => {
     const { g, W, H, theme } = ctx;
     const items = diagram.items;

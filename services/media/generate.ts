@@ -1,8 +1,3 @@
-// AI image generation behind POST /api/media/generate — Google's Gemini image models via the
-// generativelanguage REST API (the GOOGLE_API_KEY already in .env). Model + endpoint move around
-// (Imagen is being retired; the flash-image models are native), so both are env-overridable and the
-// response parsing is defensive: we hunt the base64 image out of whatever part shape comes back.
-
 import type { MediaGenStyle } from "@model/media";
 
 export interface GeneratedImage {
@@ -12,8 +7,7 @@ export interface GeneratedImage {
     height: number;
 }
 
-// Each generation style is woven into the prompt as a leading art-direction phrase (the model has no
-// structured "style" field). "photo" adds nothing so the default stays a straight photographic render.
+// woven into the prompt as a leading phrase (no structured "style" field); "photo" is intentionally empty
 const STYLE_PREFIX: Record<MediaGenStyle, string> = {
     photo: "",
     illustration: "Flat vector illustration, clean bold shapes, minimal, of ",
@@ -22,16 +16,13 @@ const STYLE_PREFIX: Record<MediaGenStyle, string> = {
     watercolor: "Loose watercolor painting, soft washes, textured paper, of ",
 };
 
-// Default to Google's latest flash-tier native image model (the "Nano Banana" line — fast + cheap, right for
-// generating up to 4 variations at once). Override with GEMINI_IMAGE_MODEL — e.g. set it to
-// `gemini-3-pro-image` (Nano Banana Pro) for maximum quality at higher latency, or if Google moves the id.
 const MODEL = (): string => process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image";
 
 export function imageGenReady(): boolean {
     return !!process.env.GOOGLE_API_KEY;
 }
 
-// Nominal pixel dimensions for an aspect label (the element sizes by aspect anyway; this is metadata).
+// nominal dims for an aspect label — metadata only (the element sizes by aspect)
 function dims(aspect: string | undefined): { width: number; height: number } {
     const [w, h] = (aspect ?? "16:9").split(":").map(Number);
     if (!w || !h) return { width: 1536, height: 1024 };
@@ -56,7 +47,7 @@ interface GeminiResponse {
     error?: { message?: string };
 }
 
-// Pull the first inline image out of a candidate's parts, tolerating camelCase / snake_case shapes.
+// tolerates camelCase / snake_case part shapes
 function extractImage(json: GeminiResponse): { data: string; mime: string } | null {
     for (const cand of json.candidates ?? []) {
         for (const part of cand.content?.parts ?? []) {
@@ -68,8 +59,7 @@ function extractImage(json: GeminiResponse): { data: string; mime: string } | nu
     return null;
 }
 
-// One image per call — call n times in parallel for variations. Aspect is passed as imageConfig and also
-// woven into the prompt, so it lands whether or not the model honors the structured field.
+// aspect is sent as imageConfig and woven into the prompt, so it lands whether or not the model honors the field
 async function generateOne(
     prompt: string,
     aspect: string | undefined,
@@ -99,8 +89,7 @@ async function generateOne(
     return { dataBase64: img.data, mime: img.mime, ...dims(aspect) };
 }
 
-// One image for a phrase — the single-shot generator the artifact pipeline injects (via the /ai route) when
-// a build is set to AI images. Never throws (returns null on any failure so generation falls back to stock).
+// never throws — returns null on failure so generation falls back to stock
 export async function generateImage(
     prompt: string,
     aspect: string | undefined,
@@ -109,9 +98,7 @@ export async function generateImage(
     return generateOne(prompt, aspect, style).catch(() => null);
 }
 
-// Stream each variation the moment it finishes — so a fast image can reveal while the slow ones still render,
-// instead of blocking on the whole batch. Kicks off all N in parallel and yields them as they settle; a
-// failed variation yields null so the caller can drop its placeholder.
+// yields each variation as it settles (not batched); a failed one yields null
 export async function* streamImages(
     prompt: string,
     aspect: string | undefined,

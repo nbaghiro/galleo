@@ -15,17 +15,10 @@ import {
 } from "@elements/ops";
 import { getElement } from "@elements/spec";
 
-// Pointer-based drag-and-drop over the recursive section tree. Geometry comes from engine regions, so drop
-// zones line up with what's painted. A drop resolves to one of five ops: replace an empty region, insert
-// into a container, wrap a leaf into a new row/col, add a section column, or add a whole new section.
-
 export type DragPayload = { kind: "new"; type: string } | { kind: "move"; from: ElementAddress };
 
-// op: replace/wrap target `path`; insert into the container at `path` at `index`; column at `index`;
-// newSection at section position `index` (a new section holding just the dragged element — `section`/`path`
-// unused). `before` places a wrap's new element first. Every drop previews the same way — a dimmed inline
-// ghost of the dragged element spliced into the section (see previewDrop), which reflows to show exactly
-// where it lands; there's no separate insertion-line rect.
+// Per op: replace/wrap use `path`; insert uses `path`+`index`; column/newSection use `index` (newSection
+// ignores section/path). `before` places a wrap's new element first.
 export interface DropTarget {
     section: string;
     op: "replace" | "insert" | "wrap" | "column" | "newSection";
@@ -70,7 +63,7 @@ const groupAxis = (inst?: ElementInstance): "row" | "col" =>
         ? "row"
         : "col";
 
-// Parse the element regions of one section into { path, box }, most-specific (deepest) first.
+// { path, box } per element region in the section, deepest first.
 function elementsUnder(
     regions: Region[],
     sid: string,
@@ -86,7 +79,7 @@ function elementsUnder(
     return out.sort((a, b) => b.path.length - a.path.length);
 }
 
-// The child boxes of the container at `parentPath` (one level deeper), sorted along the flow `axis`.
+// Child boxes one level under `parentPath`, sorted along `axis`.
 function childBoxes(
     regions: Region[],
     sid: string,
@@ -105,9 +98,7 @@ function childBoxes(
     return out.sort((a, b) => (axis === "row" ? a.box.x - b.box.x : a.box.y - b.box.y));
 }
 
-// The insertion index among `kids` (already sorted along `axis`) for the cursor: the first child whose
-// midpoint the cursor hasn't passed, else the end. Monotonic — crossing one sibling's midpoint advances
-// the index by exactly one — so dragging down a stack steps through positions cleanly, never oscillating.
+// Insertion index for the cursor: first child whose midpoint it hasn't passed, else the end. Monotonic — no oscillation while dragging.
 function gapIndex(kids: { box: Rect }[], axis: "row" | "col", px: number, py: number): number {
     const pos = axis === "row" ? px : py;
     for (let i = 0; i < kids.length; i++) {
@@ -118,7 +109,7 @@ function gapIndex(kids: { box: Rect }[], axis: "row" | "col", px: number, py: nu
     return kids.length;
 }
 
-// The section's top-level columns (the root row's children, else the whole root as one column).
+// Top-level columns: the root row's children, else the whole root as one column.
 function sectionColumns(regions: Region[], sid: string): Rect[] {
     const cols = childBoxes(regions, sid, [], "row");
     if (cols.length) return cols.map((c) => c.box);
@@ -126,7 +117,7 @@ function sectionColumns(regions: Region[], sid: string): Rect[] {
     return root ? [root] : [];
 }
 
-// A drop in the band around a column boundary (including the outer section edges) → a new column there.
+// A drop in the band around a column boundary (incl. outer edges) → new column there.
 function columnDropZone(sid: string, columns: Rect[], px: number, py: number): DropTarget | null {
     if (!columns.length) return null;
     const top = Math.min(...columns.map((c) => c.y));
@@ -165,20 +156,16 @@ const NEW_SECTION = (index: number): DropTarget => ({
 
 const SECTION_EDGE = 44; // reach of the above-first / below-last new-section bands
 
-// A drop in the vertical space BETWEEN two sections' content (their paddings + the inter-section gap), or
-// just above the first / below the last, → a new section holding just the dragged element at that position.
-// Checked before the per-section logic so dragging OUT of a section suggests a new section here, instead of
-// offering to replace the whole section you're leaving (which read as destructive). Move further into the
-// next/prev section's content and normal reordering there takes over.
+// A drop between sections (or above first / below last) → a new section there. Checked before per-section
+// logic so dragging OUT suggests "new section", not a destructive "replace".
 function sectionGapZone(
     regions: Region[],
     art: ArtifactContent,
     px: number,
     py: number,
 ): DropTarget | null {
-    // Each section's content box in document order (sections paint top-to-bottom in that order).
     const boxes = art.sections.map((s) => regions.find((r) => r.id === `el:${s.id}`)?.box ?? null);
-    if (boxes.some((b) => b === null)) return null; // some section not laid out — skip the gap zones
+    if (boxes.some((b) => b === null)) return null; // some section not laid out — skip gap zones
     const bs = boxes as Rect[];
     const left = Math.min(...bs.map((b) => b.x));
     const right = Math.max(...bs.map((b) => b.x + b.w));
@@ -199,8 +186,7 @@ export function computeDropTarget(
     px: number,
     py: number,
 ): DropTarget | null {
-    // Between/around sections → a new section. Takes priority over the per-section logic below so the
-    // padding you cross when dragging out of a section reads as "new section here", not "replace section".
+    // Between/around sections → new section (priority over per-section logic below).
     const gap = sectionGapZone(regions, art, px, py);
     if (gap) return gap;
 
@@ -208,7 +194,7 @@ export function computeDropTarget(
     if (!sectionReg) return null;
     const sid = sectionReg.id.split(":")[1]!;
 
-    // A section-edge / column-boundary band takes priority — it's how you create a new column.
+    // Column-boundary band takes priority — how you make a new column.
     const columns = sectionColumns(regions, sid);
     const colZone = columnDropZone(sid, columns, px, py);
     if (colZone) return colZone;
@@ -216,9 +202,8 @@ export function computeDropTarget(
     const hits = elementsUnder(regions, sid, px, py);
     const hit = hits[0];
     if (!hit) {
-        // Cursor is in the section's bare side padding (over no element). Fill it only if the section is
-        // genuinely empty; a non-empty section is NOT a "replace everything" target (that was the destructive
-        // behavior) — leave it to the sticky last target / the section-gap zone above.
+        // Bare side padding: fill only if the section is genuinely empty — a non-empty one is not a
+        // "replace everything" target.
         const root = getElementAt(art, { section: sid, path: [] });
         if (isContainer(root) && childCount(root) === 0)
             return {
@@ -234,7 +219,6 @@ export function computeDropTarget(
     const addr: ElementAddress = { section: sid, path: hit.path };
     const inst = getElementAt(art, addr);
 
-    // An empty container (an empty column / drop region) → the drop fills it.
     if (isContainer(inst) && childCount(inst) === 0)
         return {
             section: sid,
@@ -245,7 +229,7 @@ export function computeDropTarget(
             direction: "col",
         };
 
-    // The cursor sits on a container itself → insert among its children at the nearest sibling gap.
+    // On a container → insert among its children at the nearest gap.
     if (isContainer(inst)) {
         const axis = groupAxis(inst);
         return {
@@ -258,10 +242,8 @@ export function computeDropTarget(
         };
     }
 
-    // A leaf inside a container → reorder among its siblings: insert into the parent at the sibling gap
-    // nearest the cursor along the parent's flow axis. This is the common case and must be rock-steady, so
-    // it's driven purely by the monotonic gap index (no per-cursor row/col or before/after flip near the
-    // leaf's center — that was the source of the drop-target flicker).
+    // Leaf inside a container → insert into the parent at the nearest sibling gap. Purely the monotonic
+    // gap index (no center flip — that flickered).
     const parentPath = hit.path.slice(0, -1);
     const parentInst = hit.path.length
         ? getElementAt(art, { section: sid, path: parentPath })
@@ -278,9 +260,7 @@ export function computeDropTarget(
         };
     }
 
-    // A leaf that IS the section root (no container parent) → wrap it into a new row/col. Axis + side come
-    // from where the cursor sits in its box; cross-axis splits at the section level are otherwise made by
-    // dropping in the column-boundary band above.
+    // Leaf that IS the section root → wrap into a new row/col; axis + side from the cursor's position in its box.
     const b = hit.box;
     const horizontal =
         Math.abs((px - (b.x + b.w / 2)) / b.w) > Math.abs((py - (b.y + b.h / 2)) / b.h);
@@ -296,14 +276,14 @@ export function computeDropTarget(
     };
 }
 
-// --- applying a drop ---
-
 const result = (
     content: ArtifactContent,
     address: ElementAddress | null,
 ): { content: ArtifactContent; address: ElementAddress | null } => ({ content, address });
 
-function place(
+// Land `element` at a `DropTarget`, dispatching to the width-aware ops. Also used by paste (clipboard.ts)
+// so paste uses the same layout logic as a drop.
+export function place(
     art: ArtifactContent,
     target: DropTarget,
     element: ElementInstance,
@@ -345,8 +325,7 @@ function place(
     }
 }
 
-// Removing the node at `removed` shifts its later siblings down one; inserting at `index` under `parent`
-// shifts them up one — rewrite a path captured against the pre-op tree so it still points where it meant to.
+// Rebase a path captured against the pre-op tree: a removal shifts later siblings down one, an insert shifts them up one.
 function adjustAfterRemoval(path: number[], removed: number[]): number[] {
     if (!removed.length || path.length < removed.length) return path;
     const d = removed.length - 1;
@@ -367,8 +346,8 @@ function adjustAfterInsert(path: number[], parent: number[], index: number): num
     return next;
 }
 
-// A move: pull the element out, re-aim the target against the post-removal tree, place it, then collapse the
-// source column the move emptied. Shared by the real drop and the live preview so the ghost matches exactly.
+// Move: remove the element, re-aim the target against the post-removal tree, place it, then collapse the
+// emptied source column. Shared by the real drop + preview so the ghost matches.
 function moveInto(
     art: ArtifactContent,
     from: ElementAddress,
@@ -388,13 +367,13 @@ function moveInto(
         index: sameParentBefore ? target.index - 1 : target.index,
     };
     const placed = place(base, aimed, element);
-    // Collapse the emptied source column, mapping its parent path through the placement's insertion.
+    // Collapse the emptied source column, mapping its parent path through the insertion.
     const srcParent =
         insParent !== null
             ? adjustAfterInsert(from.path.slice(0, -1), insParent, aimed.index)
             : from.path.slice(0, -1);
     const content = collapseSection(placed.content, from.section, srcParent);
-    // If the source column emptied (and so collapsed away), shift the landed selection past it.
+    // If the source column collapsed away, shift the landed selection past it.
     const src = getElementAt(placed.content, { section: from.section, path: srcParent });
     const srcEmptied = !!src && isContainer(src) && childCount(src) === 0;
     const address =
@@ -427,17 +406,13 @@ export function applyDrop(
     return resolveDrop(art, target, payload);
 }
 
-// Lift the dragged element out of its current spot — remove it and collapse the column it emptied. This is
-// the base a move drag shows for the WHOLE gesture (so the source visibly leaves immediately and never
-// snaps back), before any drop target, or between targets while the cursor is over a gutter.
+// Remove the dragged element + collapse its emptied column — the base a move drag shows for the whole gesture (source leaves immediately, never snaps back).
 function liftOut(art: ArtifactContent, from: ElementAddress): ArtifactContent {
     return collapseSection(removeAt(art, from), from.section, from.path.slice(0, -1));
 }
 
-// The previewed artifact painted mid-drag. A move always lifts the source first; with a target it splices a
-// ghost of the dragged element where it will land (the real element dimmed), with no target it just shows the
-// lifted layout. A new-from-palette drag has nothing to lift, so it previews a skeleton ghost only once it
-// has a target. Mirrors applyDrop exactly, so the reflow matches the drop.
+// The artifact painted mid-drag. A move lifts the source first, then splices a ghost where it lands; a
+// new-from-palette drag ghosts only once it has a target. Mirrors applyDrop so the reflow matches.
 export function previewDrop(
     art: ArtifactContent,
     target: DropTarget | null,

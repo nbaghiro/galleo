@@ -10,7 +10,7 @@ import { Segmented } from "@ui/inputs";
 import { Modal } from "@ui/overlay";
 import { PreviewCanvas, SectionThumb } from "../components/previews";
 import { Sidebar } from "../components/Sidebar";
-import { appTheme } from "../theme";
+import { appTheme } from "../stores/theme";
 
 export const TemplatesView: Component = () => {
     const navigate = useNavigate();
@@ -44,8 +44,7 @@ export const TemplatesView: Component = () => {
         if (using()) return;
         setUsing(t.id);
         try {
-            // honor the format chosen in the preview (deck/doc/web) and the user's current app theme,
-            // not the template's saved ones — set both on the artifact record + the content the editor reads.
+            // use the preview's format + the user's app theme, not the template's saved ones
             const fmt = previewFmt();
             const content = { ...t.content, format: fmt, theme: appTheme() };
             const { id } = await api.createArtifact({
@@ -142,7 +141,6 @@ export const TemplatesView: Component = () => {
                 </Show>
             </main>
 
-            {/* preview modal — renders the template read-only with format switches, then "Use template" */}
             <Show when={preview()}>
                 {(t) => (
                     <Modal

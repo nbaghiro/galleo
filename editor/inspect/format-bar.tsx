@@ -1,5 +1,3 @@
-// The floating format bar: the contextual control bar + rich-text mark controls shown for the selection.
-
 import type { Rect } from "@engine/node";
 import type { ControlField } from "@elements/spec";
 import type { Component } from "solid-js";
@@ -45,9 +43,6 @@ import {
     toggleTextMark,
 } from "../text/text-format";
 
-// The floating quick-action toolbar above a selected element — the "format bar". Its inline controls are
-// spec-driven: an element declares `bar` (control keys) + `richText` (marks); the studio renders those
-// compactly here. Universal duplicate/delete apply to every element. Studio-only — never present/export.
 const BAR_GAP = 10;
 const DEFAULT_RADIUS = 12; // shown on the universal radius slider before it's explicitly set
 
@@ -65,8 +60,6 @@ export const ContextBar: Component = () => {
         return i ? getElement(i.type) : undefined;
     });
     const data = createMemo(() => (inst()?.data ?? {}) as Record<string, unknown>);
-    // The `bar` control keys resolved to their ControlField definitions (from `controls`), honoring each
-    // field's `visibleWhen` so conditional controls (e.g. Direction/Distribute only when not a grid) drop.
     const barFields = createMemo((): ControlField[] => {
         const s = spec();
         if (!s?.bar) return [];
@@ -100,18 +93,10 @@ export const ContextBar: Component = () => {
                 : undefined;
         commit(updateDataAt(editor.artifact, a, { ...data(), [key]: value }), { coalesce });
     };
-    // Cross-axis self-align (how the element sits in its cell) — universal, moved off the panel. Only
-    // meaningful when the element is narrower than its cell (there's room to slide it); a full-width
-    // element has nowhere to go, so the buttons would be no-ops — hide them then (mirrors the width
-    // resize handle only appearing when there's horizontal slack).
-    // Universal corner radius — offered for any framed element (fill/image). Written to ElementLayout
-    // (like width + align), so it rounds the element's frame regardless of type. Unset falls back to a
-    // neutral default for display; the element keeps painting its own default radius until this is set.
     const radius = createMemo((): number => {
         const set = inst()?.layout?.radius;
         if (set !== undefined) return set;
-        // Unset → show the radius the element actually painted (its theme-derived default), so the
-        // slider reads true instead of jumping when first touched.
+        // Unset → show the painted (theme default) radius, so the slider reads true instead of jumping.
         const a = addr();
         const painted = a ? regions().find((r) => r.id === elementRegionId(a))?.radius : undefined;
         return painted ?? DEFAULT_RADIUS;
@@ -128,8 +113,7 @@ export const ContextBar: Component = () => {
         const a = addr();
         const b = box();
         if (!a || !b) return false;
-        // Align is self-positioning within the parent — offered only when there's horizontal slack. The
-        // root's parent is the section content area (minus the gutter); a nested element's is its container.
+        // Offered only with horizontal slack; root's parent is the section content (minus gutter), nested is its container.
         const rootLevel = a.path.length === 0;
         const parent = parentTarget({ kind: "element", address: a });
         const parentBox = parent
@@ -149,9 +133,6 @@ export const ContextBar: Component = () => {
         ["center", "alignCenter"],
         ["end", "alignRight"],
     ] as const;
-    // Regenerate — offered for any element that's meaningful to re-roll on its own (canRegenerate resolves
-    // fragments of quotes/stats/bullets up to their parent; drops dividers/videos). Fires a fresh AI version
-    // that swaps in place as one undo step; spins while the (single) regeneration is in flight.
     const canRegen = createMemo((): boolean => {
         const a = addr();
         return a ? canRegenerate(a) : false;
@@ -238,9 +219,7 @@ export const ContextBar: Component = () => {
                         </For>
                         <Separator vertical class="mx-0.5" />
                     </Show>
-                    {/* The single AI ✨: the text-edit intake popup while inline-editing rich text (it acts on
-                        the selection), the whole-element regenerate otherwise. One button in one place, so
-                        there's never a confusing second sparkle. */}
+                    {/* One AI ✨: text-edit intake while inline-editing rich text, whole-element regenerate otherwise. */}
                     <Show when={editing() && spec()?.richText && canAssistText()}>
                         <TextAiMenu />
                         <Separator vertical class="mx-0.5" />
@@ -283,12 +262,6 @@ export const ContextBar: Component = () => {
     );
 };
 
-// The inline-mark group of the text format bar: bold/italic/underline/strike + inline code, then text
-// color, highlight, and link (each a small picker popover). Rendered inside the ContextBar (which
-// carries `data-galleo-toolbar`, so interacting here doesn't end the edit). Buttons use onMouseDown
-// preventDefault to keep the contenteditable focused + selected; only the link URL input takes focus,
-// and it acts on a selection range captured before the input stole focus.
-
 const BOOL: { type: MarkType; icon: string; title: string }[] = [
     { type: "b", icon: "bold", title: "Bold (⌘B)" },
     { type: "i", icon: "italic", title: "Italic (⌘I)" },
@@ -297,15 +270,13 @@ const BOOL: { type: MarkType; icon: string; title: string }[] = [
 ];
 
 const noBlur = (e: MouseEvent): void => e.preventDefault();
-// Positioning + padding for the color/highlight flyout; FloatingPanel owns the surface chrome.
 const popCls = "absolute left-1/2 top-full z-overlay mt-2 w-60 -translate-x-1/2 p-2.5";
 
 export const MarkControls: Component = () => {
     const [pop, setPop] = createSignal<null | "color" | "hl" | "link">(null);
     const [linkUrl, setLinkUrl] = createSignal("");
     let linkRange: { from: number; to: number } | null = null;
-    // The selection captured when a color/highlight popover opens — reused for every apply, so the
-    // native color well (which moves focus off the contenteditable) still targets the right range.
+    // Captured when a color/highlight popover opens — reused so the native color well (which steals focus) still targets the right range.
     let markRange: { from: number; to: number } | null = null;
 
     const is = (type: MarkType): boolean => activeMarks().includes(type);
@@ -366,7 +337,6 @@ export const MarkControls: Component = () => {
             </IconButton>
             <Separator vertical class="mx-0.5" />
 
-            {/* text color */}
             <div class="relative">
                 <IconButton
                     auto
@@ -401,7 +371,6 @@ export const MarkControls: Component = () => {
                 </Show>
             </div>
 
-            {/* highlight */}
             <div class="relative">
                 <IconButton
                     auto
@@ -436,7 +405,6 @@ export const MarkControls: Component = () => {
                 </Show>
             </div>
 
-            {/* link */}
             <div class="relative">
                 <IconButton
                     auto

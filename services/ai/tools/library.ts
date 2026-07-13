@@ -4,11 +4,6 @@ import { register } from "./registry";
 import { artifactDigest, artifactSpine } from "../prompts/system";
 import { TEMPLATES } from "../../templates";
 
-// Read-only library tools — the agent's EYES on the user's existing work. Both run server-side against the
-// workspace reader the route injects (no content shipped from the client): `find-artifacts` searches the
-// library and hands back a pick-list; `read-artifact` loads one artifact and returns a compact digest the
-// agent grounds its answer on (summarize, compare, decide what to edit) — never the raw tree. No model call.
-
 export const findArtifactsTool = register({
     id: "find-artifacts",
     describe:

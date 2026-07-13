@@ -12,9 +12,6 @@ import {
 } from "../manage";
 import { makeContext, type Tool } from "../registry";
 
-// Workspace-management tools — each `run` yields nothing and RETURNS a typed WorkspaceAction. No DB: the tool
-// just packages the user's intent; the CLIENT executes it. Assert the exact `kind` + payload (with trimming).
-
 async function runTool<I, R>(tool: Tool<I, R>, input: I): Promise<R> {
     const gen = tool.run(input, makeContext({ image: {} }));
     let step: IteratorResult<TurnEvent, R> = await gen.next();

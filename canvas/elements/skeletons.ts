@@ -2,9 +2,6 @@ import type { EngineNode } from "@engine/node";
 import { GHOST } from "@elements/spec";
 import { fit, fixed, grow, percent } from "@model/geometry";
 
-// Reusable structural ghosts for chart/diagram palette tiles + drop previews. Each returns a compact
-// EngineNode tree of GHOST fills that reads as the shape of its element type at a glance.
-
 const PAD = { top: 8, right: 10, bottom: 8, left: 10 };
 const box = (h: number, radius = 6): EngineNode => ({
     w: grow(),

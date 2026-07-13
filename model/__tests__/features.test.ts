@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { can, featureStatus, limit, resolveFeatures, withinLimit } from "@model/features";
 
-// Tier-A pure: the feature resolver. The honesty invariant — a `planned` feature stays OFF even when the
-// plan grants it and even when an override tries to enable it.
-
 describe("resolveFeatures · launch status gates plan grants", () => {
     it("keeps a premium plan's planned features OFF", () => {
         const premium = resolveFeatures("premium");

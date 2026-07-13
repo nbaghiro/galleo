@@ -3,10 +3,6 @@ import { defineConfig } from "vitest/config";
 
 const abs = (p: string): string => fileURLToPath(new URL(p, import.meta.url));
 
-// The backend INTEGRATION project — Hono routes against a real throwaway Postgres (docker `galleo-pg`).
-// Separate from the unit config so it stays opt-in (`vitest run -c vitest.integration.config.ts`) and out
-// of the fast/no-Docker suite. globalSetup creates + migrates `galleo_test`; each test truncates first.
-// Only the truly-external services (LLM/Stripe/mail/clock) are faked per test — DB/SQL/auth run for real.
 export default defineConfig({
     resolve: {
         alias: {

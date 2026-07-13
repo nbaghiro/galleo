@@ -40,8 +40,6 @@ import {
     caseStudy,
 } from "./templates/reports";
 
-// Starter templates — realistic, comprehensive example artifacts across categories. The Templates page
-// groups these by category; "Use template" stamps a copy into the workspace.
 export interface Template {
     id: string;
     name: string;
@@ -51,7 +49,6 @@ export interface Template {
 }
 
 export const TEMPLATES: Template[] = [
-    // Pitch & sales
     {
         id: "startup-pitch",
         name: "Startup Pitch Deck",
@@ -94,7 +91,6 @@ export const TEMPLATES: Template[] = [
         description: "Launch a product — segments, positioning, channels, pricing, and KPIs.",
         artifact: gtmPlan,
     },
-    // Reports & research
     {
         id: "annual-report",
         name: "Annual Report",
@@ -137,7 +133,6 @@ export const TEMPLATES: Template[] = [
         description: "The trends shaping a sector — the data, analysis, and predictions.",
         artifact: trendsReport,
     },
-    // Marketing & web
     {
         id: "product-launch",
         name: "Product Launch",
@@ -180,7 +175,6 @@ export const TEMPLATES: Template[] = [
         description: "A newsletter issue — editor's note, the lead story, items, and links.",
         artifact: newsletter,
     },
-    // Proposals & updates
     {
         id: "project-proposal",
         name: "Project Proposal",
@@ -223,7 +217,6 @@ export const TEMPLATES: Template[] = [
         description: "An SOW — scope, deliverables, timeline, responsibilities, and terms.",
         artifact: sow,
     },
-    // Personal & creative
     {
         id: "resume",
         name: "Resume / CV",

@@ -1,9 +1,7 @@
 import type { Align, EngineNode, MeasureText, Rect, Region, RenderCommand } from "@engine/node";
 import type { Size } from "@model/geometry";
 
-// The working node the box solver builds and mutates: a back-pointer to the immutable input
-// EngineNode plus its resolved box (x/y/w/h), filled in across three passes (widths -> heights ->
-// positions), then flattened to render commands. Internal to this module.
+// Mutable working node: the input EngineNode + its resolved box, filled across three passes then flattened to commands.
 interface LayoutNode {
     node: EngineNode;
     x: number;
@@ -11,9 +9,7 @@ interface LayoutNode {
     w: number;
     h: number;
     children: LayoutNode[];
-    // The resolved clip for this node: the node's explicit `clip`, plus an axis the height pass adds when a
-    // BOUNDED box (fixed/percent/aspect height) ends up shorter than its content — so the overflow is cut
-    // cleanly instead of spilling. `emit` reads this (not `node.clip`).
+    // Explicit `clip` plus an overflow axis the height pass adds for a bounded box shorter than its content; `emit` reads this, not `node.clip`.
     clip?: { x?: boolean; y?: boolean };
 }
 
@@ -34,10 +30,7 @@ const clamp = (v: number, s: Size): number => {
     return out;
 };
 
-// --- Clay-style grow/shrink sizing along the main axis ---
-
-// A child's resolvable size range on one axis: its natural `base`, the `min` it can shrink to, the `max`
-// it can grow to, and whether it participates in growing. Fixed/percent are exact (min == base == max).
+// Fixed/percent are exact: min == base == max.
 interface Span {
     base: number;
     min: number;
@@ -45,10 +38,7 @@ interface Span {
     grow: boolean;
 }
 
-// Grow/shrink children to fit `avail` (Clay's grow/shrink pass). Underflow → grow the `grow` children
-// toward max, sharing the surplus; overflow → shrink any child still above its min toward min, sharing the
-// deficit. Fixed/percent (min == base == max) never move; once everything is at its limit the remainder
-// just overflows (nothing left to give). Returns the resolved sizes, index-aligned with `spans`.
+// Fit children to `avail`: underflow grows `grow` children toward max, overflow shrinks any above min toward min. Fixed/percent never move; at the limits the remainder overflows. Sizes index-aligned with `spans`.
 function distribute(spans: Span[], avail: number): number[] {
     const size = spans.map((s) => s.base);
     let slack = avail - size.reduce((a, b) => a + b, 0);
@@ -79,12 +69,10 @@ function distribute(spans: Span[], avail: number): number[] {
     return size;
 }
 
-// --- intrinsic ("fit") width: the natural content width a node wants ---
-
 function intrinsicWidth(n: EngineNode, measure: MeasureText): number {
     if (n.text) return measure(n.text, Number.POSITIVE_INFINITY).width;
     const kids = n.children ?? [];
-    if (kids.length === 0) return 0; // image/fill/surface have no intrinsic width here
+    if (kids.length === 0) return 0; // image/fill/surface have no intrinsic width
     const childW = (c: EngineNode): number =>
         c.w.mode === "fixed" ? c.w.value : c.w.mode === "fit" ? intrinsicWidth(c, measure) : 0;
     if (isRow(n)) {
@@ -94,11 +82,7 @@ function intrinsicWidth(n: EngineNode, measure: MeasureText): number {
     return padX(n) + kids.reduce((mx, c) => Math.max(mx, childW(c)), 0);
 }
 
-// --- pass 1: widths (top-down; parent assigns each child's final width) ---
-
-// A child's width range for the main-axis distribute. percent/fit resolve against `avail` (the row's
-// space after gaps), so 60% + 40% + a gap fills exactly; fit carries its content width as base and can
-// shrink to `min` on overflow (which reflows its text taller in the height pass).
+// percent/fit resolve against `avail` (row space after gaps); fit can shrink to `min` on overflow, reflowing its text taller in the height pass.
 function widthSpan(c: EngineNode, avail: number, measure: MeasureText): Span {
     switch (c.w.mode) {
         case "fixed":
@@ -121,8 +105,7 @@ function widthSpan(c: EngineNode, avail: number, measure: MeasureText): Span {
     }
 }
 
-// Cross-axis width for a column's children (each sizes independently to the column's content width; no
-// grow/shrink between siblings). grow fills, others take their intrinsic/percent/fixed width.
+// Column children size independently against content width — no grow/shrink between siblings.
 function crossWidth(c: EngineNode, contentW: number, measure: MeasureText): number {
     switch (c.w.mode) {
         case "grow":
@@ -143,7 +126,7 @@ function layoutWidths(node: EngineNode, w: number, measure: MeasureText): Layout
 
     const contentW = Math.max(0, w - padX(node));
     if (isRow(node)) {
-        // Only flow children share the row's width; floats are sized independently against the content box.
+        // Flow children share the row's width; floats size independently against the content box.
         const flow = kids.filter((c) => !c.float);
         const gaps = (node.gap ?? 0) * Math.max(0, flow.length - 1);
         const avail = Math.max(0, contentW - gaps);
@@ -164,8 +147,6 @@ function layoutWidths(node: EngineNode, w: number, measure: MeasureText): Layout
     return ln;
 }
 
-// --- pass 2: heights (text measured at its resolved width; grow shares leftover) ---
-
 function resolveHeight(s: Size, assigned: number, intrinsic: number): number {
     switch (s.mode) {
         case "fixed":
@@ -181,14 +162,12 @@ function resolveHeight(s: Size, assigned: number, intrinsic: number): number {
 
 function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText): void {
     const node = ln.node;
-    // Aspect-ratio boxes size their height from width/aspect regardless of content — a video's play
-    // button or an image's overlay caption is a child, but the box must still hold its 16:9 (etc). Any
-    // children are laid out within the resolved box and placed via align.
+    // Aspect boxes size height from width/aspect regardless of content; children lay out within the resolved box.
     if (node.aspect) {
         ln.h = resolveHeight(node.h, assignedH, ln.w / node.aspect);
         const inner = Math.max(0, ln.h - padY(node));
         for (const c of ln.children) layoutHeights(c, inner, measure);
-        ln.clip = mergeClip(ln.clip, { x: true, y: true }); // a fixed-ratio frame crops overflowing children
+        ln.clip = mergeClip(ln.clip, { x: true, y: true }); // fixed-ratio frame crops overflowing children
         return;
     }
 
@@ -201,9 +180,7 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText):
 
     const contentH = Math.max(0, assignedH - padY(node));
     if (isRow(node)) {
-        // Measure non-grow children first to establish the row's cross height; grow-height children
-        // then stretch to it. In a `fit` row that height is the tallest sibling (not the container) —
-        // otherwise a `grow` bar would fill the unbounded measurement height.
+        // Measure non-grow children first to set the row's cross height, then stretch grow children to it. In a `fit` row it's the tallest sibling, not the container — else a `grow` bar fills the unbounded measurement height.
         let maxH = 0;
         const growKids: LayoutNode[] = [];
         for (const c of ln.children) {
@@ -229,9 +206,7 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText):
         return;
     }
 
-    // column: non-grow children resolve to their natural height; grow children start at their floor and
-    // fill the leftover (up to max) via the same grow/shrink pass. fit children keep their content height
-    // (pinned min == base == max) — vertical shrink would clip content, which is a clip-container concern.
+    // Non-grow children resolve to natural height; grow children fill the leftover via the grow/shrink pass. fit stays pinned (min == base == max) — vertical shrink would clip content.
     const flow = ln.children.filter((c) => !c.node.float);
     const gaps = (node.gap ?? 0) * Math.max(0, flow.length - 1);
     const spans: Span[] = flow.map((c) => {
@@ -250,12 +225,9 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText):
 
     const childrenH = flow.reduce((sum, c) => sum + c.h, 0) + gaps;
     ln.h = resolveHeight(node.h, assignedH, childrenH + padY(node));
-    // A BOUNDED column (fixed/percent/grow — anything but `fit`, which grows to contain its content) that
-    // resolves shorter than its content clips the overflow cleanly instead of spilling past its frame.
+    // A bounded column (anything but `fit`) shorter than its content clips the overflow.
     if (ln.h + 0.5 < childrenH + padY(node)) ln.clip = mergeClip(ln.clip, { y: true });
 }
-
-// --- pass 3: positions (top-down) ---
 
 function mainOffset(extra: number, align: Align | undefined): number {
     if (extra <= 0) return 0;
@@ -294,7 +266,7 @@ function layoutPositions(ln: LayoutNode, x: number, y: number): void {
             cy += c.h + gap;
         }
     }
-    // Floating children are placed over the flow, aligned within the content box + a dx/dy offset.
+    // Floats placed over the flow, aligned within the content box + a dx/dy offset.
     for (const c of ln.children) {
         if (!c.node.float) continue;
         const f = c.node.float;
@@ -304,12 +276,9 @@ function layoutPositions(ln: LayoutNode, x: number, y: number): void {
     }
 }
 
-// --- flatten to render commands (background fill first, then children) ---
-
 const CLIP_INF = 1e7; // stand-in for "unbounded" on a non-clipped axis
 
-// Intersect the incoming clip with `box` on the axes a `clip` node bounds — the rect this node's descendants
-// are clipped to. Undefined incoming clip = unbounded on both axes.
+// Intersect the incoming clip with `box` on the axes this node bounds. Undefined incoming clip = unbounded on both axes.
 function clipRect(parent: Rect | undefined, box: Rect, cfg: { x?: boolean; y?: boolean }): Rect {
     const l = Math.max(cfg.x ? box.x : -CLIP_INF, parent ? parent.x : -CLIP_INF);
     const t = Math.max(cfg.y ? box.y : -CLIP_INF, parent ? parent.y : -CLIP_INF);
@@ -327,11 +296,11 @@ function emit(
 ): void {
     const { node } = ln;
     const acc = node.opacity !== undefined ? opacity * node.opacity : opacity;
-    const o = acc < 1 ? acc : undefined; // carried on each command in the subtree
+    const o = acc < 1 ? acc : undefined;
     const box: Rect = { x: ln.x, y: ln.y, w: ln.w, h: ln.h };
     if (node.id)
         regions.push({ id: node.id, box, radius: node.fill?.radius ?? node.image?.radius });
-    // This node's own paint carries the incoming (ancestor) clip; its descendants clip to its box too.
+    // This node's paint carries the ancestor clip; descendants also clip to its box.
     if (node.fill)
         commands.push({ kind: "rect", box, fill: node.fill, id: node.id, opacity: o, clip });
     if (node.image)
@@ -348,7 +317,7 @@ function emit(
             clip,
         });
     const childClip = ln.clip ? clipRect(clip, box, ln.clip) : clip;
-    // Flow first, then floats (ascending `z`) so an attached overlay paints on top of its parent's content.
+    // Flow first, then floats (ascending `z`) so overlays paint on top.
     for (const c of ln.children) if (!c.node.float) emit(c, commands, regions, acc, childClip);
     ln.children
         .filter((c) => c.node.float)
@@ -356,8 +325,6 @@ function emit(
         .forEach((c) => emit(c, commands, regions, acc, childClip));
 }
 
-// Resolve a node tree into absolute-positioned paint commands + interaction regions (for nodes
-// carrying an id) within a container rect.
 export function layout(
     node: EngineNode,
     container: Rect,
@@ -372,12 +339,7 @@ export function layout(
     return { commands, regions };
 }
 
-// --- pagination ---
-
-// Pagination/fragmentation: slice a tall flow of render commands into fixed-height pages. Greedy
-// "good, not optimal" (the doc's recommended first cut): break at the lowest command bottom-edge
-// that lies within the page and doesn't cut through any other command; hard-break only when a single
-// block is taller than the page. Each returned page's commands are offset to start at y = 0.
+// Greedy pagination: break at the lowest command bottom-edge inside the page that cuts no other command; hard-break only when a single block is taller than the page. Each page's commands offset to y = 0.
 
 const EPS = 0.5;
 
@@ -403,7 +365,7 @@ export function fragment(
         let breakY = Math.min(limit, totalHeight);
 
         if (limit < totalHeight) {
-            // candidate breaks: every command's bottom edge that falls inside this page
+            // candidate breaks: bottom edges inside this page
             const cands = sorted
                 .map((c) => c.box.y + c.box.h)
                 .filter((y) => y > top + EPS && y <= limit + EPS);

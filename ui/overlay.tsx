@@ -2,15 +2,11 @@ import type { Component, JSX } from "solid-js";
 import { createEffect, createSignal, onCleanup, onMount, Show, splitProps } from "solid-js";
 import { Dynamic, Portal } from "solid-js/web";
 import { Button } from "./button";
+import { installKeyDispatcher, pushScope } from "./keys";
+import { trapFocus } from "./focus";
 import { Z } from "./z";
 
-// Positioned surfaces. `Popover` and `Modal` are the two base primitives every menu/dropdown/dialog
-// builds on; `ConfirmModal`/`FloatingBar` are thin composites.
-
-// ── theme-var snapshot (for portaled surfaces) ──
-// A portaled panel is reparented to <body>, escaping the themed subtree, so the active theme's CSS vars
-// don't reach it. We copy the resolved vars off the anchor (which lives in the themed context) and stamp
-// them on the panel, so its colors + fonts match the surrounding chrome in every theme.
+// A portaled panel escapes the themed subtree, so copy the theme's CSS vars off the anchor and stamp them on the panel.
 type Rect = { left: number; top: number; width: number; up: boolean };
 
 const THEME_VARS = [
@@ -48,11 +44,8 @@ function readThemeVars(el: HTMLElement): Record<string, string> {
     return out;
 }
 
-// ── Popover ──
-// A theme-matched panel portaled + fixed-positioned off an anchor (so it never clips inside a scrolling
-// panel and isn't mis-placed by transformed ancestors), flipping above the anchor when it would overflow
-// the bottom. Backdrop click + Escape dismiss. `toolbar` tags the portaled nodes with
-// `data-galleo-toolbar` so an inline text editor stays alive when a control is used mid-edit.
+// Portaled + fixed-positioned off the anchor so it never clips in a scrolling panel or is mis-placed by transformed ancestors; flips up near the viewport bottom.
+// `toolbar` tags portaled nodes with `data-galleo-toolbar` so an inline text editor stays alive mid-edit.
 export const Popover: Component<{
     anchor?: () => HTMLElement | undefined; // element anchor (menus/dropdowns)
     at?: () => { x: number; y: number } | undefined; // cursor/point anchor (context menus)
@@ -72,12 +65,9 @@ export const Popover: Component<{
     createEffect(() => {
         if (!props.open) return;
         const estH = props.estHeight ?? 240;
-        // Cursor/point anchor: position at the point, flipping up near the viewport bottom. Theme vars
-        // are read off the (optional) anchor element, else the document root.
         const pt = props.at?.();
         if (pt) {
             const up = pt.y + estH > window.innerHeight && pt.y > estH;
-            // Clamp into the viewport so a menu spawned near the right/bottom edge stays fully on-screen.
             const w = props.fixedWidth ?? props.minWidth ?? 180;
             const left = Math.max(8, Math.min(pt.x, window.innerWidth - w - 8));
             setRect({ left, top: pt.y, width: 0, up });
@@ -92,13 +82,11 @@ export const Popover: Component<{
         setVars(readThemeVars(el));
     });
 
+    // Esc-dismiss via the shared scope stack (not a per-popover listener). Exclusive so the menu's own arrow/enter keys aren't shadowed by shortcuts underneath.
     createEffect(() => {
         if (!props.open) return;
-        const onKey = (e: KeyboardEvent): void => {
-            if (e.key === "Escape") props.onClose();
-        };
-        window.addEventListener("keydown", onKey);
-        onCleanup(() => window.removeEventListener("keydown", onKey));
+        installKeyDispatcher();
+        onCleanup(pushScope("popover", { exclusive: true, onEscape: () => props.onClose() }));
     });
 
     const tb = (): Record<string, string> =>
@@ -118,9 +106,7 @@ export const Popover: Component<{
                         class={`fixed z-popover overflow-y-auto rounded-lg border border-line bg-panel font-body text-ink shadow-2xl ${props.panelClass ?? ""}`}
                         style={{
                             ...vars(),
-                            // `end` pins the panel's right edge to the anchor's right edge (right-aligned
-                            // dropdowns); `center` (needs fixedWidth) centers the panel on the anchor's
-                            // horizontal midpoint; otherwise left-align. All clamped into the viewport.
+                            // end = right-edge aligned; center (needs fixedWidth) = anchor midpoint; else left. All clamped into the viewport.
                             ...(props.align === "end"
                                 ? {
                                       right: `${Math.max(8, window.innerWidth - (r().left + r().width))}px`,
@@ -147,8 +133,7 @@ export const Popover: Component<{
                                 : {
                                       "min-width": `${Math.max(r().width, props.minWidth ?? 140)}px`,
                                   }),
-                            // Pin to whichever side we open toward, and cap the height to the space actually
-                            // available on that side (scrolling inside) so the panel never runs off-screen.
+                            // Pin to the open side and cap height to the space available there so it never runs off-screen.
                             ...(r().up
                                 ? {
                                       bottom: `${window.innerHeight - r().top}px`,
@@ -168,16 +153,14 @@ export const Popover: Component<{
     );
 };
 
-// ── Modal ──
-// A centered panel over a dimmed backdrop. Rendered inline (not portaled) so it inherits the active
-// theme from its DOM ancestor; pass `vars` to stamp a theme snapshot when mounted outside a themed tree.
+// Rendered inline (not portaled) so it inherits the theme from its DOM ancestor; pass `vars` to stamp a snapshot when mounted outside a themed tree.
 type ModalSize = "sm" | "md" | "lg" | "xl" | "full";
 const MODAL_W: Record<ModalSize, string> = {
     sm: "max-w-[400px]",
     md: "max-w-[520px]",
     lg: "max-w-[720px]",
     xl: "max-w-[960px]",
-    full: "max-w-[1520px]", // workspace modals (generate / theme / data editor / template preview)
+    full: "max-w-[1520px]",
 };
 type Scrim = "dim" | "blur" | "light";
 const SCRIM: Record<Scrim, string> = {
@@ -192,7 +175,7 @@ export const Modal: Component<{
     onClose: () => void;
     size?: ModalSize;
     scrim?: Scrim;
-    surface?: Surface; // panel (default) or canvas ground
+    surface?: Surface;
     z?: number;
     animate?: boolean;
     vars?: JSX.CSSProperties;
@@ -210,11 +193,17 @@ export const Modal: Component<{
                 ],
                 { duration: 190, easing: "cubic-bezier(.2,.7,.2,1)", fill: "both" },
             );
-        const onKey = (e: KeyboardEvent): void => {
-            if (e.key === "Escape") props.onClose();
-        };
-        window.addEventListener("keydown", onKey);
-        onCleanup(() => window.removeEventListener("keydown", onKey));
+        // Exclusive scope: Esc dismisses, lower-level shortcuts are blocked while open, and focus is trapped + restored.
+        installKeyDispatcher();
+        const disposeScope = pushScope("modal", {
+            exclusive: true,
+            onEscape: () => props.onClose(),
+        });
+        const disposeTrap = trapFocus(panel);
+        onCleanup(() => {
+            disposeScope();
+            disposeTrap();
+        });
     });
     return (
         <div
@@ -227,7 +216,10 @@ export const Modal: Component<{
             />
             <div
                 ref={panel}
-                class={`relative w-full ${MODAL_W[props.size ?? "md"]} rounded-2xl border border-line ${SURFACE[props.surface ?? "panel"]} shadow-2xl ${props.class ?? ""}`}
+                role="dialog"
+                aria-modal="true"
+                tabindex="-1"
+                class={`relative w-full ${MODAL_W[props.size ?? "md"]} rounded-2xl border border-line outline-none ${SURFACE[props.surface ?? "panel"]} shadow-2xl ${props.class ?? ""}`}
             >
                 {props.children}
             </div>
@@ -235,7 +227,6 @@ export const Modal: Component<{
     );
 };
 
-// ── ConfirmModal (composite on Modal) ──
 export const ConfirmModal: Component<{
     title: string;
     body: JSX.Element;
@@ -270,7 +261,6 @@ export const ConfirmModal: Component<{
     </Modal>
 );
 
-// ── FloatingBar (composite) ──
 type BarTone = "dark" | "panel";
 const BAR_TONE: Record<BarTone, string> = {
     dark: "border border-white/10 bg-black/55 text-white/80",
@@ -325,12 +315,7 @@ export const FloatingBar: Component<
     );
 };
 
-// ── FloatingPanel ──
-// The inline (non-portaled) surface shell — the panel counterpart to FloatingBar. The studio's floating
-// asides (element palette, minimap) and inline anchored popovers (toolbar color/link flyouts, the insert
-// picker) all share this `border + rounded + bg-panel + shadow + backdrop-blur` chrome. Positioning is the
-// consumer's (absolute/fixed via `class`/`style`); this owns only the surface. `shadow="panel"` uses the
-// studio's theme-derived `--panel-shadow` (defined at the Studio root); `"2xl"` is a plain lifted popover.
+// The inline (non-portaled) surface shell — panel counterpart to FloatingBar. Positioning is the consumer's; this owns only the surface.
 type PanelPad = "none" | "sm" | "md" | "lg";
 const PANEL_PAD: Record<PanelPad, string> = {
     none: "",
@@ -350,7 +335,7 @@ export const FloatingPanel: Component<
         pad?: PanelPad;
         rounded?: PanelRounded;
         shadow?: "panel" | "2xl" | "lg"; // panel = var(--panel-shadow) studio chrome; else a plain lift
-        bg?: "solid" | "translucent"; // bg-panel vs bg-panel/95 (default translucent)
+        bg?: "solid" | "translucent";
     }
 > = (props) => {
     const [local, rest] = splitProps(props, [

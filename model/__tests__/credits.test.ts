@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { costOf, describeUsage, mergeUsage } from "@model/credits";
 
-// Tier-A pure: the metered-credit math. Unit prices: plan 3 · section 2 · image 5 · text 1.
+// Unit prices: plan 3 · section 2 · image 5 · text 1.
 
 describe("costOf", () => {
     it("floors an empty bag at 1 so nothing is free", () => {

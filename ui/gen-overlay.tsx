@@ -3,11 +3,7 @@ import { Show } from "solid-js";
 import type { Rect } from "@engine/node";
 import { Z } from "./z";
 
-// The in-place "generating" treatment painted over a region's box while it forms — an accent light sweeping
-// down through it with the frame glowing (busy), a brief danger ring (error), or nothing extra (done). Used
-// by both the section-gen and element-gen stages (their only real differences are speed/height/mix/ring —
-// all props). `base` renders under the light; `children` render over it (a status chip). Keyframes live in
-// ui/styles.css (`gen-lightsweep`/`gen-frameglow`); speed is set per-instance via the `--gen-speed` var.
+// Keyframes live in ui/styles.css (gen-lightsweep/gen-frameglow); speed via the --gen-speed var.
 
 const DANGER = "#e5484d";
 
@@ -15,16 +11,16 @@ export const GenOverlay: Component<{
     box: Rect;
     accent: string;
     state: "busy" | "done" | "error";
-    radius?: number; // box corner radius, px (default 8)
-    speed?: number; // sweep/glow animation seconds (default 2.4)
-    sweepHeight?: string; // the light's height as a % of the box (default "50%")
-    accentMix?: number; // sweep gradient accent-mix % (default 20)
-    ringWidth?: string; // frame-glow inset ring width (default "2px")
-    wash?: boolean; // a faint accent wash over the whole box (the old element shows through)
-    z?: number; // z-index (default Z.panel — sits with the canvas panels)
+    radius?: number; // px (default 8)
+    speed?: number; // seconds (default 2.4)
+    sweepHeight?: string; // default "50%"
+    accentMix?: number; // accent-mix % (default 20)
+    ringWidth?: string; // default "2px"
+    wash?: boolean; // faint accent wash; the old element shows through
+    z?: number; // default Z.panel
     blockPointer?: boolean; // stop canvas pointer events (else pointer-transparent)
-    base?: JSX.Element; // content painted UNDER the light (e.g. an opaque cover + skeleton)
-    children?: JSX.Element; // content painted OVER the light (e.g. a centre status chip)
+    base?: JSX.Element; // painted under the light
+    children?: JSX.Element; // painted over the light
 }> = (props) => (
     <div
         class={`absolute overflow-hidden ${props.blockPointer ? "" : "pointer-events-none"}`}

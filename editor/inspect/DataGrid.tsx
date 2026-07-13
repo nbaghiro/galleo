@@ -1,9 +1,3 @@
-// A reusable spreadsheet-like data grid for chart/diagram elements: the adaptive grid (series /
-// label-value / points / matrix / scalar / list / hierarchy / graph) + toolbar + numeric & count
-// validation, editing the element's data live. Used inline in the inspector (compact) and as the right
-// pane of the full data-editor modal. A different type can have a different shape, so both call sites
-// re-mount this by keying on the element's committed type.
-
 import type { Component, JSX } from "solid-js";
 import { For, Index, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
@@ -40,7 +34,6 @@ const CELL = "border-b border-r border-line/50";
 const IN =
     "w-full min-w-[72px] bg-transparent px-2.5 py-2 text-[13px] text-ink outline-none focus:bg-canvas";
 const DEL = "px-2 text-[13px] text-muted transition-colors hover:text-accent";
-// Extra classes layered onto a numeric CellInput to flag an invalid number.
 const numRing = (v: string): string =>
     invalidNumber(v) ? "rounded-sm bg-rose-500/5 ring-1 ring-inset ring-rose-400/70" : "";
 
@@ -65,8 +58,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
     const currentData = (): Record<string, unknown> =>
         (getElementAt(editor.artifact, addr)?.data ?? {}) as Record<string, unknown>;
 
-    // Serialize the model to the element's string fields + commit. Edits under one field coalesce into a
-    // single undo step; a new field/structural op starts a new one.
+    // Edits under one field coalesce into a single undo step; a new field/structural op starts a new one.
     function apply(coalesceSuffix: string): void {
         commit(
             updateDataAt(editor.artifact, addr, {
@@ -517,7 +509,6 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                 </table>
             );
         }
-        // graph (flow): nodes + edges
         const m = model as GraphModel;
         return (
             <div class="flex flex-col gap-6">

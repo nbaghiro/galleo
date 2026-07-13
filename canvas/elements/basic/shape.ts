@@ -4,26 +4,20 @@ import type { Tokens } from "@themes";
 import { GHOST, register } from "@elements/spec";
 import { fixed, grow } from "@model/geometry";
 
-// Freeform vector shapes — the one design primitive the catalog was missing (only `gradient` lived under
-// Decoration). A shape is a self-painted `surface`: the engine sizes its box, we draw the geometry into it
-// via the backend-abstract DrawContext (same API charts use), so it renders identically on canvas, PNG,
-// and PDF. The primary colour defaults to the theme accent (so a bare shape belongs to the deck) and
-// filled shapes take an optional outline; line/arrow are stroke-only.
-
 type ShapeKind = "rectangle" | "ellipse" | "triangle" | "star" | "line" | "arrow";
 
 interface ShapeData {
     kind: ShapeKind;
-    fill?: string; // primary colour (fill for solids, line colour for line/arrow); unset → theme accent
-    stroke?: string; // outline colour for filled shapes; unset → no outline
-    strokeWidth?: number; // outline / line thickness in px
-    radius?: number; // corner radius (rectangle only)
-    height?: number; // box height in px (width fills the column, resized via the % handle)
+    fill?: string; // fill for solids, line colour for line/arrow; unset → theme accent
+    stroke?: string; // outline for filled shapes; unset → none
+    strokeWidth?: number; // px
+    radius?: number; // rectangle only
+    height?: number; // box height px; width fills the column
 }
 
 const isStroked = (k: ShapeKind): boolean => k === "line" || k === "arrow";
 
-// A closed ellipse path from a bounding box (4 cubic beziers — the standard kappa approximation).
+// 4 cubic beziers, standard kappa approximation (0.5523).
 function ellipsePath(p: PathSink, x: number, y: number, w: number, h: number): void {
     const cx = x + w / 2;
     const cy = y + h / 2;
@@ -39,7 +33,6 @@ function ellipsePath(p: PathSink, x: number, y: number, w: number, h: number): v
     p.closePath();
 }
 
-// A closed n-point star centred at (cx,cy), outer radius r.
 function starPath(p: PathSink, cx: number, cy: number, r: number, points: number): void {
     const inner = r * 0.42;
     for (let k = 0; k < points * 2; k++) {
@@ -55,11 +48,11 @@ function starPath(p: PathSink, cx: number, cy: number, r: number, points: number
 
 function paintShape(g: DrawContext, box: Rect, d: ShapeData, theme: Tokens): void {
     const { w, h } = box;
-    const color = d.fill ?? theme.accent; // fill for solids, line colour for line/arrow
-    const stroke = d.stroke || undefined; // outline for filled shapes
+    const color = d.fill ?? theme.accent;
+    const stroke = d.stroke || undefined;
     const line = isStroked(d.kind);
     const sw = d.strokeWidth ?? (line ? 3 : 2);
-    // Inset by half the stroke so an outline / line cap isn't clipped at the box edge.
+    // inset half the stroke so the outline/line cap isn't clipped at the box edge.
     const i = stroke || line ? sw / 2 : 0;
     const iw = Math.max(0, w - 2 * i);
     const ih = Math.max(0, h - 2 * i);
@@ -156,7 +149,7 @@ export const shapeElement: ElementSpec<ShapeData> = {
         surface: { paint: (g, box) => paintShape(g, box, d, ctx.theme) },
     }),
     resize: { height: { key: "height", min: 24, max: 600, step: 8 } },
-    // A surface has no fill leaf, so auto-skeletonize would tag a 16:9 ghost — draw a clean rounded block.
+    // surface has no fill leaf, so auto-skeletonize would tag a 16:9 ghost — draw a block.
     skeleton: (): EngineNode => ({ w: grow(), h: fixed(120), fill: { color: GHOST, radius: 12 } }),
     bar: ["kind", "fill"],
     controls: CONTROLS,

@@ -5,19 +5,14 @@ import { scaleBand, scaleLinear, scalePoint } from "d3-scale";
 import { curveCatmullRom, curveLinear } from "d3-shape";
 import type { CurveFactory } from "d3-shape";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
 export type PaletteMode = "ramp" | "categorical";
 
-// Authored/persisted chart data (lives in the artifact JSONB). String-based for now so the shared text
-// inspector + legacy `{ kind, values, height }` charts keep working; a structured/grid editor replaces
-// the strings later. `values` holds one series per line, points comma-separated within a line.
 export interface ChartData {
-    type?: string; // bar | line | area | pie | donut | radar
-    kind?: string; // legacy discriminant (bar | line | pie) — folded into `type` on normalize
+    type?: string;
+    kind?: string; // legacy discriminant, folded into `type` on normalize
     values: string; // series by newline, points by comma
-    categories?: string; // x-axis labels, comma-separated
-    seriesNames?: string; // legend labels, comma-separated
+    categories?: string; // comma-separated
+    seriesNames?: string; // comma-separated
     palette?: PaletteMode;
     stacked?: boolean;
     smooth?: boolean;
@@ -39,7 +34,6 @@ export interface ChartOptions {
     showGrid: boolean;
 }
 
-// A chart after parsing + defaulting — the single shape every plot renders from.
 export interface ResolvedChart {
     type: string;
     series: Series[];
@@ -47,8 +41,7 @@ export interface ResolvedChart {
     options: ChartOptions;
 }
 
-// The surface handed to a plot: local-origin size (draw from 0,0), theme tokens, resolved options, and
-// a palette factory (n colors derived from the theme accent per the active palette mode).
+// local-origin size — plots draw from 0,0
 export interface PlotCtx {
     g: DrawContext;
     W: number;
@@ -58,17 +51,12 @@ export interface PlotCtx {
     colors: (n: number) => string[];
 }
 
-// A registered chart type. Adding one = a single entry + registerChart() — no engine/element change.
 export interface ChartType {
     id: string;
     label: string;
     render: (chart: ResolvedChart, ctx: PlotCtx) => void;
 }
 
-// ── Registry ──────────────────────────────────────────────────────────────────
-
-// The chart-type registry — mirrors the element registry (@elements/spec). Each type module
-// (bar.ts, line.ts, …) registers its type at import; render.ts imports them for the side effect.
 const registry = new Map<string, ChartType>();
 
 export function registerChart(type: ChartType): void {
@@ -79,12 +67,10 @@ export function getChart(id: string): ChartType | undefined {
     return registry.get(id);
 }
 
-// Options for the element's "Type" control, in registration order (bar · line · area · pie · donut · radar).
+// in registration order
 export function chartTypeOptions(): { label: string; value: string }[] {
     return [...registry.values()].map((t) => ({ label: t.label, value: t.id }));
 }
-
-// ── Data ──────────────────────────────────────────────────────────────────────
 
 function splitList(s: string | undefined): string[] {
     return (s ?? "")
@@ -93,8 +79,7 @@ function splitList(s: string | undefined): string[] {
         .filter(Boolean);
 }
 
-// One series per line, points comma-separated. A single-line `values` (the legacy shape) parses to one
-// series — so existing `{ kind, values }` charts keep rendering unchanged.
+// a single-line `values` (legacy shape) parses to one series
 function parseSeries(values: string, names: string[]): Series[] {
     return (values ?? "")
         .split("\n")
@@ -127,14 +112,12 @@ export function normalize(d: ChartData): ResolvedChart {
     };
 }
 
-// Category labels, deriving 1..n from the longest series when none are authored.
+// falls back to 1..n from the longest series when none are authored
 export function catList(chart: ResolvedChart): string[] {
     if (chart.categories.length) return chart.categories;
     const n = Math.max(0, ...chart.series.map((s) => s.points.length));
     return Array.from({ length: n }, (_, i) => String(i + 1));
 }
-
-// ── Palette ─────────────────────────────────────────────────────────────────────
 
 function rgb2hsl(r: number, g: number, b: number): [number, number, number] {
     r /= 255;
@@ -164,10 +147,7 @@ function hsl2hex(h: number, s: number, l: number): string {
     return `#${chan(0)}${chan(8)}${chan(4)}`;
 }
 
-// N series colors from the single theme accent. "ramp" steps the accent's opacity — monochrome and
-// always on-brand (the same trick the old pie chart used per slice). "categorical" rotates the accent's
-// hue for distinct-but-related colors, falling back to a lightness ramp when the accent is near-neutral
-// (a mono theme should yield a mono chart, faithfully).
+// categorical rotates the accent hue, falling back to a lightness ramp when the accent is near-neutral
 export function seriesColors(theme: Tokens, n: number, mode: PaletteMode): string[] {
     const count = Math.max(1, n);
     if (mode === "ramp") {
@@ -190,10 +170,6 @@ export function seriesColors(theme: Tokens, n: number, mode: PaletteMode): strin
     return Array.from({ length: count }, (_, i) => hsl2hex(h + (offsets[i] ?? i * 54), S, L));
 }
 
-// ── Chrome ────────────────────────────────────────────────────────────────────
-
-// Chart labels typeset in the theme's own UI font, so a chart inherits the artifact's typography the
-// same way it inherits its colors. The font is loaded by the app; the surface just names it.
 export const uiFont = (t: Tokens): string => fontStack("ui", t);
 
 export const labelStyle = (theme: Tokens, extra?: Partial<DrawTextStyle>): DrawTextStyle => ({
@@ -203,11 +179,8 @@ export const labelStyle = (theme: Tokens, extra?: Partial<DrawTextStyle>): DrawT
     ...extra,
 });
 
-// Interior grid lines are a softened line token — lighter than the border-weight `line` so they read as
-// scaffolding, not chrome.
 export const gridColor = (t: Tokens): string => mix(t.line, t.surface, 0.5);
 
-// Compact number formatting for axis ticks + value labels (1.2k, 3.4M, 42).
 export function fmt(n: number): string {
     const a = Math.abs(n);
     if (a >= 1e6) return `${trim(n / 1e6)}M`;
@@ -218,7 +191,6 @@ function trim(n: number): string {
     return String(Math.round(n * 10) / 10);
 }
 
-// Top of the plot: the y-axis maximum. Per-category sums when stacked, else the overall max value.
 export function yMax(chart: ResolvedChart): number {
     if (chart.options.stacked) {
         const cats = catList(chart);
@@ -230,7 +202,7 @@ export function yMax(chart: ResolvedChart): number {
     return Math.max(1, ...chart.series.flatMap((s) => s.points));
 }
 
-// A centered single-row legend at `top`. Returns the vertical space it consumed.
+// returns the vertical space it consumed
 export function legendRow(
     g: DrawContext,
     W: number,
@@ -263,8 +235,6 @@ export interface Frame {
     yTop: number; // pixel y of value 0 (the baseline)
 }
 
-// Reserve space for the legend / y-ticks / x-labels, draw all of that chrome, and return the inner plot
-// rect plus the x/y scales the marks draw against. Shared by bar, line, and area.
 export function cartesianFrame(
     g: DrawContext,
     W: number,
@@ -337,17 +307,12 @@ export function cartesianFrame(
     return { plot, x: xPos, bw, y, yTop: y(0) };
 }
 
-// ── Shared plot helpers ─────────────────────────────────────────────────────────
-
 export const curveFor = (smooth: boolean): CurveFactory =>
     smooth ? curveCatmullRom.alpha(0.5) : curveLinear;
 
-// d3-shape's generators are typed against CanvasRenderingContext2D; our PathSink is the same structural
-// slice, so the bridge is a single localized cast at the `.context()` call.
+// d3-shape generators type against CanvasRenderingContext2D; our PathSink is the structural slice cast at `.context()`
 export type Sink = CanvasRenderingContext2D;
 
-// Scatter + bubble share one pair of linear axes. Draws the ticks/gridlines/baseline and returns the
-// value→pixel scales the marks plot against (mirrors `cartesianFrame`, but both axes numeric).
 export interface NumFrame {
     x: (v: number) => number;
     y: (v: number) => number;
@@ -407,9 +372,7 @@ export function numericAxes(
     return { x, y };
 }
 
-// Pie + donut share everything but the inner radius. Both use the first series as the slice values and
-// the categories as slice labels. Slices are drawn centered at (cx, cy) with canvas angles (0 = top,
-// clockwise) — d3.arc() centers at the origin, which would pin the pie to the box's top-left corner.
+// slices drawn manually centered at (cx, cy); d3.arc() centers at the origin, which would pin the pie to the top-left
 export function pieLike(donut: boolean) {
     return (chart: ResolvedChart, ctx: PlotCtx): void => {
         const { g, W, H, theme } = ctx;

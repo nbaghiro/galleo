@@ -1,5 +1,3 @@
-// The proposals template set (all variants — un-sharded from the size-split -extra/-extra2 files).
-
 import type { ArtifactContent } from "@model/artifact";
 import {
     badge,
@@ -23,11 +21,6 @@ import {
     t,
     table,
 } from "@model/authoring";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Template 1 — Client project proposal (deck)
-// Foldwork, a brand & digital studio, pitching a rebrand to Atlas Coffee Roasters.
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const projectProposal: ArtifactContent = deck(
     "studio",
@@ -227,11 +220,6 @@ export const projectProposal: ArtifactContent = deck(
     bgImage("foldwork-bg", 0.35),
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Template 2 — Monthly investor update (doc)
-// Cadence, a usage-based billing platform, to its investors for May 2026.
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const investorUpdate: ArtifactContent = doc(
     "signal",
     [
@@ -383,12 +371,6 @@ export const investorUpdate: ArtifactContent = doc(
     ],
     bgImage("cadence-bg", 0.3),
 );
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Template 1 — Business proposal (doc)
-// Cascade Solar & Energy proposing a 1.4 MW rooftop + carport solar system to
-// Brightline Manufacturing.
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const businessProposal: ArtifactContent = doc(
     "mineral",
@@ -591,11 +573,6 @@ export const businessProposal: ArtifactContent = doc(
     bgImage("cascade-bg", 0.35),
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Template 2 — Quarterly board meeting deck (deck)
-// Tideline, a product-analytics SaaS, presenting Q2 FY2026 to its board.
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const boardDeck: ArtifactContent = deck(
     "press",
     [
@@ -797,16 +774,9 @@ export const boardDeck: ArtifactContent = deck(
     bgImage("tideline-bg", 0.3),
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Template 1 — Sponsorship proposal (deck)
-// Harborlight Festival, a three-day waterfront music, food & arts festival in
-// Oakhaven, pitching brands on a 2026 sponsorship.
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const sponsorshipDeck: ArtifactContent = deck(
     "deco",
     [
-        // ── Cover ────────────────────────────────────────────────────────────
         section(
             "cover",
             group(
@@ -821,7 +791,6 @@ export const sponsorshipDeck: ArtifactContent = deck(
             { background: bgImage("harborlight-pier-sunset-crowd", 0.55) },
         ),
 
-        // ── The property ─────────────────────────────────────────────────────
         section(
             "property",
             split(
@@ -842,7 +811,6 @@ export const sponsorshipDeck: ArtifactContent = deck(
             ),
         ),
 
-        // ── Our audience ─────────────────────────────────────────────────────
         section(
             "audience",
             row(
@@ -855,7 +823,6 @@ export const sponsorshipDeck: ArtifactContent = deck(
             ),
         ),
 
-        // ── Reach & engagement ───────────────────────────────────────────────
         section(
             "reach",
             split(
@@ -883,7 +850,6 @@ export const sponsorshipDeck: ArtifactContent = deck(
             ),
         ),
 
-        // ── Why partner with us ──────────────────────────────────────────────
         section(
             "why",
             group(
@@ -898,7 +864,6 @@ export const sponsorshipDeck: ArtifactContent = deck(
             { background: bgImage("harborlight-crowd-golden-hour", 0.6) },
         ),
 
-        // ── On-site activations ──────────────────────────────────────────────
         section(
             "activations",
             row(
@@ -929,7 +894,6 @@ export const sponsorshipDeck: ArtifactContent = deck(
             ),
         ),
 
-        // ── Sponsorship tiers ────────────────────────────────────────────────
         section(
             "tiers",
             group(
@@ -945,7 +909,6 @@ export const sponsorshipDeck: ArtifactContent = deck(
             ),
         ),
 
-        // ── What sponsors get ────────────────────────────────────────────────
         section(
             "benefits",
             split(
@@ -971,7 +934,6 @@ export const sponsorshipDeck: ArtifactContent = deck(
             ),
         ),
 
-        // ── Past partners & results ──────────────────────────────────────────
         section(
             "results",
             row(
@@ -984,7 +946,6 @@ export const sponsorshipDeck: ArtifactContent = deck(
             ),
         ),
 
-        // ── Partner quote (feature background) ────────────────────────────────
         section(
             "quote",
             quote(
@@ -994,7 +955,6 @@ export const sponsorshipDeck: ArtifactContent = deck(
             { background: bgImage("harborlight-fireworks-harbor", 0.62) },
         ),
 
-        // ── The ask / next steps ─────────────────────────────────────────────
         section(
             "ask",
             split(
@@ -1015,16 +975,9 @@ export const sponsorshipDeck: ArtifactContent = deck(
     bgImage("harborlight-bg-water-texture", 0.32),
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Template 2 — Statement of Work (doc)
-// Anvil & Oak (a product studio) delivering a commerce replatform and a custom
-// returns portal for Wexford Outdoor Co.
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const sow: ArtifactContent = doc(
     "blue",
     [
-        // ── Cover ────────────────────────────────────────────────────────────
         section(
             "cover",
             group(
@@ -1042,7 +995,6 @@ export const sow: ArtifactContent = doc(
             { background: bgImage("sow-blueprint-desk-laptop", 0.55) },
         ),
 
-        // ── Project overview ─────────────────────────────────────────────────
         section(
             "overview",
             split(
@@ -1063,7 +1015,6 @@ export const sow: ArtifactContent = doc(
             ),
         ),
 
-        // ── Objectives ───────────────────────────────────────────────────────
         section(
             "objectives",
             group(
@@ -1082,7 +1033,6 @@ export const sow: ArtifactContent = doc(
             ),
         ),
 
-        // ── Engagement at a glance ───────────────────────────────────────────
         section(
             "at-a-glance",
             row(
@@ -1095,7 +1045,6 @@ export const sow: ArtifactContent = doc(
             ),
         ),
 
-        // ── Our approach ─────────────────────────────────────────────────────
         section(
             "approach",
             split(
@@ -1119,7 +1068,6 @@ export const sow: ArtifactContent = doc(
             ),
         ),
 
-        // ── Scope of work ────────────────────────────────────────────────────
         section(
             "scope",
             group(
@@ -1137,7 +1085,6 @@ export const sow: ArtifactContent = doc(
             ),
         ),
 
-        // ── Out of scope ─────────────────────────────────────────────────────
         section(
             "out-of-scope",
             split(
@@ -1163,7 +1110,6 @@ export const sow: ArtifactContent = doc(
             ),
         ),
 
-        // ── Deliverables ─────────────────────────────────────────────────────
         section(
             "deliverables",
             group(
@@ -1175,7 +1121,6 @@ export const sow: ArtifactContent = doc(
             ),
         ),
 
-        // ── Timeline & milestones ────────────────────────────────────────────
         section(
             "timeline",
             group(
@@ -1193,7 +1138,6 @@ export const sow: ArtifactContent = doc(
             ),
         ),
 
-        // ── Roles & responsibilities ─────────────────────────────────────────
         section(
             "roles",
             group(
@@ -1209,7 +1153,6 @@ export const sow: ArtifactContent = doc(
             ),
         ),
 
-        // ── Pricing & payment terms ──────────────────────────────────────────
         section(
             "pricing",
             group(
@@ -1225,7 +1168,6 @@ export const sow: ArtifactContent = doc(
             ),
         ),
 
-        // ── Assumptions ──────────────────────────────────────────────────────
         section(
             "assumptions",
             group(
@@ -1247,7 +1189,6 @@ export const sow: ArtifactContent = doc(
             ),
         ),
 
-        // ── Acceptance / signatures ──────────────────────────────────────────
         section(
             "acceptance",
             group(

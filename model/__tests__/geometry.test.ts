@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fit, fixed, grow, percent } from "@model/geometry";
 
-// Tier-A pure: the Clay-style Size constructors. Constant inputs → the exact discriminated-union shape.
-
 describe("fit / grow", () => {
     it("fit carries min + max when given", () => {
         expect(fit(1, 2)).toEqual({ mode: "fit", min: 1, max: 2 });

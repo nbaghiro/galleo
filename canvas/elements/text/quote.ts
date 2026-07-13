@@ -4,7 +4,6 @@ import type { ElementInstance } from "@model/artifact";
 import { register, getElement } from "@elements/spec";
 import { fit, grow } from "@model/geometry";
 
-// A quote is a statement + attribution — both real text children.
 interface QuoteData {
     children: ElementInstance[];
 }

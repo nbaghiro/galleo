@@ -34,13 +34,8 @@ import {
     undo,
 } from "@editor/editor";
 
-// The store is a set of module-level singletons shared across the whole suite, so every test resets it by
-// loading a fresh artifact (which clears history / selection / hover / editing / preview but does NOT bump
-// the edit sequence). editSeq accumulates across tests, so assertions compare deltas, never absolutes.
-//
-// This is a Tier-B suite: zero mocks. The only seam is the clock + reactive context — happy-dom supplies a
-// real `window` (so the coalesce path's window.setTimeout resolves) and `createRoot` a reactive scope; every
-// `@canvas` op runs for real against the real element registry.
+// The store is module-level singletons shared across the suite; each test resets by loading a fresh artifact.
+// editSeq accumulates across tests, so assertions compare deltas, never absolutes.
 
 const makeArt = (ids: string[]): ArtifactContent =>
     artifactOf(ids.map((id) => sectionOf(emptyRegion(), { id })));
@@ -54,7 +49,7 @@ const inRoot = (body: () => void): void =>
     });
 
 beforeEach(() => {
-    // Baseline reset — every test that needs a specific fixture re-loads its own on top of this.
+    // baseline reset; each test reloads its own fixture on top
     loadArtifactContent("base", makeArt(["a", "b"]));
 });
 
@@ -103,7 +98,7 @@ describe("commit / history", () => {
             commit(b, { coalesce: "slider" });
             expect(editor.artifact).toBe(b); // content still updates on the folded commit
 
-            // Both commits bumped the sequence, but they share ONE history entry.
+            // both bumped the sequence but share ONE history entry
             expect(editSeq()).toBe(seq0 + 2);
             undo();
             expect(editor.artifact).toBe(base);
@@ -200,7 +195,7 @@ describe("commitOver", () => {
             const base = makeArt(["a"]);
             loadArtifactContent("doc", base);
 
-            // The insert flow paints a placeholder live (no history) then lands the real tree over `base`.
+            // insert flow paints a placeholder live (no history), then lands the real tree over base
             const transient = makeArt(["a", "placeholder"]);
             setArtifactLive(transient);
 
@@ -317,8 +312,8 @@ describe("theme preview", () => {
 
             startThemePreview("studio");
             expect(previewingTheme()).toBe(true);
-            expect(editor.artifact.theme).toBe("studio"); // live tree recolors
-            expect(themeForPersist()).toBe("default"); // ...but autosave keeps the saved theme
+            expect(editor.artifact.theme).toBe("studio");
+            expect(themeForPersist()).toBe("default"); // autosave keeps the saved theme
             expect(previewSavedTheme()).toBe("default");
             expect(editSeq()).toBe(seq0); // a preview swap alone never triggers a save
             expect(canUndo()).toBe(false);
@@ -342,7 +337,7 @@ describe("theme preview", () => {
 
             keepPreviewedTheme();
             expect(previewingTheme()).toBe(false);
-            expect(editor.artifact.theme).toBe("studio"); // kept live
+            expect(editor.artifact.theme).toBe("studio");
             expect(themeForPersist()).toBe("studio"); // now the saved theme too
             expect(editSeq()).toBe(seq0 + 1);
             expect(canUndo()).toBe(true);

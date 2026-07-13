@@ -29,8 +29,6 @@ import {
     weightFromFont,
 } from "@canvas/render/pptx";
 
-// ---- mappers ----
-
 describe("cssColor", () => {
     it("parses #rrggbb, shorthand, and #rrggbbaa", () => {
         expect(cssColor("#A8572C")).toEqual({ color: "A8572C" });
@@ -251,7 +249,6 @@ describe("textSpec", () => {
         expect(runs[1]!.options!.breakLine).toBe(true);
         expect(runs[3]!.options!.breakLine).toBeUndefined();
         expect(runs[0]!.options!.bold).toBe(true); // weight 600 → bold
-        // box geometry + type styling in the expected units
         expect(options).toMatchObject({ x: 1, y: 1, w: 5, h: 1.125, align: "center", wrap: false });
         expect(options.fontSize).toBeCloseTo(pt(40), 6);
         expect(options.lineSpacing).toBeCloseTo(pt(54), 6);

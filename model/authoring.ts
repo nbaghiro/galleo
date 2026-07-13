@@ -1,15 +1,12 @@
 import type { ArtifactContent, ElementInstance, Section, SectionBackground } from "@model/artifact";
 import { emptyRegion, rowGroup } from "@model/section";
 
-// Concise builders for authoring demo artifacts (real content, full element variety).
-
 export const t = (text: string, style: string): ElementInstance => ({
     type: "text",
     data: { text, style },
 });
 
-// `seedOrSrc` is a full image URL when it starts with http (e.g. a resolved Unsplash photo); otherwise
-// it's a seed for a deterministic placeholder — so fixtures keep working and the agent can pass real URLs.
+// seedOrSrc: a full http URL, or a seed for a deterministic placeholder
 export const img = (seedOrSrc: string, aspect: number, radius = 14): ElementInstance => ({
     type: "image",
     data: {
@@ -51,10 +48,7 @@ export const chart = (kind: string, values: string, height = 240): ElementInstan
 
 export const divider = (): ElementInstance => ({ type: "divider", data: {} });
 
-// Column helpers for authoring a section's recursive `root`. `row(...)` lays children side by side in an
-// even split; `split(pct, a, b)` weights a two-column row; a plain `group(...)` stacks vertically;
-// `emptyRegion()` is a droppable blank column. A section's `root` is any element — a single leaf for a
-// full-width section, or a row of columns for a split.
+// row = even split; split(pct,…) = weighted two-column
 export const row = (...children: ElementInstance[]): ElementInstance => rowGroup(children);
 
 export const split = (

@@ -1,8 +1,6 @@
 import type { ArtifactContent } from "@model/artifact";
 
-// The account + library entities that live around artifacts — the user who owns them, the folders that
-// organize them, the templates you start them from. Wire DTOs shared backend ↔ frontend; pure types.
-
+// account + library wire DTOs (user, folders, templates), shared backend ↔ frontend
 export interface User {
     id: string;
     email: string;
@@ -24,8 +22,6 @@ export interface Template {
     description: string;
     content: ArtifactContent;
 }
-
-// --- request bodies ---
 
 export interface LoginBody {
     email?: string;

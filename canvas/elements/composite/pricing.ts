@@ -9,7 +9,6 @@ const checklist = (...items: string[]): ElementInstance => ({
     data: { children: items.map((i) => t(i, "body")), marker: "check" },
 });
 
-// --- pricing: plan · price · features · button, in a bordered box ---
 export const pricingElement = composite(
     "pricing",
     "Pricing",

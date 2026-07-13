@@ -3,7 +3,6 @@ import { register, bar, dot } from "@elements/spec";
 import { fit, grow } from "@model/geometry";
 import { composite, t, avatar, at, gbar } from "@elements/composite/shared";
 
-// --- testimonial: quote, then avatar + name/role row ---
 export const testimonialElement = composite(
     "testimonial",
     "Testimonial",

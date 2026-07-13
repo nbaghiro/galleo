@@ -2,13 +2,7 @@ import type { ArtifactContent } from "@model/artifact";
 import { artifactSpine, heading, stack } from "./system";
 import type { PromptParts } from "./system";
 
-// The generate-theme capability — produce a custom theme (a @themes ThemeInput: name + mood + isDark +
-// tokens) from a text prompt, or matched to an artifact's content. A theme is a coherent SYSTEM: eight
-// harmonious colors, a font trio, a corner radius, a heading weight, and a border/shadow character. The
-// output validates against `zTheme` and registers exactly like a built-in theme.
-
-// The bundled font families — the model must pick from these (they mirror the pickers in
-// app/views/ThemeEditor.tsx; move to @themes for a single source when convenient).
+// Must stay in sync with the pickers in app/views/ThemeEditor.tsx (move to @themes eventually).
 const DISPLAY_FONTS = [
     "Fraunces",
     "Playfair Display",
@@ -72,7 +66,6 @@ const THEME_RULES = stack(
     ),
 );
 
-// From a free-text mood/prompt (e.g. "warm mid-century, terracotta and cream, editorial serif").
 export function themeFromPromptParts(prompt: string, isDark?: boolean): PromptParts {
     return {
         system: stack(THEME_PERSONA, THEME_RULES),
@@ -84,7 +77,6 @@ export function themeFromPromptParts(prompt: string, isDark?: boolean): PromptPa
     };
 }
 
-// Matched to an artifact — read its content's mood and design a theme that fits it.
 export function themeFromArtifactParts(content: ArtifactContent, hint?: string): PromptParts {
     return {
         system: stack(THEME_PERSONA, THEME_RULES),

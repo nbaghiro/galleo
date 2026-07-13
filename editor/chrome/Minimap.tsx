@@ -6,16 +6,12 @@ import { FloatingPanel } from "@ui/overlay";
 import { Thumb } from "../canvas/Canvas";
 import { Icon } from "@ui/icons";
 
-// Floating left rail: a live thumbnail per section; click to jump-scroll, drag the grip to reorder.
-// "+ Section" appends one.
 export const Minimap: Component = () => {
     const [dragIx, setDragIx] = createSignal<number | null>(null);
     const [overIx, setOverIx] = createSignal<number | null>(null);
     const rowEls: (HTMLElement | undefined)[] = [];
-    let asideEl: HTMLElement | undefined; // scroll container — the root for thumbnail visibility
-    // Key rows by section id, not object reference: a content edit produces a new section object, so a
-    // reference-keyed <For> would remount (and re-observe) the edited thumbnail on every keystroke; the
-    // stable id keeps the row and just re-renders its content.
+    let asideEl: HTMLElement | undefined; // IO root for thumbnail visibility
+    // Key rows by section id, not object ref — else a content edit remounts (re-observes) the thumb every keystroke.
     const sectionIds = createMemo(() => editor.artifact.sections.map((s) => s.id));
 
     const startReorder = (ix: number, e: PointerEvent): void => {

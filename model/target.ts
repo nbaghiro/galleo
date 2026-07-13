@@ -1,14 +1,10 @@
 import type { Id } from "@model/artifact";
 
-// Stable addressing of selectable entities within an artifact. The engine tags geometry regions with
-// these ids; the editor parses them back into targets for selection, overlays, and content ops.
-// A section's content is one recursive tree (`section.root`), so an element is addressed purely by its
-// index PATH into that tree — `[]` is the root itself, `[0]` its first child, `[0,1]` a grandchild.
-// (Section ids are simple slugs without ":", so ":" is a safe separator.)
+// element addressed by index path into section.root ([] = root); ids never contain ":", the id separator
 
 export interface ElementAddress {
     section: Id;
-    path: number[]; // index path into the section's root tree; [] = the root node
+    path: number[]; // index path into section.root; [] = the root node
 }
 
 export type Target =
@@ -34,7 +30,7 @@ export function parseTarget(id: string): Target | null {
     return null;
 }
 
-// On click, the most specific target under the cursor wins: deeper element > element > section.
+// most specific wins: deeper element > element > section
 export function specificity(t: Target): number {
     if (t.kind === "section") return 0;
     return 1 + t.address.path.length;
@@ -45,7 +41,7 @@ export function targetsEqual(a: Target | null, b: Target | null): boolean {
     return regionId(a) === regionId(b);
 }
 
-// Esc walks up: nested element → parent element → the section's root → section → nothing.
+// Esc walks up: nested element → parent → root → section → nothing
 export function parentTarget(t: Target): Target | null {
     if (t.kind === "section") return null;
     const a = t.address;

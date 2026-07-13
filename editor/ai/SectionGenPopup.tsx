@@ -9,12 +9,6 @@ import { TextArea } from "@ui/inputs";
 import { closeSectionGen, runSectionGen, sectionGen } from "./section-gen";
 import { fetchSuggestions, suggestSections } from "./suggest";
 
-// The anchored "generate a section here" popup — opens off the bottom edge of the section the new one will
-// follow (the bottom-center pill's Generate button), takes a prompt, and hands off to runSectionGen (which
-// closes this and opens the in-canvas build animation). The quick-start chips are artifact-aware: free
-// deterministic gap suggestions by default, swapped for content-specific ones via the ✨ button (one cheap
-// cached call). Clicking a chip prefills the prompt.
-
 export const SectionGenPopup: Component = () => {
     const [text, setText] = createSignal("");
     const [chips, setChips] = createSignal<string[]>([]);
@@ -25,7 +19,6 @@ export const SectionGenPopup: Component = () => {
 
     const showing = createMemo(() => sectionGen.stage === "prompt");
 
-    // Content-specific suggestions on demand — one cached call per artifact; force a fresh set once refined.
     const refine = async (): Promise<void> => {
         const id = currentArtifactId();
         if (!id || loading()) return;
@@ -41,14 +34,12 @@ export const SectionGenPopup: Component = () => {
         }
     };
 
-    // The box of the section the new one follows (the Generate button is always per-section, so afterId set).
     const box = createMemo(() => {
         const id = showing() ? sectionGen.afterId : null;
         if (!id) return null;
         return regions().find((r) => r.id === sectionRegionId(id))?.box ?? null;
     });
 
-    // On each open: reset the text, seed the free deterministic suggestions, and focus the field.
     createEffect(() => {
         if (showing()) {
             setText("");
@@ -59,7 +50,6 @@ export const SectionGenPopup: Component = () => {
         }
     });
 
-    // Escape closes; click outside the panel closes.
     createEffect(() => {
         if (!showing()) return;
         const onKey = (e: KeyboardEvent): void => {

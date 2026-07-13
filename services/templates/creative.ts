@@ -1,5 +1,3 @@
-// The creative template set (all variants — un-sharded from the size-split -extra/-extra2 files).
-
 import type { ArtifactContent } from "@model/artifact";
 import {
     badge,
@@ -361,9 +359,6 @@ export const portfolio: ArtifactContent = web(
     bgImage("couture-paper-texture", 0.3),
 );
 
-// ── Personal & creative ─────────────────────────────────────────────────────
-// A believable about/bio site for an independent writer-designer.
-
 export const personalSite: ArtifactContent = web(
     "aura",
     [
@@ -538,9 +533,6 @@ export const personalSite: ArtifactContent = web(
     bgImage("wren-halloran-bg", 0.32),
 );
 
-// ── Personal & creative ─────────────────────────────────────────────────────
-// An elegant cover letter from a believable applicant for a specific role.
-
 export const coverLetter: ArtifactContent = doc(
     "sumi",
     [
@@ -643,7 +635,6 @@ export const coverLetter: ArtifactContent = doc(
 export const eventInvite: ArtifactContent = web(
     "rose",
     [
-        // 1 — Hero
         section(
             "s1",
             group(
@@ -660,7 +651,6 @@ export const eventInvite: ArtifactContent = web(
             { background: bgImage("wedding-hero-olive-grove-dusk", 0.55) },
         ),
 
-        // 2 — The invitation note
         section(
             "s2",
             group(
@@ -677,7 +667,6 @@ export const eventInvite: ArtifactContent = web(
             ),
         ),
 
-        // 3 — The couple (split, image right)
         section(
             "s3",
             split(
@@ -695,7 +684,6 @@ export const eventInvite: ArtifactContent = web(
             ),
         ),
 
-        // 4 — The details (three-up cards)
         section(
             "s4",
             row(
@@ -717,7 +705,6 @@ export const eventInvite: ArtifactContent = web(
             ),
         ),
 
-        // 5 — The schedule (table)
         section(
             "s5",
             group(
@@ -729,7 +716,6 @@ export const eventInvite: ArtifactContent = web(
             ),
         ),
 
-        // 6 — The venue (bgImage feature)
         section(
             "s6",
             group(
@@ -743,7 +729,6 @@ export const eventInvite: ArtifactContent = web(
             { background: bgImage("wedding-venue-quinta-hillside", 0.5) },
         ),
 
-        // 7 — Travel & stay (two-col bullets)
         section(
             "s7",
             row(
@@ -770,7 +755,6 @@ export const eventInvite: ArtifactContent = web(
             ),
         ),
 
-        // 8 — Gallery (three-up image grid)
         section(
             "s8",
             row(
@@ -789,7 +773,6 @@ export const eventInvite: ArtifactContent = web(
             ),
         ),
 
-        // 9 — A word from a friend (quote)
         section(
             "s9",
             quote(
@@ -798,7 +781,6 @@ export const eventInvite: ArtifactContent = web(
             ),
         ),
 
-        // 10 — RSVP (bgImage CTA)
         section(
             "s10",
             group(
@@ -820,7 +802,6 @@ export const eventInvite: ArtifactContent = web(
             { background: bgImage("wedding-rsvp-string-lights-evening", 0.55) },
         ),
 
-        // 11 — Footer
         section(
             "s11",
             row(
@@ -844,7 +825,6 @@ export const eventInvite: ArtifactContent = web(
             ),
         ),
 
-        // 12 — Fine print
         section(
             "s12",
             group(
@@ -862,7 +842,6 @@ export const eventInvite: ArtifactContent = web(
 export const photoEssay: ArtifactContent = doc(
     "sumi",
     [
-        // 1 — Cover
         section(
             "s1",
             group(
@@ -877,7 +856,6 @@ export const photoEssay: ArtifactContent = doc(
             { background: bgImage("kyoto-dawn-cover-misty-lane", 0.55) },
         ),
 
-        // 2 — Opening reflection
         section(
             "s2",
             group(
@@ -897,7 +875,6 @@ export const photoEssay: ArtifactContent = doc(
             ),
         ),
 
-        // 3 — Full image
         section(
             "s3",
             group(
@@ -909,7 +886,6 @@ export const photoEssay: ArtifactContent = doc(
             ),
         ),
 
-        // 4 — Split, image left
         section(
             "s4",
             split(
@@ -926,7 +902,6 @@ export const photoEssay: ArtifactContent = doc(
             ),
         ),
 
-        // 5 — Full image
         section(
             "s5",
             group(
@@ -938,7 +913,6 @@ export const photoEssay: ArtifactContent = doc(
             ),
         ),
 
-        // 6 — Split, image right
         section(
             "s6",
             split(
@@ -959,7 +933,6 @@ export const photoEssay: ArtifactContent = doc(
             ),
         ),
 
-        // 7 — Triptych gallery
         section(
             "s7",
             row(
@@ -987,7 +960,6 @@ export const photoEssay: ArtifactContent = doc(
             ),
         ),
 
-        // 8 — Quote / interlude (bgImage)
         section(
             "s8",
             quote(
@@ -997,7 +969,6 @@ export const photoEssay: ArtifactContent = doc(
             { background: bgImage("kyoto-dawn-bamboo-grove-fog", 0.55) },
         ),
 
-        // 9 — Split, image left
         section(
             "s9",
             split(
@@ -1014,7 +985,6 @@ export const photoEssay: ArtifactContent = doc(
             ),
         ),
 
-        // 10 — Full image
         section(
             "s10",
             group(
@@ -1026,7 +996,6 @@ export const photoEssay: ArtifactContent = doc(
             ),
         ),
 
-        // 11 — Split, image right
         section(
             "s11",
             split(
@@ -1043,7 +1012,6 @@ export const photoEssay: ArtifactContent = doc(
             ),
         ),
 
-        // 12 — Closing thought (bgImage)
         section(
             "s12",
             group(

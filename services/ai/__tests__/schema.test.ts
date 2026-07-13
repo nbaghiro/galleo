@@ -10,8 +10,6 @@ import {
     zTheme,
 } from "../schema";
 
-// Pure zod-contract tests — no DB, no network. Build real inputs, assert real parse outcomes.
-
 describe("zElement", () => {
     it("accepts a { type, data } instance; data is an OPEN record (extra keys tolerated)", () => {
         const ok = zElement.safeParse({
@@ -148,7 +146,6 @@ describe("zSectionPlan (zBeat.omit({ id }))", () => {
     it("omits `id`: a carried id is stripped from the parsed output, never surfacing", () => {
         const r = zSectionPlan.safeParse({ id: "s9", label: "New section", role: "proof" });
         expect(r.success).toBe(true);
-        // The omitted key is dropped by the schema — the runtime assigns a fresh, non-colliding id.
         expect(r.success && "id" in r.data).toBe(false);
     });
 });
@@ -176,11 +173,9 @@ describe("zRewrite / zTokens / zTheme", () => {
             headingWeight: 500,
         };
         expect(zTokens.safeParse(tokens).success).toBe(true);
-        // border/shadow/scrim are optional
         expect(
             zTokens.safeParse({ ...tokens, border: 1, shadow: "none", scrim: 0.4 }).success,
         ).toBe(true);
-        // a missing required token fails
         const { ink: _drop, ...missing } = tokens;
         expect(zTokens.safeParse(missing).success).toBe(false);
     });

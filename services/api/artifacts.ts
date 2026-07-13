@@ -9,12 +9,8 @@ import { SESSION_COOKIE } from "../auth";
 import { featuresFor } from "../features";
 import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
 
-// Artifact + Trash routes: list, create, read, patch (autosave), soft-delete/restore, and permanent
-// delete. The library list rows carry a lightweight cover + section filmstrip derived from the draft.
 export const artifacts = new Hono();
 
-// A tiny cover snippet (eyebrow · title · sub) pulled from the first section, so the library can
-// render a faithful preview without shipping the whole document.
 interface RawEl {
     type?: string;
     data?: { style?: string; text?: string; src?: string; children?: RawEl[] };
@@ -24,7 +20,6 @@ interface RawDraft {
     sections?: { background?: { image?: string }; root?: RawEl }[];
 }
 
-// Depth-first visit of a raw draft element + its nested group children.
 const walkRaw = (el: RawEl | undefined, visit: (el: RawEl) => void): void => {
     if (!el) return;
     visit(el);
@@ -51,8 +46,6 @@ function coverOf(draft: unknown): Cover {
     };
 }
 
-// A per-section summary for the library "filmstrip" — a short label + a coarse kind for each section,
-// so a layout can preview/navigate the document's structure without shipping the whole thing.
 function sectionsSummary(draft: unknown): SectionSummary[] {
     const d = draft as RawDraft;
     return (d.sections ?? []).map((sec, idx) => {
@@ -91,7 +84,7 @@ artifacts.get("/artifacts", async (c) => {
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await firstWorkspaceId(u.id);
     if (!ws) return c.json({ artifacts: [] });
-    const trashed = c.req.query("trashed") === "1"; // ?trashed=1 → the Trash list, else live artifacts
+    const trashed = c.req.query("trashed") === "1";
     const rows = await db
         .select({
             id: schema.artifacts.id,
@@ -126,7 +119,6 @@ artifacts.post("/artifacts", async (c) => {
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await currentWorkspace(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
-    // Plan gate: some tiers cap the number of live artifacts (resolved via the feature layer).
     const cap = limit(featuresFor(ws), "maxArtifacts");
     if (!isUnlimited(cap)) {
         const live = await db
@@ -185,7 +177,6 @@ artifacts.get("/artifacts/:id", async (c) => {
     });
 });
 
-// soft delete → moves to Trash (recoverable)
 artifacts.post("/artifacts/:id/trash", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -200,7 +191,6 @@ artifacts.post("/artifacts/:id/trash", async (c) => {
     return c.json({ ok: true });
 });
 
-// restore from Trash
 artifacts.post("/artifacts/:id/restore", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -215,7 +205,6 @@ artifacts.post("/artifacts/:id/restore", async (c) => {
     return c.json({ ok: true });
 });
 
-// permanent delete (one item — used from Trash)
 artifacts.delete("/artifacts/:id", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -229,7 +218,6 @@ artifacts.delete("/artifacts/:id", async (c) => {
     return c.json({ ok: true });
 });
 
-// empty Trash — permanently delete every trashed artifact in the workspace
 artifacts.delete("/trash", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);

@@ -3,10 +3,6 @@ import type { Rect, RenderCommand } from "@engine/node";
 import { fragment } from "@engine/layout";
 import { near } from "@canvas/testkit";
 
-// fragment() slices a tall flow of render commands into fixed-height pages: break at the lowest command
-// bottom-edge inside the page that doesn't cut any command, hard-break only when a single block is taller
-// than the page, and shift each page's commands to a local y = 0. Present + export both depend on this.
-
 const rect = (id: string, y: number, h: number, clip?: Rect): RenderCommand => ({
     kind: "rect",
     box: { x: 0, y, w: 100, h },

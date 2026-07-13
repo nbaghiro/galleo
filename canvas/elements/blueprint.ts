@@ -1,17 +1,12 @@
 import type { Section, ElementInstance } from "@model/artifact";
 import { LAYOUT_PRESETS, rowGroup } from "@model/section";
 
-// Blueprint sections — a planned-but-unwritten section stood up from its column plan, so its real engine
-// skeleton (layoutSectionSkeleton) shows the exact layout the writer is told to fill. Used by the
-// generation modal's build view and the editor's insert-a-section flow, so both preview the same ghost the
-// model then fills in.
-
-// The minimal plan a blueprint needs — a Beat (@model/ai) or the modal's SectionSlot both satisfy it.
+// a Beat (@model/ai) or the modal's SectionSlot both satisfy it
 export interface SectionBlueprint {
     id: string;
-    layout?: string; // a named layout preset (its column count + widths), e.g. "split-6040"
-    blocks?: string[]; // the block kind leading each column, in order
-    image?: boolean; // the section leads with a prominent image (used to guess a trailing image column)
+    layout?: string; // named layout preset, e.g. "split-6040"
+    blocks?: string[]; // block kind leading each column, in order
+    image?: boolean; // leads with a prominent image → guess a trailing image column
 }
 
 const t = (text: string, style: string): ElementInstance => ({
@@ -19,8 +14,6 @@ const t = (text: string, style: string): ElementInstance => ({
     data: { text, style },
 });
 
-// A stand-in element for a planned block kind — a real element the engine can skeletonize, so a stat cell
-// reads as a stat ghost, a chart cell as a chart ghost, and so on, matching what the writer will produce.
 export function placeholderBlock(kind: string): ElementInstance {
     switch (kind) {
         case "image":
@@ -93,8 +86,6 @@ export function placeholderBlock(kind: string): ElementInstance {
     }
 }
 
-// A stand-in section for a planned beat — each column filled with ITS planned block's placeholder, so the
-// skeleton is the exact layout the writer will fill. Falls back to a text default when a beat has no blocks.
 export function placeholderSection(plan: SectionBlueprint): Section {
     const fractions = LAYOUT_PRESETS[plan.layout ?? "full"] ?? [1];
     const n = plan.blocks?.length ?? fractions.length;

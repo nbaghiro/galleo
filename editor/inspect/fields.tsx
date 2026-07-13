@@ -20,10 +20,6 @@ import {
     Slider as SliderRow,
 } from "@ui/inputs";
 
-// The studio control kit. The generic primitives now live in @ui/inputs (shared with the app); this file
-// keeps the editor-coupled fields (media/icon/color pickers wired to the editor's services) plus the
-// schema-driven `Field`/`SchemaFields` dispatcher. The generic primitives are re-exported under their
-// historical names so existing inspector/toolbar imports from "./fields" keep working.
 export {
     inputCls,
     FieldRow,
@@ -38,8 +34,6 @@ export {
     SelectField,
 };
 
-// Theme-aware color control: quick swatches drawn from the active artifact theme (so overrides stay
-// on-palette), a native well for anything custom, a hex readout, and an optional reset-to-default.
 export const ColorField: Component<{
     value?: string;
     onChange: (v: string | undefined) => void;
@@ -67,9 +61,6 @@ export const ColorField: Component<{
     );
 };
 
-// Image chooser: opens the shared media picker (stock search · AI generate · upload · recent). Full mode
-// shows the current image + a Change button + a paste-a-URL escape hatch; compact (format bar) is a lone
-// Replace button. Wired from the image element's `src` and the section-background image.
 export const MediaField: Component<{
     value: string;
     placeholder?: string;
@@ -136,8 +127,6 @@ export const MediaField: Component<{
     );
 };
 
-// Icon chooser: opens the media picker in "icon" mode (Iconify search). The value is a nested glyph
-// { id, body, vb }; the preview renders it as a CSS mask so it takes the field's text color.
 export const IconField: Component<{
     glyph?: { id: string; body: string; vb: string };
     compact?: boolean;
@@ -201,8 +190,7 @@ export const IconField: Component<{
     );
 };
 
-// Icon color: theme-role swatches (accent · ink · soft · muted) that store the role name (so the icon
-// re-tints when the theme changes), plus a custom-hex well.
+// Stores the theme-role name (not a hex) so the icon re-tints when the theme changes.
 const ICON_ROLES: { role: string; label: string }[] = [
     { role: "accent", label: "Accent" },
     { role: "ink", label: "Ink" },
@@ -257,10 +245,6 @@ export const IconColorField: Component<{ value?: string; onChange: (v: string) =
     );
 };
 
-// ── schema-driven dispatcher ────────────────────────────────────────────────
-
-// Renders one `ControlField` (the matching primitive). Panel mode wraps it in a labelled row; `compact`
-// mode (the format bar) drops the label + tightens widths. Drives both the inspector and the bar.
 export const Field: Component<{
     field: ControlField;
     value: unknown;
@@ -270,9 +254,7 @@ export const Field: Component<{
     const f = (): ControlField => props.field;
     const num = (): number => Number(props.value ?? f().min ?? 0);
     const str = (): string => String(props.value ?? "");
-    // A thunk, not a shared element: each call mints its own node, so using it in multiple branches
-    // (compact/non-compact, Show fallback + children) never reuses one DOM node — reusing one silently
-    // drops the reactive inner content (e.g. AlignField's icons) from whichever branch actually mounts.
+    // A thunk, not a shared element — reusing one node across branches silently drops the reactive inner content.
     const control = (): JSX.Element => (
         <Switch
             fallback={
@@ -348,7 +330,6 @@ export const Field: Component<{
         </Switch>
     );
     if (!props.compact) return <FieldRow label={f().label}>{control()}</FieldRow>;
-    // Compact (format bar) drops labels — a leading glyph names the control (e.g. columns) when set.
     return (
         <Show when={f().icon} fallback={control()}>
             <span class="flex items-center gap-1 text-soft">
@@ -359,10 +340,7 @@ export const Field: Component<{
     );
 };
 
-// Renders a `ControlField[]` schema against a get/set adapter — grouping by `group`, honoring
-// `visibleWhen`. The one generic panel body: elements pass their data as the store; sections pass a
-// flat adapter over their structured shape. Grouping depends only on the (stable) control list, so
-// editing a value never re-renders the panel and steals input focus; only `visibleWhen` toggles remount.
+// Grouping keys off the stable control list, so editing a value never re-renders the panel and steals focus (only visibleWhen remounts).
 export const SchemaFields: Component<{
     controls: ControlField[];
     read: (key: string) => unknown;

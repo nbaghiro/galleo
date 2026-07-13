@@ -2,9 +2,6 @@ import { z } from "zod";
 import { register } from "./registry";
 import { generateThemeFromPrompt } from "../theme";
 
-// The theme tool — create a full theme (name, mood, tokens) from a text prompt. Wraps the existing theme
-// generator; the result is a ThemeInput each surface previews/saves its own way.
-
 export const generateThemeTool = register({
     id: "generate-theme",
     describe:

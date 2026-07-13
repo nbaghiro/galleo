@@ -7,23 +7,15 @@ import { resolveProfile } from "@engine/profile";
 import { EXPORT_SCALE, paint, renderSlidePage, renderToCanvas } from "./backends";
 import { measureText, layoutSection, sectionSlides } from "./commands";
 
-// Export an artifact to PDF / PNG / print — editor-free: every entry point takes the artifact + its
-// resolved theme tokens, so the studio, a present surface, or a publish page can all export the same way.
-// The pure page/raster geometry (arithmetic turning engine output into paper/raster dimensions) sits at
-// the top of this file, unit-tested in export.test.ts; the rest is the IO shell (pdf-lib, canvas.toBlob,
-// download, window.print) over it.
-
-// --- page / raster geometry (pure, tested) ---
-
-export const PRINT_W = 1100; // fallback print-column width (px) when a format has no maxContentWidth
-export const SLIDE_W = 1280; // default deck slide width (matches Present)
-export const PDF_SLIDE_W = 960; // deck PDF page width (points); page height flexes with the slide aspect
-// A4 page geometry (points) for the continuous Document format.
+export const PRINT_W = 1100; // px fallback when no maxContentWidth
+export const SLIDE_W = 1280; // matches Present
+export const PDF_SLIDE_W = 960; // points; page height flexes with the slide aspect
+// A4 geometry (points)
 export const A4_W = 595;
 export const A4_H = 842;
 export const DOC_MARGIN = 48;
 
-// A deck slide → its PDF page size (points): a fixed page width, the height preserving the slide's aspect.
+// points
 export function slidePdfPageSize(
     slide: { w: number; h: number },
     pageW: number = PDF_SLIDE_W,
@@ -31,8 +23,7 @@ export function slidePdfPageSize(
     return { w: pageW, h: Math.round((pageW * slide.h) / slide.w) };
 }
 
-// A4 document-flow geometry for a reading column laid out at `layoutW` px: the printable content width
-// (points), the px→pt scale, and the page's content height back in layout px (what fragment() slices at).
+// pageContentPxH is where fragment() slices
 export function docPageGeometry(layoutW: number): {
     contentPtW: number;
     scale: number;
@@ -43,8 +34,7 @@ export function docPageGeometry(layoutW: number): {
     return { contentPtW, scale, pageContentPxH: (A4_H - 2 * DOC_MARGIN) / scale };
 }
 
-// The stacked-PNG canvas size (device px) for a deck: the widest slide (never below SLIDE_W) by the summed
-// slide heights, at `scale`.
+// device px
 export function deckPngCanvasSize(
     slides: { w: number; h: number }[],
     scale: number = EXPORT_SCALE,
@@ -53,8 +43,6 @@ export function deckPngCanvasSize(
     const totalH = slides.reduce((sum, s) => sum + s.h, 0);
     return { width: outW * scale, height: totalH * scale };
 }
-
-// --- IO shell ---
 
 async function canvasPng(canvas: HTMLCanvasElement): Promise<Uint8Array> {
     const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/png"));
@@ -70,14 +58,12 @@ function download(bytes: Uint8Array | string, filename: string, type: string): v
     setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-// Export options threaded from the caller's plan (@model/billing). `brand` stamps the free-tier Galleo
-// mark onto each exported surface; paid plans (removeBranding) pass brand:false for a clean export.
+// brand: stamp the free-tier watermark; paid plans pass false
 export interface ExportOptions {
     brand?: boolean;
 }
 
-// The free-tier watermark. Drawn bottom-right on each raster surface (a slide/page/PNG band) with a soft
-// shadow so it reads on both light and dark slides. Coordinates are in device pixels (already scaled).
+// coords in device px (already scaled)
 function stampBrand(
     cx: CanvasRenderingContext2D,
     right: number,
@@ -97,8 +83,6 @@ function stampBrand(
     cx.restore();
 }
 
-// Pixel-perfect PDF: each section is rendered to a 16:9 slide canvas (exact fonts, gradients,
-// rounded cards, charts) and embedded as a PDF page. (Selectable-text vector layer is the next step.)
 async function exportSlidePdf(
     artifact: ArtifactContent,
     tk: Tokens,
@@ -107,13 +91,12 @@ async function exportSlidePdf(
     const profile = resolveProfile(artifact.format);
     const pdf = await PDFDocument.create();
     for (const section of artifact.sections) {
-        // A tall section paginates into several 16:9 pages; a short one is a single page.
         for (const slide of sectionSlides(section, tk, profile)) {
             const canvas = await renderSlidePage(slide, tk.bg, EXPORT_SCALE);
             const cx = canvas.getContext("2d");
             if (brand && cx) stampBrand(cx, canvas.width, canvas.height, EXPORT_SCALE);
             const img = await pdf.embedPng(await canvasPng(canvas));
-            const { w: pageW, h: pageH } = slidePdfPageSize(slide); // PDF page matches the slide's aspect
+            const { w: pageW, h: pageH } = slidePdfPageSize(slide);
             const page = pdf.addPage([pageW, pageH]);
             page.drawImage(img, { x: 0, y: 0, width: pageW, height: pageH });
         }
@@ -121,8 +104,6 @@ async function exportSlidePdf(
     download(await pdf.save(), "galleo.pdf", "application/pdf");
 }
 
-// Document/continuous → paginated A4 PDF: lay out all sections in a reading column, then fragment the
-// flow into page-height chunks (engine/fragment) and render each as a page.
 async function exportDocPdf(artifact: ArtifactContent, tk: Tokens, brand: boolean): Promise<void> {
     const docProfile = resolveProfile("doc");
     const layoutW = docProfile.maxContentWidth ?? 744;
@@ -155,7 +136,6 @@ async function exportDocPdf(artifact: ArtifactContent, tk: Tokens, brand: boolea
     download(await pdf.save(), "galleo-doc.pdf", "application/pdf");
 }
 
-// Format-aware PDF: deck → 16:9 slide pages; doc/web → paginated A4.
 export function exportPdfAuto(
     artifact: ArtifactContent,
     tk: Tokens,
@@ -167,14 +147,12 @@ export function exportPdfAuto(
         : exportSlidePdf(artifact, tk, brand);
 }
 
-// Export the whole deck as one tall PNG (all slides stacked).
 export async function exportDeckPng(
     artifact: ArtifactContent,
     tk: Tokens,
     opts?: ExportOptions,
 ): Promise<void> {
     const profile = resolveProfile(artifact.format);
-    // Every 16:9 slide the deck produces (tall sections paginate into several), stacked into one tall PNG.
     const slides = artifact.sections.flatMap((s) => sectionSlides(s, tk, profile));
     const out = document.createElement("canvas");
     const size = deckPngCanvasSize(slides, EXPORT_SCALE);
@@ -192,8 +170,7 @@ export async function exportDeckPng(
     download(await canvasPng(out), "galleo-deck.png", "image/png");
 }
 
-// Continuous → paper, via the browser print dialog. Best for the Document format. (#galleo-print is
-// shown only in @media print — see studio.css.)
+// #galleo-print shows only in @media print (studio.css)
 export function exportPrint(artifact: ArtifactContent, theme: Tokens): void {
     const width = resolveProfile(artifact.format).maxContentWidth ?? PRINT_W;
     const container = document.createElement("div");

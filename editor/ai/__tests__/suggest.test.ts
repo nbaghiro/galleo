@@ -4,8 +4,7 @@ import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import { artifactOf, inst, sectionOf } from "@canvas/testkit";
 import { suggestSections } from "@editor/ai/suggest";
 
-// Only the pure, zero-cost gap analysis is tested (fetchSuggestions / cacheKey are seams — skipped). Builds
-// small artifacts and asserts the ranked, deduped, capped output.
+// only suggestSections (pure) is tested; fetchSuggestions / cacheKey are seams → skipped
 
 const el = (type: string, children?: ElementInstance[]): ElementInstance =>
     children ? inst(type, { children }) : inst(type, {});

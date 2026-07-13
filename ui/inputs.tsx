@@ -2,13 +2,9 @@ import type { Component, JSX } from "solid-js";
 import { For, Show, splitProps } from "solid-js";
 import { Icon } from "./icons";
 
-// Form primitives + panel scaffolding. Label-less atoms (compose with FieldRow/Group); every one styles
-// through theme CSS-var utilities so it recolors with the active theme, matching the app.
-
 export const inputCls =
     "w-full rounded-md border border-line bg-canvas px-2 py-1.5 text-[13px] text-ink outline-none focus:border-accent";
 
-// ── layout scaffolding ──
 export const PanelHeader: Component<{ title: string; action?: JSX.Element }> = (props) => (
     <div class="mb-4 flex items-center justify-between">
         <span class="font-mono text-[11px] font-semibold uppercase tracking-wider text-muted">
@@ -42,8 +38,6 @@ export const FieldRow: Component<{ label?: string; children: JSX.Element }> = (p
     </div>
 );
 
-// A 1px divider — vertical (toolbar separator) or horizontal (row rule). Recolors with the theme line;
-// `onDark` uses a translucent white for dark surfaces (present/control bars).
 export const Separator: Component<{ vertical?: boolean; onDark?: boolean; class?: string }> = (
     props,
 ) => (
@@ -52,18 +46,15 @@ export const Separator: Component<{ vertical?: boolean; onDark?: boolean; class?
     />
 );
 
-// ── atoms ──
 const inputCompactCls =
     "w-full rounded-md border border-line bg-canvas px-2 py-1 text-[12px] text-ink outline-none focus:border-accent";
 
-// Native attrs (ref, onKeyDown, onBlur, placeholder, disabled, min/max/step, autofocus…) pass through
-// to the underlying <input> — only value/onChange (custom string API), type, and the layout props are local.
 export const TextField: Component<
     Omit<JSX.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "type" | "class"> & {
         value: string;
         type?: "text" | "password" | "email" | "search" | "url" | "number";
         compact?: boolean;
-        icon?: string; // leading icon glyph (search fields)
+        icon?: string;
         class?: string;
         onChange: (v: string) => void;
     }
@@ -117,7 +108,7 @@ export const TextArea: Component<
     > & {
         value: string;
         rows?: number;
-        rounded?: "md" | "lg" | "xl"; // default md (== old inputCls look)
+        rounded?: "md" | "lg" | "xl";
         class?: string;
         onChange: (v: string) => void;
     }
@@ -134,10 +125,6 @@ export const TextArea: Component<
     );
 };
 
-// Borderless spreadsheet-cell input (used by the inspector data grid). Base is the plain cell style;
-// `numeric` switches to the tabular monospace variant (left-aligned so value cells sit under their
-// column header). Native attrs (ref, onKeyDown, onBlur, placeholder…) pass through; an optional `class`
-// composes on top (e.g. a header's font weight or an invalid-value ring).
 const cellInputCls =
     "w-full min-w-[72px] bg-transparent px-2.5 py-2 text-[13px] text-ink outline-none focus:bg-canvas";
 const cellNumCls = `${cellInputCls} text-left font-mono tabular-nums`;
@@ -201,7 +188,7 @@ export const Slider: Component<{
 export const Segmented: Component<{
     value: string;
     options: { label: string; value: string; icon?: string }[];
-    variant?: "subtle" | "accent"; // subtle = panel-raised active (default); accent = accent-filled active
+    variant?: "subtle" | "accent";
     onChange: (v: string) => void;
 }> = (props) => (
     <div class="flex gap-1 rounded-lg border border-line bg-canvas p-0.5">
@@ -233,7 +220,6 @@ const ALIGN_OPTS = [
     { value: "end", icon: "alignRight", title: "Align right" },
 ];
 
-// Left/center/right alignment as an icon segmented group. Defaults to "start" when the value is unset.
 export const AlignField: Component<{ value: string; onChange: (v: string) => void }> = (props) => {
     const val = (): string => props.value || "start";
     return (

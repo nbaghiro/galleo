@@ -3,10 +3,6 @@ import type { Section } from "@model/artifact";
 import type { TurnEvent } from "@model/ai";
 import { register } from "./registry";
 
-// Read-only inspection tools — no model call. `show-sections` hands back the open artifact's sections so a
-// surface can render them (the chat agent → a scrollable carousel of real previews). This is how the agent
-// answers "show me my sections" instead of declining: it's a display capability, not a content one.
-
 export const showSectionsTool = register({
     id: "show-sections",
     describe:

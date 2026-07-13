@@ -1,16 +1,11 @@
 import type { GenerateInput, Surface } from "@model/ai";
 import { heading } from "./system";
 
-// Canonical section arcs, extracted from the 30 starter templates (services/templates/*). Each category of
-// artifact has a proven sequence and a set of "tells" (kicker style, dominant elements, how it closes). The
-// outline prompt is handed the arc that best fits the brief as a scaffold to adapt — not copy — so a
-// generation follows a structure that already works for that job.
-
 export interface Arc {
     key: string;
     label: string;
-    arc: string; // the ordered section sequence
-    tells: string; // the category's signature choices
+    arc: string;
+    tells: string;
 }
 
 export const ARCS = {
@@ -58,7 +53,6 @@ export const ARCS = {
     },
 } satisfies Record<string, Arc>;
 
-// Pick the arc that best fits the brief — primarily off the intake `goal` chip, with the surface as a hint.
 export function chooseArc(goal?: string, surface?: Surface): Arc {
     const g = (goal ?? "").toLowerCase();
     if (g.includes("pitch")) return ARCS.pitch;

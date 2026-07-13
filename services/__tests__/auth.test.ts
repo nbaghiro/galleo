@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { hashPassword, makeSession, readSession, verifyPassword } from "../auth";
 
-// Real Node crypto (scrypt + HMAC). The only seam is SESSION_SECRET, read once at module load;
-// these tests rely on the dev-default secret except the explicit different-secret case below.
-
+// SESSION_SECRET is read once at module load — hence the re-import in the different-secret case
 describe("hashPassword + verifyPassword", () => {
     it("round-trips a password through hash then verify", () => {
         const pw = "correct horse battery staple";
@@ -66,7 +64,6 @@ describe("makeSession + readSession", () => {
         const other = await import("../auth");
         const foreignToken = other.makeSession("user-42");
         vi.unstubAllEnvs();
-        // Sanity: it verifies under its own secret, but not under the default-secret instance.
         expect(other.readSession(foreignToken)).toBe("user-42");
         expect(readSession(foreignToken)).toBeNull();
     });

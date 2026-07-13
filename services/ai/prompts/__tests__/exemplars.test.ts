@@ -4,8 +4,7 @@ import { sectionExemplars } from "../exemplars";
 
 const surfaces: Surface[] = ["deck", "doc", "web"];
 
-// Pull the single-line JSON exemplars back out of the assembled string (JSON.stringify has no newlines,
-// so each cleaned section sits on its own line).
+// each stringified section is its own line (JSON.stringify emits no newlines)
 function jsonLines(out: string): string[] {
     return out.split("\n").filter((l) => l.startsWith('{"id":'));
 }
@@ -50,7 +49,7 @@ describe("sectionExemplars", () => {
     });
 
     it("keeps a child's load-bearing layout width in the exemplar JSON", () => {
-        // The gold deck has split sections whose columns carry layout.width — cleanElement must keep them.
+        // split columns carry load-bearing layout.width — cleanElement must keep it
         expect(sectionExemplars("deck")).toContain('"layout":');
     });
 });

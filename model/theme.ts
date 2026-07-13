@@ -1,7 +1,4 @@
-// Themes are data: a semantic token set applied across every block of an artifact. Elements read
-// colors by role (ink/muted/accent/...) and fonts by role (display/ui/mono) from the active theme,
-// so swapping a theme recolors AND re-typesets all of them. This file is the whole theme contract —
-// the token/Theme types + resolvers + color math, then the curated library of built-in themes.
+// themes are data: a semantic token set read by role
 
 export type ColorToken =
     | "bg"
@@ -25,41 +22,88 @@ export interface Tokens {
     onAccent: string; // text/icons on the accent
     line: string; // borders / dividers
     radius: number; // section corner radius
-    fontDisplay: string; // family name for headings (e.g. "Fraunces")
+    fontDisplay: string; // family name for headings
     fontBody: string; // family name for body / UI
     fontMono: string; // family name for labels / mono
-    headingWeight: number; // weight applied to display-role text
-    border?: number; // border width for cards/sections (heavier = blockier theme)
-    shadow?: string; // box-shadow for cards (hard-offset brutalist · soft lift · subtle)
-    scrim?: number; // 0..1 default darkening over section background images (higher = safer text); default 0.45
+    headingWeight: number; // weight for display-role text
+    border?: number; // border width for cards/sections
+    shadow?: string; // box-shadow for cards
+    scrim?: number; // 0..1 darkening over bg images; default 0.45
 }
+
+// picker families derived from each theme's tag; this order drives the picker's sections
+export const THEME_CATEGORIES = [
+    "Editorial",
+    "Luxe & Fashion",
+    "Brutalist & Poster",
+    "Mono & Tech",
+    "Earthy & Warm",
+    "Playful & Bright",
+    "Gothic & Moody",
+] as const;
+export type ThemeCategory = (typeof THEME_CATEGORIES)[number];
+const TAG_CATEGORY: Record<string, ThemeCategory> = {
+    editorial: "Editorial",
+    classic: "Editorial",
+    newsprint: "Editorial",
+    natural: "Editorial",
+    cartographic: "Editorial",
+    sepia: "Editorial",
+    luxe: "Luxe & Fashion",
+    jewel: "Luxe & Fashion",
+    "jewel luxe": "Luxe & Fashion",
+    fashion: "Luxe & Fashion",
+    brutalist: "Brutalist & Poster",
+    industrial: "Brutalist & Poster",
+    zine: "Brutalist & Poster",
+    constructivist: "Brutalist & Poster",
+    foundry: "Brutalist & Poster",
+    "desert poster": "Brutalist & Poster",
+    brutal: "Brutalist & Poster",
+    mono: "Mono & Tech",
+    monochrome: "Mono & Tech",
+    "wire mono": "Mono & Tech",
+    tech: "Mono & Tech",
+    stone: "Mono & Tech",
+    duotone: "Mono & Tech",
+    organic: "Earthy & Warm",
+    southwest: "Earthy & Warm",
+    western: "Earthy & Warm",
+    "mid-century": "Earthy & Warm",
+    cottagecore: "Earthy & Warm",
+    wood: "Earthy & Warm",
+    pastel: "Playful & Bright",
+    crisp: "Playful & Bright",
+    "8-bit": "Playful & Bright",
+    punch: "Playful & Bright",
+    bubbly: "Playful & Bright",
+    neon: "Playful & Bright",
+    retro: "Playful & Bright",
+    electric: "Playful & Bright",
+    crt: "Playful & Bright",
+    pixel: "Playful & Bright",
+    gothic: "Gothic & Moody",
+    blackletter: "Gothic & Moody",
+};
 
 export interface Theme {
     id: string;
     name: string;
-    tag: string; // short descriptor (e.g. "editorial", "cyber")
+    tag: string; // short descriptor (e.g. "editorial")
+    category?: ThemeCategory; // picker grouping, derived from tag in mk()
     dark: boolean;
     tokens: Tokens;
 }
 
-// Resolve a font role to a CSS family stack (the role's generic fallback, matching the explorer).
 export function fontStack(role: FontRole, t: Tokens): string {
     if (role === "display") return `'${t.fontDisplay}', serif`;
     if (role === "mono") return `'${t.fontMono}', monospace`;
     return `'${t.fontBody}', sans-serif`;
 }
 
-// The Tailwind color variables for a theme — any module sets these on a root element to recolor its
-// chrome (the shared theme.css declares the matching `@theme` tokens). Pure: just a string record.
+// Tailwind CSS vars for a theme; set on a root element to recolor the chrome
 export function themeCssVars(t: Tokens): Record<string, string> {
-    // Derive the whole radius scale from the theme's section radius, overriding Tailwind's own
-    // `--radius-*` tokens — so every `rounded-{sm..3xl}` utility in the chrome (library cards, editor
-    // panels, minimap, modals) tracks the active theme instead of being hardcoded, exactly the way the
-    // `--color-*` overrides recolor it. Anchored so radius 16 reproduces Tailwind's default scale, and
-    // proportional either side: radius 0 → a fully sharp chrome, larger radii round it in step with the
-    // sections. `rounded-full` / arbitrary `rounded-[…]` values don't use these tokens, so they're
-    // unaffected. `--radius` (the bare `rounded` + the sections' `rounded-[var(--radius)]`) stays the raw
-    // section radius.
+    // radius scale derived from the theme's section radius; anchored so radius 16 = Tailwind's default scale
     const rad = (base: number): string => `${Math.round((base * t.radius) / 16 / 0.25) * 0.25}px`;
     return {
         "--color-canvas": t.bg,
@@ -87,10 +131,7 @@ export function themeCssVars(t: Tokens): Record<string, string> {
     };
 }
 
-// --- wire DTOs (theme's HTTP shapes, shared backend ↔ frontend) ---
-// `ThemeSummary` is the lightweight theme record sent over the wire (distinct from the full `Theme`
-// above, which carries the library metadata); `ThemeInput` is the create/update body for custom themes.
-
+// ThemeSummary = lightweight wire record; ThemeInput = create/update body
 export interface ThemeSummary {
     id: string;
     name: string;
@@ -106,10 +147,7 @@ export interface ThemeInput {
     isDark: boolean;
 }
 
-// --- color math ---
-// Small color utilities shared by the element library and the canvas render layer. All operate
-// on `#rrggbb` (or `#rgb` shorthand) hex strings.
-
+// color utilities operate on #rrggbb (or #rgb) hex
 export function hexToRgb(hex: string): [number, number, number] {
     const s = hex.replace("#", "");
     const n = s.length === 3 ? s.replace(/./g, "$&$&") : s;
@@ -120,7 +158,7 @@ export function hexToRgb(hex: string): [number, number, number] {
     ];
 }
 
-// Perceived luminance, 0 (black) → 1 (white). Non-6-digit input → 1 (treated as light).
+// perceived luminance 0→1; non-6-digit input → 1 (light)
 export function luminance(hex: string): number {
     const h = hex.replace("#", "");
     if (h.length < 6) return 1;
@@ -132,7 +170,7 @@ export function luminance(hex: string): number {
     );
 }
 
-// Mix a hex toward white by fraction f (0 = unchanged, 1 = white), preserving hue.
+// mix a hex toward white by fraction f (0 = unchanged, 1 = white)
 export function mixWhite(hex: string, f: number): string {
     const h = hex.replace("#", "");
     const ch = (i: number): string => {
@@ -144,7 +182,7 @@ export function mixWhite(hex: string, f: number): string {
     return `#${ch(0)}${ch(2)}${ch(4)}`;
 }
 
-// Blend two hex colors (t = 0 → a, 1 → b). Non-hex input → a unchanged.
+// blend two hex colors (t: 0 → a, 1 → b); non-hex → a
 export function mix(a: string, b: string, t: number): string {
     if (!a.startsWith("#") || !b.startsWith("#")) return a;
     const [ar, ag, ab] = hexToRgb(a);
@@ -156,7 +194,7 @@ export function mix(a: string, b: string, t: number): string {
     return `#${c(ar, br)}${c(ag, bg)}${c(ab, bb)}`;
 }
 
-// A hex as an `rgba()` string with alpha a. Non-6-digit input → returned unchanged.
+// hex → rgba() with alpha a; non-6-digit → unchanged
 export function hexA(hex: string, a: number): string {
     const h = hex.replace("#", "");
     if (h.length < 6) return hex;
@@ -165,9 +203,6 @@ export function hexA(hex: string, a: number): string {
     const b = parseInt(h.slice(4, 6), 16);
     return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
-
-// --- WCAG contrast + OKLCH (used by the AI theme finalizer) ---
-// Proper, gamma-correct color math — distinct from the cheap perceived `luminance()` above. Pure.
 
 // sRGB channel (0..255) → linear-light 0..1.
 function toLinear(c: number): number {
@@ -194,7 +229,7 @@ export function contrastRatio(a: string, b: string): number {
     return la >= lb ? (la + 0.05) / (lb + 0.05) : (lb + 0.05) / (la + 0.05);
 }
 
-// A perceptual OKLCH color — L (0..1 lightness), C (chroma), H (hue radians).
+// perceptual OKLCH: L (0..1), C (chroma), H (hue radians)
 export interface Oklch {
     L: number;
     C: number;
@@ -227,29 +262,19 @@ export function oklchToHex({ L, C, H }: Oklch): string {
     return `#${hx2(fromLinear(r))}${hx2(fromLinear(g))}${hx2(fromLinear(b))}`;
 }
 
-// --- the AI theme finalizer ---
-// A generated theme is coherent in structure but the model eyeballs contrast + saturation (it happily
-// pairs white text on a neon accent, or ships a fluorescent brand color). This pure pass GUARANTEES a
-// production-safe result with no extra model call: tame a neon accent, derive `onAccent` by contrast,
-// ensure a real bg→surface lift, and repair text-on-surface ratios. Applied to every AI-generated theme.
+// post-process an AI-generated theme into a production-safe one
 
-const ACCENT_CHROMA_MAX = 0.155; // OKLCH chroma ceiling — above this an accent reads as neon/AI-slop
-const ACCENT_L_MAX_DARK = 0.74; // a too-light accent glows on a dark theme; pull it toward a jewel tone
+const ACCENT_CHROMA_MAX = 0.155; // OKLCH chroma ceiling; above this reads as neon
+const ACCENT_L_MAX_DARK = 0.74; // a too-light accent glows on a dark theme
 const ACCENT_L_MAX_LIGHT = 0.82; // a too-light accent washes out on a light theme
-const ACCENT_L_MIN = 0.4; // below this an accent turns muddy / near-black
-const ACCENT_MIN_VS_BG = 1.8; // the accent must read as a distinct mark against the page
-// The yellow → chartreuse → lime hue band (OKLCH degrees). These hues are intrinsically very light, so at
-// high chroma they read as highlighter/garish and vanish on light backgrounds — deepen them hard toward a
-// gold/olive. Calibrated against our own color math: garish yellows sit at L≥0.84 / hue 100–150°, while
-// warm golds and ambers sit below 92°, so the band starts at 95° and leaves the good ones untouched.
+const ACCENT_L_MIN = 0.4; // below this an accent turns muddy/near-black
+const ACCENT_MIN_VS_BG = 1.8; // accent must read as a distinct mark vs the page
+// garish yellow→lime hue band (OKLCH°); starts at 95° so warm golds/ambers stay untouched
 const GARISH_HUE: [number, number] = [95, 155];
 
 const toDeg = (h: number): number => ((((h * 180) / Math.PI) % 360) + 360) % 360;
 
-// Turn any generated accent into a usable, non-garish brand color: clamp chroma + lightness (harder in the
-// intrinsically-light yellow/chartreuse band), floor the darkness, then guarantee it reads as a distinct
-// mark against the page. This is the systematic replacement for a hardcoded hex avoid-list — it catches the
-// "bad yellow" case and every neon/pale/muddy accent by where it sits in perceptual space, not by exact hex.
+// clamp chroma + lightness, floor darkness, keep the accent visible vs the page
 function sanitizeAccent(hex: string, dark: boolean, bg: string): string {
     const o = hexToOklch(hex);
     const deg = toDeg(o.H);
@@ -260,8 +285,7 @@ function sanitizeAccent(hex: string, dark: boolean, bg: string): string {
     const C = Math.min(o.C, cMax);
     let out = oklchToHex({ L, C, H: o.H });
 
-    // Visibility: on a light page this deepens a pale accent (the invisible-yellow case); on a dark page
-    // it's naturally satisfied.
+    // on a light page, deepen a pale accent (the invisible-yellow case)
     const bgLight = relLuminance(bg) >= 0.4;
     for (let i = 0; i < 10 && contrastRatio(out, bg) < ACCENT_MIN_VS_BG; i++) {
         L = Math.max(0.34, Math.min(0.86, L + (bgLight ? -0.045 : 0.045)));
@@ -270,7 +294,7 @@ function sanitizeAccent(hex: string, dark: boolean, bg: string): string {
     return out;
 }
 
-// Nudge `fg` toward black/white until it clears `ratio` against `bg` (falling back to the extreme).
+// nudge fg toward black/white until it clears ratio vs bg
 function reachContrast(
     fg: string,
     bg: string,
@@ -289,23 +313,20 @@ export function finalizeTheme(t: Tokens): Tokens {
     const dark = relLuminance(t.bg) < 0.4;
     const textToward = dark ? "#ffffff" : "#000000";
 
-    // 1. Sanitize the accent — clamp neon, deepen garish yellows/limes, keep it visible against the page.
     const accent = sanitizeAccent(t.accent, dark, t.bg);
 
-    // 2. onAccent — the black-or-white that reads best on the tamed accent (never the model's guess).
     const onAccent =
         contrastRatio("#0a0a0a", accent) >= contrastRatio("#ffffff", accent)
             ? "#0a0a0a"
             : "#ffffff";
 
-    // 3. Ensure surface is a visible lift above bg on dark themes (cards must separate from the page).
     let surface = t.surface;
     if (dark && contrastRatio(t.bg, surface) < 1.06) {
         const bo = hexToOklch(t.bg);
         surface = oklchToHex({ ...bo, L: bo.L + 0.045 });
     }
 
-    // 4. Guarantee legible text on the surface (AA+ for ink, stepping down for soft/muted).
+    // legible text on the surface: AA+ ink, stepping down for soft/muted
     const ink = reachContrast(t.ink, surface, 5.5, textToward);
     const soft = reachContrast(t.soft, surface, 3.8, textToward);
     const muted = reachContrast(t.muted, surface, 2.6, textToward);
@@ -313,11 +334,7 @@ export function finalizeTheme(t: Tokens): Tokens {
     return { ...t, accent, onAccent, surface, ink, soft, muted };
 }
 
-// --- the curated theme library ---
-// Each theme is a coherent system: a font trio (display/body/mono), a heading weight, a corner radius,
-// an optional border width + shadow, and a palette. `surface` = `cv`, `soft` = `ik`, `muted` = `mu`,
-// `line` = `bd`, `onAccent` = `ai` (or white). `bw`/`sh` override the default 1px border / soft shadow.
-
+// Pal→Tokens mapping: surface=cv, soft=ik, muted=mu, line=bd, onAccent=ai (or white); bw/sh override defaults.
 interface Pal {
     bg: string;
     cv: string;
@@ -348,6 +365,7 @@ function mk(
         id,
         name,
         tag,
+        category: TAG_CATEGORY[tag] ?? "Editorial",
         dark,
         tokens: {
             bg: p.bg,
@@ -370,7 +388,7 @@ function mk(
     };
 }
 
-// The pickable set (52 — incl. 4 OKLCH-derived + an upgraded graphite). Defaults (studio, brut) kept.
+// the pickable set; studio + brut are the defaults
 export const THEME_LIST: Theme[] = [
     mk("studio", "Studio", "editorial", false, "Fraunces", "Hanken Grotesk", "DM Mono", 560, 18, {
         bg: "#F4F0E8",
@@ -400,15 +418,57 @@ export const THEME_LIST: Theme[] = [
         ai: "#F5E000",
         bd: "#111111",
     }),
-    mk("candy", "Candy", "pastel", false, "Quicksand", "Nunito", "DM Mono", 700, 26, {
-        bg: "#FFF4FA",
-        cv: "#FFFFFF",
-        ink: "#3A2536",
-        ik: "#5E4358",
-        mu: "#9B7E94",
-        ac: "#FF6FB5",
-        bd: "#F4DCEC",
+    mk("candy", "Candy", "neon", true, "Silkscreen", "Chakra Petch", "Share Tech Mono", 700, 0, {
+        bg: "#150A12",
+        cv: "#201020",
+        ink: "#F6E9F2",
+        ik: "#C9A9C0",
+        mu: "#8A6A82",
+        ac: "#FF2D95",
+        ai: "#16040D",
+        bd: "#341A2C",
     }),
+    mk("neon", "Neon", "neon", true, "Orbitron", "Rajdhani", "Share Tech Mono", 700, 2, {
+        bg: "#0A0F1E",
+        cv: "#111830",
+        ink: "#E6EEFB",
+        ik: "#A6B4D0",
+        mu: "#6C7A9A",
+        ac: "#22D3EE",
+        ai: "#04101A",
+        bd: "#21304C",
+    }),
+    mk("blip", "Blip", "retro", true, "Major Mono Display", "Space Mono", "Space Mono", 400, 0, {
+        bg: "#16110A",
+        cv: "#211A0F",
+        ink: "#F5EDDD",
+        ik: "#C9B999",
+        mu: "#8B7C5E",
+        ac: "#FF8A1E",
+        ai: "#1A0E02",
+        bd: "#362A18",
+    }),
+    mk(
+        "voltage",
+        "Voltage",
+        "electric",
+        true,
+        "Tektur",
+        "Chakra Petch",
+        "Share Tech Mono",
+        700,
+        2,
+        {
+            bg: "#14120A",
+            cv: "#1E1B0F",
+            ink: "#F4F1DD",
+            ik: "#C7C199",
+            mu: "#89845E",
+            ac: "#FFE500",
+            ai: "#14120A",
+            bd: "#33301A",
+        },
+    ),
     mk("couture", "Couture", "luxe", true, "Cormorant Garamond", "Jost", "Geist Mono", 600, 6, {
         bg: "#0C0C0C",
         cv: "#141414",
@@ -626,18 +686,6 @@ export const THEME_LIST: Theme[] = [
         bw: 3,
         sh: "3px 3px 0 rgba(242,244,248,0.15)",
     }),
-    mk("marigold", "Marigold", "brutalist", false, "Yeseva One", "Mulish", "Space Mono", 400, 0, {
-        bg: "#fdf6e3",
-        cv: "#fffdf6",
-        ink: "#2a2310",
-        ik: "#6b5d36",
-        mu: "#9a8a5a",
-        ac: "#e8a200",
-        ai: "#2a1c00",
-        bd: "#2a2310",
-        bw: 2,
-        sh: "6px 6px 0 #2a2310",
-    }),
     mk("linen", "Linen", "natural", false, "EB Garamond", "Albert Sans", "IBM Plex Mono", 600, 4, {
         bg: "#f3ede2",
         cv: "#faf6ee",
@@ -671,110 +719,6 @@ export const THEME_LIST: Theme[] = [
             sh: "none",
         },
     ),
-    mk("ultra", "Ultra", "brutal", true, "Syncopate", "Sora", "Geist Mono", 700, 0, {
-        bg: "#000000",
-        cv: "#0b0b0b",
-        ink: "#ffffff",
-        ik: "#b0b0b0",
-        mu: "#6e6e6e",
-        ac: "#ffffff",
-        ai: "#000000",
-        bd: "#ffffff",
-        bw: 4,
-        sh: "none",
-    }),
-    mk("basalt", "Basalt", "stone", true, "Khand", "Commissioner", "Overpass Mono", 600, 0, {
-        bg: "#121417",
-        cv: "#1b1e22",
-        ink: "#e6eaee",
-        ik: "#a3acb4",
-        mu: "#6c757d",
-        ac: "#5b8f9c",
-        ai: "#06100f",
-        bd: "#2a2f35",
-        bw: 2,
-        sh: "6px 6px 0 #05070a",
-    }),
-    mk("citrus", "Citrus", "punch", false, "Bricolage Grotesque", "Outfit", "Space Mono", 700, 0, {
-        bg: "#f4fbe8",
-        cv: "#ffffff",
-        ink: "#1b2a0c",
-        ik: "#4f6630",
-        mu: "#82985f",
-        ac: "#6cbf21",
-        ai: "#0e1c00",
-        bd: "#1b2a0c",
-        bw: 2,
-        sh: "5px 5px 0 #6cbf21",
-    }),
-    mk("inkwell", "Inkwell", "classic", true, "Cardo", "Lora", "IBM Plex Mono", 700, 5, {
-        bg: "#0e1116",
-        cv: "#161b22",
-        ink: "#e8e4d8",
-        ik: "#aaa593",
-        mu: "#726e60",
-        ac: "#c9a24a",
-        ai: "#1a1408",
-        bd: "#2c333d",
-        sh: "0 18px 40px -20px rgba(0,0,0,.7)",
-    }),
-    mk("forge", "Forge", "foundry", true, "Saira Stencil One", "Barlow", "Martian Mono", 400, 0, {
-        bg: "#17120f",
-        cv: "#211a15",
-        ink: "#f0e8df",
-        ik: "#b7a999",
-        mu: "#847565",
-        ac: "#e8761f",
-        ai: "#1a0c02",
-        bd: "#e8761f",
-        bw: 3,
-        sh: "4px 4px 0 #0c0907",
-    }),
-    mk("bauhaus", "Bauhaus", "constructivist", false, "Syncopate", "Jost", "Space Mono", 700, 0, {
-        bg: "#F4F0E6",
-        cv: "#FCFAF3",
-        ink: "#1A1A1A",
-        ik: "#4A4A45",
-        mu: "#8A8A80",
-        ac: "#0F4FD1",
-        bd: "#1A1A1A",
-        bw: 2,
-        sh: "4px 4px 0 #1A1A1A",
-    }),
-    mk(
-        "grimoire",
-        "Grimoire",
-        "blackletter",
-        true,
-        "Pirata One",
-        "Cardo",
-        "Fragment Mono",
-        400,
-        2,
-        {
-            bg: "#1A1012",
-            cv: "#241719",
-            ink: "#E8DCC0",
-            ik: "#B7A584",
-            mu: "#8A7A5F",
-            ac: "#B01E24",
-            ai: "#F4EAD2",
-            bd: "#3A2A2A",
-            sh: "0 8px 24px rgba(0,0,0,0.5)",
-        },
-    ),
-    mk("frontier", "Frontier", "western", false, "Rye", "Bitter", "Sometype Mono", 400, 2, {
-        bg: "#EDE2CC",
-        cv: "#F5ECD8",
-        ink: "#3A2A18",
-        ik: "#6B5638",
-        mu: "#9A8460",
-        ac: "#A23A1E",
-        ai: "#F7EFDC",
-        bd: "#C9B68F",
-        bw: 2,
-        sh: "none",
-    }),
     mk("atelier", "Atelier", "fashion", false, "Bodoni Moda", "Tenor Sans", "DM Mono", 500, 0, {
         bg: "#FCFCFC",
         cv: "#FFFFFF",
@@ -785,28 +729,6 @@ export const THEME_LIST: Theme[] = [
         bd: "#E2E2E2",
         sh: "none",
     }),
-    mk(
-        "peacock",
-        "Peacock",
-        "jewel luxe",
-        true,
-        "Cinzel",
-        "Cormorant Garamond",
-        "Overpass Mono",
-        600,
-        4,
-        {
-            bg: "#0A1F22",
-            cv: "#0F2C30",
-            ink: "#F1E9D2",
-            ik: "#C2B894",
-            mu: "#7E8C82",
-            ac: "#CB9A3A",
-            ai: "#0A1F22",
-            bd: "#2A4F50",
-            sh: "0 10px 30px rgba(0,0,0,0.55)",
-        },
-    ),
     mk(
         "adobe",
         "Adobe",
@@ -829,41 +751,6 @@ export const THEME_LIST: Theme[] = [
             sh: "none",
         },
     ),
-    mk("sequoia", "Sequoia", "wood", true, "Spectral", "Mulish", "JetBrains Mono", 600, 16, {
-        bg: "#2A1C16",
-        cv: "#36251D",
-        ink: "#EFE0D2",
-        ik: "#C2A795",
-        mu: "#8C7361",
-        ac: "#CC7A45",
-        ai: "#2A1810",
-        bd: "#453126",
-        bw: 0,
-        sh: "0 8px 26px -10px rgba(0,0,0,.55)",
-    }),
-    mk("mesa", "Mesa", "desert poster", false, "Oswald", "Archivo", "DM Mono", 600, 0, {
-        bg: "#EFE2CC",
-        cv: "#F7EEDD",
-        ink: "#3E2E1C",
-        ik: "#715A40",
-        mu: "#A08A6E",
-        ac: "#B5481F",
-        ai: "#FBEFE2",
-        bd: "#3E2E1C",
-        bw: 2,
-        sh: "4px 4px 0 #B5481F",
-    }),
-    mk("henna", "Henna", "editorial", false, "Prata", "Jost", "DM Mono", 400, 8, {
-        bg: "#F3E3D7",
-        cv: "#FBEFE6",
-        ink: "#45241A",
-        ik: "#7A4838",
-        mu: "#A8786A",
-        ac: "#A8412C",
-        ai: "#FBEDE6",
-        bd: "#D49A82",
-        sh: "none",
-    }),
     mk("pueblo", "Pueblo", "western", false, "Rye", "Barlow", "Geist Mono", 400, 0, {
         bg: "#F1E3D0",
         cv: "#F9EFE0",
@@ -875,41 +762,6 @@ export const THEME_LIST: Theme[] = [
         bd: "#3B241A",
         bw: 2,
         sh: "6px 6px 0 #C0512B",
-    }),
-    mk("voltcore", "Voltcore", "tech", true, "Michroma", "Inter Tight", "Martian Mono", 700, 2, {
-        bg: "#0B0F14",
-        cv: "#141A22",
-        ink: "#E2E9EF",
-        ik: "#97A6B3",
-        mu: "#5D6E7C",
-        ac: "#2BB8FF",
-        ai: "#04121C",
-        bd: "#283642",
-        bw: 3,
-        sh: "none",
-    }),
-    mk("regalia", "Regalia", "jewel", true, "Cinzel", "Jost", "IBM Plex Mono", 600, 4, {
-        bg: "#07140F",
-        cv: "#0C1E16",
-        ink: "#EAF3EC",
-        ik: "#AEC8B8",
-        mu: "#6F8C7D",
-        ac: "#CBA135",
-        ai: "#142016",
-        bd: "#234034",
-        bw: 2,
-        sh: "inset 0 0 0 1px #C9A23555",
-    }),
-    mk("carat", "Carat", "jewel", true, "Bodoni Moda", "Manrope", "Geist Mono", 500, 2, {
-        bg: "#08101F",
-        cv: "#0E1830",
-        ink: "#E9EEF7",
-        ik: "#A9B6D0",
-        mu: "#6B7A9A",
-        ac: "#BFC7D2",
-        ai: "#131A2A",
-        bd: "#1C2A47",
-        sh: "0 1px 2px #00000066",
     }),
     mk(
         "newsstand",
@@ -956,61 +808,6 @@ export const THEME_LIST: Theme[] = [
         sh: "none",
     }),
     mk(
-        "bistre",
-        "Bistre",
-        "sepia",
-        false,
-        "Bodoni Moda",
-        "Source Serif 4",
-        "IBM Plex Mono",
-        600,
-        2,
-        {
-            bg: "#ECE2CF",
-            cv: "#F4ECDB",
-            ink: "#352A1D",
-            ik: "#6B5C45",
-            mu: "#9A8A6F",
-            ac: "#352A1D",
-            ai: "#ECE2CF",
-            bd: "#CDBFA3",
-            sh: "inset 0 0 0 3px #f4ecdb,inset 0 0 0 4px #d8ccb0",
-        },
-    ),
-    mk("cinder", "Cinder", "mono", true, "Antonio", "Inter Tight", "JetBrains Mono", 700, 0, {
-        bg: "#1A1816",
-        cv: "#232019",
-        ink: "#ECE7DF",
-        ik: "#A8A298",
-        mu: "#6F6A60",
-        ac: "#ECE7DF",
-        ai: "#1A1816",
-        bd: "#34302A",
-        sh: "0 0 0 1px #34302a,0 0 0 5px #1a1816,0 0 0 6px #34302a",
-    }),
-    mk(
-        "cyanotype",
-        "Cyanotype",
-        "duotone",
-        true,
-        "Syncopate",
-        "Commissioner",
-        "Space Mono",
-        700,
-        0,
-        {
-            bg: "#0A1622",
-            cv: "#102234",
-            ink: "#DCE9F2",
-            ik: "#8FA7BB",
-            mu: "#5A7187",
-            ac: "#D8702F",
-            ai: "#160A02",
-            bd: "#1C344A",
-            sh: "inset 0 0 0 3px #102234",
-        },
-    ),
-    mk(
         "telegraph",
         "Telegraph",
         "wire mono",
@@ -1032,7 +829,6 @@ export const THEME_LIST: Theme[] = [
             sh: "none",
         },
     ),
-    // OKLCH-derived (palette lab) — harmonious tokens + guaranteed bg→surface lift.
     mk("stark", "Stark", "mono", false, "Archivo", "Space Mono", "Space Mono", 700, 2, {
         bg: "#f5f3f3",
         cv: "#fefcfc",
@@ -1043,15 +839,15 @@ export const THEME_LIST: Theme[] = [
         ai: "#fafafa",
         bd: "#d6d3d4",
     }),
-    mk("mint", "Mint", "crisp", false, "Space Grotesk", "Inter Tight", "Geist Mono", 600, 12, {
-        bg: "#f1f4f2",
-        cv: "#fafdfc",
-        ink: "#1a1e1c",
-        ik: "#535654",
-        mu: "#818583",
-        ac: "#099768",
-        ai: "#f0fef6",
-        bd: "#d1d5d3",
+    mk("mint", "Mint", "crt", true, "VT323", "Chakra Petch", "Space Mono", 400, 0, {
+        bg: "#07140F",
+        cv: "#0E1F17",
+        ink: "#E6F5EC",
+        ik: "#A6C9B6",
+        mu: "#6E8C7C",
+        ac: "#2DE8A0",
+        ai: "#04120B",
+        bd: "#1A3328",
     }),
     mk("wine", "Wine", "luxe", true, "Cinzel", "Jost", "Geist Mono", 500, 4, {
         bg: "#130c0d",
@@ -1078,9 +874,7 @@ export const THEME_LIST: Theme[] = [
 export const DEFAULT_THEME = THEME_LIST[0]!;
 export const THEMES: Record<string, Theme> = Object.fromEntries(THEME_LIST.map((t) => [t.id, t]));
 
-// User-created themes, loaded from the backend by the app and registered here so resolveTheme can
-// surface them by id exactly like a built-in — without the model doing any IO. The app replaces the
-// whole set whenever its custom-theme store changes.
+// user-created themes registered by the app so resolveTheme surfaces them by id (no IO)
 let CUSTOM: Record<string, Theme> = {};
 export function registerThemes(themes: Theme[]): void {
     CUSTOM = Object.fromEntries(themes.map((t) => [t.id, t]));

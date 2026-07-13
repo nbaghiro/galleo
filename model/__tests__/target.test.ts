@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { Target } from "@model/target";
 import { parentTarget, parseTarget, regionId, specificity, targetsEqual } from "@model/target";
 
-// Tier-A pure: stable addressing of selectable entities. regionId ⇄ parseTarget must round-trip exactly.
-
 const sectionT: Target = { kind: "section", section: "s" };
 const elT: Target = { kind: "element", address: { section: "s", path: [0, 1] } };
 const elEmpty: Target = { kind: "element", address: { section: "s", path: [] } };

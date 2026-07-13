@@ -17,9 +17,6 @@ import {
 const reg = (n: EngineNode, w = 200, h = 200): Region[] => runLayout(n, w, h).regions;
 const cmds = (n: EngineNode, w = 200, h = 200): RenderCommand[] => runLayout(n, w, h).commands;
 
-// distribute() — the Clay grow/shrink allocator. It runs on the main axis of both a row (widths) and a
-// column (heights); these pin every branch: even split, max cap, min floor, fixed/percent immobility,
-// fit shrink, and termination when nothing is movable.
 describe("distribute — grow/shrink sizing", () => {
     it("two grow columns split the row evenly", () => {
         const r = reg(rowNode([boxNode("a", grow(), grow()), boxNode("b", grow(), grow())]));
@@ -100,7 +97,6 @@ describe("distribute — grow/shrink sizing", () => {
     });
 });
 
-// intrinsicWidth() — the natural "fit" width, observed through a fit child's resolved width.
 describe("intrinsic (fit) width", () => {
     it("a fit row = padding + gaps + sum of child widths", () => {
         const fitRow = rowNode(
@@ -143,7 +139,6 @@ describe("intrinsic (fit) width", () => {
     });
 });
 
-// crossWidth() — a column child sizes independently against the column's content width.
 describe("cross-axis width (column children)", () => {
     it("percent is a fraction of the content width", () => {
         near(boxOf(reg(colNode([boxNode("p", percent(0.5), fixed(20))])), "p").w, 100);
@@ -156,7 +151,6 @@ describe("cross-axis width (column children)", () => {
     });
 });
 
-// Aspect boxes size height from width/aspect and always clip overflowing children.
 describe("aspect", () => {
     it("resolves height from width/aspect and clips its children", () => {
         const frame: EngineNode = {

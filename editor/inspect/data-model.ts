@@ -1,7 +1,3 @@
-// Shape taxonomy + parse/serialize for the visual data editor. Every chart/diagram type maps to one of
-// a few "data shapes"; the editor renders the matching grid and serializes back to the element's existing
-// string fields (values/categories/seriesNames · items/links) — no storage migration, full back-compat.
-
 import { normalize as normalizeChart, catList } from "@elements/chart/utils";
 import { normalizeDiagram } from "@elements/diagram/utils";
 import type { ChartData } from "@elements/chart/utils";
@@ -48,16 +44,14 @@ const DIAGRAM_SHAPE: Record<string, Shape> = {
     flow: "graph",
 };
 
-// The data shape for an element, or undefined if it has no visual data editor. `category` disambiguates
-// the funnel collision (a funnel chart is label→value; a funnel diagram is a plain list).
+// `category` disambiguates the funnel collision (funnel chart = label→value, funnel diagram = list).
 export function dataShapeFor(category: string, type: string): Shape | undefined {
     if (category === "chart") return CHART_SHAPE[type] ?? "series";
     if (category === "diagram") return DIAGRAM_SHAPE[type] ?? "list";
     return undefined;
 }
 
-// Models hold every cell as a string (parsed to numbers only on serialize) so text inputs never fight
-// numeric coercion mid-keystroke.
+// Cells kept as strings (parsed on serialize) so text inputs don't fight numeric coercion mid-keystroke.
 export interface SeriesModel {
     categories: string[];
     series: { name: string; values: string[] }[];
@@ -216,15 +210,13 @@ export function serializeModel(kind: Kind, shape: Shape, m: DataModel): Record<s
 // Data keys the grid owns — hidden from the inspector so the two don't duplicate.
 export const DATA_KEYS = new Set(["values", "categories", "seriesNames", "items", "links"]);
 
-// --- validation (against each type's implicit data spec) ---
-
-// A value cell is invalid when it's non-empty but not a finite number (empty = 0, allowed).
+// Empty = 0 (valid); non-empty non-finite = invalid.
 export function invalidNumber(v: string): boolean {
     const t = v.trim();
     return t !== "" && !Number.isFinite(Number(t));
 }
 
-// Fixed-count shapes: a Venn renders ≤3 sets, a quadrant exactly 4. Extra rows are ignored on render.
+// Venn ≤3 sets, quadrant exactly 4; extra rows ignored on render.
 const ITEM_LIMIT: Record<string, number> = { venn: 3, quadrant: 4 };
 export function itemLimit(kind: Kind, type: string): number | undefined {
     return kind === "diagram" ? ITEM_LIMIT[type] : undefined;

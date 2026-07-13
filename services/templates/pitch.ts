@@ -1,5 +1,3 @@
-// The pitch template set (all variants — un-sharded from the size-split -extra/-extra2 files).
-
 import type { ArtifactContent } from "@model/artifact";
 import {
     badge,
@@ -23,7 +21,6 @@ import {
     card,
 } from "@model/authoring";
 
-// Seed-stage startup pitch deck — Mise, an operating system for the restaurant back of house.
 export const startupPitch: ArtifactContent = deck(
     "noir",
     [
@@ -212,7 +209,6 @@ export const startupPitch: ArtifactContent = deck(
     bgImage("mise-cover-ambient", 0.35),
 );
 
-// B2B sales deck — Fleetwise, predictive maintenance for commercial truck fleets.
 export const salesDeck: ArtifactContent = deck(
     "cobalt",
     [
@@ -361,7 +357,6 @@ export const salesDeck: ArtifactContent = deck(
     bgImage("fleetwise-cover-ambient", 0.35),
 );
 
-// Series A deck — Switchboard, the AI front desk for home-services businesses.
 export const seriesA: ArtifactContent = deck(
     "indigo",
     [
@@ -544,7 +539,6 @@ export const seriesA: ArtifactContent = deck(
     bgImage("switchboard-cover-ambient", 0.35),
 );
 
-// Product demo deck — Sift, customer-feedback intelligence for product teams.
 export const productDemo: ArtifactContent = deck(
     "signal",
     [
@@ -716,11 +710,9 @@ export const productDemo: ArtifactContent = deck(
     bgImage("sift-cover-ambient", 0.35),
 );
 
-// Company overview — Fernwood & Co., a Portland furniture & lighting studio.
 export const companyOverview: ArtifactContent = deck(
     "couture",
     [
-        // ── Cover ────────────────────────────────────────────────────────────
         section(
             "c1",
             group(
@@ -735,7 +727,6 @@ export const companyOverview: ArtifactContent = deck(
             { background: bgImage("fernwood-workshop-cover", 0.55) },
         ),
 
-        // ── What we do ───────────────────────────────────────────────────────
         section(
             "c2",
             split(
@@ -755,7 +746,6 @@ export const companyOverview: ArtifactContent = deck(
             ),
         ),
 
-        // ── Our story ────────────────────────────────────────────────────────
         section(
             "c3",
             split(
@@ -772,7 +762,6 @@ export const companyOverview: ArtifactContent = deck(
             ),
         ),
 
-        // ── What we make ─────────────────────────────────────────────────────
         section(
             "c4",
             row(
@@ -803,7 +792,6 @@ export const companyOverview: ArtifactContent = deck(
             ),
         ),
 
-        // ── Our craft (feature background) ───────────────────────────────────
         section(
             "c5",
             group(
@@ -818,7 +806,6 @@ export const companyOverview: ArtifactContent = deck(
             { background: bgImage("fernwood-craft-joinery", 0.6) },
         ),
 
-        // ── Who we serve ─────────────────────────────────────────────────────
         section(
             "c6",
             split(
@@ -845,7 +832,6 @@ export const companyOverview: ArtifactContent = deck(
             ),
         ),
 
-        // ── Testimonials ─────────────────────────────────────────────────────
         section(
             "c7",
             row(
@@ -860,7 +846,6 @@ export const companyOverview: ArtifactContent = deck(
             ),
         ),
 
-        // ── By the numbers ───────────────────────────────────────────────────
         section(
             "c8",
             row(
@@ -870,7 +855,6 @@ export const companyOverview: ArtifactContent = deck(
             ),
         ),
 
-        // ── How we work ──────────────────────────────────────────────────────
         section(
             "c9",
             split(
@@ -892,7 +876,6 @@ export const companyOverview: ArtifactContent = deck(
             ),
         ),
 
-        // ── The team ─────────────────────────────────────────────────────────
         section(
             "c10",
             row(
@@ -914,7 +897,6 @@ export const companyOverview: ArtifactContent = deck(
             ),
         ),
 
-        // ── Our values ───────────────────────────────────────────────────────
         section(
             "c11",
             split(
@@ -940,7 +922,6 @@ export const companyOverview: ArtifactContent = deck(
             ),
         ),
 
-        // ── Get in touch (feature background) ─────────────────────────────────
         section(
             "c12",
             group(
@@ -958,11 +939,9 @@ export const companyOverview: ArtifactContent = deck(
     bgImage("fernwood-ambient", 0.34),
 );
 
-// Go-to-market plan — Tidepool, demand planning & inventory for growing brands.
 export const gtmPlan: ArtifactContent = deck(
     "swiss",
     [
-        // ── Cover ────────────────────────────────────────────────────────────
         section(
             "g1",
             group(
@@ -977,7 +956,6 @@ export const gtmPlan: ArtifactContent = deck(
             { background: bgImage("tidepool-warehouse-cover", 0.55) },
         ),
 
-        // ── The opportunity ──────────────────────────────────────────────────
         section(
             "g2",
             split(
@@ -1000,7 +978,6 @@ export const gtmPlan: ArtifactContent = deck(
             ),
         ),
 
-        // ── Target segments ──────────────────────────────────────────────────
         section(
             "g3",
             row(
@@ -1031,7 +1008,6 @@ export const gtmPlan: ArtifactContent = deck(
             ),
         ),
 
-        // ── Positioning (feature background) ─────────────────────────────────
         section(
             "g4",
             group(
@@ -1052,7 +1028,6 @@ export const gtmPlan: ArtifactContent = deck(
             { background: bgImage("tidepool-positioning-shelves", 0.6) },
         ),
 
-        // ── The funnel ───────────────────────────────────────────────────────
         section(
             "g5",
             split(
@@ -1074,7 +1049,6 @@ export const gtmPlan: ArtifactContent = deck(
             ),
         ),
 
-        // ── Channels ─────────────────────────────────────────────────────────
         section(
             "g6",
             row(
@@ -1105,7 +1079,6 @@ export const gtmPlan: ArtifactContent = deck(
             ),
         ),
 
-        // ── Pricing & packaging ──────────────────────────────────────────────
         section(
             "g7",
             group(
@@ -1121,7 +1094,6 @@ export const gtmPlan: ArtifactContent = deck(
             ),
         ),
 
-        // ── Launch timeline ──────────────────────────────────────────────────
         section(
             "g8",
             group(
@@ -1135,7 +1107,6 @@ export const gtmPlan: ArtifactContent = deck(
             ),
         ),
 
-        // ── Goals & KPIs ─────────────────────────────────────────────────────
         section(
             "g9",
             row(
@@ -1145,7 +1116,6 @@ export const gtmPlan: ArtifactContent = deck(
             ),
         ),
 
-        // ── First 90 days & owners ───────────────────────────────────────────
         section(
             "g10",
             row(
@@ -1168,7 +1138,6 @@ export const gtmPlan: ArtifactContent = deck(
             ),
         ),
 
-        // ── Next steps (feature background) ──────────────────────────────────
         section(
             "g11",
             group(

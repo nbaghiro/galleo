@@ -3,15 +3,13 @@ import { hierarchy, treemap } from "d3-hierarchy";
 import { registerChart, catList, fmt, uiFont } from "./utils";
 import type { PlotCtx, ResolvedChart } from "./utils";
 
-// d3-hierarchy's data is any-shaped; typing the leaf datum keeps the layout free of `any` casts.
+// typed leaf datum keeps the d3-hierarchy layout free of `any` casts
 interface Leaf {
     name: string;
     value: number;
     children?: Leaf[];
 }
 
-// A single-level treemap: leaves = series[0] points (labels from the categories), each sized by value and
-// packed into the box. Cells get a palette color and, when large enough, a clipped label + value.
 function drawTreemap(chart: ResolvedChart, ctx: PlotCtx): void {
     const { g, W, H, theme } = ctx;
     const points = (chart.series[0]?.points ?? []).map((v) => Math.max(0, v));

@@ -1,36 +1,25 @@
-// The agent-quality eval suite — real chat requests with the behavior each SHOULD produce, so a model's tool
-// routing (and, with --judge, its output quality) can be scored objectively and compared. Covers the read
-// spine, edit-a-target, management, generation, repurpose, guarded share/export, editor-surface refine,
-// RESTRAINT (asks that must NOT trigger a tool), and MULTI-TURN conversations. Each case asserts not just
-// WHICH tools/blocks fired but their ARGUMENTS (right artifact / folder / surface / title). Grounded in the
-// demo library (Series A Deck, Newsletter, Aria …); run `pnpm seed` first so `find-artifacts` resolves.
+// grounded in the demo library — run `pnpm seed` first so `find-artifacts` resolves
 
 export type EvalSurface = "library" | "editor";
 
-// Argument assertions against the emitted blocks — the block content carries the tool's real arguments, so
-// this verifies the agent acted on the RIGHT thing, not just that it called the right tool. String targets
-// (`*Artifact`, `*Folder`) are resolved to real ids from the demo library at score time.
 export interface ExpectArgs {
     targetArtifact?: string; // proposal.targetArtifactId === the artifact whose title contains this
-    actionKind?: string; // action.kind
+    actionKind?: string;
     actionArtifact?: string; // action.id === the artifact whose title contains this
     actionFolder?: string; // move → action.folderId === the folder with this name
     actionTitleContains?: string; // rename → action.title contains this
     actionName?: string; // create-folder → action.name contains this
-    briefSurface?: string; // brief.surface
+    briefSurface?: string;
     briefSource?: string; // repurpose → brief.sourceArtifactId === the artifact whose title contains this
 }
 
-// An LLM-judge rubric for output QUALITY (only runs under --judge). Scores 1–5; below `min` fails the step.
 export type JudgeWhat = "reply" | "proposalSection" | "brief";
 export interface JudgeSpec {
-    what: JudgeWhat; // what to judge: the text reply · the proposed section's copy · the generation brief
-    rubric: string; // what "good" means — scored against this + the user's request
+    what: JudgeWhat;
+    rubric: string;
     min?: number; // pass threshold (default 3)
 }
 
-// One conversational turn's expectations. A case is either single-turn (these fields inline) or multi-turn
-// (a `turns` array of these).
 export interface Step {
     message: string;
     expectTools?: string[]; // ALL must be called (any order)
@@ -38,7 +27,7 @@ export interface Step {
     expectBlocks?: string[]; // block types that must appear (proposal/brief/action/artifacts/templates/…)
     forbidBlocks?: string[]; // block types that must NOT appear
     conversational?: boolean; // pass ⇒ no tools AND no blocks (pure text answer)
-    expectArgs?: ExpectArgs; // argument assertions on the emitted blocks
+    expectArgs?: ExpectArgs;
     judge?: JudgeSpec; // output-quality rubric (only under --judge)
 }
 
@@ -46,12 +35,11 @@ export interface EvalCase extends Partial<Step> {
     id: string;
     category: string;
     surface: EvalSurface;
-    intent: string; // what a correct run does
-    turns?: Step[]; // multi-turn: a sequence of steps (threaded history + applied proposals); overrides `message`
+    intent: string;
+    turns?: Step[]; // multi-turn steps; overrides `message`
 }
 
 export const EVAL_CASES: EvalCase[] = [
-    // ---- read spine ----
     {
         id: "read-summarize",
         category: "read",
@@ -87,7 +75,6 @@ export const EVAL_CASES: EvalCase[] = [
         expectTools: ["find-artifacts"],
         forbidBlocks: ["proposal", "action", "brief"],
     },
-    // ---- edit a named artifact (with arg + quality checks) ----
     {
         id: "edit-title",
         category: "edit-target",
@@ -116,7 +103,6 @@ export const EVAL_CASES: EvalCase[] = [
             rubric: "The rewritten opening reads more formal/professional in tone while keeping the same substance and specifics.",
         },
     },
-    // ---- management (with arg checks) ----
     {
         id: "rename",
         category: "manage",
@@ -171,7 +157,6 @@ export const EVAL_CASES: EvalCase[] = [
         expectBlocks: ["action"],
         expectArgs: { actionKind: "create-folder", actionName: "Clients" },
     },
-    // ---- generation + repurpose (with arg + quality checks) ----
     {
         id: "generate",
         category: "generate",
@@ -212,7 +197,6 @@ export const EVAL_CASES: EvalCase[] = [
         expectTools: ["find-templates"],
         expectBlocks: ["templates"],
     },
-    // ---- guarded (share / export) ----
     {
         id: "share",
         category: "guarded",
@@ -233,7 +217,6 @@ export const EVAL_CASES: EvalCase[] = [
         expectBlocks: ["action"],
         expectArgs: { actionKind: "export", actionArtifact: "Series A" },
     },
-    // ---- restraint (must NOT call a tool) ----
     {
         id: "capabilities",
         category: "restraint",
@@ -266,7 +249,6 @@ export const EVAL_CASES: EvalCase[] = [
         intent: "answer from context/find, don't act",
         forbidBlocks: ["proposal", "action", "brief"],
     },
-    // ---- editor-surface refine (an artifact is open) ----
     {
         id: "refine-add",
         category: "refine",
@@ -294,7 +276,6 @@ export const EVAL_CASES: EvalCase[] = [
         expectTools: ["set-theme"],
         expectBlocks: ["proposal"],
     },
-    // ---- multi-turn conversations (threaded history + applied proposals) ----
     {
         id: "mt-refine-chain",
         category: "multi-turn",

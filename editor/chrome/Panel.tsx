@@ -10,8 +10,7 @@ import { FloatingPanel } from "@ui/overlay";
 import { ElementInspector } from "../inspect/inspectors";
 import { PaletteItem } from "../canvas/insert";
 
-// internal container + drop preview + the back-compat `chart`/`diagram` catch-alls (the per-type
-// chart/diagram tiles are the palette entries) — none shown as palette items.
+// hidden from the palette: internal container/drop-preview + back-compat chart/diagram catch-alls (per-type tiles show instead).
 const HIDDEN = new Set(["group", "__dropghost", "chart", "diagram", "avatar"]);
 const CAT_ORDER = ["text", "media", "table", "composite", "chart", "diagram", "basic"];
 const CAT_LABEL: Record<string, string> = {
@@ -24,8 +23,6 @@ const CAT_LABEL: Record<string, string> = {
     basic: "Basic",
 };
 
-// Right side: an always-on vertical icon rail. Clicking an icon opens a flyout — a category's
-// draggable elements, a search over all of them, or the inspector for the current selection.
 export const Panel: Component = () => {
     const [q, setQ] = createSignal("");
     const all = listElements().filter((s) => !HIDDEN.has(s.type));
@@ -35,9 +32,8 @@ export const Panel: Component = () => {
         const s = selection();
         return s?.kind === "element" ? s.address : null;
     });
-    // Elements edited entirely on the canvas skip the docked panel: rich-text (text) via the format bar,
-    // containers (group/card) via resize handles + region dividers + their bar controls, and anything whose
-    // `bar` already surfaces every control (e.g. image: Replace + Fit + Radius) — the panel adds nothing.
+    // Elements fully editable on-canvas skip the panel: rich-text (format bar), containers (handles), and
+    // any whose `bar` already surfaces every control.
     const elementInline = createMemo((): boolean => {
         const a = elementAddr();
         if (!a) return false;
@@ -54,8 +50,7 @@ export const Panel: Component = () => {
         return (type && getElement(type)?.label) || "Element";
     });
 
-    // Selecting a non-inline element opens the deep inspector in the rail; the floating ContextBar handles
-    // quick edits. Rich-text + container elements skip the panel; sections use the inline Layout popup.
+    // A non-inline selection opens the inspector; inline elements + sections are handled elsewhere.
     createEffect(() => {
         const s = selection();
         const showInspector = s?.kind === "element" && !elementInline();

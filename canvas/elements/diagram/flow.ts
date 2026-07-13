@@ -14,7 +14,6 @@ import {
 
 const isNum = (v: number | undefined): v is number => typeof v === "number" && Number.isFinite(v);
 
-// A left-to-right chain of the nodes, used when the diagram has no authored edges.
 function chainEdges(nodes: ResolvedDiagram["nodes"]): DiagEdge[] {
     const out: DiagEdge[] = [];
     for (let i = 0; i < nodes.length - 1; i++) {
@@ -23,8 +22,6 @@ function chainEdges(nodes: ResolvedDiagram["nodes"]): DiagEdge[] {
     return out;
 }
 
-// A flowchart laid out top-to-bottom by dagre. Node labels are measured to size each box; dagre's routed
-// edge points are drawn as arrowed poly-lines. Everything is uniformly scaled to fit the (W,H) box.
 function renderFlow(diagram: ResolvedDiagram, ctx: DiagramCtx): void {
     const { g, W, H, theme } = ctx;
     const { nodes } = diagram;

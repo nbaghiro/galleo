@@ -4,12 +4,11 @@ import type { Tokens } from "@themes";
 import { luminance, mix, mixWhite, resolveTheme } from "@themes";
 import { Popover } from "./overlay";
 
-// A theme's accent swatch — a small filled chip that resolves + previews a theme by id (used beside theme
-// names in the library / theme picker). Recolors to the theme's accent, not the active app theme.
+// Recolors to the theme's own accent, not the active app theme.
 export const ThemeSwatch: Component<{
     themeId: string;
-    size?: number; // px (default 12 = h-3 w-3)
-    rounded?: string; // tailwind rounding class (default rounded-[3px])
+    size?: number; // px (default 12)
+    rounded?: string; // default rounded-[3px]
     class?: string;
 }> = (props) => (
     <span
@@ -22,10 +21,6 @@ export const ThemeSwatch: Component<{
     />
 );
 
-// The one color-selection UI: an inline `ColorPicker` (swatch row + native well + hex + optional clear),
-// shared by inline mark pickers, and `ColorPopover` (a compact trigger opening the picker in a Popover).
-// Both style through theme utilities; the popover panel is theme-snapshotted by Popover.
-
 export interface ColorSwatch {
     label?: string;
     color: string;
@@ -37,13 +32,13 @@ export const ColorPicker: Component<{
     value?: string;
     swatches: ColorSwatch[];
     onChange: (value: string | undefined) => void;
-    // Discrete pick (a swatch or the remove affordance) — lets a transient popover dismiss itself.
+    // discrete pick — lets a transient popover dismiss itself
     onPick?: () => void;
-    // Label for the remove/reset affordance; omit to hide it.
+    // omit to hide the remove/reset affordance
     clearLabel?: string;
-    // Keep the remove/reset affordance visible with no value set (popover "Remove" vs inspector "Reset").
+    // keep the affordance visible when no value is set
     clearWhenEmpty?: boolean;
-    // Prevent mousedown-blur on swatches/remove so an external contenteditable keeps focus + selection.
+    // prevent mousedown-blur so an external contenteditable keeps focus
     keepFocus?: boolean;
 }> = (props) => {
     const noBlur = (e: MouseEvent): void => {
@@ -107,7 +102,6 @@ export const ColorPicker: Component<{
     );
 };
 
-// ── on-theme palettes ──
 export function textColorSwatches(t: Tokens): ColorSwatch[] {
     return [
         { label: "Ink", color: t.ink },
@@ -127,7 +121,6 @@ export function highlightSwatches(t: Tokens): ColorSwatch[] {
     return [t.accent, ...HL_HUES].map((hue) => ({ color: mix(hue, t.surface, toward) }));
 }
 
-// ── ColorPopover (compact swatch trigger → Popover with swatches + well + editable hex) ──
 export const ColorPopover: Component<{
     value?: string;
     swatches?: ColorSwatch[];

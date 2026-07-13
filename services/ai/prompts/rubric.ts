@@ -1,8 +1,3 @@
-// The quality bar — reverse-engineered from the hand-built demos (services/demos/*) and templates
-// (services/templates/*), which are the gold standard. These fragments turn "make it good" into concrete,
-// checkable rules so a first generation reads like a studio made it, not like AI slop. Injected into the
-// outline + section prompts.
-
 export const RUBRIC = `## The quality bar (hit every rule)
 - Open AND close on a \`full\` section carrying a background image; the closing section mirrors the cover's shape (label → headline → subtitle → button). These are the emotional bookends.
 - Make the SECOND section restate the whole thing in one line — a single big headline or a thesis quote.
@@ -20,8 +15,6 @@ export const VOICE = `## Voice (write like the demos)
 - Body paragraphs: 40–75 words for decks/sites (often one paragraph + bullets), 60–90 and sometimes doubled for documents. No filler, no "in today's fast-paced world", never lorem ipsum.
 - Image \`src\` = an art-director's brief: a specific, hyphenated, vivid phrase ("aerial-view-wind-farm-at-dusk", "quiet-desk-dawn-light"), not a generic noun.`;
 
-// Length → section-count target. The demos run 18–20 (the in-depth standard); templates run 9–14 (a lean
-// starter). Map the intake chip to a target so the model doesn't pad or truncate.
 export function lengthGuidance(length?: string): string {
     const l = (length ?? "").toLowerCase();
     const lean = l.startsWith("short")

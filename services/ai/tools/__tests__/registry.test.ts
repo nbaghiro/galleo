@@ -11,8 +11,7 @@ import {
     type WorkspaceReader,
 } from "../registry";
 
-// The tool registry — register / lookup / context wiring. Pure map + closure logic, no DB. This file imports
-// ONLY the registry (not the tool modules), so REGISTRY starts empty and these fixtures own it cleanly.
+// imports only the registry (not the tool modules), so REGISTRY starts empty
 
 async function drain<R>(gen: AsyncGenerator<TurnEvent, R>): Promise<R> {
     let step: IteratorResult<TurnEvent, R> = await gen.next();
@@ -20,8 +19,7 @@ async function drain<R>(gen: AsyncGenerator<TurnEvent, R>): Promise<R> {
     return step.value;
 }
 
-// A tiny fixture tool. Its id is a real ToolId literal (the registry keys on ToolId), which is safe because
-// nothing else registers in this isolated test file.
+// id is a real ToolId literal; the registry keys on ToolId
 const doubler: Tool<{ x: number }, number> = {
     id: "check-section",
     describe: "double x",
@@ -65,7 +63,6 @@ describe("makeContext", () => {
         const image = { source: "ai" as const };
         const ctx = makeContext({ image, workspace, signal });
 
-        // A probe sub-tool returns whatever context it was run with.
         const probe: Tool<null, ToolContext> = {
             id: "apply-patch",
             describe: "echo ctx",
@@ -76,7 +73,6 @@ describe("makeContext", () => {
         };
 
         const seen = await drain(ctx.use(probe, null));
-        // `use` forwards the same context object — sharing image / workspace / signal by reference.
         expect(seen).toBe(ctx);
         expect(seen.image).toBe(image);
         expect(seen.workspace).toBe(workspace);

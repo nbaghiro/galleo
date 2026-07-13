@@ -19,15 +19,9 @@ import {
     bgImage,
 } from "@model/authoring";
 
-// A purpose-built demo artifact for the theme editor — real, coherent content authored to touch every
-// token role in the contexts a real document uses them: a bg-image hero (bg · scrim · on-dark · accent),
-// body copy (ink · soft · muted, display + body fonts, heading weight), stats + a chart (accent), a
-// split with an image (radius), a card grid (surface · line · radius · border · shadow), a callout +
-// quote (accent tint · display), a code block (mono), and an accent-filled CTA (accent · onAccent). It's
-// a function of the live tokens so the scrim slider and the accent recolor the artifact in real time.
 export function themeDemo(tk: Tokens): Section[] {
     return [
-        // Hero — bg image + the theme's scrim; on-dark contrast; the accent button.
+        // bg · scrim · on-dark · accent
         section(
             "hero",
             group(
@@ -42,7 +36,7 @@ export function themeDemo(tk: Tokens): Section[] {
             { background: bgImage("meridian-theme-hero", tk.scrim ?? 0.45) },
         ),
 
-        // Intro — ink / soft / muted, display + body fonts, heading weight.
+        // ink · soft · muted · display/body fonts · heading weight
         section(
             "intro",
             group(
@@ -59,7 +53,7 @@ export function themeDemo(tk: Tokens): Section[] {
             ),
         ),
 
-        // Stats — the accent on big figures.
+        // accent on big figures
         section(
             "stats",
             row(
@@ -69,7 +63,7 @@ export function themeDemo(tk: Tokens): Section[] {
             ),
         ),
 
-        // Split — a two-column layout with an image (radius) beside a bulleted list.
+        // image radius + bullets
         section(
             "approach",
             split(
@@ -92,7 +86,7 @@ export function themeDemo(tk: Tokens): Section[] {
             ),
         ),
 
-        // Card grid — surface · line · radius · border · shadow, three across.
+        // surface · line · radius · border · shadow
         section(
             "services",
             group(t("Services", "label"), t("Three ways we work", "h3"), {
@@ -123,7 +117,7 @@ export function themeDemo(tk: Tokens): Section[] {
             }),
         ),
 
-        // Callout + quote — the accent tint and the display face at reading size.
+        // accent tint + display face
         section(
             "proof",
             split(
@@ -143,7 +137,7 @@ export function themeDemo(tk: Tokens): Section[] {
             ),
         ),
 
-        // Data — the accent driving a chart.
+        // accent-driven chart
         section(
             "impact",
             group(
@@ -153,7 +147,7 @@ export function themeDemo(tk: Tokens): Section[] {
             ),
         ),
 
-        // Code — the mono face and the line token in a technical context.
+        // mono face + line token
         section(
             "system",
             split(
@@ -169,7 +163,7 @@ export function themeDemo(tk: Tokens): Section[] {
             ),
         ),
 
-        // CTA — the accent as a full-bleed surface, testing on-accent legibility.
+        // accent full-bleed surface · on-accent legibility
         section(
             "cta",
             group(

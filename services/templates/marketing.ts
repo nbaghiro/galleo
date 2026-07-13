@@ -1,5 +1,3 @@
-// The marketing template set (all variants — un-sharded from the size-split -extra/-extra2 files).
-
 import type { ArtifactContent } from "@model/artifact";
 import {
     badge,
@@ -24,11 +22,9 @@ import {
     doc,
 } from "@model/authoring";
 
-// A product launch site for a believable fictional hardware product.
 export const productLaunch: ArtifactContent = web(
     "botanic",
     [
-        // 1 — Hero (bgImage cover)
         section(
             "s1",
             group(
@@ -42,7 +38,6 @@ export const productLaunch: ArtifactContent = web(
             ),
             { background: bgImage("aer-hero-living-room", 0.58) },
         ),
-        // 2 — The problem
         section(
             "s2",
             split(
@@ -58,7 +53,6 @@ export const productLaunch: ArtifactContent = web(
                 img("aer-dust-particles-light", 0.92),
             ),
         ),
-        // 3 — Stat band on a feature background
         section(
             "s3",
             row(
@@ -68,7 +62,6 @@ export const productLaunch: ArtifactContent = web(
             ),
             { background: bgImage("aer-clean-air-gradient", 0.5) },
         ),
-        // 4 — The product (split layout)
         section(
             "s4",
             split(
@@ -85,7 +78,6 @@ export const productLaunch: ArtifactContent = web(
                 ),
             ),
         ),
-        // 5 — Feature highlight with image (split, reversed)
         section(
             "s5",
             split(
@@ -102,7 +94,6 @@ export const productLaunch: ArtifactContent = web(
                 img("aer-sensor-closeup", 0.92),
             ),
         ),
-        // 6 — How it works (process diagram)
         section(
             "s6",
             group(
@@ -115,7 +106,6 @@ export const productLaunch: ArtifactContent = web(
                 diagram("process", "Draw in, Pre-filter, HEPA + carbon, Return clean", 240),
             ),
         ),
-        // 7 — Key features (three-up cards)
         section(
             "s7",
             row(
@@ -145,7 +135,6 @@ export const productLaunch: ArtifactContent = web(
                 ),
             ),
         ),
-        // 8 — Social proof: quote + stats on a feature background
         section(
             "s8",
             split(
@@ -161,7 +150,6 @@ export const productLaunch: ArtifactContent = web(
             ),
             { background: bgImage("aer-soft-home-window", 0.55) },
         ),
-        // 9 — Performance chart
         section(
             "s9",
             split(
@@ -177,7 +165,6 @@ export const productLaunch: ArtifactContent = web(
                 chart("line", "182, 168, 121, 74, 41, 18, 9, 4", 240),
             ),
         ),
-        // 10 — Pricing (table)
         section(
             "s10",
             group(
@@ -188,7 +175,6 @@ export const productLaunch: ArtifactContent = web(
                 ),
             ),
         ),
-        // 11 — FAQ (two-col callouts + bullets)
         section(
             "s11",
             row(
@@ -210,7 +196,6 @@ export const productLaunch: ArtifactContent = web(
                 ),
             ),
         ),
-        // 12 — Final CTA (bgImage)
         section(
             "s12",
             group(
@@ -228,11 +213,9 @@ export const productLaunch: ArtifactContent = web(
     bgImage("aer-bg-texture", 0.32),
 );
 
-// A SaaS landing page for a believable fictional analytics product.
 export const landingPage: ArtifactContent = web(
     "sunrise",
     [
-        // 1 — Hero with CTA (bgImage cover)
         section(
             "s1",
             split(
@@ -250,7 +233,6 @@ export const landingPage: ArtifactContent = web(
             ),
             { background: bgImage("northwind-hero-workspace", 0.52) },
         ),
-        // 2 — Trusted-by / logos row (caption + stats)
         section(
             "s2",
             row(
@@ -266,7 +248,6 @@ export const landingPage: ArtifactContent = web(
                 t("Lumen · Cedarworks · Haloway · Norrøn · Bellweather · Patchwork", "h3"),
             ),
         ),
-        // 3 — Core benefits (three-up)
         section(
             "s4",
             row(
@@ -296,7 +277,6 @@ export const landingPage: ArtifactContent = web(
                 ),
             ),
         ),
-        // 4 — Feature deep-dive (split with image, on a feature background)
         section(
             "s5",
             split(
@@ -315,7 +295,6 @@ export const landingPage: ArtifactContent = web(
             ),
             { background: bgImage("northwind-feature-glow", 0.5) },
         ),
-        // 5 — Growth chart deep-dive
         section(
             "s6",
             split(
@@ -331,7 +310,6 @@ export const landingPage: ArtifactContent = web(
                 chart("bar", "11, 9, 4, 2, 1", 240),
             ),
         ),
-        // 6 — Testimonials (quote)
         section(
             "s7",
             row(
@@ -345,7 +323,6 @@ export const landingPage: ArtifactContent = web(
                 ),
             ),
         ),
-        // 7 — Pricing tiers (table)
         section(
             "s8",
             group(
@@ -356,7 +333,6 @@ export const landingPage: ArtifactContent = web(
                 ),
             ),
         ),
-        // 8 — Final FAQ + CTA
         section(
             "s9",
             row(
@@ -385,11 +361,9 @@ export const landingPage: ArtifactContent = web(
     bgImage("northwind-bg-texture", 0.3),
 );
 
-// An event / conference site for a believable design-and-technology festival.
 export const eventPage: ArtifactContent = web(
     "vapor",
     [
-        // 1 — Hero (bgImage cover): name, date, location, register CTA
         section(
             "s1",
             group(
@@ -403,7 +377,6 @@ export const eventPage: ArtifactContent = web(
             ),
             { background: bgImage("frequency-lisbon-stage-lights", 0.58) },
         ),
-        // 2 — About (split layout with image)
         section(
             "s2",
             split(
@@ -419,7 +392,6 @@ export const eventPage: ArtifactContent = web(
                 img("frequency-crowd-warehouse-talk", 0.92),
             ),
         ),
-        // 3 — Why attend (three-up cards)
         section(
             "s3",
             row(
@@ -449,7 +421,6 @@ export const eventPage: ArtifactContent = web(
                 ),
             ),
         ),
-        // 4 — Speakers intro (split with image + CTA)
         section(
             "s4",
             split(
@@ -466,7 +437,6 @@ export const eventPage: ArtifactContent = web(
                 ),
             ),
         ),
-        // 5 — Featured speakers (image grid)
         section(
             "s5",
             row(
@@ -487,7 +457,6 @@ export const eventPage: ArtifactContent = web(
                 ),
             ),
         ),
-        // 6 — Agenda (table)
         section(
             "s6",
             group(
@@ -498,7 +467,6 @@ export const eventPage: ArtifactContent = web(
                 ),
             ),
         ),
-        // 7 — Tracks (process diagram)
         section(
             "s7",
             group(
@@ -511,7 +479,6 @@ export const eventPage: ArtifactContent = web(
                 diagram("process", "Big talk, Hands-on lab, Build, Demo + connect", 240),
             ),
         ),
-        // 8 — Past-event highlights (stats on a feature background)
         section(
             "s8",
             row(
@@ -521,7 +488,6 @@ export const eventPage: ArtifactContent = web(
             ),
             { background: bgImage("frequency-crowd-from-above-night", 0.55) },
         ),
-        // 9 — Attendee voices (two quotes)
         section(
             "s9",
             row(
@@ -535,7 +501,6 @@ export const eventPage: ArtifactContent = web(
                 ),
             ),
         ),
-        // 10 — Tickets (table)
         section(
             "s10",
             group(
@@ -546,7 +511,6 @@ export const eventPage: ArtifactContent = web(
                 ),
             ),
         ),
-        // 11 — Venue & FAQ (two-col)
         section(
             "s11",
             row(
@@ -581,7 +545,6 @@ export const eventPage: ArtifactContent = web(
                 ),
             ),
         ),
-        // 12 — Final CTA (bgImage)
         section(
             "s12",
             group(
@@ -599,11 +562,9 @@ export const eventPage: ArtifactContent = web(
     bgImage("frequency-bg-grain", 0.32),
 );
 
-// A coming-soon / waitlist site for a believable upcoming focus app.
 export const waitlistPage: ArtifactContent = web(
     "noir",
     [
-        // 1 — Hero (bgImage cover): teaser + join the waitlist
         section(
             "s1",
             group(
@@ -617,7 +578,6 @@ export const waitlistPage: ArtifactContent = web(
             ),
             { background: bgImage("vanta-dark-desk-single-light", 0.62) },
         ),
-        // 2 — The vision (split with image)
         section(
             "s2",
             split(
@@ -633,7 +593,6 @@ export const waitlistPage: ArtifactContent = web(
                 img("vanta-minimal-interface-dark", 0.92),
             ),
         ),
-        // 3 — A sneak peek (image showcase)
         section(
             "s3",
             group(
@@ -642,7 +601,6 @@ export const waitlistPage: ArtifactContent = web(
                 img("vanta-app-fullscreen-focus-mode", 1.7),
             ),
         ),
-        // 4 — What's coming (three-up cards)
         section(
             "s4",
             row(
@@ -672,7 +630,6 @@ export const waitlistPage: ArtifactContent = web(
                 ),
             ),
         ),
-        // 5 — A deeper look (split with image on a feature background)
         section(
             "s5",
             split(
@@ -690,7 +647,6 @@ export const waitlistPage: ArtifactContent = web(
             ),
             { background: bgImage("vanta-dark-gradient-glow", 0.5) },
         ),
-        // 6 — Numbers waiting (stats on a feature background)
         section(
             "s6",
             row(
@@ -700,7 +656,6 @@ export const waitlistPage: ArtifactContent = web(
             ),
             { background: bgImage("vanta-dark-particles-field", 0.55) },
         ),
-        // 7 — Roadmap (table)
         section(
             "s7",
             group(
@@ -711,7 +666,6 @@ export const waitlistPage: ArtifactContent = web(
                 ),
             ),
         ),
-        // 8 — Founders' note (image + quote)
         section(
             "s8",
             split(
@@ -723,7 +677,6 @@ export const waitlistPage: ArtifactContent = web(
                 ),
             ),
         ),
-        // 9 — FAQ (two-col)
         section(
             "s9",
             row(
@@ -754,7 +707,6 @@ export const waitlistPage: ArtifactContent = web(
                 ),
             ),
         ),
-        // 10 — Final waitlist CTA (bgImage)
         section(
             "s10",
             group(
@@ -772,11 +724,9 @@ export const waitlistPage: ArtifactContent = web(
     bgImage("vanta-bg-noir-texture", 0.34),
 );
 
-// A creative agency / studio website for a believable brand-and-digital studio.
 export const agencySite: ArtifactContent = web(
     "carbon",
     [
-        // 1 — Hero (bgImage cover): studio name + tagline + CTA
         section(
             "s1",
             group(
@@ -791,7 +741,6 @@ export const agencySite: ArtifactContent = web(
             ),
             { background: bgImage("counterform-studio-wall-pinups-mono", 0.58) },
         ),
-        // 2 — What we do (services, three-up cards)
         section(
             "s2",
             row(
@@ -821,7 +770,6 @@ export const agencySite: ArtifactContent = web(
                 ),
             ),
         ),
-        // 3 — Selected work, intro
         section(
             "s3",
             group(
@@ -833,7 +781,6 @@ export const agencySite: ArtifactContent = web(
                 ),
             ),
         ),
-        // 4 — Selected work, grid one (three-up image cards)
         section(
             "s4",
             row(
@@ -854,7 +801,6 @@ export const agencySite: ArtifactContent = web(
                 ),
             ),
         ),
-        // 5 — Selected work, grid two (two-col large image cards)
         section(
             "s5",
             row(
@@ -870,7 +816,6 @@ export const agencySite: ArtifactContent = web(
                 ),
             ),
         ),
-        // 6 — Our approach (process diagram + callout)
         section(
             "s6",
             group(
@@ -890,7 +835,6 @@ export const agencySite: ArtifactContent = web(
                 ),
             ),
         ),
-        // 7 — Clients / logos (caption list)
         section(
             "s7",
             group(
@@ -906,7 +850,6 @@ export const agencySite: ArtifactContent = web(
                 ),
             ),
         ),
-        // 8 — By the numbers (stats on a feature background)
         section(
             "s8",
             row(
@@ -916,7 +859,6 @@ export const agencySite: ArtifactContent = web(
             ),
             { background: bgImage("counterform-studio-shelves-archive", 0.55) },
         ),
-        // 9 — A client quote (bgImage)
         section(
             "s9",
             quote(
@@ -925,7 +867,6 @@ export const agencySite: ArtifactContent = web(
             ),
             { background: bgImage("counterform-meeting-table-warm-light", 0.6) },
         ),
-        // 10 — The team (three-up image cards)
         section(
             "s10",
             row(
@@ -946,7 +887,6 @@ export const agencySite: ArtifactContent = web(
                 ),
             ),
         ),
-        // 11 — Start a project (bgImage CTA)
         section(
             "s11",
             group(
@@ -960,7 +900,6 @@ export const agencySite: ArtifactContent = web(
             ),
             { background: bgImage("counterform-studio-window-morning-light", 0.55) },
         ),
-        // 12 — Footer columns
         section(
             "s12",
             row(
@@ -983,11 +922,9 @@ export const agencySite: ArtifactContent = web(
     bgImage("counterform-paper-texture-mono-bg", 0.3),
 );
 
-// A polished newsletter issue for a believable fortnightly publication on cities & design.
 export const newsletter: ArtifactContent = doc(
     "studio",
     [
-        // 1 — Masthead (bgImage cover): title + issue # + date + byline
         section(
             "s1",
             group(
@@ -1001,7 +938,6 @@ export const newsletter: ArtifactContent = doc(
             ),
             { background: bgImage("commonground-city-square-morning-light", 0.55) },
         ),
-        // 2 — Editor's note (lede)
         section(
             "s2",
             group(
@@ -1017,7 +953,6 @@ export const newsletter: ArtifactContent = doc(
                 ),
             ),
         ),
-        // 3 — The lead story (heading + body + image)
         section(
             "s3",
             split(
@@ -1043,7 +978,6 @@ export const newsletter: ArtifactContent = doc(
                 ),
             ),
         ),
-        // 4 — Shorter item (image + heading + paragraph)
         section(
             "s4",
             split(
@@ -1064,7 +998,6 @@ export const newsletter: ArtifactContent = doc(
                 ),
             ),
         ),
-        // 5 — Shorter item (heading + paragraph)
         section(
             "s5",
             group(
@@ -1075,7 +1008,6 @@ export const newsletter: ArtifactContent = doc(
                 ),
             ),
         ),
-        // 6 — Shorter item (heading + paragraph + image)
         section(
             "s6",
             split(
@@ -1096,12 +1028,10 @@ export const newsletter: ArtifactContent = doc(
                 ),
             ),
         ),
-        // 7 — A pull quote
         section(
             "s7",
             quote("A street you want to linger on is a street you also want to shop on.", ""),
         ),
-        // 8 — Shorter item (reader mailbag)
         section(
             "s8",
             group(
@@ -1113,7 +1043,6 @@ export const newsletter: ArtifactContent = doc(
                 ),
             ),
         ),
-        // 9 — By the numbers (stat block)
         section(
             "s9",
             row(
@@ -1122,7 +1051,6 @@ export const newsletter: ArtifactContent = doc(
                 stat("2,000", "streetlights the city swaps out this autumn"),
             ),
         ),
-        // 10 — Recommended links (bullets)
         section(
             "s10",
             group(
@@ -1137,7 +1065,6 @@ export const newsletter: ArtifactContent = doc(
                 ),
             ),
         ),
-        // 11 — Sign-off
         section(
             "s11",
             group(
@@ -1148,7 +1075,6 @@ export const newsletter: ArtifactContent = doc(
                 ),
             ),
         ),
-        // 12 — Colophon
         section(
             "s12",
             group(

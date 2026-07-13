@@ -2,12 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mailReady, sendShareInvite } from "../send";
 import type { ShareInvite } from "../send";
 
-// `escapeHtml` (the 5-char entity map) and `deliver` (the Resend REST touch-point) are module-private —
-// not exported — so they can't be imported/asserted directly, and the composed invite HTML is only ever
-// handed to `deliver` (never returned), so it isn't observable without a network mock. The exported,
-// non-network seams are the env-driven `mailReady` flag and `sendShareInvite`'s unconfigured short-circuit
-// (with no RESEND_API_KEY, `deliver` returns false before any fetch).
-
 const invite = (over: Partial<ShareInvite> = {}): ShareInvite => ({
     to: "guest@example.com",
     artifactTitle: "Q3 Roadmap <script>",

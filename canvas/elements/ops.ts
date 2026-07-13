@@ -10,11 +10,8 @@ import type { ElementLayout } from "@model/geometry";
 import { getElement } from "@elements/spec";
 import { LAYOUT_PRESETS, colGroup, emptyRegion, rowGroup, withWidth } from "@model/section";
 
-// Pure, immutable content ops over an artifact. A section's content is ONE recursive tree (`section.root`);
-// an element is addressed by its index PATH into that tree — `[]` is the root, `[0]` its first child.
-// Container traversal/editing goes through the `container` contract (children/withChildren), so ops work
-// for any container at any depth. Snapshot-style: every op returns a fresh tree (cheap for JSONB-sized
-// artifacts), never mutating the input.
+// A section's content is ONE recursive tree (`section.root`); an element is addressed by its index PATH —
+// `[]` the root, `[0]` its first child. Every op returns a fresh tree, never mutating the input.
 
 const clamp = (i: number, len: number): number => Math.max(0, Math.min(i, len));
 
@@ -25,8 +22,7 @@ function mapSection(art: ArtifactContent, id: Id, fn: (s: Section) => Section): 
 const putRoot = (art: ArtifactContent, id: Id, root: ElementInstance): ArtifactContent =>
     mapSection(art, id, (s) => ({ ...s, root }));
 
-// Container access via the spec `container` contract (the registry-aware mirror of the raw `data.children`
-// walk in @model/section that the edge-safe AI layer uses).
+// container access via the spec `container` contract (registry-aware mirror of @model/section's raw walk)
 function childrenOf(inst: ElementInstance): ElementInstance[] | null {
     const spec = getElement(inst.type);
     return spec?.container ? spec.container.children(inst.data) : null;
@@ -58,8 +54,6 @@ export const stripWidth = (inst: ElementInstance): ElementInstance => {
     const { width: _width, ...rest } = inst.layout;
     return Object.keys(rest).length ? { ...inst, layout: rest } : { ...inst, layout: undefined };
 };
-
-// --- tree access by path (relative to section.root) ---
 
 function nodeAt(root: ElementInstance, path: number[]): ElementInstance | undefined {
     let inst: ElementInstance | undefined = root;
@@ -112,7 +106,7 @@ export function updateDataAt(
     return updateElementAt(art, addr, (inst) => ({ ...inst, data }));
 }
 
-// Replace the whole element instance at `addr` — used by the AI regenerate-element flow.
+// used by the AI regenerate-element flow
 export function setElementAt(
     art: ArtifactContent,
     addr: ElementAddress,
@@ -129,9 +123,7 @@ export function setElementLayout(
     return updateElementAt(art, addr, (inst) => ({ ...inst, layout }));
 }
 
-// --- removal + collapse ---
-
-// Remove the node at `addr` (pure — no collapse). Removing the root clears the section to an empty region.
+// remove the node at `addr` (no collapse); removing the root clears the section to an empty region
 export function removeAt(art: ArtifactContent, addr: ElementAddress): ArtifactContent {
     const { path } = addr;
     if (path.length === 0) return putRoot(art, addr.section, emptyRegion());
@@ -150,8 +142,7 @@ export function removeAt(art: ArtifactContent, addr: ElementAddress): ArtifactCo
     }));
 }
 
-// Renormalize a row's widths so surviving columns sum back to 100% (removing one of three equal columns
-// leaves the other two at 50/50). No-op for rows without explicit widths.
+// renormalize a row's widths so survivors sum back to 100%; no-op for rows without explicit widths
 function renormalizeWidths(children: ElementInstance[]): ElementInstance[] {
     const vals = children.map(widthPct);
     if (!vals.some((v) => v !== undefined)) return children;
@@ -160,8 +151,8 @@ function renormalizeWidths(children: ElementInstance[]): ElementInstance[] {
     return children.map((c, i) => withWidth(c, Math.round((filled[i]! / sum) * 100)));
 }
 
-// Fix one container after it lost a child: unwrap a redundant single-child group (hoisting its width),
-// else rebalance a row's widths.
+// after a container lost a child: unwrap a redundant single-child group (hoisting its width), else
+// rebalance a row's widths
 function fixContainer(node: ElementInstance): ElementInstance {
     const kids = childrenOf(node);
     if (!kids) return node;
@@ -174,8 +165,7 @@ function fixContainer(node: ElementInstance): ElementInstance {
     return node;
 }
 
-// Collapse ONLY along `parentPath` — the container a removal emptied, cascading up — so pulling a column's
-// content out reflows the rest, while unrelated empty regions (e.g. a preset's blank column) stay put.
+// collapse ONLY along `parentPath` (the emptied container, cascading up) so unrelated empty regions stay put
 function collapseAlong(node: ElementInstance, parentPath: number[]): ElementInstance {
     if (parentPath.length === 0) return fixContainer(node);
     const kids = childrenOf(node);
@@ -188,7 +178,6 @@ function collapseAlong(node: ElementInstance, parentPath: number[]): ElementInst
     return fixContainer(withChildren(node, next));
 }
 
-// Collapse the section after removing the element whose parent was `parentPath`.
 export function collapseSection(
     art: ArtifactContent,
     id: Id,
@@ -201,15 +190,12 @@ export function collapseSection(
     });
 }
 
-// The user-facing delete: remove the element, then collapse the column/region it emptied.
+// user-facing delete: remove, then collapse the emptied column/region
 export function deleteElement(art: ArtifactContent, addr: ElementAddress): ArtifactContent {
     return collapseSection(removeAt(art, addr), addr.section, addr.path.slice(0, -1));
 }
 
-// --- insertion ---
-
-// Insert `element` as child `index` of the container at `parentAddr`. No-op if the target isn't a
-// container (drop logic only targets containers / empty regions).
+// insert `element` as child `index` of the container at `parentAddr`; no-op if the target isn't a container
 export function insertChild(
     art: ArtifactContent,
     parentAddr: ElementAddress,
@@ -219,14 +205,16 @@ export function insertChild(
     return updateElementAt(art, parentAddr, (parent) => {
         const kids = childrenOf(parent);
         if (!kids) return parent;
+        // width invariant: a row's columns are all width-less (even split) or all present summing to 100%.
+        // Strip the newcomer's stale width + renormalize; non-row containers insert verbatim.
+        const row = isRow(parent);
         const next = [...kids];
-        next.splice(clamp(index, next.length), 0, element);
-        return withChildren(parent, next);
+        next.splice(clamp(index, next.length), 0, row ? stripWidth(element) : element);
+        return withChildren(parent, row ? renormalizeWidths(next) : next);
     });
 }
 
-// Wrap the element at `addr` together with `element` into a group of `direction`, placing the new element
-// before/after it. Used when dropping beside a leaf (which has no container to insert into yet).
+// wrap `addr` + `element` into a group of `direction`; used when dropping beside a leaf (no container yet)
 export function wrapWith(
     art: ArtifactContent,
     addr: ElementAddress,
@@ -240,8 +228,7 @@ export function wrapWith(
     });
 }
 
-// Replace the element at `addr` outright (used to drop into an empty region — the placeholder becomes the
-// dropped element).
+// used to drop into an empty region (the placeholder becomes the dropped element)
 export function replaceAt(
     art: ArtifactContent,
     addr: ElementAddress,
@@ -250,25 +237,22 @@ export function replaceAt(
     return updateElementAt(art, addr, () => element);
 }
 
-// --- duplicate ---
-
 export function duplicateAt(art: ArtifactContent, addr: ElementAddress): ArtifactContent {
     const inst = getElementAt(art, addr);
     if (!inst) return art;
     const clone = structuredClone(inst);
     if (addr.path.length === 0) return putRoot(art, addr.section, colGroup([inst, clone]));
-    const parentPath = addr.path.slice(0, -1);
     const idx = addr.path[addr.path.length - 1]!;
-    return updateElementAt(art, { section: addr.section, path: parentPath }, (parent) => {
-        const kids = childrenOf(parent);
-        if (!kids) return parent;
-        const next = [...kids];
-        next.splice(idx + 1, 0, clone);
-        return withChildren(parent, next);
-    });
+    // via insertChild so duplicating a column renormalizes widths instead of over-committing past 100%
+    return insertChild(
+        art,
+        { section: addr.section, path: addr.path.slice(0, -1) },
+        idx + 1,
+        clone,
+    );
 }
 
-// The address the duplicate lands at (its new sibling slot), so callers can reselect the copy.
+// where the duplicate lands (its new sibling slot), so callers can reselect the copy
 export function duplicatedAddr(addr: ElementAddress): ElementAddress {
     if (addr.path.length === 0) return { section: addr.section, path: [1] };
     const path = [...addr.path];
@@ -276,15 +260,12 @@ export function duplicatedAddr(addr: ElementAddress): ElementAddress {
     return { section: addr.section, path };
 }
 
-// --- section columns + layout presets ---
-
-// The section's top-level columns: the root row's children, else the whole root as one column.
+// the section's top-level columns: the root row's children, else the whole root as one column
 function currentColumns(root: ElementInstance): ElementInstance[] {
     return isRow(root) ? (childrenOf(root) ?? []) : [root];
 }
 
-// Insert a new column into the section's root row at `index` (wrapping a non-row root into a row first).
-// Columns drop explicit widths so they split evenly and the new one gets a fair share; drag to re-weight.
+// insert a column at `index` (wrapping a non-row root into a row first); columns drop widths → even split
 export function addColumn(
     art: ArtifactContent,
     sectionId: Id,
@@ -301,8 +282,8 @@ export function addColumn(
     return { art: putRoot(art, sectionId, root), path: single ? [] : [at] };
 }
 
-// Rebuild `fractions.length` columns holding the given (width-stripped) content columns: pad with empty
-// regions when growing, merge the overflow (stacked) into the last kept column when shrinking.
+// rebuild `fractions.length` columns: pad with empty regions when growing, merge overflow into the last
+// kept column when shrinking
 function splitRoot(cols: ElementInstance[], fractions: number[]): ElementInstance {
     const n = fractions.length;
     let next: ElementInstance[];
@@ -317,9 +298,7 @@ function splitRoot(cols: ElementInstance[], fractions: number[]): ElementInstanc
     return n === 1 ? stripWidth(next[0]!) : rowGroup(next, fractions);
 }
 
-// Reflow a section into columns with the given width fractions — the section-level core of a "split" layout
-// preset (a convenience helper, not a stored mode), preserving its content + background/bleed. Shared by
-// applyLayoutPreset and the layout-preset registry (@elements/layouts).
+// reflow a section into columns of the given fractions; shared by applyLayoutPreset + @elements/layouts
 export function splitSection(section: Section, fractions: number[]): Section {
     return { ...section, root: splitRoot(currentColumns(section.root).map(stripWidth), fractions) };
 }
@@ -332,7 +311,7 @@ export function applyLayoutPreset(
     return mapSection(art, sectionId, (s) => splitSection(s, LAYOUT_PRESETS[presetId] ?? [1]));
 }
 
-// The width fractions of the section's current top-level columns (for the inspector's active-preset match).
+// width fractions of the current top-level columns (for the inspector's active-preset match)
 export function columnFractions(section: Section): number[] {
     const cols = currentColumns(section.root);
     if (cols.length <= 1) return [1];
@@ -341,8 +320,6 @@ export function columnFractions(section: Section): number[] {
     const filled = cols.map((_, i) => (vals[i] ?? 100 / cols.length) / 100);
     return filled;
 }
-
-// --- section-level ---
 
 export function setSectionBackground(
     art: ArtifactContent,

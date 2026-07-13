@@ -13,23 +13,18 @@ import { SESSION_COOKIE } from "../auth";
 import { currentUser, currentWorkspace, readJson } from "./context";
 import { stripe, stripeReady, priceIdFor, planForPrice, intervalForPrice } from "../billing/stripe";
 
-// Billing: the current plan + usage (for the pricing page + paywalls), Stripe Checkout / customer-portal
-// hand-offs, an AI-credit spend gate, and the Stripe webhook that keeps the workspace's plan in sync.
 export const billing = new Hono();
 
-// Where Stripe sends the user back to after Checkout / the portal (the app SPA, not the API).
 const APP_URL = process.env.APP_URL ?? "http://localhost:8600";
 const monthOut = (): Date => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 const RANK: Record<PlanId, number> = { free: 0, pro: 1, premium: 2 };
 
-// A subscription's current period end. Stripe moved this onto the subscription item in recent API
-// versions; fall back to a rough month-out if it's absent.
+// Stripe moved current_period_end onto the subscription item in recent API versions; month-out fallback.
 function subPeriodEnd(sub: Stripe.Subscription): Date {
     const ts = sub.items.data[0]?.current_period_end;
     return ts ? new Date(ts * 1000) : monthOut();
 }
 
-// GET /billing — the plan, live usage, and the catalog the pricing page renders from.
 billing.get("/billing", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -56,7 +51,6 @@ billing.get("/billing", async (c) => {
     });
 });
 
-// POST /billing/checkout — start a subscription Checkout for a plan; returns the hosted-page URL.
 billing.post("/billing/checkout", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -107,7 +101,6 @@ billing.post("/billing/checkout", async (c) => {
     return c.json({ url: session.url });
 });
 
-// POST /billing/portal — open the Stripe customer portal to manage/cancel the subscription.
 billing.post("/billing/portal", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -117,8 +110,7 @@ billing.post("/billing/portal", async (c) => {
     const session = await stripe().billingPortal.sessions.create({
         customer: ws.stripeCustomerId,
         return_url: `${APP_URL}/app/pricing`,
-        // Our configured portal (plan-switching across Pro/Premium, seat changes, invoices, cancel flow)
-        // when STRIPE_PORTAL_CONFIG is set; falls back to the account's default portal otherwise.
+        // Configured portal when STRIPE_PORTAL_CONFIG is set; else the account's default.
         ...(process.env.STRIPE_PORTAL_CONFIG
             ? { configuration: process.env.STRIPE_PORTAL_CONFIG }
             : {}),
@@ -126,9 +118,7 @@ billing.post("/billing/portal", async (c) => {
     return c.json({ url: session.url });
 });
 
-// POST /billing/change-plan — in-app tier / interval / seat change on an existing subscription. Downgrade
-// to Free schedules a cancel at period end (access kept until then); an upgrade invoices the difference
-// immediately (prorated); other changes prorate onto the next invoice. The webhook syncs the result.
+// Downgrade to Free = cancel at period end; upgrade invoices immediately (prorated); other changes prorate onto the next invoice.
 billing.post("/billing/change-plan", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -174,9 +164,7 @@ billing.post("/billing/change-plan", async (c) => {
     return c.json({ ok: true, effect: upgrading ? "upgraded" : "changed" });
 });
 
-// POST /billing/spend — reserve AI credits. The cost is, in order of precedence: an exact `usage` bag (what
-// a completed run actually did), an `action` + optional `meter` (a size-aware estimate for the pre-flight
-// gate), or a raw `amount`; it defaults to a typical generation. 402 when the allowance is spent.
+// Cost precedence: exact usage bag → action+meter estimate → raw amount → default generation. 402 when spent.
 billing.post("/billing/spend", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -214,8 +202,7 @@ billing.post("/billing/spend", async (c) => {
     return c.json({ remaining: limit - (ws.aiCreditsUsed + cost) });
 });
 
-// POST /billing/webhook — Stripe → us: keep the plan in sync. Unauthenticated (verified by signature),
-// and it reads the RAW body (constructEvent needs the exact bytes).
+// Unauthenticated (verified by signature); reads the RAW body (constructEvent needs the exact bytes).
 billing.post("/billing/webhook", async (c) => {
     const sig = c.req.header("stripe-signature");
     const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -230,8 +217,6 @@ billing.post("/billing/webhook", async (c) => {
     await handleEvent(event);
     return c.json({ received: true });
 });
-
-// --- webhook handling ---
 
 const activeStatus = (s: Stripe.Subscription.Status): string =>
     s === "active" || s === "trialing" ? "active" : s === "past_due" ? "past_due" : "canceled";
@@ -256,8 +241,7 @@ const seatsOf = (sub: Stripe.Subscription): number => sub.items.data[0]?.quantit
 const invCustomer = (inv: Stripe.Invoice): string | null =>
     typeof inv.customer === "string" ? inv.customer : (inv.customer?.id ?? null);
 
-// Handlers are last-write-wins state syncs; the subscription events guard on the workspace whose CURRENT
-// sub this is (so a stale update arriving after a cancel can't resurrect a plan). Dunning maps by customer.
+// Last-write-wins syncs; sub events guard on the workspace whose CURRENT sub this is (a stale update can't resurrect a plan); dunning maps by customer.
 async function handleEvent(event: Stripe.Event): Promise<void> {
     if (event.type === "checkout.session.completed") {
         const s = event.data.object as Stripe.Checkout.Session;
@@ -284,7 +268,7 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
             .where(eq(schema.workspaces.id, wsId));
     } else if (event.type === "customer.subscription.updated") {
         const sub = event.data.object as Stripe.Subscription;
-        const ws = await workspaceBySubId(sub.id); // strict: only this sub's workspace
+        const ws = await workspaceBySubId(sub.id);
         if (!ws) return;
         const plan = planForPrice(sub.items.data[0]?.price.id);
         await db
@@ -300,7 +284,7 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
         const sub = event.data.object as Stripe.Subscription;
         const ws = await workspaceBySubId(sub.id);
         if (!ws) return;
-        // access ends → back to Free. Data is kept; over-limit use is soft-locked by the resolver's gates.
+        // Back to Free; data kept, over-limit use soft-locked by the resolver's gates.
         await db
             .update(schema.workspaces)
             .set({ plan: "free", planStatus: "canceled", stripeSubscriptionId: null, seats: 1 })

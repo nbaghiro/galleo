@@ -6,11 +6,6 @@ import { defaultModelFor } from "./models";
 import { PERSONA } from "./prompts/persona";
 import { artifactDigest, artifactSpine } from "./prompts/system";
 
-// Cheap "what should I add next" suggestions for an existing artifact — one small structured call over the
-// compact digest (section labels + grids), returning short imperatives the insert-a-section popup drops
-// straight into its prompt box. Flash with thinking disabled keeps it fast + low-cost; the client caches the
-// result per artifact so this runs at most once per artifact (on demand), never on every popup open.
-
 const zSuggest = z.object({
     suggestions: z
         .array(z.string())
@@ -27,7 +22,7 @@ You propose the NEXT sections that would most strengthen an EXISTING artifact �
 
 export async function suggestSections(content: ArtifactContent): Promise<string[]> {
     const { object } = await generateObject({
-        model: resolveModel(defaultModelFor("outline")), // Flash — the cheap tier
+        model: resolveModel(defaultModelFor("outline")),
         schema: zSuggest,
         system: SUGGEST_SYSTEM,
         prompt: `${artifactSpine(content)}\n\n${artifactDigest(content)}\n\nPropose 6 section ideas that fit this artifact.`,

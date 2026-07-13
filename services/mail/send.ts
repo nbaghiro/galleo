@@ -1,11 +1,5 @@
-// Transactional email — a provider-agnostic sender. The provider today is Resend (one REST call, no SDK
-// dependency); to swap vendors, change only `deliver()`. Env-driven and lazy like billing: a missing
-// RESEND_API_KEY doesn't crash boot — `deliver()` resolves to `false` (a silent no-op) so dev works
-// without email configured. Callers surface the copyable per-recipient links regardless of delivery.
-
 const FROM = process.env.MAIL_FROM ?? "Galleo <onboarding@resend.dev>";
 
-// Email is live once an API key is present. (Callers still work when it isn't — invites just aren't sent.)
 export function mailReady(): boolean {
     return !!process.env.RESEND_API_KEY;
 }
@@ -16,7 +10,6 @@ interface Email {
     html: string;
 }
 
-// The single vendor touch-point. Returns whether the message was accepted for delivery.
 async function deliver(msg: Email): Promise<boolean> {
     const key = process.env.RESEND_API_KEY;
     if (!key) return false; // unconfigured → skip silently (dev)
@@ -28,7 +21,7 @@ async function deliver(msg: Email): Promise<boolean> {
         });
         return res.ok;
     } catch {
-        return false; // network/provider error — never let a send failure break the publish flow
+        return false; // never let a send failure break the publish flow
     }
 }
 
@@ -47,7 +40,6 @@ export interface ShareInvite {
     message?: string | null;
 }
 
-// A private-share invitation carrying the recipient's own tokenized link. Returns whether it was sent.
 export async function sendShareInvite(invite: ShareInvite): Promise<boolean> {
     const title = escapeHtml(invite.artifactTitle);
     const who = escapeHtml(invite.inviterName || invite.workspaceName);

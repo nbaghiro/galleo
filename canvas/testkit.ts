@@ -16,12 +16,9 @@ import { layout } from "@engine/layout";
 import { resolveProfile } from "@engine/profile";
 import { DEFAULT_THEME } from "@themes";
 
-// Shared helpers for the canvas suite. The ONLY substitute for a real dependency here is `measure` (glyph
-// metrics) — see the mocking contract in .docs/testing.md. Everything else (builders, finders) is plumbing
-// over real engine output. Excluded from coverage (see vitest.config.ts).
+// canvas-suite test helpers; `measure` is the only mocked dep (see .docs/testing.md)
 
-// Deterministic glyph metrics: 8px per char unwrapped, 16px per line, wrapping at maxWidth. Stands in for
-// font measurement so the layout/wrap math is what's under test — not the font.
+// deterministic glyph metrics: 8px/char, 16px/line, wraps at maxWidth
 export const measure: MeasureText = (leaf, maxW) => {
     const unwrapped = leaf.text.length * 8;
     if (leaf.wrap === "none" || !Number.isFinite(maxW)) return { width: unwrapped, height: 16 };
@@ -29,18 +26,15 @@ export const measure: MeasureText = (leaf, maxW) => {
     return { width: Math.min(unwrapped, maxW), height: lines * 16 };
 };
 
-// Assert two engine floats are within `eps` px (the solver works in floats).
+// within eps px (solver works in floats)
 export const near = (a: number, b: number, eps = 1): void =>
     expect(Math.abs(a - b), `expected ${a} ≈ ${b} (±${eps})`).toBeLessThanOrEqual(eps);
 
-// Drive the full solver at a container of (w × h) with the deterministic measure.
 export const runLayout = (
     node: EngineNode,
     w: number,
     h: number,
 ): { commands: RenderCommand[]; regions: Region[] } => layout(node, { x: 0, y: 0, w, h }, measure);
-
-// --- EngineNode builders (a filled leaf, a row, a column, a text leaf) ---
 
 export const boxNode = (id: string, w: Size, h: Size, extra?: Partial<EngineNode>): EngineNode => ({
     id,
@@ -70,8 +64,6 @@ export const textNode = (text: string, extra?: Partial<EngineNode>): EngineNode 
     ...extra,
 });
 
-// --- finders over layout output ---
-
 export const regionById = (regions: Region[], id: string): Region => {
     const r = regions.find((x) => x.id === id);
     if (!r) throw new Error(`no region "${id}"`);
@@ -88,9 +80,7 @@ export const commandById = (commands: RenderCommand[], id: string): RenderComman
 export const bottomOf = (commands: RenderCommand[]): number =>
     commands.reduce((mx, c) => Math.max(mx, c.box.y + c.box.h), 0);
 
-// --- content-model helpers (for registry-dependent element/ops/compose tests) ---
-
-// The real default theme tokens — element/compose tests run against real theme values, not a fake fixture.
+// real default theme tokens (not a fake fixture)
 export const tokens = DEFAULT_THEME.tokens;
 
 export const inst = (type: string, data: unknown = {}, lyt?: ElementLayout): ElementInstance =>
@@ -111,11 +101,7 @@ export const layoutCtx = (
     theme = tokens,
 ): LayoutCtx => ({ box: { x: 0, y: 0, w: width, h: 600 }, availWidth: width, format, theme });
 
-// --- recording DrawContext (surface renderers: shape, charts, diagrams) ---
-
-// A real DrawContext (not a mock of the logic) that records every primitive call. The renderer computes
-// real geometry (incl. d3); tests assert the resulting call stream, not pixels. `measureText` returns the
-// deterministic glyph width so label-aware chrome lays out without a canvas.
+// real DrawContext that records every primitive call; tests assert the call stream, not pixels
 export interface DrawCall {
     op: string;
     [k: string]: unknown;
@@ -154,9 +140,7 @@ export function recordingDrawContext(): { ctx: DrawContext; calls: DrawCall[] } 
     return { ctx, calls };
 }
 
-// A minimal Canvas 2D stand-in exposing only `.font` (a no-op setter) + deterministic `.measureText` —
-// enough to drive the real run-aware wrap in commands.ts (`layoutRuns`). Glyph width is the seam; the wrap
-// algorithm runs for real.
+// minimal Canvas 2D (no-op font, deterministic measureText) to drive layoutRuns for real
 export function textMetricsCtx(): CanvasRenderingContext2D {
     return {
         set font(_v: string) {},
@@ -164,9 +148,7 @@ export function textMetricsCtx(): CanvasRenderingContext2D {
     } as unknown as CanvasRenderingContext2D;
 }
 
-// Patch HTMLCanvasElement.getContext("2d") (happy-dom) so the module-level `measureText` / raster paths run
-// without a native canvas: the returned context answers `measureText` deterministically and no-ops every
-// other call. The raster/IO seam — call once in a `beforeAll` of a `*.dom.test.ts` before any measurement.
+// patch HTMLCanvasElement.getContext("2d") (happy-dom); call once in a beforeAll before any measurement
 export function installCanvas2D(): void {
     const HC = (globalThis as Record<string, unknown>).HTMLCanvasElement as
         | { prototype: Record<string, unknown> }

@@ -1,7 +1,6 @@
 import { hexA } from "@themes";
 import { arrowPath, drawNode, registerDiagram, type Renderer } from "./utils";
 
-// Nodes evenly placed around an ellipse, arrows arcing clockwise along the ring between neighbours.
 const cycle: Renderer = (diagram, ctx) => {
     const { g, W, H, theme } = ctx;
     const items = diagram.items;

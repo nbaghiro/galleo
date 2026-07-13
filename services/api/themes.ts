@@ -8,8 +8,7 @@ import { SESSION_COOKIE } from "../auth";
 import { featuresFor } from "../features";
 import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
 
-// Per-workspace custom-theme routes (workspaceId null = built-in/system, never returned here): list,
-// create, patch, delete.
+// Per-workspace custom themes only (workspaceId null = built-in, never returned here).
 export const themes = new Hono();
 
 const themeCols = {
@@ -37,7 +36,6 @@ themes.post("/themes", async (c) => {
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await currentWorkspace(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
-    // Plan gate: custom themes are a paid feature (resolved via the feature layer).
     if (!can(featuresFor(ws), "customThemes"))
         return c.json(
             {

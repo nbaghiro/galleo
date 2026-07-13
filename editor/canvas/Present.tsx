@@ -20,9 +20,6 @@ import { Icon } from "@ui/icons";
 
 const MINI_W = 250;
 
-// Full-screen render of the finished artifact, chrome-free, in its target format:
-//  · deck → one section per 16:9 slide, keyboard-navigated, with an overview grid ("Present")
-//  · doc / web → all sections stacked, scrollable, centered like the studio's doc/web view ("Preview")
 export const Present: Component = () => {
     let overlay!: HTMLDivElement;
     let host!: HTMLDivElement;
@@ -69,11 +66,10 @@ export const Present: Component = () => {
         host.replaceChildren(grid);
     };
 
-    // --- doc / web: all sections stacked + scrollable, sized like the studio's continuous view ---
     const renderContinuous = (): void => {
         if (!host) return;
         const fullW = host.clientWidth || window.innerWidth;
-        // preview isn't bound to the editor's fixed reading-column width — let a doc widen with the viewport
+        // preview lets a doc widen with the viewport (not the editor's fixed reading-column width)
         const prof = previewContentProfile(profile(), fullW);
         const stage = document.createElement("div");
         stage.style.cssText = `position:relative;width:${fullW}px`;
@@ -90,7 +86,6 @@ export const Present: Component = () => {
         else renderCurrent();
     };
 
-    // Re-render on slide change / overview toggle / format / theme / edit while presenting.
     createEffect(() => {
         if (!presenting()) return;
         overview();
@@ -103,7 +98,7 @@ export const Present: Component = () => {
         else overlay?.requestFullscreen?.()?.catch(() => {});
     };
 
-    // Enter fullscreen when presentation starts (the present() click is the user gesture).
+    // Enter fullscreen on start — the present() click is the user gesture browsers require.
     createEffect(() => {
         if (presenting() && !document.fullscreenElement)
             overlay?.requestFullscreen?.()?.catch(() => {});
@@ -138,7 +133,6 @@ export const Present: Component = () => {
                 }
                 return;
             }
-            // continuous (doc/web): scroll, fullscreen, exit
             switch (e.key) {
                 case " ":
                 case "ArrowDown":
@@ -190,7 +184,6 @@ export const Present: Component = () => {
                     onClick={() => paged() && !overview() && nextSlide()}
                 />
 
-                {/* deck: progress + slide controls */}
                 <Show when={paged()}>
                     <SlideProgress index={slideIndex()} total={total()} />
                     <FloatingBar
@@ -252,7 +245,6 @@ export const Present: Component = () => {
                     </FloatingBar>
                 </Show>
 
-                {/* doc / web: minimal floating controls */}
                 <Show when={!paged()}>
                     <FloatingBar tone="dark" anchor="bottomCenter" rounded="xl">
                         <span class="px-1.5 text-[11px] uppercase tracking-wider text-white/55">

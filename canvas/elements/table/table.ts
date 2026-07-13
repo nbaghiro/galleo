@@ -6,10 +6,6 @@ import type { BoxInsets } from "@model/geometry";
 import { fit, fixed, grow, percent } from "@model/geometry";
 import { hexA } from "@themes";
 
-// A table is a grid of real text-element cells (row-major), so every cell is independently selectable
-// and inline-editable via the same machinery as stat/quote. Table-level styling (header, gridlines,
-// zebra, density) rides on the root element; per-cell content + inline marks edit on top. Legacy tables
-// (a comma/newline `data` string) parse + upgrade to cells on first edit.
 type Lines = "rows" | "grid" | "none";
 type Density = "compact" | "cozy" | "roomy";
 
@@ -17,9 +13,9 @@ interface TableData {
     cols?: number;
     rows?: number;
     header?: boolean;
-    lines?: Lines; // row dividers · full grid · borderless
-    zebra?: boolean; // striped rows
-    density?: Density; // cell padding
+    lines?: Lines;
+    zebra?: boolean;
+    density?: Density;
     cells?: ElementInstance[];
     data?: string; // legacy: rows by newline, cells by comma
 }
@@ -51,8 +47,6 @@ interface Grid {
     cells: ElementInstance[]; // exactly rows * cols, row-major
 }
 
-// Resolve any stored shape to a padded rows×cols grid + its styling. New tables carry `cells`; legacy
-// tables carry a `data` string (parsed here so they still render and become editable).
 function grid(d: TableData): Grid {
     let cols: number;
     let rows: number;
@@ -86,11 +80,9 @@ const PAD: Record<Density, BoxInsets> = {
     cozy: { top: 9, bottom: 9, left: 13, right: 13 },
     roomy: { top: 13, bottom: 13, left: 18, right: 18 },
 };
-const MIN_CELL_TEXT_H = 20; // keeps an empty cell's text region tall enough to click into
+const MIN_CELL_TEXT_H = 20; // keep empty cell's text region clickable
 
-// Each composed cell keeps the id composeElement put on its text node (so the inline-edit overlay still
-// aligns — a text leaf drops its own padding, so the padding lives on the wrapper), then rows stack.
-// Gridlines, zebra striping, and the outer border are table-level styling read off the root element.
+// padding lives on the wrapper, not the text leaf (a leaf drops its own padding) so inline-edit stays aligned
 function arrangeTable(g: Grid, ctx: LayoutCtx, kids: EngineNode[]): EngineNode {
     const pad = PAD[g.density];
     const line = ctx.theme.line;
@@ -98,7 +90,7 @@ function arrangeTable(g: Grid, ctx: LayoutCtx, kids: EngineNode[]): EngineNode {
     const cell = (k: EngineNode, row: number): EngineNode => {
         k.w = grow();
         k.h = fit(MIN_CELL_TEXT_H);
-        // The table owns the row's weight/tone (header = bold ink, body = soft) so cells read uniformly.
+        // table owns row weight/tone so cells read uniformly
         if (k.text) {
             const head = g.header && row === 0;
             k.text.weight = head ? 700 : 400;

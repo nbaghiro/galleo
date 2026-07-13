@@ -2,10 +2,6 @@ import { z } from "zod";
 import { register } from "./registry";
 import { findStock, resolveImage } from "../run";
 
-// The media tools — turn a description into a real image url. `source-image` is the façade that picks stock
-// vs AI (per the context's image strategy); `find-stock-image` searches stock only. Both wrap the existing
-// image resolution; a URL passes straight through.
-
 const zImage = z.object({
     phrase: z.string().describe("a short, vivid description of the wanted photo"),
     orientation: z

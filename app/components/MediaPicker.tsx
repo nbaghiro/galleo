@@ -14,24 +14,16 @@ import type { IconItem, MediaGenStyle, MediaItem, MediaKind, MediaProvider } fro
 import { MEDIA_ASPECTS, MEDIA_GEN_STYLES } from "@model/media";
 import { editorTokens } from "@editor/editor";
 import { api, streamGenerateMedia, type MediaProvidersState } from "../api";
-import { closeMediaPicker, mediaRequest, pickMedia, pickMediaIcon } from "../media";
-import { overlayThemeVars } from "../theme";
+import { closeMediaPicker, mediaRequest, pickMedia, pickMediaIcon } from "../stores/media";
+import { overlayThemeVars } from "../stores/theme";
 import { CloseIcon, SparkleIcon } from "@ui/icons";
 import { Modal } from "@ui/overlay";
 import { Button, Chip, Eyebrow, IconButton } from "@ui/button";
 import { TextArea, TextField } from "@ui/inputs";
 
-// The shared media picker — a source-rail modal reused everywhere an image is chosen (the image element +
-// the section background). The rail lists every source; the main area reconfigures per source. Mounted
-// once at the app root and opened via openMediaPicker({ onPick, query }). Themed to match the studio it
-// floats over (overlayThemeVars). Picking any image fires /media/use (recent library + Unsplash trigger),
-// then hands the url back to the opener.
-
 type Source = "recent" | "upload" | MediaProvider | "generate" | "icons";
 const STOCK: MediaProvider[] = ["openverse", "unsplash", "pexels", "pixabay"];
 
-// Per-kind copy + the noun used in hints. gif/illustration/sticker only support Openverse keylessly, so
-// their stock rail is Openverse-only; the other providers are photo-only. Icons are their own mode.
 const KIND_TITLE: Record<MediaKind, string> = {
     photo: "Add an image",
     gif: "Add a GIF",
@@ -47,9 +39,6 @@ const KIND_NOUN: Record<MediaKind, string> = {
     icon: "icons",
 };
 
-// Featured browse: a search-backed source opens showing these defaults instead of a blank "type to
-// search" screen. Stock providers seed a per-kind popular query; the user's typed query overrides it and
-// clearing the box reverts to it. Icons show a curated starter set (below) rather than one query's results.
 const DEFAULT_QUERY: Record<MediaKind, string> = {
     photo: "nature",
     gif: "abstract",
@@ -58,7 +47,6 @@ const DEFAULT_QUERY: Record<MediaKind, string> = {
     icon: "",
 };
 
-// A curated, visually diverse starter grid for the icon source — popular Lucide glyphs.
 const STARTER_ICONS = [
     "lucide:home",
     "lucide:search",
@@ -172,15 +160,13 @@ export const MediaPicker: Component = () => {
     const [error, setError] = createSignal("");
     const [page, setPage] = createSignal(1);
     const [hasMore, setHasMore] = createSignal(false);
-    // generate studio
     const [prompt, setPrompt] = createSignal("");
     const [aspect, setAspect] = createSignal("16:9");
     const [genStyle, setGenStyle] = createSignal<MediaGenStyle>("photo");
-    // how many image placeholders are still rendering (shimmer tiles shown while their variation generates)
+    // count of shimmer placeholders still generating
     const [generating, setGenerating] = createSignal(0);
-    // which media kind the picker was opened for — drives the title, rail sources, search filter + AI style
     const [kind, setKind] = createSignal<MediaKind>("photo");
-    // icon mode (Iconify): its own result list + search, separate from the url-based media grid
+    // icon mode: separate list from the url-based media grid
     const [iconItems, setIconItems] = createSignal<IconItem[]>([]);
 
     let debounce = 0;
@@ -188,11 +174,9 @@ export const MediaPicker: Component = () => {
 
     const isStock = (s: Source): s is MediaProvider => (STOCK as string[]).includes(s);
     const themeVars = (): JSX.CSSProperties | undefined => overlayThemeVars();
-    // The stock providers offered for the current kind — everything for photos, Openverse-only otherwise.
+    // photos: all providers; other kinds: Openverse-only
     const stockSources = (): MediaProvider[] => (kind() === "photo" ? STOCK : ["openverse"]);
 
-    // (Re)load whenever the picker opens: providers, seeded query, and the right landing source for the
-    // kind — photos open on your Recent library; the specialised kinds open straight on the keyless search.
     createEffect(
         on(mediaRequest, (req) => {
             if (!req) return;
@@ -211,13 +195,13 @@ export const MediaPicker: Component = () => {
                 .catch(() => {});
             if (k === "icon") {
                 setSource("icons");
-                runIconSearch(); // starter grid when there's no seeded query
+                runIconSearch();
             } else if (k === "photo") {
                 setSource("recent");
                 loadRecent();
             } else {
                 setSource("openverse");
-                runSearch(true); // featured default when there's no seeded query
+                runSearch(true);
             }
         }),
     );
@@ -242,7 +226,7 @@ export const MediaPicker: Component = () => {
             const { icon } = await api.getIcon(id);
             pickMediaIcon(icon);
         } catch {
-            // best-effort; a failed fetch just leaves the picker open
+            // best-effort; failed fetch leaves the picker open
         }
     }
 
@@ -275,7 +259,6 @@ export const MediaPicker: Component = () => {
         setLoading(false);
     }
 
-    // switching source resets the grid to that source's content
     const selectSource = (s: Source): void => {
         setSource(s);
         setError("");
@@ -287,7 +270,6 @@ export const MediaPicker: Component = () => {
         else if (isStock(s)) runSearch(true);
     };
 
-    // debounced live search while typing in a stock / icon source
     const onQuery = (v: string): void => {
         setQuery(v);
         if (source() === "icons") {
@@ -306,17 +288,17 @@ export const MediaPicker: Component = () => {
         setLoading(true);
         setError("");
         setItems([]);
-        setGenerating(want); // drop `want` shimmer placeholders into the grid right away
+        setGenerating(want);
         try {
             await streamGenerateMedia(
                 { prompt: prompt().trim(), aspect: aspect(), n: want, style: genStyle() },
                 (e) => {
                     if (e.type === "image" && e.item) {
                         const item = e.item;
-                        setItems((prev) => [...prev, item]); // real image lands…
-                        setGenerating((g) => Math.max(0, g - 1)); // …and one placeholder retires
+                        setItems((prev) => [...prev, item]);
+                        setGenerating((g) => Math.max(0, g - 1));
                     } else if (e.type === "fail") {
-                        setGenerating((g) => Math.max(0, g - 1)); // a variation failed — drop its placeholder
+                        setGenerating((g) => Math.max(0, g - 1));
                     } else if (e.type === "done") {
                         setGenerating(0);
                     }
@@ -359,12 +341,11 @@ export const MediaPicker: Component = () => {
         }
     }
 
-    // choose: record it (recent + Unsplash download trigger), then hand the url back + close
     async function pick(it: MediaItem): Promise<void> {
         try {
             await api.useMedia(it);
         } catch {
-            // logging/attribution is best-effort; never block the pick
+            // best-effort; never block the pick
         }
         pickMedia(it.url);
     }
@@ -448,8 +429,7 @@ export const MediaPicker: Component = () => {
                         </button>
                     )}
                 </For>
-                {/* Live placeholders: one shimmer tile per still-generating variation, sized to the chosen
-                    aspect so real images swap in without a layout jump. */}
+                {/* shimmer sized to aspect so real images swap in without a layout jump */}
                 <For each={Array.from({ length: generating() })}>
                     {() => (
                         <div
@@ -481,8 +461,6 @@ export const MediaPicker: Component = () => {
         </span>
     );
 
-    // Icon grid — a dense grid of Iconify glyphs, each rendered in the deck's ink colour (via Iconify's
-    // ?color=) so they read on the panel; picking one fetches its body and hands back a themed glyph.
     const iconGrid = (): JSX.Element => (
         <Show
             when={iconItems().length > 0}
@@ -551,7 +529,6 @@ export const MediaPicker: Component = () => {
                 </header>
 
                 <div class="flex min-h-0 flex-1">
-                    {/* rail */}
                     <nav class="w-[170px] flex-none overflow-y-auto border-r border-line px-2 py-2">
                         <Show
                             when={kind() !== "icon"}
@@ -576,7 +553,7 @@ export const MediaPicker: Component = () => {
                                     )
                                 }
                             </For>
-                            {/* Generate is image-only (the model can't animate) — hidden for GIFs */}
+                            {/* generate is image-only — hidden for GIFs */}
                             <Show when={kind() !== "gif"}>
                                 {railGroup("Create")}
                                 {railBtn(
@@ -591,7 +568,6 @@ export const MediaPicker: Component = () => {
                         </Show>
                     </nav>
 
-                    {/* main */}
                     <div class="flex min-w-0 flex-1 flex-col">
                         <Show when={isStock(source()) || source() === "icons"}>
                             <div class="flex-none px-4 pt-3">

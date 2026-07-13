@@ -21,7 +21,7 @@ const DANGER = "#C0392B";
 
 export const TrashView: Component = () => {
     const [loading, setLoading] = createSignal(true);
-    // local confirm for the permanent (irreversible) actions only — restore is safe, no prompt
+    // confirm only for permanent actions — restore is safe
     const [confirm, setConfirm] = createSignal<{
         kind: "purge" | "empty";
         doc?: ArtifactSummary;

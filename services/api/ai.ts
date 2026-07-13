@@ -22,13 +22,9 @@ import { rewriteText, translateText } from "../ai/text";
 import { suggestSections } from "../ai/suggest";
 import { generateThemeFromPrompt } from "../ai/theme";
 
-// The AI route — runs one turn and streams its TurnEvents to the client over SSE. The turn runtime
-// (services/ai/run) yields the protocol; this handler adds auth, the credit gate, and SSE framing. The
-// client parses each `data:` line back into a LoggedEvent and feeds it to the same dispatch the simulator
-// uses, so a turn renders identically whether the events came from a fixture or the model.
 export const ai = new Hono();
 
-// Which priced tool each turn kind bills as (costs defined on the tool def in @model/tools).
+// Which priced tool each turn kind bills as.
 const ACTION_FOR: Record<TurnKind, ToolId> = {
     generate: "generate-artifact",
     edit: "revise-artifact",
@@ -36,17 +32,13 @@ const ACTION_FOR: Record<TurnKind, ToolId> = {
     chat: "ask-assistant",
 };
 
-// The size knobs each kind meters by pre-flight — only generate scales here, by its length chip and whether
-// its images are AI-generated (stock images are free; AI images are metered per image, reconciled after).
+// Pre-flight meter knobs — only generate scales (length + AI-image source).
 const meterFor = (req: TurnRequest): MeterParams =>
     req.kind === "generate" ? { length: req.input.length, imageSource: req.input.imageSource } : {};
 
-// The kinds whose runtime is actually built. Others 501 before any charge (runTurn also guards them, but
-// blocking here keeps us from reserving credits for a capability that can't run).
+// Others 501 before any charge (blocking here avoids reserving credits for an unbuildable kind).
 const IMPLEMENTED: readonly TurnKind[] = ["generate", "section", "chat"];
 
-// POST /ai/turn — run one turn (generate · edit · section · chat). Reserves a size-aware credit estimate,
-// then streams turn.start → phase → plan → per-section status/patch/narration → turn.done as SSE frames.
 ai.post("/ai/turn", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -64,7 +56,7 @@ ai.post("/ai/turn", async (c) => {
     if (req.kind === "chat" && !req.input?.message?.trim())
         return c.json({ error: "a message is required" }, 400);
 
-    // Credit gate — reserve a size-aware estimate before the billable model calls. 402 when spent.
+    // Reserve before the billable model calls; 402 when spent.
     const cost = estimateCost(ACTION_FOR[req.kind], meterFor(req));
     const limit = limitsFor(ws.plan).aiCreditsPerMonth;
     if (ws.aiCreditsUsed + cost > limit)
@@ -81,20 +73,13 @@ ai.post("/ai/turn", async (c) => {
         .set({ aiCreditsUsed: ws.aiCreditsUsed + cost })
         .where(eq(schema.workspaces.id, ws.id));
 
-    // A chat turn is agentic: the flat `ask-assistant` reserve covers the reply, but the content sub-tools it
-    // may chain (add / rewrite / edit-section) each run a real model call. They report their usage as they go
-    // (RunOpts.onUsage); after the turn we bill that on top of the reserve, so "add two sections and rewrite
-    // the intro" charges for the three generations it actually did, not one flat reply. Non-chat kinds never
-    // call onUsage, so `extra` stays empty and the reserve is the whole charge.
+    // Chat is agentic: chained sub-tools report usage via onUsage, billed on top of the reserve; non-chat leaves extra empty.
     let extra: Usage = {};
     const onUsage = (u: Usage): void => {
         extra = mergeUsage(extra, u);
     };
 
-    // Images: stock by default (instant, free). When a generate brief asks for AI images and the key is set,
-    // inject a generator that renders each art-director phrase with the image model, stores it as a workspace
-    // asset, and COUNTS it — the reserve priced only an estimate of images, so after the turn we reconcile the
-    // generate cost to the real number produced (falling back to stock, unbilled, on any miss).
+    // Stock by default (free). AI images are counted so the turn can reconcile the estimate to the real count (stock fallback unbilled).
     const wantsAiImages =
         req.kind === "generate" && req.input.imageSource === "ai" && imageGenReady();
     let aiImages = 0;
@@ -133,7 +118,7 @@ ai.post("/ai/turn", async (c) => {
 
     const ctrl = new AbortController();
     return streamSSE(c, async (stream) => {
-        stream.onAbort(() => ctrl.abort()); // client navigated away / canceled → stop the run
+        stream.onAbort(() => ctrl.abort());
         let seq = 0;
         const send = (event: TurnEvent): Promise<void> =>
             stream.writeSSE({ data: JSON.stringify({ seq: seq++, event }) });
@@ -148,11 +133,7 @@ ai.post("/ai/turn", async (c) => {
                     message: e instanceof Error ? e.message : "the turn failed",
                 });
         } finally {
-            // Reconcile the reserve to what actually ran. Chat: the content sub-tools it chained, billed on top
-            // of the flat reply reserve. Generate with AI images: re-price the whole turn with the REAL number
-            // of images produced (the reserve used an estimate), so AI images cost their true amount while a
-            // failed one that fell back to stock costs nothing. Runs even on a mid-turn error, so the model
-            // spend that already happened is still billed.
+            // Reconcile the reserve to what actually ran (runs even on a mid-turn error, so real spend is still billed).
             let owed = cost;
             if (Object.keys(extra).length) owed += costOf(extra);
             if (wantsAiImages)
@@ -169,10 +150,7 @@ ai.post("/ai/turn", async (c) => {
     });
 });
 
-// POST /ai/suggest — cheap "what to add next" ideas for an existing artifact (the insert-a-section popup).
-// Auth-gated but UNMETERED: a single tiny Flash call, and the client caches the result per artifact, so it
-// runs at most once per artifact on demand. Returns { suggestions: string[] } — empty on any failure, since
-// the client always has its free deterministic set to fall back to.
+// Unmetered: one tiny call, client-cached per artifact; empty on failure (client has a deterministic fallback).
 ai.post("/ai/suggest", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -186,10 +164,7 @@ ai.post("/ai/suggest", async (c) => {
     }
 });
 
-// POST /ai/element — regenerate ONE element in place. Not a streamed turn: a single call returns the fresh
-// element for the editor to swap in (undoable client-side). The element rides along in the body (the runtime
-// can't traverse the canvas tree), with the section it lives in for context. Reserves the metered
-// edit-element cost up front, same gate as a turn; 402 when spent, 500 on a generation failure.
+// Element rides along in the body — the runtime can't traverse the canvas tree.
 ai.post("/ai/element", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -234,9 +209,6 @@ ai.post("/ai/element", async (c) => {
     }
 });
 
-// POST /ai/text — rewrite or translate ONE selected passage. Not a streamed turn: a single fast call returns
-// the edited text for the editor to splice back into the selection. Meters as the matching text action
-// (rewrite / translate). 402 when out of credits, 500 on a generation failure.
 ai.post("/ai/text", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -284,9 +256,6 @@ ai.post("/ai/text", async (c) => {
     }
 });
 
-// POST /ai/theme — generate one custom theme from a text prompt. Not a streamed turn: a single small
-// structured call returns a full ThemeInput (name + mood + isDark + tokens) to preview/save. Reserves the
-// metered generate-theme cost up front, same gate as a turn.
 ai.post("/ai/theme", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);

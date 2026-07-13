@@ -4,8 +4,6 @@ import { TEMPLATES } from "../templates";
 import { SESSION_COOKIE } from "../auth";
 import { currentUser } from "./context";
 
-// Starter-templates route (global, static) — the app's Templates page reads this to offer "new from
-// template"; grouped by category client-side.
 export const templates = new Hono();
 
 templates.get("/templates", async (c) => {

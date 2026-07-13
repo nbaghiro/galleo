@@ -1,7 +1,6 @@
 import { hexA } from "@themes";
 import { centerLabel, nodeText, registerDiagram, type Renderer } from "./utils";
 
-// A 2x2 matrix: faint quadrant tints, crossing axes, and the first four items one per quadrant.
 const quadrant: Renderer = (diagram, ctx) => {
     const { g, W, H, theme } = ctx;
     const items = diagram.items.slice(0, 4);

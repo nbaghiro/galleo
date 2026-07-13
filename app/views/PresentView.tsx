@@ -5,8 +5,6 @@ import { useNavigate, useParams } from "@solidjs/router";
 import { PresentSurface } from "@ui/present";
 import { api } from "../api";
 
-// The /present/:id route — fetches the artifact and hands its content to the shared present surface
-// (@ui/present). Exit (Esc / the close button) returns to the editor.
 export const PresentView: Component = () => {
     const params = useParams();
     const navigate = useNavigate();

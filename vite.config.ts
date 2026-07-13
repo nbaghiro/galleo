@@ -6,13 +6,6 @@ import solid from "vite-plugin-solid";
 
 const abs = (p: string): string => fileURLToPath(new URL(p, import.meta.url));
 
-// Single domain, two builds. The repo root is the Vite root so each entry sits at its public URL:
-//   /         → index.html         → the website site (standalone, not the product SPA)
-//   /app/*    → app/index.html     → the product SPA (SolidJS Router base "/app")
-//   /p/*      → publish/index.html → the public share viewer (unauthenticated, its own build)
-// In dev one server serves all three; in prod the host routes / → website, /app/* → the app,
-// /p/* → the publish viewer. This middleware gives the app SPA + the publish viewer their client-side
-// fallbacks in dev (/app/<anything> → app/index.html · /p/<slug> → publish/index.html).
 function appSpaFallback(): Plugin {
     return {
         name: "app-spa-fallback",
@@ -34,13 +27,11 @@ function appSpaFallback(): Plugin {
 
 export default defineConfig({
     root: ".",
-    publicDir: false, // the favicon is set dynamically by setFavicon(); no static public assets
+    publicDir: false, // favicon set dynamically by setFavicon(); no static assets
     server: {
         port: 8600,
         strictPort: true,
-        // Same-origin in dev: /api/* → the backend API (8601), so cookies work without CORS. The key
-        // is a regex (leading ^) requiring the trailing slash, so it doesn't swallow the app/api.ts
-        // module request (/api.ts), which a bare "/api" prefix would.
+        // regex key (^ + trailing slash) so it doesn't swallow the /api.ts module request a bare "/api" would
         proxy: {
             "^/api/": {
                 target: "http://localhost:8601",

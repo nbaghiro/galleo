@@ -2,8 +2,6 @@ import { scaleBand, scaleLinear } from "d3-scale";
 import { registerChart, catList, fmt, gridColor, labelStyle, legendRow } from "./utils";
 import type { PlotCtx, ResolvedChart } from "./utils";
 
-// Horizontal bars: categories down the y-axis (band scale), values along x (linear, nice). Multi-series
-// grouped within each band; a legend appears when there is more than one series.
 function drawColumn(chart: ResolvedChart, ctx: PlotCtx): void {
     const { g, W, H, theme, opts } = ctx;
     const cats = catList(chart);

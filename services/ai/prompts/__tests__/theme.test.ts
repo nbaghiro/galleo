@@ -18,11 +18,11 @@ describe("themeFromPromptParts", () => {
     it("lists the display, body, and mono font allow-lists in the system prompt", () => {
         const { system } = themeFromPromptParts("warm mid-century");
         expect(system).toContain("display (headings):");
-        expect(system).toContain("Fraunces"); // a display font
+        expect(system).toContain("Fraunces");
         expect(system).toContain("body (paragraphs/UI):");
-        expect(system).toContain("Manrope"); // a body font
+        expect(system).toContain("Manrope");
         expect(system).toContain("mono (labels):");
-        expect(system).toContain("DM Mono"); // a mono font
+        expect(system).toContain("DM Mono");
     });
     it("embeds the free-text mood in the prompt", () => {
         expect(themeFromPromptParts("warm mid-century").prompt).toContain("warm mid-century");

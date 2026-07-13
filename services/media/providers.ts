@@ -1,9 +1,5 @@
 import type { MediaItem, MediaKind, MediaProvider } from "@model/media";
 
-// Stock-photo providers behind /api/media/search. Each is optional: a provider with no key is reported
-// as "not configured" and simply skipped (like the billing routes degrade without Stripe). Every
-// provider is normalized to the same MediaItem shape so the picker renders one grid regardless of source.
-
 const KEYS = {
     unsplash: () => process.env.UNSPLASH_ACCESS_KEY,
     pexels: () => process.env.PEXELS_API_KEY,
@@ -26,7 +22,7 @@ export interface StockResult {
     hasMore: boolean;
 }
 
-// --- provider response shapes (only the fields we read) ---
+// provider response shapes (only the fields we read)
 interface UnsplashPhoto {
     id: string;
     width: number;
@@ -69,7 +65,7 @@ interface OpenversePhoto {
     source: string | null;
 }
 
-// Orientation values differ per provider; map the picker's shared "landscape|portrait|square".
+// orientation values differ per provider
 function orient(provider: MediaProvider, o: string | undefined): string | undefined {
     if (!o) return undefined;
     if (provider === "unsplash") return o === "square" ? "squarish" : o;
@@ -160,19 +156,13 @@ async function searchPixabay(q: string, page: number, o?: string): Promise<Stock
     return { items, hasMore: page * PER_PAGE < json.totalHits };
 }
 
-// Openverse — free, keyless CC-image search (aggregates Wikimedia, Flickr, museums…). Anonymous requests
-// are rate-limited; register a client for higher limits later. Thumbnails are served through Openverse's
-// own CORS-friendly proxy; `url` is the original source.
 const OPENVERSE_PAGE_SIZE = 20; // anonymous requests are capped here (page_size=30 → 401)
 
-// Map the picker's media kind to Openverse's own filters — how we search gifs / illustrations keylessly.
 function openverseKind(u: URL, kind: MediaKind): void {
-    if (kind === "gif")
-        u.searchParams.set("extension", "gif"); // animated
-    else if (kind === "illustration")
-        u.searchParams.set("category", "illustration"); // vector art / drawings
+    if (kind === "gif") u.searchParams.set("extension", "gif");
+    else if (kind === "illustration") u.searchParams.set("category", "illustration");
     else if (kind === "sticker") u.searchParams.set("extension", "png"); // best-effort transparent cutouts
-    // "photo" → no filter (Openverse's default mix, unchanged)
+    // "photo" → no filter
 }
 
 async function searchOpenverse(
@@ -240,14 +230,13 @@ export async function searchStock(
     return searchPixabay(q, page, o);
 }
 
-// Unsplash requires pinging the download-trigger endpoint whenever a photo is actually used (their API
-// guidelines). Fire-and-forget; never block the pick on it.
+// Unsplash API guidelines require pinging the download-trigger when a photo is used; fire-and-forget
 export async function fireDownloadTrigger(downloadLocation: string | undefined): Promise<void> {
     const key = KEYS.unsplash();
     if (!downloadLocation || !key) return;
     try {
         await fetch(downloadLocation, { headers: { Authorization: `Client-ID ${key}` } });
     } catch {
-        // best-effort; a failed trigger must not break the user's pick
+        // best-effort; must not break the user's pick
     }
 }

@@ -1,8 +1,3 @@
-// Side-effect imports that register every element into the registry (canvas/elements/spec.ts) — one per
-// element file, grouped by category (mirrors the canvas/elements/<category>/ folders + the palette groups).
-// The element library lives in canvas, so its aggregate registration lives here; editor/register.ts (the
-// app-startup path) re-exports this, and canvas-level tests import it to populate the registry in-boundary.
-
 import "@elements/text/text";
 import "@elements/text/callout";
 import "@elements/text/bullets";
@@ -40,5 +35,5 @@ import "@elements/basic/shape";
 import "@elements/chart/element";
 import "@elements/diagram/element";
 
-// The internal, palette-hidden drop-preview — a framework element (root of elements/), not a category.
+// internal drop-preview: a framework element (root of elements/), not a category
 import "@elements/dropghost";

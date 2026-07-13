@@ -3,7 +3,6 @@ import { register, dot } from "@elements/spec";
 import { fit } from "@model/geometry";
 import { composite, t, avatar, gbar } from "@elements/composite/shared";
 
-// --- profile: avatar + name + role, centered (a team member) ---
 export const profileElement = composite(
     "profile",
     "Profile",

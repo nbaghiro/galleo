@@ -31,19 +31,6 @@ import {
 } from "./tools/structure";
 import { suggestSectionsTool } from "./tools/suggest";
 
-// The chat agent — a real multi-step tool-calling loop (AI SDK ToolLoopAgent) whose toolset is BUILT FROM THE
-// REGISTRY (services/ai/tools). The model answers in text and calls tools; each tool's capability lives in the
-// registry (shared with the direct + MCP surfaces), and chat only owns PRESENTATION — turning a tool's typed
-// result into a rich block (a proposal with a real section preview, a suggestion set, a section carousel). The
-// approval gate stays the client's Apply/Discard on each proposal: the artifact lives client-side, so the
-// agent only ever proposes — nothing is applied until the user says so.
-//
-// Unlike the CONTENT tools (which run fast + thinkless), the AGENT itself reasons — it picks and chains tools,
-// interprets nuanced asks — so it runs on a stronger model (see DEFAULT_MODELS.chat) with thinking ENABLED
-// (no thinkingBudget override here). The content tools keep their own fast, thinkless models internally.
-
-// A tiny async channel — tools push TurnEvents into it as they run; runChat drains it while the loop
-// executes, so a long multi-tool turn streams progress instead of arriving all at once at the end.
 function createChannel<T>() {
     const buf: T[] = [];
     let notify: (() => void) | null = null;
@@ -69,7 +56,6 @@ function createChannel<T>() {
     };
 }
 
-// The first non-empty text in a section — a human label for a proposal summary.
 function firstText(section: Section): string {
     const visit = (el: ElementInstance | undefined): string => {
         if (!el) return "";
@@ -97,9 +83,6 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         signal: opts.signal,
     });
 
-    // Wrap a registry tool as an AI SDK tool: run it (forwarding its progress as nested events), then PRESENT
-    // its typed result as a chat block. `present`/`note` are the only chat-specific bits; the capability is
-    // the registry tool, shared with every other surface.
     const wrap = <I, R>(
         t: Tool<I, R>,
         title: string,
@@ -120,9 +103,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
                     }
                     const block = present(step.value, input);
                     if (block) ch.push({ type: "chat.block", blockId: toolCallId, block });
-                    // Bill the real work this sub-tool did (add/rewrite/edit-section run model calls); free
-                    // tools (find/read/manage/suggest) declare no usage, so this no-ops for them. The route
-                    // reconciles the turn's charge from the sum — the flat reply reserve alone under-bills.
+                    // bill real sub-tool work; free tools declare no usage (no-op); route reconciles from the sum
                     const usage = estimateUsage(t.id);
                     if (Object.keys(usage).length) opts.onUsage?.(usage);
                     return note(step.value, input);
@@ -136,11 +117,6 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
             },
         });
 
-    // propose-generation — the one tool available on EVERY surface (incl. the empty library). It doesn't
-    // build anything: it hands the user a one-line brief as a confirm card. Only when they click "Generate"
-    // does the client run a real `generate` turn into an in-chat draft. So the agent can start a brand-new
-    // artifact from the library — the thing it otherwise has no document to do — without spending a credit
-    // until the user commits. Chat-only (pure presentation), so it lives here rather than in the registry.
     const proposeGeneration = tool({
         description:
             "Propose building a whole NEW artifact (deck, doc, or site) from a one-line brief. This does NOT build it — it shows the user a confirm card with the brief; they click Generate to build it right here. Reach for this the moment the user wants to CREATE something new (there's no open document to edit). Distill the conversation to ONE tight, specific sentence — subject, angle, and audience — and pick the surface that fits.",
@@ -185,10 +161,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         },
     });
 
-    // The artifact-scoped tools are wired only when there's CONTENT to act on — an open artifact OR an
-    // in-chat draft (both arrive as context.content). In the empty library the agent has only
-    // propose-generation, so it can start something new but never tries to edit a document that isn't there.
-    // The system prompt (chatSystem) matches this per surface.
+    // artifact-scoped tools only when there's content (an open artifact or in-chat draft)
     const artifactTools: ToolSet = input.context.content
         ? {
               "suggest-sections": wrap(
@@ -229,25 +202,19 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
                           ? `Showing ${sections.length} section${sections.length === 1 ? "" : "s"}.`
                           : "There are no sections to show yet.",
               ),
-              // Structural edits — deterministic patch-op proposals (no preview): reorder / remove a section,
-              // switch format / theme. Applying runs the op on the open artifact or the active draft.
               "reorder-section": wrap(reorderSectionTool, "Reordering", (r) => ({ type: "proposal", summary: r.summary, patch: r.patch }), (r) => r.summary), // prettier-ignore
               "remove-section": wrap(removeSectionTool, "Removing", (r) => ({ type: "proposal", summary: r.summary, patch: r.patch }), (r) => r.summary), // prettier-ignore
               "set-format": wrap(setFormatTool, "Reformatting", (r) => ({ type: "proposal", summary: r.summary, patch: r.patch }), (r) => r.summary), // prettier-ignore
               "set-theme": wrap(setThemeTool, "Restyling", (r) => ({ type: "proposal", summary: r.summary, patch: r.patch }), (r) => r.summary), // prettier-ignore
           }
         : {};
-    // Always-available tools (every surface, incl. the empty library): propose a new build, and the READ
-    // spine — search the library + load an artifact — so the agent can ground itself in the user's real work
-    // (summarize, compare, find the one they mean) from anywhere, not just when a document is open.
     const tools: ToolSet = {
         "propose-generation": proposeGeneration,
         "find-artifacts": wrap(
             findArtifactsTool,
             "Searching your library",
             (items) => (items.length ? { type: "artifacts", items } : null),
-            // The note is the model's tool result — it MUST carry the ids so a follow-up read-artifact /
-            // edit can target the right one. (The user-facing block shows titles; the model sees this.)
+            // note is the model's tool result — MUST carry ids so a follow-up read/edit targets the right one
             (items) =>
                 items.length
                     ? `Found ${items.length}:\n${items.map((i) => `- ${i.id} — “${i.title}” (${i.format})`).join("\n")}`
@@ -257,7 +224,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
             readArtifactTool,
             "Reading",
             () => null,
-            (digest) => digest, // the digest IS the tool result the model reasons over
+            (digest) => digest,
         ),
         "find-templates": wrap(
             findTemplatesTool,
@@ -282,16 +249,12 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
             }),
             (_res, input) => `Proposed an edit to a section of that artifact (${input.sectionId}).`,
         ),
-        // Workspace management — each proposes a typed action the client runs (reversible ones on arrival,
-        // trash behind a confirm card). The label + confirm policy live client-side, so these just package it.
         "rename-artifact": wrap(renameArtifactTool, "Renaming", (action) => ({ type: "action", action }), () => "Proposed a rename."), // prettier-ignore
         "move-artifact": wrap(moveArtifactTool, "Moving", (action) => ({ type: "action", action }), () => "Proposed a move."), // prettier-ignore
         "duplicate-artifact": wrap(duplicateArtifactTool, "Duplicating", (action) => ({ type: "action", action }), () => "Proposed a duplicate."), // prettier-ignore
         "trash-artifact": wrap(trashArtifactTool, "Trashing", (action) => ({ type: "action", action }), () => "Proposed moving it to Trash — the user confirms before it happens."), // prettier-ignore
         "restore-artifact": wrap(restoreArtifactTool, "Restoring", (action) => ({ type: "action", action }), () => "Proposed a restore."), // prettier-ignore
         "create-folder": wrap(createFolderTool, "New folder", (action) => ({ type: "action", action }), () => "Proposed a new folder."), // prettier-ignore
-        // Outward-facing → a one-click routing card (open the share panel / open to export); publishing +
-        // downloading stay behind the proper UI, never done automatically.
         "share-artifact": wrap(shareArtifactTool, "Sharing", (action) => ({ type: "action", action }), () => "Opened the share options for the user to publish a link."), // prettier-ignore
         "export-artifact": wrap(exportArtifactTool, "Exporting", (action) => ({ type: "action", action }), () => "Opened the artifact for the user to export."), // prettier-ignore
         ...artifactTools,
@@ -302,9 +265,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         instructions: chatSystem(input.context),
         tools,
         stopWhen: stepCountIs(6),
-        // Ask Gemini to RETURN its thinking summaries in the stream — thinking stays ON (it's what makes the
-        // agent reason well); the client renders the summaries as a collapsible "thinking" bubble, so the
-        // pre-answer latency reads as visible progress instead of a dead loader.
+        // return Gemini's thinking summaries in the stream (thinking stays on); client shows them as a progress bubble
         providerOptions: { google: { thinkingConfig: { includeThoughts: true } } },
     });
 
@@ -313,11 +274,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         { role: "user", content: input.message },
     ];
 
-    // Run the loop and stream its output concurrently: the tools push their blocks as they execute (a
-    // working-shell, then the finished proposal), while the model's reasoning + prose stream off fullStream.
-    // We split fullStream into two channels — `reasoning-delta` → the thinking bubble, `text-delta` → the
-    // answer — and ignore the tool-call parts (the wrapped tools handle their own presentation). Draining
-    // fullStream is also what DRIVES the loop (executes the tools), so consuming it fully runs the whole turn.
+    // draining fullStream is what DRIVES the loop (executes the tools) — consuming it fully runs the whole turn
     const pump = (async () => {
         try {
             const result = await agent.stream({ messages, abortSignal: opts.signal });

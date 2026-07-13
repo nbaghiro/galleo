@@ -1,7 +1,6 @@
 import { hexA } from "@themes";
 import { centerLabel, nodeText, registerDiagram, type Renderer } from "./utils";
 
-// Two or three overlapping translucent circles; labels sit near each circle's centre.
 const venn: Renderer = (diagram, ctx) => {
     const { g, W, H, theme } = ctx;
     const items = diagram.items.slice(0, 3);

@@ -4,11 +4,6 @@ import { register } from "./registry";
 import { zElement } from "../schema";
 import { reviseElement } from "../run";
 
-// The element tool — regenerate ONE element in place. A thin wrapper over the reviseElement runtime; the
-// element is supplied in the input (the registry can't traverse the canvas element tree — that lives in
-// @elements — so the caller resolves the element and hands it over). Each surface presents the result its
-// own way (the editor → swaps it in as one undo step; a direct/MCP caller → an apply-patch).
-
 export const reviseElementTool = register({
     id: "revise-element",
     describe:

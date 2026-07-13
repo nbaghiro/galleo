@@ -12,9 +12,6 @@ import { lumen } from "./demos/lumen";
 import { slowweb } from "./demos/slowweb";
 import { terra } from "./demos/terra";
 
-// The seed demos — 7 fully-authored artifacts (deck / doc / web), one file each under demos/. Each ships
-// its own theme + a real narrative so the demo library exercises the editor, themes, and every format
-// with comprehensive, image-rich content. (These are seed content, not test fixtures.)
 interface Demo {
     id: string;
     title: string;
@@ -30,8 +27,6 @@ const DEMOS: Demo[] = [
     { id: "fieldnotes", title: "Field Notes — Faroe Islands", artifact: fieldnotes },
 ];
 
-// Idempotent seed: a demo user (with a password) + workspace + a realistic, organized library
-// (folders with linked artifacts + a few loose at the root), so the demo account simulates real usage.
 const DEMO_EMAIL = "demo@galleo.app";
 const DEMO_PASSWORD = "demo1234";
 
@@ -82,8 +77,7 @@ async function seed(): Promise<void> {
     if (!ws) {
         [ws] = await db
             .insert(schema.workspaces)
-            // premium: the seed writes 12+ artifacts directly (bypassing the API cap), so the demo account
-            // needs unlimited artifacts + credits to actually use the app it ships with.
+            // premium: seed writes 12+ artifacts directly, bypassing the API cap; demo account needs unlimited
             .values({ name: "Demo Workspace", slug: "demo", ownerId: user.id, plan: "premium" })
             .returning();
         log("• created demo workspace");
@@ -97,7 +91,7 @@ async function seed(): Promise<void> {
             .values({ workspaceId: ws.id, userId: user.id, role: "owner" });
     }
 
-    // Reset the workspace (artifacts reference folders, so clear artifacts first), then rebuild.
+    // artifacts reference folders, so clear artifacts first
     await db.delete(schema.artifacts).where(eq(schema.artifacts.workspaceId, ws.id));
     await db.delete(schema.folders).where(eq(schema.folders.workspaceId, ws.id));
 
@@ -129,9 +123,6 @@ async function seed(): Promise<void> {
 
     log(`• seeded ${docs} artifacts across ${folders} folders`);
 
-    // Recent-media library — a handful of "recently used" images (stock with attribution, AI-generated
-    // with a prompt, and uploads) so the media picker's Recent tab has real content to browse. Reset
-    // first so re-seeding stays idempotent. picsum gives stable, varied photos without any API key.
     await db.delete(schema.assets).where(eq(schema.assets.workspaceId, ws.id));
     const cc = (author: string) => ({
         provider: "Openverse",

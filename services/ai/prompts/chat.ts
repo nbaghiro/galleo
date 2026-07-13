@@ -3,11 +3,6 @@ import { THEME_LIST } from "@themes";
 import { PERSONA } from "./persona";
 import { artifactDigest, artifactSpine, heading, stack } from "./system";
 
-// The chat agent's instructions — a conversational assistant embedded beside the artifact, driving a real
-// tool-calling loop (services/ai/chat.ts). It answers in plain text and calls tools to act; the runtime turns
-// each tool result into a rich block the client renders. Context stays cheap: the model only ever sees the
-// compact digest + spine + the current selection, never the full tree.
-
 const CHAT_PERSONA = `${PERSONA}
 
 Right now you are the assistant in Galleo's editor, chatting alongside the user's open artifact. Be concise, concrete, and helpful — a sentence or two, not an essay. You can answer questions about the artifact, suggest what to add, and make changes on request.`;
@@ -27,8 +22,6 @@ You have tools; call them when they fit, otherwise just reply in plain text:
 - set-format — re-render the current piece as deck / doc / web. set-theme — switch it to a built-in theme (pick an id from the theme list below that matches the mood they ask for).
 You may call several tools in one turn if the user asks for multiple things (e.g. add two sections, or add one and rewrite another). Reply concisely in plain text — say briefly what you did. Work on the CURRENT piece (the map below); reference sections by their real ids — never invent one. Every change is shown to the user to apply or discard, so you don't need to ask permission first — just make a good proposal.`;
 
-// A compact reference to the built-in themes, so set-theme can pick a valid id whose mood fits the ask
-// ("warmer", "darker", "more editorial") — appended to the editor prompt, where re-theming is possible.
 function themeReference(): string {
     const list = THEME_LIST.map(
         (t) => `${t.id} — ${t.name} (${t.tag}${t.dark ? ", dark" : ", light"})`,
@@ -49,8 +42,6 @@ function focusLine(ctx: ChatContext): string | undefined {
         `They have ${what} selected${f.headline ? ` (“${f.headline}”)` : ""}. If they say "this", "it", or "here", they most likely mean that.`,
     );
 }
-
-// --- library mode: the user is browsing their workspace, no artifact open ---
 
 const LIBRARY_PERSONA = `${PERSONA}
 
@@ -76,7 +67,6 @@ How to run it:
 - Write the brief as a real, specific one-liner — subject + angle + audience — not a restatement of their words.
 - NEVER tell them to click "New artifact" or open something elsewhere, and don't claim you edited or opened anything — you build here, through propose-generation. Draw on their recent work below when it helps you suggest what to make.`;
 
-// The workspace summary — the user's recent work + size, so the agent grounds itself in real artifacts.
 function librarySummary(lib: ChatLibrary | undefined): string | undefined {
     if (!lib) return undefined;
     const lines: string[] = [];
@@ -96,8 +86,6 @@ function librarySummary(lib: ChatLibrary | undefined): string | undefined {
     return lines.length ? heading("The user's workspace", lines.join("\n")) : undefined;
 }
 
-// The credit balance line — so the agent can answer "how many credits do I have" and warn before a big
-// build, without ever making a purchase (that's a hand-off).
 function creditLine(ctx: ChatContext): string | undefined {
     if (!ctx.credits) return undefined;
     return heading(
@@ -106,10 +94,7 @@ function creditLine(ctx: ChatContext): string | undefined {
     );
 }
 
-// The agent's system prompt (instructions). Assembled per message from the cheap context, branching on where
-// the chat is used: alongside an open artifact (editing help + the section map) vs. the library (planning /
-// getting-started help + a summary of their workspace). Keeping the two prompts distinct is what stops the
-// agent from promising section edits when there's no document to edit.
+// Distinct library vs. open-artifact prompts, so the agent never promises section edits with no document to edit.
 export function chatSystem(ctx: ChatContext): string {
     if (!ctx.content)
         return stack(LIBRARY_PERSONA, LIBRARY_RULES, librarySummary(ctx.library), creditLine(ctx));

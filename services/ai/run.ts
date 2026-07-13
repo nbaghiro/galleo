@@ -33,14 +33,6 @@ import { zElement, zOutline, zSection, zSectionPlan } from "./schema";
 import type { Outline, Beat, SectionPlan } from "./schema";
 import type { PromptParts } from "./prompts/system";
 
-// The turn runtime — the real AI backend. `runTurn` dispatches a TurnRequest to its capability, each an
-// async generator that yields the honest TurnEvent stream the client renders (turn.start → phase → plan →
-// per-section status/narration/patch → turn.done). Pure of IO except the model calls; the route
-// (services/api/ai) handles auth, credit metering, and SSE framing by consuming the generator. `generate`
-// is live — a two-phase outline→section flow (prompts in services/ai/prompts); edit/section/chat are the
-// next capabilities to fill in behind the same seam. Same protocol as the simulator, so the client is one
-// path whether the events come from a fixture or the model.
-
 const clip = (s: string, n: number): string =>
     s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s;
 
@@ -51,17 +43,10 @@ const slug = (s: string): string =>
         .replace(/^-+|-+$/g, "")
         .slice(0, 48) || "img";
 
-// --- image resolution: the model writes an art-director phrase for each image; we turn it into a real
-// stock photo by distilling a search query and querying the best configured provider (openverse is keyless,
-// so there's always a fallback). Stock stays a provider CDN url — no storage, no credits. A deterministic
-// placeholder covers a miss. AI image generation with style/theme controls plugs in here later. ---
-
-// Stock providers tried in order — a keyed provider first, then keyless openverse as a reliable fallback
-// when a keyed one misses or rate-limits.
+// tried in order; openverse (keyless) is the fallback
 const PROVIDER_ORDER: MediaProvider[] = ["unsplash", "pexels", "pixabay", "openverse"];
 
-// Filler to drop when turning an art-director phrase ("aerial view of a wind farm at dusk") into a lean
-// stock query ("aerial wind farm dusk") — stock search matches keywords far better than full sentences.
+// stopwords dropped from image phrases — stock search matches keywords, not sentences
 const STOP = new Set([
     "a",
     "an",
@@ -105,9 +90,6 @@ const orientOf = (aspect: unknown): string => {
 };
 const picsum = (phrase: string): string => `https://picsum.photos/seed/${slug(phrase)}/1100/760`;
 
-// Search stock → the top hit's url, or null. Retries across providers AND with a broadened query: a keyed
-// provider that errors (rate limit / network) is skipped for keyless openverse; a query that finds nothing
-// is retried with fewer keywords. So a real photo turns up unless every provider genuinely has none.
 export async function findStock(phrase: string, orientation: string): Promise<string | null> {
     const ready = stockReady();
     const queries = [toQuery(phrase, 6), toQuery(phrase, 3)].filter(
@@ -128,19 +110,12 @@ export async function findStock(phrase: string, orientation: string): Promise<st
     return null;
 }
 
-// How an art-director phrase becomes a real image. `stock` searches photo libraries (free, fast, a CDN url);
-// `ai` generates a bespoke image via the supplied generator (richer + on-brief, but costs credits + latency
-// and needs the route's DB to store the asset). This is the ONE knob — resolveImages dispatches on it, so a
-// caller flips strategy (or wires AI later, with style/theme controls) without touching the section walk.
 export type ImageSource = "stock" | "ai";
 export interface ImageOptions {
     source?: ImageSource; // default "stock"
-    // Supplied by the route for the "ai" source (it holds the DB to store the asset + charge credits).
     generate?: (prompt: string, orientation: string) => Promise<string | null>;
 }
 
-// The façade: one phrase → one real url, honoring the chosen source. AI when asked and wired; otherwise (or
-// on any miss/error) stock; and a deterministic placeholder as the final backstop. Already-a-url passes.
 export async function resolveImage(
     phrase: string,
     orientation: string,
@@ -157,8 +132,7 @@ export async function resolveImage(
     return picsum(phrase);
 }
 
-// Recursively resolve every image in an element tree — an image nested inside a card / group / feature is
-// resolved too (missing that was leaving those blank). Returns a new element only when something changed.
+// returns a new element only when something changed (else the same ref)
 async function resolveElement(el: ElementInstance, opts: ImageOptions): Promise<ElementInstance> {
     let data = el.data as Record<string, unknown>;
     if (el.type === "image" && typeof data.src === "string") {
@@ -175,8 +149,6 @@ async function resolveElement(el: ElementInstance, opts: ImageOptions): Promise<
     return data === el.data ? el : { ...el, data };
 }
 
-// Resolve every image in a section — inline images at ANY depth in the root tree (via resolveElement) plus
-// a full-bleed background — in parallel. The stock-vs-AI decision lives entirely in `opts`.
 async function resolveImages(section: Section, opts: ImageOptions): Promise<Section> {
     const root = await resolveElement(section.root, opts);
     let background = section.background;
@@ -187,8 +159,6 @@ async function resolveImages(section: Section, opts: ImageOptions): Promise<Sect
     return { ...section, root, background };
 }
 
-// Flatten an artifact's readable text — every text/label run across its section trees — into one string,
-// for source-grounded generation (repurpose: "turn my report into a deck" reads the report's text as source).
 export function extractArtifactText(content: ArtifactContent): string {
     const parts: string[] = [];
     const visit = (el: ElementInstance | undefined): void => {
@@ -213,15 +183,12 @@ const toPlanBeat = (b: Beat): PlanBeat => ({
 
 export interface RunOpts {
     signal?: AbortSignal;
-    image?: ImageOptions; // how images resolve — stock (default) vs ai + its generator; set by the route
-    workspace?: WorkspaceReader; // read access to the user's library (find / read artifacts); set by the route
-    model?: string; // override the task's default model (registry id) — used by the eval harness / A/B
-    onUsage?: (usage: Usage) => void; // report real billable work as it runs (chat reconciles its charge)
+    image?: ImageOptions;
+    workspace?: WorkspaceReader;
+    model?: string; // override the task's default model (registry id)
+    onUsage?: (usage: Usage) => void;
 }
 
-// Dispatch a turn to its capability — the DIRECT surface over the tool registry. `generate` runs through
-// its registry tool (services/ai/tools); section + chat still route to their runtimes directly until they're
-// wrapped too; edit reports "not yet". Same TurnEvent stream out, whichever path.
 export async function* runTurn(req: TurnRequest, opts: RunOpts = {}): AsyncGenerator<TurnEvent> {
     switch (req.kind) {
         case "generate":
@@ -246,7 +213,6 @@ export async function* runTurn(req: TurnRequest, opts: RunOpts = {}): AsyncGener
     }
 }
 
-// generate — a full artifact from a brief: outline (the plan), then one section written per beat, in order.
 export async function* runGenerate(
     input: GenerateInput,
     opts: RunOpts = {},
@@ -256,7 +222,6 @@ export async function* runGenerate(
     yield { type: "phase", name: "intake" };
     yield { type: "narration", text: "Reading the brief", sub: clip(input.prompt, 90) };
 
-    // --- 1. outline (the plan) ---
     yield { type: "phase", name: "outline" };
     yield { type: "narration", text: "Planning the story arc" };
     const op = outlineParts(input);
@@ -267,8 +232,7 @@ export async function* runGenerate(
         prompt: op.prompt,
         abortSignal: signal,
         providerOptions: thinklessOpts(opts.model ?? defaultModelFor("outline")),
-        // The outline is where structure is decided; run it warm so section count + arc genuinely vary
-        // brief-to-brief (the schema + rubric keep it valid). Section writing stays cooler for accuracy.
+        // warm so section count + arc vary brief-to-brief; section writing stays cooler
         temperature: 0.9,
     });
     const outline: Outline = outlineObj;
@@ -282,7 +246,6 @@ export async function* runGenerate(
     };
     yield { type: "plan", beats: planBeats };
 
-    // --- 2. build: one section per beat, in order ---
     yield { type: "phase", name: "build" };
     const n = beats.length;
     for (let i = 0; i < n; i++) {
@@ -291,10 +254,8 @@ export async function* runGenerate(
         yield { type: "narration", text: `Writing “${beat.label}”`, mono: ` · ${beat.role}` };
         yield { type: "section.status", id: beat.id, status: "writing" };
 
-        // bind the returned section to its planned slot id, then resolve its images
         let section = await writeSection(input, beat, outline, signal, opts.model);
-        // Guarantee the cover + closing sections carry a full-bleed background — inject one from the brief
-        // if the model didn't, so those anchor moments never render flat. resolveImages then sources it.
+        // force a full-bleed bg on cover + closing so those anchor moments never render flat
         if ((i === 0 || i === n - 1) && section.background?.kind !== "image") {
             section = {
                 ...section,
@@ -308,10 +269,7 @@ export async function* runGenerate(
         section = await resolveImages(section, opts.image ?? {});
 
         yield { type: "patch", ops: [{ op: "addSection", section }] };
-        // Give the artifact its own atmospheric backdrop (the editor paints it behind every section, and the
-        // library cover reads from it) — without one an AI artifact looks flat in the editor even though its
-        // sections have backgrounds. The outline authors an on-theme scene for this (`backdrop`) so it evokes
-        // the subject rather than a generic wash; heavy scrim since content sections sit over it.
+        // artifact-level backdrop (editor paints it behind every section; library cover reads it); heavy scrim
         if (i === 0) {
             const backdrop = await resolveImage(
                 outline.backdrop || `${outline.title}, moody cinematic wide shot, soft focus`,
@@ -333,13 +291,12 @@ export async function* runGenerate(
         };
     }
 
-    // --- 3. done ---
     yield { type: "phase", name: "compose" };
     yield { type: "phase", name: "done" };
     yield { type: "turn.done", summary: `Composed ${n} sections — “${clip(outline.title, 48)}”` };
 }
 
-// A fresh section id that doesn't collide with the existing ones (the editor uses "s-xxxx"; we mirror that).
+// fresh non-colliding section id — mirror the editor's "s-xxxx" scheme
 function newSectionId(content: ArtifactContent): string {
     const taken = new Set(content.sections.map((s) => s.id));
     for (let n = content.sections.length + 1; ; n++) {
@@ -348,10 +305,6 @@ function newSectionId(content: ArtifactContent): string {
     }
 }
 
-// section — insert ONE new section into an existing artifact, aware of the sections around it. Two calls that
-// mirror generate scoped to a single beat: (1) plan the section (role + grid + per-cell blocks) so the client
-// shows the live skeleton, then (2) write it to fill that exact layout in the artifact's voice. Emits the same
-// plan → status → patch → done stream, so the editor renders it through the same path as a full generation.
 async function* runSection(input: SectionInput, opts: RunOpts = {}): AsyncGenerator<TurnEvent> {
     const { signal } = opts;
     const surface = surfaceOf(input.content.format);
@@ -364,7 +317,6 @@ async function* runSection(input: SectionInput, opts: RunOpts = {}): AsyncGenera
         sub: clip(input.instruction, 90),
     };
 
-    // --- 1. plan the one section (so the skeleton can render before content lands) ---
     yield { type: "phase", name: "outline" };
     const pp = sectionPlanParts(input);
     const { object: plan } = await generateObject({
@@ -380,7 +332,6 @@ async function* runSection(input: SectionInput, opts: RunOpts = {}): AsyncGenera
     yield { type: "plan", beats: [toPlanBeat(beat)] };
     yield { type: "narration", text: `Planned “${clip(beat.label, 48)}”`, mono: ` · ${beat.role}` };
 
-    // --- 2. write it to fill the planned layout, then source its images ---
     yield { type: "phase", name: "build" };
     yield { type: "section.status", id, status: "active" };
     yield { type: "narration", text: `Writing “${beat.label}”`, mono: ` · ${beat.role}` };
@@ -405,11 +356,7 @@ async function* runSection(input: SectionInput, opts: RunOpts = {}): AsyncGenera
     yield { type: "turn.done", summary: `Added “${clip(beat.label, 48)}”` };
 }
 
-// Write one section as free-form JSON, not structured output. A section's `cells` and each element's
-// `data` are open, type-dependent maps; Gemini's response schema can't populate arbitrary-keyed objects
-// and returns empty cells, so we let the model emit real JSON (the prompt teaches the exact shape) and
-// validate the parse with zSection. Retries once on a malformed parse before failing the turn. Shared by
-// generate (write each planned beat) and insert (write one new section), so both get the same auto-repair.
+// free-form JSON, not structured output: Gemini's response schema can't populate open, arbitrary-keyed data (returns empty cells)
 async function writeSectionFrom(
     parts: PromptParts,
     id: string,
@@ -419,7 +366,7 @@ async function writeSectionFrom(
     modelId: string = defaultModelFor("section"),
 ): Promise<Section> {
     const model = resolveModel(modelId);
-    let note = ""; // feedback appended to the prompt on a retry (bad JSON, or a quality check that tripped)
+    let note = ""; // feedback appended to the prompt on retry
     for (let attempt = 0; attempt < 2; attempt++) {
         const { text } = await generateText({
             model,
@@ -435,9 +382,7 @@ async function writeSectionFrom(
             continue;
         }
         const section = { ...(parsed.data as unknown as Section), id };
-        // Inline auto-repair: a section that trips a deterministic check gets one regenerate with the
-        // issues fed back. Accept whatever's valid on the final attempt so one weak section can't stall
-        // the whole generation.
+        // auto-repair: one regenerate with issues fed back; accept whatever's valid on the final attempt
         const { ok, issues } = checkSection(section, surface);
         if (ok || attempt === 1) return section;
         note = `\n\nYour previous section had problems: ${issues.join("; ")}. Rewrite it — fill every cell with a real element, lead with a clear headline, and use varied, purposeful elements (a stat/chart/card/bullets where they fit) so the frame reads full, not sparse.`;
@@ -462,7 +407,6 @@ function writeSection(
     );
 }
 
-// Pull the JSON object out of a model response (tolerate stray prose or ```json fences).
 function extractJson(text: string): unknown {
     const t = text
         .trim()
@@ -479,16 +423,11 @@ function extractJson(text: string): unknown {
     }
 }
 
-// Placeholder for capabilities whose runtime isn’t built yet — emits a turn that immediately reports the
-// gap, so the client’s error path handles it uniformly. Replace each with a real generator as it ships.
 async function* unimplemented(kind: TurnKind, what: string): AsyncGenerator<TurnEvent> {
     yield { type: "turn.start", kind };
     yield { type: "error", message: `${what} isn’t available yet.` };
 }
 
-// --- capability helpers the chat agent calls as tools (produce a section to PROPOSE, not stream) ---
-
-// Build ONE new section (plan → write → images) and return it, for a chat proposal the user applies.
 export async function chatAddSection(
     content: ArtifactContent,
     afterId: string | null,
@@ -518,12 +457,6 @@ export async function chatAddSection(
     return resolveImages(section, opts.image ?? {});
 }
 
-// Regenerate ONE element in place and return the fresh version — the ContextBar's Regenerate action (via
-// the /ai/element route) and the revise-element tool both land here. The element is passed in by value (the
-// runtime can't traverse the canvas element tree — that lives in @elements), and its `section` gives the
-// model the surrounding context. Keeps the original type (so the section's layout contract holds) and the
-// user's own layout (radius / width / align they set by hand), rewriting only the content; then resolves any
-// images the fresh element introduces. Retries once on unreadable JSON before failing.
 export async function reviseElement(
     content: ArtifactContent,
     sectionId: string,
@@ -550,7 +483,7 @@ export async function reviseElement(
                 "\n\nYour previous reply was not valid JSON. Return ONLY the single element JSON object, nothing else.";
             continue;
         }
-        // Keep the original type + hand-set layout; regenerate content only. Then source any new images.
+        // keep original type + hand-set layout; regenerate content only
         const revised: ElementInstance = {
             type: element.type,
             data: parsed.data.data,
@@ -561,7 +494,6 @@ export async function reviseElement(
     throw new Error("the model returned an unreadable element");
 }
 
-// Rewrite an existing section per an instruction and return it, for a chat proposal (→ replaceSection).
 export async function chatEditSection(
     content: ArtifactContent,
     sectionId: string,

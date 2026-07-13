@@ -14,9 +14,6 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import type { FeatureOverrides } from "@model/features";
 
-// The data layer — the implemented schema (11 tables) plus the live DB handle. Documented in
-// .docs/data-model.md (which also notes the broader model deferred to when each feature lands).
-
 export const users = pgTable("users", {
     id: uuid("id").primaryKey().defaultRandom(),
     email: text("email").notNull().unique(),
@@ -34,15 +31,14 @@ export const workspaces = pgTable("workspaces", {
         .notNull()
         .references(() => users.id),
     plan: text("plan").notNull().default("free"), // free | pro | premium (see @model/billing)
-    // --- billing (Stripe) ---
     stripeCustomerId: text("stripe_customer_id"),
     stripeSubscriptionId: text("stripe_subscription_id"),
     planStatus: text("plan_status").notNull().default("active"), // active | past_due | canceled
     planPeriodEnd: timestamp("plan_period_end"),
-    seats: integer("seats").notNull().default(1), // subscription quantity (per-seat plans); synced from Stripe
+    seats: integer("seats").notNull().default(1), // subscription quantity; synced from Stripe
     aiCreditsUsed: integer("ai_credits_used").notNull().default(0),
     creditsResetAt: timestamp("credits_reset_at").notNull().defaultNow(),
-    // Per-workspace feature grants that override the plan (comps, grandfathering, beta). See @model/features.
+    // per-workspace grants that override the plan; see @model/features
     featureOverrides: jsonb("feature_overrides").$type<FeatureOverrides>(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -94,7 +90,7 @@ export const versions = pgTable("versions", {
     id: uuid("id").primaryKey().defaultRandom(),
     artifactId: uuid("artifact_id")
         .notNull()
-        .references(() => artifacts.id, { onDelete: "cascade" }), // history goes with its artifact
+        .references(() => artifacts.id, { onDelete: "cascade" }),
     content: jsonb("content").notNull(),
     label: text("label"),
     authorId: uuid("author_id").references(() => users.id),
@@ -124,7 +120,7 @@ export const assets = pgTable("assets", {
     alt: text("alt"),
     meta: jsonb("meta"), // { provider, author, authorUrl, sourceUrl, downloadLocation, prompt, style }
     data: text("data"), // base64 bytes for stored media (generated / uploaded); null for stock (url only)
-    mime: text("mime"), // content-type for the asset-serve route
+    mime: text("mime"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -139,16 +135,12 @@ export const shares = pgTable("shares", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// A published share of an artifact. One row = one share; its `visibility` is the access policy:
-//   public    — anyone with the slug URL
-//   protected — anyone with the slug URL + the (hashed) password
-//   private    — only invited emails, each via a per-recipient token (see link_recipients)
-// "Unpublished" = no row. Every view of every type resolves through this row, so analytics keys on it.
+// public = slug only; protected = slug + hashed password; private = per-recipient token (link_recipients). No row = unpublished.
 export const links = pgTable("links", {
     id: uuid("id").primaryKey().defaultRandom(),
     artifactId: uuid("artifact_id")
         .notNull()
-        .references(() => artifacts.id, { onDelete: "cascade" }), // deleting an artifact drops its link
+        .references(() => artifacts.id, { onDelete: "cascade" }),
     slug: text("slug").notNull().unique(),
     visibility: text("visibility").notNull().default("public"), // public | protected | private
     password: text("password"), // scrypt hash, only for `protected`
@@ -156,9 +148,7 @@ export const links = pgTable("links", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Per-recipient grants for a `private` link. Each invited email gets an unguessable token; the public
-// viewer resolves /p/:slug?k=<token> to this row, so access is possession-based (no viewer login) and a
-// view can be attributed to a single recipient. Deleting the link cascades these away.
+// per-recipient grants for a private link: each invited email gets an unguessable token → possession-based access (no viewer login)
 export const linkRecipients = pgTable(
     "link_recipients",
     {
@@ -170,9 +160,9 @@ export const linkRecipients = pgTable(
         token: text("token").notNull().unique(),
         message: text("message"), // optional note included in the invite email
         invitedAt: timestamp("invited_at").notNull().defaultNow(),
-        lastViewedAt: timestamp("last_viewed_at"), // populated by view analytics (04)
+        lastViewedAt: timestamp("last_viewed_at"), // populated by view analytics
     },
-    (t) => [unique().on(t.linkId, t.email)], // one invite per email per link
+    (t) => [unique().on(t.linkId, t.email)],
 );
 
 export const credits = pgTable("credits", {
@@ -186,9 +176,7 @@ export const credits = pgTable("credits", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// The live DB handle. `postgres(url)` is lazy — it connects on the first query, not at import — and the
-// entrypoints (server/seed) + drizzle.config load dotenv before this module, so importing it for
-// `drizzle-kit generate` stays connection-free. The schema object powers Drizzle's relational queries.
+// `postgres(url)` is lazy (connects on first query, not import), so importing this for `drizzle-kit generate` stays connection-free
 export const schema = {
     users,
     workspaces,

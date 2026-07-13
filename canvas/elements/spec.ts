@@ -1,7 +1,3 @@
-// The element system's contracts + machinery — the ElementSpec / SectionSpec schemas, the registry,
-// the content-tree walker, and the structural ghost (skeleton) builders. Everything an element module
-// needs from the framework. (Merged: element-spec · section-spec · registry · walk · skeleton.)
-
 import type { EngineNode, Rect } from "@engine/node";
 import type { ElementInstance, Section } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
@@ -22,8 +18,7 @@ export function listElements(): ElementSpec[] {
     return [...registry.values()];
 }
 
-// Visit every element in a section — the root, then recursively any container children — depth-first.
-// The single place the content tree's element traversal lives.
+// visit every element depth-first: the root, then container children
 export function walkElements(section: Section, visit: (el: ElementInstance) => void): void {
     const recurse = (el?: ElementInstance): void => {
         if (!el) return;
@@ -51,7 +46,7 @@ export type ControlKind =
     | "number"
     | "text"
     | "media"
-    | "icon" // icon glyph picker (Iconify) → sets a nested { id, body, vb }
+    | "icon" // icon glyph picker (Iconify) → nested { id, body, vb }
     | "iconColor" // theme-role color swatches for a themed icon
     | "custom";
 
@@ -66,15 +61,14 @@ export interface ControlField {
     unit?: string; // suffix on slider/number values
     multiline?: boolean; // text → textarea
     placeholder?: string;
-    icon?: string; // a leading glyph identifying the control on the compact format bar (which drops labels)
-    mediaKind?: string; // for `media` controls: the media kind the picker opens for (photo · gif · …)
+    icon?: string; // leading glyph on the compact format bar (which drops labels)
+    mediaKind?: string; // for `media` controls: the kind the picker opens (photo · gif · …)
     group?: string; // optional inspector section heading
-    visibleWhen?: (data: Record<string, unknown>) => boolean; // conditional visibility
+    visibleWhen?: (data: Record<string, unknown>) => boolean;
 }
 
 export type ElementTier = "primitive" | "smart" | "container" | "interactive";
 
-// The universal contract: every element (text, image, chart, ...) is one of these.
 export interface ElementSpec<Data = unknown> {
     type: string;
     label: string;
@@ -83,26 +77,22 @@ export interface ElementSpec<Data = unknown> {
     create: () => Data;
     layout: (data: Data, ctx: LayoutCtx) => EngineNode;
     controls: ControlField[];
-    // Studio-only editing affordances (inert for layout/present/export — read solely by the editor):
-    richText?: boolean; // primary text supports inline marks → marks-aware editor + inline mark bar
-    bar?: string[]; // control keys (from `controls`) to surface in the on-canvas format bar
-    frame?: boolean; // has a visible frame (fill/image) → offer the universal corner-radius bar control
+    // Studio-only editing affordances (inert for layout/present/export):
+    richText?: boolean; // primary text supports inline marks → marks-aware editor + mark bar
+    bar?: string[]; // control keys to surface in the on-canvas format bar
+    frame?: boolean; // has a visible frame (fill/image) → offer the corner-radius control
 
-    // Direct-manipulation resize on the canvas (drag handles on the selection box). Width is a universal
-    // ElementLayout %; height/aspect drive an explicit data field where the element has one.
+    // canvas resize handles: width → a universal ElementLayout %; height/aspect → an explicit data field
     resize?: {
         width?: boolean; // right/corner handle → ElementLayout.width { pct }; defaults on
         height?: { key: string; min: number; max: number; step?: number }; // bottom handle → data[key]
         aspect?: { min: number; max: number }; // bottom handle → data.aspect (width / height)
     };
     fallback?: (data: Data) => Data; // interactive -> static for paged/export
-    // Structural ghost shown in the palette + as the drop preview. Optional: if absent, one is
-    // derived automatically from layout(create()) via skeletonize() in @elements/spec.
+    // palette + drop-preview ghost; if absent, derived from layout(create()) via skeletonize()
     skeleton?: (ctx: LayoutCtx) => EngineNode;
-    // Containers expose their child instances, arrange already-composed child nodes, and immutably
-    // swap their children. compose() uses children+arrange to recurse and address nested elements;
-    // content ops use children+withChildren to insert/remove generically. `layout` stays the
-    // standalone (e.g. skeleton) path.
+    // compose() uses children+arrange to recurse + address nested elements; ops use children+withChildren
+    // to insert/remove. `layout` stays the standalone (e.g. skeleton) path.
     container?: {
         children: (data: Data) => ElementInstance[];
         arrange: (data: Data, ctx: LayoutCtx, children: EngineNode[]) => EngineNode;
@@ -110,11 +100,8 @@ export interface ElementSpec<Data = unknown> {
     };
 }
 
-// Declarative schema for the section property panel — the flat, scalar props (width + background). The
-// grid-template picker is inherently visual (live thumbnails), so it stays a bespoke control in the
-// studio; everything else renders generically through the shared Field kit, exactly like element
-// controls. The studio adapts these flat keys to the structured Section (bleed + background) on
-// read/write, and `visibleWhen` handles the background's conditional sub-fields.
+// section property panel schema (flat scalar props); the studio adapts these flat keys to the structured
+// Section (bleed + background) on read/write
 export const SECTION_CONTROLS: ControlField[] = [
     {
         key: "bleed",
@@ -190,15 +177,9 @@ export const SECTION_CONTROLS: ControlField[] = [
     },
 ];
 
-// Skeletons are structural ghosts shown in the element palette and as drop previews while dragging
-// an element over a section. Every element gets one automatically (from layout() of default data,
-// ghosted); a spec may override `skeleton` for a richer shape (chart, table, ...).
-
 export const GHOST = "#e3ddce"; // bars / boxes
 export const GHOST_PANEL = "#f4f0e8"; // panel backgrounds
 export const GHOST_LINE = "#e0d9c8"; // borders
-
-// --- ghost building blocks (reusable by custom skeletons) ---
 
 export const bar = (widthFrac: number, h: number): EngineNode => ({
     w: percent(widthFrac),
@@ -225,10 +206,7 @@ export const dot = (d: number): EngineNode => ({
     fill: { color: GHOST, radius: 99 },
 });
 
-// --- auto-skeletonize: turn any element's layout output into a ghost ---
-
-// Ghost palette — defaults to the editor's neutral tones; the live-build skeleton passes theme-derived
-// colors so the placeholder respects the active artifact theme (dark on dark, etc.).
+// defaults to neutral tones; the live-build skeleton passes theme-derived colors
 export interface GhostColors {
     bar: string; // text/leaf placeholders
     panel: string; // container/section backgrounds
@@ -272,7 +250,7 @@ export function skeletonize(node: EngineNode, colors: GhostColors = DEFAULT_GHOS
             children: textBars(node.text.text, node.text.size, colors.bar),
         };
     }
-    // a media LEAF (an image/surface element with no children) → a single ghost panel sized like it
+    // a media leaf (image/surface, no children) → a single ghost panel
     if ((node.image || node.surface) && !node.children) {
         return {
             ...base,
@@ -280,8 +258,7 @@ export function skeletonize(node: EngineNode, colors: GhostColors = DEFAULT_GHOS
             fill: { color: colors.bar, radius: node.image?.radius ?? 8 },
         };
     }
-    // any container — INCLUDING a section that carries a background image — ghosts its panel and
-    // recurses into its children, so it keeps its real height + grid instead of collapsing to a 16:9 box.
+    // any container (incl. a section with a bg image) ghosts its panel + recurses, keeping real height/grid
     const out: EngineNode = { ...base };
     if (node.fill || node.image || node.surface) {
         out.fill = {

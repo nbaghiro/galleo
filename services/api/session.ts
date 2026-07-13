@@ -6,7 +6,6 @@ import { db, schema } from "../schema";
 import { verifyPassword, makeSession, SESSION_COOKIE } from "../auth";
 import { currentUser, readJson } from "./context";
 
-// Auth routes: password login (sets the session cookie), logout, and the current-user probe.
 export const session = new Hono();
 
 session.post("/auth/login", async (c) => {

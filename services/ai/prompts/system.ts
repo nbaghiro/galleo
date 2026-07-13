@@ -1,17 +1,12 @@
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import type { GenerateInput } from "@model/ai";
 
-// Shared prompt primitives — the composition helpers and the reusable fragments (brief context, artifact
-// digest, the output/shape rules) that every capability builder assembles. Capability files import from
-// here; this file imports no capability, so there is no cycle.
-
-// What a capability builder returns: the two halves of a chat call.
+// Imports no capability file, so there's no cycle.
 export interface PromptParts {
     system: string;
     prompt: string;
 }
 
-// Join non-empty fragments with blank lines — the standard way we stack a system prompt.
 export function stack(...parts: (string | undefined | false)[]): string {
     return parts.filter((p): p is string => !!p).join("\n\n");
 }
@@ -20,7 +15,6 @@ export function heading(title: string, body: string): string {
     return `## ${title}\n${body}`;
 }
 
-// The rules for shaping a section — referenced by generate + section builders.
 export const SECTION_RULES = `## How to build a section
 - Use the layout the plan assigned (its column count + widths) AND lead each column with the block the plan assigned to it, in order (given in the section brief) — don't change the column count or move a block to a different column; a live preview is already showing that exact layout, so the finished section must match it. To place several elements in one column (a headline + body + button), stack them in a \`group\` (direction 'col') led by that block.
 - The section's \`root\` is one element tree: a \`group\` with direction 'row' for side-by-side columns (each child carries \`layout.width\`), 'col' to stack, or a single element for a full-width section. Nest to any depth.
@@ -31,7 +25,6 @@ export const SECTION_RULES = `## How to build a section
 - Reach for a full-bleed section background image on covers, section-dividers, and closing/CTA sections — set "background" to { "kind": "image", "image": "<vivid, on-theme photo description>", "scrim": 0.5 }, keep the overlaid content minimal (a headline + one supporting line), and raise the scrim to 0.5–0.65 so text stays legible. Never put a background image behind a dense chart/table/stat section.
 - Give every section a unique \`id\` (\`s1\`, \`s2\`, …).`;
 
-// The brief the user supplied at intake, rendered for the model.
 export function briefContext(input: GenerateInput): string {
     const lines = [
         `Prompt: ${input.prompt}`,
@@ -43,7 +36,6 @@ export function briefContext(input: GenerateInput): string {
     return heading("The brief", lines.join("\n"));
 }
 
-// Pull a short label from a section (its first text run) — for the compact artifact digest.
 function firstText(section: Section): string {
     let found = "";
     const visit = (el?: ElementInstance): void => {
@@ -59,8 +51,6 @@ function firstText(section: Section): string {
     return found;
 }
 
-// A compact, token-cheap map of an existing artifact — enough for the model to target an edit without
-// re-sending the whole tree. (When surgical fidelity is needed, a route can include the full section JSON.)
 export function artifactDigest(content: ArtifactContent): string {
     const rows = content.sections
         .map((s, i) => {
@@ -74,8 +64,6 @@ export function artifactDigest(content: ArtifactContent): string {
     );
 }
 
-// The one-line identity of an artifact — its title (section 1) and thesis (section 2) + format/theme. The
-// cheapest context to give any editing turn so a change stays on-message with the whole piece.
 export function artifactSpine(content: ArtifactContent): string {
     const title = content.sections[0] ? firstText(content.sections[0]) : "";
     const thesis = content.sections[1] ? firstText(content.sections[1]) : "";
@@ -91,8 +79,6 @@ export function artifactSpine(content: ArtifactContent): string {
     );
 }
 
-// The sections immediately around a target — so a regenerated/edited section flows from its neighbors
-// (voice, level of detail, and not repeating what the previous section already said).
 export function neighbors(content: ArtifactContent, sectionId: string): string {
     const i = content.sections.findIndex((s) => s.id === sectionId);
     if (i < 0) return "";
@@ -115,9 +101,6 @@ export function neighbors(content: ArtifactContent, sectionId: string): string {
     );
 }
 
-// Where a NEW, inserted section lands — the section it follows and the one it precedes, so the plan/writer
-// makes it bridge the two (flows from the previous, sets up the next, repeats neither). Used by the
-// insert-a-section turn, whose "afterId" says which section the new one comes right after.
 export function insertionContext(content: ArtifactContent, afterId: string | null): string {
     const i = afterId ? content.sections.findIndex((s) => s.id === afterId) : -1;
     const prev = i >= 0 ? content.sections[i] : undefined;
@@ -139,13 +122,8 @@ export function insertionContext(content: ArtifactContent, afterId: string | nul
     );
 }
 
-// A short, standing reminder about the output — the Zod schema enforces the shape, this reminds the model
-// what "good" content looks like inside it. (Used by the outline phase, which is structured-output.)
 export const OUTPUT_NOTE = `Return only content that fits the schema. Never include commentary, markdown fences, or placeholder text — every field is real, finished copy.`;
 
-// The exact JSON envelope a section is returned as. Section writing is free-form JSON (not a rigid schema)
-// because an element's `data` is an open, type-dependent map the catalog teaches — so the model needs the
-// outer shape spelled out here, and validation happens on the parse.
 export const SECTION_OUTPUT = `## Output — return ONE JSON object and nothing else
 No prose, no explanation, no markdown fences. A section is { "id", "root" } where "root" is ONE element tree.
 

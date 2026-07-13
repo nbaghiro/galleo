@@ -11,8 +11,6 @@ import {
     stack,
 } from "../system";
 
-// Pure string assembly — real inputs in, exact structural facts asserted (no mocks).
-
 const txt = (text: string): ElementInstance => ({ type: "text", data: { text } });
 const sec = (id: string, title?: string): Section => ({
     id,

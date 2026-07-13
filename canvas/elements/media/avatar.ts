@@ -3,9 +3,7 @@ import type { EngineNode } from "@engine/node";
 import { register, dot } from "@elements/spec";
 import { fixed, grow } from "@model/geometry";
 
-// `avatar` — a circular photo, the building block inside `profile`/`testimonial`. Registered but
-// palette-hidden (see Panel's HIDDEN set); not a standalone palette item. Plain image leaf, no engine
-// change. (An `icon` element already exists elsewhere, so composites use an emoji instead.)
+// Registered but palette-hidden (see Panel's HIDDEN set).
 
 interface AvatarData {
     src?: string;
@@ -43,7 +41,7 @@ export const avatarElement: ElementSpec<AvatarData> = {
     },
     resize: { width: false, height: { key: "size", min: 40, max: 240, step: 4 } },
     skeleton: (): EngineNode => dot(72),
-    // Size is driven by the resize handle (mirrors `icon`), so no redundant slider. Photo + ring on the bar.
+    // Size via resize handle (mirrors icon); no slider.
     bar: ["src", "ring"],
     controls: [
         { key: "src", label: "Photo", control: "media" },

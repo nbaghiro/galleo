@@ -1,7 +1,3 @@
-// Direct-manipulation drag handles: element height/aspect resize, the generic move grip, and the in-between
-// region dividers that resize any row of side-by-side siblings — the section's top-level columns and every
-// nested row group, one uniform mechanism at every depth.
-
 import type { ElementLayout } from "@model/geometry";
 import type { ElementAddress } from "@model/target";
 import type { ArtifactContent } from "@model/artifact";
@@ -29,13 +25,10 @@ const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.m
 const EDGE = 8; // draggable border thickness
 const DRAG_THRESHOLD = 5; // px of pointer travel before a grip press becomes an actual drag (vs. a click)
 
-// The section reorder target (a drop position 0..n) while a section is being dragged, else null.
 export const [sectionDrop, setSectionDrop] = createSignal<number | null>(null);
-// The id of the section being drag-reordered — the canvas dims it and reflows the stack to its drop slot (a
-// section-level echo of the element drag preview), else null.
 export const [sectionDragId, setSectionDragId] = createSignal<string | null>(null);
 
-// Which section gap the cursor sits in, measured against the given (pre-drag) section tops.
+// Which section gap the cursor sits in, vs. the pre-drag tops.
 function sectionTargetAt(clientY: number, tops: number[]): number {
     const stage = stageEl();
     if (!stage || !tops.length) return 0;
@@ -47,9 +40,7 @@ function sectionTargetAt(clientY: number, tops: number[]): number {
     return tops.length;
 }
 
-// Begin a section drag-reorder (from the section grip); commits via moveSectionTo on release. The canvas
-// paints a live preview — the dragged section dimmed and reflowed into its drop slot — so target detection
-// runs against a snapshot of the pre-drag tops, staying stable while the stack reorders under the cursor.
+// Target detection runs against a snapshot of the pre-drag tops, so it stays stable while the stack reorders under the cursor.
 export function startSectionDrag(id: string): void {
     const tops = [...editor.sectionTops];
     const start = editor.artifact.sections.findIndex((s) => s.id === id);
@@ -70,14 +61,9 @@ export function startSectionDrag(id: string): void {
     window.addEventListener("pointerup", up);
 }
 
-// The one generic move affordance: a small grip that appears on HOVER over whatever's under the cursor —
-// any nested element/column, or the section itself. It sits in the left MARGIN (outside the element, never
-// over its content); its hit-zone runs flush to the element's left edge and swallows pointer-move, so the
-// region stays hovered while you reach across to grab it. A MOVE starts ONLY from here, so ordinary clicks /
-// text editing never turn into an accidental drag. Element → move within the section; section → reorder.
 export const DragHandle: Component = () => {
     const ctx = createMemo(() => {
-        if (drag() || sectionDragId()) return null; // hide the grip while any drag is in flight
+        if (drag() || sectionDragId()) return null;
         const t = hover() ?? selection();
         if (t?.kind === "element") {
             const box = regions().find((r) => r.id === elementRegionId(t.address))?.box;
@@ -94,10 +80,8 @@ export const DragHandle: Component = () => {
         e.stopPropagation();
         const c = ctx();
         if (!c) return;
-        // Arm the drag but don't start it until the pointer travels past a small threshold: a plain click on
-        // the grip (no movement) must NOT lift the element out of the layout — it should only select it. The
-        // move listener is capture-phase so it fires even while the pointer is still over the grip (whose own
-        // onPointerMove stops bubbling). startDrag → the lift + preview only happen once you actually drag.
+        // Don't start until the pointer passes a threshold: a plain click on the grip must only select, not lift.
+        // Capture-phase move listener so it fires even over the grip (whose own onPointerMove stops bubbling).
         const sx = e.clientX;
         const sy = e.clientY;
         const begin = (): void => {
@@ -132,9 +116,8 @@ export const DragHandle: Component = () => {
     return (
         <Show when={ctx()}>
             {(c) => (
-                // The hit-zone spans the margin AND runs flush to the element's left edge, so crossing from
-                // the element onto it keeps the region hovered; `onPointerMove` stops the canvas from
-                // recomputing hover while you're over it. The visible grip sits at its left, in the margin.
+                // Hit-zone runs flush to the element's left edge so crossing onto it keeps the region hovered;
+                // onPointerMove stops the canvas recomputing hover while you're over it.
                 <div
                     class="absolute z-menu flex cursor-grab items-center active:cursor-grabbing"
                     style={{
@@ -157,9 +140,6 @@ export const DragHandle: Component = () => {
     );
 };
 
-// Height / aspect resize on the SELECTED element's bottom edge only. Width + corner handles were removed:
-// they overlapped neighbouring elements' own affordances, and width is now sized via the in-between
-// RegionDividers instead. An element only shows this edge when it declares a height or aspect field.
 export const ResizeHandles: Component = () => {
     const ctx = createMemo(() => {
         const sel = selection();
@@ -231,10 +211,6 @@ export const ResizeHandles: Component = () => {
     );
 };
 
-// In-between region dividers — the primary width affordance. A bar between two side-by-side siblings
-// reallocates their combined width on drag, writing each child's ElementLayout.width %. One mechanism at
-// every depth (top-level columns + any nested row). Shown while the section is hovered.
-
 interface Divider {
     key: string;
     x: number; // centre, canvas coords
@@ -244,8 +220,7 @@ interface Divider {
 }
 
 function siblingDividers(sid: string, regs: Region[]): Divider[] {
-    // Group every element region in the section by its parent path → its sibling set. The root's children
-    // (parent path []) are the section columns; deeper groups are nested rows — same code for both.
+    // Group regions by parent path → sibling set: root's children (path []) are section columns, deeper groups are nested rows.
     const groups = new Map<
         string,
         { parentPath: number[]; members: { index: number; box: Rect }[] }
@@ -267,9 +242,7 @@ function siblingDividers(sid: string, regs: Region[]): Divider[] {
     const out: Divider[] = [];
     for (const g of groups.values()) {
         if (g.members.length < 2) continue;
-        // Width can only be reallocated between siblings sitting side by side in one row. Skip any set
-        // whose members don't share a common horizontal band — a column-stacked set, or a grid (e.g. a
-        // table) whose rows sit fully below one another. Purely geometric, so it stays element-agnostic.
+        // Only reallocate between siblings sharing a horizontal band; skip column-stacked sets and grids (rows fully below one another).
         const tops = g.members.map((m) => m.box.y);
         const bottoms = g.members.map((m) => m.box.y + m.box.h);
         if (Math.max(...tops) >= Math.min(...bottoms)) continue;
@@ -310,8 +283,7 @@ function siblingDividers(sid: string, regs: Region[]): Divider[] {
 }
 
 export const RegionDividers: Component = () => {
-    // The section whose dividers are shown: the hovered one, else the selected one. Hidden mid-drag — the
-    // dragged element's region is stale, and resize affordances don't apply while a drop is in flight.
+    // Hovered section's dividers, else the selected one. Hidden mid-drag — the dragged region is stale.
     const sid = createMemo<string | null>(() => {
         if (drag() || sectionDragId()) return null;
         const t = hover() ?? selection();
@@ -369,14 +341,12 @@ export const RegionDividers: Component = () => {
     );
 };
 
-// A live, uncommitted direct-manipulation edit driven by a canvas handle. The canvas paints
-// `applyLiveEdit(artifact, edit)` while a handle is dragged so the layout reflows in real time; the same
-// op is committed on release. One signal covers every handle kind.
+// Uncommitted handle edit: the canvas paints applyLiveEdit(...) live while dragging, then commits the same op on release.
 export type LiveEdit =
     | {
           kind: "element";
           address: ElementAddress;
-          layoutPatch?: Partial<ElementLayout>; // cross-axis (ElementLayout)
+          layoutPatch?: Partial<ElementLayout>;
           dataPatch?: Record<string, unknown>; // height / aspect / gap / padding (element data)
       }
     | { kind: "siblings"; parent: ElementAddress; entries: { index: number; pct: number }[] };

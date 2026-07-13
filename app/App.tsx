@@ -1,11 +1,17 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, onMount, Show } from "solid-js";
-import { Route, Router } from "@solidjs/router";
+import { Route, Router, useLocation, useNavigate } from "@solidjs/router";
 import { resolveTheme } from "@themes";
 import { authReady, bootstrap, user } from "./stores/auth";
 import { loadFeatures } from "./stores/features";
-import { customThemes, loadCustomThemes } from "./theme";
-import { faviconOverride, setFavicon, appTheme, appThemeOverride, appThemeVars } from "./theme";
+import { customThemes, loadCustomThemes } from "./stores/theme";
+import {
+    faviconOverride,
+    setFavicon,
+    appTheme,
+    appThemeOverride,
+    appThemeVars,
+} from "./stores/theme";
 import { AuthPage } from "./views/AuthPage";
 import { EditorView } from "./views/EditorView";
 import { ChatPanel } from "./views/ChatPanel";
@@ -20,48 +26,55 @@ import { ShareModal } from "./components/ShareModal";
 import { ThemeEditor } from "./views/ThemeEditor";
 import { TrashView } from "./views/TrashView";
 import { UiThemeProvider } from "@ui/icons";
+import { CommandPalette } from "@ui/CommandPalette";
+import { ShortcutsSheet } from "@ui/ShortcutsSheet";
+import { installKeyDispatcher } from "@ui/keys";
+import { setNavigate } from "./stores/commands"; // import also runs the app-command registrations
+import { publishRoute } from "./stores/route-context";
+import "@editor/commands"; // side-effect: register studio commands + editor context keys
 
-// Router root layout — wraps every route so the singular theme drawer + media picker are mounted once
-// (inside router context, so they read the active route to apply context-aware) and persist across nav.
-const AppShell: Component<{ children?: JSX.Element }> = (props) => (
-    <>
-        {props.children}
-        <GenerateModal />
-        <ThemeEditor />
-        <MediaPicker />
-        <ShareModal />
-        <ChatPanel />
-    </>
-);
+// root layout: singular overlays mount once here (under Router); also wires the key/command system
+const AppShell: Component<{ children?: JSX.Element }> = (props) => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    setNavigate((p) => navigate(p));
+    onMount(() => installKeyDispatcher());
+    createEffect(() => publishRoute(location.pathname));
+    return (
+        <>
+            {props.children}
+            <GenerateModal />
+            <ThemeEditor />
+            <MediaPicker />
+            <ShareModal />
+            <ChatPanel />
+            <CommandPalette />
+            <ShortcutsSheet />
+        </>
+    );
+};
 
-// The product SPA — served under /app (the public website is a separate build at /). Auth gate:
-// restore the session + apply the app theme, then either sign-in or the routed app. The Router carries
-// base="/app" so all in-app links/routes resolve under /app/*.
+// product SPA under /app; auth gate then the routed app (Router base="/app")
 export const App: Component = () => {
     onMount(() => {
-        // Custom themes + features gate only on the session cookie (already present on a reload), so kick
-        // them off in parallel with the session restore instead of waiting for /me — the custom-theme cache
-        // covers first paint, and these refresh it as early as possible.
+        // cookie-gated, so fire in parallel with the session restore (don't wait for /me)
         void bootstrap();
         void loadCustomThemes();
         void loadFeatures();
     });
 
-    // keep the browser-tab favicon in sync with the active theme (editor's artifact theme while editing,
-    // otherwise the app-chrome theme). Touch customThemes() so it re-resolves once custom themes load
-    // (the app-chrome theme can itself be a custom one, registered asynchronously).
+    // sync favicon to the active theme; touch customThemes() so it re-resolves when they load
     createEffect(() => {
         customThemes();
-        // the live theme-editor draft (if open) wins, so the tab badge previews the draft too
+        // live theme-editor draft wins, so the tab badge previews it too
         setFavicon(appThemeOverride() ?? resolveTheme(faviconOverride() ?? appTheme()).tokens);
     });
-    // CSS vars for the app root — recompute when the app theme OR the loaded custom themes change.
+    // recompute when app theme or custom themes change
     const themeVars = createMemo((): JSX.CSSProperties => {
         customThemes();
         return appThemeVars();
     });
-    // Icon stroke weight/cap track the active theme via the @ui theme context (the editor provides its own
-    // artifact tokens; here the app-chrome theme, previewing the live theme-editor draft when one is open).
+    // app-chrome tokens for @ui icon context (draft override when the theme editor is open)
     const appTokens = createMemo(() => {
         customThemes();
         return appThemeOverride() ?? resolveTheme(appTheme()).tokens;

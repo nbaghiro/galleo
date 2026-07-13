@@ -1,8 +1,5 @@
-// Auth primitives: password hashing (scrypt) + signed-cookie session read/write.
-
 import { randomBytes, scryptSync, timingSafeEqual, createHmac } from "node:crypto";
 
-// scrypt password hashing (Node crypto — no external dep). Stored as `salt:hash` (hex).
 export function hashPassword(password: string): string {
     const salt = randomBytes(16).toString("hex");
     const hash = scryptSync(password, salt, 64).toString("hex");
@@ -18,9 +15,6 @@ export function verifyPassword(password: string, stored: string | null): boolean
     return test.length === expected.length && timingSafeEqual(test, expected);
 }
 
-// Minimal signed-cookie session for the demo: the cookie value is `<userId>.<hmac>`. Good enough to
-// authenticate the seeded demo user locally; real OAuth (Google/Microsoft) layers on later.
-
 const SECRET = process.env.SESSION_SECRET ?? "dev-secret-change-me";
 export const SESSION_COOKIE = "galleo_session";
 
@@ -33,7 +27,6 @@ export function makeSession(userId: string): string {
     return sign(userId);
 }
 
-// Returns the userId if the token is valid + untampered, else null.
 export function readSession(token: string | undefined): string | null {
     if (!token) return null;
     const dot = token.lastIndexOf(".");

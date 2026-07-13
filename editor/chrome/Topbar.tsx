@@ -28,8 +28,6 @@ import { Segmented } from "@ui/inputs";
 import { Icon } from "@ui/icons";
 import { Menu, MenuItem } from "@ui/menu";
 
-// The artifact title: click the text to rename it inline (Enter commits, Esc cancels). No dropdown —
-// switching between artifacts happens from the library, not here.
 const ArtifactName: Component = () => {
     const [renaming, setRenaming] = createSignal(false);
     const [draft, setDraft] = createSignal("");
@@ -86,8 +84,7 @@ const ArtifactName: Component = () => {
     );
 };
 
-// Small icon-only undo/redo, greyed when their stack is empty. Content edits, theme changes, format
-// switches and renames all share one stack (see editor.ts), so these step through everything.
+// Undo/redo — one shared stack covers content, theme, format, and rename (see editor.ts).
 const HistoryButtons: Component = () => (
     <div class="flex items-center gap-0.5">
         <IconButton size="lg" tone="soft" disabled={!canUndo()} title="Undo (⌘Z)" onClick={undo}>
@@ -107,8 +104,7 @@ const Swatch: Component<{ surface: string; ink: string; accent: string }> = (pro
     </span>
 );
 
-// Opens the app-level theme drawer (the singular switcher + custom-theme creation); the button shows
-// the artifact's current theme. The app host wires the drawer via onThemePicker.
+// Opens the app-level theme drawer (wired by the host via onThemePicker); the button shows the current theme.
 const ThemeMenu: Component = () => {
     const current = createMemo(() => editorTheme());
     return (
@@ -131,7 +127,6 @@ const FORMATS = [
 
 const ExportMenu: Component = () => {
     const [busy, setBusy] = createSignal(false);
-    // The workspace plan decides which formats are unlocked and whether exports carry the Galleo mark.
     const allows = (f: ExportFormat): boolean => features().exportFormats.includes(f);
     const brand = (): boolean => !features().removeBranding;
     const run = async (fn: () => void | Promise<void>): Promise<void> => {
@@ -142,8 +137,7 @@ const ExportMenu: Component = () => {
             setBusy(false);
         }
     };
-    // A menu row: unlocked → runs the export; locked (a paid format on the current plan) → a muted row
-    // tagged "Pro" that sends the user to the pricing page instead.
+    // Menu row: unlocked runs the export; locked shows a "Pro" row that routes to pricing.
     const item = (
         label: string,
         format: ExportFormat,

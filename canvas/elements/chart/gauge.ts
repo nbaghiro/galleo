@@ -1,8 +1,6 @@
 import { registerChart, catList, fmt, gridColor, labelStyle, uiFont } from "./utils";
 import type { PlotCtx, ResolvedChart } from "./utils";
 
-// Single-value gauge: value = points[0], max = points[1] ?? 100. A 180° track with the value arc filled
-// in the accent, value + optional category label centered below the arc.
 function drawGauge(chart: ResolvedChart, ctx: PlotCtx): void {
     const { g, W, H, theme } = ctx;
     const pts = chart.series[0]?.points ?? [];

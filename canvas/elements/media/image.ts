@@ -1,7 +1,7 @@
 import { register } from "@elements/spec";
 import { imageLike } from "./shared";
 
-// The photo Image element keeps its exported name (used by section-background helpers + tests).
+// exported name used by section-background helpers + tests
 export const imageElement = imageLike({
     type: "image",
     label: "Image",

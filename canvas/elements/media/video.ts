@@ -4,7 +4,6 @@ import { register } from "@elements/spec";
 import { fit, grow } from "@model/geometry";
 import { fontStack } from "@themes";
 
-// Static placeholder for an embedded video (the static fallback for paged/export is the same).
 interface VideoData {
     url?: string;
 }

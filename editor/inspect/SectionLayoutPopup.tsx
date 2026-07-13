@@ -1,8 +1,3 @@
-// The section's smart-layout gallery + width/background, shown as an inline popup opened from the canvas
-// "Layout" button (replaces the docked section inspector). Every layout tile is a LIVE engine render of the
-// CURRENT section reflowed through that preset (@elements/layouts), so choosing one is a one-click,
-// what-you-see-is-what-you-get switch. Width + background fold in below via the shared schema controls.
-
 import type { Component } from "solid-js";
 import { createMemo, For, Show } from "solid-js";
 import type { Section, SectionBackground } from "@model/artifact";
@@ -29,7 +24,6 @@ export const SectionLayoutPopup: Component<{ section: string }> = (props) => {
             ),
         });
 
-    // --- width + background (moved verbatim from the former SectionInspector) ---
     const bg = (): SectionBackground => sec()?.background ?? { kind: "none" };
     const grad = (): { from: string; to: string; angle?: number } =>
         bg().gradient ?? { from: "#000000", to: "#ffffff", angle: 135 };

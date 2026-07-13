@@ -23,7 +23,6 @@ import {
 export const galleo: ArtifactContent = deck(
     "couture",
     [
-        // ── Cover ────────────────────────────────────────────────────────────
         section(
             "s1",
             group(
@@ -38,7 +37,6 @@ export const galleo: ArtifactContent = deck(
             { background: bgImage("galleo-cover-studio", 0.55) },
         ),
 
-        // ── 01 The problem ───────────────────────────────────────────────────
         section(
             "s2",
             split(
@@ -55,7 +53,6 @@ export const galleo: ArtifactContent = deck(
             ),
         ),
 
-        // ── The cost (stats) ─────────────────────────────────────────────────
         section(
             "s3",
             row(
@@ -71,7 +68,6 @@ export const galleo: ArtifactContent = deck(
             ),
         ),
 
-        // ── Thesis ───────────────────────────────────────────────────────────
         section(
             "s4",
             quote(
@@ -80,7 +76,6 @@ export const galleo: ArtifactContent = deck(
             ),
         ),
 
-        // ── 02 The product ───────────────────────────────────────────────────
         section(
             "s5",
             split(
@@ -102,7 +97,6 @@ export const galleo: ArtifactContent = deck(
             ),
         ),
 
-        // ── One source, three formats ────────────────────────────────────────
         section(
             "s6",
             row(
@@ -127,7 +121,6 @@ export const galleo: ArtifactContent = deck(
             ),
         ),
 
-        // ── 03 How it works ──────────────────────────────────────────────────
         section(
             "s7",
             split(
@@ -149,7 +142,6 @@ export const galleo: ArtifactContent = deck(
             ),
         ),
 
-        // ── 04 The moat (feature background) ──────────────────────────────────
         section(
             "s8",
             group(
@@ -164,7 +156,6 @@ export const galleo: ArtifactContent = deck(
             { background: bgImage("galleo-taste-studio", 0.6) },
         ),
 
-        // ── 05 Why now ───────────────────────────────────────────────────────
         section(
             "s9",
             split(
@@ -181,7 +172,6 @@ export const galleo: ArtifactContent = deck(
             ),
         ),
 
-        // ── 06 Market ────────────────────────────────────────────────────────
         section(
             "s10",
             row(
@@ -194,7 +184,6 @@ export const galleo: ArtifactContent = deck(
             ),
         ),
 
-        // ── 07 Traction ──────────────────────────────────────────────────────
         section(
             "s11",
             split(
@@ -219,7 +208,6 @@ export const galleo: ArtifactContent = deck(
             ),
         ),
 
-        // ── Customer love ────────────────────────────────────────────────────
         section(
             "s12",
             row(
@@ -234,7 +222,6 @@ export const galleo: ArtifactContent = deck(
             ),
         ),
 
-        // ── 08 Business model ────────────────────────────────────────────────
         section(
             "s13",
             group(
@@ -250,7 +237,6 @@ export const galleo: ArtifactContent = deck(
             ),
         ),
 
-        // ── 09 Why we win ────────────────────────────────────────────────────
         section(
             "s14",
             split(
@@ -269,7 +255,6 @@ export const galleo: ArtifactContent = deck(
             ),
         ),
 
-        // ── 10 Go-to-market ──────────────────────────────────────────────────
         section(
             "s15",
             split(
@@ -290,7 +275,6 @@ export const galleo: ArtifactContent = deck(
             ),
         ),
 
-        // ── The team ─────────────────────────────────────────────────────────
         section(
             "s16",
             row(
@@ -312,7 +296,6 @@ export const galleo: ArtifactContent = deck(
             ),
         ),
 
-        // ── 11 Roadmap ───────────────────────────────────────────────────────
         section(
             "s17",
             group(
@@ -326,7 +309,6 @@ export const galleo: ArtifactContent = deck(
             ),
         ),
 
-        // ── 12 The ask ───────────────────────────────────────────────────────
         section(
             "s18",
             split(
@@ -351,7 +333,6 @@ export const galleo: ArtifactContent = deck(
             ),
         ),
 
-        // ── Vision close (feature background) ─────────────────────────────────
         section(
             "s19",
             group(

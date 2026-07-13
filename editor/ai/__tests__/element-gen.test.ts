@@ -5,8 +5,7 @@ import { colGroup } from "@model/section";
 import { artifactOf, inst, sectionOf } from "@canvas/testkit";
 import { regenTarget } from "@editor/ai/element-gen";
 
-// Only regenTarget is pure (regenerateElement / canRegenerate touch the store + transport — skipped). It
-// resolves what a Regenerate click should target: climb out of a coupled parent, refuse inert types.
+// only regenTarget is pure; regenerateElement / canRegenerate touch the store + transport → skipped
 
 const artOf = (root: ElementInstance): ArtifactContent => artifactOf([sectionOf(root)]);
 const el = (type: string, children: ElementInstance[]): ElementInstance => inst(type, { children });

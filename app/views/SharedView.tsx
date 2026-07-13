@@ -13,7 +13,7 @@ import { resolveTheme } from "@themes";
 import { api, type ArtifactSummary, type LinkSummary, type Visibility } from "../api";
 import { artifacts, formatLabel, loadLibrary, relativeTime } from "../stores/library";
 import { links, loadLinks } from "../stores/links";
-import { openShare, shareRequest } from "../share";
+import { openShare, shareRequest } from "../stores/share";
 import { ArrowUpRightIcon, ChevronRightIcon, EditIcon, PlusIcon } from "@ui/icons";
 import { Badge, Button, Chip, Eyebrow, IconButton } from "@ui/button";
 import { EmptyState } from "@ui/status";
@@ -21,11 +21,7 @@ import { Modal } from "@ui/overlay";
 import { TextField } from "@ui/inputs";
 import { Sidebar } from "../components/Sidebar";
 
-// The Shared tab — an aggregated view over the workspace's links (it IS the links list, filtered by type).
-// A stat strip summarizes reach; type filters narrow the grid; each link leads with its live URL and
-// carries a lightweight per-link insights view (audience, engagement, recipient opens).
-
-// A merged row: a link + the artifact it points at (joined from the library store for cover/title/etc).
+// a link joined with the artifact it points at
 interface Item {
     link: LinkSummary;
     art: ArtifactSummary;
@@ -102,7 +98,7 @@ export const SharedView: Component = () => {
         setLoading(false);
     });
 
-    // Re-pull whenever the Share modal closes — a publish / unpublish / recipient change should reflect here.
+    // re-pull when the Share modal closes so changes reflect here
     let wasOpen = false;
     createEffect(() => {
         const open = shareRequest() !== null;
@@ -149,7 +145,6 @@ export const SharedView: Component = () => {
         return list.sort((a, b) => Number(alreadyShared(a.id)) - Number(alreadyShared(b.id)));
     });
 
-    // ── one link card ──
     const Card: Component<{ it: Item }> = (p) => {
         const meta = (): (typeof AUDIENCE)[Visibility] => AUDIENCE[p.it.link.visibility];
         const tk = (): ReturnType<typeof resolveTheme>["tokens"] =>
@@ -353,7 +348,6 @@ export const SharedView: Component = () => {
                             />
                         }
                     >
-                        {/* type filters */}
                         <div class="flex flex-wrap gap-2 border-b border-line px-9 py-4">
                             <For each={FILTERS}>
                                 {([k, label]) => (
@@ -419,7 +413,6 @@ export const SharedView: Component = () => {
     );
 };
 
-// ── per-link insights: audience, the live link, and engagement (recipient opens for private links) ──
 const InsightsModal: Component<{
     it: Item;
     onManage: () => void;
@@ -430,7 +423,7 @@ const InsightsModal: Component<{
 }> = (p) => {
     const meta = AUDIENCE[p.it.link.visibility];
     const isPrivate = p.it.link.visibility === "private";
-    // Full state (recipients + opened timestamps) is loaded on demand for the engagement table.
+    // full state (recipients + opened) loaded on demand for the engagement table
     const [state] = createResource(
         () => (isPrivate ? p.it.art.id : null),
         (id) => api.getLinkState(id).then((r) => r.link),
@@ -453,7 +446,6 @@ const InsightsModal: Component<{
             </header>
 
             <div class="px-5 py-4">
-                {/* engagement tiles */}
                 <div class="mb-4 grid grid-cols-3 gap-2.5">
                     <Show
                         when={isPrivate}
@@ -478,7 +470,6 @@ const InsightsModal: Component<{
                     </Show>
                 </div>
 
-                {/* the live link */}
                 <Show when={!isPrivate}>
                     <div class="mb-4 flex items-center gap-1 rounded-lg border border-line bg-canvas px-2.5 py-1.5">
                         <span class="min-w-0 flex-1 truncate font-mono text-[11px] text-soft">
@@ -506,7 +497,6 @@ const InsightsModal: Component<{
                     </div>
                 </Show>
 
-                {/* recipient engagement (private) */}
                 <Show when={isPrivate}>
                     <div class="mb-1.5 font-mono text-[9.5px] uppercase tracking-[0.12em] text-muted">
                         Recipients
@@ -542,7 +532,6 @@ const InsightsModal: Component<{
                     </div>
                 </Show>
 
-                {/* traffic analytics seam — richer per-view metrics arrive with the Analytics feature */}
                 <Show when={!isPrivate}>
                     <div class="rounded-lg border border-dashed border-line px-3 py-3 text-[11.5px] text-muted">
                         Views over time and top referrers arrive with{" "}

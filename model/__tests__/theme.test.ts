@@ -20,8 +20,6 @@ import {
 } from "@themes";
 import type { Theme, Tokens } from "@themes";
 
-// theme.ts is pure color math + resolvers + the curated library. The ONLY seam is the module-level
-// custom-theme registry, reset after each test.
 afterEach(() => {
     registerThemes([]);
 });

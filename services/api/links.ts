@@ -11,10 +11,7 @@ import { featuresFor } from "../features";
 import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
 import { sendShareInvite } from "../mail/send";
 
-// Public sharing. One `links` row = one published share; `visibility` is the access policy
-// (public | protected | private). Every view — of every type — resolves through GET /p/:slug/content and
-// keys on the same link, so view analytics (04) is uniform. Private links grant access per recipient via
-// an unguessable token (link_recipients), so the viewer stays unauthenticated.
+// One links row = one published share (visibility: public | protected | private).
 export const links = new Hono();
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:8600";
@@ -37,7 +34,6 @@ function newSlug(len = 8): string {
     return s;
 }
 
-// A short, collision-checked slug for the public URL.
 async function uniqueSlug(): Promise<string> {
     for (let i = 0; i < 6; i++) {
         const s = newSlug();
@@ -50,14 +46,13 @@ async function uniqueSlug(): Promise<string> {
     return newSlug(14); // vanishingly unlikely to collide
 }
 
-// A per-recipient access token (128-bit, URL-safe). Possession of the token = access to a private link.
+// Per-recipient token; possession = access to a private link.
 const newToken = (): string => randomBytes(24).toString("base64url");
 
 const publicUrl = (slug: string, token?: string): string =>
     `${APP_URL}/p/${slug}${token ? `?k=${token}` : ""}`;
 
-// In-memory brute-force guard for protected-link passwords. Per-process (single API node today) — good
-// enough until a shared store is warranted. Keyed by slug: too many wrong guesses locks it for a cooldown.
+// In-memory brute-force guard for protected-link passwords; per-process (single node), keyed by slug.
 const PW_MAX_FAILS = 8;
 const PW_WINDOW_MS = 10 * 60 * 1000;
 const pwFails = new Map<string, { count: number; resetAt: number }>();
@@ -78,8 +73,7 @@ function pwFail(slug: string): void {
     else e.count += 1;
 }
 
-// The password hash to store: only `protected` links carry one; a new password re-hashes, otherwise the
-// existing hash is kept (so toggling other fields doesn't wipe it).
+// Only protected links carry a hash; keep the existing one when no new password is given (don't wipe on other edits).
 function passwordFor(
     visibility: string,
     provided: string | null | undefined,
@@ -90,7 +84,6 @@ function passwordFor(
     return existing;
 }
 
-// Validate + normalize a batch of recipient emails (lowercased, de-duped, capped).
 function cleanEmails(raw: unknown): string[] {
     if (!Array.isArray(raw)) return [];
     const seen = new Set<string>();
@@ -111,8 +104,7 @@ interface OwnedLink {
     publishedVersionId: string | null;
 }
 
-// Load a link by id, but only if its artifact belongs to the given workspace (tenant guard for the
-// authenticated Share routes).
+// Load a link only if its artifact belongs to the workspace (tenant guard).
 async function ownedLink(linkId: string, ws: string): Promise<OwnedLink | null> {
     const [row] = await db
         .select({ link: schema.links, workspaceId: schema.artifacts.workspaceId })
@@ -145,8 +137,7 @@ async function recipientsOf(linkId: string, slug: string): Promise<RecipientView
     }));
 }
 
-// Insert new recipients (skipping any email already invited on this link), send each their invite, and
-// return the newly added ones. Delivery failures never break publishing — the URLs are returned anyway.
+// Skip already-invited emails; delivery failures never break publishing (URLs returned anyway).
 async function addRecipients(
     link: { id: string; slug: string },
     emails: string[],
@@ -183,7 +174,6 @@ async function addRecipients(
     return added;
 }
 
-// ── Publish: snapshot the draft into a version + upsert the public link ──────────────────────────────
 links.post("/artifacts/:id/publish", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -211,8 +201,7 @@ links.post("/artifacts/:id/publish", async (c) => {
     if (visibility === "protected" && !body.password && !existing?.password)
         return c.json({ error: "A password is required for a protected link." }, 400);
 
-    // Snapshot the current draft into an immutable version — but reuse the current published version when
-    // the draft is unchanged, so repeated publishes / visibility toggles don't bloat the history.
+    // Reuse the current published version when the draft is unchanged, so re-publishes don't bloat history.
     let versionId: string | null = null;
     if (existing?.publishedVersionId) {
         const [cur] = await db
@@ -282,7 +271,6 @@ links.post("/artifacts/:id/publish", async (c) => {
     });
 });
 
-// ── Every published link in the workspace (the Shared view) ──────────────────────────────────────────
 links.get("/links", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -330,7 +318,6 @@ links.get("/links", async (c) => {
     });
 });
 
-// ── Current publish state for the Share UI ───────────────────────────────────────────────────────────
 links.get("/links/:artifactId", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -359,7 +346,6 @@ links.get("/links/:artifactId", async (c) => {
     });
 });
 
-// ── Change visibility / password ─────────────────────────────────────────────────────────────────────
 links.patch("/links/:id", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -391,7 +377,6 @@ links.patch("/links/:id", async (c) => {
     });
 });
 
-// ── Add a batch of email recipients (private links) ──────────────────────────────────────────────────
 links.post("/links/:id/recipients", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -416,7 +401,6 @@ links.post("/links/:id/recipients", async (c) => {
     return c.json({ recipients: added });
 });
 
-// ── Revoke a recipient (their token stops working immediately) ───────────────────────────────────────
 links.delete("/links/:id/recipients/:rid", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -435,7 +419,6 @@ links.delete("/links/:id/recipients/:rid", async (c) => {
     return c.json({ ok: true });
 });
 
-// ── Unpublish: drop the link (recipients cascade) + clear the published pointer (history kept) ───────
 links.post("/artifacts/:id/unpublish", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -455,8 +438,7 @@ links.post("/artifacts/:id/unpublish", async (c) => {
     return c.json({ ok: true });
 });
 
-// A workspace custom theme's record (tokens etc.) for an anonymous viewer to registerThemes() — or null
-// for a built-in theme id (already in the viewer's registry) or an unknown/foreign id.
+// Custom-theme record for an anonymous viewer to registerThemes(); null for a built-in/unknown/foreign id.
 async function customThemeRecord(themeId: unknown, workspaceId: string) {
     if (typeof themeId !== "string" || !UUID_RE.test(themeId)) return null;
     const [t] = await db
@@ -468,13 +450,13 @@ async function customThemeRecord(themeId: unknown, workspaceId: string) {
         : null;
 }
 
-// ── UNAUTHENTICATED public read — the one anonymous surface ──────────────────────────────────────────
+// UNAUTHENTICATED public read — the one anonymous surface.
 links.get("/p/:slug/content", async (c) => {
     const slug = c.req.param("slug");
     const [link] = await db.select().from(schema.links).where(eq(schema.links.slug, slug));
     if (!link || !link.publishedVersionId) return c.json({ error: "not found" }, 404);
 
-    // The owning artifact — a trashed artifact's links go dark (never reveal existence → 404).
+    // Trashed artifact's links go dark → 404 (never reveal existence).
     const [artifact] = await db
         .select({
             title: schema.artifacts.title,
@@ -485,8 +467,7 @@ links.get("/p/:slug/content", async (c) => {
         .where(eq(schema.artifacts.id, link.artifactId));
     if (!artifact || artifact.trashedAt) return c.json({ error: "not found" }, 404);
 
-    // A link is only active while the OWNER's plan still grants public links, and the owner's plan also
-    // drives branding (an anonymous viewer has no plan of its own). Downgrading to Free deactivates links.
+    // Link is active only while the OWNER's plan grants public links (also drives branding); downgrade to Free deactivates.
     const [ownerWs] = await db
         .select({
             plan: schema.workspaces.plan,
@@ -501,9 +482,7 @@ links.get("/p/:slug/content", async (c) => {
     if (!owner.publicLinks) return c.json({ error: "not found" }, 404);
     const branded = !owner.removeBranding;
 
-    // The published theme + format drive the read-only render AND the (protected) password page. Resolve
-    // them up front — cheap jsonb field extracts — so the password gate returns them: the prompt matches
-    // the artifact's theme and its "view" button names the format ("View deck / document / site").
+    // Resolve theme + format up front so the protected password page can be shown in the artifact's theme.
     const [tv] = await db
         .select({
             theme: sql<string>`content->>'theme'`,
@@ -515,7 +494,7 @@ links.get("/p/:slug/content", async (c) => {
     const format = typeof tv?.format === "string" ? tv.format : undefined;
     const customTheme = await customThemeRecord(themeId, artifact.workspaceId);
 
-    // Access policy. Never reveal existence on a failed private/unknown check → 404.
+    // Access policy — failed private/unknown check → 404 (never reveal existence).
     let recipientId: string | null = null;
     if (link.visibility === "protected") {
         if (pwLocked(slug))
@@ -543,7 +522,7 @@ links.get("/p/:slug/content", async (c) => {
                 401,
             );
         }
-        pwFails.delete(slug); // correct password clears the counter
+        pwFails.delete(slug);
     } else if (link.visibility === "private") {
         const token = c.req.query("k");
         if (!token) return c.json({ error: "not found" }, 404);
@@ -566,11 +545,7 @@ links.get("/p/:slug/content", async (c) => {
         .where(eq(schema.versions.id, link.publishedVersionId));
     if (!version) return c.json({ error: "not found" }, 404);
     const content = version.content as ArtifactContent;
-    // `customTheme` was resolved up front from the same published version's theme, so the payload the
-    // viewer paints with matches the theme the password page (if any) was shown in.
 
-    // View analytics (04) hooks in here: a fire-and-forget insert into artifact_views keyed by
-    // link.id (+ recipientId for private). We already track per-recipient "opened" for the Share UI.
     // NB: drizzle builders are lazy — the trailing .catch() (not a bare `void`) is what runs the query.
     if (recipientId)
         void db

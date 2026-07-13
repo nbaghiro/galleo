@@ -8,9 +8,6 @@ import {
     serializeModel,
 } from "@editor/inspect/data-model";
 
-// The data-shape taxonomy + the parse↔serialize round-trip for the visual data editor. Pure string math
-// over the chart/diagram normalizers — no registry needed, but registered for parity with the suite.
-
 describe("dataShapeFor", () => {
     it("maps chart types, defaulting an unknown chart to series", () => {
         expect(dataShapeFor("chart", "bar")).toBe("series");

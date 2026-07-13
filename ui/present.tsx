@@ -11,17 +11,12 @@ import { Z } from "./z";
 import { IconButton } from "./button";
 import { Icon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "./icons";
 
-// The shared present/read surface — a chrome-free full-screen render of an artifact driven purely by its
-// content: deck → one scaled 16:9 slide per section with keyboard nav; doc/web → the sections stacked and
-// scrollable. Paints through the @canvas backends (pure TS). The in-app present route and the public
-// viewer both build on it, passing their own chrome (exit button, branding) via props — so the paint +
-// nav + control-bar logic lives here once instead of forked across the two surfaces.
 export const PresentSurface: Component<{
     artifact: ArtifactContent;
-    z?: number; // overlay z-index (default Z.present — the fullscreen takeover tier)
-    autoFullscreen?: boolean; // best-effort requestFullscreen on mount (in-app present)
-    onExit?: () => void; // when set, shows an Exit control + wires Esc-to-exit
-    children?: JSX.Element; // extra overlay content (e.g. a branding watermark)
+    z?: number;
+    autoFullscreen?: boolean;
+    onExit?: () => void;
+    children?: JSX.Element;
 }> = (props) => {
     let overlay!: HTMLDivElement;
     let host!: HTMLDivElement;
@@ -29,8 +24,7 @@ export const PresentSurface: Component<{
     const tokens = createMemo(() => resolveTheme(props.artifact.theme).tokens);
     const profile = createMemo(() => resolveProfile(props.artifact.format));
     const paged = createMemo(() => profile().kind === "paged");
-    // In a paged deck a tall section spans several 16:9 slides (paginated); build the per-section slide
-    // counts and map a flat slide index ↔ (section, page). doc/web scroll as one surface (no slide list).
+    // A tall paged section spans several 16:9 slides; map a flat slide index ↔ (section, page).
     const slideCounts = createMemo(() =>
         paged()
             ? props.artifact.sections.map((s) => sectionSlideCount(s, tokens(), profile()))
@@ -61,7 +55,6 @@ export const PresentSurface: Component<{
         setIndex((i) => Math.max(0, Math.min(t - 1, i)));
     });
 
-    // deck: the current slide (a section, or one page of a tall paginated section). doc/web: all stacked.
     const renderPaged = (): void => {
         if (!host) return;
         const { si, page } = locate(index());

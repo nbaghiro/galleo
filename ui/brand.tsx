@@ -1,9 +1,6 @@
 import type { Component } from "solid-js";
 
-// Galleo brand mark — a variation of the theme-reactive favicon (see app/theme.ts `setFavicon`): the
-// accent badge with a serif "G" in the on-accent ink. Styling flows through theme CSS-var utilities
-// (bg-accent, text-onaccent) + the theme radius, so the mark recolors with the active theme exactly as
-// the favicon does. Used as the workspace/brand logo across the app (sidebar wordmark + workspace card).
+// Brand mark — keep in sync with the theme-reactive favicon (app/theme.ts setFavicon).
 
 type Rounded = "md" | "lg" | "xl" | "full";
 const ROUNDED: Record<Rounded, string> = {
@@ -13,8 +10,7 @@ const ROUNDED: Record<Rounded, string> = {
     full: "rounded-full",
 };
 
-// The favicon glyph is set in a serif face; keep the mark on the same face (not the theme body font) so
-// the logo reads identically wherever the theme's fonts change.
+// Serif to match the favicon glyph, not the theme body font.
 const SERIF = "Georgia, 'Times New Roman', serif";
 
 export const Mark: Component<{ size?: number; rounded?: Rounded; class?: string }> = (props) => {

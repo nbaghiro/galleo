@@ -1,5 +1,3 @@
-// The reports template set (all variants — un-sharded from the size-split -extra/-extra2 files).
-
 import type { ArtifactContent } from "@model/artifact";
 import {
     badge,
@@ -23,7 +21,6 @@ import {
     divider,
 } from "@model/authoring";
 
-// A company annual report — believable, image-rich, financials and all.
 export const annualReport: ArtifactContent = doc(
     "press",
     [
@@ -245,7 +242,6 @@ export const annualReport: ArtifactContent = doc(
     bgImage("solstice-report-bg", 0.3),
 );
 
-// A customer case study — the arc from problem to proof.
 export const caseStudy: ArtifactContent = doc(
     "mineral",
     [
@@ -429,7 +425,6 @@ export const caseStudy: ArtifactContent = doc(
     bgImage("marlow-case-bg", 0.3),
 );
 
-// A research report / whitepaper — the sixth edition of an annual study on remote work.
 export const researchReport: ArtifactContent = doc(
     "studio",
     [
@@ -653,7 +648,6 @@ export const researchReport: ArtifactContent = doc(
     bgImage("remote-work-report-bg", 0.3),
 );
 
-// A market analysis — the global EV charging infrastructure sector, top to bottom.
 export const marketAnalysis: ArtifactContent = doc(
     "blue",
     [
@@ -860,8 +854,6 @@ export const marketAnalysis: ArtifactContent = doc(
     bgImage("ev-market-report-bg", 0.3),
 );
 
-// A quarterly business review — Tessera, a data-integration (iPaaS) company, reviewing Q2 FY2026
-// for its board and executive staff. Candid, operational, decision-oriented.
 export const qbr: ArtifactContent = doc("manuscript", [
     section(
         "q1",
@@ -1084,8 +1076,6 @@ export const qbr: ArtifactContent = doc("manuscript", [
     ),
 ]);
 
-// An industry trends report — the state of industrial robotics in 2026, published by an analyst
-// practice. Cover, the landscape, five key trends, implications, predictions, and methodology.
 export const trendsReport: ArtifactContent = doc("mocha", [
     section(
         "t1",

@@ -1,19 +1,10 @@
-// The feature registry — the single source of truth for what capabilities EXIST in the product,
-// independent of any plan. Billing is only ONE input to "can this workspace do X"; the other two are a
-// feature's global launch status and per-workspace overrides:
-//
-//   effective(feature) = status !== "planned"  &&  ( plan grants it || override grants it )
-//
-// `status` is the honesty layer: a `planned` feature is off for everyone (a pricing card may still
-// advertise it as "coming soon"); `live` / `beta` features can be granted by a plan or an override.
-// Enforcement never reads a plan directly — it reads a workspace's resolved Features via can() / limit().
+// effective(feature) = status !== "planned" && ( plan grants it || override grants it )
 
 import type { ExportFormat, ModelTier, PlanId } from "@model/billing";
 import { isUnlimited, planFor } from "@model/billing";
 
 export type FeatureStatus = "live" | "beta" | "planned";
 
-// Boolean capabilities.
 export type BoolFeature =
     | "removeBranding"
     | "customThemes"
@@ -25,7 +16,7 @@ export type BoolFeature =
     | "prioritySupport"
     | "earlyAccess";
 
-// Numeric capabilities (-1 = unlimited, 0 = none).
+// -1 = unlimited, 0 = none
 export type NumFeature =
     | "maxArtifacts"
     | "maxMembers"
@@ -34,22 +25,18 @@ export type NumFeature =
     | "creditsPerMonth"
     | "maxSectionsPerGeneration";
 
-// Enum / list capabilities.
 export type EnumFeature = "exportFormats" | "textModelTier" | "imageModelTier";
 
 export type FeatureKey = BoolFeature | NumFeature | EnumFeature;
 
 interface FeatureDef {
-    label: string; // human name for the UI
+    label: string;
     status: FeatureStatus;
-    description: string; // one line, for the pricing table + tooltips
+    description: string;
 }
 
-// Every gateable capability + its launch status. Flip a `planned` → `live` here the day a feature ships
-// and it starts being granted wherever a plan lists it (no other change). `🔶` = AI/credit session owns
-// the value and, effectively, when it goes live.
+// 🔶 = AI/credit session owns the value + when it goes live
 export const FEATURES: Record<FeatureKey, FeatureDef> = {
-    // live — built + enforced today
     removeBranding: {
         label: "Remove Galleo mark",
         status: "live",
@@ -85,7 +72,6 @@ export const FEATURES: Record<FeatureKey, FeatureDef> = {
         status: "live", // 🔶 spend enforced by the AI/credit session
         description: "AI generation budget per month.",
     },
-    // beta — the AI/credit session is building the enforcement
     maxSectionsPerGeneration: {
         label: "Sections per generation",
         status: "beta", // 🔶
@@ -101,7 +87,6 @@ export const FEATURES: Record<FeatureKey, FeatureDef> = {
         status: "beta", // 🔶
         description: "Which image models media generation may use.",
     },
-    // planned — advertised on cards, off for everyone until built
     workspaceThemes: {
         label: "Shared brand kit",
         status: "planned",
@@ -143,11 +128,9 @@ export const FEATURES: Record<FeatureKey, FeatureDef> = {
 export const featureStatus = (key: FeatureKey): FeatureStatus => FEATURES[key].status;
 const launched = (key: FeatureKey): boolean => FEATURES[key].status !== "planned";
 
-// A workspace's resolved feature set: plan grants, narrowed by each feature's launch status and widened
-// by per-workspace overrides. Read via can() / limit(); produced by resolveFeatures().
+// resolved feature set — read via can()/limit(); produced by resolveFeatures()
 export interface Features {
     planId: PlanId;
-    // booleans
     removeBranding: boolean;
     customThemes: boolean;
     workspaceThemes: boolean;
@@ -157,31 +140,27 @@ export interface Features {
     sso: boolean;
     prioritySupport: boolean;
     earlyAccess: boolean;
-    // numbers (-1 = unlimited, 0 = none)
+    // -1 = unlimited, 0 = none
     maxArtifacts: number;
     maxMembers: number;
     customDomains: number;
     storageMb: number;
     creditsPerMonth: number;
     maxSectionsPerGeneration: number;
-    // enums / lists
     exportFormats: ExportFormat[];
     textModelTier: ModelTier;
     imageModelTier: ModelTier;
 }
 
-// A per-workspace patch (stored in workspaces.feature_overrides jsonb) — comps, grandfathering, beta
-// grants. Applied on top of plan grants for LIVE/BETA features only; an override can't conjure a
-// capability that isn't built (a `planned` feature stays off).
+// per-workspace patch; can't grant a "planned" (unbuilt) feature
 export type FeatureOverrides = Partial<Omit<Features, "planId">>;
 
-// Resolve a plan (+ optional overrides) into the effective feature set. Pure — the single place the three
-// inputs (plan grant · launch status · override) combine.
+// resolve a plan (+ overrides) into the effective feature set
 export function resolveFeatures(planId: PlanId, overrides?: FeatureOverrides): Features {
     const p = planFor(planId);
     const pf = p.features;
 
-    // gate a plan value by launch status, then let an override widen it (only when launched).
+    // gate by launch status, then let an override widen it
     const b = (key: BoolFeature, planValue: boolean): boolean => {
         if (!launched(key)) return false;
         const o = overrides?.[key];
@@ -222,9 +201,8 @@ export function resolveFeatures(planId: PlanId, overrides?: FeatureOverrides): F
     };
 }
 
-// Enforcement accessors.
 export const can = (f: Features, key: BoolFeature): boolean => f[key];
 export const limit = (f: Features, key: NumFeature): number => f[key];
-// true when `current` usage is within the feature's numeric limit (-1 = unlimited).
+// within the numeric limit (-1 = unlimited)
 export const withinLimit = (f: Features, key: NumFeature, current: number): boolean =>
     isUnlimited(f[key]) || current < f[key];

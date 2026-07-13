@@ -2,22 +2,16 @@ import type { Component } from "solid-js";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { api, type LinkState, type Visibility } from "../api";
-import { closeShare, shareRequest, type ShareRequest } from "../share";
+import { closeShare, shareRequest, type ShareRequest } from "../stores/share";
 import { flushAutosave } from "../stores/save";
 import { can, isComingSoon } from "../stores/features";
 import { relativeTime } from "../stores/library";
-import { overlayThemeVars } from "../theme";
+import { overlayThemeVars } from "../stores/theme";
 import { ArrowUpRightIcon, CheckIcon, CloseIcon } from "@ui/icons";
 import { Modal } from "@ui/overlay";
 import { Button, Chip, IconButton } from "@ui/button";
 import { Segmented, TextField } from "@ui/inputs";
 import { StatusDot } from "@ui/status";
-
-// The Share modal — link-forward: the shareable URL (copy + open) is the hero once a link exists, and
-// "Who can access" (public · protected · private) reads as a setting beneath it rather than a gate in
-// front of it. Mounted once at the app root (like the theme editor + media picker); opened from the editor
-// topbar via the `requestShare` bridge. Follows the theme editor's overlay conventions (light scrim,
-// mount-on-open theming).
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isEmail = (s: string): boolean => EMAIL_RE.test(s.trim());
@@ -35,14 +29,14 @@ export const ShareModal: Component = () => (
 
 const SharePanel: Component<{ req: ShareRequest }> = (props) => {
     const navigate = useNavigate();
-    const vars = overlayThemeVars(); // stamp the editor theme at open (the modal never outlives a nav)
+    const vars = overlayThemeVars(); // stamp the editor theme at open
 
     const [link, setLink] = createSignal<LinkState | null>(null);
     const [loading, setLoading] = createSignal(true);
     const [vis, setVis] = createSignal<Visibility>("public");
     const [password, setPassword] = createSignal("");
     const [emailDraft, setEmailDraft] = createSignal("");
-    const [pending, setPending] = createSignal<string[]>([]); // emails staged in the input as chips
+    const [pending, setPending] = createSignal<string[]>([]); // emails staged as chips
     const [busy, setBusy] = createSignal(false);
     const [err, setErr] = createSignal("");
     const [copied, setCopied] = createSignal<string | null>(null);
@@ -63,7 +57,7 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                 setVis(l.visibility);
             }
         } catch {
-            /* not shared yet / signed out — start fresh (the user turns sharing on explicitly) */
+            /* not shared yet / signed out — start fresh */
         }
         setLoading(false);
     });
@@ -82,14 +76,12 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
         }
     };
 
-    // stage an email chip from the input (Enter / comma / blur)
     const stageEmail = (): void => {
         const e = emailDraft().trim().toLowerCase();
         if (isEmail(e) && !pending().includes(e)) setPending([...pending(), e]);
         setEmailDraft("");
     };
 
-    // First publish (or re-publish from the unpublished state) with the chosen policy.
     const publish = async (): Promise<void> => {
         if (vis() === "protected" && !password() && !link()?.hasPassword) {
             setErr("Set a password for a protected link.");
@@ -98,7 +90,7 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
         setBusy(true);
         setErr("");
         try {
-            await flushAutosave(); // snapshot the latest edits, not the last debounced autosave
+            await flushAutosave(); // snapshot latest edits, not the last debounced autosave
             await api.publishArtifact(props.req.artifactId, {
                 visibility: vis(),
                 password: vis() === "protected" && password() ? password() : undefined,
@@ -113,7 +105,7 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
         setBusy(false);
     };
 
-    // Change policy / password on an already-published link (no re-snapshot).
+    // policy/password only — no re-snapshot
     const applyUpdate = async (patch: {
         visibility?: Visibility;
         password?: string | null;
@@ -133,8 +125,7 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
         setBusy(false);
     };
 
-    // Segmented-control click: stage locally when unpublished, else switch policy live (protected waits
-    // for a password before it can take effect).
+    // stage locally when unpublished, else switch live; protected waits for a password
     const selectVis = (v: Visibility): void => {
         setVis(v);
         setErr("");
@@ -146,12 +137,12 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
         });
     };
 
-    // Re-snapshot the current draft into the live link (keeps the policy + recipients).
+    // re-snapshot draft into the live link (keeps policy + recipients)
     const republish = async (): Promise<void> => {
         setBusy(true);
         setErr("");
         try {
-            await flushAutosave(); // push the current draft, including edits still in the autosave debounce
+            await flushAutosave(); // push edits still in the autosave debounce
             await api.publishArtifact(props.req.artifactId, {});
             await reload();
         } catch (e) {
@@ -173,7 +164,6 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
         setBusy(false);
     };
 
-    // Send staged invites on a published private link.
     const invite = async (): Promise<void> => {
         const l = link();
         if (!l) return;
@@ -233,7 +223,6 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
             <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
                 <Show when={!loading()} fallback={<Loading />}>
                     <Show when={!gated()} fallback={<Upgrade onGo={() => navigate("/pricing")} />}>
-                        {/* ── the share link (public / protected): create action when off, URL when on ── */}
                         <Show when={vis() !== "private"}>
                             <div class="mb-1.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted">
                                 Share link
@@ -287,7 +276,6 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                             </Show>
                         </Show>
 
-                        {/* ── who can access ── */}
                         <div class="mb-1.5 mt-4 font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted">
                             Who can access
                         </div>
@@ -301,7 +289,6 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                             {TYPES.find((t) => t.id === vis())?.hint}
                         </p>
 
-                        {/* ── protected: password ── */}
                         <Show when={vis() === "protected"}>
                             <div class="mb-1">
                                 <TextField
@@ -333,7 +320,6 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                             </div>
                         </Show>
 
-                        {/* ── private: invite people ── */}
                         <Show when={vis() === "private"}>
                             <div class="flex flex-wrap gap-1.5 rounded-lg border border-line bg-canvas px-2 py-2">
                                 <For each={pending()}>
@@ -437,7 +423,6 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                             <p class="mt-3 text-[12px] text-red-500">{err()}</p>
                         </Show>
 
-                        {/* ── management (only once sharing is on) ── */}
                         <Show when={published()}>
                             <div class="mt-4 flex items-center gap-2 border-t border-line pt-3">
                                 <span class="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent">

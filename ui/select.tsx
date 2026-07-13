@@ -2,9 +2,6 @@ import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { Popover } from "./overlay";
 
-// A theme-aware dropdown replacing native <select> — the menu is a portaled Popover (theme-snapshotted,
-// bottom-flipping), keyboard-navigable. `toolbar` keeps an inline text editor alive when used mid-edit.
-
 const chevron = (): JSX.Element => (
     <svg
         width="12"
@@ -67,7 +64,7 @@ export const Dropdown: Component<{
         setOpen(false);
     };
 
-    // Arrow/Enter navigation while open (Popover already handles Escape + dismiss).
+    // Arrow/Enter nav while open (Popover handles Escape + dismiss).
     createEffect(() => {
         if (!open()) return;
         const onKey = (e: KeyboardEvent): void => {

@@ -1,6 +1,4 @@
-// Side-effect module: importing it runs every tool's register(), so the whole implemented catalog is in the
-// registry regardless of which tools a given surface imports directly. Import once from the runtime entry
-// (services/ai/run). No exports — it exists purely for its imports' side effects.
+// side-effect imports: each runs the tool's register()
 
 import "./generate";
 import "./section";

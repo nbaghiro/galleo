@@ -1,19 +1,13 @@
-// Media picker wire shapes — shared by the backend router (services/api/media.ts) and the app client.
-// A "media item" is the normalized result the picker renders, whether it came from a stock provider, an
-// AI generation, an upload, or the workspace's recent library.
+// media picker wire shapes, shared by services + the app client
 
-// Openverse is keyless (free CC-image search, works out of the box); the rest light up once their key is
-// in .env. Adding a key only unlocks a provider behind the scenes — the picker UI is unchanged.
+// Openverse is keyless; the rest need a key in .env
 export type MediaProvider = "openverse" | "unsplash" | "pexels" | "pixabay";
 export type MediaSource = "stock" | "generated" | "upload";
 
-// The "image-like" media kinds the picker + palette share one renderer for. Drives the search filters
-// (Openverse extension/category), which sources the rail offers, and the AI-generation style. "photo" is
-// the default (section backgrounds + the Image element); gif/illustration/sticker are the new tiles.
+// "photo" is the default (backgrounds + the Image element)
 export type MediaKind = "photo" | "gif" | "illustration" | "sticker" | "icon";
 
-// Where a picked image came from + how to credit it. Stored alongside the image so export/compliance
-// survive: Unsplash and Pexels require visible attribution, and Unsplash requires a download trigger.
+// how to credit an image (Unsplash/Pexels require visible attribution)
 export interface MediaAttribution {
     provider?: string; // "Unsplash" | "Pexels" | "Pixabay"
     author?: string;
@@ -26,11 +20,11 @@ export interface MediaItem {
     id: string; // provider photo id (stock) or asset uuid (stored)
     source: MediaSource;
     url: string; // full-size / display url
-    thumbUrl: string; // grid thumbnail url
+    thumbUrl: string;
     width: number;
     height: number;
     alt?: string;
-    prompt?: string; // the prompt, for generated images
+    prompt?: string; // for generated images
     attribution?: MediaAttribution;
 }
 
@@ -45,10 +39,10 @@ export interface MediaGenerateRequest {
     prompt: string;
     aspect?: string; // "16:9" | "4:3" | "1:1" | "3:4" | "9:16"
     n?: number; // number of variations (1–4)
-    style?: MediaGenStyle; // shapes the prompt (photo · illustration · 3d · line · watercolor)
+    style?: MediaGenStyle; // shapes the prompt
 }
 
-// AI-generation styles offered in the Generate studio; each maps to a prompt prefix on the backend.
+// each maps to a prompt prefix on the backend
 export type MediaGenStyle = "photo" | "illustration" | "3d" | "line" | "watercolor";
 export const MEDIA_GEN_STYLES: { label: string; value: MediaGenStyle }[] = [
     { label: "Photo", value: "photo" },
@@ -66,10 +60,7 @@ export interface MediaUploadRequest {
     height?: number;
 }
 
-// --- icons (Iconify) ---
-// Icons are monochrome vectors that adopt a theme color, so they don't flow through the MediaItem/url
-// path. Search returns ids; picking one fetches its `currentColor`-based SVG body, which the Icon element
-// re-tints per theme. Keyless (api.iconify.design); a premium icon provider could slot in behind this.
+// icons are monochrome vectors re-tinted per theme; separate from the MediaItem/url path
 export interface IconItem {
     id: string; // iconify id, e.g. "lucide:rocket"
 }
@@ -84,7 +75,6 @@ export interface IconPick {
     height: number;
 }
 
-// The aspect ratios the Generate studio offers (label + the value the model understands).
 export const MEDIA_ASPECTS: { label: string; value: string }[] = [
     { label: "16:9", value: "16:9" },
     { label: "4:3", value: "4:3" },

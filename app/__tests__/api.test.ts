@@ -3,10 +3,6 @@ import type { ArtifactContent, ArtifactInput, ElementInstance } from "@model/art
 import type { TurnEvent, TurnRequest } from "@model/ai";
 import { ApiError, api, streamTurn } from "../api";
 
-// The ONLY seam is `fetch`. We stub globalThis.fetch with a recorder + a canned Response-like object, and
-// let everything else run for real: URL building, param encoding, body serialization, response mapping,
-// and ApiError shaping. So the assertions are on the code under test, not on a re-implementation of it.
-
 interface FetchCall {
     url: string;
     init: RequestInit | undefined;
@@ -22,7 +18,6 @@ interface StubResponse {
     body?: { getReader: () => { read: () => Promise<{ value?: Uint8Array; done: boolean }> } };
 }
 
-// A canned JSON Response — `ok` derives from the status unless overridden.
 function jsonResponse(
     body: unknown,
     init: { ok?: boolean; status?: number; statusText?: string } = {},
@@ -38,8 +33,6 @@ function jsonResponse(
     };
 }
 
-// A canned SSE Response — its reader replays `chunks` (each TextEncoder-encoded), then reports done. Split
-// a frame across chunks to exercise the client's cross-read buffering.
 function streamResponse(chunks: string[]): StubResponse {
     const encoded = chunks.map((c) => new TextEncoder().encode(c));
     let i = 0;
@@ -63,7 +56,6 @@ function streamResponse(chunks: string[]): StubResponse {
     };
 }
 
-// Install a fetch stub that answers every call with `response`, recording each (url, init) it saw.
 function stubFetch(response: StubResponse): FetchCall[] {
     const calls: FetchCall[] = [];
     const fn = vi.fn((input: string, init?: RequestInit): Promise<StubResponse> => {
@@ -89,7 +81,6 @@ function headerOf(call: FetchCall, name: string): string | undefined {
     return headers?.[name];
 }
 
-// Await a promise that is expected to reject with an ApiError, and hand it back for inspection.
 async function caught(p: Promise<unknown>): Promise<ApiError> {
     try {
         await p;

@@ -1,5 +1,3 @@
-// Selection chrome: the selection outline + section-level action buttons/toolbar drawn over the canvas.
-
 import type { Region } from "@engine/node";
 import type { Target } from "@model/target";
 import type { Component } from "solid-js";
@@ -26,15 +24,11 @@ import { IconButton } from "@ui/button";
 import { FloatingBar, Popover } from "@ui/overlay";
 import { Separator } from "@ui/inputs";
 
-// Fallback radius for nodes that paint no corner of their own (text, groups): square in the seamless
-// doc/web formats (rounded looks odd on square sections), a small round on paged decks.
+// Fallback radius for nodes that paint no corner (text, groups): square in doc/web, small round on decks.
 const fallbackRadius = (): number =>
     resolveProfile(editor.artifact.format).kind === "continuous" ? 0 : 7;
 
-// Selection + hover highlights, drawn as box-shadow rings (no layout impact) over the painted canvas.
-// Reads geometry from the engine-reported regions, so it tracks exactly what the engine laid out — and
-// each region carries the corner radius it actually painted, so the outline hugs the element/section
-// (image, card, themed section) with no gap, matching whatever radius the element / theme sets.
+// Highlights are box-shadow rings (no layout impact); each region carries its painted radius so the outline hugs with no gap.
 
 function regionFor(t: Target | null): Region | null {
     if (!t) return null;
@@ -52,8 +46,7 @@ const ring = (r: Region, shadow: string) => ({
 });
 
 export const Overlay: Component = () => {
-    // Suppressed while an element OR section is being dragged: selection/hover are frozen and the painted
-    // layout has shifted (lifted element / reflowed section), so a ring would strand over a stale spot.
+    // Suppressed mid-drag: the painted layout has shifted, so a ring would strand over a stale spot.
     const sel = createMemo(() => (drag() || sectionDragId() ? null : regionFor(selection())));
     const hov = createMemo(() => {
         if (drag() || sectionDragId()) return null;
@@ -94,12 +87,9 @@ function sectionOf(t: Target | null): string | null {
 const action =
     "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-canvas";
 
-// The section whose Layout popup is open (else null). While open, SectionActions pins its bar to that
-// section so the anchor button stays mounted even if the cursor drifts away.
+// SectionActions pins its bar to the open-popup section so the anchor stays mounted if the cursor drifts away.
 const [layoutOpen, setLayoutOpen] = createSignal<string | null>(null);
 
-// On section hover, a pill bar straddles the section's bottom edge: add a section below, generate, or open
-// the inline Layout popup (smart-layout gallery + width/background) — which replaces the docked inspector.
 export const SectionActions: Component = () => {
     const sid = createMemo(() => layoutOpen() ?? sectionOf(hover()));
     const box = createMemo(() => {
@@ -165,7 +155,6 @@ export const SectionActions: Component = () => {
     );
 };
 
-// Floating toolbar over a selected section: reorder · duplicate · add-below · delete.
 export const SectionToolbar: Component = () => {
     const sid = createMemo(() => {
         const s = selection();

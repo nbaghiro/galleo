@@ -4,9 +4,6 @@ import { findTemplatesTool } from "../library";
 import { makeContext } from "../registry";
 import { TEMPLATES } from "../../../templates";
 
-// findTemplatesTool is PURE — it filters the static TEMPLATES list and returns compact refs. No DB, no model
-// call, zero mocks. (The workspace-backed find-artifacts / read-artifact tools are the DB seam — not tested.)
-
 async function find(query?: string): Promise<TemplateRef[]> {
     const gen = findTemplatesTool.run({ query }, makeContext({ image: {} }));
     let step: IteratorResult<TurnEvent, TemplateRef[]> = await gen.next();
@@ -33,7 +30,6 @@ describe("findTemplatesTool", () => {
         expect(lower.length).toBe(upper.length);
         expect(lower.length).toBeGreaterThan(0);
         expect(lower.some((t) => t.id === "startup-pitch")).toBe(true);
-        // every match really contains the query somewhere in its source template
         for (const ref of lower) {
             const src = TEMPLATES.find((t) => t.id === ref.id)!;
             const hay = `${src.name} ${src.category} ${src.description}`.toLowerCase();

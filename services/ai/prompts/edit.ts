@@ -6,11 +6,6 @@ import { VOICE } from "./rubric";
 import { OUTPUT_NOTE, SECTION_RULES, artifactDigest, heading, stack } from "./system";
 import type { PromptParts } from "./system";
 
-// The whole-artifact edit capability (`edit` turn) — read the current content and return the revised
-// artifact; the runtime diffs the result into the minimal replaceSection / replaceElement patches the
-// protocol streams. (Inserting one new section is the `section` turn — its prompts live in generate.ts,
-// alongside the section writer it reuses.)
-
 const EDIT_JOB = `## Your job
 Revise the artifact to satisfy the instruction while preserving everything that already works. Change only what the instruction implies; keep untouched sections intact (same ids). Return the full revised artifact.`;
 

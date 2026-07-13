@@ -12,28 +12,16 @@ import {
     stopEditing,
 } from "../editor";
 
-// Is `path` at or under `ancestor` (a prefix match)? Used to tell whether the element being inline-edited sits
-// inside a just-regenerated subtree.
 const isAtOrUnder = (path: number[], ancestor: number[]): boolean =>
     ancestor.every((v, i) => path[i] === v);
 
-// Regenerate-an-element flow — the ContextBar's Regenerate action. One call swaps the selected element for a
-// fresh AI version, in place, as a single undoable step. It "handles both cases": a self-contained element
-// regenerates itself; a fragment of a tightly-coupled container (a line inside a quote / stat / bullets)
-// regenerates the whole parent, since that piece only means something together. The app injects the transport
-// (onReviseElement); no host → the action stays hidden.
-
-// A child of one of these is a fragment of a single composed unit — regenerate the whole parent, not the
-// piece on its own (rewriting just the attribution of a quote, or one bullet row, makes no sense alone).
+// child of these = a fragment of one composed unit → regenerate the whole parent, not the piece alone
 const COUPLED = new Set(["quote", "stat", "bullets"]);
-// Purely structural / user-owned — nothing for the model to regenerate, so no affordance.
+// nothing to regenerate → no affordance
 const INERT = new Set(["divider", "video"]);
 
-// Resolve what a Regenerate click on `addr` should actually target — the element itself, or its nearest
-// meaningful ancestor. Returns null when there's nothing sensible to regenerate (e.g. a divider).
 export function regenTarget(art: ArtifactContent, addr: ElementAddress): ElementAddress | null {
     let a = addr;
-    // climb out of any tightly-coupled parent (a child of quote / stat / bullets → the parent is the unit)
     for (;;) {
         if (a.path.length === 0) break;
         const parentAddr: ElementAddress = { ...a, path: a.path.slice(0, -1) };
@@ -49,14 +37,12 @@ export function regenTarget(art: ArtifactContent, addr: ElementAddress): Element
     return a;
 }
 
-// Whether a Regenerate affordance should show for a selected element — a transport must be wired (i.e. the
-// studio is running inside the app) and the selection must resolve to a real regeneration target.
 export function canRegenerate(addr: ElementAddress): boolean {
     return getReviseElement() !== null && regenTarget(editor.artifact, addr) !== null;
 }
 
 interface ElementGenState {
-    addr: ElementAddress | null; // the element being regenerated (null → idle)
+    addr: ElementAddress | null;
     status: "working" | "error" | null;
     error: string | null;
 }
@@ -72,9 +58,7 @@ export const elementGenBusy = (): boolean => elementGen.status === "working";
 
 let errTimer = 0;
 
-// Regenerate the element at `addr` (resolved to its real target) and swap the fresh version in as one undo
-// step. `instruction` steers it; omit for a straight re-roll. Guards against landing onto a tree the user
-// changed mid-flight (edit / undo) by re-checking the target still exists before committing.
+// re-check the target still exists before committing — the user may have edited/undone mid-flight
 export async function regenerateElement(addr: ElementAddress, instruction?: string): Promise<void> {
     const reviser = getReviseElement();
     if (!reviser || elementGenBusy()) return;
@@ -91,10 +75,7 @@ export async function regenerateElement(addr: ElementAddress, instruction?: stri
     try {
         const next = await reviser(base, target.section, current, instruction);
         if (getElementAt(content(), target)) {
-            // Drop the inline editor BEFORE committing if the regenerated element (or a piece of it) is being
-            // edited: the contenteditable overlay holds the old text, and the browser won't repaint an in-place
-            // external change to a live field (that's why it only showed on deselect). Exiting editing lets the
-            // section repaint from the new model — the element shows selected, with its fresh content.
+            // stop editing before commit: the browser won't repaint an in-place change to a live contenteditable
             const ed = editing();
             if (ed && ed.section === target.section && isAtOrUnder(ed.path, target.path))
                 stopEditing();

@@ -3,14 +3,10 @@ import { generateObject } from "ai";
 import type { ZodType } from "zod";
 import { resolveModel, thinklessOpts } from "../provider";
 
-// Shared eval machinery — CLI parsing, concurrency, math, the LLM-judge call, and the markdown report writer.
-// Both eval modes (agent routing + generation quality) build on this so neither re-implements the plumbing.
-
 export const log = (s = ""): void => {
     process.stdout.write(`${s}\n`);
 };
 
-// --- CLI ---
 export function arg(name: string, fallback: string): string {
     const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
     return hit ? hit.slice(name.length + 3) : fallback;
@@ -26,12 +22,10 @@ export const int = (name: string, fallback: number, min = 1): number =>
 
 export const shortModel = (id: string): string => id.split(":").pop() ?? id;
 
-// --- math ---
 export const avg = (a: number[]): number =>
     a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0;
 export const pct = (p: number, t: number): string => `${t ? Math.round((p / t) * 100) : 0}%`;
 
-// --- bounded-concurrency pool ---
 export async function pool<I, O>(
     items: I[],
     size: number,
@@ -50,7 +44,6 @@ export async function pool<I, O>(
     return out;
 }
 
-// --- one LLM-judge call: structured output, thinkless (judging needs no extended reasoning) ---
 export async function judge<T>(
     model: string,
     spec: { system: string; prompt: string; schema: ZodType<T> },
@@ -65,7 +58,6 @@ export async function judge<T>(
     return object as T;
 }
 
-// --- markdown report: accumulate lines (echoed live), then flush to --out if set ---
 export function reporter(): { w: (s?: string) => void; flush: (out: string) => void } {
     const lines: string[] = [];
     const w = (s = ""): void => {

@@ -1,5 +1,3 @@
-// Preview/thumbnail components: the generic Visual, the section thumbnail, and the live preview canvas.
-
 import {
     createSignal,
     For,
@@ -16,8 +14,7 @@ import { backdropCss, paintSectionStack } from "@canvas/render/backends";
 import { SECTION_GAP } from "@canvas/render/commands";
 import { ScaledSectionCanvas } from "@ui/section";
 
-// Themeable abstract motion for the sign-in panel — colored from --color-accent (see visuals.css).
-// Cycles through a curated set (crossfading); pass `viz` to pin a single one.
+// abstract motion, styled in visuals.css; pass `viz` to pin one (else cycles)
 type Viz =
     | "mesh"
     | "aurora"
@@ -139,7 +136,7 @@ export const Visual: Component<{ viz?: Viz }> = (props) => {
     onMount(() => {
         if (props.viz) return; // pinned — no cycling
         const t = window.setInterval(() => {
-            setShown(false); // fade out, then swap behind the fade, then fade in
+            setShown(false);
             window.setTimeout(() => {
                 setI((v) => (v + 1) % CYCLE.length);
                 setShown(true);
@@ -163,21 +160,14 @@ export const Visual: Component<{ viz?: Viz }> = (props) => {
     );
 };
 
-// Real engine-rendered preview of one section, in the artifact's true format + theme — the exact
-// layout/text/images. Every section uses one uniform 16:9 frame (deck/doc/site alike) so the
-// filmstrip stays aligned; the format still drives how the content composes, just not the card shape.
-// Rendering is lazy (only when scrolled near view) so a library of many artifacts × sections stays fast.
-const DEFAULT_W = 176; // default card width
+const DEFAULT_W = 176;
 
-// A shared, presentational mini-canvas — a REAL Section rendered by the engine at a logical slide width
-// then CSS-scaled to `width`. Thin id-resolving wrapper over @ui/section's ScaledSectionCanvas (frame
-// "slide"); non-interactive, unframed (no radius/border), so callers can card/round it themselves.
 export const MiniCanvas: Component<{
     section: Section;
     themeId: string;
     formatId: string;
-    width: number; // final (scaled) width, px — the frame is 16:9
-    lazy?: boolean; // defer paint until near view (default false — tiles are usually on-screen)
+    width: number; // final (scaled) width, px
+    lazy?: boolean; // defer paint until near view
     class?: string;
 }> = (props) => (
     <ScaledSectionCanvas
@@ -192,8 +182,6 @@ export const MiniCanvas: Component<{
     />
 );
 
-// The filmstrip/library thumbnail: MiniCanvas as a selectable button with the framed card chrome
-// (rounded, theme-line border, resting shadow, accent ring when selected).
 export const SectionThumb: Component<{
     section: Section;
     themeId: string;
@@ -221,9 +209,7 @@ export const SectionThumb: Component<{
     />
 );
 
-// Read-only render of an artifact in a chosen format — the SAME continuous canvas the studio editor
-// uses (deck = wide cards with gaps, doc = reading column, web = full-bleed bands), at each section's
-// natural height. (Present's 16:9 slide framing is intentionally NOT used, so backgrounds show fully.)
+// uses natural section heights (not the 16:9 slide frame) so backgrounds show fully
 const PAD = 28;
 
 export const PreviewCanvas: Component<{ content: ArtifactContent; format: () => string }> = (

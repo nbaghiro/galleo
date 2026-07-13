@@ -15,10 +15,7 @@ import {
 import { fixed, grow } from "@model/geometry";
 import { inst, measure, sectionOf, textMetricsCtx } from "@canvas/testkit";
 
-// commands.ts is mostly DOM-free: layoutSection/layoutSlide/layoutNode take an injected `measure`, and
-// layoutRuns takes an injected text-metrics context. Only measureText/sectionSlides need the real canvas
-// (see commands.dom.test.ts).
-
+// DOM-free here (injected measure/ctx); measureText/sectionSlides need the real canvas — see commands.dom.test.ts
 describe("runFont", () => {
     const leaf: TextLeaf = { text: "x", fontId: "Inter", size: 16, weight: 500, wrap: "words" };
     it("builds a CSS font shorthand, overriding per run", () => {

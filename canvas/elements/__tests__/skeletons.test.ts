@@ -11,8 +11,6 @@ import {
     twinDiscSkel,
 } from "@elements/skeletons";
 
-// Pure ghost-node builders (no theme, no registry) — assert the structure each produces.
-
 const kids = (n: EngineNode): EngineNode[] => n.children ?? [];
 
 describe("skeleton builders", () => {

@@ -8,7 +8,6 @@ import {
     type ResolvedDiagram,
 } from "./utils";
 
-// An org chart: square-ish boxes, orthogonal (vertical→horizontal→vertical) elbows, accent-filled root.
 function renderOrg(diagram: ResolvedDiagram, ctx: DiagramCtx): void {
     const { g, W, H, theme } = ctx;
     if (diagram.nodes.length === 0) return;

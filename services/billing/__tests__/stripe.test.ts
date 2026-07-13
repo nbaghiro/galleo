@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { intervalForPrice, planForPrice, priceIdFor, stripeReady } from "../stripe";
 
-// Pure functions over the STRIPE_* env price ids (read at call time). `priceEnvKey` and `priceMap` are
-// module-private; `stripe()` builds the network client — all skipped (see the task report). Every test
-// starts from a fully cleared env so ambient config can't leak in.
-
 const PRICE_ENV = [
     "STRIPE_SECRET_KEY",
     "STRIPE_PRICE_PRO_MONTH",

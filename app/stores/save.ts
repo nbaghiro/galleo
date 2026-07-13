@@ -2,15 +2,12 @@ import { createEffect, on, onCleanup, untrack } from "solid-js";
 import { currentArtifactId, editor, editSeq, themeForPersist } from "@editor/editor";
 import { api } from "../api";
 
-// Smart autosave: coalesce a burst of edits into a single PATCH so we don't bombard the API.
-//  · debounce ~1.2s after the last edit
-//  · but force a flush every ~10s during continuous editing (so long sessions still checkpoint)
-//  · flush when the tab is hidden / unloaded (never lose the tail)
-//  · one PATCH in flight at a time; edits during a save trigger one more flush after it returns
+// Autosave coalesces a burst of edits into one PATCH: debounce ~1.2s, but force-flush every ~10s during
+// continuous editing and on tab hide/unload; one PATCH in flight, edits during a save trigger one more.
 const DEBOUNCE_MS = 1200;
 const MAX_INTERVAL_MS = 10_000;
 
-// The active controller's flush, exposed so navigation can checkpoint the current doc before switching.
+// exposed so navigation can checkpoint the current doc before switching
 let activeFlush: (() => Promise<void>) | null = null;
 export async function flushAutosave(): Promise<void> {
     await activeFlush?.();
@@ -42,7 +39,7 @@ export function installAutosave(): void {
                 formatId: art.format,
             });
         } catch {
-            dirtyWhileSaving = true; // failed — retry on the next tick
+            dirtyWhileSaving = true; // failed — retry on the next flush
         }
         saving = false;
         if (dirtyWhileSaving) {

@@ -15,7 +15,7 @@ import {
 } from "@model/authoring";
 
 export const fieldnotes: ArtifactContent = doc(
-    "henna",
+    "adobe",
     [
         section(
             "s1",

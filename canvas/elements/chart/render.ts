@@ -1,6 +1,4 @@
-// Chart rendering entry point. Importing this registers every chart type (via the per-type modules
-// below) and exposes the single `renderChart` a surface element paints through — so charts flow through
-// the DOM, 2D-canvas, and PDF backends unchanged (they all invoke the same DrawContext).
+// side-effect imports register each chart type
 import "./bar";
 import "./line";
 import "./area";

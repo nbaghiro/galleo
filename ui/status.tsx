@@ -1,10 +1,6 @@
 import type { Component, JSX } from "solid-js";
 import { Show } from "solid-js";
 
-// Small status/feedback primitives shared across the app chrome: a usage/quota meter, a status dot, and a
-// centered empty state. All style through theme utilities so they recolor with the active theme.
-
-// ── Meter ── a usage/quota bar: theme-line/canvas track + accent fill sized by value/max.
 export const Meter: Component<{
     value: number;
     max?: number; // default 100 (value is then a raw percentage)
@@ -24,7 +20,6 @@ export const Meter: Component<{
     );
 };
 
-// ── StatusDot ── a small round status marker (solid or hollow ring), optionally pulsing (live/active).
 type DotTone = "accent" | "soft" | "line";
 const DOT_SOLID: Record<DotTone, string> = {
     accent: "bg-accent",
@@ -39,9 +34,9 @@ const DOT_RING: Record<DotTone, string> = {
 export const StatusDot: Component<{
     tone?: DotTone;
     pulse?: boolean;
-    ring?: boolean; // hollow ring instead of a solid fill
+    ring?: boolean;
     fill?: boolean; // ring + accent fill (the "current step" marker)
-    size?: number; // px (default 6 = h-1.5 w-1.5)
+    size?: number; // px (default 6)
     class?: string;
 }> = (props) => (
     <span
@@ -54,7 +49,6 @@ export const StatusDot: Component<{
     />
 );
 
-// ── EmptyState ── a centered "nothing here" block: optional icon, a title line, optional subtitle + action.
 export const EmptyState: Component<{
     icon?: JSX.Element;
     title: JSX.Element;

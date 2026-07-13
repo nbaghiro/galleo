@@ -5,19 +5,12 @@ import type { ElementAddress } from "@model/target";
 import { elementRegionId } from "@model/target";
 import { editor, regions, selection } from "../editor";
 
-// Live media players overlaid on the engine-painted placeholders in the editing canvas. The engine is
-// DOM-free — it paints a static poster (reused for present + PDF/PNG export); here in the DOM editor we
-// mount a real <iframe>/<video> at each video element's region so the video actually plays. The overlay
-// is click-through until the element is selected, so selection + drag still work; once selected the
-// player becomes interactive. Anything we can't embed falls back to the painted placeholder.
-
 interface Embed {
     id: string;
     kind: "iframe" | "file";
     src: string;
 }
 
-// Parse a video URL into an embeddable source, or null if we don't recognize it.
 function embedFor(url: string): Pick<Embed, "kind" | "src"> | null {
     const u = url.trim();
     if (!u) return null;
@@ -31,8 +24,7 @@ function embedFor(url: string): Pick<Embed, "kind" | "src"> | null {
     return null;
 }
 
-// Visit each element in a section paired with its address — mirrors how compose tags region ids, so
-// `elementRegionId(addr)` here matches the region the engine emitted.
+// Visit each element with its address — must mirror how compose tags region ids so elementRegionId matches.
 function walkAddressed(
     section: Section,
     visit: (el: ElementInstance, addr: ElementAddress) => void,
@@ -48,8 +40,7 @@ function walkAddressed(
 }
 
 export const VideoEmbeds: Component = () => {
-    // Reuse the same Embed object across runs when a video's id + src are unchanged, so an edit
-    // elsewhere in the artifact doesn't hand <For> new references and remount (reload) every player.
+    // Reuse the Embed object when id + src are unchanged, so an unrelated edit doesn't hand <For> new refs and reload every player.
     let cache = new Map<string, Embed>();
     const embeds = createMemo((): Embed[] => {
         const next = new Map<string, Embed>();
@@ -79,8 +70,7 @@ export const VideoEmbeds: Component = () => {
                 return (
                     <Show when={region()}>
                         {(r) => {
-                            // Interactive only when selected, so a click on an idle player passes
-                            // through to the canvas and selects it (rather than starting playback).
+                            // Interactive only when selected, so a click on an idle player selects it instead of starting playback.
                             const pe = (): "auto" | "none" =>
                                 selected(embed.id) ? "auto" : "none";
                             return (

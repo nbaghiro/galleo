@@ -2,8 +2,6 @@ import { hexA } from "@themes";
 import { registerChart, numericAxes } from "./utils";
 import type { PlotCtx, ResolvedChart } from "./utils";
 
-// Scatter plus a third series of magnitudes → bubble radius (~4..22px across the size range). Translucent
-// fill, solid stroke.
 function drawBubble(chart: ResolvedChart, ctx: PlotCtx): void {
     const { g, W, H, theme, opts } = ctx;
     const xs = chart.series[0]?.points ?? [];

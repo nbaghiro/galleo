@@ -6,10 +6,6 @@ import { applyPatch } from "@model/ai";
 import { streamTurn } from "../api";
 import { persistArtifact } from "./library";
 
-// The generation session — a reactive store the generate modal subscribes to. `startRealSession` runs a
-// generate turn (POST /ai/turn) and streams the backend's TurnEvents through `dispatch`, so the modal
-// fills in section by section. "Open in editor" persists the result and navigates to it.
-
 export type Surface = "deck" | "doc" | "web";
 
 export interface Brief {
@@ -35,22 +31,22 @@ export interface Beat {
 export interface SectionSlot {
     id: string;
     status: SectionStatus;
-    layout: string; // the planned layout preset — drives the skeleton shape before content lands
-    image: boolean; // whether this beat carries an image
-    blocks: string[]; // the block leading each column, in order — the exact planned layout
-    section: Section | null; // populated when its content patch lands
+    layout: string;
+    image: boolean;
+    blocks: string[]; // the block leading each column, in order
+    section: Section | null;
 }
 export interface Narration {
     id: number;
     text: string;
-    mono?: string; // a technical token rendered in mono
-    sub?: string; // a follow-up line
+    mono?: string;
+    sub?: string;
     done: boolean; // false = the currently-streaming line
 }
 
 interface SessionState {
     phase: Phase;
-    turnPhase: TurnPhase | null; // the backend's fine-grained phase (intake → outline → build → done)
+    turnPhase: TurnPhase | null; // backend's fine-grained phase (intake → outline → build → done)
     brief: Brief | null;
     theme: string;
     format: string;
@@ -88,8 +84,6 @@ export const activeStatus = (): SectionStatus | null => {
     return a ? a.status : null;
 };
 
-// ---------- store helpers ----------
-
 const clip = (s: string, n: number): string =>
     s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s;
 
@@ -107,8 +101,6 @@ const markBeat = (id: string, status: BeatStatus): void =>
     setGen("beats", (b) => b.id === id, "status", status);
 const setStatus = (i: number, status: SectionStatus): void =>
     setGen("sections", i, "status", status);
-
-// ---------- open state (the generate modal, mounted once in the app shell) ----------
 
 let abort: AbortController | null = null;
 
@@ -133,7 +125,6 @@ export function resetSession(): void {
     setGen({ ...initial, beats: [], sections: [], narration: [] });
 }
 
-// Apply one TurnEvent to the store; returns the accumulating artifact content.
 function dispatch(ev: TurnEvent, content: ArtifactContent): ArtifactContent {
     switch (ev.type) {
         case "plan":
@@ -190,8 +181,6 @@ function dispatch(ev: TurnEvent, content: ArtifactContent): ArtifactContent {
     return content;
 }
 
-// Real generation: run a `generate` turn and stream the backend's TurnEvents (POST /ai/turn) into
-// `dispatch`, accumulating the artifact in `finalContent`. saveGenerated then persists it.
 export async function startRealSession(input: GenerateInput): Promise<void> {
     resetSession();
     const controller = new AbortController();
@@ -226,10 +215,7 @@ export async function startRealSession(input: GenerateInput): Promise<void> {
     }
 }
 
-// "Open" persists the streamed artifact as a fresh library artifact and returns its id to navigate to. An
-// optional `formatId` overrides the surface (the modal passes the currently-previewed format, so opening
-// honors the live preview switcher) — the content is surface-agnostic, so it renders correctly either way.
-// Persistence goes through the shared library helper — the same single create path the in-chat draft uses.
+// optional formatId overrides the surface (the modal's live preview format)
 export async function saveGenerated(formatId?: string): Promise<string | null> {
     const base = gen.finalContent;
     if (!base) return null;

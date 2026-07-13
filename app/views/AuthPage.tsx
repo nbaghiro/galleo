@@ -5,8 +5,6 @@ import { Visual } from "../components/previews";
 import { TextField } from "@ui/inputs";
 import { Button, Eyebrow } from "@ui/button";
 
-// Auth fields are visually larger than the studio default (rounded-lg, raised bg-panel, bigger pad,
-// 14px, muted placeholder) — pass those as a class on TextField's base input style.
 const authField = "rounded-lg bg-panel px-3.5 py-2.5 text-[14px] placeholder:text-muted";
 const oauth =
     "flex items-center justify-center gap-2 rounded-lg border border-line bg-panel py-2.5 text-[13px] font-medium text-soft cursor-not-allowed opacity-55";
@@ -33,8 +31,7 @@ export const AuthPage: Component = () => {
 
     return (
         <div class="flex h-full w-full bg-canvas text-ink">
-            {/* left — a dark, accent-tinted feature panel. White text reads top-to-bottom on every theme
-                (the old light→dark accent gradient hid dark onAccent text on e.g. Couture's gold). */}
+            {/* white text reads on every theme's accent (onAccent can be dark) */}
             <div
                 class="relative hidden w-1/2 flex-col justify-between overflow-hidden p-12 md:flex"
                 style={{
@@ -42,7 +39,7 @@ export const AuthPage: Component = () => {
                         "linear-gradient(160deg, color-mix(in srgb, var(--color-accent) 42%, #0b0b11), color-mix(in srgb, var(--color-accent) 22%, #08080c))",
                 }}
             >
-                {/* motion = a lightened accent so it stays visible against the dark panel on every theme */}
+                {/* lightened accent so the motion stays visible on the dark panel */}
                 <div
                     class="pointer-events-none absolute inset-0"
                     style={{
@@ -76,7 +73,6 @@ export const AuthPage: Component = () => {
                 </div>
             </div>
 
-            {/* right — themed form */}
             <div class="flex flex-1 items-center justify-center p-8">
                 <div class="w-[360px]">
                     <h1

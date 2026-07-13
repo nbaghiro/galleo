@@ -1,11 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { stockReady } from "../providers";
 
-// `orient` (per-provider orientation dialect) and `openverseKind` (URL-param mutation) are module-private
-// (not exported); `searchStock` and every per-provider `search*` fn are network. The one exported
-// non-network seam is `stockReady`, which reports per-provider key presence — openverse is keyless, so it
-// is always available.
-
 describe("stockReady", () => {
     afterEach(() => {
         vi.unstubAllEnvs();

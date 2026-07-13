@@ -23,7 +23,6 @@ describe("chooseArc", () => {
     it("routes teach/inform to report only when the surface is not web", () => {
         expect(chooseArc("teach", "deck")).toBe(ARCS.report);
         expect(chooseArc("inform", "doc")).toBe(ARCS.report);
-        // the web surface is matched before teach/inform
         expect(chooseArc("teach", "web")).toBe(ARCS.marketing);
     });
     it("falls back to marketing for a bare web surface", () => {

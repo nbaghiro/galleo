@@ -49,8 +49,6 @@ describe("PROFILES — pinned page geometry", () => {
     });
 });
 
-// slideFrame: the paged frame a section renders into — the profile page size, overridden by the section's
-// own aspect (h = round(w / aspect)).
 describe("slideFrame", () => {
     const deck = resolveProfile("deck");
 
@@ -72,8 +70,6 @@ describe("slideFrame", () => {
     });
 });
 
-// previewContentProfile: lets a document widen with the viewport, floored at the editor width, capped for
-// readability. Deck + web pass through untouched.
 describe("previewContentProfile", () => {
     it("returns paged (deck) and web formats untouched", () => {
         expect(previewContentProfile(PROFILES.deck!, 2000)).toBe(PROFILES.deck);

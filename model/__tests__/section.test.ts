@@ -12,8 +12,6 @@ import {
     withWidth,
 } from "@model/section";
 
-// Pure, registry-free content-tree builders + path ops — the substrate the canvas ops mirror.
-
 const leaf = (t: string): ElementInstance => ({ type: "text", data: { text: t } });
 const textOf = (i: ElementInstance | undefined): string | undefined =>
     (i?.data as { text?: string })?.text;

@@ -6,21 +6,16 @@ import { slowweb } from "../../demos/slowweb";
 import { lumen } from "../../demos/lumen";
 import { terra } from "../../demos/terra";
 
-// Generation-quality eval cases — HELD-OUT briefs (new topics, never a demo's own brief), each anchored to a
-// hand-built demo of the SAME format/kind. The demo is the quality BAR the reference-anchored judge scores
-// the generation against (not a topic match) — "how close does the generated <format> get to demo-craft?".
-
 export interface GenCase {
     id: string;
-    prompt: string; // the brief to generate from (a new topic)
-    surface: Surface; // deck | doc | web
+    prompt: string;
+    surface: Surface;
     length?: string; // Short | Standard | In-depth
-    reference: ArtifactContent; // the gold demo of the same format/kind — the quality anchor
-    referenceName: string; // label for the report
+    reference: ArtifactContent;
+    referenceName: string;
 }
 
 export const GEN_CASES: GenCase[] = [
-    // decks → galleo (a polished, varied product deck)
     {
         id: "pitch-fintech",
         prompt: "A seed pitch deck for a B2B fintech that automates expense reports",
@@ -35,7 +30,6 @@ export const GEN_CASES: GenCase[] = [
         reference: galleo,
         referenceName: "galleo (deck)",
     },
-    // reports / whitepapers → helios (a rigorous climate report)
     {
         id: "report-ai-health",
         prompt: "A 2026 state-of-AI-in-healthcare research report",
@@ -50,7 +44,6 @@ export const GEN_CASES: GenCase[] = [
         reference: helios,
         referenceName: "helios (report)",
     },
-    // essay → slowweb (a crafted long-form essay)
     {
         id: "essay-focus",
         prompt: "An essay on why deep focus is a competitive advantage in modern work",
@@ -58,7 +51,6 @@ export const GEN_CASES: GenCase[] = [
         reference: slowweb,
         referenceName: "slowweb (essay)",
     },
-    // web → lumen (product page) + terra (brand site)
     {
         id: "land-purifier",
         prompt: "A landing page for a whisper-quiet air purifier",

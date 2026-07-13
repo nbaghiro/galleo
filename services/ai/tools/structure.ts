@@ -3,11 +3,6 @@ import type { Patch, TurnEvent } from "@model/ai";
 import { THEMES } from "@themes";
 import { register } from "./registry";
 
-// Structural edits to the CURRENT artifact (the open one or the in-chat draft) — reorder / remove a section,
-// switch format, switch theme. Each is a deterministic patch op (no model call), returned with a human
-// summary; the chat surface presents it as an Apply/Discard proposal (no preview — nothing new to render).
-// applyPatch runs the same op whether the target is the editor artifact or a draft, so one path covers both.
-
 interface StructureEdit {
     patch: Patch;
     summary: string;

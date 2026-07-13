@@ -1,5 +1,3 @@
-// Inline rich-text editing: the contenteditable overlay editor + the marks/runs rich-text model it drives.
-
 import type { ElementAddress } from "@model/target";
 import type { Component, JSX } from "solid-js";
 import { createMemo, onCleanup, onMount, Show } from "solid-js";
@@ -41,12 +39,11 @@ import type { Run } from "@engine/node";
 
 type TextFields = { text?: string; marks?: Mark[] } & Record<string, unknown>;
 
-// The selection to restore when the overlay is re-mounted after an AI edit (the rewritten span), instead of
-// the default end-of-text caret. Set by replaceRange right before it re-mounts; consumed once on the next
-// mount. Module-level because only one field is ever mounted at a time.
+// Selection to restore after an AI-edit remount (the rewritten span). Set by replaceRange, consumed once
+// on next mount. Module-level — only one field mounts at a time.
 let pendingSel: { from: number; to: number } | null = null;
 
-// Map a viewport point to a text caret Range (Chrome/Safari vs Firefox APIs), typed without `any`.
+// Map a viewport point to a caret Range (Chrome/Safari caretRangeFromPoint vs Firefox caretPositionFromPoint).
 interface CaretDoc {
     caretRangeFromPoint?(x: number, y: number): Range | null;
     caretPositionFromPoint?(x: number, y: number): { offsetNode: Node; offset: number } | null;
@@ -62,9 +59,7 @@ function caretRangeAtPoint(x: number, y: number): Range | null {
     return r;
 }
 
-// A contenteditable overlay styled to exactly match the engine-rendered text: the browser supplies a
-// real caret + IME + selection, marks render as styled spans, edits flow live into the model, and the
-// engine re-lays-out beneath. The format bar toggles marks over the live selection (see text-format).
+// Contenteditable overlay styled to match the engine-rendered text exactly; edits flow live into the model.
 const EditingField: Component<{ address: ElementAddress }> = (props) => {
     let el!: HTMLDivElement;
 
@@ -74,8 +69,7 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         const i = inst();
         const spec = i ? getElement(i.type) : undefined;
         if (!i || !spec?.richText) return null;
-        // Match the over-image recoloring composeSection applies, so the editing overlay isn't dark/faded
-        // over a dark (image) section background.
+        // Match composeSection's over-image recoloring, so the overlay isn't dark over an image background.
         const base = editorTokens();
         const section = editor.artifact.sections.find((s) => s.id === props.address.section);
         const tokens = section ? sectionContentTokens(section, base) : base;
@@ -107,9 +101,8 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         setActiveValues(values);
     };
 
-    // Run a mark op over a range — the live selection, or an explicit range captured before focus moved
-    // to a toolbar field (the link URL input). Rewrites the model marks, re-renders the styled DOM, and
-    // restores focus + selection so the caret/highlight stays put.
+    // Run a mark op over the live selection (or an explicit range captured before focus moved to a toolbar
+    // field), then restore focus + selection.
     const runMark = (
         op: "toggle" | "set" | "clear",
         type: MarkType,
@@ -135,12 +128,9 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         syncSel();
     };
 
-    // Replace [from, to) with AI-edited text: splice the model (shifting/keeping marks) live — it folds into
-    // the current edit session's one undo step, exactly like typing — then RE-MOUNT the overlay so it renders
-    // fresh from the updated model, reselecting the rewritten span. The re-mount matters: unlike a mark toggle
-    // (which runs inside the click handler), this lands in an async continuation after the model round-trip, and
-    // the browser won't reliably repaint an in-place imperative change to a focused contenteditable made outside
-    // a user gesture — the new text only appears on the next interaction. A fresh mount always paints.
+    // Replace [from, to) with AI-edited text: splice the model live (one undo step, like typing), then
+    // RE-MOUNT the overlay. The re-mount matters — the browser won't reliably repaint an in-place change to
+    // a focused contenteditable made outside a user gesture; a fresh mount always paints.
     const replaceRange = (from: number, to: number, insert: string): void => {
         if (!inst()) return;
         const data = fields();
@@ -155,13 +145,13 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         renderMarks(el, data.text ?? "", data.marks ?? []);
         el.focus();
         if (pendingSel) {
-            // re-mounted after an AI edit → reselect the rewritten span instead of placing a fresh caret
+            // remounted after an AI edit → reselect the rewritten span, not a fresh caret
             setOffsets(el, pendingSel.from, pendingSel.to);
             pendingSel = null;
         } else {
             const sel = window.getSelection();
             let range: Range | null = null;
-            // Place the caret where the user clicked; fall back to the end of the text.
+            // caret where the user clicked; fall back to end of text
             const caret = editCaret();
             if (caret) {
                 const r = caretRangeAtPoint(caret.x, caret.y);
@@ -194,20 +184,10 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
     };
 
     const onKeyDown = (e: KeyboardEvent): void => {
+        // Enter/Escape end the edit; mark shortcuts (⌘B/I/U…) are handled globally (no execCommand here).
         if (e.key === "Escape" || (e.key === "Enter" && !e.shiftKey)) {
             e.preventDefault();
             stopEditing();
-            return;
-        }
-        // Standard formatting shortcuts, applied over the model (not the browser's execCommand).
-        if (e.metaKey || e.ctrlKey) {
-            const k = e.key.toLowerCase();
-            const type: MarkType | null =
-                k === "b" ? "b" : k === "i" ? "i" : k === "u" ? "u" : null;
-            if (type) {
-                e.preventDefault();
-                runMark("toggle", type);
-            }
         }
     };
 
@@ -241,8 +221,7 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
                 // Keep editing alive when focus moves into the format bar (e.g. the link URL input).
                 const rt = e.relatedTarget as HTMLElement | null;
                 if (rt?.closest("[data-galleo-toolbar]")) return;
-                // If editing already switched to another element (clicking a different text element), this
-                // is a stale blur from the outgoing field — don't cancel the incoming edit.
+                // If editing already switched to another element, this is a stale blur from the outgoing field — don't cancel.
                 const cur = editing();
                 if (cur && elementRegionId(cur) !== elementRegionId(props.address)) return;
                 stopEditing();
@@ -253,19 +232,14 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
 };
 
 export const TextEditor: Component = () => (
-    // `keyed`: a change in the editing address (a different element, or a fresh reference from remountEditing)
-    // rebuilds the field — so an external edit (AI text rewrite, element regenerate) re-mounts the overlay and
-    // its new text paints reliably, instead of a stale in-place update the browser won't repaint.
+    // `keyed`: a new editing address (or fresh ref from remountEditing) rebuilds the field, so an external edit re-mounts and paints reliably.
     <Show when={editing()} keyed>
         {(addr) => <EditingField address={addr} />}
     </Show>
 );
 
-// DOM ⇄ marks bridge for the inline text editor. The model (a plain string + offset-range marks) is the
-// source of truth; this renders it into the contenteditable as styled spans, reads the edited DOM back
-// into {text, marks}, and maps the browser selection to/from character offsets — so the format bar can
-// toggle marks over the current selection. We own the span markup (a `data-m` descriptor per run), so
-// read-back is exact rather than parsing arbitrary contenteditable soup.
+// DOM ⇄ marks bridge: renders {text, marks} to styled spans and reads them back. We own the span markup
+// (a `data-m` descriptor per run) so read-back is exact.
 
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
@@ -327,7 +301,6 @@ function appendRun(parent: Node, r: Run): void {
     });
 }
 
-// Replace the field's DOM with the styled runs for {text, marks}.
 export function renderMarks(el: HTMLElement, text: string, marks: Mark[]): void {
     const frag = document.createDocumentFragment();
     for (const run of toRuns(text, marks)) appendRun(frag, run);
@@ -356,8 +329,7 @@ function mergeMarks(
     return [...byType.values()];
 }
 
-// Read the (possibly user-mutated) DOM back into {text, marks}. Each contiguous text node inherits the
-// marks of its ancestor spans; adjacent segments sharing a mark are coalesced into ranges.
+// Read the (possibly user-mutated) DOM back into {text, marks}; text nodes inherit ancestor-span marks, adjacent same-mark segments coalesce.
 export function readMarks(el: HTMLElement): { text: string; marks: Mark[] } {
     let text = "";
     const segs: { from: number; to: number; marks: { type: MarkType; value?: string }[] }[] = [];
@@ -400,8 +372,6 @@ export function readMarks(el: HTMLElement): { text: string; marks: Mark[] } {
     return { text, marks: normalizeMarks(marks) };
 }
 
-// --- selection ⇄ character offsets ---
-
 function textLen(node: Node): number {
     let n = 0;
     node.childNodes.forEach((c) => {
@@ -419,7 +389,6 @@ function offsetOfPoint(el: HTMLElement, node: Node, nodeOffset: number): number 
     return textLen(range.cloneContents());
 }
 
-// The current selection as {from, to} character offsets within the field, or null if it's elsewhere.
 export function getOffsets(el: HTMLElement): { from: number; to: number } | null {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return null;
@@ -462,7 +431,6 @@ function pointAt(el: HTMLElement, target: number): { node: Node; offset: number 
     return result ?? { node: el, offset: el.childNodes.length };
 }
 
-// Restore a selection spanning [from, to) character offsets.
 export function setOffsets(el: HTMLElement, from: number, to: number): void {
     const p1 = pointAt(el, from);
     const p2 = pointAt(el, to);

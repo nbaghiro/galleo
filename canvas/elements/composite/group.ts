@@ -6,24 +6,17 @@ import { fit, grow } from "@model/geometry";
 import type { FlexDirection } from "@model/elements";
 import { DIRECTION_OPTIONS } from "@elements/composite/shared";
 
-// A transparent container that stacks several elements in one flow (no background of its own). A grid of
-// columns is expressed as a nested row group (or nested row/col groups), not a special mode here — the same
-// nested-flex layout the whole editor uses.
-
 type Align = "start" | "center" | "end";
 
 interface GroupData {
     children: ElementInstance[];
     direction?: FlexDirection;
     gap?: number;
-    align?: Align; // cross-axis (across the flow)
-    distribute?: Align; // main-axis (along the flow)
+    align?: Align; // cross-axis
+    distribute?: Align; // main-axis
 }
 
-// The cross-axis alignment for a stacked (column) group. If it isn't set explicitly, infer it from the
-// text children: when they're all centered (or all end-aligned) via their own text-align, mirror that onto
-// the container so a button or image below them lands the same way instead of stranding at the start — a
-// common slip where the copy is centered but its container's alignment is left default. Explicit wins.
+// infer container cross-align from all-centered/all-end text children; explicit wins
 function crossAlign(d: GroupData): Align | undefined {
     if (d.align) return d.align;
     const aligns = d.children
@@ -38,7 +31,7 @@ function crossAlign(d: GroupData): Align | undefined {
 const arrangeGroup = (d: GroupData, _ctx: LayoutCtx, kids: EngineNode[]): EngineNode => {
     const gap = d.gap ?? 14;
     const dir = d.direction ?? "col";
-    // A column group's cross axis (horizontal) mirrors centered text; a row group keeps its explicit align.
+    // col mirrors centered text; row keeps explicit align
     const cross = dir === "col" ? crossAlign(d) : d.align;
     return {
         w: grow(),

@@ -3,16 +3,10 @@ import type { Target } from "@model/target";
 import type { Section } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import {
-    deleteElement,
-    duplicateAt,
-    duplicatedAddr,
-    getElementAt,
-    moveSection,
-} from "@elements/ops";
+import { getElementAt, moveSection } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { resolveProfile } from "@engine/profile";
-import { elementRegionId, parentTarget, parseTarget, specificity } from "@model/target";
+import { elementRegionId, parseTarget, specificity } from "@model/target";
 import {
     backdropCss,
     createSectionStackCache,
@@ -28,7 +22,6 @@ import {
     canvasContentWidth,
     commit,
     currentArtifactId,
-    duplicateSectionAt,
     editing,
     editor,
     editorTokens,
@@ -36,9 +29,6 @@ import {
     setCanvasContentWidth,
     jumpToSection,
     leftOpen,
-    redo,
-    removeSectionAt,
-    selection,
     setCanvasEl,
     setHover,
     setRegions,
@@ -47,7 +37,6 @@ import {
     setStageEl,
     startEditing,
     stopEditing,
-    undo,
 } from "../editor";
 import { EmptyRegionAdd, ContextMenu, openContextMenu } from "./insert";
 import { DragHandle, RegionDividers, ResizeHandles } from "../select/handles";
@@ -59,40 +48,32 @@ import { ElementGenStage } from "../ai/ElementGenStage";
 import { TextEditor } from "../text/text-editor";
 import { VideoEmbeds } from "./embeds";
 
-// Gutters reserved for the floating panels (so centered content clears them); collapsed → just a margin.
 const RAIL_GAP = 28;
 const PANEL_L = 200;
-const RAIL_R = 64; // the right icon rail (the element flyout overlays content when opened)
+const RAIL_R = 64;
 
-// The continuous section canvas: lays out + paints each section, accumulates regions (canvas coords)
-// for hit-testing, and drives selection + pointer-based drag-and-drop on top of the engine geometry.
 export const Canvas: Component = () => {
     let scrollEl!: HTMLElement;
     let stageEl!: HTMLDivElement;
     let paintHost!: HTMLDivElement;
 
     let liveRegions: Region[] = [];
-    // Hit-test data derived once per draw (parseTarget + specificity precomputed), so a hover mousemove
-    // is a numeric box test over this array instead of re-parsing every region id on every move.
+    // Precomputed per draw so hover is a numeric box test, not a re-parse of every region id.
     let liveHits: { target: Target; spec: number; box: Rect }[] = [];
     let pending: { target: Target | null; x: number; y: number } | null = null;
 
-    // Per-host layout+paint cache: unchanged sections reuse their laid-out layer across redraws, so a
-    // gesture frame / keystroke re-lays-out only the one section that changed (see paintSectionStack).
+    // Cache so a frame re-lays-out only the changed section (see paintSectionStack).
     const stackCache = createSectionStackCache();
 
-    // `preview` (a modified copy of the sections) is painted while dragging: a ghost-spliced drop that
-    // auto-sizes the section (DnD, `track` off — hit-testing stays on the stable real layout so the drop
-    // target doesn't chase itself), or a live resize/column edit (`track` on — regions update so the
-    // handles follow the element as it resizes).
+    // track off (DnD): hit-testing stays on the stable real layout so the drop target doesn't chase itself.
+    // track on (resize/column): regions update so handles follow the element.
     const draw = (preview?: Section[] | null, track = false, dimId?: string | null): void => {
         if (!paintHost) return;
-        // The panels float over the canvas; reserve their gutters so centered content clears them.
         const profile = resolveProfile(editor.artifact.format);
         const padL = leftOpen() ? PANEL_L : RAIL_GAP;
         const fullW = Math.max(360, (scrollEl.clientWidth || 800) - padL - RAIL_R);
-        setCanvasContentWidth(fullW); // publish for the minimap so thumbnails match this exact width
-        // suppress the painted text of the element being edited — only the live overlay shows it
+        setCanvasContentWidth(fullW); // so minimap thumbnails match this width
+        // hide the painted text of the edited element — the live overlay shows it
         const editAddr = editing();
         const editId = editAddr ? elementRegionId(editAddr) : null;
         const { tops, regions, height } = paintSectionStack(
@@ -116,8 +97,7 @@ export const Canvas: Component = () => {
         }
     };
 
-    // Coalesce draw triggers to one paint per animation frame (a gesture fires many moves per frame); the
-    // latest queued state wins.
+    // Coalesce draws to one paint per frame; latest queued state wins.
     let rafId = 0;
     let queued: { sections: Section[] | null; track: boolean; dimId?: string | null } | null = null;
     const scheduleDraw = (
@@ -155,16 +135,15 @@ export const Canvas: Component = () => {
     };
 
     const onPointerDown = (e: PointerEvent): void => {
-        // In-editor clicks are stopped by the editor overlay, so any pointerdown that reaches here while
-        // editing is an OUTSIDE click — record it so release can commit the current edit and act on it.
+        // A pointerdown reaching here while editing is an OUTSIDE click (in-editor ones are stopped) —
+        // record it so release can commit the current edit.
         if (drag() || liveEdit()) return;
         pending = { target: hitTest(...point(e)), x: e.clientX, y: e.clientY };
     };
 
     const onPointerMove = (e: PointerEvent): void => {
         if (drag() || editing() || liveEdit() || sectionDrop() !== null) return; // driven by window listeners
-        // Moving an element is initiated only from its drag handle (DragHandle) — not by dragging its body —
-        // so ordinary clicks/selection never turn into an accidental move.
+        // Moves start only from the DragHandle, so a body drag never becomes an accidental move.
         setHover(hitTest(...point(e)));
     };
 
@@ -173,9 +152,8 @@ export const Canvas: Component = () => {
         const t = pending.target;
         const caret = { x: pending.x, y: pending.y };
         pending = null;
-        // Clicking away from the active editor commits it first (its blur usually already has; this is the
-        // idempotent fallback), then selection + edit-start run exactly as for a fresh click — so clicking
-        // another text element while editing switches straight into editing it, caret at the click point.
+        // stopEditing first (idempotent — blur usually already committed) so clicking another text element
+        // switches straight into editing it, caret at the click point.
         if (editing()) stopEditing();
         setSelection(t);
         if (t?.kind === "element") {
@@ -196,78 +174,22 @@ export const Canvas: Component = () => {
         setStageEl(stageEl);
         const ro = new ResizeObserver(() => scheduleDraw(null, false));
         ro.observe(scrollEl);
-        // Web fonts arrive after first paint — the shared measure cache self-invalidates on font load
-        // (commands.ts); drop the per-section layer cache too so the next draw re-lays-out with the real
-        // metrics instead of the fallback-face ones.
+        // On font load, drop the layer cache so the next draw re-lays-out with real metrics, not fallback-face ones.
         const onFonts = (): void => {
             stackCache.entries.clear();
             scheduleDraw(null, false);
         };
         document.fonts.ready.then(onFonts);
         document.fonts.addEventListener("loadingdone", onFonts);
-        const onKey = (e: KeyboardEvent): void => {
-            if (editing()) return; // the inline editor owns the keyboard while active
-            const el = document.activeElement as HTMLElement | null;
-            const typing =
-                !!el &&
-                (el.tagName === "INPUT" ||
-                    el.tagName === "TEXTAREA" ||
-                    el.tagName === "SELECT" ||
-                    el.isContentEditable);
-            const sel = selection();
-            if (e.key === "Escape") setSelection((cur) => (cur ? parentTarget(cur) : null));
-            else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
-                e.preventDefault();
-                if (e.shiftKey) redo();
-                else undo();
-            } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "y") {
-                e.preventDefault();
-                redo(); // Windows/alt redo
-            } else if (typing) {
-                return; // let inspector form fields own their keys (delete/backspace/etc.)
-            } else if ((e.key === "Delete" || e.key === "Backspace") && sel) {
-                e.preventDefault();
-                if (sel.kind === "element") {
-                    commit(deleteElement(editor.artifact, sel.address));
-                    setSelection(null);
-                } else if (sel.kind === "section") {
-                    removeSectionAt(sel.section);
-                }
-            } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d" && sel) {
-                e.preventDefault();
-                if (sel.kind === "element") {
-                    commit(duplicateAt(editor.artifact, sel.address));
-                    setSelection({ kind: "element", address: duplicatedAddr(sel.address) });
-                } else if (sel.kind === "section") {
-                    duplicateSectionAt(sel.section);
-                }
-            } else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && sel?.kind === "section") {
-                e.preventDefault();
-                const secs = editor.artifact.sections;
-                const i = secs.findIndex((s) => s.id === sel.section);
-                const j = Math.max(
-                    0,
-                    Math.min(secs.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)),
-                );
-                if (j !== i) {
-                    setSelection({ kind: "section", section: secs[j]!.id });
-                    jumpToSection(j);
-                }
-            }
-        };
-        window.addEventListener("keydown", onKey);
         onCleanup(() => {
             ro.disconnect();
             document.fonts.removeEventListener("loadingdone", onFonts);
-            window.removeEventListener("keydown", onKey);
             if (rafId) cancelAnimationFrame(rafId);
         });
     });
 
-    // The live preview painted mid-gesture: a resize/column edit (track on, so handles follow), or a
-    // drop ghost (track off). Null when nothing is being manipulated. A MOVE drag previews for the whole
-    // gesture even before it has a target — previewDrop lifts the source out immediately (so the element
-    // leaves its old spot and stays gone); a new-from-palette drag only previews once it has a target.
+    // A move drag previews for the whole gesture (source lifted out immediately); a new-from-palette drag
+    // only once it has a target.
     const preview = createMemo<{ sections: Section[]; track: boolean; dimId?: string } | null>(
         () => {
             const edit = liveEdit();
@@ -279,8 +201,7 @@ export const Canvas: Component = () => {
                     sections: previewDrop(editor.artifact, d.target, d.payload).sections,
                     track: false,
                 };
-            // Section drag-reorder: reflow the dragged section into its drop slot and dim it, so it reads
-            // like the lifted element preview instead of a bare insertion line.
+            // Section reorder: reflow the dragged section into its slot and dim it (not a bare insertion line).
             const sid = sectionDragId();
             const sd = sectionDrop();
             if (sid && sd !== null) {
@@ -295,8 +216,7 @@ export const Canvas: Component = () => {
         },
     );
 
-    // The draw runs later in a rAF (outside tracking), so every dep that must force a repaint is read
-    // here synchronously — omitting one silently stops it from triggering redraws.
+    // draw runs later in a rAF (outside tracking) — read every repaint dep here synchronously or it won't redraw.
     createEffect(() => {
         editSeq();
         currentArtifactId();
@@ -307,15 +227,14 @@ export const Canvas: Component = () => {
         scheduleDraw(p?.sections ?? null, p?.track ?? false, p?.dimId ?? null);
     });
 
-    // While a drag is active, the cursor lives anywhere on screen — track it on the window.
+    // Drag cursor can be anywhere on screen — track it on the window.
     const isDragging = createMemo(() => drag() !== null);
     createEffect(() => {
         if (!isDragging()) return;
         const move = (e: PointerEvent): void => {
             const target = computeDropTarget(editor.artifact, liveRegions, ...point(e));
-            // Sticky target: keep the last valid drop target when the cursor is momentarily over a gutter,
-            // between sections, or off-canvas (target === null), so the preview doesn't flash back to the
-            // lifted-only layout. Only a NEW valid target replaces it; it resets when the drag ends.
+            // Sticky target: keep the last valid one when the cursor is over a gutter/off-canvas, so the
+            // preview doesn't flash back. Only a NEW valid target replaces it.
             setDrag((d) =>
                 d ? { ...d, x: e.clientX, y: e.clientY, target: target ?? d.target } : d,
             );
@@ -383,8 +302,7 @@ export const Canvas: Component = () => {
     );
 };
 
-// ── section thumbnail (rendered in the Minimap rail) ──
-const THUMB_PLACEHOLDER_H = 80; // height an un-laid-out (offscreen) thumb reserves so virtualization + reorder have a box
+const THUMB_PLACEHOLDER_H = 80; // box an un-laid-out thumb reserves for virtualization + reorder
 
 export const Thumb: Component<{
     section: Section;
@@ -393,12 +311,11 @@ export const Thumb: Component<{
 }> = (props) => {
     let wrap!: HTMLButtonElement;
     let inner!: HTMLDivElement;
-    // Defer layout until the thumbnail scrolls near the rail — laying out every section up front (and
-    // again on each theme change) is wasted for thumbs never viewed. Once seen, stay painted.
+    // Defer layout until the thumb nears the rail (up-front layout of unseen thumbs is wasted). Once seen, stay painted.
     const [seen, setSeen] = createSignal(false);
 
     onMount(() => {
-        wrap.style.height = `${THUMB_PLACEHOLDER_H}px`; // a box for IO/reorder until this thumb is laid out
+        wrap.style.height = `${THUMB_PLACEHOLDER_H}px`;
         const io = new IntersectionObserver(
             (entries) => {
                 if (entries.some((e) => e.isIntersecting)) {
@@ -414,9 +331,7 @@ export const Thumb: Component<{
 
     createEffect(() => {
         if (!seen()) return;
-        // Lay out at the SAME width + format the editor canvas uses for this section, then CSS-scale the
-        // whole thing down to the rail. A true zoomed-out copy — identical text wraps + column behavior,
-        // not a re-wrap in a narrower box. Tracks the live canvas width so it stays matched on resize.
+        // Lay out at the canvas's real width + format, then CSS-scale down — a true zoomed-out copy, not a re-wrap in a narrower box.
         const theme = editorTokens();
         const profile = resolveProfile(editor.artifact.format);
         const layoutW = sectionLayoutWidth(props.section, profile, canvasContentWidth());

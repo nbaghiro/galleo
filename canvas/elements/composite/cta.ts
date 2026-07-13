@@ -4,7 +4,6 @@ import { fit, grow } from "@model/geometry";
 import { mix } from "@themes";
 import { composite, t, button, pad } from "@elements/composite/shared";
 
-// --- cta: heading + subtext + button, centered on a tinted band ---
 export const ctaElement = composite(
     "cta",
     "Call to action",

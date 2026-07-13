@@ -7,11 +7,8 @@ import { chartTypeOptions } from "./utils";
 import type { ChartData } from "./utils";
 import { barsSkel, bandsSkel, discSkel, dotsSkel, gridSkel } from "../skeletons";
 
-// Controls shared by every chart element (the per-type palette tiles + the hidden back-compat `chart`).
-// The Type select lets you morph within the data-compatible family; per-type toggles ride on visibleWhen.
 export const CHART_CONTROLS: ControlField[] = [
-    // `options` is a getter so it reads the live type registry on each render. Freezing it to a plain
-    // array at module-eval is fragile — a hot re-exec of this module would capture an empty list.
+    // getter so it reads the live type registry each render; a frozen array would capture an empty list on hot re-exec
     {
         key: "type",
         label: "Type",
@@ -42,7 +39,7 @@ export const CHART_CONTROLS: ControlField[] = [
             { label: "Accent", value: "ramp" },
             { label: "Multi-hue", value: "categorical" },
         ],
-        // gauge + heatmap paint straight from theme.accent and never read the palette — hide it there.
+        // gauge + heatmap paint from theme.accent, never the palette
         visibleWhen: (d) => d.type !== "gauge" && d.type !== "heatmap",
     },
     {
@@ -67,7 +64,7 @@ export const CHART_CONTROLS: ControlField[] = [
         key: "showGrid",
         label: "Gridlines",
         control: "toggle",
-        // Only the cartesian charts draw a grid; pie/donut/gauge/treemap/funnel/heatmap ignore it.
+        // only cartesian charts draw a grid
         visibleWhen: (d) =>
             d.type !== "pie" &&
             d.type !== "donut" &&
@@ -109,7 +106,7 @@ function chartSpec(
             surface: { paint: (g, box) => renderChart(g, box, d, ctx.theme) },
         }),
         resize: { height: { key: "height", min: 160, max: 460, step: 10 } },
-        bar: ["type", "palette"], // the two highest-value quick actions; data lives in the panel grid
+        bar: ["type", "palette"],
         controls: CHART_CONTROLS,
         skeleton,
     };
@@ -118,8 +115,6 @@ function chartSpec(
 const barsGhost = (): EngineNode => barsSkel([18, 34, 26, 42, 30]);
 const lineGhost = (): EngineNode => barsSkel([16, 22, 20, 30, 38]);
 
-// Each entry is a palette tile: element type key, label, the chart-registry type it renders, realistic
-// default data (so a freshly added chart looks populated), and a matching skeleton ghost.
 const VARIANTS: {
     key: string;
     label: string;
@@ -251,8 +246,7 @@ const VARIANTS: {
 
 VARIANTS.forEach((v) => register(chartSpec(v.key, v.label, v.type, v.preset, v.skel)));
 
-// Back-compat: the original `chart` element (hidden from the palette in the studio) so existing
-// artifacts + demo/template content authored as `{ type: "chart", data: { kind, values } }` keep rendering.
+// back-compat: existing { type: "chart" } artifacts keep rendering; hidden from the palette
 register(
     chartSpec(
         "chart",

@@ -6,20 +6,14 @@ import { runGenerate } from "../run";
 import { GEN_CASES, type GenCase } from "./gen-cases";
 import { arg, avg, int, judge, list, log, pool, reporter, shortModel } from "./kit";
 
-// The GENERATION-QUALITY eval — the reference-anchored judge. For each held-out brief it runs the real
-// generate pipeline, then a judge scores the result 1–5 against a hand-built demo of the same format (the
-// quality BAR), per axis: overall · specificity · arc · variety · voice. Parameterized by the GENERATION
-// model (rank models on output quality) and the judge model.
-
 const RUNS = int("runs", 1);
 const GEN_MODELS = list("gen-models", "google:gemini-2.5-flash");
 const JUDGE_MODEL = arg("judge-model", "google:gemini-2.5-flash");
-const LENGTH = arg("length", "Short"); // keep eval generations short unless overridden
+const LENGTH = arg("length", "Short");
 const FILTER = arg("filter", "");
 const CONCURRENCY = int("concurrency", 2); // generation is heavy
 const OUT = arg("out", "");
 
-// ---- render an artifact for the judge: per-section element mix + the copy (structure + text in one view) ----
 function collect(el: ElementInstance | undefined, kinds: string[], texts: string[]): void {
     if (!el) return;
     if (el.type !== "group") kinds.push(el.type);
@@ -39,7 +33,6 @@ function describe(content: ArtifactContent): string {
     return `Format: ${content.format} · ${content.sections.length} sections\n\n${secs.join("\n\n")}`;
 }
 
-// ---- generate one artifact via the real pipeline (accumulate the streamed patches) ----
 async function generate(
     model: string,
     c: GenCase,
@@ -67,7 +60,6 @@ async function generate(
     return { content, ms: Date.now() - t0 };
 }
 
-// ---- the reference-anchored judge ----
 const JUDGE_SCHEMA = z.object({
     overall: z.number().min(1).max(5),
     specificity: z.number().min(1).max(5), // real, concrete copy vs generic AI-slop

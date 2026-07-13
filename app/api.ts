@@ -23,13 +23,13 @@ import type {
     MediaUploadRequest,
 } from "@model/media";
 
-// The GET /media/providers response — which sources are configured (have a key), so the rail can badge them.
+// GET /media/providers — which sources have a key
 export interface MediaProvidersState {
     stock: Record<MediaProvider, boolean>;
     generate: boolean;
 }
 
-// The GET /billing response — the workspace's plan + live usage + the plan catalog the pricing page renders.
+// GET /billing — plan + live usage + plan catalog
 export interface BillingState {
     plan: PlanId;
     status: string;
@@ -41,19 +41,15 @@ export interface BillingState {
     stripeReady: boolean;
 }
 
-// The GET /features response — the workspace's resolved capabilities + each feature's launch status, so
-// the app gates UI + badges `planned` features "coming soon" from the same source the backend enforces.
+// GET /features — resolved capabilities + each feature's launch status
 export interface FeaturesState {
     features: Features;
     status: Record<FeatureKey, FeatureStatus>;
 }
 
-// --- sharing / public links ---
-// The access policy of a published link. `public` = anyone with the URL, `protected` = URL + password,
-// `private` = only invited emails (each via a per-recipient token).
+// public = anyone with URL; protected = URL + password; private = invited emails only
 export type Visibility = "public" | "protected" | "private";
 
-// A recipient of a private share: their email + their own tokenized link + whether they've opened it.
 export interface ShareRecipient {
     id: string;
     email: string;
@@ -62,9 +58,7 @@ export interface ShareRecipient {
     lastViewedAt: string | null;
 }
 
-// One row of GET /links — a published link in the workspace (the Shared tab is just the full links list,
-// filtered by type). Artifact metadata (title/format/theme/cover) is joined client-side from the library
-// store, keyed by artifactId.
+// GET /links row; artifact metadata is joined client-side from the library store, keyed by artifactId
 export interface LinkSummary {
     id: string;
     artifactId: string;
@@ -76,7 +70,7 @@ export interface LinkSummary {
     publishedAt: string;
 }
 
-// The GET /links/:artifactId response — current publish state for the Share modal.
+// GET /links/:artifactId — current publish state
 export interface LinkState {
     id: string;
     slug: string;
@@ -87,9 +81,7 @@ export interface LinkState {
     recipients: ShareRecipient[];
 }
 
-// The UNAUTHENTICATED GET /p/:slug/content response — everything the public viewer needs to paint. A
-// workspace custom theme rides along in `customTheme` (built-ins are already in the viewer's registry).
-// A workspace custom theme shipped to the anonymous viewer (built-in themes are already in its registry).
+// UNAUTHENTICATED GET /p/:slug/content; custom theme rides along (built-ins already in the viewer registry)
 export interface CustomThemeRecord {
     id: string;
     name: string;
@@ -103,8 +95,7 @@ export interface PublicContent {
     branded: boolean;
     customTheme: CustomThemeRecord | null;
 }
-// The public read resolves to either the content, or a gate. A gated (password / rate-limited) response
-// still carries the artifact's theme so the prompt can be shown in it rather than a neutral fallback.
+// content or a gate; a gated response still carries the theme so the prompt shows themed
 export type PublicResult =
     | { ok: true; content: PublicContent }
     | {
@@ -116,8 +107,7 @@ export type PublicResult =
           format?: string;
       };
 
-// Typed client over the backend (proxied at /api/* in dev → :8601). Cookies carry the session. The wire
-// shapes live in @model (shared with the backend); re-exported here under the app's names.
+// typed client over /api/* (dev proxy → :8601); cookies carry the session
 export type {
     Cover as ApiCover,
     SectionSummary as ApiSection,
@@ -151,7 +141,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     try {
         if (text) data = JSON.parse(text);
     } catch {
-        // non-JSON body (e.g. a proxy or framework 500 returns plain text) — don't surface a parse error
+        // non-JSON body — don't surface a parse error
     }
     if (!res.ok) {
         const msg =
@@ -230,7 +220,6 @@ export const api = {
         }),
     deleteFolder: (id: string) => req<{ ok: true }>(`/folders/${id}`, { method: "DELETE" }),
 
-    // --- media picker (stock search / AI generation / upload / recent) ---
     mediaProviders: () => req<MediaProvidersState>("/media/providers"),
     searchMedia: (
         provider: MediaProvider,
@@ -257,7 +246,6 @@ export const api = {
     updateTheme: (id: string, t: Partial<ThemeInput>) =>
         req<{ theme: Theme }>(`/themes/${id}`, { method: "PATCH", body: JSON.stringify(t) }),
     deleteTheme: (id: string) => req<{ ok: true }>(`/themes/${id}`, { method: "DELETE" }),
-    // AI-generate a custom theme from a text prompt → a ThemeInput to preview/save.
     generateTheme: (prompt: string, isDark?: boolean) =>
         req<{ theme: ThemeInput }>("/ai/theme", {
             method: "POST",
@@ -287,7 +275,6 @@ export const api = {
             body: JSON.stringify(body ?? {}),
         }),
 
-    // --- sharing / public links ---
     listLinks: () => req<{ links: LinkSummary[] }>("/links"),
     getLinkState: (artifactId: string) => req<{ link: LinkState | null }>(`/links/${artifactId}`),
     publishArtifact: (
@@ -317,7 +304,7 @@ export const api = {
         req<{ ok: true }>(`/links/${linkId}/recipients/${recipientId}`, { method: "DELETE" }),
     unpublishArtifact: (id: string) =>
         req<{ ok: true }>(`/artifacts/${id}/unpublish`, { method: "POST" }),
-    // UNAUTHENTICATED — used by the public viewer (publish/ build).
+    // UNAUTHENTICATED — used by the public viewer
     getPublicContent: async (
         slug: string,
         opts?: { pw?: string; k?: string },
@@ -326,7 +313,7 @@ export const api = {
         if (opts?.pw) q.set("pw", opts.pw);
         if (opts?.k) q.set("k", opts.k);
         const qs = q.toString();
-        // Not via req(): a gated 401/429 isn't an error here — we read its body for the theme + password flag.
+        // not via req(): a gated 401/429 isn't an error here — read its body
         const res = await fetch(`/api/p/${slug}/content${qs ? `?${qs}` : ""}`, {
             credentials: "same-origin",
         });
@@ -349,9 +336,7 @@ export const api = {
     },
 };
 
-// Run one AI turn (POST /ai/turn) and deliver each TurnEvent to `onEvent` as it streams over SSE. Throws
-// ApiError on a non-stream failure (e.g. 402 out of credits) before the stream begins. The reader is
-// aborted via `signal` (cancel / navigate away).
+// stream one AI turn (POST /ai/turn) over SSE; throws ApiError pre-stream (e.g. 402), aborts via signal
 export async function streamTurn(
     request: TurnRequest,
     onEvent: (event: TurnEvent) => void,
@@ -400,16 +385,14 @@ export async function streamTurn(
     }
 }
 
-// One event from the streamed image generator (POST /media/generate).
+// POST /media/generate stream event
 export interface MediaGenEvent {
     type: "image" | "fail" | "done";
     item?: MediaItem; // present on "image"
-    produced?: number; // present on "done" — how many images were made
+    produced?: number; // present on "done" — images made
 }
 
-// Generate images and deliver each to `onEvent` the moment it streams in over SSE — so the picker shows
-// placeholders immediately and swaps in each image as it's ready. Throws ApiError on a pre-stream failure
-// (e.g. 402 out of credits) before any placeholder resolves.
+// stream generated images over SSE (each as it's ready); throws ApiError pre-stream (e.g. 402)
 export async function streamGenerateMedia(
     body: MediaGenerateRequest,
     onEvent: (event: MediaGenEvent) => void,

@@ -12,7 +12,7 @@ import { Markdown } from "@ui/markdown";
 import { MiniCanvas } from "../components/previews";
 import { Button, IconButton, Chip, Eyebrow, Spinner } from "@ui/button";
 import { editor } from "@editor/editor";
-import { appTheme, appThemeOverride, appThemeVars, customThemes } from "../theme";
+import { appTheme, appThemeOverride, appThemeVars, customThemes } from "../stores/theme";
 import { formatLabel } from "../stores/library";
 import type { ChatMsg, UIBlock } from "../stores/chat";
 
@@ -46,13 +46,6 @@ import {
     toggleChat,
 } from "../stores/chat";
 
-// The chat panel — an app-layer singleton dock (mounted in AppShell). Sends a chat turn per message and
-// renders the streamed blocks: text, a "working…" tool shell, a proposal (a real MiniCanvas of the section +
-// Apply/Discard, which commits to the editor), and suggestion chips. Ephemeral thread for now — enough to
-// exercise the agent + registry end to end.
-
-// ---- one block ----
-
 const ProposalCard: Component<{
     msgId: number;
     blockId: string;
@@ -60,7 +53,7 @@ const ProposalCard: Component<{
     proposal: Proposal;
 }> = (props) => {
     let box!: HTMLDivElement;
-    // Size the canvas to the card's real width so it fills edge-to-edge (no background band on the right).
+    // size to the card's real width so it fills edge-to-edge
     const [w, setW] = createSignal(320);
     onMount(() => {
         const ro = new ResizeObserver(() => setW(box.clientWidth));
@@ -68,8 +61,7 @@ const ProposalCard: Component<{
         setW(box.clientWidth);
         onCleanup(() => ro.disconnect());
     });
-    // Preview in the target's own theme/format when editing a NAMED library artifact (the proposal carries
-    // them); otherwise the open artifact / active draft's, via previewSource().
+    // named library artifact carries its own theme/format; else use previewSource()
     const src = (): { theme: string; format: string } =>
         props.proposal.targetArtifactId && props.proposal.theme && props.proposal.format
             ? { theme: props.proposal.theme, format: props.proposal.format }
@@ -124,14 +116,8 @@ const ProposalCard: Component<{
     );
 };
 
-// Smooth "typewriter" reveal — decouples the visual stream from the provider's bursty delivery. Gemini
-// streams in coarse chunks (measured: sentence-sized, ~125–220 chars — NOT token-by-token, confirmed against
-// the raw REST API, so no SDK/model setting makes it finer), plus thinking arrives as summaries in ~2s
-// chunks. This reveals whatever text has ARRIVED at a steady, backlog-aware pace (fast catch-up on a burst,
-// then a min pace so the tail never lags), so reasoning + reply appear to stream token-by-token no matter how
-// the backend chunks them — the same trick polished chat UIs use. `done` fast-forwards to the full text (a
-// finished thought re-opened shows instantly, doesn't re-type).
-// A pulse bumped on every reveal frame, so the scroll container can keep the newest typed text in view.
+// Typewriter reveal — decouples display from the provider's bursty (sentence-sized) chunks; reveals arrived text at a steady, backlog-aware pace. `done` fast-forwards to the full text.
+// bumped each reveal frame so the scroll container can track the newest text
 const [revealPulse, setRevealPulse] = createSignal(0);
 
 const SmoothText: Component<{
@@ -149,8 +135,7 @@ const SmoothText: Component<{
             running = false;
             return;
         }
-        // reveal proportional to the backlog (snappy on a burst) but at least a few chars/frame (no trailing
-        // trickle) — ~60fps, so a 450-char burst clears in ~0.4s and a steady stream reveals continuously.
+        // proportional to the backlog, min a few chars/frame
         const step = Math.max(2, Math.ceil((target - cur) / 7));
         setShown(Math.min(target, cur + step));
         setRevealPulse((n) => n + 1);
@@ -167,7 +152,7 @@ const SmoothText: Component<{
         if (props.done) {
             cancelAnimationFrame(raf);
             running = false;
-            setShown(len); // finished → show it all, don't animate (e.g. re-opening a collapsed thought)
+            setShown(len); // show all, don't animate
             return;
         }
         if (shown() > len) setShown(len); // guard a reset (target shrank)
@@ -177,9 +162,6 @@ const SmoothText: Component<{
     return <>{props.render(props.text.slice(0, shown()))}</>;
 };
 
-// The agent's thinking trace — streams into an expanded bubble while the model reasons, then auto-collapses
-// when the answer starts (but stays, so the user can re-open and read the reasoning). Turns the pre-answer
-// wait into visible progress instead of a dead loader.
 const ReasoningBlock: Component<{ text: string; done: boolean }> = (props) => {
     const [open, setOpen] = createSignal(!props.done);
     createEffect(() => {
@@ -212,8 +194,6 @@ const ReasoningBlock: Component<{ text: string; done: boolean }> = (props) => {
     );
 };
 
-// A "Generate →" confirm card — the agent hands back a one-line brief; the user clicks to build it into an
-// in-chat draft (below). Shows the estimated credit cost so committing is a deliberate, priced choice.
 const SURFACE_VERB: Record<string, string> = { deck: "deck", doc: "doc", web: "site" };
 const BriefCard: Component<{ brief: GenBrief }> = (props) => {
     const [started, setStarted] = createSignal(false);
@@ -249,16 +229,10 @@ const BriefCard: Component<{ brief: GenBrief }> = (props) => {
     );
 };
 
-// An in-chat generated artifact — the streamed draft. Renders the real sections (same engine as the editor)
-// as a horizontal filmstrip that auto-scrolls to the newest section as generation streams it in. Lives only
-// in `drafts` until the user clicks "Open in editor" (persists → navigates) or "Discard". While live,
-// follow-up chat messages refine it.
-const DRAFT_SECTION_W = 168; // filmstrip thumbnail width
+const DRAFT_SECTION_W = 168;
 const prefersReduced = (): boolean =>
     window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-// A real engine-rendered placeholder for the section being written — the SAME MiniCanvas path as the real
-// sections, so its slide-frame dimensions match exactly (and it's engine-drawn, not a CSS mock). Faded under
-// a spinner so it reads as "a section forming here" rather than finished content.
+// engine-rendered placeholder so its frame dims match the real sections exactly
 const LOADING_SECTION: Section = placeholderSection({
     id: "loading",
     layout: "split-6040",
@@ -268,7 +242,6 @@ const ArtifactDraftCard: Component<{ draftId: string }> = (props) => {
     const navigate = useNavigate();
     const d = (): (typeof drafts)[string] | undefined => drafts[props.draftId];
     let strip!: HTMLDivElement;
-    // Follow the build: scroll the filmstrip to the rightmost (newest) section whenever one lands.
     createEffect(() => {
         void d()?.content.sections.length;
         void d()?.status;
@@ -309,8 +282,6 @@ const ArtifactDraftCard: Component<{ draftId: string }> = (props) => {
                                 </span>
                             </Show>
                         </div>
-                        {/* horizontal filmstrip — each section a fixed-width thumbnail; auto-scrolls to the
-                            newest as it streams in (see the createEffect above) */}
                         <div ref={strip} class="flex gap-2.5 overflow-x-auto px-3 py-3">
                             <For each={draft().content.sections}>
                                 {(sec, i) => (
@@ -328,9 +299,6 @@ const ArtifactDraftCard: Component<{ draftId: string }> = (props) => {
                                     </div>
                                 )}
                             </For>
-                            {/* while building: the section being written — a real engine-rendered placeholder
-                                at the SAME slide frame as the finished tiles (so it never jumps size), faded
-                                under a spinner. Doubles as the initial "planning" state before any land. */}
                             <Show when={draft().status === "building"}>
                                 <div class="flex-none">
                                     <div class="relative animate-pulse">
@@ -400,8 +368,6 @@ const ArtifactDraftCard: Component<{ draftId: string }> = (props) => {
     );
 };
 
-// Library search results — a pick-list of the user's real artifacts (from find-artifacts). Each opens in
-// the editor on click, so "find my Series A deck" → tap → you're editing it.
 const ArtifactsList: Component<{ items: Artifacts["items"] }> = (props) => {
     const navigate = useNavigate();
     const open = (id: string): void => {
@@ -430,9 +396,6 @@ const ArtifactsList: Component<{ items: Artifacts["items"] }> = (props) => {
     );
 };
 
-// A workspace management action. Outward-facing ops (share/export) render a one-click routing card that
-// opens the proper guarded UI. Trash arrives "pending" — a confirm card, the one destructive op. Everything
-// else (rename/move/duplicate/…) arrives already done — a quiet one-line confirmation.
 const ActionCard: Component<{
     msgId: number;
     blockId: string;
@@ -502,8 +465,6 @@ const ActionCard: Component<{
     );
 };
 
-// Starter templates — a pick-list; picking one drops that template straight into a live in-chat draft
-// (instant, no generation) the user can refine and open.
 const TemplatesList: Component<{ items: Templates["items"] }> = (props) => (
     <div class="mt-1 flex flex-col gap-1">
         <For each={props.items}>
@@ -635,9 +596,6 @@ const MessageView: Component<{ m: ChatMsg }> = (props) => (
     </Show>
 );
 
-// The empty-state prompt + example chips adapt to where the chat is used: inside the editor (an artifact is
-// open → editing help) vs. the library (no artifact → planning / getting-started help). Driven by whether an
-// artifact is open, so the messaging never claims to act on a document that isn't there.
 const EDITOR_EXAMPLES = [
     "What's this artifact missing?",
     "Add a closing call-to-action",
@@ -660,9 +618,7 @@ export const ChatPanel: Component = () => {
     let list!: HTMLDivElement;
     let field!: HTMLTextAreaElement;
 
-    // auto-grow the input to fit its content (up to a cap, then it scrolls). Collapse to 0 first so an empty
-    // box measures as exactly one line. Re-runs on every input change (incl. the clear after send) AND when
-    // the panel opens — the first measure happens while it's off-screen, so it must be re-taken once visible.
+    // collapse to 0 first so an empty box measures one line; re-measure on open (first measure is off-screen)
     const autosize = (): void => {
         if (!field) return;
         field.style.height = "0px";
@@ -674,7 +630,7 @@ export const ChatPanel: Component = () => {
         queueMicrotask(autosize);
     });
 
-    // auto-scroll on new content (read block text lengths so streaming growth re-triggers the effect)
+    // read block text lengths so streaming growth re-triggers this
     createEffect(() => {
         const tick = thread.messages.reduce(
             (n, m) => n + m.blocks.reduce((k, b) => k + (b.k === "text" ? b.text.length : 1), 0),
@@ -684,8 +640,7 @@ export const ChatPanel: Component = () => {
         queueMicrotask(() => list?.scrollTo({ top: list.scrollHeight }));
     });
 
-    // Keep the newest typed text pinned as SmoothText reveals it — but only when the user is already near the
-    // bottom, so scrolling up to read earlier messages mid-reply isn't yanked back down.
+    // pin newest text only when near the bottom, so scrolling up isn't yanked down
     createEffect(() => {
         revealPulse();
         if (list && list.scrollHeight - list.scrollTop - list.clientHeight < 80) {
@@ -700,10 +655,7 @@ export const ChatPanel: Component = () => {
         void sendChat(t);
     };
 
-    // The chat is a global dock mounted in AppShell — a SIBLING of the editor, so it would otherwise inherit
-    // the app-chrome theme. When the editor is the active view, follow the OPEN ARTIFACT's theme (incl. a live
-    // theme preview, which mutates editor.artifact.theme) so the panel + launcher recolor with it; otherwise
-    // the app theme. Touch customThemes() so a custom artifact theme re-resolves once it loads.
+    // dock is a sibling of the editor, so follow the open artifact's theme when it's active; touch customThemes() to re-resolve a custom theme once loaded
     const chatTokens = createMemo((): Tokens => {
         customThemes();
         if (editorActive()) return resolveTheme(editor.artifact.theme).tokens;
@@ -717,7 +669,6 @@ export const ChatPanel: Component = () => {
     return (
         <UiThemeProvider tokens={chatTokens}>
             <div style={chatVars()}>
-                {/* launcher */}
                 <Show when={!chatOpen()}>
                     <button
                         class="fixed bottom-6 right-6 z-drawer flex h-12 w-12 items-center justify-center rounded-full bg-accent text-onaccent shadow-xl transition-transform hover:scale-105"
@@ -728,7 +679,6 @@ export const ChatPanel: Component = () => {
                     </button>
                 </Show>
 
-                {/* dock */}
                 <div
                     class="fixed right-0 top-0 z-drawer flex h-full w-[400px] max-w-[92vw] flex-col border-l border-line bg-panel shadow-2xl transition-transform duration-200"
                     style={{ transform: chatOpen() ? "translateX(0)" : "translateX(105%)" }}

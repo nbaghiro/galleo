@@ -34,21 +34,18 @@ import {
     TrashIcon,
 } from "@ui/icons";
 import { CreateModal } from "../components/modals";
-import { openThemeEditor } from "../theme";
+import { openThemeEditor } from "../stores/theme";
 import { openGenerate } from "../stores/generate";
 import { Button, Eyebrow, IconButton } from "@ui/button";
 import { TextField } from "@ui/inputs";
 import { Meter } from "@ui/status";
 import { Mark } from "@ui/brand";
 
-// Shared, route-aware app sidebar (Library / Templates / Folders…) + workspace, create menu, theme,
-// and sign-out. Built on the theme tokens so it recolors with the app theme. Folders are drop targets:
-// drag an artifact card onto a folder (or onto Library) to move it in / out.
 export const Sidebar: Component = () => {
     const navigate = useNavigate();
     const location = useLocation();
     onMount(loadBilling);
-    // The router carries base="/app", so pathname is "/app/…"; strip it to compare route-relative.
+    // router base is /app; strip it to compare route-relative
     const route = (): string => location.pathname.replace(/^\/app/, "") || "/";
     onMount(() => loadFolders());
     const [dragOver, setDragOver] = createSignal<string | null>(null); // folder id, or "root" for Library
@@ -92,7 +89,7 @@ export const Sidebar: Component = () => {
         if (parent) {
             const s = new Set(collapsed());
             s.delete(parent);
-            setCollapsed(s); // expand the parent so the new subfolder input is visible
+            setCollapsed(s); // expand the parent so the new-subfolder input shows
         }
         setCreatingParent(parent);
         setNewName("");
@@ -175,7 +172,6 @@ export const Sidebar: Component = () => {
         />
     );
 
-    // a folder row + (when expanded) its inline new-subfolder input and children — recursively nested
     const FolderNode: Component<{ f: ApiFolder; depth: number }> = (np) => {
         const kids = (): ApiFolder[] => folders().filter((x) => x.parentId === np.f.id);
         const expanded = (): boolean => !collapsed().has(np.f.id);
@@ -288,8 +284,7 @@ export const Sidebar: Component = () => {
 
     return (
         <aside class="flex w-[230px] flex-none flex-col gap-1 border-r border-line bg-panel px-3 py-4 text-ink">
-            {/* the website is a separate build at "/" (outside the app's /app router base), so this is
-                a real navigation, not a router link */}
+            {/* real navigation: the site at "/" is a separate build outside /app */}
             <a
                 href="/"
                 title="Galleo — home"
@@ -322,7 +317,6 @@ export const Sidebar: Component = () => {
                 {navItem(<TrashIcon />, "Trash", "/trash", route() === "/trash")}
             </nav>
 
-            {/* Folders */}
             <div class="mt-4 flex items-center justify-between px-2.5 pb-1">
                 <Eyebrow tracking="wider">Folders</Eyebrow>
                 <IconButton
@@ -398,7 +392,6 @@ export const Sidebar: Component = () => {
     );
 };
 
-// Opens the theme editor modal (the unified picker + custom-theme creation).
 const ThemePicker: Component = () => (
     <IconButton
         size="lg"

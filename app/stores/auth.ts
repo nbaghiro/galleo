@@ -1,8 +1,7 @@
 import { createSignal } from "solid-js";
 import { api, type ApiUser } from "../api";
-import { clearCustomThemes } from "../theme";
+import { clearCustomThemes } from "./theme";
 
-// Session state for the app. bootstrap() runs once at startup to restore an existing session.
 export const [user, setUser] = createSignal<ApiUser | null>(null);
 export const [authReady, setAuthReady] = createSignal(false);
 

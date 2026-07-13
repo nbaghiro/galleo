@@ -3,11 +3,10 @@ import "../ui/styles.css";
 import "./website.css";
 import { render } from "solid-js/web";
 import { resolveTheme, themeCssVars } from "@themes";
-import { setFavicon } from "../app/theme";
+import { setFavicon } from "../app/stores/theme";
 import { WebsitePage } from "./WebsitePage";
 
-// Standalone website entry. Apply the user's persisted app theme (same key the app + sign-in use), so
-// the landing matches the design they last selected. Read once — the website site is not a switcher.
+// theme key shared with the app + sign-in
 function read(): string {
     try {
         return localStorage.getItem("galleo:app-theme") || "studio";
@@ -21,6 +20,6 @@ if (root) {
     const tokens = resolveTheme(read()).tokens;
     const vars = themeCssVars(tokens);
     for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
-    setFavicon(tokens); // the theme-badge favicon — the same one the app uses
+    setFavicon(tokens);
     render(() => <WebsitePage />, root);
 }

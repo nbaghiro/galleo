@@ -1,9 +1,8 @@
 import { createSignal } from "solid-js";
 import { resolveTheme } from "@themes";
 import { api, type ApiFolder } from "../api";
-import { appTheme } from "../theme";
+import { appTheme } from "./theme";
 
-// Shared folder state — the sidebar lists/creates them, the library filters by them.
 const [folders, setFolders] = createSignal<ApiFolder[]>([]);
 let loaded = false;
 
@@ -51,8 +50,7 @@ function hexToHsl(hex: string): [number, number, number] {
     return [h, s * 100, l * 100];
 }
 
-// A stable, distinct color per folder — DERIVED from the active app theme's accent (hue-rotated, with
-// readability-clamped saturation/lightness), so folders stay unique AND recolor when the theme changes.
+// per-folder color derived from the theme accent (hue-rotated by id hash) so it recolors with the theme
 export function folderColor(id: string): string {
     const theme = resolveTheme(appTheme());
     const [h, s, l] = hexToHsl(theme.tokens.accent);

@@ -27,11 +27,7 @@ export interface DrawTextStyle {
     baseline?: "top" | "middle" | "bottom";
 }
 
-// A path builder — the subset of the Canvas 2D path API that `DrawContext.path` exposes. It is
-// structurally a slice of `CanvasRenderingContext2D` (so the canvas backend passes its context
-// straight through) and is exactly what d3-shape's generators render into via `.context()`, letting
-// charts emit arbitrary curves/arcs without a per-shape primitive. A future vector backend implements
-// the same methods against its own path sink.
+// Structural subset of CanvasRenderingContext2D, so the canvas backend passes its context straight through; also what d3-shape generators render into via `.context()`.
 export interface PathSink {
     moveTo(x: number, y: number): void;
     lineTo(x: number, y: number): void;
@@ -50,9 +46,7 @@ export interface PathSink {
     closePath(): void;
 }
 
-// Backend-abstract drawing API for self-rendered (surface) elements — charts, diagrams, gauges.
-// Implemented per target (canvas in the DOM/PNG backends, vector for PDF/PPTX). Coordinates are
-// local to the element's box.
+// Backend-abstract drawing API for surface elements (charts, diagrams). Coordinates are local to the element's box.
 export interface DrawContext {
     rect(x: number, y: number, w: number, h: number, style: DrawStyle): void;
     line(x1: number, y1: number, x2: number, y2: number, style: DrawStyle): void;
@@ -66,27 +60,23 @@ export interface DrawContext {
         endRad: number,
         style: DrawStyle,
     ): void;
-    // Build one arbitrary path (lines/beziers/arcs) then fill/stroke it per `style`. The path is begun
-    // and closed by the backend; `build` only issues sink calls. Powers donut arcs, smoothed lines,
-    // and any d3-shape generator.
+    // The backend begins and closes the path; `build` only issues sink calls.
     path(build: (sink: PathSink) => void, style: DrawStyle): void;
     text(text: string, x: number, y: number, style: DrawTextStyle): void;
-    // Measure a string's advance width in the given text style — for laying out axis labels + legends
-    // inside a surface (the immediate-mode paint has no DOM to measure against).
+    // Advance width for laying out labels inside a surface (immediate-mode paint has no DOM to measure against).
     measureText(text: string, style: DrawTextStyle): { width: number };
 }
 
-// A measured text size. Named `Measured` to avoid clashing with the DOM `TextMetrics` global.
+// Named `Measured` to avoid clashing with the DOM `TextMetrics` global.
 export interface Measured {
     width: number;
     height: number;
 }
 
-// Injected into the engine so it stays pure (no DOM). Wraps `text` at `maxWidth`.
+// Injected so the engine stays pure (no DOM).
 export type MeasureText = (leaf: TextLeaf, maxWidth: number) => Measured;
 
-// The styled run type lives with the rich-text model (`@model/text`, which flattens marks into runs);
-// the engine consumes it and re-exports it for the render backends.
+// Re-exported from `@model/text` for the render backends.
 export type { Run };
 
 export interface TextLeaf {
@@ -98,9 +88,7 @@ export interface TextLeaf {
     color?: string;
     align?: Align;
     wrap: "words" | "none";
-    // Optional styled runs. When present, the leaf paints as this sequence (each run inheriting the
-    // base font/size and overriding weight/style/color/etc). Absent → the plain `text` path, unchanged.
-    // The concatenation of all `runs[].text` equals `text`.
+    // When present, paints as this sequence (runs inherit base font/size, override weight/color); absent → the plain `text` path. Invariant: concatenation of all `runs[].text` equals `text`.
     runs?: Run[];
 }
 
@@ -108,10 +96,10 @@ export interface ImageLeaf {
     src: string;
     fit: "cover" | "contain";
     radius?: number;
-    scrim?: number; // 0..1 dark overlay (for text over a background image)
-    zoom?: number; // scale the image within its clipped frame (>1 crops in); set only by image elements
+    scrim?: number; // 0..1 dark overlay
+    zoom?: number; // >1 crops in; set only by image elements
     border?: { color: string; width: number; style?: "solid" | "dashed" }; // section-card border (theme)
-    shadow?: string; // CSS box-shadow — the theme's design character, same as a filled section card
+    shadow?: string; // CSS box-shadow
 }
 
 export interface FillLeaf {
@@ -119,15 +107,14 @@ export interface FillLeaf {
     gradient?: { from: string; to: string; angle?: number };
     radius?: number;
     border?: { color: string; width: number; style?: "solid" | "dashed" };
-    shadow?: string; // CSS box-shadow (theme design character)
+    shadow?: string; // CSS box-shadow
 }
 
 export interface SurfaceLeaf {
     paint: (ctx: DrawContext, box: Rect) => void;
 }
 
-// The layout primitive: a flex/box node (Clay-style) or a self-painted surface.
-// A node may carry a leaf (fill/image/text/surface) AND children (e.g. a panel with a background).
+// A node may carry a leaf (fill/image/text/surface) AND children.
 export interface EngineNode {
     id?: string;
     w: Size;
@@ -138,17 +125,12 @@ export interface EngineNode {
     gap?: number;
     alignX?: Align;
     alignY?: Align;
-    alignSelf?: Align; // overrides the parent's cross-axis alignment for this child
-    // Clip this node's descendants to its box on the given axes (Clay-style). Content that overflows the
-    // box is cut off rather than painted past it — for fixed/custom-aspect frames and (later) scroll regions.
-    // Inert until set. The engine carries the resolved clip rect on each affected command (`RenderCommand.clip`).
+    alignSelf?: Align; // overrides the parent's cross-axis alignment
+    // Clip descendants to this node's box on the given axes. Inert until set; the engine carries the resolved rect on each command (`RenderCommand.clip`).
     clip?: { x?: boolean; y?: boolean };
-    // A floating child (Clay-style): laid out but lifted OUT of the parent's flex flow — it doesn't affect
-    // siblings or the parent's fit size — then positioned within the parent box by x/y alignment + a dx/dy
-    // offset, and painted on top of the parent's flow (higher `z` paints later). For element-attached
-    // overlays: badges, ribbons, corner markers. Inert until set, so ordinary flow is unaffected.
+    // Lifted OUT of the parent's flex flow (doesn't affect siblings or fit size), positioned by x/y align + dx/dy offset, painted on top (higher `z` later). Inert until set.
     float?: { x?: Align; y?: Align; dx?: number; dy?: number; z?: number };
-    opacity?: number; // 0..1, multiplied down the subtree — for the dimmed drag/drop preview
+    opacity?: number; // 0..1, multiplied down the subtree
     text?: TextLeaf;
     image?: ImageLeaf;
     fill?: FillLeaf;
@@ -156,10 +138,7 @@ export interface EngineNode {
     children?: EngineNode[];
 }
 
-// --- render output (flattened from the node tree) + interaction geometry ---
-
-// `clip`, when present, is the effective (ancestor-intersected) rectangle this command is clipped to — the
-// backends honor it (CSS clip-path / canvas clip). Absent = no clip.
+// Effective (ancestor-intersected) clip rect; backends honor it (CSS clip-path / canvas clip). Absent = no clip.
 export type RenderCommand =
     | { kind: "rect"; box: Rect; fill?: FillLeaf; id?: string; opacity?: number; clip?: Rect }
     | { kind: "text"; box: Rect; text: TextLeaf; id?: string; opacity?: number; clip?: Rect }
@@ -173,10 +152,9 @@ export type RenderCommand =
           clip?: Rect;
       };
 
-// Interaction geometry: the final box of every node that carries an id (sections, cells, elements).
-// Separate from paint so selection/hit-testing/overlays don't depend on what was drawn.
+// Final box of every node with an id. Separate from paint so selection/hit-testing don't depend on what was drawn.
 export interface Region {
     id: string;
     box: Rect;
-    radius?: number; // the corner radius this node actually painted (fill/image), so selection outlines match it
+    radius?: number; // the radius this node actually painted, so selection outlines match it
 }

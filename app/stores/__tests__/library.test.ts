@@ -11,9 +11,6 @@ import {
     formatLabelPlural,
 } from "../library";
 
-// Pure library helpers — title extraction, the format label/icon maps, and the blank-artifact factory.
-// Zero mocks; the fetch-backed loaders/mutators (loadLibrary, moveArtifact, …) are a later tier.
-
 const text = (t: string): ElementInstance => ({ type: "text", data: { text: t } });
 const group = (...children: ElementInstance[]): ElementInstance => ({
     type: "group",

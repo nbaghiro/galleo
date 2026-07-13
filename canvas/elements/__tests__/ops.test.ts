@@ -1,7 +1,7 @@
 import "@elements/register";
 import { describe, expect, it } from "vitest";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
-import { childrenRaw, colGroup, rowGroup } from "@model/section";
+import { childrenRaw, colGroup, rowGroup, withWidth } from "@model/section";
 import {
     addColumn,
     applyLayoutPreset,
@@ -29,8 +29,6 @@ import {
     wrapWith,
 } from "@elements/ops";
 import { artifactOf, inst, sectionOf } from "@canvas/testkit";
-
-// Pure, immutable content ops over a real registry (group/card/text/image registered via @elements/register).
 
 const txt = (t: string): ElementInstance => inst("text", { text: t });
 const textOf = (i: ElementInstance | undefined): string | undefined =>
@@ -117,6 +115,19 @@ describe("insertion", () => {
         expect(rootOf(noop).type).toBe("text");
     });
 
+    it("insertChild into a weighted row strips the newcomer's width and renormalizes to 100%", () => {
+        const art = insertChild(
+            artOf(rowGroup([txt("a"), txt("b")], [0.6, 0.4])),
+            at([]),
+            1,
+            withWidth(txt("x"), 90), // a stale 90% width would otherwise blow past 100%
+        );
+        const fr = columnFractions(art.sections[0]!);
+        expect(fr).toHaveLength(3);
+        expect(fr.reduce((a, b) => a + b, 0)).toBeGreaterThan(0.98);
+        expect(fr.reduce((a, b) => a + b, 0)).toBeLessThan(1.02);
+    });
+
     it("wrapWith wraps a leaf and a new element into a group (after → [self, new])", () => {
         const art = wrapWith(artOf(txt("a")), at([]), txt("x"), false, "row");
         expect(rootOf(art).type).toBe("group");
@@ -137,6 +148,14 @@ describe("duplicate", () => {
         const root = duplicateAt(artOf(txt("a")), at([]));
         expect(rootOf(root).type).toBe("group");
         expect(childrenRaw(rootOf(root))?.map(textOf)).toEqual(["a", "a"]);
+    });
+
+    it("duplicating a weighted column renormalizes the row to 100% (no over-commit)", () => {
+        const art = duplicateAt(artOf(rowGroup([txt("a"), txt("b")], [0.6, 0.4])), at([0]));
+        const fr = columnFractions(art.sections[0]!);
+        expect(fr).toHaveLength(3);
+        expect(fr.reduce((a, b) => a + b, 0)).toBeGreaterThan(0.98);
+        expect(fr.reduce((a, b) => a + b, 0)).toBeLessThan(1.02);
     });
 
     it("duplicatedAddr points at the clone's new sibling slot", () => {

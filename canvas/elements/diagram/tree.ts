@@ -9,7 +9,6 @@ import {
     type ResolvedDiagram,
 } from "./utils";
 
-// A top-down tree: rounded boxes joined by smooth vertical S-curves.
 function renderTree(diagram: ResolvedDiagram, ctx: DiagramCtx): void {
     const { g, W, H, theme } = ctx;
     if (diagram.nodes.length === 0) return;

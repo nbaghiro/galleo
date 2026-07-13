@@ -20,22 +20,19 @@ import { fireDownloadTrigger, searchStock, stockReady } from "../media/providers
 import { streamImages, imageGenReady } from "../media/generate";
 import { getIcon, searchIcons } from "../media/icons";
 
-// The media picker's backend: stock search (Unsplash / Pexels / Pixabay), AI generation, upload, a
-// recent-library, and a public asset-serve route for stored (generated / uploaded) bytes. Stored media
-// lives in the `assets` table; stock stays a provider CDN url. Every source normalizes to MediaItem.
+// Stored media lives in the assets table; stock stays a provider CDN url; all sources normalize to MediaItem.
 export const media = new Hono();
 
 const RECENT_LIMIT = 48;
 const assetUrl = (id: string): string => `/api/media/asset/${id}`;
 
-// Metadata we keep in assets.meta (attribution for stock, prompt for generated, thumb for the grid).
 interface AssetMeta {
     attribution?: MediaAttribution;
     prompt?: string;
     thumbUrl?: string;
 }
 
-// Auth guard: the workspace id, or an error Response the caller returns as-is.
+// Returns the workspace id, or an error Response the caller returns as-is.
 async function requireWs(c: Context): Promise<string | Response> {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -60,14 +57,12 @@ function toItem(row: AssetRow): MediaItem {
     };
 }
 
-// GET /media/providers — which sources are configured, so the rail can badge "needs a key".
 media.get("/media/providers", async (c) => {
     const ws = await requireWs(c);
     if (typeof ws !== "string") return ws;
     return c.json({ stock: stockReady(), generate: imageGenReady() });
 });
 
-// GET /media/search?provider&q&orientation&page — one stock provider, normalized.
 media.get("/media/search", async (c) => {
     const ws = await requireWs(c);
     if (typeof ws !== "string") return ws;
@@ -85,7 +80,6 @@ media.get("/media/search", async (c) => {
     }
 });
 
-// GET /media/icons?q&limit — keyless Iconify search, returns ids for the picker grid.
 media.get("/media/icons", async (c) => {
     const ws = await requireWs(c);
     if (typeof ws !== "string") return ws;
@@ -99,7 +93,6 @@ media.get("/media/icons", async (c) => {
     }
 });
 
-// GET /media/icon?id — the picked icon's SVG body (currentColor-based), fetched on pick.
 media.get("/media/icon", async (c) => {
     const ws = await requireWs(c);
     if (typeof ws !== "string") return ws;
@@ -114,11 +107,7 @@ media.get("/media/icon", async (c) => {
     }
 });
 
-// POST /media/generate { prompt, aspect, n } — AI images, STREAMED over SSE. Metered as `generate-image`
-// (per image): reserve the requested count up front (402 when spent), then reconcile down to the number that
-// actually came back so failed variations are never charged. Each image is stored as an asset and emitted the
-// moment it finishes — `{ type: "image", item }` — so the picker reveals fast variations while slow ones still
-// render; a `fail` marks a dropped variation and `done` closes the stream.
+// Metered per image: reserve the requested count up front, reconcile down to what came back so failed variations aren't charged.
 media.post("/media/generate", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -191,7 +180,7 @@ media.post("/media/generate", async (c) => {
                 await send({ type: "image", item });
             }
         } finally {
-            // Reconcile the reserve down to what was actually produced (refund the shortfall), then close.
+            // Reconcile the reserve down to what was produced (refund the shortfall).
             const finalUsed = produced
                 ? ws.aiCreditsUsed + estimateCost("generate-image", { variations: produced })
                 : ws.aiCreditsUsed;
@@ -205,7 +194,6 @@ media.post("/media/generate", async (c) => {
     });
 });
 
-// POST /media/upload { data(base64), mime, name, width, height } — store a user file.
 media.post("/media/upload", async (c) => {
     const ws = await requireWs(c);
     if (typeof ws !== "string") return ws;
@@ -245,12 +233,10 @@ media.post("/media/upload", async (c) => {
     });
 });
 
-// Stored (generated / uploaded) media serves from /api/media/asset/:id — recognise it to bump on re-use.
+// Stored-media url pattern — recognise to bump recency on re-use.
 const STORED_URL = /\/media\/asset\/([0-9a-f-]{36})$/i;
 
-// POST /media/use { item } — record a pick in the recent library, surfacing it at the top. Stored media
-// (generated / uploaded) is already saved, so a pick just bumps its recency; stock also logs the CDN url +
-// fires the Unsplash download trigger (their API terms). Either way Recent reflects most-recent activity.
+// Stored media just bumps recency; stock logs the CDN url + fires the Unsplash download trigger (their API terms).
 media.post("/media/use", async (c) => {
     const ws = await requireWs(c);
     if (typeof ws !== "string") return ws;
@@ -258,7 +244,7 @@ media.post("/media/use", async (c) => {
     if (!item?.url) return c.json({ error: "item required" }, 400);
     const storedId = STORED_URL.exec(item.url)?.[1];
     if (storedId) {
-        // Already in the library — move it back to the top of Recent (mirrors the stock dedup below).
+        // Already in the library — bump to the top of Recent (mirrors the stock dedup below).
         await db
             .update(schema.assets)
             .set({ createdAt: new Date() })
@@ -288,7 +274,6 @@ media.post("/media/use", async (c) => {
     return c.json({ item });
 });
 
-// GET /media/recent — the workspace's recently used / created images, newest first.
 media.get("/media/recent", async (c) => {
     const ws = await requireWs(c);
     if (typeof ws !== "string") return ws;
@@ -301,8 +286,7 @@ media.get("/media/recent", async (c) => {
     return c.json({ items: rows.map(toItem) });
 });
 
-// GET /media/asset/:id — serve stored bytes. Public by opaque uuid so <img>/canvas/export load uniformly
-// (cross-origin, credential-less) the same as a stock CDN url.
+// Public by opaque uuid so <img>/canvas/export load credential-less, like a stock CDN url.
 media.get("/media/asset/:id", async (c) => {
     const [a] = await db
         .select({ data: schema.assets.data, mime: schema.assets.mime })

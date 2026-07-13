@@ -14,9 +14,6 @@ import {
 } from "@model/text";
 import type { Mark, Selection } from "@model/text";
 
-// text.ts is a pure rich-text core: marks-over-a-string <-> ordered styled runs, plus mark ops and a
-// splice primitive. Real inputs, real outputs — no mocks.
-
 describe("toRuns", () => {
     it("returns [] for empty text", () => {
         expect(toRuns("", [])).toEqual([]);
@@ -142,7 +139,6 @@ describe("spliceText", () => {
             { from: 0, to: 3, type: "b" },
             { from: 4, to: 9, type: "i" },
         ]);
-        // input untouched
         expect(marks).toEqual([
             { from: 0, to: 5, type: "b" },
             { from: 6, to: 11, type: "i" },

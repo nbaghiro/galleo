@@ -13,7 +13,7 @@ interface CardData {
     gap?: number;
     padding?: number;
     bg?: string;
-    radius?: number; // legacy explicit radius (pre-`shape`); still honored when `shape` is unset
+    radius?: number; // legacy radius; honored when shape unset
     shape?: CardShape;
     style?: CardStyle;
 }
@@ -26,11 +26,9 @@ const STYLE_LABELS: Record<CardStyle, string> = {
     plain: "Plain",
 };
 
-// Wrap the card's content stack in the chosen box chrome. Side/top accent lines use cross-axis `grow`
-// (the solver stretches grow on the cross axis, so the bar runs the full edge).
+// side/top accent lines use cross-axis grow to span the full edge
 const arrangeCard = (d: CardData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode => {
     const t = ctx.theme;
-    // Corner radius from `shape` (sharp → crisp, rounded → theme); else a legacy numeric radius; else theme.
     let rad = d.radius ?? t.radius;
     if (d.shape === "sharp") rad = 2;
     else if (d.shape === "rounded") rad = t.radius;
@@ -118,7 +116,7 @@ export const cardElement: ElementSpec<CardData> = {
                 label: v === "sharp" ? "Sharp" : "Rounded",
             })),
             group: "Appearance",
-            // Only the solid + outline branches paint a rounded fill; plain/sideline/topline have no frame.
+            // only solid + outline paint a rounded fill
             visibleWhen: (d) => {
                 const s = (d.style as string) ?? "solid";
                 return s === "solid" || s === "outline";

@@ -3,8 +3,6 @@ import type { ElementInstance } from "@model/artifact";
 import { childrenRaw } from "@model/section";
 import { bgImage, img, split, stat, t } from "@model/authoring";
 
-// Tier-A pure: the demo-authoring builders. http seeds pass through; anything else becomes a picsum URL.
-
 const imgData = (e: ElementInstance): { src?: string; radius?: number; fit?: string } =>
     e.data as { src?: string; radius?: number; fit?: string };
 const textOf = (e: ElementInstance | undefined): string | undefined =>
