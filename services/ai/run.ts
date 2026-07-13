@@ -264,7 +264,7 @@ export async function* runGenerate(
     yield { type: "narration", text: "Planning the story arc" };
     const op = outlineParts(input);
     const { object: outlineObj } = await generateObject({
-        model: resolveModel(defaultModelFor("outline")),
+        model: resolveModel(opts.model ?? defaultModelFor("outline")),
         schema: zOutline,
         system: op.system,
         prompt: op.prompt,
@@ -295,7 +295,7 @@ export async function* runGenerate(
         yield { type: "section.status", id: beat.id, status: "writing" };
 
         // bind the returned section to its planned slot id, then resolve its images
-        let section = await writeSection(input, beat, outline, signal);
+        let section = await writeSection(input, beat, outline, signal, opts.model);
         // Guarantee the cover + closing sections carry a full-bleed background — inject one from the brief
         // if the model didn't, so those anchor moments never render flat. resolveImages then sources it.
         if ((i === 0 || i === n - 1) && section.background?.kind !== "image") {
@@ -419,8 +419,9 @@ async function writeSectionFrom(
     label: string,
     surface: Surface,
     signal?: AbortSignal,
+    modelId: string = defaultModelFor("section"),
 ): Promise<Section> {
-    const model = resolveModel(defaultModelFor("section"));
+    const model = resolveModel(modelId);
     let note = ""; // feedback appended to the prompt on a retry (bad JSON, or a quality check that tripped)
     for (let attempt = 0; attempt < 2; attempt++) {
         const { text } = await generateText({
@@ -452,6 +453,7 @@ function writeSection(
     beat: Beat,
     outline: Outline,
     signal?: AbortSignal,
+    modelId?: string,
 ): Promise<Section> {
     return writeSectionFrom(
         sectionParts(input, beat, outline),
@@ -459,6 +461,7 @@ function writeSection(
         beat.label,
         input.surface,
         signal,
+        modelId,
     );
 }
 
