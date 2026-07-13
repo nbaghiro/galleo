@@ -99,15 +99,28 @@ async function generateOne(
     return { dataBase64: img.data, mime: img.mime, ...dims(aspect) };
 }
 
-export async function generateImages(
+// Stream each variation the moment it finishes — so a fast image can reveal while the slow ones still render,
+// instead of blocking on the whole batch. Kicks off all N in parallel and yields them as they settle; a
+// failed variation yields null so the caller can drop its placeholder.
+export async function* streamImages(
     prompt: string,
     aspect: string | undefined,
     n: number,
     style: MediaGenStyle = "photo",
-): Promise<GeneratedImage[]> {
+): AsyncGenerator<GeneratedImage | null> {
     const count = Math.max(1, Math.min(4, n || 1));
-    const results = await Promise.all(
-        Array.from({ length: count }, () => generateOne(prompt, aspect, style).catch(() => null)),
-    );
-    return results.filter((r): r is GeneratedImage => r !== null);
+    const pending = new Map<number, Promise<{ i: number; img: GeneratedImage | null }>>();
+    for (let i = 0; i < count; i++)
+        pending.set(
+            i,
+            generateOne(prompt, aspect, style).then(
+                (img) => ({ i, img }),
+                () => ({ i, img: null }),
+            ),
+        );
+    while (pending.size) {
+        const { i, img } = await Promise.race(pending.values());
+        pending.delete(i);
+        yield img;
+    }
 }

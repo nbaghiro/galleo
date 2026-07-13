@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
+import { streamSSE } from "hono/streaming";
 import { and, desc, eq } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import type {
@@ -16,7 +17,7 @@ import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
 import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
 import { fireDownloadTrigger, searchStock, stockReady } from "../media/providers";
-import { generateImages, imageGenReady } from "../media/generate";
+import { streamImages, imageGenReady } from "../media/generate";
 import { getIcon, searchIcons } from "../media/icons";
 
 // The media picker's backend: stock search (Unsplash / Pexels / Pixabay), AI generation, upload, a
@@ -113,9 +114,11 @@ media.get("/media/icon", async (c) => {
     }
 });
 
-// POST /media/generate { prompt, aspect, n } — AI images, stored as assets, returned as MediaItems.
-// Metered as `generate-image` (per image): reserve the requested count up front (402 when spent), then
-// reconcile down to the number that actually came back, so failed variations are never charged.
+// POST /media/generate { prompt, aspect, n } — AI images, STREAMED over SSE. Metered as `generate-image`
+// (per image): reserve the requested count up front (402 when spent), then reconcile down to the number that
+// actually came back so failed variations are never charged. Each image is stored as an asset and emitted the
+// moment it finishes — `{ type: "image", item }` — so the picker reveals fast variations while slow ones still
+// render; a `fail` marks a dropped variation and `done` closes the stream.
 media.post("/media/generate", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -129,6 +132,7 @@ media.post("/media/generate", async (c) => {
         style?: MediaGenStyle;
     }>(c);
     if (!prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
+    const p = prompt.trim();
 
     const want = Math.max(1, Math.min(4, n ?? 4));
     const reserve = estimateCost("generate-image", { variations: want });
@@ -147,57 +151,58 @@ media.post("/media/generate", async (c) => {
         .set({ aiCreditsUsed: ws.aiCreditsUsed + reserve })
         .where(eq(schema.workspaces.id, ws.id));
 
-    let images;
-    try {
-        images = await generateImages(prompt.trim(), aspect, want, style ?? "photo");
-    } catch (e) {
-        // Refund the whole reserve — nothing was produced.
-        await db
-            .update(schema.workspaces)
-            .set({ aiCreditsUsed: ws.aiCreditsUsed })
-            .where(eq(schema.workspaces.id, ws.id));
-        return c.json({ error: e instanceof Error ? e.message : "generation failed" }, 502);
-    }
-    // Charge for what actually came back (0 → full refund via the 502 below).
-    const actual = images.length
-        ? ws.aiCreditsUsed + estimateCost("generate-image", { variations: images.length })
-        : ws.aiCreditsUsed;
-    if (actual !== ws.aiCreditsUsed + reserve)
-        await db
-            .update(schema.workspaces)
-            .set({ aiCreditsUsed: actual })
-            .where(eq(schema.workspaces.id, ws.id));
-    if (images.length === 0) return c.json({ error: "the model returned no image" }, 502);
-    const items: MediaItem[] = [];
-    for (const img of images) {
-        const id = crypto.randomUUID();
-        const meta: AssetMeta = { prompt: prompt.trim() };
-        await db.insert(schema.assets).values({
-            id,
-            workspaceId: ws.id,
-            kind: "image",
-            source: "generated",
-            url: assetUrl(id),
-            width: img.width,
-            height: img.height,
-            bytes: Buffer.from(img.dataBase64, "base64").length,
-            alt: prompt.trim().slice(0, 160),
-            meta,
-            data: img.dataBase64,
-            mime: img.mime,
-        });
-        items.push({
-            id,
-            source: "generated",
-            url: assetUrl(id),
-            thumbUrl: assetUrl(id),
-            width: img.width,
-            height: img.height,
-            alt: prompt.trim().slice(0, 160),
-            prompt: prompt.trim(),
-        });
-    }
-    return c.json({ items });
+    return streamSSE(c, async (stream) => {
+        const send = (data: unknown): Promise<void> =>
+            stream.writeSSE({ data: JSON.stringify(data) });
+        let produced = 0;
+        try {
+            for await (const img of streamImages(p, aspect, want, style ?? "photo")) {
+                if (!img) {
+                    await send({ type: "fail" });
+                    continue;
+                }
+                const id = crypto.randomUUID();
+                const meta: AssetMeta = { prompt: p };
+                await db.insert(schema.assets).values({
+                    id,
+                    workspaceId: ws.id,
+                    kind: "image",
+                    source: "generated",
+                    url: assetUrl(id),
+                    width: img.width,
+                    height: img.height,
+                    bytes: Buffer.from(img.dataBase64, "base64").length,
+                    alt: p.slice(0, 160),
+                    meta,
+                    data: img.dataBase64,
+                    mime: img.mime,
+                });
+                produced++;
+                const item: MediaItem = {
+                    id,
+                    source: "generated",
+                    url: assetUrl(id),
+                    thumbUrl: assetUrl(id),
+                    width: img.width,
+                    height: img.height,
+                    alt: p.slice(0, 160),
+                    prompt: p,
+                };
+                await send({ type: "image", item });
+            }
+        } finally {
+            // Reconcile the reserve down to what was actually produced (refund the shortfall), then close.
+            const finalUsed = produced
+                ? ws.aiCreditsUsed + estimateCost("generate-image", { variations: produced })
+                : ws.aiCreditsUsed;
+            if (finalUsed !== ws.aiCreditsUsed + reserve)
+                await db
+                    .update(schema.workspaces)
+                    .set({ aiCreditsUsed: finalUsed })
+                    .where(eq(schema.workspaces.id, ws.id));
+            await send({ type: "done", produced });
+        }
+    });
 });
 
 // POST /media/upload { data(base64), mime, name, width, height } — store a user file.

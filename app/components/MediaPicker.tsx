@@ -13,7 +13,7 @@ import {
 import type { IconItem, MediaGenStyle, MediaItem, MediaKind, MediaProvider } from "@model/media";
 import { MEDIA_ASPECTS, MEDIA_GEN_STYLES } from "@model/media";
 import { editorTokens } from "@editor/editor";
-import { api, type MediaProvidersState } from "../api";
+import { api, streamGenerateMedia, type MediaProvidersState } from "../api";
 import { closeMediaPicker, mediaRequest, pickMedia, pickMediaIcon } from "../media";
 import { overlayThemeVars } from "../theme";
 import { CloseIcon, SparkleIcon } from "@ui/icons";
@@ -176,6 +176,8 @@ export const MediaPicker: Component = () => {
     const [prompt, setPrompt] = createSignal("");
     const [aspect, setAspect] = createSignal("16:9");
     const [genStyle, setGenStyle] = createSignal<MediaGenStyle>("photo");
+    // how many image placeholders are still rendering (shimmer tiles shown while their variation generates)
+    const [generating, setGenerating] = createSignal(0);
     // which media kind the picker was opened for — drives the title, rail sources, search filter + AI style
     const [kind, setKind] = createSignal<MediaKind>("photo");
     // icon mode (Iconify): its own result list + search, separate from the url-based media grid
@@ -203,6 +205,7 @@ export const MediaPicker: Component = () => {
             setIconItems([]);
             setHasMore(false);
             setPage(1);
+            setGenerating(0);
             api.mediaProviders()
                 .then(setProviders)
                 .catch(() => {});
@@ -299,20 +302,30 @@ export const MediaPicker: Component = () => {
 
     async function generate(): Promise<void> {
         if (!prompt().trim()) return;
+        const want = 4;
         setLoading(true);
         setError("");
         setItems([]);
+        setGenerating(want); // drop `want` shimmer placeholders into the grid right away
         try {
-            const res = await api.generateMedia({
-                prompt: prompt().trim(),
-                aspect: aspect(),
-                n: 4,
-                style: genStyle(),
-            });
-            setItems(res.items);
+            await streamGenerateMedia(
+                { prompt: prompt().trim(), aspect: aspect(), n: want, style: genStyle() },
+                (e) => {
+                    if (e.type === "image" && e.item) {
+                        const item = e.item;
+                        setItems((prev) => [...prev, item]); // real image lands…
+                        setGenerating((g) => Math.max(0, g - 1)); // …and one placeholder retires
+                    } else if (e.type === "fail") {
+                        setGenerating((g) => Math.max(0, g - 1)); // a variation failed — drop its placeholder
+                    } else if (e.type === "done") {
+                        setGenerating(0);
+                    }
+                },
+            );
         } catch (e) {
             setError(e instanceof Error ? e.message : "Generation failed");
         }
+        setGenerating(0);
         setLoading(false);
     }
 
@@ -396,7 +409,7 @@ export const MediaPicker: Component = () => {
 
     const grid = (): JSX.Element => (
         <Show
-            when={items().length > 0}
+            when={items().length > 0 || generating() > 0}
             fallback={
                 <div class="grid h-full place-items-center text-[13px] text-muted">
                     <Show when={loading()} fallback={emptyHint()}>
@@ -415,6 +428,7 @@ export const MediaPicker: Component = () => {
                     {(it) => (
                         <button
                             class="group relative mb-2 block w-full overflow-hidden rounded-lg border border-line/70 hover:border-accent"
+                            classList={{ "mp-pop": it.source === "generated" }}
                             onClick={() => pick(it)}
                         >
                             <img
@@ -432,6 +446,20 @@ export const MediaPicker: Component = () => {
                                 </span>
                             </Show>
                         </button>
+                    )}
+                </For>
+                {/* Live placeholders: one shimmer tile per still-generating variation, sized to the chosen
+                    aspect so real images swap in without a layout jump. */}
+                <For each={Array.from({ length: generating() })}>
+                    {() => (
+                        <div
+                            class="mp-shimmer mb-2 grid w-full place-items-center overflow-hidden rounded-lg border border-line/70"
+                            style={{ "aspect-ratio": aspect().replace(":", " / ") }}
+                        >
+                            <span class="text-muted opacity-40">
+                                <SparkleIcon size={18} />
+                            </span>
+                        </div>
                     )}
                 </For>
             </div>

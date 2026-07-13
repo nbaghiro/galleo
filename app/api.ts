@@ -243,11 +243,6 @@ export const api = {
             `/media/search?provider=${provider}&q=${encodeURIComponent(q)}&page=${page}&kind=${kind}` +
                 (orientation ? `&orientation=${orientation}` : ""),
         ),
-    generateMedia: (body: MediaGenerateRequest) =>
-        req<{ items: MediaItem[] }>("/media/generate", {
-            method: "POST",
-            body: JSON.stringify(body),
-        }),
     uploadMedia: (body: MediaUploadRequest) =>
         req<{ item: MediaItem }>("/media/upload", { method: "POST", body: JSON.stringify(body) }),
     useMedia: (item: MediaItem) =>
@@ -397,6 +392,63 @@ export async function streamTurn(
                 try {
                     const logged = JSON.parse(json) as { seq: number; event: TurnEvent };
                     onEvent(logged.event);
+                } catch {
+                    // skip a malformed frame
+                }
+            }
+        }
+    }
+}
+
+// One event from the streamed image generator (POST /media/generate).
+export interface MediaGenEvent {
+    type: "image" | "fail" | "done";
+    item?: MediaItem; // present on "image"
+    produced?: number; // present on "done" — how many images were made
+}
+
+// Generate images and deliver each to `onEvent` the moment it streams in over SSE — so the picker shows
+// placeholders immediately and swaps in each image as it's ready. Throws ApiError on a pre-stream failure
+// (e.g. 402 out of credits) before any placeholder resolves.
+export async function streamGenerateMedia(
+    body: MediaGenerateRequest,
+    onEvent: (event: MediaGenEvent) => void,
+    signal?: AbortSignal,
+): Promise<void> {
+    const res = await fetch("/api/media/generate", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal,
+    });
+    if (!res.ok || !res.body) {
+        const text = await res.text().catch(() => "");
+        let msg = res.statusText;
+        try {
+            msg = (JSON.parse(text) as { error?: string }).error ?? msg;
+        } catch {
+            // non-JSON error body — keep the status text
+        }
+        throw new ApiError(res.status, msg);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let sep: number;
+        while ((sep = buf.indexOf("\n\n")) >= 0) {
+            const frame = buf.slice(0, sep);
+            buf = buf.slice(sep + 2);
+            for (const line of frame.split("\n")) {
+                if (!line.startsWith("data:")) continue;
+                const json = line.slice(5).trim();
+                if (!json) continue;
+                try {
+                    onEvent(JSON.parse(json) as MediaGenEvent);
                 } catch {
                     // skip a malformed frame
                 }

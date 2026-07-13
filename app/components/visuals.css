@@ -297,3 +297,39 @@
 .no-scrollbar::-webkit-scrollbar {
     display: none;
 }
+
+/* MediaPicker AI-image placeholders: a themed accent shimmer that sweeps while a variation renders, and a
+   soft pop-in for each real image as it streams in to take a placeholder's place. Colours read from the
+   active theme's CSS vars (the picker overlay forwards them), so it recolours with the artifact. */
+@keyframes mp-shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+.mp-shimmer {
+    background-color: color-mix(in oklab, var(--color-line) 45%, transparent);
+    background-image: linear-gradient(
+        105deg,
+        transparent 38%,
+        color-mix(in oklab, var(--color-accent) 30%, transparent) 50%,
+        transparent 62%
+    );
+    background-size: 220% 100%;
+    animation: mp-shimmer 1.4s linear infinite;
+}
+@keyframes mp-pop {
+    0% {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+.mp-pop {
+    animation: mp-pop 0.32s ease-out both;
+}
