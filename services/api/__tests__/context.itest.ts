@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { authed, seedUser } from "../../test/harness";
+import { authed, seedUser } from "../../__tests__/harness";
 import { db, schema } from "../../schema";
 
 // Integration: the lazy monthly-credit-window rollover in currentWorkspace() (services/api/context.ts).

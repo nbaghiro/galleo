@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { authed, jsonInit, request, seedUser } from "../../test/harness";
+import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
 import { db, schema } from "../../schema";
 
 // Integration: the artifact + trash routes against a real Postgres. Real auth, real SQL, real plan gates.

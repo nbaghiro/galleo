@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SESSION_COOKIE } from "../../auth";
-import { authed, jsonInit, request, seedUser } from "../../test/harness";
+import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
 
 // Integration: the auth entry point against a real Postgres. Real password hashing, real session cookie,
 // real SQL — nothing faked.

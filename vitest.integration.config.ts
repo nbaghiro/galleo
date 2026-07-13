@@ -22,8 +22,8 @@ export default defineConfig({
     test: {
         environment: "node",
         include: ["**/*.itest.ts"],
-        globalSetup: ["services/test/global-setup.ts"],
-        setupFiles: ["services/test/setup.ts"],
+        globalSetup: ["services/__tests__/global-setup.ts"],
+        setupFiles: ["services/__tests__/setup.ts"],
         fileParallelism: false, // one shared DB — serialize files so truncation can't race
         env: {
             DATABASE_URL: "postgres://galleo:galleo@localhost:8602/galleo_test",

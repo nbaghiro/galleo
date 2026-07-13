@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { authed, jsonInit, request, seedUser } from "../../test/harness";
+import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
 import { db, schema } from "../../schema";
 
 // Integration: the AI routes with the model provider UNCONFIGURED (no ANTHROPIC/OPENAI/GOOGLE/XAI key) —

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { authed, jsonInit, request, seedUser } from "../../test/harness";
+import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
 import { db, schema } from "../../schema";
 
 // Integration: the public sharing routes. Publishing is a paid feature (free plan can't), so most tests
