@@ -2,6 +2,7 @@ import { ToolLoopAgent, stepCountIs, tool } from "ai";
 import type { ModelMessage, ToolSet } from "ai";
 import { z } from "zod";
 import type { ChatBlock, ChatInput, TurnEvent } from "@model/ai";
+import { estimateUsage } from "@model/tools";
 import type { ElementInstance, Section } from "@model/artifact";
 import { resolveModel } from "./provider";
 import { defaultModelFor } from "./models";
@@ -119,6 +120,11 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
                     }
                     const block = present(step.value, input);
                     if (block) ch.push({ type: "chat.block", blockId: toolCallId, block });
+                    // Bill the real work this sub-tool did (add/rewrite/edit-section run model calls); free
+                    // tools (find/read/manage/suggest) declare no usage, so this no-ops for them. The route
+                    // reconciles the turn's charge from the sum — the flat reply reserve alone under-bills.
+                    const usage = estimateUsage(t.id);
+                    if (Object.keys(usage).length) opts.onUsage?.(usage);
                     return note(step.value, input);
                 } catch (e) {
                     ch.push({

@@ -6,6 +6,8 @@ import type { TurnEvent, TurnRequest, TurnKind } from "@model/ai";
 import { isKind } from "@model/ai";
 import type { ToolId, MeterParams } from "@model/tools";
 import { estimateCost } from "@model/tools";
+import type { Usage } from "@model/credits";
+import { costOf, mergeUsage } from "@model/credits";
 import { limitsFor } from "@model/billing";
 import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
@@ -76,6 +78,16 @@ ai.post("/ai/turn", async (c) => {
         .set({ aiCreditsUsed: ws.aiCreditsUsed + cost })
         .where(eq(schema.workspaces.id, ws.id));
 
+    // A chat turn is agentic: the flat `ask-assistant` reserve covers the reply, but the content sub-tools it
+    // may chain (add / rewrite / edit-section) each run a real model call. They report their usage as they go
+    // (RunOpts.onUsage); after the turn we bill that on top of the reserve, so "add two sections and rewrite
+    // the intro" charges for the three generations it actually did, not one flat reply. Non-chat kinds never
+    // call onUsage, so `extra` stays empty and the reserve is the whole charge.
+    let extra: Usage = {};
+    const onUsage = (u: Usage): void => {
+        extra = mergeUsage(extra, u);
+    };
+
     const ctrl = new AbortController();
     return streamSSE(c, async (stream) => {
         stream.onAbort(() => ctrl.abort()); // client navigated away / canceled → stop the run
@@ -84,13 +96,22 @@ ai.post("/ai/turn", async (c) => {
             stream.writeSSE({ data: JSON.stringify({ seq: seq++, event }) });
         try {
             const workspace = makeWorkspaceReader(ws.id);
-            for await (const ev of runTurn(req, { signal: ctrl.signal, workspace })) await send(ev);
+            for await (const ev of runTurn(req, { signal: ctrl.signal, workspace, onUsage }))
+                await send(ev);
         } catch (e) {
             if (!ctrl.signal.aborted)
                 await send({
                     type: "error",
                     message: e instanceof Error ? e.message : "the turn failed",
                 });
+        } finally {
+            // Reconcile: charge the sub-tool work that actually ran on top of the up-front reserve. Runs even
+            // on a mid-turn error so completed sub-tools are still billed (the model spend already happened).
+            if (Object.keys(extra).length)
+                await db
+                    .update(schema.workspaces)
+                    .set({ aiCreditsUsed: ws.aiCreditsUsed + cost + costOf(extra) })
+                    .where(eq(schema.workspaces.id, ws.id));
         }
     });
 });

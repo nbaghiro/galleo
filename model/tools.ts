@@ -111,8 +111,8 @@ export function sectionsForLength(length?: string): number {
 export const TOOL_CATALOG: Record<ToolId, ToolMeta> = {
     // composites
     "generate-artifact": meta("generate-artifact", "Generate artifact", "Build a whole deck, doc, or site from a brief", "composite", AGENT_DIRECT, { category: "create", live: true, usage: { plan: 1, section: 12, image: 3 }, meter: (m) => { const n = m.sections ?? sectionsForLength(m.length); return { plan: 1, section: n, image: m.images ?? Math.ceil(n / 4) }; } }), // prettier-ignore
-    "revise-artifact": meta("revise-artifact", "Revise artifact", "Revise the whole piece per an instruction", "composite", AGENT_DIRECT, { category: "edit", live: true, usage: { section: 10 }, meter: (m) => ({ section: Math.max(3, m.sections ?? 10) }) }), // prettier-ignore
-    "add-section": meta("add-section", "Add section", "Generate a new section and propose inserting it", "composite", AGENT_DIRECT, { category: "create", usage: { section: 1 } }), // prettier-ignore
+    "revise-artifact": meta("revise-artifact", "Revise artifact", "Revise the whole piece per an instruction", "composite", AGENT_DIRECT, { category: "edit", usage: { section: 10 }, meter: (m) => ({ section: Math.max(3, m.sections ?? 10) }) }), // prettier-ignore
+    "add-section": meta("add-section", "Add section", "Generate a new section and propose inserting it", "composite", AGENT_DIRECT, { category: "create", live: true, usage: { section: 1 } }), // prettier-ignore
     "rewrite-section": meta("rewrite-section", "Rewrite section", "Rewrite one existing section in place", "composite", AGENT_DIRECT, { category: "edit", live: true, usage: { section: 1 } }), // prettier-ignore
     "edit-artifact": meta("edit-artifact", "Edit artifact", "Edit a section of another library artifact in place", "composite", ["agent", "direct"], { category: "edit", live: true, usage: { section: 1 } }), // prettier-ignore
     "reorder-section": meta("reorder-section", "Reorder section", "Move a section to a new position", "action", ["agent", "direct"]), // prettier-ignore
@@ -124,7 +124,7 @@ export const TOOL_CATALOG: Record<ToolId, ToolMeta> = {
     // atomic user-actions
     "rewrite-text": meta("rewrite-text", "Rewrite text", "Rewrite one text run per an instruction", "action", AGENT_DIRECT, { category: "text", live: true, usage: { text: 1 } }), // prettier-ignore
     "translate-text": meta("translate-text", "Translate text", "Translate one text run", "action", AGENT_DIRECT, { category: "text", live: true, usage: { text: 1 } }), // prettier-ignore
-    "translate-artifact": meta("translate-artifact", "Translate artifact", "Translate the whole piece", "action", AGENT_DIRECT, { category: "text", live: true, usage: { text: 12 }, meter: (m) => ({ text: Math.max(1, m.textRuns ?? 12) }) }), // prettier-ignore
+    "translate-artifact": meta("translate-artifact", "Translate artifact", "Translate the whole piece", "action", AGENT_DIRECT, { category: "text", usage: { text: 12 }, meter: (m) => ({ text: Math.max(1, m.textRuns ?? 12) }) }), // prettier-ignore
     "suggest-title": meta("suggest-title", "Suggest title", "Propose a title for the artifact", "action", AGENT_DIRECT, { category: "assist", usage: { text: 1 } }), // prettier-ignore
     "generate-theme": meta("generate-theme", "Generate theme", "Create a theme from a prompt", "action", AGENT_DIRECT, { category: "theme", live: true, usage: { theme: 1 } }), // prettier-ignore
     "generate-image": meta("generate-image", "Generate image", "Create an image with AI", "action", AGENT_DIRECT, { category: "media", live: true, usage: { image: 1 }, meter: (m) => ({ image: Math.max(1, m.variations ?? 1) }) }), // prettier-ignore
@@ -162,8 +162,13 @@ export function toolsFor(surface: ToolSurface): ToolId[] {
     );
 }
 
-// The priced, user-facing tools — the "what your credits buy" showcase reads this (in catalog order).
-export const PRICED_TOOLS: ToolMeta[] = Object.values(TOOL_CATALOG).filter((t) => t.usage);
+// The priced, user-facing tools — the "what your credits buy" showcase reads this (in catalog order). Only
+// tools that are BOTH priced (`usage`) and actually shipped (`live`) belong here — never advertise a price
+// for a capability a user can't yet invoke. Planned-but-unbuilt tools stay in the catalog (with their pricing
+// ready) but drop off the showcase until they go live.
+export const PRICED_TOOLS: ToolMeta[] = Object.values(TOOL_CATALOG).filter(
+    (t) => t.usage && t.live,
+);
 
 // ---- pricing (the credit math, keyed by ToolId — replaces the old AI-actions pricing) ----
 

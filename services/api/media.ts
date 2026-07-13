@@ -10,9 +10,11 @@ import type {
     MediaProvider,
     MediaSource,
 } from "@model/media";
+import { estimateCost } from "@model/tools";
+import { limitsFor } from "@model/billing";
 import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
-import { currentUser, firstWorkspaceId, readJson } from "./context";
+import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
 import { fireDownloadTrigger, searchStock, stockReady } from "../media/providers";
 import { generateImages, imageGenReady } from "../media/generate";
 import { getIcon, searchIcons } from "../media/icons";
@@ -112,9 +114,13 @@ media.get("/media/icon", async (c) => {
 });
 
 // POST /media/generate { prompt, aspect, n } — AI images, stored as assets, returned as MediaItems.
+// Metered as `generate-image` (per image): reserve the requested count up front (402 when spent), then
+// reconcile down to the number that actually came back, so failed variations are never charged.
 media.post("/media/generate", async (c) => {
-    const ws = await requireWs(c);
-    if (typeof ws !== "string") return ws;
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await currentWorkspace(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
     if (!imageGenReady()) return c.json({ error: "image generation not configured" }, 503);
     const { prompt, aspect, n, style } = await readJson<{
         prompt?: string;
@@ -123,12 +129,44 @@ media.post("/media/generate", async (c) => {
         style?: MediaGenStyle;
     }>(c);
     if (!prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
+
+    const want = Math.max(1, Math.min(4, n ?? 4));
+    const reserve = estimateCost("generate-image", { variations: want });
+    const limit = limitsFor(ws.plan).aiCreditsPerMonth;
+    if (ws.aiCreditsUsed + reserve > limit)
+        return c.json(
+            {
+                error: "out of AI credits",
+                upgrade: true,
+                remaining: Math.max(0, limit - ws.aiCreditsUsed),
+            },
+            402,
+        );
+    await db
+        .update(schema.workspaces)
+        .set({ aiCreditsUsed: ws.aiCreditsUsed + reserve })
+        .where(eq(schema.workspaces.id, ws.id));
+
     let images;
     try {
-        images = await generateImages(prompt.trim(), aspect, n ?? 4, style ?? "photo");
+        images = await generateImages(prompt.trim(), aspect, want, style ?? "photo");
     } catch (e) {
+        // Refund the whole reserve — nothing was produced.
+        await db
+            .update(schema.workspaces)
+            .set({ aiCreditsUsed: ws.aiCreditsUsed })
+            .where(eq(schema.workspaces.id, ws.id));
         return c.json({ error: e instanceof Error ? e.message : "generation failed" }, 502);
     }
+    // Charge for what actually came back (0 → full refund via the 502 below).
+    const actual = images.length
+        ? ws.aiCreditsUsed + estimateCost("generate-image", { variations: images.length })
+        : ws.aiCreditsUsed;
+    if (actual !== ws.aiCreditsUsed + reserve)
+        await db
+            .update(schema.workspaces)
+            .set({ aiCreditsUsed: actual })
+            .where(eq(schema.workspaces.id, ws.id));
     if (images.length === 0) return c.json({ error: "the model returned no image" }, 502);
     const items: MediaItem[] = [];
     for (const img of images) {
@@ -136,7 +174,7 @@ media.post("/media/generate", async (c) => {
         const meta: AssetMeta = { prompt: prompt.trim() };
         await db.insert(schema.assets).values({
             id,
-            workspaceId: ws,
+            workspaceId: ws.id,
             kind: "image",
             source: "generated",
             url: assetUrl(id),

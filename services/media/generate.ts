@@ -22,8 +22,10 @@ const STYLE_PREFIX: Record<MediaGenStyle, string> = {
     watercolor: "Loose watercolor painting, soft washes, textured paper, of ",
 };
 
-// Default to the current native image model; override with GEMINI_IMAGE_MODEL if Google moves it again.
-const MODEL = (): string => process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
+// Default to Google's latest flash-tier native image model (the "Nano Banana" line — fast + cheap, right for
+// generating up to 4 variations at once). Override with GEMINI_IMAGE_MODEL — e.g. set it to
+// `gemini-3-pro-image` (Nano Banana Pro) for maximum quality at higher latency, or if Google moves the id.
+const MODEL = (): string => process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image";
 
 export function imageGenReady(): boolean {
     return !!process.env.GOOGLE_API_KEY;
