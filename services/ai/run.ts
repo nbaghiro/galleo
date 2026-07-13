@@ -10,7 +10,7 @@ import type {
 import type { ArtifactContent, Section, ElementInstance } from "@model/artifact";
 import type { MediaProvider } from "@model/media";
 import { generateObject, generateText } from "ai";
-import { resolveModel } from "./provider";
+import { resolveModel, thinklessOpts } from "./provider";
 import { defaultModelFor } from "./models";
 import {
     editSectionParts,
@@ -39,11 +39,6 @@ import type { PromptParts } from "./prompts/system";
 // is live — a two-phase outline→section flow (prompts in services/ai/prompts); edit/section/chat are the
 // next capabilities to fill in behind the same seam. Same protocol as the simulator, so the client is one
 // path whether the events come from a fixture or the model.
-
-// Gemini 2.5 runs extended "thinking" by default, which dominates latency for these creative-writing calls
-// with little quality gain. Disable it (thinkingBudget 0) so generation is snappy — especially the outline,
-// the first thing the user waits on. Ignored by non-Google providers, so this stays provider-agnostic.
-const GEN_PROVIDER_OPTS = { google: { thinkingConfig: { thinkingBudget: 0 } } };
 
 const clip = (s: string, n: number): string =>
     s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s;
@@ -269,7 +264,7 @@ export async function* runGenerate(
         system: op.system,
         prompt: op.prompt,
         abortSignal: signal,
-        providerOptions: GEN_PROVIDER_OPTS,
+        providerOptions: thinklessOpts(opts.model ?? defaultModelFor("outline")),
         // The outline is where structure is decided; run it warm so section count + arc genuinely vary
         // brief-to-brief (the schema + rubric keep it valid). Section writing stays cooler for accuracy.
         temperature: 0.9,
@@ -376,7 +371,7 @@ async function* runSection(input: SectionInput, opts: RunOpts = {}): AsyncGenera
         system: pp.system,
         prompt: pp.prompt,
         abortSignal: signal,
-        providerOptions: GEN_PROVIDER_OPTS,
+        providerOptions: thinklessOpts(defaultModelFor("outline")),
         temperature: 0.9,
     });
     const beat: Beat = { ...(plan as SectionPlan), id };
@@ -429,7 +424,7 @@ async function writeSectionFrom(
             system: parts.system,
             prompt: parts.prompt + note,
             abortSignal: signal,
-            providerOptions: GEN_PROVIDER_OPTS,
+            providerOptions: thinklessOpts(modelId),
         });
         const parsed = zSection.safeParse(extractJson(text));
         if (!parsed.success) {
@@ -507,7 +502,7 @@ export async function chatAddSection(
         system: pp.system,
         prompt: pp.prompt,
         abortSignal: opts.signal,
-        providerOptions: GEN_PROVIDER_OPTS,
+        providerOptions: thinklessOpts(defaultModelFor("outline")),
         temperature: 0.9,
     });
     const beat: Beat = { ...(object as SectionPlan), id };
@@ -545,7 +540,7 @@ export async function reviseElement(
             system: parts.system,
             prompt: parts.prompt + note,
             abortSignal: opts.signal,
-            providerOptions: GEN_PROVIDER_OPTS,
+            providerOptions: thinklessOpts(defaultModelFor("section")),
         });
         const parsed = zElement.safeParse(extractJson(text));
         if (!parsed.success) {

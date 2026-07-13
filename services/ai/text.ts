@@ -1,5 +1,5 @@
 import { generateText } from "ai";
-import { resolveModel } from "./provider";
+import { resolveModel, thinklessOpts } from "./provider";
 import { defaultModelFor } from "./models";
 import { rewriteTextParts, translateTextParts } from "./prompts/text";
 
@@ -8,10 +8,6 @@ import { rewriteTextParts, translateTextParts } from "./prompts/text";
 // .translate = Gemini Flash, thinking off) via plain generateText — no JSON envelope, no retries, minimal
 // latency. The editor splices the returned string back into the selection; the chat/MCP surfaces call the
 // same functions through the rewrite-text / translate-text tools.
-
-// Flash runs "thinking" by default, which only adds latency to a one-line rewrite — disable it so the round
-// trip is as short as possible. Ignored by non-Google providers, so this stays provider-agnostic.
-const FAST_OPTS = { google: { thinkingConfig: { thinkingBudget: 0 } } };
 
 export interface TextOpts {
     context?: string; // the full surrounding text, when only a sub-range is being edited
@@ -44,7 +40,7 @@ export async function rewriteText(
         model: resolveModel(defaultModelFor("rewrite")),
         system: parts.system,
         prompt: parts.prompt,
-        providerOptions: FAST_OPTS,
+        providerOptions: thinklessOpts(defaultModelFor("rewrite")),
         abortSignal: opts.signal,
     });
     return clean(out, text);
@@ -60,7 +56,7 @@ export async function translateText(
         model: resolveModel(defaultModelFor("translate")),
         system: parts.system,
         prompt: parts.prompt,
-        providerOptions: FAST_OPTS,
+        providerOptions: thinklessOpts(defaultModelFor("translate")),
         abortSignal: opts.signal,
     });
     return clean(out, text);

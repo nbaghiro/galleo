@@ -1,7 +1,7 @@
 import { writeFileSync } from "fs";
 import { generateObject } from "ai";
 import type { ZodType } from "zod";
-import { resolveModel } from "../provider";
+import { resolveModel, thinklessOpts } from "../provider";
 
 // Shared eval machinery — CLI parsing, concurrency, math, the LLM-judge call, and the markdown report writer.
 // Both eval modes (agent routing + generation quality) build on this so neither re-implements the plumbing.
@@ -60,7 +60,7 @@ export async function judge<T>(
         schema: spec.schema,
         system: spec.system,
         prompt: spec.prompt,
-        providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
+        providerOptions: thinklessOpts(model),
     });
     return object as T;
 }

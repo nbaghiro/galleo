@@ -72,21 +72,38 @@ export function resolveModel(id: string): LanguageModel {
         case "cohere":
             // The dedicated @ai-sdk/cohere doesn't line up with this `ai` core version, so use Cohere's own
             // OpenAI-compatible endpoint via the openai-compatible provider (same path as HuggingFace).
+            // `supportsStructuredOutputs` makes `generateObject` request a JSON *schema* (native structured
+            // output) rather than the bare `json_object` mode — the latter makes Cohere reject the call
+            // ("'messages' must contain the word 'json'"), which broke every outline/theme call.
             cohere ??= createOpenAICompatible({
                 name: "cohere",
                 baseURL: "https://api.cohere.ai/compatibility/v1",
                 apiKey: requireKey("cohere"),
             });
-            return cohere(info.model);
+            return cohere.languageModel(info.model, { supportsStructuredOutputs: true });
         case "huggingface":
             // HuggingFace exposes an OpenAI-compatible router — model = the HF repo id, which the router
             // dispatches to a serving provider. Reuses the openai-compatible provider, so tool-calling works
-            // when the underlying model supports it.
+            // when the underlying model supports it. Structured output goes through the JSON-schema path (see
+            // the Cohere note) so `generateObject` isn't rejected for lacking the literal word "json".
             huggingface ??= createOpenAICompatible({
                 name: "huggingface",
                 baseURL: "https://router.huggingface.co/v1",
                 apiKey: requireKey("huggingface"),
             });
-            return huggingface(info.model);
+            return huggingface.languageModel(info.model, { supportsStructuredOutputs: true });
     }
+}
+
+// Generation provider options for a given model. Disabling thinking (Gemini `thinkingBudget: 0`) keeps
+// generation snappy with little quality loss — but ONLY the Flash tier accepts a 0 budget; the Pro models
+// reject it outright ("Budget 0 is invalid. This model only works in thinking mode."), so they run with
+// their default thinking. Non-Google providers ignore Google-specific options, so they get no override.
+// Every generation call routes through this instead of a hardcoded constant, so any model can be selected.
+export function thinklessOpts(id: string) {
+    const info = getModel(id);
+    if (info?.provider === "google" && !/pro/i.test(info.model)) {
+        return { google: { thinkingConfig: { thinkingBudget: 0 } } };
+    }
+    return undefined; // no override — other providers ignore Google opts; Pro models require thinking
 }
