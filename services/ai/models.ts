@@ -3,7 +3,7 @@
 // choice (mirrors flowmaestro's `llm-models.ts`); routes and the prompt system reference tasks, not raw
 // model ids, so re-tuning which model does what is a one-line change here.
 
-export type Provider = "anthropic" | "openai" | "google" | "xai" | "cohere" | "huggingface";
+export type Provider = "anthropic" | "openai" | "google" | "xai";
 
 // Every capability the module offers. `generate` is the heavy one (a whole artifact); `rewrite`/`translate`
 // are high-volume and latency-sensitive, so they default to a fast model.
@@ -127,35 +127,6 @@ export const MODELS: readonly ModelInfo[] = [
         contextWindow: 256_000,
         json: true,
         vision: true,
-    },
-    // Cohere
-    {
-        id: "cohere:command-a",
-        provider: "cohere",
-        model: "command-a-03-2025",
-        label: "Cohere Command A",
-        contextWindow: 256_000,
-        json: true,
-        vision: false,
-    },
-    // HuggingFace — via its OpenAI-compatible router (model = the HF repo id; router picks a serving provider)
-    {
-        id: "huggingface:llama-3.3-70b",
-        provider: "huggingface",
-        model: "meta-llama/Llama-3.3-70B-Instruct",
-        label: "Llama 3.3 70B (HF)",
-        contextWindow: 128_000,
-        json: true,
-        vision: false,
-    },
-    {
-        id: "huggingface:qwen-2.5-72b",
-        provider: "huggingface",
-        model: "Qwen/Qwen2.5-72B-Instruct",
-        label: "Qwen2.5 72B (HF)",
-        contextWindow: 32_000,
-        json: true,
-        vision: false,
     },
 ] as const;
 

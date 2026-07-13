@@ -2,7 +2,6 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createXai } from "@ai-sdk/xai";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel } from "ai";
 import type { Provider } from "./models";
 import { getModel } from "./models";
@@ -18,8 +17,6 @@ const ENV_KEY: Record<Provider, string> = {
     openai: "OPENAI_API_KEY",
     google: "GOOGLE_API_KEY",
     xai: "XAI_API_KEY",
-    cohere: "COHERE_API_KEY",
-    huggingface: "HUGGINGFACE_API_KEY",
 };
 
 function keyFor(provider: Provider): string | undefined {
@@ -48,8 +45,6 @@ let anthropic: ReturnType<typeof createAnthropic> | undefined;
 let openai: ReturnType<typeof createOpenAI> | undefined;
 let google: ReturnType<typeof createGoogleGenerativeAI> | undefined;
 let xai: ReturnType<typeof createXai> | undefined;
-let cohere: ReturnType<typeof createOpenAICompatible> | undefined;
-let huggingface: ReturnType<typeof createOpenAICompatible> | undefined;
 
 // Resolve a registry id (e.g. "anthropic:claude-sonnet-5") to a ready-to-use LanguageModel. Throws on an
 // unknown id or a missing key — callers gate on `aiReady()` / `providerReady()` first.
@@ -69,29 +64,6 @@ export function resolveModel(id: string): LanguageModel {
         case "xai":
             xai ??= createXai({ apiKey: requireKey("xai") });
             return xai(info.model);
-        case "cohere":
-            // The dedicated @ai-sdk/cohere doesn't line up with this `ai` core version, so use Cohere's own
-            // OpenAI-compatible endpoint via the openai-compatible provider (same path as HuggingFace).
-            // `supportsStructuredOutputs` makes `generateObject` request a JSON *schema* (native structured
-            // output) rather than the bare `json_object` mode — the latter makes Cohere reject the call
-            // ("'messages' must contain the word 'json'"), which broke every outline/theme call.
-            cohere ??= createOpenAICompatible({
-                name: "cohere",
-                baseURL: "https://api.cohere.ai/compatibility/v1",
-                apiKey: requireKey("cohere"),
-            });
-            return cohere.languageModel(info.model, { supportsStructuredOutputs: true });
-        case "huggingface":
-            // HuggingFace exposes an OpenAI-compatible router — model = the HF repo id, which the router
-            // dispatches to a serving provider. Reuses the openai-compatible provider, so tool-calling works
-            // when the underlying model supports it. Structured output goes through the JSON-schema path (see
-            // the Cohere note) so `generateObject` isn't rejected for lacking the literal word "json".
-            huggingface ??= createOpenAICompatible({
-                name: "huggingface",
-                baseURL: "https://router.huggingface.co/v1",
-                apiKey: requireKey("huggingface"),
-            });
-            return huggingface.languageModel(info.model, { supportsStructuredOutputs: true });
     }
 }
 
