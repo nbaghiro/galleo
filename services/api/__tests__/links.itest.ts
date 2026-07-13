@@ -190,3 +190,228 @@ describe("public read — GET /p/:slug/content access policy", () => {
         expect(freeBody.branded).toBe(true);
     });
 });
+
+describe("link management — list / get / update / recipients / unpublish", () => {
+    async function publish(body: Record<string, unknown> = {}): Promise<{
+        userId: string;
+        workspaceId: string;
+        artifactId: string;
+        slug: string;
+        linkId: string;
+    }> {
+        const { userId, workspaceId } = await seedUser({ plan: "pro" });
+        const artifactId = await insertArtifact(workspaceId);
+        const res = await authed(
+            userId,
+            `/artifacts/${artifactId}/publish`,
+            jsonInit("POST", body),
+        );
+        expect(res.status).toBe(200);
+        const { slug } = (await res.json()) as { slug: string };
+        const [link] = await db
+            .select({ id: schema.links.id })
+            .from(schema.links)
+            .where(eq(schema.links.artifactId, artifactId));
+        return { userId, workspaceId, artifactId, slug, linkId: link!.id };
+    }
+
+    it("GET /links lists the workspace's published links with recipient counts", async () => {
+        const { userId, workspaceId, linkId } = await publish({ visibility: "public" });
+        const a2 = await insertArtifact(workspaceId);
+        await authed(
+            userId,
+            `/artifacts/${a2}/publish`,
+            jsonInit("POST", { visibility: "public" }),
+        );
+        // a recipient that has already opened the link → openedCount 1
+        await db.insert(schema.linkRecipients).values({
+            linkId,
+            email: "seen@example.com",
+            token: "tok-open",
+            lastViewedAt: new Date(),
+        });
+
+        const res = await authed(userId, "/links");
+        expect(res.status).toBe(200);
+        const { links } = (await res.json()) as {
+            links: { id: string; url: string; recipientCount: number; openedCount: number }[];
+        };
+        expect(links).toHaveLength(2);
+        const first = links.find((l) => l.id === linkId)!;
+        expect(first.recipientCount).toBe(1);
+        expect(first.openedCount).toBe(1);
+        expect(first.url).toContain("/p/");
+    });
+
+    it("GET /links excludes trashed artifacts' links", async () => {
+        const { userId, artifactId } = await publish({ visibility: "public" });
+        await db
+            .update(schema.artifacts)
+            .set({ trashedAt: new Date() })
+            .where(eq(schema.artifacts.id, artifactId));
+        const { links } = (await (await authed(userId, "/links")).json()) as { links: unknown[] };
+        expect(links).toHaveLength(0);
+    });
+
+    it("GET /links/:artifactId returns the link + recipients; null for a foreign artifact", async () => {
+        const { userId, artifactId, linkId } = await publish({
+            visibility: "protected",
+            password: "pw-secret",
+        });
+        await db
+            .insert(schema.linkRecipients)
+            .values({ linkId, email: "r@example.com", token: "tok-r" });
+
+        const res = await authed(userId, `/links/${artifactId}`);
+        expect(res.status).toBe(200);
+        const { link } = (await res.json()) as {
+            link: { hasPassword: boolean; recipients: { email: string }[] } | null;
+        };
+        expect(link!.hasPassword).toBe(true);
+        expect(link!.recipients.map((r) => r.email)).toContain("r@example.com");
+
+        const stranger = await seedUser({ plan: "pro" });
+        const foreign = (await (await authed(stranger.userId, `/links/${artifactId}`)).json()) as {
+            link: null;
+        };
+        expect(foreign.link).toBeNull();
+    });
+
+    it("PATCH /links/:id switches visibility and manages the password", async () => {
+        const { userId, linkId } = await publish({ visibility: "public" });
+
+        // public → protected requires a password
+        const noPw = await authed(
+            userId,
+            `/links/${linkId}`,
+            jsonInit("PATCH", { visibility: "protected" }),
+        );
+        expect(noPw.status).toBe(400);
+
+        const withPw = await authed(
+            userId,
+            `/links/${linkId}`,
+            jsonInit("PATCH", { visibility: "protected", password: "pw-secret" }),
+        );
+        expect(withPw.status).toBe(200);
+        expect(((await withPw.json()) as { link: { hasPassword: boolean } }).link.hasPassword).toBe(
+            true,
+        );
+
+        // protected → public clears the stored password
+        const backPublic = await authed(
+            userId,
+            `/links/${linkId}`,
+            jsonInit("PATCH", { visibility: "public" }),
+        );
+        const body = (await backPublic.json()) as {
+            link: { visibility: string; hasPassword: boolean };
+        };
+        expect(body.link.visibility).toBe("public");
+        expect(body.link.hasPassword).toBe(false);
+    });
+
+    it("PATCH /links/:id 404s for a link in another workspace", async () => {
+        const { linkId } = await publish({ visibility: "public" });
+        const stranger = await seedUser({ plan: "pro" });
+        const res = await authed(
+            stranger.userId,
+            `/links/${linkId}`,
+            jsonInit("PATCH", { visibility: "public" }),
+        );
+        expect(res.status).toBe(404);
+    });
+
+    it("POST /links/:id/recipients adds unique recipients and dedups repeats", async () => {
+        const { userId, linkId } = await publish({ visibility: "private" });
+
+        const first = await authed(
+            userId,
+            `/links/${linkId}/recipients`,
+            jsonInit("POST", { emails: ["Ann@Example.com", " ann@example.com ", "not-an-email"] }),
+        );
+        expect(first.status).toBe(200);
+        const added = (await first.json()) as { recipients: { email: string; url: string }[] };
+        expect(added.recipients).toHaveLength(1); // deduped + invalid dropped
+        expect(added.recipients[0]!.email).toBe("ann@example.com");
+        expect(added.recipients[0]!.url).toContain("?k=");
+
+        // re-inviting the same email is a no-op (onConflictDoNothing)
+        const again = await authed(
+            userId,
+            `/links/${linkId}/recipients`,
+            jsonInit("POST", { emails: ["ann@example.com"] }),
+        );
+        expect(((await again.json()) as { recipients: unknown[] }).recipients).toHaveLength(0);
+
+        const rows = await db
+            .select()
+            .from(schema.linkRecipients)
+            .where(eq(schema.linkRecipients.linkId, linkId));
+        expect(rows).toHaveLength(1);
+    });
+
+    it("POST /links/:id/recipients 400s when no valid emails are given", async () => {
+        const { userId, linkId } = await publish({ visibility: "private" });
+        const res = await authed(
+            userId,
+            `/links/${linkId}/recipients`,
+            jsonInit("POST", { emails: ["nope"] }),
+        );
+        expect(res.status).toBe(400);
+    });
+
+    it("DELETE /links/:id/recipients/:rid removes a single recipient", async () => {
+        const { userId, linkId } = await publish({ visibility: "private" });
+        const [rec] = await db
+            .insert(schema.linkRecipients)
+            .values({ linkId, email: "gone@example.com", token: "tok-gone" })
+            .returning({ id: schema.linkRecipients.id });
+        const res = await authed(
+            userId,
+            `/links/${linkId}/recipients/${rec!.id}`,
+            jsonInit("DELETE", {}),
+        );
+        expect(res.status).toBe(200);
+        const rows = await db
+            .select()
+            .from(schema.linkRecipients)
+            .where(eq(schema.linkRecipients.linkId, linkId));
+        expect(rows).toHaveLength(0);
+    });
+
+    it("POST /artifacts/:id/unpublish deletes the link and takes the public URL dark", async () => {
+        const { userId, artifactId, slug } = await publish({ visibility: "public" });
+        expect((await request(`/p/${slug}/content`)).status).toBe(200);
+
+        const res = await authed(
+            userId,
+            `/artifacts/${artifactId}/unpublish`,
+            jsonInit("POST", {}),
+        );
+        expect(res.status).toBe(200);
+
+        expect((await request(`/p/${slug}/content`)).status).toBe(404);
+        const rows = await db
+            .select()
+            .from(schema.links)
+            .where(eq(schema.links.artifactId, artifactId));
+        expect(rows).toHaveLength(0);
+        const [art] = await db
+            .select({ v: schema.artifacts.publishedVersionId })
+            .from(schema.artifacts)
+            .where(eq(schema.artifacts.id, artifactId));
+        expect(art!.v).toBeNull();
+    });
+
+    it("unpublish 404s for a foreign artifact", async () => {
+        const { artifactId } = await publish({ visibility: "public" });
+        const stranger = await seedUser({ plan: "pro" });
+        const res = await authed(
+            stranger.userId,
+            `/artifacts/${artifactId}/unpublish`,
+            jsonInit("POST", {}),
+        );
+        expect(res.status).toBe(404);
+    });
+});

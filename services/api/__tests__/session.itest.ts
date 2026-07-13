@@ -41,4 +41,13 @@ describe("session routes", () => {
         const anon = await request("/me");
         expect(anon.status).toBe(401);
     });
+
+    it("logout clears the session cookie", async () => {
+        const res = await request("/auth/logout", jsonInit("POST", {}));
+        expect(res.status).toBe(200);
+        expect(((await res.json()) as { ok: boolean }).ok).toBe(true);
+        const cookie = res.headers.get("set-cookie") ?? "";
+        expect(cookie).toContain(SESSION_COOKIE);
+        expect(cookie).toContain("Max-Age=0"); // expired immediately
+    });
 });
