@@ -20,6 +20,7 @@ session.post("/auth/login", async (c) => {
     setCookie(c, SESSION_COOKIE, makeSession(u.id), {
         httpOnly: true,
         sameSite: "Lax",
+        secure: process.env.NODE_ENV === "production", // HTTPS-only in prod; dev is http
         path: "/",
         maxAge: 60 * 60 * 24 * 30,
     });

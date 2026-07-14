@@ -31,12 +31,12 @@ export default defineConfig({
     server: {
         port: 8600,
         strictPort: true,
-        // regex key (^ + trailing slash) so it doesn't swallow the /api.ts module request a bare "/api" would
+        // regex key (^ + trailing slash) so it doesn't swallow the /api.ts module request a bare "/api" would.
+        // No rewrite: the backend mounts routers under /api, so dev forwards /api/* verbatim, matching prod.
         proxy: {
             "^/api/": {
                 target: "http://localhost:8601",
                 changeOrigin: true,
-                rewrite: (p) => p.replace(/^\/api/, ""),
             },
         },
     },

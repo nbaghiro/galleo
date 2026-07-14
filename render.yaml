@@ -1,0 +1,53 @@
+# Render Blueprint — Galleo. One web service (Node) runs Hono, which serves the built SPA AND /api on one
+# origin (see .docs/hosting.md). Postgres is Neon (external); set DATABASE_URL in the dashboard.
+services:
+    - type: web
+      name: galleo
+      runtime: node
+      region: oregon # co-locate with the Neon project region
+      plan: starter # 512 MB / 0.5 CPU always-on; bump to `standard` (2 GB) if AI/export OOMs
+      branch: main
+      autoDeploy: true
+      buildCommand: pnpm install --frozen-lockfile && pnpm build
+      preDeployCommand: pnpm db:migrate # applies committed migrations before cutover
+      startCommand: pnpm start # NODE_ENV=production tsx services/server.ts
+      healthCheckPath: /health
+      envVars:
+          - key: NODE_ENV
+            value: production
+          - key: SESSION_SECRET
+            generateValue: true # Render mints a strong secret once
+          # --- secrets: set in the Render dashboard (never committed) ---
+          - key: DATABASE_URL # Neon direct connection string
+            sync: false
+          - key: APP_URL # the public origin, e.g. https://galleo.onrender.com
+            sync: false
+          - key: ANTHROPIC_API_KEY
+            sync: false
+          # --- optional; omit until the feature is turned on ---
+          - key: GOOGLE_API_KEY # Gemini text + AI image generation
+            sync: false
+          - key: UNSPLASH_ACCESS_KEY
+            sync: false
+          - key: PEXELS_API_KEY
+            sync: false
+          - key: PIXABAY_API_KEY
+            sync: false
+          - key: RESEND_API_KEY # share-invite email
+            sync: false
+          - key: MAIL_FROM
+            sync: false
+          - key: STRIPE_SECRET_KEY # billing; leave unset to keep everyone on Free
+            sync: false
+          - key: STRIPE_WEBHOOK_SECRET
+            sync: false
+          - key: STRIPE_PRICE_PRO_MONTH
+            sync: false
+          - key: STRIPE_PRICE_PRO_YEAR
+            sync: false
+          - key: STRIPE_PRICE_PREMIUM_MONTH
+            sync: false
+          - key: STRIPE_PRICE_PREMIUM_YEAR
+            sync: false
+          - key: STRIPE_PORTAL_CONFIG
+            sync: false

@@ -1,5 +1,5 @@
 import type { Accessor, Component, JSX } from "solid-js";
-import { For, Show } from "solid-js";
+import { createSignal, For, onMount, Show } from "solid-js";
 
 const announceItems = [
     "Now in public beta",
@@ -317,6 +317,53 @@ const Wordmark: Component = () => (
     </a>
 );
 
+// Auth-aware header CTA: / always renders marketing (no redirect), but a signed-in visitor gets "Go to app"
+// instead of sign-in. The session cookie is httpOnly, so ask the API. null = still checking → show the
+// signed-out CTA (works for everyone; visitors are unauthed far more often than not).
+const AuthCta: Component = () => {
+    const [authed, setAuthed] = createSignal<boolean | null>(null);
+    onMount(async () => {
+        try {
+            const res = await fetch("/api/me", { credentials: "same-origin" });
+            setAuthed(res.ok);
+        } catch {
+            setAuthed(false);
+        }
+    });
+    return (
+        <div class="flex items-center gap-3">
+            <Show
+                when={authed()}
+                fallback={
+                    <>
+                        <a
+                            href="/app/"
+                            class="hidden sm:inline lab hover:text-accent transition-colors"
+                        >
+                            Sign in
+                        </a>
+                        <a
+                            href="/app/"
+                            class="btn btn-primary text-sm"
+                            style={{ padding: "0.6rem 1.1rem" }}
+                        >
+                            Start free
+                        </a>
+                    </>
+                }
+            >
+                <a
+                    href="/app/"
+                    class="btn btn-primary text-sm"
+                    style={{ padding: "0.6rem 1.1rem" }}
+                >
+                    Go to app →
+                </a>
+            </Show>
+        </div>
+    );
+};
+
 export const WebsitePage: Component = () => (
     <div class="web h-full w-full overflow-y-auto bg-canvas font-body text-ink">
         <Marquee
@@ -355,21 +402,7 @@ export const WebsitePage: Component = () => (
                         Pricing
                     </a>
                 </nav>
-                <div class="flex items-center gap-3">
-                    <a
-                        href="/app/"
-                        class="hidden sm:inline lab hover:text-accent transition-colors"
-                    >
-                        Sign in
-                    </a>
-                    <a
-                        href="/app/"
-                        class="btn btn-primary text-sm"
-                        style={{ padding: "0.6rem 1.1rem" }}
-                    >
-                        Start free
-                    </a>
-                </div>
+                <AuthCta />
             </div>
         </header>
 
