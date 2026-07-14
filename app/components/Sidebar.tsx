@@ -283,9 +283,11 @@ export const Sidebar: Component = () => {
 
     return (
         <aside class="flex w-[230px] flex-none flex-col gap-1 border-r border-line bg-panel px-3 py-4 text-ink">
-            {/* full nav to the marketing site (a separate build); / is the app when signed in, so use /home */}
+            {/* marketing site (a separate build) — rel="external" so Solid Router does a real navigation
+                to /home instead of intercepting it into a client route (which the base="/" router now would) */}
             <a
                 href="/home"
+                rel="external"
                 title="Galleo — marketing site"
                 class="flex items-center gap-2.5 px-1.5 pb-3 font-mono text-[14px] font-bold tracking-[0.06em] text-accent transition-opacity hover:opacity-70"
             >
