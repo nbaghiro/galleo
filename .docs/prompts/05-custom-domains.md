@@ -14,7 +14,7 @@ before starting.
 `strict` TS. Verify with `pnpm typecheck` **and** `pnpm lint`.
 
 **Run/verify:** `pnpm dev` (SPA :8600), `pnpm api` (backend :8601, `/api/*` proxied). Postgres in docker;
-schema `services/schema.ts`, pushed with `pnpm db:push`. Seed login: `demo@galleo.app` / `demo1234`.
+schema `services/schema.ts`, pushed with `pnpm db:push`. Seed login: `demo@galleo.app` / `galleo-demo-2026`.
 
 **Backend router pattern** (`services/api/*.ts`): `export const x = new Hono()` with full paths; mount in
 `services/server.ts:17`. Authed routes open with `currentUser` → `currentWorkspace` (`services/api/

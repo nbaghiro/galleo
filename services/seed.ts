@@ -28,7 +28,7 @@ const DEMOS: Demo[] = [
 ];
 
 const DEMO_EMAIL = "demo@galleo.app";
-const DEMO_PASSWORD = "demo1234";
+const DEMO_PASSWORD = "galleo-demo-2026";
 
 const log = (s: string): void => {
     process.stdout.write(`${s}\n`);

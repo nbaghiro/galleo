@@ -32,7 +32,7 @@ export).
 pnpm install
 cp .env.example .env          # set DATABASE_URL, SESSION_SECRET, ANTHROPIC_API_KEY
 pnpm db:push                  # create the schema (needs Postgres on :8602 — see .docs/architecture.md)
-pnpm seed                     # demo workspace + artifacts (login: demo@galleo.app / demo1234)
+pnpm seed                     # demo workspace + artifacts (login: demo@galleo.app / galleo-demo-2026)
 
 pnpm api                      # the Hono API  → http://localhost:8601
 pnpm dev                      # the Vite app  → http://localhost:8600  (/ = website, /app = product)

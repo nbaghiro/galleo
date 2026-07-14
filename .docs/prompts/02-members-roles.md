@@ -16,7 +16,7 @@ barrels** — named files only.
 
 **Run/verify:** `pnpm dev` (SPA :8600), `pnpm api` (backend :8601, dev-proxied at `/api/*`). Postgres in
 docker; schema `services/schema.ts`, pushed with `pnpm db:push`. Seed login: `demo@galleo.app` /
-`demo1234` (`pnpm seed`).
+`galleo-demo-2026` (`pnpm seed`).
 
 **Backend router pattern** (`services/api/*.ts`): `export const x = new Hono()` with full paths; mount in
 the array in `services/server.ts:17`. Every authenticated route opens:

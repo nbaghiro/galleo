@@ -16,7 +16,7 @@ IoC hook pattern (see the export-gate example). Path aliases: `@model @canvas @e
 
 **Run/verify:** `pnpm dev` (SPA at :8600), `pnpm api` (backend at :8601, dev-proxied at `/api/*`). Postgres
 runs in docker; schema is `services/schema.ts`, pushed with `pnpm db:push` (drizzle-kit, no migration
-files). Seed login: `demo@galleo.app` / `demo1234` (`pnpm seed`).
+files). Seed login: `demo@galleo.app` / `galleo-demo-2026` (`pnpm seed`).
 
 **Backend router pattern** (`services/api/*.ts`): `export const x = new Hono()` carrying full paths; mount
 it in the router array in `services/server.ts:17`. Every authenticated route opens:
