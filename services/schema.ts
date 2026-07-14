@@ -197,4 +197,6 @@ if (url === undefined || url === "") {
     throw new Error("DATABASE_URL is not set");
 }
 
-export const db = drizzle(postgres(url), { schema });
+// prepare:false → works on Neon's pooled endpoint (PgBouncer transaction mode rejects prepared statements)
+// and scales past one instance; harmless on direct/local. Migrations still run against the direct endpoint.
+export const db = drizzle(postgres(url, { prepare: false }), { schema });
