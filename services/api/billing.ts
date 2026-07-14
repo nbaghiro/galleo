@@ -95,8 +95,8 @@ billing.post("/billing/checkout", async (c) => {
         custom_text: {
             submit: { message: "Change or cancel your plan anytime from Billing." },
         },
-        success_url: `${APP_URL}/app/pricing?status=success`,
-        cancel_url: `${APP_URL}/app/pricing?status=cancel`,
+        success_url: `${APP_URL}/pricing?status=success`,
+        cancel_url: `${APP_URL}/pricing?status=cancel`,
     });
     return c.json({ url: session.url });
 });
@@ -109,7 +109,7 @@ billing.post("/billing/portal", async (c) => {
     if (!ws.stripeCustomerId) return c.json({ error: "no subscription" }, 400);
     const session = await stripe().billingPortal.sessions.create({
         customer: ws.stripeCustomerId,
-        return_url: `${APP_URL}/app/pricing`,
+        return_url: `${APP_URL}/pricing`,
         // Configured portal when STRIPE_PORTAL_CONFIG is set; else the account's default.
         ...(process.env.STRIPE_PORTAL_CONFIG
             ? { configuration: process.env.STRIPE_PORTAL_CONFIG }

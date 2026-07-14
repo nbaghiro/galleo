@@ -2,6 +2,8 @@ import "dotenv/config";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
+import { getCookie } from "hono/cookie";
+import { readSession, SESSION_COOKIE } from "./auth";
 import { session } from "./api/session";
 import { artifacts } from "./api/artifacts";
 import { folders } from "./api/folders";
@@ -41,11 +43,17 @@ app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
 // and proxies /api here, so this block stays off. root is cwd-relative; `pnpm start` and Render both run
 // from the repo root.
 if (process.env.NODE_ENV === "production") {
-    app.use("/*", serveStatic({ root: "./dist" })); // real files: /assets/*, favicon, …
-    app.get("/app", serveStatic({ path: "./dist/app/index.html" }));
-    app.get("/app/*", serveStatic({ path: "./dist/app/index.html" }));
-    app.get("/p/*", serveStatic({ path: "./dist/publish/index.html" }));
-    app.get("*", serveStatic({ path: "./dist/index.html" })); // marketing site SPA fallback
+    app.use("/assets/*", serveStatic({ root: "./dist" })); // hashed static assets (host-agnostic)
+    app.get("/p/*", serveStatic({ path: "./dist/publish/index.html" })); // public read-only viewer
+    app.get("/home", serveStatic({ path: "./dist/index.html" })); // marketing, always (signed-in "view the site")
+    // contextual root: the app for a valid session, the marketing site otherwise
+    app.get("/", (c, next) => {
+        const authed = readSession(getCookie(c, SESSION_COOKIE)) !== null;
+        const path = authed ? "./dist/app/index.html" : "./dist/index.html";
+        return serveStatic({ path })(c, next);
+    });
+    // every other route is the app SPA (/edit, /templates, /login, …); its auth gate renders sign-in when needed
+    app.get("*", serveStatic({ path: "./dist/app/index.html" }));
 }
 
 // Render injects PORT; API_PORT is the local-dev override (8601 default).

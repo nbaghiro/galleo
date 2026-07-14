@@ -317,9 +317,8 @@ const Wordmark: Component = () => (
     </a>
 );
 
-// Auth-aware header CTA: / always renders marketing (no redirect), but a signed-in visitor gets "Go to app"
-// instead of sign-in. The session cookie is httpOnly, so ask the API. null = still checking → show the
-// signed-out CTA (works for everyone; visitors are unauthed far more often than not).
+// Auth-aware header CTA: signed-in visitors get "Go to app" (→ / = the app), signed-out get sign-in (→
+// /login). The session cookie is httpOnly, so ask the API. null = still checking → show the signed-out CTA.
 const AuthCta: Component = () => {
     const [authed, setAuthed] = createSignal<boolean | null>(null);
     onMount(async () => {
@@ -337,13 +336,13 @@ const AuthCta: Component = () => {
                 fallback={
                     <>
                         <a
-                            href="/app/"
+                            href="/login"
                             class="hidden sm:inline lab hover:text-accent transition-colors"
                         >
                             Sign in
                         </a>
                         <a
-                            href="/app/"
+                            href="/login"
                             class="btn btn-primary text-sm"
                             style={{ padding: "0.6rem 1.1rem" }}
                         >
@@ -352,11 +351,7 @@ const AuthCta: Component = () => {
                     </>
                 }
             >
-                <a
-                    href="/app/"
-                    class="btn btn-primary text-sm"
-                    style={{ padding: "0.6rem 1.1rem" }}
-                >
+                <a href="/" class="btn btn-primary text-sm" style={{ padding: "0.6rem 1.1rem" }}>
                     Go to app →
                 </a>
             </Show>
@@ -495,7 +490,7 @@ export const WebsitePage: Component = () => (
                         class="md:col-span-5 flex flex-wrap gap-3 md:justify-end rise"
                         style={{ "animation-delay": "0.58s" }}
                     >
-                        <a href="/app/" class="btn btn-primary text-base">
+                        <a href="/login" class="btn btn-primary text-base">
                             Start creating free →
                         </a>
                         <a href="#views" class="btn btn-ghost text-base">
@@ -682,7 +677,7 @@ export const WebsitePage: Component = () => (
                     . Galleo is the editor for the judging.
                 </p>
                 <div class="mt-9 flex flex-wrap items-center gap-4">
-                    <a href="/app/" class="btn btn-on-ink text-base">
+                    <a href="/login" class="btn btn-on-ink text-base">
                         Try the editor →
                     </a>
                     <span class="lab" style={{ color: "var(--color-canvas)", opacity: "0.7" }}>
@@ -846,7 +841,7 @@ export const WebsitePage: Component = () => (
                                                 )}
                                             </For>
                                         </ul>
-                                        <a href="/app/" class="btn btn-ghost mt-8 justify-center">
+                                        <a href="/login" class="btn btn-ghost mt-8 justify-center">
                                             {plan.cta}
                                         </a>
                                     </div>
@@ -898,7 +893,7 @@ export const WebsitePage: Component = () => (
                                         </For>
                                     </ul>
                                     <a
-                                        href="/app/"
+                                        href="/login"
                                         class="btn mt-8 justify-center"
                                         style={{
                                             background: "var(--color-ink)",
@@ -950,7 +945,7 @@ export const WebsitePage: Component = () => (
                 </p>
                 <div class="mt-10 flex flex-wrap gap-4 justify-center">
                     <a
-                        href="/app/"
+                        href="/login"
                         class="btn btn-primary text-lg"
                         style={{ padding: "1.1rem 2rem" }}
                     >

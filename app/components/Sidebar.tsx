@@ -45,8 +45,7 @@ export const Sidebar: Component = () => {
     const navigate = useNavigate();
     const location = useLocation();
     onMount(loadBilling);
-    // router base is /app; strip it to compare route-relative
-    const route = (): string => location.pathname.replace(/^\/app/, "") || "/";
+    const route = (): string => location.pathname || "/";
     onMount(() => loadFolders());
     const [dragOver, setDragOver] = createSignal<string | null>(null); // folder id, or "root" for Library
     const [creatingParent, setCreatingParent] = createSignal<string | null | undefined>(undefined); // null=root, id=subfolder
@@ -284,10 +283,10 @@ export const Sidebar: Component = () => {
 
     return (
         <aside class="flex w-[230px] flex-none flex-col gap-1 border-r border-line bg-panel px-3 py-4 text-ink">
-            {/* real navigation: the site at "/" is a separate build outside /app */}
+            {/* full nav to the marketing site (a separate build); / is the app when signed in, so use /home */}
             <a
-                href="/"
-                title="Galleo — home"
+                href="/home"
+                title="Galleo — marketing site"
                 class="flex items-center gap-2.5 px-1.5 pb-3 font-mono text-[14px] font-bold tracking-[0.06em] text-accent transition-opacity hover:opacity-70"
             >
                 <Mark size={24} rounded="md" />
@@ -383,7 +382,7 @@ export const Sidebar: Component = () => {
                     tone="muted"
                     class="flex-none"
                     title="Sign out"
-                    onClick={() => logout().then(() => navigate("/"))}
+                    onClick={() => logout().then(() => (window.location.href = "/"))}
                 >
                     <SignOutIcon />
                 </IconButton>

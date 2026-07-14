@@ -1,6 +1,6 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, onMount, Show } from "solid-js";
-import { Route, Router, useLocation, useNavigate } from "@solidjs/router";
+import { Navigate, Route, Router, useLocation, useNavigate } from "@solidjs/router";
 import { resolveTheme } from "@themes";
 import { authReady, bootstrap, user } from "./stores/auth";
 import { loadFeatures } from "./stores/features";
@@ -54,7 +54,7 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => {
     );
 };
 
-// product SPA under /app; auth gate then the routed app (Router base="/app")
+// product SPA served at the domain root; auth gate then the routed app (Router base="/")
 export const App: Component = () => {
     onMount(() => {
         // cookie-gated, so fire in parallel with the session restore (don't wait for /me)
@@ -95,7 +95,7 @@ export const App: Component = () => {
                     }
                 >
                     <Show when={user()} fallback={<AuthPage />}>
-                        <Router base="/app" root={AppShell}>
+                        <Router base="/" root={AppShell}>
                             <Route path="/" component={LibraryView} />
                             <Route path="/folder/:id" component={LibraryView} />
                             <Route path="/templates" component={TemplatesView} />
@@ -104,6 +104,8 @@ export const App: Component = () => {
                             <Route path="/pricing" component={PricingView} />
                             <Route path="/edit/:id" component={EditorView} />
                             <Route path="/present/:id" component={PresentView} />
+                            {/* /login (marketing sign-in) + unknowns: when already authed, land on the library */}
+                            <Route path="*" component={() => <Navigate href="/" />} />
                         </Router>
                     </Show>
                 </Show>
