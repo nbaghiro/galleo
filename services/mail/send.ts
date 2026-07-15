@@ -4,6 +4,38 @@ export function mailReady(): boolean {
     return !!process.env.RESEND_API_KEY;
 }
 
+export interface EmailMessage {
+    to: string;
+    subject: string;
+    html: string;
+    text: string;
+}
+
+// Transactional send for the auth flows. Surfaces real failures (callers best-effort `.catch`), and with
+// no RESEND_API_KEY logs the message so local flows stay testable.
+export async function sendEmail(msg: EmailMessage): Promise<void> {
+    const key = process.env.RESEND_API_KEY;
+    if (!key) {
+        process.stdout.write(`[email:dev] to=${msg.to} | ${msg.subject}\n${msg.text}\n`);
+        return;
+    }
+    const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+            from: FROM,
+            to: msg.to,
+            subject: msg.subject,
+            html: msg.html,
+            text: msg.text,
+        }),
+    });
+    if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error(`email send failed (${res.status}): ${detail.slice(0, 200)}`);
+    }
+}
+
 interface Email {
     to: string;
     subject: string;

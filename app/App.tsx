@@ -22,6 +22,7 @@ import { PricingView } from "./views/PricingView";
 import { SharedView } from "./views/SharedView";
 import { TemplatesView } from "./views/TemplatesView";
 import { MediaPicker } from "./components/MediaPicker";
+import { VerifyBanner } from "./components/VerifyBanner";
 import { ShareModal } from "./components/ShareModal";
 import { ThemeEditor } from "./views/ThemeEditor";
 import { TrashView } from "./views/TrashView";
@@ -50,6 +51,7 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => {
             <ChatPanel />
             <CommandPalette />
             <ShortcutsSheet />
+            <VerifyBanner />
         </>
     );
 };
@@ -80,6 +82,10 @@ export const App: Component = () => {
         return appThemeOverride() ?? resolveTheme(appTheme()).tokens;
     });
 
+    // A password-reset deep link (?reset=…) must show the auth screen even with a stale session, so the
+    // user can set a new password without logging out first. AuthPage reloads to / after reset to clear it.
+    const isResetDeepLink = new URLSearchParams(window.location.search).has("reset");
+
     return (
         <UiThemeProvider tokens={appTokens}>
             <div
@@ -94,7 +100,7 @@ export const App: Component = () => {
                         </div>
                     }
                 >
-                    <Show when={user()} fallback={<AuthPage />}>
+                    <Show when={user() && !isResetDeepLink} fallback={<AuthPage />}>
                         <Router base="/" root={AppShell}>
                             <Route path="/" component={LibraryView} />
                             <Route path="/folder/:id" component={LibraryView} />

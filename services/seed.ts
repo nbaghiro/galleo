@@ -3,6 +3,7 @@ import type { ArtifactContent } from "@model/artifact";
 import { eq } from "drizzle-orm";
 import { db, schema } from "./schema";
 import { hashPassword } from "./auth";
+import { createWorkspaceForUser } from "./provision";
 import { TEMPLATES } from "./templates";
 import { aria } from "./demos/aria";
 import { fieldnotes } from "./demos/fieldnotes";
@@ -73,27 +74,25 @@ async function seed(): Promise<void> {
         .set({ passwordHash: hashPassword(DEMO_PASSWORD) })
         .where(eq(schema.users.id, user.id));
 
-    let [ws] = await db.select().from(schema.workspaces).where(eq(schema.workspaces.slug, "demo"));
-    if (!ws) {
-        [ws] = await db
-            .insert(schema.workspaces)
-            // premium: seed writes 12+ artifacts directly, bypassing the API cap; demo account needs unlimited
-            .values({ name: "Demo Workspace", slug: "demo", ownerId: user.id, plan: "premium" })
-            .returning();
+    const [existingWs] = await db
+        .select({ id: schema.workspaces.id })
+        .from(schema.workspaces)
+        .where(eq(schema.workspaces.slug, "demo"));
+    let wsId = existingWs?.id ?? null;
+    if (!wsId) {
+        // premium: seed writes 12+ artifacts directly, bypassing the API cap; demo account needs unlimited
+        const created = await createWorkspaceForUser(user.id, {
+            name: "Demo Workspace",
+            slug: "demo",
+            plan: "premium",
+        });
+        wsId = created.id;
         log("• created demo workspace");
-    }
-    if (!ws) throw new Error("failed to create workspace");
-
-    const ms = await db.select().from(schema.members).where(eq(schema.members.userId, user.id));
-    if (!ms.some((m) => m.workspaceId === ws.id)) {
-        await db
-            .insert(schema.members)
-            .values({ workspaceId: ws.id, userId: user.id, role: "owner" });
     }
 
     // artifacts reference folders, so clear artifacts first
-    await db.delete(schema.artifacts).where(eq(schema.artifacts.workspaceId, ws.id));
-    await db.delete(schema.folders).where(eq(schema.folders.workspaceId, ws.id));
+    await db.delete(schema.artifacts).where(eq(schema.artifacts.workspaceId, wsId));
+    await db.delete(schema.folders).where(eq(schema.folders.workspaceId, wsId));
 
     let folders = 0;
     let docs = 0;
@@ -102,14 +101,14 @@ async function seed(): Promise<void> {
         if (group.folder) {
             const [f] = await db
                 .insert(schema.folders)
-                .values({ workspaceId: ws.id, name: group.folder })
+                .values({ workspaceId: wsId, name: group.folder })
                 .returning({ id: schema.folders.id });
             folderId = f?.id ?? null;
             folders++;
         }
         for (const d of group.docs) {
             await db.insert(schema.artifacts).values({
-                workspaceId: ws.id,
+                workspaceId: wsId,
                 title: d.title,
                 formatId: d.artifact.format,
                 themeId: d.artifact.theme,
@@ -123,7 +122,9 @@ async function seed(): Promise<void> {
 
     log(`• seeded ${docs} artifacts across ${folders} folders`);
 
-    await db.delete(schema.assets).where(eq(schema.assets.workspaceId, ws.id));
+    // Recent-media library — "recently used" images for the media picker's Recent tab. Reset first so
+    // re-seeding stays idempotent. picsum gives stable, varied photos without any API key.
+    await db.delete(schema.assets).where(eq(schema.assets.workspaceId, wsId));
     const cc = (author: string) => ({
         provider: "Openverse",
         author,
@@ -194,7 +195,7 @@ async function seed(): Promise<void> {
     for (let i = 0; i < DEMO_ASSETS.length; i++) {
         const a = DEMO_ASSETS[i]!;
         await db.insert(schema.assets).values({
-            workspaceId: ws.id,
+            workspaceId: wsId,
             kind: "image",
             source: a.source,
             url: `https://picsum.photos/seed/${a.seed}/${a.w}/${a.h}`,
