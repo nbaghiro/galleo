@@ -180,6 +180,7 @@ const plans = [
             "PDF export (with watermark)",
         ],
         cta: "Get started",
+        href: "/signup",
         featured: false,
     },
     {
@@ -195,6 +196,7 @@ const plans = [
             "No watermark · version history",
         ],
         cta: "Start Pro free",
+        href: "/signup",
         featured: true,
     },
     {
@@ -210,6 +212,7 @@ const plans = [
             "Roles, permissions & SSO",
         ],
         cta: "Talk to us",
+        href: "/login",
         featured: false,
     },
 ];
@@ -342,7 +345,7 @@ const AuthCta: Component = () => {
                             Sign in
                         </a>
                         <a
-                            href="/login"
+                            href="/signup"
                             class="btn btn-primary text-sm"
                             style={{ padding: "0.6rem 1.1rem" }}
                         >
@@ -490,7 +493,7 @@ export const WebsitePage: Component = () => (
                         class="md:col-span-5 flex flex-wrap gap-3 md:justify-end rise"
                         style={{ "animation-delay": "0.58s" }}
                     >
-                        <a href="/login" class="btn btn-primary text-base">
+                        <a href="/signup" class="btn btn-primary text-base">
                             Start creating free →
                         </a>
                         <a href="#views" class="btn btn-ghost text-base">
@@ -677,7 +680,7 @@ export const WebsitePage: Component = () => (
                     . Galleo is the editor for the judging.
                 </p>
                 <div class="mt-9 flex flex-wrap items-center gap-4">
-                    <a href="/login" class="btn btn-on-ink text-base">
+                    <a href="/signup" class="btn btn-on-ink text-base">
                         Try the editor →
                     </a>
                     <span class="lab" style={{ color: "var(--color-canvas)", opacity: "0.7" }}>
@@ -841,7 +844,10 @@ export const WebsitePage: Component = () => (
                                                 )}
                                             </For>
                                         </ul>
-                                        <a href="/login" class="btn btn-ghost mt-8 justify-center">
+                                        <a
+                                            href={plan.href}
+                                            class="btn btn-ghost mt-8 justify-center"
+                                        >
                                             {plan.cta}
                                         </a>
                                     </div>
@@ -893,7 +899,7 @@ export const WebsitePage: Component = () => (
                                         </For>
                                     </ul>
                                     <a
-                                        href="/login"
+                                        href={plan.href}
                                         class="btn mt-8 justify-center"
                                         style={{
                                             background: "var(--color-ink)",
@@ -945,7 +951,7 @@ export const WebsitePage: Component = () => (
                 </p>
                 <div class="mt-10 flex flex-wrap gap-4 justify-center">
                     <a
-                        href="/login"
+                        href="/signup"
                         class="btn btn-primary text-lg"
                         style={{ padding: "1.1rem 2rem" }}
                     >

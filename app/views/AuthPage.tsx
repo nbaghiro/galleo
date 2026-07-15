@@ -60,6 +60,8 @@ export const AuthPage: Component = () => {
                 setMicrosoftReady(p.microsoft);
             })
             .catch(() => {});
+        // /signup opens the create-account form; /login (and anything else) opens sign-in
+        if (window.location.pathname === "/signup") setMode("signup");
         const params = new URLSearchParams(window.location.search);
         // a password-reset email links to /login?reset=<token> — open straight into the reset form
         const token = params.get("reset");
