@@ -20,6 +20,18 @@ export async function login(email: string, password: string): Promise<void> {
     setUser(u);
 }
 
+export async function signup(email: string, password: string, name: string): Promise<void> {
+    const { user: u } = await api.signup(email, password, name || undefined);
+    setUser(u);
+}
+
+// Completes a password reset: the backend sets the new password and signs the user in (cookie), so we
+// adopt the returned user just like login/signup.
+export async function resetPassword(token: string, password: string): Promise<void> {
+    const { user: u } = await api.resetPassword(token, password);
+    setUser(u);
+}
+
 export async function logout(): Promise<void> {
     await api.logout().catch(() => {});
     clearCustomThemes();

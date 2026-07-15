@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { readSession, SESSION_COOKIE } from "./auth";
 import { session } from "./api/session";
+import { oauth } from "./api/oauth";
 import { artifacts } from "./api/artifacts";
 import { folders } from "./api/folders";
 import { themes } from "./api/themes";
@@ -15,14 +16,22 @@ import { media } from "./api/media";
 import { ai } from "./api/ai";
 import { links } from "./api/links";
 
+// Fail fast rather than boot with a forgeable session key: without a real SESSION_SECRET, `makeSession`
+// signs with the public dev default and anyone can mint a valid cookie for any user.
+if (process.env.NODE_ENV === "production") {
+    const s = process.env.SESSION_SECRET;
+    if (!s || s === "dev-secret-change-me")
+        throw new Error("SESSION_SECRET must be set to a strong random value in production");
+}
+
 const app = new Hono();
 app.get("/health", (c) => c.json({ ok: true }));
-
 // Routers carry their own full paths and mount under /api, matching the client's relative /api/* calls in
 // BOTH dev (Vite proxies /api → here, no rewrite) and prod (this process serves /api directly) — one route
 // map, no environment-specific paths.
 for (const router of [
     session,
+    oauth,
     artifacts,
     folders,
     themes,

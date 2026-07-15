@@ -17,24 +17,53 @@ export function verifyPassword(password: string, stored: string | null): boolean
 
 const SECRET = process.env.SESSION_SECRET ?? "dev-secret-change-me";
 export const SESSION_COOKIE = "galleo_session";
+export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days — cookie Max-Age is aligned to this
 
+interface SessionPayload {
+    uid: string;
+    iat: number; // issued-at (unix seconds)
+    exp: number; // expires-at (unix seconds)
+}
+
+function hmac(value: string): string {
+    return createHmac("sha256", SECRET).update(value).digest("base64url");
+}
+
+// `<value>.<hmac>` — base64url never contains ".", so the last dot always splits value from signature.
 function sign(value: string): string {
-    const mac = createHmac("sha256", SECRET).update(value).digest("base64url");
-    return `${value}.${mac}`;
+    return `${value}.${hmac(value)}`;
 }
 
 export function makeSession(userId: string): string {
-    return sign(userId);
+    const now = Math.floor(Date.now() / 1000);
+    const payload: SessionPayload = { uid: userId, iat: now, exp: now + SESSION_TTL_SECONDS };
+    const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+    return sign(encoded);
 }
 
-export function readSession(token: string | undefined): string | null {
+// Verify the signature + expiry and return the payload (uid + issued-at). `iat` lets the auth layer reject
+// sessions minted before a password reset (see currentUser). Returns null on any tamper/expiry.
+export function readSessionPayload(token: string | undefined): { uid: string; iat: number } | null {
     if (!token) return null;
     const dot = token.lastIndexOf(".");
     if (dot <= 0) return null;
-    const value = token.slice(0, dot);
-    const expected = sign(value);
+    const encoded = token.slice(0, dot);
+    const expected = sign(encoded);
     const a = Buffer.from(token);
     const b = Buffer.from(expected);
     if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-    return value;
+    // signature verified — now decode the payload and enforce its expiry
+    let payload: SessionPayload;
+    try {
+        payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as SessionPayload;
+    } catch {
+        return null;
+    }
+    if (typeof payload.uid !== "string" || typeof payload.iat !== "number") return null;
+    if (typeof payload.exp !== "number" || payload.exp * 1000 <= Date.now()) return null;
+    return { uid: payload.uid, iat: payload.iat };
+}
+
+export function readSession(token: string | undefined): string | null {
+    return readSessionPayload(token)?.uid ?? null;
 }

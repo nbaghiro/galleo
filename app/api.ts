@@ -159,6 +159,20 @@ export const api = {
             method: "POST",
             body: JSON.stringify({ email, password }),
         }),
+    signup: (email: string, password: string, name?: string) =>
+        req<{ user: User }>("/auth/signup", {
+            method: "POST",
+            body: JSON.stringify({ email, password, name }),
+        }),
+    authProviders: () => req<{ google: boolean; microsoft: boolean }>("/auth/providers"),
+    forgotPassword: (email: string) =>
+        req<{ ok: true }>("/auth/forgot", { method: "POST", body: JSON.stringify({ email }) }),
+    resetPassword: (token: string, password: string) =>
+        req<{ user: User }>("/auth/reset", {
+            method: "POST",
+            body: JSON.stringify({ token, password }),
+        }),
+    resendVerification: () => req<{ ok: true }>("/auth/resend-verification", { method: "POST" }),
     logout: () => req<{ ok: true }>("/auth/logout", { method: "POST" }),
     listArtifacts: () => req<{ artifacts: ArtifactSummary[] }>("/artifacts"),
     listTemplates: () => req<{ templates: Template[] }>("/templates"),

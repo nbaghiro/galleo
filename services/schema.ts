@@ -20,6 +20,41 @@ export const users = pgTable("users", {
     name: text("name"),
     avatarUrl: text("avatar_url"),
     passwordHash: text("password_hash"), // null = OAuth-only account
+    emailVerifiedAt: timestamp("email_verified_at"), // null = email not yet confirmed
+    // sessions issued before this instant are rejected — bumped on password reset (revokes stolen cookies)
+    passwordChangedAt: timestamp("password_changed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Linked OAuth identities (Google / Microsoft). One row per (provider, provider account) → the local
+// user it authenticates. `password_hash` stays null for accounts created purely via OAuth; a user can
+// have both a password and one or more linked providers (matched on a verified email).
+export const oauthAccounts = pgTable(
+    "oauth_accounts",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        userId: uuid("user_id")
+            .notNull()
+            .references(() => users.id),
+        provider: text("provider").notNull(), // google | microsoft
+        providerAccountId: text("provider_account_id").notNull(), // the provider's stable subject id
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+    },
+    (t) => [unique().on(t.provider, t.providerAccountId)],
+);
+
+// Short-lived, single-use tokens for email verification + password reset. Only a SHA-256 hash of the
+// token is stored — the raw value lives solely in the emailed link, so a DB leak can't be replayed.
+// `purpose` separates the two flows; `consumedAt` makes it one-time; `expiresAt` bounds its lifetime.
+export const authTokens = pgTable("auth_tokens", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+        .notNull()
+        .references(() => users.id),
+    purpose: text("purpose").notNull(), // verify | reset
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -179,6 +214,8 @@ export const credits = pgTable("credits", {
 // `postgres(url)` is lazy (connects on first query, not import), so importing this for `drizzle-kit generate` stays connection-free
 export const schema = {
     users,
+    oauthAccounts,
+    authTokens,
     workspaces,
     members,
     folders,
