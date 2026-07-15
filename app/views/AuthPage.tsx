@@ -164,12 +164,15 @@ export const AuthPage: Component = () => {
                 >
                     <Visual />
                 </div>
-                <div
-                    class="relative z-raised text-[16px] font-bold tracking-wide text-white"
+                {/* rel="external" → a real navigation to the marketing build at /home (not a client route) */}
+                <a
+                    href="/home"
+                    rel="external"
+                    class="relative z-raised w-fit text-[16px] font-bold tracking-wide text-white transition-opacity hover:opacity-70"
                     style={{ "font-family": serif }}
                 >
                     GALLEO
-                </div>
+                </a>
                 <div class="relative z-raised max-w-[34ch]">
                     <p
                         class="text-[clamp(28px,3vw,40px)] italic leading-[1.15] tracking-tight text-white"

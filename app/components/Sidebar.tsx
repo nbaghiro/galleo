@@ -384,7 +384,7 @@ export const Sidebar: Component = () => {
                     tone="muted"
                     class="flex-none"
                     title="Sign out"
-                    onClick={() => logout().then(() => (window.location.href = "/"))}
+                    onClick={() => void logout()}
                 >
                     <SignOutIcon />
                 </IconButton>

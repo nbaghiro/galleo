@@ -35,5 +35,7 @@ export async function resetPassword(token: string, password: string): Promise<vo
 export async function logout(): Promise<void> {
     await api.logout().catch(() => {});
     clearCustomThemes();
-    setUser(null);
+    // Land on the login screen via a fresh load (clears app state). The cookie is gone, so "/" would
+    // resolve to the marketing site — go to /login, which always serves the app + its sign-in gate.
+    window.location.assign("/login");
 }
