@@ -64,14 +64,14 @@ async function seed(): Promise<void> {
     if (!user) {
         [user] = await db
             .insert(schema.users)
-            .values({ email: DEMO_EMAIL, name: "Demo User" })
+            .values({ email: DEMO_EMAIL, name: "Demo User", emailVerifiedAt: new Date() })
             .returning();
         log("• created demo user");
     }
     if (!user) throw new Error("failed to create demo user");
     await db
         .update(schema.users)
-        .set({ passwordHash: hashPassword(DEMO_PASSWORD) })
+        .set({ passwordHash: hashPassword(DEMO_PASSWORD), emailVerifiedAt: new Date() })
         .where(eq(schema.users.id, user.id));
 
     const [existingWs] = await db
