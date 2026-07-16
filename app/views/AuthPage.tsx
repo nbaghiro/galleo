@@ -8,9 +8,9 @@ import { Button, Eyebrow } from "@ui/button";
 
 const authField = "rounded-lg bg-panel px-3.5 py-2.5 text-[14px] placeholder:text-muted";
 const oauth =
-    "flex items-center justify-center gap-2 rounded-lg border border-line bg-panel py-2.5 text-[13px] font-medium text-soft cursor-not-allowed opacity-55";
+    "flex w-full items-center justify-center gap-2 rounded-lg border border-line bg-panel py-2.5 text-[13px] font-medium text-soft cursor-not-allowed opacity-55";
 const oauthEnabled =
-    "flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-line bg-panel py-2.5 text-[13px] font-medium text-soft transition-colors hover:border-accent hover:bg-accent/10 hover:text-ink";
+    "flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-line bg-panel py-2.5 text-[13px] font-medium text-soft transition-colors hover:border-accent hover:bg-accent/10 hover:text-ink";
 const serif = "var(--font-display, 'Fraunces', serif)";
 
 // Failure codes the OAuth callback + verify link hand back via ?authError=… (see services/api/*).
@@ -50,15 +50,11 @@ export const AuthPage: Component = () => {
     const [sent, setSent] = createSignal(false);
     const [busy, setBusy] = createSignal(false);
     const [googleReady, setGoogleReady] = createSignal(false);
-    const [microsoftReady, setMicrosoftReady] = createSignal(false);
 
     onMount(() => {
-        // enable only the OAuth buttons whose provider is configured on the backend
+        // enable the Google button only when the backend has it configured
         api.authProviders()
-            .then((p) => {
-                setGoogleReady(p.google);
-                setMicrosoftReady(p.microsoft);
-            })
+            .then((p) => setGoogleReady(p.google))
             .catch(() => {});
         // /signup opens the create-account form; /login (and anything else) opens sign-in
         if (window.location.pathname === "/signup") setMode("signup");
@@ -79,7 +75,7 @@ export const AuthPage: Component = () => {
             window.history.replaceState({}, "", window.location.pathname);
     });
 
-    const startOAuth = (provider: "google" | "microsoft"): void => {
+    const startOAuth = (provider: "google"): void => {
         window.location.assign(`/api/auth/${provider}`);
     };
 
@@ -302,34 +298,17 @@ export const AuthPage: Component = () => {
                                 or
                                 <span class="h-px flex-1 bg-line" />
                             </div>
-                            <div class="grid grid-cols-2 gap-2.5">
-                                <button
-                                    type="button"
-                                    disabled={!googleReady()}
-                                    title={
-                                        googleReady()
-                                            ? "Continue with Google"
-                                            : "Not configured yet"
-                                    }
-                                    onClick={() => startOAuth("google")}
-                                    class={googleReady() ? oauthEnabled : oauth}
-                                >
-                                    Google
-                                </button>
-                                <button
-                                    type="button"
-                                    disabled={!microsoftReady()}
-                                    title={
-                                        microsoftReady()
-                                            ? "Continue with Microsoft"
-                                            : "Not configured yet"
-                                    }
-                                    onClick={() => startOAuth("microsoft")}
-                                    class={microsoftReady() ? oauthEnabled : oauth}
-                                >
-                                    Microsoft
-                                </button>
-                            </div>
+                            <button
+                                type="button"
+                                disabled={!googleReady()}
+                                title={
+                                    googleReady() ? "Continue with Google" : "Not configured yet"
+                                }
+                                onClick={() => startOAuth("google")}
+                                class={googleReady() ? oauthEnabled : oauth}
+                            >
+                                Continue with Google
+                            </button>
                         </Show>
 
                         <p class="mt-6 text-[13px] text-muted">

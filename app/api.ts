@@ -164,7 +164,7 @@ export const api = {
             method: "POST",
             body: JSON.stringify({ email, password, name }),
         }),
-    authProviders: () => req<{ google: boolean; microsoft: boolean }>("/auth/providers"),
+    authProviders: () => req<{ google: boolean }>("/auth/providers"),
     forgotPassword: (email: string) =>
         req<{ ok: true }>("/auth/forgot", { method: "POST", body: JSON.stringify({ email }) }),
     resetPassword: (token: string, password: string) =>

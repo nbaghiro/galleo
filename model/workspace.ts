@@ -45,7 +45,7 @@ export interface ResetBody {
 }
 
 // The OAuth providers we support (matches oauth_accounts.provider on the backend).
-export type AuthProvider = "google" | "microsoft";
+export type AuthProvider = "google";
 
 export interface FolderInput {
     name: string;

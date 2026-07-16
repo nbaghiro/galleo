@@ -2,20 +2,17 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { generateState, generateCodeVerifier, decodeIdToken } from "arctic";
-import type { Google, MicrosoftEntraId } from "arctic";
+import type { Google } from "arctic";
 import type { AuthProvider } from "@model/workspace";
 import { linkOAuthAccount } from "../provision";
-import { googleProvider, microsoftProvider, oauthProvidersReady, OAUTH_SCOPES } from "../oauth";
+import { googleProvider, oauthProvidersReady, OAUTH_SCOPES } from "../oauth";
 import { appUrl } from "../app-url";
 import { setSessionCookie } from "./context";
 
-// OAuth sign-in for Google + Microsoft. Standard two-leg flow (begin → provider → callback); only the
-// per-provider identity read differs — Google asserts email_verified, Microsoft can't (see below).
-// Failures redirect to /login?authError=<code> for the auth page to explain.
+// Google OAuth sign-in. Standard two-leg flow: /auth/google mints state + PKCE and redirects to Google,
+// /auth/google/callback verifies + exchanges the code and reads the identity. Failures redirect to
+// /login?authError=<code> for the auth page to explain.
 export const oauth = new Hono();
-
-// Both arctic clients expose the methods a route uses, so one handler serves either.
-type OAuthClient = Google | MicrosoftEntraId;
 
 const STATE_COOKIE = "oauth_state";
 const VERIFIER_COOKIE = "oauth_verifier";
@@ -50,18 +47,8 @@ const googleIdentity: IdentityReader = (claims) => {
     };
 };
 
-// Microsoft Entra (`common`) id_tokens carry no `email_verified`, and email/preferred_username are
-// tenant-mutable, so we mark the identity UNVERIFIED — fine for a fresh sign-in, but linkOAuthAccount
-// won't merge it into an existing account (nOAuth). `email` may be absent; fall back to preferred_username.
-const microsoftIdentity: IdentityReader = (claims) => {
-    const sub = claim(claims, "sub");
-    const email = claim(claims, "email") ?? claim(claims, "preferred_username");
-    if (!sub || !email) return null;
-    return { sub, email, emailVerified: false, name: claim(claims, "name"), avatarUrl: null };
-};
-
 // Redirect leg: stash state + PKCE in cookies, bounce to the provider.
-function begin(c: Context, client: OAuthClient): Response {
+function begin(c: Context, client: Google): Response {
     const state = generateState();
     const verifier = generateCodeVerifier();
     const url = client.createAuthorizationURL(state, verifier, OAUTH_SCOPES);
@@ -81,7 +68,7 @@ function begin(c: Context, client: OAuthClient): Response {
 async function complete(
     c: Context,
     provider: AuthProvider,
-    client: OAuthClient,
+    client: Google,
     readIdentity: IdentityReader,
 ): Promise<Response> {
     const state = c.req.query("state");
@@ -129,14 +116,4 @@ oauth.get("/auth/google/callback", async (c) => {
     const client = googleProvider();
     if (!client) return c.redirect(appUrl(UNAVAILABLE));
     return complete(c, "google", client, googleIdentity);
-});
-
-oauth.get("/auth/microsoft", (c) => {
-    const client = microsoftProvider();
-    return client ? begin(c, client) : c.redirect(appUrl(UNAVAILABLE));
-});
-oauth.get("/auth/microsoft/callback", async (c) => {
-    const client = microsoftProvider();
-    if (!client) return c.redirect(appUrl(UNAVAILABLE));
-    return complete(c, "microsoft", client, microsoftIdentity);
 });

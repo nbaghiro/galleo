@@ -110,9 +110,9 @@ export interface OAuthProfile {
 
 // Resolve an OAuth identity to a local user, linking to an existing (provider, providerAccountId) row,
 // else an existing account by email, else a fresh OAuth-only user. Linking by email requires the provider
-// to have VERIFIED it (`emailVerified`) — otherwise an attacker-controlled tenant could assert someone
-// else's address and take over their account (the "nOAuth" class). Returns "email_taken" when an
-// unverified provider email collides with an existing account, so the caller refuses the sign-in.
+// to have VERIFIED the address (`emailVerified`) — otherwise a provider that asserts an address it doesn't
+// control could take over an existing account by email. Returns "email_taken" when an unverified provider
+// email collides with an existing account, so the caller refuses the sign-in.
 export async function linkOAuthAccount(
     provider: string,
     providerAccountId: string,
@@ -144,7 +144,7 @@ export async function linkOAuthAccount(
 
     let userId: string;
     if (byEmail) {
-        if (!emailVerified) return { error: "email_taken" }; // nOAuth guard (see above)
+        if (!emailVerified) return { error: "email_taken" }; // only merge a provider-verified email (see above)
         userId = byEmail.id;
         const patch: {
             name?: string;

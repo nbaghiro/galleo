@@ -26,9 +26,9 @@ export const users = pgTable("users", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Linked OAuth identities (Google / Microsoft). One row per (provider, provider account) → the local
-// user it authenticates. `password_hash` stays null for accounts created purely via OAuth; a user can
-// have both a password and one or more linked providers (matched on a verified email).
+// Linked OAuth identities (Google). One row per (provider, provider account) → the local user it
+// authenticates. `password_hash` stays null for accounts created purely via OAuth; a user can have both
+// a password and one or more linked providers (matched on a verified email).
 export const oauthAccounts = pgTable(
     "oauth_accounts",
     {
@@ -36,7 +36,7 @@ export const oauthAccounts = pgTable(
         userId: uuid("user_id")
             .notNull()
             .references(() => users.id),
-        provider: text("provider").notNull(), // google | microsoft
+        provider: text("provider").notNull(), // google
         providerAccountId: text("provider_account_id").notNull(), // the provider's stable subject id
         createdAt: timestamp("created_at").notNull().defaultNow(),
     },
