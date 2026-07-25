@@ -9,6 +9,7 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
+        "test:int": "vitest run -c vitest.integration.config.ts",
         "lint": "eslint .",
         "format": "prettier --write .",
         "format:check": "prettier --check .",

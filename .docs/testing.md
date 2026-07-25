@@ -150,11 +150,16 @@ table, run in `beforeEach` (`setup.ts`) for per-test isolation.
 `setupFiles` (`setup.ts`) truncates in `beforeEach`. AI/Stripe/mail keys are left unset so
 `aiReady()`/`stripeReady()`/`mailReady()` resolve false (the "not configured" branches are real behavior).
 
-**Invoking integration tests** — there is **no `test:int` npm script yet**; run the config directly:
+**Invoking integration tests** — `pnpm test:int` (`vitest run -c vitest.integration.config.ts`); needs
+Docker Postgres on :8602 (`docker compose up -d`). Pass a path to focus one file:
 
 ```
-vitest run -c vitest.integration.config.ts        # needs Docker Postgres on :8602 (docker-compose.yml)
+pnpm test:int                                       # whole integration suite
+pnpm test:int services/api/__tests__/billing.itest.ts
 ```
+
+`setup.ts` truncates via the router-free `reset-db.ts` (not `harness.ts`) so a test file's `vi.mock` can
+replace a module — e.g. mocking the Stripe SDK — before the router graph evaluates it.
 
 ---
 
@@ -188,6 +193,7 @@ status. `canvas/**` + `model/**` are the coverage-instrumented core; the rest ar
 | services media/mail/billing  | `services/media/__tests__/{generate,providers}`, `services/mail/__tests__/send`, `services/billing/__tests__/stripe` | pure dims/dispatch/escape/price mapping              | env (price ids, stock keys)               | DONE     |
 | ui primitives (pure)         | `ui/__tests__/{focus,fuzzy,keys,palette}`                                                                            | focus-trap, fuzzy match, keymap, palette-model       | —                                         | DONE     |
 | route policies (integration) | `services/api/__tests__/{session,artifacts,links,ai,context,folders}.itest.ts`                                       | real Postgres, real SQL, auth cookie, gating/shaping | DB (`galleo_test`), LLM/Stripe/mail/clock | DONE (6) |
+| billing routes (integration) | `services/api/__tests__/billing.itest.ts`                                                                            | real Postgres, credit/plan gating, webhook handler   | DB, Stripe SDK (`vi.mock("stripe")`)      | DONE     |
 
 **Honestly excluded (named here and in `vitest.config.ts` `coverage.exclude`):**
 

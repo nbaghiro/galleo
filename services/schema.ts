@@ -70,6 +70,7 @@ export const workspaces = pgTable("workspaces", {
     stripeSubscriptionId: text("stripe_subscription_id"),
     planStatus: text("plan_status").notNull().default("active"), // active | past_due | canceled
     planPeriodEnd: timestamp("plan_period_end"),
+    cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false), // scheduled downgrade to Free at planPeriodEnd
     seats: integer("seats").notNull().default(1), // subscription quantity; synced from Stripe
     aiCreditsUsed: integer("ai_credits_used").notNull().default(0),
     creditsResetAt: timestamp("credits_reset_at").notNull().defaultNow(),
@@ -223,6 +224,14 @@ export const credits = pgTable("credits", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Idempotency ledger for Stripe webhooks: the event id is claimed before handling so a redelivery
+// (Stripe retries until 2xx) can't re-apply the same effect — e.g. re-zero a workspace's credits.
+export const stripeEvents = pgTable("stripe_events", {
+    id: text("id").primaryKey(), // Stripe event id (evt_…)
+    type: text("type").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // `postgres(url)` is lazy (connects on first query, not import), so importing this for `drizzle-kit generate` stays connection-free
 export const schema = {
     users,
@@ -239,6 +248,7 @@ export const schema = {
     linkRecipients,
     linkViews,
     credits,
+    stripeEvents,
 };
 
 const url = process.env.DATABASE_URL;

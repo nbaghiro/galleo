@@ -35,6 +35,7 @@ export interface BillingState {
     plan: PlanId;
     status: string;
     periodEnd: string | null;
+    cancelAtPeriodEnd: boolean;
     credits: { used: number; limit: number; perGeneration: number };
     usage: { artifacts: number; maxArtifacts: number };
     seats: number;
@@ -308,6 +309,7 @@ export const api = {
             method: "POST",
             body: JSON.stringify(opts),
         }),
+    resumePlan: () => req<{ ok?: boolean }>("/billing/resume", { method: "POST" }),
     portal: () => req<{ url: string }>("/billing/portal", { method: "POST" }),
     spendCredits: (body?: {
         amount?: number;
