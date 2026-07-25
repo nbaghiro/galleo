@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { sql } from "drizzle-orm";
 import { db, schema } from "../schema";
+export { resetDb } from "./reset-db";
 import { SESSION_COOKIE, hashPassword, makeSession } from "../auth";
 import { session } from "../api/session";
 import { artifacts } from "../api/artifacts";
@@ -43,15 +43,6 @@ export const jsonInit = (method: string, body: unknown): RequestInit => ({
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
 });
-
-export async function resetDb(): Promise<void> {
-    const rows = (await db.execute(
-        sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public'`,
-    )) as unknown as Array<{ tablename: string }>;
-    const names = rows.map((r) => `"${r.tablename}"`);
-    if (names.length)
-        await db.execute(sql.raw(`TRUNCATE ${names.join(", ")} RESTART IDENTITY CASCADE`));
-}
 
 let seq = 0;
 

@@ -39,6 +39,7 @@ billing.get("/billing", async (c) => {
         plan: ws.plan,
         status: ws.planStatus,
         periodEnd: ws.planPeriodEnd,
+        cancelAtPeriodEnd: ws.cancelAtPeriodEnd,
         credits: {
             used: ws.aiCreditsUsed,
             limit: limits.aiCreditsPerMonth,
@@ -136,6 +137,11 @@ billing.post("/billing/change-plan", async (c) => {
         await stripe().subscriptions.update(ws.stripeSubscriptionId, {
             cancel_at_period_end: true,
         });
+        // Reflect immediately; the subscription.updated webhook re-syncs it authoritatively.
+        await db
+            .update(schema.workspaces)
+            .set({ cancelAtPeriodEnd: true })
+            .where(eq(schema.workspaces.id, ws.id));
         return c.json({ ok: true, effect: "cancel_at_period_end" });
     }
     if (!stripeReady()) return c.json({ error: "billing not configured" }, 503);
@@ -161,7 +167,27 @@ billing.post("/billing/change-plan", async (c) => {
         cancel_at_period_end: false,
         proration_behavior: upgrading ? "always_invoice" : "create_prorations",
     });
+    // Any paid change clears a pending cancel.
+    await db
+        .update(schema.workspaces)
+        .set({ cancelAtPeriodEnd: false })
+        .where(eq(schema.workspaces.id, ws.id));
     return c.json({ ok: true, effect: upgrading ? "upgraded" : "changed" });
+});
+
+// Undo a scheduled downgrade — keep the current paid plan running past period end.
+billing.post("/billing/resume", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await currentWorkspace(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+    if (!ws.stripeSubscriptionId) return c.json({ error: "no active subscription" }, 400);
+    await stripe().subscriptions.update(ws.stripeSubscriptionId, { cancel_at_period_end: false });
+    await db
+        .update(schema.workspaces)
+        .set({ cancelAtPeriodEnd: false })
+        .where(eq(schema.workspaces.id, ws.id));
+    return c.json({ ok: true });
 });
 
 // Cost precedence: exact usage bag → action+meter estimate → raw amount → default generation. 402 when spent.
@@ -214,7 +240,20 @@ billing.post("/billing/webhook", async (c) => {
     } catch {
         return c.json({ error: "bad signature" }, 400);
     }
-    await handleEvent(event);
+    // Claim the event id before handling; a redelivery finds it already claimed and is a no-op. On a
+    // handler failure we release the claim so Stripe's retry re-runs it (at-least-once, dedup on success).
+    const [claimed] = await db
+        .insert(schema.stripeEvents)
+        .values({ id: event.id, type: event.type })
+        .onConflictDoNothing()
+        .returning({ id: schema.stripeEvents.id });
+    if (!claimed) return c.json({ received: true, duplicate: true });
+    try {
+        await handleEvent(event);
+    } catch (err) {
+        await db.delete(schema.stripeEvents).where(eq(schema.stripeEvents.id, event.id));
+        throw err;
+    }
     return c.json({ received: true });
 });
 
@@ -262,6 +301,7 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
                 stripeSubscriptionId: sub.id,
                 seats: seatsOf(sub),
                 planPeriodEnd: subPeriodEnd(sub),
+                cancelAtPeriodEnd: sub.cancel_at_period_end,
                 aiCreditsUsed: 0,
                 creditsResetAt: monthOut(),
             })
@@ -278,6 +318,7 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
                 planStatus: activeStatus(sub.status),
                 seats: seatsOf(sub),
                 planPeriodEnd: subPeriodEnd(sub),
+                cancelAtPeriodEnd: sub.cancel_at_period_end,
             })
             .where(eq(schema.workspaces.id, ws.id));
     } else if (event.type === "customer.subscription.deleted") {
@@ -287,7 +328,13 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
         // Back to Free; data kept, over-limit use soft-locked by the resolver's gates.
         await db
             .update(schema.workspaces)
-            .set({ plan: "free", planStatus: "canceled", stripeSubscriptionId: null, seats: 1 })
+            .set({
+                plan: "free",
+                planStatus: "canceled",
+                stripeSubscriptionId: null,
+                seats: 1,
+                cancelAtPeriodEnd: false,
+            })
             .where(eq(schema.workspaces.id, ws.id));
     } else if (event.type === "invoice.payment_failed") {
         const customerId = invCustomer(event.data.object as Stripe.Invoice);

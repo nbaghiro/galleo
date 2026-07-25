@@ -4,11 +4,18 @@ import { useSearchParams } from "@solidjs/router";
 import type { Interval, Plan, PlanId } from "@model/billing";
 import { PRICED_TOOLS, costRange, isMetered, typicalCost } from "@model/tools";
 import { CheckIcon } from "@ui/icons";
-import { Badge, Eyebrow } from "@ui/button";
+import { Badge, Eyebrow, Spinner } from "@ui/button";
 import { TextField } from "@ui/inputs";
 import { Meter } from "@ui/status";
 import { Sidebar } from "../components/Sidebar";
-import { billing, changePlan, loadBilling, openPortal, startCheckout } from "../stores/billing";
+import {
+    billing,
+    changePlan,
+    loadBilling,
+    openPortal,
+    resumePlan,
+    startCheckout,
+} from "../stores/billing";
 
 export const PricingView: Component = () => {
     const [params] = useSearchParams();
@@ -17,6 +24,8 @@ export const PricingView: Component = () => {
     const b = billing;
     const current = (): PlanId => b()?.plan ?? "free";
     const ready = (): boolean => b()?.stripeReady ?? false;
+    // A paid plan set to lapse to Free at period end — kept running until then; can be resumed.
+    const pendingCancel = (): boolean => !!b()?.cancelAtPeriodEnd && current() !== "free";
 
     const usagePct = createMemo(() => {
         const c = b()?.credits;
@@ -42,10 +51,27 @@ export const PricingView: Component = () => {
         return !!u && u.maxArtifacts >= 0 && u.artifacts > u.maxArtifacts;
     };
 
+    // Which action is mid-flight, keyed by plan id / "resume" / "portal". Drives per-button spinners and
+    // blocks concurrent submits. Checkout + portal redirect away, so pending simply persists until navigation.
+    const [pending, setPending] = createSignal<string | null>(null);
+    const busy = (key: string): boolean => pending() === key;
+    const anyBusy = (): boolean => pending() !== null;
+    const run = async (key: string, fn: () => Promise<void>): Promise<void> => {
+        if (anyBusy()) return;
+        setPending(key);
+        try {
+            await fn();
+        } catch {
+            // errors surface via the store / reloaded state; just release the button
+        } finally {
+            setPending(null);
+        }
+    };
+
     const pick = (plan: Plan): void => {
         if (plan.id === current()) return;
         if (plan.id === "free") {
-            changePlan({ plan: "free" }).catch(() => {}); // cancel at period end
+            void run(plan.id, () => changePlan({ plan: "free" })); // cancel at period end
             return;
         }
         const opts = {
@@ -54,7 +80,7 @@ export const PricingView: Component = () => {
             seats: perSeat(plan) ? seatsFor(plan) : undefined,
         };
         // free → paid needs Checkout (collect a payment method); paid → paid is an in-app change.
-        (current() === "free" ? startCheckout(opts) : changePlan(opts)).catch(() => {});
+        void run(plan.id, () => (current() === "free" ? startCheckout(opts) : changePlan(opts)));
     };
 
     const ctaLabel = (plan: Plan): string => {
@@ -102,10 +128,36 @@ export const PricingView: Component = () => {
                                 plan.
                             </span>
                             <button
-                                class="flex-none rounded-lg border border-line bg-panel px-3 py-1.5 font-semibold hover:border-accent"
-                                onClick={() => openPortal().catch(() => {})}
+                                class="flex-none inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel px-3 py-1.5 font-semibold hover:border-accent disabled:opacity-60"
+                                disabled={anyBusy()}
+                                onClick={() => void run("portal", openPortal)}
                             >
-                                Update payment →
+                                <Show when={busy("portal")}>
+                                    <Spinner size={13} tone="current" />
+                                </Show>
+                                {busy("portal") ? "Opening…" : "Update payment →"}
+                            </button>
+                        </div>
+                    </Show>
+                    <Show when={pendingCancel()}>
+                        <div class="mb-5 flex items-center justify-between gap-3 rounded-xl border border-line bg-panel px-4 py-3 text-[13px] text-ink">
+                            <span>
+                                Your <span class="font-semibold capitalize">{current()}</span> plan
+                                is set to switch to Free
+                                <Show when={b()?.periodEnd}>
+                                    {(end) => <> on {new Date(end()).toLocaleDateString()}</>}
+                                </Show>
+                                . You keep everything until then.
+                            </span>
+                            <button
+                                class="flex-none inline-flex items-center gap-1.5 rounded-lg border border-line bg-canvas px-3 py-1.5 font-semibold hover:border-accent disabled:opacity-60"
+                                disabled={anyBusy()}
+                                onClick={() => void run("resume", resumePlan)}
+                            >
+                                <Show when={busy("resume")}>
+                                    <Spinner size={13} tone="current" />
+                                </Show>
+                                {busy("resume") ? "Resuming…" : "Resume plan"}
                             </button>
                         </div>
                     </Show>
@@ -157,7 +209,8 @@ export const PricingView: Component = () => {
                                             {(end) => (
                                                 <>
                                                     {" · "}
-                                                    {state().status === "canceled"
+                                                    {state().cancelAtPeriodEnd ||
+                                                    state().status === "canceled"
                                                         ? "ends"
                                                         : "renews"}{" "}
                                                     {new Date(end()).toLocaleDateString()}
@@ -263,7 +316,7 @@ export const PricingView: Component = () => {
                                             </For>
                                         </ul>
                                         <button
-                                            class={`mt-5 rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors disabled:opacity-50 ${
+                                            class={`mt-5 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors disabled:opacity-50 ${
                                                 isCurrent()
                                                     ? "border border-line text-soft"
                                                     : featured()
@@ -271,11 +324,16 @@ export const PricingView: Component = () => {
                                                       : "border border-line text-ink hover:border-accent"
                                             }`}
                                             disabled={
-                                                isCurrent() || (plan.id !== "free" && !ready())
+                                                isCurrent() ||
+                                                (plan.id !== "free" && !ready()) ||
+                                                anyBusy()
                                             }
                                             onClick={() => pick(plan)}
                                         >
-                                            {ctaLabel(plan)}
+                                            <Show when={busy(plan.id)}>
+                                                <Spinner size={14} tone="current" />
+                                            </Show>
+                                            {busy(plan.id) ? "Processing…" : ctaLabel(plan)}
                                         </button>
                                     </div>
                                 );
@@ -355,10 +413,16 @@ export const PricingView: Component = () => {
 
                     <Show when={current() !== "free"}>
                         <button
-                            class="mt-6 text-[13px] font-medium text-soft underline hover:text-ink"
-                            onClick={() => openPortal().catch(() => {})}
+                            class="mt-6 inline-flex items-center gap-1.5 text-[13px] font-medium text-soft underline hover:text-ink disabled:opacity-60"
+                            disabled={anyBusy()}
+                            onClick={() => void run("portal", openPortal)}
                         >
-                            Manage billing / cancel in the Stripe portal →
+                            <Show when={busy("portal")}>
+                                <Spinner size={13} tone="line" />
+                            </Show>
+                            {busy("portal")
+                                ? "Opening portal…"
+                                : "Manage billing / cancel in the Stripe portal →"}
                         </button>
                     </Show>
                 </div>

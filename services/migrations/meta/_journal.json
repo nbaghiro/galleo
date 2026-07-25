@@ -36,6 +36,13 @@
       "when": 1785424336389,
       "tag": "0004_flaky_photon",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785596379249,
+      "tag": "0005_minor_nextwave",
+      "breakpoints": true
     }
   ]
 }

@@ -33,6 +33,11 @@ export async function changePlan(opts: {
     await loadBilling();
 }
 
+export async function resumePlan(): Promise<void> {
+    await api.resumePlan();
+    await loadBilling();
+}
+
 export async function openPortal(): Promise<void> {
     const { url } = await api.portal();
     if (url) window.location.href = url;
