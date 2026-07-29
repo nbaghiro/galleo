@@ -311,7 +311,7 @@ const ExportMenu: Component = () => {
 };
 
 const Topbar: Component = () => (
-    <header class="relative z-menu flex items-center gap-3.5 border-b border-line bg-panel px-[18px]">
+    <header class="relative z-menu flex items-center gap-3.5 border-b border-line bg-panel px-4.5">
         <button
             class="cursor-pointer font-mono text-[15px] font-bold tracking-wide text-accent hover:opacity-80"
             title="Back to library"
@@ -398,7 +398,7 @@ const Minimap: Component = () => {
             pad="md"
             shadow="panel"
             ref={(el) => (asideEl = el)}
-            class="absolute left-3 top-1/2 z-panel flex max-h-[calc(100%-44px)] w-[182px] -translate-y-1/2 flex-col gap-3 overflow-y-auto"
+            class="absolute left-3 top-1/2 z-panel flex max-h-[calc(100%-44px)] w-45.5 -translate-y-1/2 flex-col gap-3 overflow-y-auto"
         >
             <div class="flex items-center justify-between pl-1">
                 <Eyebrow mono={false}>Sections</Eyebrow>
@@ -529,7 +529,7 @@ const Panel: Component = () => {
                         as="aside"
                         pad="lg"
                         shadow="panel"
-                        class="flex max-h-[calc(100vh-120px)] w-[284px] flex-col overflow-y-auto"
+                        class="flex max-h-[calc(100vh-120px)] w-71 flex-col overflow-y-auto"
                     >
                         <Show
                             when={tab() === "inspector"}

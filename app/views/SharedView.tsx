@@ -153,7 +153,7 @@ export const SharedView: Component = () => {
         return (
             <div class="group flex flex-col overflow-hidden rounded-2xl border border-line bg-panel transition-colors hover:border-accent/40">
                 <button
-                    class="relative block h-[128px] w-full overflow-hidden text-left"
+                    class="relative block h-32 w-full overflow-hidden text-left"
                     style={{ background: tk().bg }}
                     title="View insights"
                     onClick={() => setInsight(p.it)}
@@ -273,7 +273,7 @@ export const SharedView: Component = () => {
     };
 
     const Stat: Component<{ label: string; value: number; accent?: boolean }> = (p) => (
-        <div class="min-w-[110px] flex-1 rounded-xl border border-line bg-panel px-4 py-3">
+        <div class="min-w-27.5 flex-1 rounded-xl border border-line bg-panel px-4 py-3">
             <div
                 class="font-display text-[22px] font-semibold leading-none"
                 classList={{ "text-accent": p.accent, "text-ink": !p.accent }}
@@ -501,7 +501,7 @@ const InsightsModal: Component<{
                     <div class="mb-1.5 font-mono text-[9.5px] uppercase tracking-[0.12em] text-muted">
                         Recipients
                     </div>
-                    <div class="max-h-[240px] overflow-y-auto rounded-lg border border-line">
+                    <div class="max-h-60 overflow-y-auto rounded-lg border border-line">
                         <Show
                             when={state()?.recipients.length}
                             fallback={

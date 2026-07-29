@@ -54,7 +54,7 @@ import { Sidebar } from "../components/Sidebar";
 
 // fills use soft/accent tints — legible on light and dark, unlike line
 const GhostCard: Component<{ variant: number }> = (p) => (
-    <div class="flex min-h-[150px] flex-col gap-2.5 rounded-xl border border-soft/15 bg-panel p-3">
+    <div class="flex min-h-37.5 flex-col gap-2.5 rounded-xl border border-soft/15 bg-panel p-3">
         <Switch>
             <Match when={p.variant === 0}>
                 <div class="flex-1 rounded-lg bg-gradient-to-br from-soft/25 to-soft/6" />
@@ -88,7 +88,7 @@ const GhostCard: Component<{ variant: number }> = (p) => (
 );
 
 const EmptyLibrary: Component<{ onGenerate: () => void; onTemplates: () => void }> = (p) => (
-    <div class="relative flex min-h-[540px] items-center justify-center overflow-hidden px-6 py-16">
+    <div class="relative flex min-h-135 items-center justify-center overflow-hidden px-6 py-16">
         <div
             aria-hidden="true"
             class="pointer-events-none absolute inset-0 grid grid-cols-2 gap-4 p-6 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
@@ -103,7 +103,7 @@ const EmptyLibrary: Component<{ onGenerate: () => void; onTemplates: () => void 
             </Index>
         </div>
 
-        <div class="relative z-raised max-w-[440px] rounded-2xl border border-line bg-panel/95 px-9 py-8 text-center shadow-2xl backdrop-blur-sm">
+        <div class="relative z-raised max-w-110 rounded-2xl border border-line bg-panel/95 px-9 py-8 text-center shadow-2xl backdrop-blur-sm">
             <Eyebrow as="div" tracking="widest" class="mb-2">
                 A clean slate
             </Eyebrow>
@@ -113,7 +113,7 @@ const EmptyLibrary: Component<{ onGenerate: () => void; onTemplates: () => void 
             >
                 Nothing here yet — it fills up fast.
             </h2>
-            <p class="mx-auto mt-2 max-w-[340px] text-[14px] text-soft">
+            <p class="mx-auto mt-2 max-w-85 text-[14px] text-soft">
                 Spin up your first deck, doc, or site. Everything you make lands right here.
             </p>
             <div class="mt-6 flex flex-wrap items-center justify-center gap-2.5">
@@ -261,7 +261,7 @@ export const LibraryView: Component = () => {
                     onMouseLeave={() => setHovered(false)}
                 >
                     <button
-                        class="relative block h-[190px] w-[300px] overflow-hidden"
+                        class="relative block h-47.5 w-75 overflow-hidden"
                         style={{
                             background: appTk().bg,
                             "box-shadow": "var(--shadow)",
@@ -430,7 +430,7 @@ export const LibraryView: Component = () => {
                             fallback={
                                 <Index each={Array.from({ length: secs().length || 6 })}>
                                     {() => (
-                                        <div class="h-[99px] w-[176px] flex-none animate-pulse rounded-lg border border-line bg-line/40" />
+                                        <div class="h-24.75 w-44 flex-none animate-pulse rounded-lg border border-line bg-line/40" />
                                     )}
                                 </Index>
                             }

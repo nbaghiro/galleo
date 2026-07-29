@@ -479,7 +479,7 @@ const ThemeEditorPanel: Component = () => {
         unit: string,
     ): JSX.Element => (
         <div class="flex items-center gap-2.5 py-1">
-            <span class="w-[84px] flex-none text-[12.5px] text-soft">{label}</span>
+            <span class="w-21 flex-none text-[12.5px] text-soft">{label}</span>
             <div class="min-w-0 flex-1">
                 <Slider
                     value={(tk[key] as number) ?? min}
@@ -499,7 +499,7 @@ const ThemeEditorPanel: Component = () => {
         list: string[],
     ): JSX.Element => (
         <div class="flex items-center gap-2.5 py-1">
-            <span class="w-[84px] flex-none text-[12.5px] text-soft">{label}</span>
+            <span class="w-21 flex-none text-[12.5px] text-soft">{label}</span>
             <div class="min-w-0 flex-1">
                 <Dropdown
                     value={tk[key]}
@@ -521,10 +521,10 @@ const ThemeEditorPanel: Component = () => {
             size="full"
             scrim="light"
             vars={panelVars()}
-            class="flex h-[90vh] max-h-[1000px] overflow-hidden"
+            class="flex h-[90vh] max-h-250 overflow-hidden"
             onClose={() => closeThemeEditor()}
         >
-            <aside class="flex w-[360px] flex-none flex-col border-r border-line bg-panel">
+            <aside class="flex w-90 flex-none flex-col border-r border-line bg-panel">
                 <header class="flex flex-none items-center gap-2 border-b border-line px-3 py-3">
                     <div class="flex-1">
                         <Segmented
@@ -662,7 +662,7 @@ const ThemeEditorPanel: Component = () => {
                                     </p>
                                     <TextArea
                                         rounded="xl"
-                                        class="min-h-[120px] placeholder:text-muted"
+                                        class="min-h-30 placeholder:text-muted"
                                         placeholder="e.g. warm mid-century — terracotta and cream, editorial serif, soft corners"
                                         value={genPrompt()}
                                         onChange={(v) => setGenPrompt(v)}
@@ -768,7 +768,7 @@ const ThemeEditorPanel: Component = () => {
                                 </Button>
                             </div>
 
-                            <div class="mx-auto w-full max-w-[300px]">
+                            <div class="mx-auto w-full max-w-75">
                                 {heading("Details")}
                                 <div class="flex items-center justify-between gap-2.5 py-1">
                                     <span class="whitespace-nowrap text-[12.5px] text-soft">
@@ -778,7 +778,7 @@ const ThemeEditorPanel: Component = () => {
                                         compact
                                         value={tag()}
                                         placeholder="editorial, cyber…"
-                                        class="w-[150px]"
+                                        class="w-37.5"
                                         onChange={(v) => setTag(v)}
                                     />
                                 </div>
@@ -803,7 +803,7 @@ const ThemeEditorPanel: Component = () => {
                                 {rangeField("radius", "Radius", 0, 28, 1, "px")}
                                 {rangeField("border", "Border", 0, 4, 1, "px")}
                                 <div class="flex items-center gap-2.5 py-1">
-                                    <span class="w-[84px] flex-none text-[12.5px] text-soft">
+                                    <span class="w-21 flex-none text-[12.5px] text-soft">
                                         Shadow
                                     </span>
                                     <div class="min-w-0 flex-1">
@@ -818,7 +818,7 @@ const ThemeEditorPanel: Component = () => {
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-2.5 py-1">
-                                    <span class="w-[84px] flex-none text-[12.5px] text-soft">
+                                    <span class="w-21 flex-none text-[12.5px] text-soft">
                                         Image scrim
                                     </span>
                                     <div class="min-w-0 flex-1">

@@ -159,11 +159,11 @@ export const Popover: Component<{
 // Rendered inline (not portaled) so it inherits the theme from its DOM ancestor; pass `vars` to stamp a snapshot when mounted outside a themed tree.
 type ModalSize = "sm" | "md" | "lg" | "xl" | "full";
 const MODAL_W: Record<ModalSize, string> = {
-    sm: "max-w-[400px]",
-    md: "max-w-[520px]",
-    lg: "max-w-[720px]",
-    xl: "max-w-[960px]",
-    full: "max-w-[1520px]",
+    sm: "max-w-100",
+    md: "max-w-130",
+    lg: "max-w-180",
+    xl: "max-w-240",
+    full: "max-w-380",
 };
 type Scrim = "dim" | "blur" | "light";
 const SCRIM: Record<Scrim, string> = {
@@ -324,7 +324,7 @@ const PANEL_PAD: Record<PanelPad, string> = {
     none: "",
     sm: "p-1.5",
     md: "p-3",
-    lg: "p-[18px]",
+    lg: "p-4.5",
 };
 type PanelRounded = "lg" | "xl" | "2xl";
 const PANEL_ROUNDED: Record<PanelRounded, string> = {

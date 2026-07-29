@@ -40,7 +40,7 @@ const TH =
 const CELL = "border-b border-r border-line/50";
 // Still used by the cell-embedded native <select>s (which stay bespoke).
 const IN =
-    "w-full min-w-[72px] bg-transparent px-2.5 py-2 text-[13px] text-ink outline-none focus:bg-canvas";
+    "w-full min-w-18 bg-transparent px-2.5 py-2 text-[13px] text-ink outline-none focus:bg-canvas";
 const DEL = "px-2 text-[13px] text-muted transition-colors hover:text-accent";
 const numRing = (v: string): string =>
     invalidNumber(v) ? "rounded-sm bg-rose-500/5 ring-1 ring-inset ring-rose-400/70" : "";
@@ -457,7 +457,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                     <thead>
                         <tr>
                             <th class={`${TH} w-full`}>Node</th>
-                            <th class={`${TH} min-w-[140px]`}>Reports to</th>
+                            <th class={`${TH} min-w-35`}>Reports to</th>
                             <th class={TH} />
                         </tr>
                     </thead>
@@ -576,8 +576,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                     <table class="w-full border-collapse">
                         <thead>
                             <tr>
-                                <th class={`${TH} min-w-[120px]`}>From</th>
-                                <th class={`${TH} min-w-[120px]`}>To</th>
+                                <th class={`${TH} min-w-30`}>From</th>
+                                <th class={`${TH} min-w-30`}>To</th>
                                 <th class={`${TH} w-full`}>Label</th>
                                 <th class={TH} />
                             </tr>
@@ -734,11 +734,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                     </Show>
                 </div>
             </Show>
-            <div
-                class={
-                    props.compact ? "max-h-[320px] overflow-auto p-2" : "flex-1 overflow-auto p-4"
-                }
-            >
+            <div class={props.compact ? "max-h-80 overflow-auto p-2" : "flex-1 overflow-auto p-4"}>
                 <Show when={limit !== undefined}>
                     <div
                         class="mb-3 rounded-lg border px-3 py-2 text-[12px]"
@@ -825,7 +821,7 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
         <Modal
             scrim="blur"
             size="full"
-            class="flex h-[760px] max-h-[90vh] w-[min(1140px,96vw)] flex-col overflow-hidden"
+            class="flex h-190 max-h-[90vh] w-[min(1140px,96vw)] flex-col overflow-hidden"
             onClose={close}
         >
             <div class="flex items-center gap-3 border-b border-line px-5 py-3">
@@ -840,7 +836,7 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
             </div>
 
             <div class="flex min-h-0 flex-1">
-                <aside class="flex w-[320px] flex-none flex-col gap-4 overflow-y-auto border-r border-line p-4">
+                <aside class="flex w-80 flex-none flex-col gap-4 overflow-y-auto border-r border-line p-4">
                     <div class="rounded-xl border border-line bg-canvas p-2.5">
                         <canvas ref={cv} class="block w-full rounded-md" />
                         <div class="mt-2 px-1 text-[10px] font-medium uppercase tracking-wider text-muted">

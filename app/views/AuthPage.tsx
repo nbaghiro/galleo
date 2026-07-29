@@ -190,7 +190,7 @@ export const AuthPage: Component = () => {
             </div>
 
             <div class="flex flex-1 items-center justify-center p-8">
-                <div class="w-[360px]">
+                <div class="w-90">
                     <h1
                         class="text-[26px] font-semibold tracking-tight"
                         style={{ "font-family": serif }}

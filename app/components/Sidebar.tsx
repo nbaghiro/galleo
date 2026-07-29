@@ -150,7 +150,7 @@ export const Sidebar: Component = () => {
             onDragLeave={onDrop ? () => setDragOver(null) : undefined}
             onDrop={onDrop ? () => onDrop() : undefined}
         >
-            <span class="grid h-[18px] w-[18px] flex-none place-items-center">{icon}</span> {label}
+            <span class="grid h-4.5 w-4.5 flex-none place-items-center">{icon}</span> {label}
         </a>
     );
 
@@ -221,7 +221,7 @@ export const Sidebar: Component = () => {
                             </IconButton>
                         </Show>
                         <span
-                            class="grid h-[18px] w-[18px] flex-none place-items-center"
+                            class="grid h-4.5 w-4.5 flex-none place-items-center"
                             style={{ color: folderColor(np.f.id) }}
                         >
                             <FolderFillIcon size={16} />
@@ -282,7 +282,7 @@ export const Sidebar: Component = () => {
     };
 
     return (
-        <aside class="flex w-[230px] flex-none flex-col gap-1 border-r border-line bg-panel px-3 py-4 text-ink">
+        <aside class="flex w-57.5 flex-none flex-col gap-1 border-r border-line bg-panel px-3 py-4 text-ink">
             {/* marketing site (a separate build) — rel="external" so Solid Router does a real navigation
                 to /home instead of intercepting it into a client route (which the base="/" router now would) */}
             <a

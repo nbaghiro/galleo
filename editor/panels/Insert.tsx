@@ -64,7 +64,7 @@ export const EmptyRegionAdd: Component = () => {
                         <FloatingPanel
                             rounded="xl"
                             pad="none"
-                            class="absolute left-1/2 top-full mt-2 w-[248px] -translate-x-1/2 p-2"
+                            class="absolute left-1/2 top-full mt-2 w-62 -translate-x-1/2 p-2"
                         >
                             <ElementPicker onInsert={insert} />
                         </FloatingPanel>
@@ -206,7 +206,7 @@ export const ContextMenu: Component = () => (
                     estHeight={items.length * 34 + 12}
                     minWidth={180}
                     toolbar
-                    panelClass="min-w-[180px] p-1.5"
+                    panelClass="min-w-45 p-1.5"
                 >
                     <For each={items}>
                         {(it): JSX.Element => (

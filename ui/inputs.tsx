@@ -127,7 +127,7 @@ export const TextArea: Component<
 };
 
 const cellInputCls =
-    "w-full min-w-[72px] bg-transparent px-2.5 py-2 text-[13px] text-ink outline-none focus:bg-canvas";
+    "w-full min-w-18 bg-transparent px-2.5 py-2 text-[13px] text-ink outline-none focus:bg-canvas";
 const cellNumCls = `${cellInputCls} text-left font-mono tabular-nums`;
 export const CellInput: Component<
     Omit<JSX.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "class"> & {
@@ -155,7 +155,7 @@ export const Toggle: Component<{ value: boolean; onChange: (b: boolean) => void 
     >
         <span
             class={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
-                props.value ? "left-[18px]" : "left-0.5"
+                props.value ? "left-4.5" : "left-0.5"
             }`}
         />
     </button>

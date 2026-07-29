@@ -114,12 +114,7 @@ export const SectionGenStage: Component = () => {
                                 <Icon name="sparkle" size={11} />
                             </span>
                         </Show>
-                        <Eyebrow
-                            tone="soft"
-                            weight="normal"
-                            size={12}
-                            class="max-w-[280px] truncate"
-                        >
+                        <Eyebrow tone="soft" weight="normal" size={12} class="max-w-70 truncate">
                             {done() ? "Section added" : (sectionGen.caption || "Generating") + "…"}
                         </Eyebrow>
                     </FloatingBar>

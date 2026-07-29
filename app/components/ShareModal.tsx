@@ -336,7 +336,7 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                                     )}
                                 </For>
                                 <input
-                                    class="min-w-[140px] flex-1 bg-transparent px-1 py-0.5 text-[13px] text-ink outline-none placeholder:text-muted"
+                                    class="min-w-35 flex-1 bg-transparent px-1 py-0.5 text-[13px] text-ink outline-none placeholder:text-muted"
                                     placeholder="Add people by email…"
                                     value={emailDraft()}
                                     onInput={(e) => setEmailDraft(e.currentTarget.value)}
@@ -469,7 +469,7 @@ const Upgrade: Component<{ onGo: () => void }> = (props) => (
                 ? "Public links — coming soon"
                 : "Publishing is a paid feature"}
         </div>
-        <p class="mx-auto mb-4 max-w-[340px] text-[12px] leading-relaxed text-muted">
+        <p class="mx-auto mb-4 max-w-85 text-[12px] leading-relaxed text-muted">
             Publish your work to a public, protected, or invite-only link. Available on Pro and
             Premium.
         </p>

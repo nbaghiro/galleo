@@ -213,7 +213,7 @@ export const ResizeHandles: Component = () => {
                     onPointerDown={onDown}
                 >
                     <div
-                        class="absolute bottom-0 left-0 h-[3px] w-full rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+                        class="absolute bottom-0 left-0 h-0.75 w-full rounded-full opacity-0 transition-opacity group-hover:opacity-100"
                         style={{ background: editorAccent() }}
                     />
                 </div>
@@ -343,7 +343,7 @@ export const RegionDividers: Component = () => {
                     onPointerDown={(e) => onDown(e, d)}
                 >
                     <div
-                        class="h-full w-[2px] rounded-full opacity-25 transition-opacity duration-150 group-hover:opacity-100"
+                        class="h-full w-0.5 rounded-full opacity-25 transition-opacity duration-150 group-hover:opacity-100"
                         style={{ background: editorAccent() }}
                     />
                 </div>

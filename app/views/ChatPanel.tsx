@@ -680,7 +680,7 @@ export const ChatPanel: Component = () => {
                 </Show>
 
                 <div
-                    class="fixed right-0 top-0 z-drawer flex h-full w-[400px] max-w-[92vw] flex-col border-l border-line bg-panel shadow-2xl transition-transform duration-200"
+                    class="fixed right-0 top-0 z-drawer flex h-full w-100 max-w-[92vw] flex-col border-l border-line bg-panel shadow-2xl transition-transform duration-200"
                     style={{ transform: chatOpen() ? "translateX(0)" : "translateX(105%)" }}
                 >
                     <header class="flex flex-none items-center justify-between border-b border-line px-4 py-3">
@@ -711,7 +711,7 @@ export const ChatPanel: Component = () => {
                             when={thread.messages.length}
                             fallback={
                                 <div class="flex h-full flex-col items-center justify-center gap-3 text-center">
-                                    <p class="max-w-[240px] text-[13px] leading-relaxed text-muted">
+                                    <p class="max-w-60 text-[13px] leading-relaxed text-muted">
                                         {emptyPrompt()}
                                     </p>
                                     <div class="flex flex-wrap justify-center gap-1.5">

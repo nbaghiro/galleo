@@ -137,7 +137,7 @@ const PaletteBody: Component = () => {
         <div class="fixed inset-0 z-popover flex items-start justify-center p-4 pt-[12vh]">
             <div class="absolute inset-0 bg-black/40" onPointerDown={closePalette} />
             <div
-                class="relative flex max-h-[70vh] w-full max-w-[600px] flex-col overflow-hidden rounded-2xl border border-line bg-panel shadow-2xl"
+                class="relative flex max-h-[70vh] w-full max-w-150 flex-col overflow-hidden rounded-2xl border border-line bg-panel shadow-2xl"
                 role="combobox"
                 aria-expanded={true}
                 aria-haspopup="listbox"

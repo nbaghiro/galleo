@@ -192,7 +192,7 @@ export const ContextBar: Component = () => {
                     <Show when={spec()?.frame}>
                         <span class="flex items-center gap-1.5 pl-1 pr-0.5 text-soft">
                             <Icon name="corner" size={14} />
-                            <span class="w-[74px]">
+                            <span class="w-18.5">
                                 <SliderRow
                                     value={radius()}
                                     min={0}
@@ -355,10 +355,10 @@ export const MarkControls: Component = () => {
                     onMouseDown={noBlur}
                     onClick={() => openPicker("color")}
                 >
-                    <span class="flex flex-col items-center gap-[3px]">
+                    <span class="flex flex-col items-center gap-0.75">
                         <Icon name="letterA" size={14} />
                         <span
-                            class="h-[3px] w-3.5 rounded-full"
+                            class="h-0.75 w-3.5 rounded-full"
                             style={{ background: activeValues().color ?? "currentColor" }}
                         />
                     </span>
@@ -389,10 +389,10 @@ export const MarkControls: Component = () => {
                     onMouseDown={noBlur}
                     onClick={() => openPicker("hl")}
                 >
-                    <span class="flex flex-col items-center gap-[3px]">
+                    <span class="flex flex-col items-center gap-0.75">
                         <Icon name="highlighter" size={14} />
                         <span
-                            class="h-[3px] w-3.5 rounded-full"
+                            class="h-0.75 w-3.5 rounded-full"
                             style={{ background: activeValues().hl ?? "transparent" }}
                         />
                     </span>
@@ -429,7 +429,7 @@ export const MarkControls: Component = () => {
                     <FloatingPanel
                         rounded="xl"
                         pad="none"
-                        class="absolute left-1/2 top-full z-overlay mt-2 flex w-[248px] -translate-x-1/2 items-center gap-1.5 p-2"
+                        class="absolute left-1/2 top-full z-overlay mt-2 flex w-62 -translate-x-1/2 items-center gap-1.5 p-2"
                     >
                         <TextField
                             compact
@@ -509,7 +509,7 @@ const TextAiMenu: Component = () => {
                 <FloatingPanel
                     rounded="xl"
                     pad="sm"
-                    class="absolute right-0 top-full z-overlay mt-2 max-h-[400px] w-72 overflow-y-auto"
+                    class="absolute right-0 top-full z-overlay mt-2 max-h-100 w-72 overflow-y-auto"
                 >
                     <div class="flex items-center gap-1.5 rounded-lg border border-line bg-canvas px-2 py-1.5 focus-within:border-accent">
                         <Icon name="sparkle" size={14} />

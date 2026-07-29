@@ -139,7 +139,7 @@ export const ScaledSectionCanvas: Component<{
 };
 
 export const SlideProgress: Component<{ index: number; total: number }> = (props) => (
-    <div class="pointer-events-none absolute left-0 top-0 h-[3px] w-full bg-white/10">
+    <div class="pointer-events-none absolute left-0 top-0 h-0.75 w-full bg-white/10">
         <div
             class="h-full bg-white/70 transition-all"
             style={{ width: `${props.total ? ((props.index + 1) / props.total) * 100 : 0}%` }}

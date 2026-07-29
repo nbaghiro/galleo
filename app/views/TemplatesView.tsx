@@ -63,7 +63,7 @@ export const TemplatesView: Component = () => {
         const tk = (): ReturnType<typeof resolveTheme>["tokens"] => resolveTheme(appTheme()).tokens;
         const cover = () => p.t.content.sections[0];
         return (
-            <div class="flex w-[244px] flex-none flex-col">
+            <div class="flex w-61 flex-none flex-col">
                 <div class="group relative">
                     <Show when={cover()}>
                         <SectionThumb

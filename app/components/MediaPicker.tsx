@@ -511,7 +511,7 @@ export const MediaPicker: Component = () => {
                 onClose={closeMediaPicker}
                 scrim="blur"
                 vars={themeVars()}
-                class="flex h-[600px] max-h-[86vh] max-w-[900px] flex-col overflow-hidden"
+                class="flex h-150 max-h-[86vh] max-w-225 flex-col overflow-hidden"
             >
                 <header class="flex flex-none items-center gap-3 border-b border-line px-5 py-3">
                     <h2
@@ -529,7 +529,7 @@ export const MediaPicker: Component = () => {
                 </header>
 
                 <div class="flex min-h-0 flex-1">
-                    <nav class="w-[170px] flex-none overflow-y-auto border-r border-line px-2 py-2">
+                    <nav class="w-42.5 flex-none overflow-y-auto border-r border-line px-2 py-2">
                         <Show
                             when={kind() !== "icon"}
                             fallback={

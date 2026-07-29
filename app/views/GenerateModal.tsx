@@ -336,10 +336,10 @@ const GenerateModalPanel: Component = () => {
             size="full"
             scrim="light"
             vars={panelVars()}
-            class="flex h-[90vh] max-h-[1000px] overflow-hidden"
+            class="flex h-[90vh] max-h-250 overflow-hidden"
             onClose={() => closeGenerate()}
         >
-            <aside class="flex w-[360px] flex-none flex-col border-r border-line bg-panel">
+            <aside class="flex w-90 flex-none flex-col border-r border-line bg-panel">
                 <header class="flex flex-none items-center justify-between border-b border-line px-4 py-3">
                     <div class="flex items-baseline gap-2">
                         <span class="text-[13px] font-semibold tracking-tight">Generate</span>
@@ -374,7 +374,7 @@ const GenerateModalPanel: Component = () => {
                         </p>
                         <TextArea
                             rounded="xl"
-                            class="min-h-[120px] placeholder:text-muted"
+                            class="min-h-30 placeholder:text-muted"
                             placeholder={PLACEHOLDER}
                             value={prompt()}
                             onChange={(v) => setPrompt(v)}
@@ -610,7 +610,7 @@ const Idle: Component = () => (
                 </div>
             )}
         </For>
-        <div class="relative z-[2] flex max-w-[360px] flex-col items-center gap-4 rounded-2xl border border-line bg-panel/85 px-8 py-7 text-center shadow-xl backdrop-blur-sm">
+        <div class="relative z-[2] flex max-w-90 flex-col items-center gap-4 rounded-2xl border border-line bg-panel/85 px-8 py-7 text-center shadow-xl backdrop-blur-sm">
             <div class="grid h-14 w-14 place-items-center rounded-2xl border border-dashed border-accent/40 text-accent">
                 <svg
                     width="24"

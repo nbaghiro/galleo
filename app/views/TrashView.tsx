@@ -55,7 +55,7 @@ export const TrashView: Component = () => {
             <div class="group flex items-center gap-4 rounded-xl border border-line bg-panel/50 px-3.5 py-3 opacity-75 transition hover:opacity-100">
                 {/* dimmed, desaturated cover — reads as "removed" */}
                 <div
-                    class="h-12 w-[84px] flex-none overflow-hidden rounded-lg border border-line"
+                    class="h-12 w-21 flex-none overflow-hidden rounded-lg border border-line"
                     style={{ background: tk().bg, filter: "grayscale(0.6)" }}
                 >
                     <Show when={p.d.cover?.image}>

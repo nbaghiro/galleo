@@ -70,7 +70,7 @@ export const PricingView: Component = () => {
         <div class="flex h-screen bg-canvas text-ink">
             <Sidebar />
             <main class="min-w-0 flex-1 overflow-y-auto">
-                <div class="mx-auto max-w-[1040px] px-8 py-10">
+                <div class="mx-auto max-w-260 px-8 py-10">
                     <header class="mb-6">
                         <h1 class="text-[26px] font-bold tracking-[-0.02em]">Plans</h1>
                         <p class="mt-1 text-[14px] text-muted">
@@ -118,7 +118,7 @@ export const PricingView: Component = () => {
 
                     <Show when={b()}>
                         {(state) => (
-                            <div class="mb-8 grid grid-cols-2 gap-3 sm:max-w-[520px]">
+                            <div class="mb-8 grid grid-cols-2 gap-3 sm:max-w-130">
                                 <div class="rounded-xl border border-line bg-panel px-4 py-3">
                                     <Eyebrow as="div">AI credits this month</Eyebrow>
                                     <div class="mt-1 flex items-baseline gap-1.5 tabular-nums">

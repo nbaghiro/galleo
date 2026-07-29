@@ -86,7 +86,7 @@ export const Dropdown: Component<{
 
     const triggerCls = (): string =>
         props.compact
-            ? "flex max-w-[150px] items-center gap-1 rounded-md border border-line bg-canvas px-1.5 py-1 text-[12px] text-ink transition-colors hover:border-accent"
+            ? "flex max-w-37.5 items-center gap-1 rounded-md border border-line bg-canvas px-1.5 py-1 text-[12px] text-ink transition-colors hover:border-accent"
             : "flex w-full items-center justify-between gap-1 rounded-md border border-line bg-canvas px-2 py-1.5 text-[13px] text-ink transition-colors hover:border-accent";
 
     return (
@@ -113,7 +113,7 @@ export const Dropdown: Component<{
                 estHeight={Math.min(props.options.length * 34 + 8, 300)}
                 minWidth={140}
                 toolbar={props.toolbar}
-                panelClass="max-h-[300px] overflow-y-auto p-1"
+                panelClass="max-h-75 overflow-y-auto p-1"
             >
                 <For each={props.options}>
                     {(o, i) => (
