@@ -1,6 +1,7 @@
 import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import { register, pill } from "@elements/spec";
+import { drawIcon, type IconGlyph } from "@elements/media/vector";
 import { fit, fixed } from "@model/geometry";
 import { fontStack, hexA } from "@themes";
 import {
@@ -11,13 +12,6 @@ import {
     type ButtonSize,
     type ButtonVariant,
 } from "@model/elements";
-
-// Matches the Icon element + icon picker; body uses `currentColor`, tinted to the label color at layout.
-interface IconGlyph {
-    id: string;
-    body: string;
-    vb: string;
-}
 
 interface ButtonData {
     label: string;
@@ -78,11 +72,11 @@ export const buttonElement: ElementSpec<ButtonData> = {
 
         const children: EngineNode[] = [];
         if (d.icon?.body) {
-            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${sz.icon}" height="${sz.icon}" viewBox="${d.icon.vb}">${d.icon.body.replaceAll("currentColor", inkColor)}</svg>`;
+            const glyph = d.icon;
             children.push({
                 w: fixed(sz.icon),
                 h: fixed(sz.icon),
-                image: { src: `data:image/svg+xml,${encodeURIComponent(svg)}`, fit: "contain" },
+                surface: { paint: (g, box) => drawIcon(g, glyph, box.x, box.y, box.w, inkColor) },
             });
         }
         children.push({

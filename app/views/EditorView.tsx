@@ -3,7 +3,7 @@ import { createEffect, createSignal, on, onCleanup, onMount, Show } from "solid-
 import { useNavigate, useParams, useSearchParams } from "@solidjs/router";
 import { resolveTheme } from "@themes";
 import { limitsFor } from "@model/billing";
-import { Studio } from "@editor/Studio";
+import { Editor } from "@editor/Editor";
 import { Button } from "@ui/button";
 import { FloatingBar } from "@ui/overlay";
 import {
@@ -28,7 +28,7 @@ import {
     setArtifacts,
     setFeatures,
     startThemePreview,
-} from "@editor/editor";
+} from "@editor/core/store";
 import { api, streamTurn } from "../api";
 import { openMediaPicker } from "../stores/media";
 import { openShare } from "../stores/share";
@@ -141,7 +141,7 @@ export const EditorView: Component = () => {
                     </div>
                 }
             >
-                <Studio />
+                <Editor />
             </Show>
             <Show when={previewingTheme()}>
                 <div class="pointer-events-none absolute inset-0 z-overlay">

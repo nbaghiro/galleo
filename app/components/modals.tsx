@@ -4,12 +4,15 @@ import { CloseIcon, DeckIcon, DocIcon, SiteIcon, SparkleIcon } from "@ui/icons";
 import { overlayThemeVars } from "../stores/theme";
 import { Modal } from "@ui/overlay";
 import { Eyebrow, IconButton } from "@ui/button";
+import { FORMATS as FORMAT_LIST } from "@ui/formats";
 
-const FORMATS: { id: string; label: string; desc: string; icon: () => JSX.Element }[] = [
-    { id: "deck", label: "Deck", desc: "Slides", icon: () => <DeckIcon size={20} /> },
-    { id: "doc", label: "Doc", desc: "A document", icon: () => <DocIcon size={20} /> },
-    { id: "web", label: "Site", desc: "A web page", icon: () => <SiteIcon size={20} /> },
-];
+// label comes from the shared source; the create-modal adds its own blurb + icon per format
+const EXTRAS: Record<string, { desc: string; icon: () => JSX.Element }> = {
+    deck: { desc: "A presentation", icon: () => <DeckIcon size={20} /> },
+    doc: { desc: "A document", icon: () => <DocIcon size={20} /> },
+    web: { desc: "A web page", icon: () => <SiteIcon size={20} /> },
+};
+const FORMATS = FORMAT_LIST.map((f) => ({ id: f.value, label: f.label, ...EXTRAS[f.value]! }));
 
 export const CreateModal: Component<{
     onClose: () => void;

@@ -58,6 +58,11 @@ with high-fidelity export. Net-new, TypeScript.
   from `@model` + `@themes`; `services` otherwise use relative imports.
 - **TS style:** 4-space indent, double quotes, semicolons, `printWidth` 100, **no `any`**, **no
   `console`** in app code. (ESLint + Prettier enforce these.)
+- **Tailwind — canonical scale over arbitrary px.** The `--spacing` base is `0.25rem` (4px), so a spacing
+  utility on the scale must use the canonical class, not a bracket value: `gap-0.75` not `gap-[3px]`,
+  `size-4.5` not `size-[18px]`, `w-90` not `w-[360px]` (i.e. `Npx → N/4`). Reserve `[…]` for values genuinely
+  off the scale (odd one-offs, computed/`calc`, non-length). Keeps Tailwind IntelliSense's
+  `suggestCanonicalClasses` hint quiet — it's editor-advisory only (not ESLint/CI-enforced).
 - **Comments — terse, and only when needed.** Names + types carry the meaning; a comment earns its place
   only by saying something the code cannot. When one is warranted, make it a short fragment for a genuine
   _why_: an invariant, a gotcha, a unit/range, a magic value's meaning, a "must stay in sync with X". Do

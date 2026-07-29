@@ -9,7 +9,7 @@ import "@elements/media/video";
 import "@elements/media/gif";
 import "@elements/media/illustration";
 import "@elements/media/sticker";
-import "@elements/media/icon";
+import "@elements/media/vector";
 import "@elements/media/avatar";
 
 import "@elements/table/table";
@@ -30,10 +30,8 @@ import "@elements/basic/embed";
 import "@elements/basic/gradient";
 import "@elements/basic/divider";
 import "@elements/basic/spacer";
-import "@elements/basic/shape";
 
 import "@elements/chart/element";
 import "@elements/diagram/element";
 
-// internal drop-preview: a framework element (root of elements/), not a category
 import "@elements/dropghost";

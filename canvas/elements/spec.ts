@@ -48,6 +48,7 @@ export type ControlKind =
     | "media"
     | "icon" // icon glyph picker (Iconify) → nested { id, body, vb }
     | "iconColor" // theme-role color swatches for a themed icon
+    | "vector" // paste-SVG import → a parsed Vector (graphic element)
     | "custom";
 
 export interface ControlField {

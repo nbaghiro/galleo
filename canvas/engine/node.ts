@@ -16,6 +16,9 @@ export interface DrawStyle {
     width?: number; // stroke width
     radius?: number; // rect corner radius
     dash?: number[];
+    fillRule?: "nonzero" | "evenodd"; // path/polygon fill winding
+    cap?: "butt" | "round" | "square"; // stroke line cap
+    join?: "miter" | "round" | "bevel"; // stroke line join
 }
 
 export interface DrawTextStyle {

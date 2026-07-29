@@ -11,7 +11,7 @@ import { AgentIcon, Icon, UiThemeProvider } from "@ui/icons";
 import { Markdown } from "@ui/markdown";
 import { MiniCanvas } from "../components/previews";
 import { Button, IconButton, Chip, Eyebrow, Spinner } from "@ui/button";
-import { editor } from "@editor/editor";
+import { editor } from "@editor/core/store";
 import { appTheme, appThemeOverride, appThemeVars, customThemes } from "../stores/theme";
 import { formatLabel } from "../stores/library";
 import type { ChatMsg, UIBlock } from "../stores/chat";

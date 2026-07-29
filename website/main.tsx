@@ -9,7 +9,7 @@ import { WebsitePage } from "./WebsitePage";
 // keep in sync with app/stores/theme.ts (KEY · DEFAULT · CUSTOM_KEY)
 const APP_THEME_KEY = "galleo:app-theme";
 const CUSTOM_KEY = "galleo:custom-themes";
-const DEFAULT = "brut";
+const DEFAULT = "studio";
 
 // The app caches its workspace custom themes here; register them so a CUSTOM app-chrome theme resolves on
 // this separate build too. Must be an explicit call in the entry — the app-store import's side effect that

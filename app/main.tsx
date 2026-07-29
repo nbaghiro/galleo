@@ -1,7 +1,7 @@
 /* @refresh reload */
 import "../ui/styles.css";
 import "./components/visuals.css";
-import "@editor/register";
+import "@elements/register";
 import { render } from "solid-js/web";
 import { App } from "./App";
 

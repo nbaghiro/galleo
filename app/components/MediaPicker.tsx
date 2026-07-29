@@ -12,7 +12,7 @@ import {
 } from "solid-js";
 import type { IconItem, MediaGenStyle, MediaItem, MediaKind, MediaProvider } from "@model/media";
 import { MEDIA_ASPECTS, MEDIA_GEN_STYLES } from "@model/media";
-import { editorTokens } from "@editor/editor";
+import { editorTokens } from "@editor/core/store";
 import { api, streamGenerateMedia, type MediaProvidersState } from "../api";
 import { closeMediaPicker, mediaRequest, pickMedia, pickMediaIcon } from "../stores/media";
 import { overlayThemeVars } from "../stores/theme";

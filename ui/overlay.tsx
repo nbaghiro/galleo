@@ -71,7 +71,10 @@ export const Popover: Component<{
             const w = props.fixedWidth ?? props.minWidth ?? 180;
             const left = Math.max(8, Math.min(pt.x, window.innerWidth - w - 8));
             setRect({ left, top: pt.y, width: 0, up });
-            setVars(readThemeVars(props.anchor?.() ?? document.documentElement));
+            // Read theme vars from the element under the point — it's inside the themed tree, whereas
+            // <html> carries no theme (the app/editor stamp their vars on a nested root div).
+            const under = document.elementFromPoint(pt.x, pt.y) as HTMLElement | null;
+            setVars(readThemeVars(props.anchor?.() ?? under ?? document.documentElement));
             return;
         }
         const el = props.anchor?.();

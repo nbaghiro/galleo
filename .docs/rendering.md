@@ -162,8 +162,8 @@ per-field `group` (inspector heading) and `visibleWhen` (conditional).
 1. **Primitive subtree** — returns a tree of `text`/`image`/`fill` nodes the engine lays out. Most
    elements (text, lists, cards, stats, tables).
 2. **Self-rendered surface** — returns a sized node with a `surface.paint(g, box)` callback; the engine
-   resolves the box, the element paints into it through a backend-abstract `DrawContext` (canvas in the
-   editor, vector once a vector backend lands). Used by charts and diagrams (§7).
+   resolves the box, the element paints into it through a backend-abstract `DrawContext` (vector `<svg>` in
+   the editor, raster canvas for present/export). Used by charts, diagrams, and the vector elements (§7).
 
 **Skeletons** (`skeletonize` in `elements/spec.ts`) — every element has a structural ghost
 (bars/blocks/pills) shown in the palette and as the live drop preview; auto-derived from `layout(create())`
@@ -186,12 +186,14 @@ canvas/elements/
   register.ts    the manifest — side-effect-imports every element file (pulled in by editor/register.ts)
 
   text/      text · bullets("List") · callout · code · quote
-  media/     image · gif · illustration · sticker · icon · video · avatar   + shared.ts (imageLike factory)
+  media/     image · gif · illustration · sticker · video · avatar   + shared.ts (imageLike factory)
+             vector.ts — the vector substrate: the Vector renderer (drawVector/parseSvg/emitPath), the shape
+             presets, ICON_LIBRARY, and the three specs it registers — icon · shape("basic" cat) · graphic
   table/     table · stat
   composite/ card · group · feature · profile · testimonial · pricing · cta · faq   + shared.ts (composite factory)
   chart/     element.ts (chartSpec + VARIANTS) · render.ts · utils.ts · one renderer per type (bar.ts …)
   diagram/   element.ts (diagramSpec + VARIANTS) · render.ts · utils.ts · one renderer per type (process.ts …)
-  basic/     badge · button · divider · embed · gradient · shape · spacer
+  basic/     badge · button · divider · embed · gradient · spacer   (shape lives in media/vector.ts)
 ```
 
 The **folder is code organization; the palette grouping is each spec's `category`** — `basic/` deliberately
@@ -201,14 +203,14 @@ side-effect-imports every element file at startup (that's when each `register(sp
 
 ### 5.2 The catalog
 
-**57 registered types, 52 palette-visible.** Hidden from the palette (`Panel.tsx` `HIDDEN`): `group`,
+**58 registered types, 53 palette-visible.** Hidden from the palette (`Panel.tsx` `HIDDEN`): `group`,
 `avatar`, `__dropghost`, and the back-compat `chart`/`diagram` catch-alls (the per-type tiles are the real
 entries). Palette rail order + labels (`editor/chrome/Panel.tsx` `CAT_ORDER` / `CAT_LABEL`):
 
 | Rail (label)  | `category`  | Elements (tier)                                                                                                                                                                                                 |
 | ------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Text**      | `text`      | text (primitive, the only `richText`), bullets/callout/code/quote (smart)                                                                                                                                       |
-| **Media**     | `media`     | image · gif · illustration · sticker · icon (primitive), video (interactive); _avatar (hidden)_                                                                                                                 |
+| **Media**     | `media`     | image · gif · illustration · sticker · icon · graphic (primitive), video (interactive); _avatar (hidden)_                                                                                                       |
 | **Table**     | `table`     | table · stat (smart)                                                                                                                                                                                            |
 | **Composite** | `composite` | card (container), feature · profile · testimonial · pricing · cta · faq (smart); _group (hidden container)_                                                                                                     |
 | **Charts**    | `chart`     | 13 smart variants: `barChart` `columnChart` `lineChart` `areaChart` `pieChart` `donutChart` `radarChart` `scatterChart` `bubbleChart` `funnelChart` `gaugeChart` `heatmapChart` `treemapChart`                  |
@@ -375,14 +377,16 @@ closePath`); the backend begins and closes the path. **d3-shape generators rende
   (immediate-mode paint has no DOM to measure against). `canvasDrawContext` uses `cx.measureText`.
 
 Plot-area clipping is handled at the engine level (the node-level `clip?: {x?,y?}`, §2) rather than as a
-`DrawContext` method. There is exactly one `DrawContext` impl today — `canvasDrawContext` (Canvas 2D) in
-`canvas/render/backends.ts` — so export rasterizes; a vector `DrawContext` is the future-proofing (§10).
+`DrawContext` method. Two `DrawContext` impls live in `canvas/render/backends.ts`: **`canvasDrawContext`**
+(Canvas 2D — present + PDF/PNG/PPTX export raster) and **`svgDrawContext`** (emits `<svg>`/`<path>` — the
+editor DOM backend, so every surface is crisp vector on screen). Export still rasterizes; a vector export
+`DrawContext` (PDF operators) is the remaining future-proofing (§10).
 
 **Why d3 + dagre, not a chart lib.** We take the proven **pure-geometry** engines (Chart.js / ECharts /
 Observable Plot / Mermaid are all built on these same d3 modules + dagre internally) and paint them
 ourselves through `DrawContext`. This stays inside `canvas/`'s pure-TS, DOM-free, `model`-only boundary,
-keeps `Tokens` the single styling source, preserves synchronous `paint`, and becomes vector-ready for free
-the day a vector `DrawContext` lands. Installed, DOM-free, tree-shakeable deps: **d3-scale** + **d3-shape**
+keeps `Tokens` the single styling source, preserves synchronous `paint`, and rendered as crisp vector for
+free the day `svgDrawContext` landed (§9). Installed, DOM-free, tree-shakeable deps: **d3-scale** + **d3-shape**
 (scales + line/area/arc generators, cartesian charts), **d3-hierarchy** (tree/treemap layouts), and
 **@dagrejs/dagre** (directed-graph layout — used by the `flow` diagram). Authoring is structured controls
 (pick a type, fill fields via the inspector / `DataGrid`), never a code surface.
@@ -476,16 +480,18 @@ was folded into `backends.ts`.)
 
 One `RenderCommand[]` → multiple serializers:
 
-- **DOM** — absolutely-positioned divs, used for editing (so text selection / contenteditable work).
-- **2D canvas** — mirrors the DOM output; reused for Present and PDF/PNG export, so _what you edit is what
-  you export_. `canvasDrawContext` (the sole `DrawContext` impl) lives here for the self-painted surfaces.
+- **DOM** — absolutely-positioned divs, used for editing (so text selection / contenteditable work). A
+  self-painted `surface` command paints into a nested `<svg>` via `svgDrawContext`, so charts / diagrams /
+  icons / shapes / graphics are crisp vector on screen.
+- **2D canvas** — mirrors the DOM output; reused for Present and PDF/PNG/PPTX export, so _what you edit is
+  what you export_. `canvasDrawContext` (the raster `DrawContext`) lives here for the self-painted surfaces.
 
 Both honor each command's `clip` rect (CSS clip-path / canvas clip).
 
 ## 10. Status & deferred
 
 **Built:** the engine, all three format views + per-section `frame.aspect`, compose from the recursive root +
-the layout presets, the full element contract (57 types) with skeletons + direct-manipulation sizing (one
+the layout presets, the full element contract (58 types) with skeletons + direct-manipulation sizing (one
 divider system, edge-drop columns, collapse-on-empty), the chart/diagram registries (d3 + dagre), DOM + canvas
 backends, PDF/PNG export, deck present, PPTX export.
 
@@ -494,11 +500,23 @@ embedding, and the slide-assembly shell) — every artifact exports as a **deck*
 deck profile's `sectionSlides`; tall sections paginate into several slides), one PowerPoint slide per page.
 It's a **native hybrid**: `rect` → autoshape, `text` → an editable text box per leaf with styled runs and the
 engine's own line breaks baked in (`wrap`/`autoFit` off, so PowerPoint never re-flows — the reflow concern is
-designed out, not lived with); `image` + self-painted `surface` (charts/diagrams) rasterize to PNGs
+designed out, not lived with); self-painted `surface`s (charts/diagrams/icons/graphics) embed as **vector
+SVG** (`svgStringContext` → `addImage`; pptxgenjs writes the `<asvg:svgBlip>` dual-blip with an auto PNG
+fallback, so they stay crisp in modern PowerPoint); only `image` + gradient/clipped rects rasterize to PNGs
 positioned at their box, so nothing is dropped. Theme fonts are **embedded**: the woff2 the app already loads
 is fetched from Google, transcoded to TTF (wawoff2), and injected as OOXML embedded fonts (zip post-process
 via JSZip) so the exact typeface renders anywhere with no "missing fonts" prompt — degrading gracefully to an
 un-embedded export on any failure.
+
+**Vector PDF** (`render/pdf-draw.ts` + the native path in `render/export.ts`) — the PDF exporter is
+**command-native**, not a page raster: it walks the same `RenderCommand[]` and emits `text` as real
+selectable/searchable text (fonts embedded via `@pdf-lib/fontkit` + the shared `fetchFontTtf`), `rect` as
+native vector, and self-painted `surface`s through a third `DrawContext` — **`pdfDrawContext`** — that turns
+each primitive into `page.drawSvgPath` ops (path `d` strings from the shared `buildPathData`), y-flipped for
+PDF's bottom-left origin. Only photos and gradient/clipped rects rasterize (no native vector form). Any
+failure (font fetch, pdf-lib) degrades to the legacy full-raster exporter (`export*PdfRaster`). Result: crisp
+vector at any zoom, selectable text, and far smaller files. `fill-rule: evenodd` is the one known gap
+(`drawSvgPath` fills nonzero), affecting only rare imported even-odd SVG.
 
 ### Planned / deferred
 
@@ -532,10 +550,11 @@ hit-testing over the surface box); a **drift-guard script** (`pnpm check:element
 value-sets match the registered ids (§5.3).
 
 **Rendering core** — engine-native rich text (`@model/text` is scaffolded; the editor uses a contenteditable
-overlay today); free-form / bento grid spanning; native (editable) PowerPoint charts — charts export as images
-today; **vector PDF** (a vector `DrawContext` makes every d3-geometry chart crisp vector automatically — the
-reason this approach is future-proof where a canvas chart lib would not be); relayout-boundary caching (not
-needed at current scale).
+overlay today); free-form / bento grid spanning; native (editable) PowerPoint charts — charts export as vector
+SVG images (crisp, not editable) today; the **AI vector tool** (a turn-protocol tool emitting a `Vector` for
+the `graphic` element — the substrate is in place, the tool is not wired); relayout-boundary caching (not
+needed at current scale). **Vector export is now built** (§10) — a third rasterization path only remains for
+gradients/clipped content and photos, which have no native vector form.
 
 See `architecture.md` for the file map, `ai.md` for how the streamed edit protocol drives these same content
 ops, `frontend.md` for the shared `@ui` control kit the inspectors are built from, and `testing.md` for the

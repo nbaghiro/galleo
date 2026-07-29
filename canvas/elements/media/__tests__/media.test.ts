@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { EngineNode } from "@engine/node";
 import type { ElementSpec } from "@elements/spec";
 import { getElement } from "@elements/spec";
-import { layoutCtx, tokens } from "@canvas/testkit";
+import { layoutCtx, recordingDrawContext, tokens } from "@canvas/testkit";
 
 const ctx = layoutCtx();
 const spec = (type: string): ElementSpec => getElement(type)!;
@@ -50,10 +50,23 @@ describe("video", () => {
 });
 
 describe("icon", () => {
-    it("bakes an SVG data-URI sized to the glyph", () => {
+    it("renders the glyph into a fixed-size vector surface", () => {
         const n = nodeOf("icon");
         expect(n.w).toEqual({ mode: "fixed", value: 72 });
-        expect(n.image?.fit).toBe("contain");
-        expect(n.image?.src.startsWith("data:image/svg+xml,")).toBe(true);
+        expect(n.h).toEqual({ mode: "fixed", value: 72 });
+        expect(n.surface).toBeDefined();
+    });
+    it("paints the default glyph tinted to the accent role", () => {
+        const { ctx: rec, calls } = recordingDrawContext();
+        spec("icon").layout(spec("icon").create(), ctx).surface!.paint(rec, {
+            x: 0,
+            y: 0,
+            w: 72,
+            h: 72,
+        });
+        expect(calls.length).toBeGreaterThan(0);
+        expect(calls.some((c) => (c.style as { stroke?: string }).stroke === tokens.accent)).toBe(
+            true,
+        );
     });
 });

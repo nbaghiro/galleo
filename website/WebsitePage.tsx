@@ -1,10 +1,14 @@
 import type { Accessor, Component, JSX } from "solid-js";
 import { createSignal, For, onMount, Show } from "solid-js";
+import { THEME_LIST } from "@themes";
+
+// single source of truth for the marketing "N designer themes" claim — never let it drift from the library
+const THEME_COUNT = THEME_LIST.length;
 
 const announceItems = [
     "Now in public beta",
     "One source — three polished views",
-    "36 designer themes, one click",
+    `${THEME_COUNT} designer themes, one click`,
     "Edit once, stays in sync",
     "Decks · docs · sites",
 ];
@@ -13,7 +17,7 @@ const valueProps = [
     "One source → three views",
     "Edit once, always in sync",
     "A real layout engine",
-    "36 designer themes",
+    `${THEME_COUNT} designer themes`,
     "Prompt to polished draft",
     "Export to PDF · PPTX · web",
     "Built for teams",
@@ -86,7 +90,7 @@ const features = [
     },
     {
         num: "03",
-        title: "36 designer themes",
+        title: `${THEME_COUNT} designer themes`,
         body: "Each is a complete system — font trio, color, radius, borders, shadow. One click restyles the whole artifact.",
     },
     {
@@ -150,7 +154,7 @@ const themesRowB = [
 
 const stats: { value: string; label: string; accent?: boolean }[] = [
     { value: "3-in-1", label: "Deck · doc · site", accent: true },
-    { value: "36", label: "Designer themes" },
+    { value: String(THEME_COUNT), label: "Designer themes" },
     { value: "~8s", label: "To first draft" },
     { value: "12k+", label: "Artifacts made" },
 ];
@@ -175,7 +179,7 @@ const plans = [
         blurb: "For trying it out and one-off artifacts.",
         features: [
             "3 active documents",
-            "All 36 designer themes",
+            `All ${THEME_COUNT} designer themes`,
             "Deck, doc & site views",
             "PDF export (with watermark)",
         ],
@@ -693,7 +697,7 @@ export const WebsitePage: Component = () => (
         <section id="themes" class="py-20 md:py-28 overflow-hidden">
             <div class="max-w-[1280px] mx-auto px-5 md:px-8 mb-12 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
                 <div>
-                    <div class="lab text-accent mb-4">✺ 36 designer themes</div>
+                    <div class="lab text-accent mb-4">✺ {THEME_COUNT} designer themes</div>
                     <h2 class="display text-[clamp(2.2rem,5.5vw,4rem)] max-w-xl">
                         One click,
                         <br />a whole new look.

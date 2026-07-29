@@ -8,6 +8,7 @@ import type {
     Rect,
     Region,
 } from "@engine/node";
+import { arcSegments, buildPathData } from "./svg-emit";
 import {
     CODE_BG,
     MONO_FONT_STACK,
@@ -61,10 +62,12 @@ export function canvasDrawContext(cx: CanvasRenderingContext2D): DrawContext {
         if (s.fill) cx.fillStyle = s.fill;
         if (s.stroke) cx.strokeStyle = s.stroke;
         cx.lineWidth = s.width ?? 1;
+        cx.lineCap = s.cap ?? "butt";
+        cx.lineJoin = s.join ?? "miter";
         cx.setLineDash(s.dash ?? []);
     };
     const finish = (s: DrawStyle): void => {
-        if (s.fill) cx.fill();
+        if (s.fill) cx.fill(s.fillRule ?? "nonzero");
         if (s.stroke) cx.stroke();
     };
     return {
@@ -117,6 +120,110 @@ export function canvasDrawContext(cx: CanvasRenderingContext2D): DrawContext {
         measureText(text, s: DrawTextStyle) {
             cx.font = `${s.weight ?? 400} ${s.size ?? 12}px ${s.font ?? "system-ui, sans-serif"}`;
             return { width: cx.measureText(text).width };
+        },
+    };
+}
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+// shared 2D context for advance-width measurement inside an SVG surface (no DOM text metrics on <text>)
+let measureCanvas: CanvasRenderingContext2D | null | undefined;
+function measureCx(): CanvasRenderingContext2D | null {
+    if (measureCanvas === undefined)
+        measureCanvas = document.createElement("canvas").getContext("2d");
+    return measureCanvas;
+}
+
+// Vector DrawContext: emits <svg> children. Same contract as canvasDrawContext, so every surface
+// (charts, diagrams, icons, shapes, graphics) renders as crisp vector on the editor's DOM backend.
+export function svgDrawContext(svg: SVGSVGElement): DrawContext {
+    const make = (tag: string): SVGElement => document.createElementNS(SVG_NS, tag);
+    const stylize = (el: SVGElement, s: DrawStyle, stroked = false): void => {
+        el.setAttribute("fill", stroked ? "none" : (s.fill ?? "none"));
+        if (!stroked && s.fillRule) el.setAttribute("fill-rule", s.fillRule);
+        const stroke = s.stroke ?? (stroked ? s.fill : undefined);
+        if (stroke) {
+            el.setAttribute("stroke", stroke);
+            el.setAttribute("stroke-width", String(s.width ?? 1));
+            if (s.cap) el.setAttribute("stroke-linecap", s.cap);
+            if (s.join) el.setAttribute("stroke-linejoin", s.join);
+            if (s.dash && s.dash.length) el.setAttribute("stroke-dasharray", s.dash.join(" "));
+        }
+        svg.appendChild(el);
+    };
+    return {
+        rect(x, y, w, h, s) {
+            const el = make("rect");
+            el.setAttribute("x", String(x));
+            el.setAttribute("y", String(y));
+            el.setAttribute("width", String(Math.max(0, w)));
+            el.setAttribute("height", String(Math.max(0, h)));
+            if (s.radius) el.setAttribute("rx", String(s.radius));
+            stylize(el, s);
+        },
+        line(x1, y1, x2, y2, s) {
+            const el = make("line");
+            el.setAttribute("x1", String(x1));
+            el.setAttribute("y1", String(y1));
+            el.setAttribute("x2", String(x2));
+            el.setAttribute("y2", String(y2));
+            stylize(el, s, true);
+        },
+        circle(cx, cy, r, s) {
+            const el = make("circle");
+            el.setAttribute("cx", String(cx));
+            el.setAttribute("cy", String(cy));
+            el.setAttribute("r", String(Math.max(0, r)));
+            stylize(el, s);
+        },
+        polyline(points, s) {
+            const el = make(s.fill ? "polygon" : "polyline");
+            el.setAttribute("points", points.map((p) => `${p[0]},${p[1]}`).join(" "));
+            stylize(el, s);
+        },
+        wedge(cx, cy, r, a0, a1, s) {
+            const el = make("path");
+            el.setAttribute(
+                "d",
+                `M${cx} ${cy}L${cx + r * Math.cos(a0)} ${cy + r * Math.sin(a0)}${arcSegments(cx, cy, r, a0, a1, false)}Z`,
+            );
+            stylize(el, s);
+        },
+        path(build, s) {
+            const el = make("path");
+            el.setAttribute("d", buildPathData(build));
+            stylize(el, s);
+        },
+        text(text, x, y, s: DrawTextStyle) {
+            const el = make("text");
+            el.setAttribute("x", String(x));
+            el.setAttribute("y", String(y));
+            el.setAttribute("font-size", String(s.size ?? 12));
+            el.setAttribute("font-family", s.font ?? "system-ui, sans-serif");
+            el.setAttribute("font-weight", String(s.weight ?? 400));
+            el.setAttribute("fill", s.fill ?? "#000");
+            el.setAttribute(
+                "text-anchor",
+                s.align === "start" ? "start" : s.align === "end" ? "end" : "middle",
+            );
+            el.setAttribute(
+                "dominant-baseline",
+                s.baseline === "top"
+                    ? "text-before-edge"
+                    : s.baseline === "bottom"
+                      ? "text-after-edge"
+                      : s.baseline === "middle"
+                        ? "central"
+                        : "alphabetic",
+            );
+            el.textContent = text;
+            svg.appendChild(el);
+        },
+        measureText(text, s: DrawTextStyle) {
+            const mx = measureCx();
+            if (!mx) return { width: text.length * 8 };
+            mx.font = `${s.weight ?? 400} ${s.size ?? 12}px ${s.font ?? "system-ui, sans-serif"}`;
+            return { width: mx.measureText(text).width };
         },
     };
 }
@@ -190,18 +297,14 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
     } else if (c.kind === "text") {
         paintText(el, c.text);
     } else {
-        const canvas = document.createElement("canvas");
-        const dpr = window.devicePixelRatio || 1;
-        canvas.width = Math.max(1, Math.round(c.box.w * dpr));
-        canvas.height = Math.max(1, Math.round(c.box.h * dpr));
-        canvas.style.width = "100%";
-        canvas.style.height = "100%";
-        const cx = canvas.getContext("2d");
-        if (cx) {
-            cx.scale(dpr, dpr);
-            c.paint(canvasDrawContext(cx), { x: 0, y: 0, w: c.box.w, h: c.box.h });
-        }
-        el.appendChild(canvas);
+        // surfaces (charts/diagrams/icons/shapes/graphics) paint as crisp vector SVG on the DOM backend
+        const svg = document.createElementNS(SVG_NS, "svg");
+        svg.setAttribute("width", "100%");
+        svg.setAttribute("height", "100%");
+        svg.setAttribute("viewBox", `0 0 ${Math.max(1, c.box.w)} ${Math.max(1, c.box.h)}`);
+        svg.style.display = "block";
+        c.paint(svgDrawContext(svg), { x: 0, y: 0, w: c.box.w, h: c.box.h });
+        el.appendChild(svg);
     }
 }
 

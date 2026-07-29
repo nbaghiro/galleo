@@ -16,7 +16,7 @@ import type { Template } from "@model/workspace";
 import { applyPatch } from "@model/ai";
 import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
-import { commit, currentArtifactId, editor, selection } from "@editor/editor";
+import { commit, currentArtifactId, editor, selection } from "@editor/core/store";
 import { api, streamTurn } from "../api";
 import { appTheme } from "./theme";
 import { openShare } from "./share";

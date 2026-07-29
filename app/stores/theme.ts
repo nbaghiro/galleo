@@ -4,12 +4,12 @@ import type { JSX } from "solid-js";
 import type { Theme, Tokens } from "@themes";
 import { api, type ApiTheme } from "../api";
 import { useLocation } from "@solidjs/router";
-import { editorTokens } from "@editor/editor";
+import { editorTokens } from "@editor/core/store";
 import type { ElementInstance, Section } from "@model/artifact";
 
 // app-chrome theme (distinct from a deck's artifact theme); persisted so it survives logout
 const KEY = "galleo:app-theme";
-const DEFAULT = "brut";
+const DEFAULT = "studio";
 
 // localStorage can throw when storage is blocked — never break boot
 let stored: string | null = null;

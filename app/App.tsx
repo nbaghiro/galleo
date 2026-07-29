@@ -27,12 +27,13 @@ import { ShareModal } from "./components/ShareModal";
 import { ThemeEditor } from "./views/ThemeEditor";
 import { TrashView } from "./views/TrashView";
 import { UiThemeProvider } from "@ui/icons";
+import { Spinner } from "@ui/button";
 import { CommandPalette } from "@ui/CommandPalette";
 import { ShortcutsSheet } from "@ui/ShortcutsSheet";
 import { installKeyDispatcher } from "@ui/keys";
 import { setNavigate } from "./stores/commands"; // import also runs the app-command registrations
 import { publishRoute } from "./stores/route-context";
-import "@editor/commands"; // side-effect: register studio commands + editor context keys
+import "@editor/core/commands"; // side-effect: register studio commands + editor context keys
 
 // root layout: singular overlays mount once here (under Router); also wires the key/command system
 const AppShell: Component<{ children?: JSX.Element }> = (props) => {
@@ -95,8 +96,8 @@ export const App: Component = () => {
                 <Show
                     when={authReady()}
                     fallback={
-                        <div class="flex h-full items-center justify-center text-[13px] text-muted">
-                            Loading…
+                        <div class="flex h-full items-center justify-center">
+                            <Spinner size={28} />
                         </div>
                     }
                 >

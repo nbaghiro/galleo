@@ -12,7 +12,7 @@ import { appTheme } from "../stores/theme";
 import { CloseIcon } from "@ui/icons";
 import { MiniCanvas } from "../components/previews";
 import { Button, IconButton, Spinner, Eyebrow } from "@ui/button";
-import { Segmented, TextArea } from "@ui/inputs";
+import { Segmented, TextArea, FormatSwitcher } from "@ui/inputs";
 import { Modal } from "@ui/overlay";
 import { StatusDot } from "@ui/status";
 import {
@@ -67,11 +67,6 @@ const EXAMPLE_PROMPTS: { text: string; format: Surface }[] = [
     { text: "A landing page for a neighborhood yoga and breathwork studio", format: "web" },
 ];
 
-const FORMATS: [Surface, string][] = [
-    ["deck", "Deck"],
-    ["doc", "Doc"],
-    ["web", "Website"],
-];
 const LENGTHS = ["Short", "Standard", "In-depth"];
 
 const st = (text: string, style: string): ElementInstance => ({
@@ -388,10 +383,9 @@ const GenerateModalPanel: Component = () => {
                         <Eyebrow as="div" weight="normal" tracking="widest" class="mb-1.5 mt-4">
                             Format
                         </Eyebrow>
-                        <Segmented
+                        <FormatSwitcher
                             variant="accent"
                             value={fmt()}
-                            options={FORMATS.map(([value, label]) => ({ value, label }))}
                             onChange={(v) => setFmt(v as Surface)}
                         />
 
@@ -565,10 +559,9 @@ const GenerateModalPanel: Component = () => {
                             {gen.brief?.prompt}
                         </span>
                     </Show>
-                    <Segmented
+                    <FormatSwitcher
                         variant="accent"
                         value={previewFormat()}
-                        options={FORMATS.map(([value, label]) => ({ value, label }))}
                         onChange={(v) => setPreviewFormat(v as Surface)}
                     />
                 </div>

@@ -6,7 +6,27 @@ import type PptxGenJS from "pptxgenjs";
 import { resolveProfile } from "@engine/profile";
 import { layoutRuns, sectionSlides } from "./commands";
 import { EXPORT_SCALE, renderToCanvas } from "./backends";
+import { svgStringContext } from "./svg-emit";
 import type { ExportOptions } from "./export";
+import {
+    BOLD_MIN,
+    familyFromFont,
+    fetchFontTtf,
+    italicFromFont,
+    slotFor,
+    weightFromFont,
+    type FontSlot,
+} from "./fonts";
+
+// re-exported so existing importers (and pptx.test.ts) keep resolving them from ./pptx
+export {
+    familyFromFont,
+    weightFromFont,
+    italicFromFont,
+    slotFor,
+    googleCssUrl,
+    parseFontUrl,
+} from "./fonts";
 
 // wawoff2 is untyped — ambient types live in wawoff2.d.ts (must be a standalone .d.ts)
 
@@ -18,7 +38,6 @@ export const SLIDE_IN_W = SLIDE_PX_W / PX_PER_IN;
 export const SLIDE_IN_H = SLIDE_PX_H / PX_PER_IN;
 
 const PT_PER_PX = 0.75; // 72pt / 96px
-const PPTX_BOLD_MIN = 600; // PowerPoint has only bold/regular; ≥ this maps to bold
 const PPTX_MONO = "Consolas"; // widely-installed mono for inline-code runs
 const DEFAULT_INK = "1A1A1A"; // matches the backends' text fallback (#1a1a1a)
 
@@ -61,23 +80,6 @@ export function cssColor(css: string | undefined): { color: string; transparency
 }
 
 export const cssColorHex = (css: string | undefined): string | null => cssColor(css)?.color ?? null;
-
-// family name from a CSS stack or `font` shorthand; must match the embedded font
-export function familyFromFont(font: string): string {
-    let s = font;
-    const px = s.indexOf("px ");
-    if (px >= 0) s = s.slice(px + 3); // drop the "<weight> <size>px " head of a shorthand
-    const first = s.split(",")[0]!.trim();
-    return first.replace(/^['"]|['"]$/g, "") || "Arial";
-}
-
-// numeric weight from a `font` shorthand; 400 when absent
-export function weightFromFont(font: string): number {
-    const m = font.match(/(?:^|\s)(\d{3})\s+\d/);
-    return m ? parseInt(m[1]!, 10) : 400;
-}
-
-export const italicFromFont = (font: string): boolean => font.trimStart().startsWith("italic");
 
 export interface Transform {
     fit: number;
@@ -236,7 +238,7 @@ export function textSpec(text: TextLeaf, box: Rect, lines: RunLine[]): TextSpec 
             runs.push({
                 text: f.text,
                 options: {
-                    bold: weightFromFont(f.font) >= PPTX_BOLD_MIN || undefined,
+                    bold: weightFromFont(f.font) >= BOLD_MIN || undefined,
                     italic: italicFromFont(f.font) || undefined,
                     underline: f.underline ? { style: "sng" } : undefined,
                     strike: f.strike ? "sngStrike" : undefined,
@@ -287,44 +289,11 @@ export function brandSpec(): TextSpec {
 }
 
 // pptxgenjs names fonts but embeds no data (→ "missing fonts" on machines without them); we fetch the woff2,
-// transcode to TTF, and inject as an OOXML embedded font. Any failure degrades to a plain export.
-export type FontSlot = "regular" | "bold" | "italic" | "boldItalic";
-
-// four slots per typeface; weights collapse to bold (≥ PPTX_BOLD_MIN, as textSpec) × italic
-export function slotFor(weight: number, italic: boolean): FontSlot {
-    const bold = weight >= PPTX_BOLD_MIN;
-    return bold ? (italic ? "boldItalic" : "bold") : italic ? "italic" : "regular";
-}
+// transcode to TTF (fonts.ts), and inject as an OOXML embedded font. Any failure degrades to a plain export.
 const SLOT_ORDER: FontSlot[] = ["regular", "bold", "italic", "boldItalic"];
 
 // never embedded: system fonts textSpec substitutes (Consolas for code, Arial for the brand mark)
 export const PPTX_SYSTEM_FONTS = new Set(["Consolas", "Arial"]);
-
-// Google Fonts CSS URL; a browser UA gets woff2 back. display=swap is harmless
-export function googleCssUrl(family: string, weight: number, italic: boolean): string {
-    const fam = family.trim().replace(/\s+/g, "+");
-    return `https://fonts.googleapis.com/css2?family=${fam}:ital,wght@${italic ? 1 : 0},${weight}&display=swap`;
-}
-
-// font URL from a Google Fonts CSS response, preferring the latin subset; Google serves woff2 (modern UA) or
-// ttf/otf (legacy) — flag whether a woff2→TTF transcode is needed
-export interface FontSrc {
-    url: string;
-    woff2: boolean;
-}
-
-export function parseFontUrl(css: string): FontSrc | null {
-    const pick = (block: string): FontSrc | null => {
-        const m = block.match(/url\((https:[^)]+\.(?:woff2|ttf|otf))\)/);
-        return m ? { url: m[1]!, woff2: m[1]!.endsWith(".woff2") } : null;
-    };
-    for (const block of css.split("/*"))
-        if (/^\s*latin\s*\*\//.test(block)) {
-            const hit = pick(block);
-            if (hit) return hit;
-        }
-    return pick(css);
-}
 
 const xmlEsc = (s: string): string =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -381,25 +350,6 @@ export interface EmbedFamily {
     slots: { slot: FontSlot; ttf: Uint8Array }[];
 }
 
-// fetch + transcode woff2→TTF; null on any failure (slot skipped)
-export async function fetchFontTtf(
-    family: string,
-    weight: number,
-    italic: boolean,
-): Promise<Uint8Array | null> {
-    try {
-        const css = await (await fetch(googleCssUrl(family, weight, italic))).text();
-        const src = parseFontUrl(css);
-        if (!src) return null;
-        const bytes = new Uint8Array(await (await fetch(src.url)).arrayBuffer());
-        if (!src.woff2) return bytes; // already a usable sfnt (ttf/otf)
-        const { decompress } = await import("wawoff2");
-        return await decompress(bytes);
-    } catch {
-        return null;
-    }
-}
-
 // inject fonts into a .pptx: add ppt/fonts/fontN.fntdata per slot + patch content-types, rels, presentation.xml
 export async function embedFontsIntoPptx(
     pptxBytes: ArrayBuffer,
@@ -451,6 +401,21 @@ async function rasterUrl(framed: RenderCommand): Promise<string | undefined> {
     if (w < 0.5 || h < 0.5) return undefined;
     const canvas = await renderToCanvas([localize(framed)], w, h, "rgba(0,0,0,0)", EXPORT_SCALE);
     return canvas.toDataURL("image/png");
+}
+
+// paint a surface into an SVG string → data URI; pptxgenjs embeds it with an auto-generated PNG fallback
+// (the `<asvg:svgBlip>` dual-blip), so charts/diagrams/icons/graphics stay crisp vector in PowerPoint.
+function surfaceSvgUri(framed: RenderCommand): string | undefined {
+    if (framed.kind !== "surface") return undefined;
+    const { w, h } = framed.box;
+    if (w < 0.5 || h < 0.5) return undefined;
+    const { ctx, svg } = svgStringContext(w, h);
+    framed.paint(ctx, { x: 0, y: 0, w, h });
+    const b64 =
+        typeof btoa !== "undefined"
+            ? btoa(unescape(encodeURIComponent(svg())))
+            : Buffer.from(svg(), "utf-8").toString("base64");
+    return `data:image/svg+xml;base64,${b64}`;
 }
 
 function downloadBytes(bytes: Uint8Array, filename: string): void {
@@ -539,7 +504,9 @@ export async function exportPptx(
                     const { runs, options } = textSpec(framed.text, framed.box, lines);
                     slide.addText(runs, options);
                 } else {
-                    const data = await rasterUrl(framed);
+                    // surfaces embed as vector SVG (crisp in PowerPoint); other rasters (images,
+                    // gradient/clipped rects) stay PNG
+                    const data = surfaceSvgUri(framed) ?? (await rasterUrl(framed));
                     if (data)
                         slide.addImage({
                             data,

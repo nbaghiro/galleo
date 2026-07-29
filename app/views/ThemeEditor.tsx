@@ -7,7 +7,7 @@ import { luminance, themeCssVars, resolveTheme, THEME_LIST, THEME_CATEGORIES } f
 import { resolveProfile } from "@engine/profile";
 import { paintSectionStack } from "@canvas/render/backends";
 import { setArtifactTheme } from "@elements/ops";
-import { commit, editor, endThemePreview } from "@editor/editor";
+import { commit, editor, endThemePreview } from "@editor/core/store";
 import { ColorPopover, ThemeSwatch, type ColorSwatch } from "@ui/color";
 import { Dropdown } from "@ui/select";
 import { Button, IconButton, Eyebrow } from "@ui/button";
@@ -558,6 +558,28 @@ const ThemeEditorPanel: Component = () => {
                 <div class="min-h-0 flex-1 overflow-y-auto">
                     <Show when={mode() === "list"}>
                         <div class="px-4 py-3">
+                            {/* Quick match to the app theme — only in the editor, only when they differ */}
+                            <Show
+                                when={
+                                    editing &&
+                                    resolveTheme(editor.artifact.theme).id !==
+                                        resolveTheme(appTheme()).id
+                                }
+                            >
+                                <button
+                                    class="mb-4 flex w-full items-center gap-2.5 rounded-lg border border-line bg-canvas px-3 py-2 text-left transition-colors hover:border-accent"
+                                    title="Match this artifact to your app theme"
+                                    onClick={() => pick(appTheme())}
+                                >
+                                    <ThemeSwatch themeId={appTheme()} rounded="rounded" />
+                                    <span class="flex-1 text-[12.5px] font-medium text-soft">
+                                        Switch to app theme
+                                    </span>
+                                    <span class="flex-none text-[11px] text-muted">
+                                        {resolveTheme(appTheme()).name}
+                                    </span>
+                                </button>
+                            </Show>
                             <Show when={customThemes().length}>
                                 <div class="mb-2 flex items-center justify-between">
                                     <Eyebrow weight="normal">My themes</Eyebrow>
@@ -749,7 +771,9 @@ const ThemeEditorPanel: Component = () => {
                             <div class="mx-auto w-full max-w-[300px]">
                                 {heading("Details")}
                                 <div class="flex items-center justify-between gap-2.5 py-1">
-                                    <span class="text-[12.5px] text-soft">Style tag</span>
+                                    <span class="whitespace-nowrap text-[12.5px] text-soft">
+                                        Style tag
+                                    </span>
                                     <TextField
                                         compact
                                         value={tag()}

@@ -1,7 +1,7 @@
 /* @refresh reload */
 import "../ui/styles.css";
 import "../app/components/visuals.css";
-import "@editor/register"; // side-effect: registers elements
+import "@elements/register"; // side-effect: registers the element library
 import type { Component } from "solid-js";
 import { render } from "solid-js/web";
 import { Route, Router } from "@solidjs/router";

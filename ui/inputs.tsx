@@ -1,4 +1,5 @@
 import type { Component, JSX } from "solid-js";
+import { FORMATS } from "./formats";
 import { For, Show, splitProps } from "solid-js";
 import { Icon } from "./icons";
 
@@ -212,6 +213,20 @@ export const Segmented: Component<{
             )}
         </For>
     </div>
+);
+
+// The artifact format (deck/doc/web) switcher — a Segmented over the shared FORMATS list.
+export const FormatSwitcher: Component<{
+    value: string;
+    onChange: (value: string) => void;
+    variant?: "subtle" | "accent";
+}> = (props) => (
+    <Segmented
+        variant={props.variant}
+        value={props.value}
+        options={FORMATS}
+        onChange={props.onChange}
+    />
 );
 
 const ALIGN_OPTS = [

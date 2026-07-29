@@ -34,12 +34,11 @@ import {
 import { appTheme } from "../stores/theme";
 import { openGenerate } from "../stores/generate";
 import { folders } from "../stores/folders";
-import { ConfirmModal, FloatingBar, Popover } from "@ui/overlay";
+import { ConfirmModal, FloatingBar } from "@ui/overlay";
 import { Button, Chip, Eyebrow, IconButton } from "@ui/button";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@ui/menu";
 import { Separator, TextField } from "@ui/inputs";
 import { EmptyState } from "@ui/status";
-import { ThemeSwatch } from "@ui/color";
 import {
     CheckIcon,
     ChevronDownIcon,
@@ -240,12 +239,8 @@ export const LibraryView: Component = () => {
         const img = (): string | undefined => cv().image;
         const secs = () => p.d.sections ?? [];
         const content = (): ArtifactContent | undefined => contents()[p.d.id];
-        const [askAt, setAskAt] = createSignal<{ x: number; y: number } | null>(null);
-        // open in the saved theme; if app theme differs, offer it — popup at the click point
-        const open = (e: MouseEvent): void => {
-            if (p.d.themeId === appTheme()) navigate(`/edit/${p.d.id}`);
-            else setAskAt({ x: e.clientX, y: e.clientY });
-        };
+        // Always open in the artifact's saved theme; the editor's theme picker offers a "switch to app theme" shortcut.
+        const open = (): void => navigate(`/edit/${p.d.id}`);
         const [hovered, setHovered] = createSignal(false);
         // shift-click, or any click while selecting, toggles instead of opening
         const onCardClick = (e: MouseEvent): void => {
@@ -254,11 +249,7 @@ export const LibraryView: Component = () => {
                 toggleSelect(p.d.id);
                 return;
             }
-            open(e);
-        };
-        const openWith = (asApp: boolean): void => {
-            setAskAt(null);
-            navigate(asApp ? `/edit/${p.d.id}?as=app` : `/edit/${p.d.id}`);
+            open();
         };
         return (
             <section
@@ -332,40 +323,6 @@ export const LibraryView: Component = () => {
                         >
                             <CheckIcon size={14} />
                         </button>
-                    </Show>
-                    <Show when={askAt()}>
-                        {(pos) => (
-                            <Popover
-                                open={true}
-                                at={() => ({ x: pos().x, y: pos().y })}
-                                onClose={() => setAskAt(null)}
-                                estHeight={130}
-                                fixedWidth={240}
-                                panelClass="p-1.5"
-                            >
-                                <MenuLabel>Open in…</MenuLabel>
-                                <MenuItem
-                                    icon={<ThemeSwatch themeId={p.d.themeId} />}
-                                    trailing={
-                                        <span class="flex-none text-[11px] text-muted">saved</span>
-                                    }
-                                    onClick={() => openWith(false)}
-                                >
-                                    {resolveTheme(p.d.themeId).name}
-                                </MenuItem>
-                                <MenuItem
-                                    icon={<ThemeSwatch themeId={appTheme()} />}
-                                    trailing={
-                                        <span class="flex-none text-[11px] text-muted">
-                                            app theme
-                                        </span>
-                                    }
-                                    onClick={() => openWith(true)}
-                                >
-                                    {resolveTheme(appTheme()).name}
-                                </MenuItem>
-                            </Popover>
-                        )}
                     </Show>
                 </div>
 
