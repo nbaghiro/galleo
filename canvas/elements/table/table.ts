@@ -212,6 +212,7 @@ export const tableElement: ElementSpec<TableData> = {
         },
     ],
     bar: ["header", "lines", "zebra"],
+    frame: true,
 };
 
 register(tableElement);

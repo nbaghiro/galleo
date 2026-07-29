@@ -10,10 +10,7 @@ import { DIRECTION_OPTIONS } from "@elements/composite/shared";
 interface CardData {
     children: ElementInstance[];
     direction?: FlexDirection;
-    gap?: number;
-    padding?: number;
     bg?: string;
-    radius?: number; // legacy radius; honored when shape unset
     shape?: CardShape;
     style?: CardStyle;
 }
@@ -29,16 +26,14 @@ const STYLE_LABELS: Record<CardStyle, string> = {
 // side/top accent lines use cross-axis grow to span the full edge
 const arrangeCard = (d: CardData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode => {
     const t = ctx.theme;
-    let rad = d.radius ?? t.radius;
-    if (d.shape === "sharp") rad = 2;
-    else if (d.shape === "rounded") rad = t.radius;
-    const p = d.padding ?? 24;
+    const rad = d.shape === "sharp" ? 2 : t.radius;
+    const p = 24;
     const inset = { top: p, right: p, bottom: p, left: p };
     const stack = (padding: typeof inset): EngineNode => ({
         w: grow(),
         h: fit(),
         direction: d.direction ?? "col",
-        gap: d.gap ?? 12,
+        gap: 12,
         padding,
         children: kids,
     });

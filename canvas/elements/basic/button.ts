@@ -127,7 +127,7 @@ export const buttonElement: ElementSpec<ButtonData> = {
             options: BUTTON_SHAPES.map((v) => ({ value: v, label: SHAPE_LABELS[v] })),
         },
         { key: "href", label: "Link", control: "text", placeholder: "https://…", group: "Link" },
-        { key: "icon", label: "Leading icon", control: "icon", group: "Link" },
+        { key: "icon", label: "Leading icon", control: "icon", group: "Icon" },
     ],
     // fit-width pill collapses under auto-skeletonize, so draw a pill directly.
     skeleton: (_ctx: LayoutCtx): EngineNode => pill(0.45, 38),

@@ -11,7 +11,6 @@ type Align = "start" | "center" | "end";
 interface GroupData {
     children: ElementInstance[];
     direction?: FlexDirection;
-    gap?: number;
     align?: Align; // cross-axis
     distribute?: Align; // main-axis
 }
@@ -29,7 +28,6 @@ function crossAlign(d: GroupData): Align | undefined {
 }
 
 const arrangeGroup = (d: GroupData, _ctx: LayoutCtx, kids: EngineNode[]): EngineNode => {
-    const gap = d.gap ?? 14;
     const dir = d.direction ?? "col";
     // col mirrors centered text; row keeps explicit align
     const cross = dir === "col" ? crossAlign(d) : d.align;
@@ -37,7 +35,7 @@ const arrangeGroup = (d: GroupData, _ctx: LayoutCtx, kids: EngineNode[]): Engine
         w: grow(),
         h: fit(),
         direction: dir,
-        gap,
+        gap: 14,
         alignX: dir === "row" ? d.distribute : cross,
         alignY: dir === "row" ? cross : d.distribute,
         children: kids,

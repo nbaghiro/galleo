@@ -1,5 +1,5 @@
 import type { Region, Rect } from "@engine/node";
-import { embedFor, type Embed } from "./core/media";
+import { embedFor, pickArtifactBackground, type Embed } from "./core/media";
 import type { ElementAddress, Target } from "@model/target";
 import type { ElementInstance, Section } from "@model/artifact";
 import type { Component } from "solid-js";
@@ -44,7 +44,7 @@ import {
 import { EmptyRegionAdd, ContextMenu, openContextMenu } from "./panels/Insert";
 import { DragHandle, RegionDividers, ResizeHandles } from "./panels/Selection";
 import { ContextBar } from "./panels/ControlBars";
-import { Overlay, SectionActions, SectionToolbar } from "./panels/Selection";
+import { Overlay, SectionActions } from "./panels/Selection";
 import { SectionGenPopup } from "./panels/GenPrompt";
 import { SectionGenStage } from "./panels/GenOverlays";
 import { ElementGenStage } from "./panels/GenOverlays";
@@ -171,6 +171,13 @@ export const Canvas: Component = () => {
         openContextMenu(e.clientX, e.clientY, t);
     };
 
+    // Double-click the visible backdrop (the gutters/top/bottom, where target is the scroller itself,
+    // not a section) to replace the document background image.
+    const onBackdropDblClick = (e: MouseEvent): void => {
+        const bg = editor.artifact.background;
+        if (e.target === scrollEl && bg?.kind === "image" && bg.image) pickArtifactBackground();
+    };
+
     onMount(() => {
         setCanvasEl(scrollEl);
         setStageEl(stageEl);
@@ -280,6 +287,7 @@ export const Canvas: Component = () => {
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            onDblClick={onBackdropDblClick}
             onContextMenu={onContextMenu}
             onPointerLeave={() => !drag() && setHover(null)}
         >
@@ -291,7 +299,6 @@ export const Canvas: Component = () => {
                 <ResizeHandles />
                 <RegionDividers />
                 <SectionActions />
-                <SectionToolbar />
                 <SectionGenStage />
                 <SectionGenPopup />
                 <ElementGenStage />

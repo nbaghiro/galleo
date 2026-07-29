@@ -325,6 +325,7 @@ export function requestShare(): void {
 export interface MediaPickerRequest {
     onPick: (url: string) => void;
     onPickIcon?: (icon: IconPick) => void; // icon delivers a themed-glyph descriptor, not a url
+    onRemove?: () => void; // present when a value is already set → picker offers a "Remove" action
     query?: string;
     kind?: MediaKind;
 }

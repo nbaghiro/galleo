@@ -1,5 +1,6 @@
 import type { IconPick, MediaKind } from "@model/media";
-import { requestMediaPicker } from "./store";
+import { clearBackgroundImage } from "@elements/ops";
+import { commit, editor, requestMediaPicker } from "./store";
 
 // Match a URL to an embeddable player source — used by the canvas video overlay.
 export interface Embed {
@@ -21,12 +22,33 @@ export function embedFor(url: string): Pick<Embed, "kind" | "src"> | null {
     return null;
 }
 
-// Open the host media picker for a URL-delivering asset (image/video/…).
-export function pickMedia(onPick: (url: string) => void, kind?: MediaKind): void {
-    requestMediaPicker({ onPick, kind });
+// Open the host media picker for a URL-delivering asset (image/video/…). Pass onRemove when a value is
+// already set so the picker offers a "Remove" action.
+export function pickMedia(
+    onPick: (url: string) => void,
+    kind?: MediaKind,
+    onRemove?: () => void,
+): void {
+    requestMediaPicker({ onPick, kind, onRemove });
 }
 
 // Open the host media picker for an icon glyph.
 export function pickIcon(onPickIcon: (icon: IconPick) => void): void {
     requestMediaPicker({ kind: "icon", onPick: () => {}, onPickIcon });
+}
+
+// Pick + set (or remove) the document-level backdrop image (behind all sections).
+export function pickArtifactBackground(): void {
+    const bg = editor.artifact.background;
+    pickMedia(
+        (url) =>
+            commit({
+                ...editor.artifact,
+                background: { ...bg, kind: "image", image: url },
+            }),
+        "photo",
+        bg?.image
+            ? () => commit({ ...editor.artifact, background: clearBackgroundImage(bg) })
+            : undefined,
+    );
 }

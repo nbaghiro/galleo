@@ -27,7 +27,7 @@ import { Present } from "./Present";
 import { DataEditor } from "./panels/DataEditor";
 import { DragGhost, PaletteItem } from "./panels/Insert";
 import { ElementInspector } from "./panels/RightPanel";
-import { pickMedia } from "./core/media";
+import { pickArtifactBackground } from "./core/media";
 import {
     addSectionAfter,
     artifacts,
@@ -76,6 +76,7 @@ export const Editor: Component = () => {
                 <Topbar />
                 <div class="relative min-h-0 overflow-hidden">
                     <Canvas />
+                    <BackdropCornerButton />
                     <Show
                         when={leftOpen()}
                         fallback={
@@ -220,26 +221,29 @@ const ThemeMenu: Component = () => {
     );
 };
 
-// Document-level backdrop image (behind all sections) — opens the shared media picker.
-const BackgroundButton: Component = () => (
-    <Button
-        variant="tool"
-        size="sm"
-        title="Document background image"
-        onClick={() =>
-            pickMedia(
-                (url) =>
-                    commit({
-                        ...editor.artifact,
-                        background: { ...editor.artifact.background, kind: "image", image: url },
-                    }),
-                "photo",
-            )
-        }
-    >
-        <Icon name="media" size={14} />
-    </Button>
-);
+// No-image case only: a subtle corner affordance to set the document backdrop. When an image is set,
+// there's no button — you replace it by double-clicking the visible backdrop (see Canvas).
+const BackdropCornerButton: Component = () => {
+    const noImage = (): boolean => {
+        const bg = editor.artifact.background;
+        return !(bg?.kind === "image" && bg.image);
+    };
+    return (
+        <Show when={noImage()}>
+            <IconButton
+                size="md"
+                bordered
+                tone="muted"
+                rounded="lg"
+                class="absolute right-4 top-4 z-panel bg-panel/90 shadow-lg backdrop-blur-md"
+                title="Set document background image"
+                onClick={() => pickArtifactBackground()}
+            >
+                <Icon name="media" size={14} />
+            </IconButton>
+        </Show>
+    );
+};
 
 const ExportMenu: Component = () => {
     const [busy, setBusy] = createSignal(false);
@@ -327,7 +331,6 @@ const Topbar: Component = () => (
             onChange={(v) => commit(setArtifactFormat(editor.artifact, v))}
         />
         <ThemeMenu />
-        <BackgroundButton />
         <Button
             variant="tool"
             size="sm"
@@ -339,7 +342,7 @@ const Topbar: Component = () => (
         </Button>
         <ExportMenu />
         <Button variant="tool" size="sm" onClick={() => present()}>
-            <Icon name={editor.artifact.format === "deck" ? "present" : "preview"} size={14} />
+            <Icon name="present" size={14} />
             {editor.artifact.format === "deck" ? "Present" : "Preview"}
         </Button>
     </header>
@@ -471,16 +474,16 @@ const Panel: Component = () => {
         const s = selection();
         return s?.kind === "element" ? s.address : null;
     });
-    // Elements fully editable on-canvas skip the panel: rich-text (format bar), containers (handles), and
-    // any whose `bar` already surfaces every control.
+    // Elements fully editable on-canvas skip the panel: rich-text (format bar), and any whose `bar`
+    // already surfaces every control (vacuously true for zero-control containers).
     const elementInline = createMemo((): boolean => {
         const a = elementAddr();
         if (!a) return false;
         const spec = getElement(getElementAt(editor.artifact, a)?.type ?? "");
         if (!spec) return false;
-        if (spec.richText || spec.container) return true;
+        if (spec.richText) return true;
         const bar = spec.bar ?? [];
-        return spec.controls.length > 0 && spec.controls.every((c) => bar.includes(c.key));
+        return spec.controls.every((c) => bar.includes(c.key));
     });
     const inspectorLabel = createMemo((): string | null => {
         const a = elementAddr();

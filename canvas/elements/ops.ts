@@ -329,6 +329,15 @@ export function setSectionBackground(
     return mapSection(art, section, (s) => ({ ...s, background }));
 }
 
+// Drop the image from a background, reverting to whatever fill remains (gradient/color) or none.
+export function clearBackgroundImage(bg: SectionBackground): SectionBackground {
+    return {
+        ...bg,
+        image: undefined,
+        kind: bg.gradient ? "gradient" : bg.color ? "color" : "none",
+    };
+}
+
 export function setSectionBleed(
     art: ArtifactContent,
     section: Id,

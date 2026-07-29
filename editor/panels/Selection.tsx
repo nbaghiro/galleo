@@ -5,7 +5,13 @@ import type { ElementAddress, Target } from "@model/target";
 import { elementRegionId, regionId, sectionRegionId } from "@model/target";
 import type { ElementLayout } from "@model/geometry";
 import type { ArtifactContent } from "@model/artifact";
-import { getElementAt, setElementLayout, updateDataAt, setSectionBackground } from "@elements/ops";
+import {
+    getElementAt,
+    setElementLayout,
+    updateDataAt,
+    setSectionBackground,
+    clearBackgroundImage,
+} from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { resolveProfile } from "@engine/profile";
 import {
@@ -28,7 +34,6 @@ import { openSectionPrompt } from "../core/ai";
 import { pickMedia } from "../core/media";
 import { SectionLayoutPopup } from "./SectionLayoutPopup";
 import { Icon } from "@ui/icons";
-import { IconButton } from "@ui/button";
 import { FloatingBar, Popover } from "@ui/overlay";
 import { Separator } from "@ui/inputs";
 
@@ -456,6 +461,11 @@ function sectionOf(t: Target | null): string | null {
 
 const action =
     "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-canvas";
+const iconAction = "inline-flex items-center rounded-full p-1.5 text-ink hover:bg-canvas";
+const stepAction =
+    "flex items-center justify-center rounded px-1 leading-none text-muted hover:bg-canvas hover:text-ink";
+const dangerAction =
+    "inline-flex items-center rounded-full p-1.5 text-ink hover:bg-red-500/12 hover:text-red-500";
 
 // SectionActions pins its bar to the open-popup section so the anchor stays mounted if the cursor drifts away.
 const [layoutOpen, setLayoutOpen] = createSignal<string | null>(null);
@@ -471,6 +481,22 @@ export const SectionActions: Component = () => {
         return id ? editor.artifact.sections.find((s) => s.id === id)?.background : undefined;
     });
     let pillRef: HTMLDivElement | undefined;
+
+    // Pick + set (or remove) this section's background image via the shared media picker.
+    const pickSectionBg = (): void => {
+        const id = sid()!;
+        const bg = sectionBg();
+        pickMedia(
+            (url) =>
+                commit(
+                    setSectionBackground(editor.artifact, id, { ...bg, kind: "image", image: url }),
+                ),
+            "photo",
+            bg?.image
+                ? () => commit(setSectionBackground(editor.artifact, id, clearBackgroundImage(bg)))
+                : undefined,
+        );
+    };
 
     return (
         <Show when={box()}>
@@ -488,6 +514,23 @@ export const SectionActions: Component = () => {
                         onPointerMove={(e) => e.stopPropagation()}
                         onPointerDown={(e) => e.stopPropagation()}
                     >
+                        <div class="-my-1 flex flex-col justify-center">
+                            <button
+                                class={stepAction}
+                                title="Move section up"
+                                onClick={() => moveSectionBy(sid()!, -1)}
+                            >
+                                <Icon name="chevronUp" size={13} />
+                            </button>
+                            <button
+                                class={stepAction}
+                                title="Move section down"
+                                onClick={() => moveSectionBy(sid()!, 1)}
+                            >
+                                <Icon name="chevronDown" size={13} />
+                            </button>
+                        </div>
+                        <Separator vertical class="h-3.5" />
                         <button
                             class={action}
                             title="Add a blank section below"
@@ -513,25 +556,30 @@ export const SectionActions: Component = () => {
                         </button>
                         <Separator vertical class="h-3.5" />
                         <button
-                            class={action}
-                            title="Set a background image for this section"
-                            onClick={() => {
-                                const id = sid()!;
-                                const bg = sectionBg();
-                                pickMedia(
-                                    (url) =>
-                                        commit(
-                                            setSectionBackground(editor.artifact, id, {
-                                                ...bg,
-                                                kind: "image",
-                                                image: url,
-                                            }),
-                                        ),
-                                    "photo",
-                                );
-                            }}
+                            class={iconAction}
+                            classList={{ "text-accent": !!sectionBg()?.image }}
+                            title={
+                                sectionBg()?.image
+                                    ? "Replace or remove the background image"
+                                    : "Set a background image for this section"
+                            }
+                            onClick={pickSectionBg}
                         >
                             <Icon name="media" size={14} />
+                        </button>
+                        <button
+                            class={iconAction}
+                            title="Duplicate section"
+                            onClick={() => duplicateSectionAt(sid()!)}
+                        >
+                            <Icon name="duplicate" size={14} />
+                        </button>
+                        <button
+                            class={dangerAction}
+                            title="Delete section"
+                            onClick={() => removeSectionAt(sid()!)}
+                        >
+                            <Icon name="trash" size={14} />
                         </button>
                     </FloatingBar>
                     <Popover
@@ -546,80 +594,6 @@ export const SectionActions: Component = () => {
                         <SectionLayoutPopup section={sid()!} />
                     </Popover>
                 </>
-            )}
-        </Show>
-    );
-};
-
-export const SectionToolbar: Component = () => {
-    const sid = createMemo(() => {
-        const s = selection();
-        return s?.kind === "section" ? s.section : null;
-    });
-    const box = createMemo(() => {
-        const id = sid();
-        return id ? (regions().find((r) => r.id === sectionRegionId(id))?.box ?? null) : null;
-    });
-
-    return (
-        <Show when={box()}>
-            {(b) => (
-                <FloatingBar
-                    tone="panel"
-                    rounded="lg"
-                    pad="sm"
-                    shadow="lg"
-                    anchor="free"
-                    class="absolute z-panel"
-                    style={{ left: `${b().x + 10}px`, top: `${b().y + 10}px` }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                >
-                    <IconButton
-                        size="md"
-                        rounded="md"
-                        tone="ink"
-                        title="Move up"
-                        onClick={() => moveSectionBy(sid()!, -1)}
-                    >
-                        <Icon name="chevronUp" size={15} />
-                    </IconButton>
-                    <IconButton
-                        size="md"
-                        rounded="md"
-                        tone="ink"
-                        title="Move down"
-                        onClick={() => moveSectionBy(sid()!, 1)}
-                    >
-                        <Icon name="chevronDown" size={15} />
-                    </IconButton>
-                    <IconButton
-                        size="md"
-                        rounded="md"
-                        tone="ink"
-                        title="Duplicate"
-                        onClick={() => duplicateSectionAt(sid()!)}
-                    >
-                        <Icon name="duplicate" size={14} />
-                    </IconButton>
-                    <IconButton
-                        size="md"
-                        rounded="md"
-                        tone="ink"
-                        title="Add section below"
-                        onClick={() => addSectionAfter(sid()!)}
-                    >
-                        <Icon name="plus" size={15} />
-                    </IconButton>
-                    <IconButton
-                        size="md"
-                        rounded="md"
-                        tone="accent"
-                        title="Delete section"
-                        onClick={() => removeSectionAt(sid()!)}
-                    >
-                        <Icon name="close" size={14} />
-                    </IconButton>
-                </FloatingBar>
             )}
         </Show>
     );

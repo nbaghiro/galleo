@@ -43,6 +43,7 @@ export const codeElement: ElementSpec<CodeData> = {
     controls: [
         { key: "code", label: "Code", control: "text", multiline: true, placeholder: "// code" },
     ],
+    frame: true,
 };
 
 register(codeElement);

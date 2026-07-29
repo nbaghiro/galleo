@@ -42,6 +42,16 @@ export const gradientElement: ElementSpec<GradientData> = {
             unit: "°",
             group: "Shape",
         },
+        {
+            key: "height",
+            label: "Height",
+            control: "slider",
+            min: 80,
+            max: 480,
+            step: 10,
+            unit: "px",
+            group: "Shape",
+        },
     ],
     skeleton: (): EngineNode => ({
         w: grow(),

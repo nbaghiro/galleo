@@ -59,7 +59,7 @@ function composeBullets(d: BulletsData, ctx: LayoutCtx): EngineNode[] {
 const MARKER_LABELS: Record<BulletMarker, string> = {
     dot: "•",
     number: "1.",
-    dash: "–",
+    dash: "—",
     check: "✓",
 };
 
@@ -82,7 +82,7 @@ export const bulletsElement: ElementSpec<BulletsData> = {
         arrange: arrangeBullets,
         withChildren: (d, children) => ({ ...d, children }),
     },
-    bar: ["marker"], // container hides the docked panel, so the control lives on the bar
+    bar: ["marker"], // every control on the bar keeps the element inline (no docked panel)
     controls: [
         {
             key: "marker",

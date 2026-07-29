@@ -89,13 +89,15 @@ Galleo owns the **86xx** host-port block (runs alongside the sibling apps). See 
 ## Current state
 
 The layout engine (`canvas/engine/layout.ts`, Clay-style 3-pass solver) drives a **SolidJS** studio:
-`editor/Studio.tsx` shell = `Topbar` · `Minimap` (live `Thumb`s) · `Canvas` (continuous section stack) ·
-`Panel` (element palette), with selection + inspectors + drag-drop (feature folders `select/`·`inspect/`·`canvas/`) and
-inline text editing (`text/text-editor.tsx`). State in `editor.ts` (Solid store); painting is the
-`@canvas` layer — the engine's commands paint into refs (`@canvas/render/backends`, with a 2D-canvas
-mirror for Present + PDF/PNG export). Sections compose via `@elements/compose`; every element has a
-structural ghost (`skeletonize` in `@elements/spec`). **20 elements** register via `editor/register.ts`'s five
-category imports (19 content elements + the internal drop-preview); format-as-view
+`editor/Editor.tsx` shell = `Topbar` · `Minimap` (live `Thumb`s) · `Canvas` (continuous section stack) ·
+`Panel` (element palette), with selection + inspectors + drag-drop (`panels/` components over `core/`
+state) and inline text editing (`panels/TextEditor.tsx`). State in `core/store.ts` (Solid store); painting
+is the `@canvas` layer — the engine's commands paint into refs (`@canvas/render/backends`, with a
+2D-canvas mirror for Present + PDF/PNG export). Sections compose via `@elements/compose`; every element
+has a structural ghost (`skeletonize` in `@elements/spec`). **53 palette elements** register via
+`canvas/elements/register.ts`'s side-effect imports (5 text · 7 media · 2 table · 7 composite · 7 basic ·
+13 chart types · 12 diagram types), plus palette-hidden internals (`group`, `avatar`, the back-compat
+`chart`/`diagram` catch-alls, the drop-preview); format-as-view
 (`@engine/profile` + `fragment`) is built, so one artifact renders as deck / doc / web.
 
 The product SPA (`app/`, served at `/app`) wraps the studio: library / templates / trash / shared /

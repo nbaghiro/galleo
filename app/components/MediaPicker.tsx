@@ -14,9 +14,15 @@ import type { IconItem, MediaGenStyle, MediaItem, MediaKind, MediaProvider } fro
 import { MEDIA_ASPECTS, MEDIA_GEN_STYLES } from "@model/media";
 import { editorTokens } from "@editor/core/store";
 import { api, streamGenerateMedia, type MediaProvidersState } from "../api";
-import { closeMediaPicker, mediaRequest, pickMedia, pickMediaIcon } from "../stores/media";
+import {
+    closeMediaPicker,
+    mediaRequest,
+    pickMedia,
+    pickMediaIcon,
+    removeMedia,
+} from "../stores/media";
 import { overlayThemeVars } from "../stores/theme";
-import { CloseIcon, SparkleIcon } from "@ui/icons";
+import { CloseIcon, SparkleIcon, TrashIcon } from "@ui/icons";
 import { Modal } from "@ui/overlay";
 import { Button, Chip, Eyebrow, IconButton } from "@ui/button";
 import { TextArea, TextField } from "@ui/inputs";
@@ -523,9 +529,17 @@ export const MediaPicker: Component = () => {
                     <Show when={error()}>
                         <span class="truncate text-[12px] text-red-500">{error()}</span>
                     </Show>
-                    <IconButton size="md" tone="muted" class="ml-auto" onClick={closeMediaPicker}>
-                        <CloseIcon size={15} />
-                    </IconButton>
+                    <div class="ml-auto flex items-center gap-2">
+                        <Show when={mediaRequest()?.onRemove}>
+                            <Button variant="dangerGhost" size="sm" onClick={removeMedia}>
+                                <TrashIcon size={13} />
+                                Remove image
+                            </Button>
+                        </Show>
+                        <IconButton size="md" tone="muted" onClick={closeMediaPicker}>
+                            <CloseIcon size={15} />
+                        </IconButton>
+                    </div>
                 </header>
 
                 <div class="flex min-h-0 flex-1">

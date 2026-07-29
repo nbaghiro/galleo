@@ -80,6 +80,7 @@ export const embedElement: ElementSpec<EmbedData> = {
         { key: "title", label: "Title", control: "text" },
         { key: "url", label: "URL", control: "text", placeholder: "https://…" },
     ],
+    frame: true,
     fallback: (d) => d,
 };
 
