@@ -23,6 +23,7 @@ import {
     saveCustomTheme,
     updateCustomTheme,
     customThemes,
+    loadCustomThemes,
     removeCustomTheme,
     themeEditorOpen,
     closeThemeEditor,
@@ -191,6 +192,7 @@ export const ThemeEditor: Component = () => (
 
 const ThemeEditorPanel: Component = () => {
     const location = useLocation();
+    void loadCustomThemes(); // idempotent — self-heal a failed boot-time fetch
     // snapshot context at open — the modal never outlives a navigation
     const editing = location.pathname.includes("/edit/");
     const currentId = editing ? editor.artifact.theme : appTheme();

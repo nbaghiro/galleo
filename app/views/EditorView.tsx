@@ -32,11 +32,11 @@ import {
 import { api, streamTurn } from "../api";
 import { openMediaPicker } from "../stores/media";
 import { openShare } from "../stores/share";
-import { can } from "../stores/features";
+import { can, loadFeatures } from "../stores/features";
 import { renameArtifactById } from "../stores/library";
 import { billing, loadBilling } from "../stores/billing";
 import { setEditorActive } from "../stores/chat";
-import { appTheme, setFaviconOverride, openThemeEditor } from "../stores/theme";
+import { appTheme, loadCustomThemes, setFaviconOverride, openThemeEditor } from "../stores/theme";
 import { flushAutosave, installAutosave } from "../stores/save";
 
 export const EditorView: Component = () => {
@@ -109,6 +109,8 @@ export const EditorView: Component = () => {
             return text;
         });
         void loadBilling();
+        void loadFeatures(); // share/export gates read this — self-heal a failed boot-time fetch
+        void loadCustomThemes(); // the artifact may use one; idempotent
         (async () => {
             try {
                 const { artifacts } = await api.listArtifacts();
