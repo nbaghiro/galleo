@@ -270,7 +270,26 @@ export const LibraryView: Component = () => {
                         draggable={true}
                         onDragStart={(e) => {
                             setDraggingArtifact(p.d.id);
-                            if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+                            if (!e.dataTransfer) return;
+                            e.dataTransfer.effectAllowed = "move";
+                            // compact preview ABOVE the cursor (the transparent spacer below the
+                            // card keeps the hotspot in-bounds), so the folder row being targeted
+                            // stays visible instead of hiding under a full-size card snapshot
+                            const W = 200;
+                            const H = 126;
+                            const GAP = 18;
+                            const ghost = document.createElement("div");
+                            ghost.style.cssText = `position:fixed;left:-9999px;top:0;width:${W}px;height:${H + GAP}px;pointer-events:none;`;
+                            const card = document.createElement("div");
+                            card.style.cssText =
+                                `width:${W}px;height:${H}px;border-radius:10px;overflow:hidden;` +
+                                `border:1px solid ${appTk().line};background-color:${appTk().bg};` +
+                                `background-image:${img() ? `url(${img()})` : `linear-gradient(150deg, ${appTk().surface}, ${appTk().bg})`};` +
+                                `background-size:cover;background-position:center;`;
+                            ghost.appendChild(card);
+                            document.body.appendChild(ghost);
+                            e.dataTransfer.setDragImage(ghost, W / 2, H + GAP);
+                            window.setTimeout(() => ghost.remove(), 0);
                         }}
                         onDragEnd={() => setDraggingArtifact(null)}
                         onClick={onCardClick}
