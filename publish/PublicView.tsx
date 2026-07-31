@@ -1,6 +1,6 @@
 import type { ArtifactContent } from "@model/artifact";
 import type { Component, JSX } from "solid-js";
-import { createEffect, createMemo, createSignal, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { useParams, useSearchParams } from "@solidjs/router";
 import { registerThemes, resolveTheme, themeCssVars } from "@themes";
 import { PresentSurface } from "@ui/present";
@@ -8,11 +8,15 @@ import { UiThemeProvider } from "@ui/icons";
 import { api, type PublicContent } from "../app/api";
 import { setFavicon } from "../app/stores/theme";
 
-const Surface: Component<{ artifact: ArtifactContent; branded: boolean }> = (props) => {
+const Surface: Component<{
+    artifact: ArtifactContent;
+    branded: boolean;
+    onProgress: (reached: number, total: number) => void;
+}> = (props) => {
     const tokens = createMemo(() => resolveTheme(props.artifact.theme).tokens);
     return (
         <UiThemeProvider tokens={tokens}>
-            <PresentSurface artifact={props.artifact} z={0}>
+            <PresentSurface artifact={props.artifact} z={0} onProgress={props.onProgress}>
                 <Show when={props.branded}>
                     <a
                         href="https://galleo.app"
@@ -27,6 +31,47 @@ const Surface: Component<{ artifact: ArtifactContent; branded: boolean }> = (pro
         </UiThemeProvider>
     );
 };
+
+const PING_EVERY_MS = 15_000;
+
+// Engagement heartbeat: session duration + furthest slide/section, sent while the tab is
+// visible and flushed on hide/leave. The server only updates this session's existing row.
+function startHeartbeat(slug: string): {
+    onProgress: (reached: number, total: number) => void;
+    stop: () => void;
+} {
+    let maxUnit = 0;
+    let unitTotal = 0;
+    const send = (): void => {
+        if (!unitTotal) return;
+        void fetch(`/api/p/${slug}/ping`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ u: maxUnit, t: unitTotal }),
+            credentials: "same-origin",
+            keepalive: true,
+        }).catch(() => {});
+    };
+    const timer = window.setInterval(() => {
+        if (document.visibilityState === "visible") send();
+    }, PING_EVERY_MS);
+    const onHidden = (): void => {
+        if (document.visibilityState === "hidden") send();
+    };
+    document.addEventListener("visibilitychange", onHidden);
+    window.addEventListener("pagehide", send);
+    return {
+        onProgress: (reached, total) => {
+            maxUnit = Math.max(maxUnit, reached);
+            unitTotal = total;
+        },
+        stop: () => {
+            window.clearInterval(timer);
+            document.removeEventListener("visibilitychange", onHidden);
+            window.removeEventListener("pagehide", send);
+        },
+    };
+}
 
 const Panel: Component<{ children: JSX.Element }> = (props) => (
     <div class="grid min-h-screen place-items-center bg-[#0a0a0c] px-6 text-center text-white">
@@ -65,7 +110,11 @@ export const PublicView: Component = () => {
         }
         setBusy(true);
         try {
-            const res = await api.getPublicContent(params.slug, { k: token(), pw: password });
+            const res = await api.getPublicContent(params.slug, {
+                k: token(),
+                pw: password,
+                ref: document.referrer || undefined,
+            });
             if (res.ok) {
                 if (res.content.customTheme) registerThemes([res.content.customTheme]);
                 setContent(res.content);
@@ -94,6 +143,15 @@ export const PublicView: Component = () => {
     };
 
     onMount(() => void load());
+
+    // one heartbeat per page load, started the first time content renders
+    let beat: ReturnType<typeof startHeartbeat> | null = null;
+    const onProgress = (reached: number, total: number): void => {
+        if (!beat && params.slug) beat = startHeartbeat(params.slug);
+        beat?.onProgress(reached, total);
+    };
+    onCleanup(() => beat?.stop());
+
     createEffect(() => {
         const c = content();
         if (!c) return;
@@ -174,7 +232,9 @@ export const PublicView: Component = () => {
                 </Show>
             }
         >
-            {(c) => <Surface artifact={c().content} branded={c().branded} />}
+            {(c) => (
+                <Surface artifact={c().content} branded={c().branded} onProgress={onProgress} />
+            )}
         </Show>
     );
 };

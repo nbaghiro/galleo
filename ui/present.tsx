@@ -16,10 +16,13 @@ export const PresentSurface: Component<{
     z?: number;
     autoFullscreen?: boolean;
     onExit?: () => void;
+    // engagement hook: furthest slide (paged) or section (continuous) reached, 0-based, + total
+    onProgress?: (reached: number, total: number) => void;
     children?: JSX.Element;
 }> = (props) => {
     let overlay!: HTMLDivElement;
     let host!: HTMLDivElement;
+    let sectionTops: number[] = []; // continuous mode: y offset of each section, from the last paint
     const [index, setIndex] = createSignal(0);
     const tokens = createMemo(() => resolveTheme(props.artifact.theme).tokens);
     const profile = createMemo(() => resolveProfile(props.artifact.format));
@@ -75,18 +78,32 @@ export const PresentSurface: Component<{
         const prof = previewContentProfile(profile(), fullW);
         const stage = document.createElement("div");
         stage.style.cssText = `position:relative;width:${fullW}px`;
-        const { height } = paintSectionStack(stage, props.artifact.sections, prof, tokens(), {
+        const { tops, height } = paintSectionStack(stage, props.artifact.sections, prof, tokens(), {
             fullW,
         });
+        sectionTops = tops;
         stage.style.height = `${height}px`;
         host.replaceChildren(stage);
+        reportScrollProgress();
     };
     const render = (): void => (paged() ? renderPaged() : renderContinuous());
+
+    // continuous: a section counts as reached once its top scrolls into view
+    const reportScrollProgress = (): void => {
+        if (!props.onProgress || !host || !sectionTops.length) return;
+        const seen = host.scrollTop + host.clientHeight;
+        let reached = 0;
+        for (let i = 0; i < sectionTops.length; i++) if (sectionTops[i]! < seen) reached = i;
+        props.onProgress(reached, props.artifact.sections.length);
+    };
 
     createEffect(() => {
         index();
         tokens();
         render();
+    });
+    createEffect(() => {
+        if (paged()) props.onProgress?.(index(), total());
     });
 
     const toggleFs = (): void => {
@@ -141,6 +158,7 @@ export const PresentSurface: Component<{
                 }
                 style={hostStyle()}
                 onClick={() => paged() && next()}
+                onScroll={() => !paged() && reportScrollProgress()}
             />
             <Show when={paged()}>
                 <SlideProgress index={index()} total={total()} />
