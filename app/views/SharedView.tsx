@@ -8,29 +8,51 @@ import {
     onMount,
     Show,
 } from "solid-js";
+import { Dynamic } from "solid-js/web";
 import { useNavigate } from "@solidjs/router";
 import { resolveTheme } from "@themes";
 import { api, type ArtifactSummary, type LinkSummary, type Visibility } from "../api";
 import { artifacts, formatLabel, loadLibrary, relativeTime } from "../stores/library";
 import { links, loadLinks } from "../stores/links";
+import { featuresState, loadFeatures } from "../stores/features";
 import { openShare, shareRequest } from "../stores/share";
-import { ArrowUpRightIcon, ChevronRightIcon, EditIcon, PlusIcon } from "@ui/icons";
+import {
+    ArrowUpRightIcon,
+    CheckIcon,
+    ChevronRightIcon,
+    CloseIcon,
+    CopyIcon,
+    EditIcon,
+    EyeIcon,
+    GlobeIcon,
+    LockIcon,
+    MailIcon,
+    PlusIcon,
+} from "@ui/icons";
 import { Badge, Button, Chip, Eyebrow, IconButton } from "@ui/button";
 import { EmptyState } from "@ui/status";
 import { Modal } from "@ui/overlay";
 import { TextField } from "@ui/inputs";
 import { Sidebar } from "../components/Sidebar";
+import { PreviewCanvas } from "../components/previews";
 
-// a link joined with the artifact it points at
+// an artifact with every link published for it — the Shared page's unit
 interface Item {
-    link: LinkSummary;
     art: ArtifactSummary;
+    links: LinkSummary[];
 }
 
-const AUDIENCE: Record<Visibility, { badge: string; blurb: string; glyph: GlyphName }> = {
-    public: { badge: "Public", blurb: "Anyone with the link can view.", glyph: "globe" },
-    protected: { badge: "Protected", blurb: "Opens with the link and a password.", glyph: "lock" },
-    private: { badge: "Invite-only", blurb: "Only the people you invite by email.", glyph: "mail" },
+const AUDIENCE: Record<
+    Visibility,
+    { badge: string; blurb: string; icon: Component<{ size?: number }> }
+> = {
+    public: { badge: "Public", blurb: "Anyone with the link can view.", icon: GlobeIcon },
+    protected: { badge: "Protected", blurb: "Opens with the link and a password.", icon: LockIcon },
+    private: {
+        badge: "Invite-only",
+        blurb: "Only the people you invite by email.",
+        icon: MailIcon,
+    },
 };
 const FILTERS: [string, string][] = [
     ["all", "All"],
@@ -39,59 +61,95 @@ const FILTERS: [string, string][] = [
     ["private", "Invite-only"],
 ];
 
-type GlyphName = "globe" | "lock" | "mail" | "copy" | "eye";
-const Glyph: Component<{ name: GlyphName; size?: number }> = (p) => {
-    const s = (): number => p.size ?? 13;
+const bareUrl = (url: string): string => url.replace(/^https?:\/\//, "");
+const viewsLabel = (n: number): string => `${n} view${n === 1 ? "" : "s"}`;
+const linksLabel = (n: number): string => `${n} link${n === 1 ? "" : "s"}`;
+const fmtSeconds = (s: number): string =>
+    s >= 60 ? `${Math.floor(s / 60)}m ${Math.round(s % 60)}s` : `${Math.round(s)}s`;
+const linkTitle = (l: LinkSummary): string => l.name ?? `${AUDIENCE[l.visibility].badge} link`;
+
+// last 30 days, zero-filled; single series in the theme accent, per-day hover via title
+const DayBars: Component<{ days: { day: string; views: number }[] }> = (p) => {
+    const bars = createMemo((): { day: string; views: number }[] => {
+        const byDay = new Map(p.days.map((d) => [d.day, d.views]));
+        const out: { day: string; views: number }[] = [];
+        for (let i = 29; i >= 0; i--) {
+            const day = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+            out.push({ day, views: byDay.get(day) ?? 0 });
+        }
+        return out;
+    });
+    const max = (): number => Math.max(1, ...bars().map((b) => b.views));
     return (
-        <svg
-            width={s()}
-            height={s()}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-        >
-            <Show when={p.name === "globe"}>
-                <circle cx="12" cy="12" r="9" />
-                <path d="M3 12h18" />
-                <ellipse cx="12" cy="12" rx="4" ry="9" />
-            </Show>
-            <Show when={p.name === "lock"}>
-                <rect x="5" y="11" width="14" height="9" rx="2" />
-                <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-            </Show>
-            <Show when={p.name === "mail"}>
-                <rect x="3" y="5" width="18" height="14" rx="2" />
-                <path d="m3 7 9 6 9-6" />
-            </Show>
-            <Show when={p.name === "copy"}>
-                <rect x="9" y="9" width="11" height="11" rx="2" />
-                <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-            </Show>
-            <Show when={p.name === "eye"}>
-                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
-                <circle cx="12" cy="12" r="3" />
-            </Show>
-        </svg>
+        <div>
+            <div class="flex h-20 items-end gap-0.5">
+                <For each={bars()}>
+                    {(b) => (
+                        <div
+                            class="flex h-full flex-1 flex-col justify-end"
+                            title={`${b.day} — ${viewsLabel(b.views)}`}
+                        >
+                            <Show
+                                when={b.views}
+                                fallback={<div class="h-0.5 rounded-t-sm bg-line" />}
+                            >
+                                <div
+                                    class="min-h-1 rounded-t-sm bg-accent"
+                                    style={{ height: `${(b.views / max()) * 100}%` }}
+                                />
+                            </Show>
+                        </div>
+                    )}
+                </For>
+            </div>
+            <div class="mt-1 flex justify-between font-mono text-[9px] text-muted">
+                <span>{bars()[0]!.day}</span>
+                <span>{bars()[29]!.day}</span>
+            </div>
+        </div>
     );
 };
 
-const people = (n: number): string => `${n} ${n === 1 ? "person" : "people"}`;
-const bareUrl = (url: string): string => url.replace(/^https?:\/\//, "");
+// labeled horizontal bars — identity lives in the text label, magnitude in the bar
+const SourceBars: Component<{ rows: { label: string; views: number }[] }> = (p) => {
+    const max = (): number => Math.max(1, ...p.rows.map((r) => r.views));
+    return (
+        <div class="flex flex-col gap-1.5">
+            <For each={p.rows}>
+                {(r) => (
+                    <div
+                        class="flex items-center gap-2"
+                        title={`${r.label} — ${viewsLabel(r.views)}`}
+                    >
+                        <span class="w-30 truncate text-[11.5px] text-ink">{r.label}</span>
+                        <div class="h-2 flex-1 overflow-hidden rounded-full bg-canvas">
+                            <div
+                                class="h-full rounded-full bg-accent/60"
+                                style={{ width: `${(r.views / max()) * 100}%` }}
+                            />
+                        </div>
+                        <span class="w-6 text-right font-mono text-[10.5px] text-muted">
+                            {r.views}
+                        </span>
+                    </div>
+                )}
+            </For>
+        </div>
+    );
+};
 
 export const SharedView: Component = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = createSignal(true);
     const [filter, setFilter] = createSignal<string>("all");
     const [picker, setPicker] = createSignal(false);
-    const [insight, setInsight] = createSignal<Item | null>(null);
+    const [insight, setInsight] = createSignal<{ it: Item; focus: string | null } | null>(null);
     const [query, setQuery] = createSignal("");
     const [copied, setCopied] = createSignal<string | null>(null);
 
     const refresh = async (): Promise<void> => {
-        await Promise.all([loadLinks(), loadLibrary()]);
+        // entitlements gate the insights pane — re-pull so a boot-time /features failure self-heals
+        await Promise.all([loadLinks(), loadLibrary(), loadFeatures()]);
     };
     onMount(async () => {
         await refresh();
@@ -106,23 +164,36 @@ export const SharedView: Component = () => {
         wasOpen = open;
     });
 
-    const items = createMemo((): Item[] =>
-        links()
-            .map((link) => ({ link, art: artifacts().find((a) => a.id === link.artifactId) }))
-            .filter((x): x is Item => x.art !== undefined),
-    );
-    const countFor = (v: string): number =>
-        v === "all" ? items().length : items().filter((x) => x.link.visibility === v).length;
+    // one item per artifact, links newest-first (the /links feed is already newest-first)
+    const items = createMemo((): Item[] => {
+        const byArtifact = new Map<string, LinkSummary[]>();
+        for (const link of links()) {
+            const list = byArtifact.get(link.artifactId);
+            if (list) list.push(link);
+            else byArtifact.set(link.artifactId, [link]);
+        }
+        const out: Item[] = [];
+        for (const [artifactId, ls] of byArtifact) {
+            const art = artifacts().find((a) => a.id === artifactId);
+            if (art) out.push({ art, links: ls });
+        }
+        return out;
+    });
+    const linkCountFor = (v: string): number =>
+        v === "all" ? links().length : links().filter((l) => l.visibility === v).length;
     const shown = createMemo((): Item[] =>
-        filter() === "all" ? items() : items().filter((x) => x.link.visibility === filter()),
+        filter() === "all"
+            ? items()
+            : items().filter((x) => x.links.some((l) => l.visibility === filter())),
     );
 
     const stats = createMemo(() => ({
-        total: items().length,
-        public: countFor("public"),
-        protected: countFor("protected"),
-        private: countFor("private"),
+        total: links().length,
+        public: linkCountFor("public"),
+        protected: linkCountFor("protected"),
+        private: linkCountFor("private"),
         people: links().reduce((s, l) => s + l.recipientCount, 0),
+        views: links().reduce((s, l) => s + l.viewCount, 0),
     }));
 
     const copy = (url: string): void => {
@@ -146,17 +217,18 @@ export const SharedView: Component = () => {
     });
 
     const Card: Component<{ it: Item }> = (p) => {
-        const meta = (): (typeof AUDIENCE)[Visibility] => AUDIENCE[p.it.link.visibility];
         const tk = (): ReturnType<typeof resolveTheme>["tokens"] =>
             resolveTheme(p.it.art.themeId).tokens;
-        const isPrivate = (): boolean => p.it.link.visibility === "private";
+        const totalViews = (): number => p.it.links.reduce((s, l) => s + l.viewCount, 0);
+        const rows = (): LinkSummary[] =>
+            filter() === "all" ? p.it.links : p.it.links.filter((l) => l.visibility === filter());
         return (
             <div class="group flex flex-col overflow-hidden rounded-2xl border border-line bg-panel transition-colors hover:border-accent/40">
                 <button
                     class="relative block h-32 w-full overflow-hidden text-left"
                     style={{ background: tk().bg }}
                     title="View insights"
-                    onClick={() => setInsight(p.it)}
+                    onClick={() => setInsight({ it: p.it, focus: null })}
                 >
                     <Show
                         when={p.it.art.cover?.image}
@@ -180,7 +252,16 @@ export const SharedView: Component = () => {
                     </Show>
                     <div class="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-black/25" />
                     <div class="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
-                        <Glyph name={meta().glyph} size={12} /> {meta().badge}
+                        <Show
+                            when={p.it.links.length === 1}
+                            fallback={<>{linksLabel(p.it.links.length)}</>}
+                        >
+                            <Dynamic
+                                component={AUDIENCE[p.it.links[0]!.visibility].icon}
+                                size={12}
+                            />{" "}
+                            {AUDIENCE[p.it.links[0]!.visibility].badge}
+                        </Show>
                     </div>
                     <div class="absolute right-3 top-3 rounded-full bg-black/45 px-2 py-0.5 font-mono text-[9.5px] font-bold uppercase tracking-[0.08em] text-white/90 backdrop-blur-sm">
                         {formatLabel(p.it.art.formatId)}
@@ -194,68 +275,87 @@ export const SharedView: Component = () => {
 
                 <div class="flex flex-1 flex-col p-3.5">
                     <div class="mb-2.5 flex items-center gap-1.5 font-mono text-[10.5px] text-muted">
-                        <span>{resolveTheme(p.it.art.themeId).name}</span>
+                        <span class="inline-flex items-center gap-1">
+                            <EyeIcon size={11} /> {totalViews()}
+                        </span>
                         <span>·</span>
-                        <span>shared {relativeTime(p.it.link.publishedAt)}</span>
-                        <Show when={isPrivate()}>
-                            <span>·</span>
-                            <span class="text-accent">
-                                {p.it.link.openedCount}/{p.it.link.recipientCount} opened
-                            </span>
-                        </Show>
+                        <span>{linksLabel(p.it.links.length)}</span>
+                        <span>·</span>
+                        <span>shared {relativeTime(p.it.links[0]!.publishedAt)}</span>
                     </div>
 
-                    <Show
-                        when={!isPrivate()}
-                        fallback={
-                            <div class="flex items-center gap-2 rounded-lg border border-line bg-canvas px-2.5 py-2 text-[11.5px] text-soft">
-                                <Glyph name="mail" size={13} />
-                                <span class="flex-1">
-                                    {p.it.link.recipientCount
-                                        ? `Invited ${people(p.it.link.recipientCount)}`
-                                        : "No one invited yet"}
-                                </span>
-                                <button
-                                    class="font-medium text-accent hover:underline"
-                                    onClick={() => share(p.it.art)}
+                    <div class="flex flex-col gap-1.5">
+                        <For each={rows()}>
+                            {(l) => (
+                                <div
+                                    class="flex cursor-pointer items-center gap-2 rounded-lg border border-line bg-canvas px-2.5 py-1.5 transition-colors hover:border-accent/50"
+                                    title="Link insights"
+                                    onClick={() => setInsight({ it: p.it, focus: l.id })}
                                 >
-                                    Manage
-                                </button>
-                            </div>
-                        }
-                    >
-                        <div class="flex items-center gap-1 rounded-lg border border-line bg-canvas px-2.5 py-1.5">
-                            <span class="min-w-0 flex-1 truncate font-mono text-[11px] text-soft">
-                                {bareUrl(p.it.link.url)}
-                            </span>
-                            <IconButton
-                                size="sm"
-                                tone="muted"
-                                title={copied() === p.it.link.url ? "Copied" : "Copy link"}
-                                onClick={() => copy(p.it.link.url)}
-                            >
-                                <span classList={{ "text-accent": copied() === p.it.link.url }}>
-                                    <Glyph name="copy" size={13} />
-                                </span>
-                            </IconButton>
-                            <a
-                                href={p.it.link.url}
-                                target="_blank"
-                                rel="noopener"
-                                class="grid h-6 w-6 place-items-center rounded-lg text-muted hover:bg-panel hover:text-ink"
-                                title="Open public page"
-                            >
-                                <ArrowUpRightIcon size={14} />
-                            </a>
-                        </div>
-                    </Show>
+                                    <span class="flex-none text-accent">
+                                        <Dynamic
+                                            component={AUDIENCE[l.visibility].icon}
+                                            size={13}
+                                        />
+                                    </span>
+                                    <span class="min-w-0 flex-1 truncate text-[12px] text-ink">
+                                        {linkTitle(l)}
+                                    </span>
+                                    <span class="inline-flex flex-none items-center gap-1 font-mono text-[10.5px] text-muted">
+                                        <EyeIcon size={11} /> {l.viewCount}
+                                    </span>
+                                    <IconButton
+                                        size="sm"
+                                        tone="muted"
+                                        class="flex-none"
+                                        title={copied() === l.url ? "Copied" : "Copy link"}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            copy(l.url);
+                                        }}
+                                    >
+                                        <Show
+                                            when={copied() === l.url}
+                                            fallback={<CopyIcon size={12} />}
+                                        >
+                                            <span class="text-accent">
+                                                <CheckIcon size={12} />
+                                            </span>
+                                        </Show>
+                                    </IconButton>
+                                    <a
+                                        href={l.url}
+                                        target="_blank"
+                                        rel="noopener"
+                                        class="grid h-6 w-6 flex-none place-items-center rounded-lg text-muted hover:bg-panel hover:text-ink"
+                                        title="Open link"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <ArrowUpRightIcon size={13} />
+                                    </a>
+                                </div>
+                            )}
+                        </For>
+                    </div>
 
                     <div class="mt-2.5 flex items-center gap-1.5">
-                        <Button variant="tool" size="sm" onClick={() => setInsight(p.it)}>
-                            <Glyph name="eye" size={13} /> Insights
+                        <Button
+                            variant="tool"
+                            size="sm"
+                            onClick={() => setInsight({ it: p.it, focus: null })}
+                        >
+                            <EyeIcon size={13} /> Insights
                         </Button>
                         <Button variant="tool" size="sm" onClick={() => share(p.it.art)}>
                             Manage
+                        </Button>
+                        <Button
+                            variant="tool"
+                            size="sm"
+                            title="Create another link"
+                            onClick={() => share(p.it.art)}
+                        >
+                            <PlusIcon size={13} />
                         </Button>
                         <span class="flex-1" />
                         <IconButton
@@ -300,8 +400,7 @@ export const SharedView: Component = () => {
                                 Shared
                             </h1>
                             <p class="mt-1 text-[13px] text-muted">
-                                Every link you’ve published — filter by audience, and dig into each
-                                one.
+                                Every artifact you’ve shared, its links, and how each one performs.
                             </p>
                         </div>
                         <Button variant="primary" onClick={() => setPicker(true)}>
@@ -312,6 +411,7 @@ export const SharedView: Component = () => {
                     <Show when={!loading() && stats().total}>
                         <div class="mt-6 flex flex-wrap gap-3">
                             <Stat label="Live links" value={stats().total} accent />
+                            <Stat label="Total views" value={stats().views} accent />
                             <Stat label="Public" value={stats().public} />
                             <Stat label="Protected" value={stats().protected} />
                             <Stat label="Invite-only" value={stats().private} />
@@ -335,7 +435,7 @@ export const SharedView: Component = () => {
                                 class="h-[58vh]"
                                 icon={
                                     <span class="opacity-40">
-                                        <Glyph name="globe" size={30} />
+                                        <GlobeIcon size={30} />
                                     </span>
                                 }
                                 title="Nothing shared yet"
@@ -358,7 +458,7 @@ export const SharedView: Component = () => {
                                         onClick={() => setFilter(k)}
                                     >
                                         {label}
-                                        <span class="ml-1.5 opacity-60">{countFor(k)}</span>
+                                        <span class="ml-1.5 opacity-60">{linkCountFor(k)}</span>
                                     </Chip>
                                 )}
                             </For>
@@ -376,7 +476,7 @@ export const SharedView: Component = () => {
                                 class="grid gap-4 px-9 py-6"
                                 style={{
                                     "grid-template-columns":
-                                        "repeat(auto-fill, minmax(300px, 1fr))",
+                                        "repeat(auto-fill, minmax(320px, 1fr))",
                                 }}
                             >
                                 <For each={shown()}>{(it) => <Card it={it} />}</For>
@@ -398,11 +498,12 @@ export const SharedView: Component = () => {
             </Show>
 
             <Show when={insight()}>
-                {(it) => (
+                {(sel) => (
                     <InsightsModal
-                        it={it()}
-                        onManage={() => share(it().art)}
-                        onEdit={() => navigate(`/edit/${it().art.id}`)}
+                        it={sel().it}
+                        focus={sel().focus}
+                        onManage={() => share(sel().it.art)}
+                        onEdit={() => navigate(`/edit/${sel().it.art.id}`)}
                         onCopy={copy}
                         copied={copied()}
                         onClose={() => setInsight(null)}
@@ -415,154 +516,340 @@ export const SharedView: Component = () => {
 
 const InsightsModal: Component<{
     it: Item;
+    focus: string | null;
     onManage: () => void;
     onEdit: () => void;
     onCopy: (url: string) => void;
     copied: string | null;
     onClose: () => void;
 }> = (p) => {
-    const meta = AUDIENCE[p.it.link.visibility];
-    const isPrivate = p.it.link.visibility === "private";
-    // full state (recipients + opened) loaded on demand for the engagement table
-    const [state] = createResource(
-        () => (isPrivate ? p.it.art.id : null),
-        (id) => api.getLinkState(id).then((r) => r.link),
+    const navigate = useNavigate();
+    // null = entitlements not loaded yet — show loading, never a premature upsell
+    const entitled = (): boolean | null => featuresState()?.features.analytics ?? null;
+    const [sel, setSel] = createSignal<string>(p.focus ?? "all");
+    const selLink = (): LinkSummary | null => p.it.links.find((l) => l.id === sel()) ?? null;
+    const totalViews = (): number => p.it.links.reduce((s, l) => s + l.viewCount, 0);
+
+    // full content for the section strip
+    const [art] = createResource(
+        () => p.it.art.id,
+        (id) => api.getArtifact(id).then((r) => r.artifact),
     );
-    return (
-        <Modal onClose={p.onClose} scrim="light" size="md" class="flex flex-col">
-            <header class="flex items-center gap-3 border-b border-line px-5 py-4">
-                <span class="grid h-9 w-9 flex-none place-items-center rounded-lg bg-accent/12 text-accent">
-                    <Glyph name={meta.glyph} size={16} />
+    const [data] = createResource(
+        () => (entitled() ? sel() : null),
+        (s) =>
+            (s === "all" ? api.getArtifactAnalytics(p.it.art.id) : api.getLinkAnalytics(s)).catch(
+                () => null,
+            ),
+    );
+
+    const RailRow: Component<{
+        id: string;
+        icon?: Component<{ size?: number }>;
+        label: string;
+        views: number;
+    }> = (r) => (
+        <button
+            class="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors"
+            classList={{
+                "bg-accent/10 text-ink": sel() === r.id,
+                "text-soft hover:bg-canvas hover:text-ink": sel() !== r.id,
+            }}
+            onClick={() => setSel(r.id)}
+        >
+            <Show when={r.icon} fallback={<span class="w-3.5 flex-none" />}>
+                <span class="flex-none" classList={{ "text-accent": sel() === r.id }}>
+                    <Dynamic component={r.icon!} size={13} />
                 </span>
+            </Show>
+            <span class="min-w-0 flex-1 truncate text-[12.5px] font-medium">{r.label}</span>
+            <span class="flex-none font-mono text-[10.5px] text-muted">{r.views}</span>
+        </button>
+    );
+
+    // where "Copy link" should point when nudging a first share
+    const copyTarget = (): string | undefined => selLink()?.url ?? p.it.links[0]?.url;
+
+    return (
+        <Modal
+            onClose={p.onClose}
+            scrim="light"
+            size="full"
+            class="flex h-[92vh] flex-col overflow-hidden"
+        >
+            <header class="flex flex-none items-center gap-3 border-b border-line px-5 py-3.5">
                 <div class="min-w-0 flex-1">
                     <div class="truncate text-[14px] font-semibold text-ink">{p.it.art.title}</div>
                     <div class="text-[11.5px] text-muted">
-                        {meta.badge} · shared {relativeTime(p.it.link.publishedAt)}
+                        {linksLabel(p.it.links.length)} · {viewsLabel(totalViews())} · shared{" "}
+                        {relativeTime(p.it.links[0]!.publishedAt)}
                     </div>
                 </div>
                 <Badge tone="outline" size="sm" uppercase>
                     {formatLabel(p.it.art.formatId)}
                 </Badge>
+                <IconButton size="lg" tone="muted" title="Close" onClick={p.onClose}>
+                    <CloseIcon size={15} />
+                </IconButton>
             </header>
 
-            <div class="px-5 py-4">
-                <div class="mb-4 grid grid-cols-3 gap-2.5">
+            <div class="flex min-h-0 flex-1">
+                <div class="min-w-0 flex-1 border-r border-line bg-canvas">
                     <Show
-                        when={isPrivate}
+                        when={art()}
                         fallback={
-                            <>
-                                <Tile label="Audience" value={meta.badge} />
-                                <Tile label="Format" value={formatLabel(p.it.art.formatId)} />
-                                <Tile label="Theme" value={resolveTheme(p.it.art.themeId).name} />
-                            </>
+                            <div class="grid h-full place-items-center text-[12px] text-muted">
+                                Loading preview…
+                            </div>
                         }
                     >
-                        <Tile label="Invited" value={`${p.it.link.recipientCount}`} />
-                        <Tile label="Opened" value={`${p.it.link.openedCount}`} accent />
-                        <Tile
-                            label="Open rate"
-                            value={
-                                p.it.link.recipientCount
-                                    ? `${Math.round((p.it.link.openedCount / p.it.link.recipientCount) * 100)}%`
-                                    : "—"
-                            }
-                        />
+                        {(a) => (
+                            <PreviewCanvas content={a().draftContent} format={() => a().formatId} />
+                        )}
                     </Show>
                 </div>
 
-                <Show when={!isPrivate}>
-                    <div class="mb-4 flex items-center gap-1 rounded-lg border border-line bg-canvas px-2.5 py-1.5">
-                        <span class="min-w-0 flex-1 truncate font-mono text-[11px] text-soft">
-                            {bareUrl(p.it.link.url)}
-                        </span>
-                        <IconButton
-                            size="sm"
-                            tone="muted"
-                            title="Copy link"
-                            onClick={() => p.onCopy(p.it.link.url)}
+                <div class="flex w-80 flex-none flex-col">
+                    <div class="min-h-0 flex-1 overflow-y-auto p-3.5">
+                        <div class="mb-1.5 px-2.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted">
+                            Links
+                        </div>
+                        <RailRow id="all" label="All links" views={totalViews()} />
+                        <For each={p.it.links}>
+                            {(l) => (
+                                <RailRow
+                                    id={l.id}
+                                    icon={AUDIENCE[l.visibility].icon}
+                                    label={linkTitle(l)}
+                                    views={l.viewCount}
+                                />
+                            )}
+                        </For>
+                        <button
+                            class="mt-1 flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12.5px] font-medium text-accent transition-colors hover:bg-canvas"
+                            onClick={p.onManage}
                         >
-                            <span classList={{ "text-accent": p.copied === p.it.link.url }}>
-                                <Glyph name="copy" size={13} />
-                            </span>
-                        </IconButton>
-                        <a
-                            href={p.it.link.url}
-                            target="_blank"
-                            rel="noopener"
-                            class="grid h-6 w-6 place-items-center rounded-lg text-muted hover:bg-panel hover:text-ink"
-                            title="Open public page"
-                        >
-                            <ArrowUpRightIcon size={14} />
-                        </a>
-                    </div>
-                </Show>
+                            <PlusIcon size={13} /> New link
+                        </button>
 
-                <Show when={isPrivate}>
-                    <div class="mb-1.5 font-mono text-[9.5px] uppercase tracking-[0.12em] text-muted">
-                        Recipients
-                    </div>
-                    <div class="max-h-60 overflow-y-auto rounded-lg border border-line">
+                        <div class="my-3 border-t border-line" />
+
+                        <Show when={selLink()}>
+                            {(l) => (
+                                <div class="mb-3 flex items-center gap-2 rounded-lg border border-line bg-canvas px-2.5 py-1.5">
+                                    <Badge tone="outline" size="sm">
+                                        {AUDIENCE[l().visibility].badge}
+                                    </Badge>
+                                    <span class="min-w-0 flex-1 truncate font-mono text-[11px] text-soft">
+                                        {bareUrl(l().url)}
+                                    </span>
+                                    <IconButton
+                                        size="sm"
+                                        tone="muted"
+                                        title={p.copied === l().url ? "Copied" : "Copy link"}
+                                        onClick={() => p.onCopy(l().url)}
+                                    >
+                                        <Show
+                                            when={p.copied === l().url}
+                                            fallback={<CopyIcon size={13} />}
+                                        >
+                                            <span class="text-accent">
+                                                <CheckIcon size={13} />
+                                            </span>
+                                        </Show>
+                                    </IconButton>
+                                    <a
+                                        href={l().url}
+                                        target="_blank"
+                                        rel="noopener"
+                                        class="grid h-6 w-6 place-items-center rounded-lg text-muted hover:bg-panel hover:text-ink"
+                                        title="Open link"
+                                    >
+                                        <ArrowUpRightIcon size={14} />
+                                    </a>
+                                </div>
+                            )}
+                        </Show>
+
                         <Show
-                            when={state()?.recipients.length}
+                            when={entitled() !== false}
                             fallback={
-                                <div class="px-3 py-4 text-center text-[12px] text-muted">
-                                    {state.loading ? "Loading…" : "No one invited yet."}
+                                <div class="flex items-center gap-3 rounded-lg border border-dashed border-line px-3 py-3">
+                                    <span class="flex-1 text-[11.5px] text-muted">
+                                        Views over time, top sources, and read-depth are included
+                                        with Premium.
+                                    </span>
+                                    <Button
+                                        variant="tool"
+                                        size="sm"
+                                        onClick={() => (p.onClose(), navigate("/pricing"))}
+                                    >
+                                        See plans
+                                    </Button>
                                 </div>
                             }
                         >
-                            <For each={state()!.recipients}>
-                                {(r) => (
-                                    <div class="flex items-center gap-2 border-b border-line px-3 py-2 text-[12px] last:border-0">
-                                        <span class="min-w-0 flex-1 truncate">{r.email}</span>
+                            <Show
+                                when={data()}
+                                fallback={
+                                    <div class="grid h-40 place-items-center text-[12px] text-muted">
+                                        {entitled() === null || data.loading
+                                            ? "Loading…"
+                                            : "Analytics unavailable."}
+                                    </div>
+                                }
+                            >
+                                {(d) => (
+                                    <>
                                         <Show
-                                            when={r.lastViewedAt}
+                                            when={d().totals.views}
                                             fallback={
-                                                <span class="text-[11px] text-muted">Invited</span>
+                                                <div class="rounded-xl border border-dashed border-line px-4 py-6 text-center">
+                                                    <span class="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent">
+                                                        <EyeIcon size={16} />
+                                                    </span>
+                                                    <div class="text-[12.5px] font-medium text-ink">
+                                                        No views yet
+                                                    </div>
+                                                    <p class="mx-auto mt-1 max-w-56 text-[11.5px] leading-relaxed text-muted">
+                                                        Copy the link and share it — every visit
+                                                        lands here live, with sources and
+                                                        read-depth.
+                                                    </p>
+                                                    <Show when={copyTarget()}>
+                                                        <Button
+                                                            variant="tool"
+                                                            size="sm"
+                                                            class="mt-3"
+                                                            onClick={() => p.onCopy(copyTarget()!)}
+                                                        >
+                                                            {p.copied === copyTarget()
+                                                                ? "Copied"
+                                                                : "Copy link"}
+                                                        </Button>
+                                                    </Show>
+                                                </div>
                                             }
                                         >
-                                            <span class="inline-flex items-center gap-1 text-[11px] text-accent">
-                                                <Glyph name="eye" size={11} /> Opened{" "}
-                                                {relativeTime(r.lastViewedAt!)}
-                                            </span>
+                                            <div class="rounded-lg border border-line px-3 py-3">
+                                                <div class="mb-2 font-mono text-[9.5px] uppercase tracking-[0.12em] text-muted">
+                                                    Views · last 30 days
+                                                </div>
+                                                <DayBars days={d().days} />
+                                                <div class="mt-2.5 flex flex-wrap items-center gap-1.5 font-mono text-[10.5px] text-muted">
+                                                    <span>{viewsLabel(d().totals.views)}</span>
+                                                    <Show when={d().totals.lastViewedAt}>
+                                                        <span>·</span>
+                                                        <span>
+                                                            last viewed{" "}
+                                                            {relativeTime(d().totals.lastViewedAt!)}
+                                                        </span>
+                                                    </Show>
+                                                    <Show when={d().totals.avgSeconds !== null}>
+                                                        <span>·</span>
+                                                        <span>
+                                                            {fmtSeconds(d().totals.avgSeconds!)} avg
+                                                            on page
+                                                        </span>
+                                                    </Show>
+                                                    <Show when={d().totals.completionPct !== null}>
+                                                        <span>·</span>
+                                                        <span>
+                                                            {d().totals.completionPct}% read
+                                                        </span>
+                                                    </Show>
+                                                </div>
+                                            </div>
                                         </Show>
-                                    </div>
+
+                                        <Show when={d().referrers.length}>
+                                            <div class="mt-3 rounded-lg border border-line px-3 py-3">
+                                                <div class="mb-2 font-mono text-[9.5px] uppercase tracking-[0.12em] text-muted">
+                                                    Top sources
+                                                </div>
+                                                <SourceBars
+                                                    rows={d().referrers.map((r) => ({
+                                                        label: r.source ?? "unknown",
+                                                        views: r.views,
+                                                    }))}
+                                                />
+                                                <Show when={d().devices.length}>
+                                                    <div class="mt-2.5 font-mono text-[10.5px] text-muted">
+                                                        {d()
+                                                            .devices.map(
+                                                                (x) => `${x.device} ${x.views}`,
+                                                            )
+                                                            .join(" · ")}
+                                                    </div>
+                                                </Show>
+                                            </div>
+                                        </Show>
+
+                                        <Show when={d().recipients?.length}>
+                                            <div class="mt-3 rounded-lg border border-line">
+                                                <div class="border-b border-line px-3 py-2 font-mono text-[9.5px] uppercase tracking-[0.12em] text-muted">
+                                                    Recipients
+                                                </div>
+                                                <For each={d().recipients}>
+                                                    {(r) => (
+                                                        <div class="flex items-center gap-2 border-b border-line px-3 py-2 text-[12px] last:border-0">
+                                                            <div class="min-w-0 flex-1">
+                                                                <div class="truncate">
+                                                                    {r.email}
+                                                                </div>
+                                                                <Show when={r.views}>
+                                                                    <div class="font-mono text-[10px] text-muted">
+                                                                        {viewsLabel(r.views)}
+                                                                        <Show
+                                                                            when={
+                                                                                r.completionPct !==
+                                                                                null
+                                                                            }
+                                                                        >
+                                                                            {" "}
+                                                                            · read {r.completionPct}
+                                                                            %
+                                                                        </Show>
+                                                                    </div>
+                                                                </Show>
+                                                            </div>
+                                                            <Show
+                                                                when={r.lastViewedAt}
+                                                                fallback={
+                                                                    <span class="text-[11px] text-muted">
+                                                                        Invited
+                                                                    </span>
+                                                                }
+                                                            >
+                                                                <span class="inline-flex items-center gap-1 text-[11px] text-accent">
+                                                                    <EyeIcon size={11} /> Opened{" "}
+                                                                    {relativeTime(r.lastViewedAt!)}
+                                                                </span>
+                                                            </Show>
+                                                        </div>
+                                                    )}
+                                                </For>
+                                            </div>
+                                        </Show>
+                                    </>
                                 )}
-                            </For>
+                            </Show>
                         </Show>
                     </div>
-                </Show>
 
-                <Show when={!isPrivate}>
-                    <div class="rounded-lg border border-dashed border-line px-3 py-3 text-[11.5px] text-muted">
-                        Views over time and top referrers arrive with{" "}
-                        <span class="text-soft">Analytics</span>.
+                    <div class="flex flex-none gap-1.5 border-t border-line p-3.5">
+                        <Button variant="primary" size="sm" class="flex-1" onClick={p.onManage}>
+                            Manage sharing
+                        </Button>
+                        <Button variant="tool" size="sm" class="flex-1" onClick={p.onEdit}>
+                            Edit artifact
+                        </Button>
                     </div>
-                </Show>
-
-                <div class="mt-4 flex items-center gap-2">
-                    <Button variant="primary" onClick={p.onManage}>
-                        Manage sharing
-                    </Button>
-                    <Button variant="tool" size="sm" onClick={p.onEdit}>
-                        Edit artifact
-                    </Button>
                 </div>
             </div>
         </Modal>
     );
 };
-
-const Tile: Component<{ label: string; value: string; accent?: boolean }> = (p) => (
-    <div class="rounded-lg border border-line bg-canvas px-3 py-2.5">
-        <div
-            class="truncate font-display text-[18px] font-semibold leading-none"
-            classList={{ "text-accent": p.accent, "text-ink": !p.accent }}
-        >
-            {p.value}
-        </div>
-        <div class="mt-1 font-mono text-[9px] uppercase tracking-[0.1em] text-muted">{p.label}</div>
-    </div>
-);
 
 const ArtifactPicker: Component<{
     list: ArtifactSummary[];

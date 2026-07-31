@@ -63,22 +63,52 @@ export interface LinkSummary {
     id: string;
     artifactId: string;
     slug: string;
+    name: string | null; // owner-facing label, never shown to viewers
     visibility: Visibility;
     url: string;
     recipientCount: number;
     openedCount: number; // invited recipients who've opened (private links)
+    viewCount: number;
+    lastViewedAt: string | null;
     publishedAt: string;
 }
 
-// GET /links/:artifactId — current publish state
-export interface LinkState {
+// one share link (PATCH /links/:id responses carry no recipients)
+export interface LinkCore {
     id: string;
     slug: string;
+    name: string | null;
     visibility: Visibility;
     hasPassword: boolean;
     url: string;
     publishedAt: string;
+    viewCount: number;
+    lastViewedAt: string | null;
+}
+
+// GET/POST /artifacts/:id/links — a link with its recipient roster
+export interface LinkState extends LinkCore {
     recipients: ShareRecipient[];
+}
+
+// GET /links/:id/analytics — the Premium slice on top of the basic counts
+export interface LinkAnalytics {
+    totals: {
+        views: number;
+        lastViewedAt: string | null;
+        avgSeconds: number | null; // session duration; null until a heartbeat lands
+        completionPct: number | null; // avg furthest slide/section reached, 0-100
+    };
+    days: { day: string; views: number }[]; // sparse, last 30 days, "YYYY-MM-DD"
+    referrers: { source: string; views: number }[]; // hostname or "direct"
+    devices: { device: string; views: number }[];
+    recipients?: {
+        id: string;
+        email: string;
+        views: number;
+        lastViewedAt: string | null;
+        completionPct: number | null;
+    }[]; // private links only
 }
 
 // UNAUTHENTICATED GET /p/:slug/content; custom theme rides along (built-ins already in the viewer registry)
@@ -290,25 +320,34 @@ export const api = {
         }),
 
     listLinks: () => req<{ links: LinkSummary[] }>("/links"),
-    getLinkState: (artifactId: string) => req<{ link: LinkState | null }>(`/links/${artifactId}`),
-    publishArtifact: (
-        id: string,
+    getArtifactLinks: (artifactId: string) =>
+        req<{ links: LinkState[] }>(`/artifacts/${artifactId}/links`),
+    createLink: (
+        artifactId: string,
         body: {
+            name?: string | null;
             visibility?: Visibility;
             password?: string | null;
             recipients?: string[];
             message?: string | null;
         },
     ) =>
-        req<{ slug: string; visibility: Visibility; url: string; recipients?: ShareRecipient[] }>(
-            `/artifacts/${id}/publish`,
-            { method: "POST", body: JSON.stringify(body) },
-        ),
-    updateLink: (id: string, patch: { visibility?: Visibility; password?: string | null }) =>
-        req<{ link: LinkState }>(`/links/${id}`, {
+        req<{ link: LinkState }>(`/artifacts/${artifactId}/links`, {
+            method: "POST",
+            body: JSON.stringify(body),
+        }),
+    updateLink: (
+        id: string,
+        patch: { name?: string | null; visibility?: Visibility; password?: string | null },
+    ) =>
+        req<{ link: LinkCore }>(`/links/${id}`, {
             method: "PATCH",
             body: JSON.stringify(patch),
         }),
+    deleteLink: (id: string) => req<{ ok: true }>(`/links/${id}`, { method: "DELETE" }),
+    getLinkAnalytics: (id: string) => req<LinkAnalytics>(`/links/${id}/analytics`),
+    getArtifactAnalytics: (artifactId: string) =>
+        req<LinkAnalytics>(`/artifacts/${artifactId}/analytics`),
     addRecipients: (linkId: string, emails: string[], message?: string | null) =>
         req<{ recipients: ShareRecipient[] }>(`/links/${linkId}/recipients`, {
             method: "POST",
@@ -316,16 +355,15 @@ export const api = {
         }),
     removeRecipient: (linkId: string, recipientId: string) =>
         req<{ ok: true }>(`/links/${linkId}/recipients/${recipientId}`, { method: "DELETE" }),
-    unpublishArtifact: (id: string) =>
-        req<{ ok: true }>(`/artifacts/${id}/unpublish`, { method: "POST" }),
     // UNAUTHENTICATED — used by the public viewer
     getPublicContent: async (
         slug: string,
-        opts?: { pw?: string; k?: string },
+        opts?: { pw?: string; k?: string; ref?: string },
     ): Promise<PublicResult> => {
         const q = new URLSearchParams();
         if (opts?.pw) q.set("pw", opts.pw);
         if (opts?.k) q.set("k", opts.k);
+        if (opts?.ref) q.set("ref", opts.ref.slice(0, 300));
         const qs = q.toString();
         // not via req(): a gated 401/429 isn't an error here — read its body
         const res = await fetch(`/api/p/${slug}/content${qs ? `?${qs}` : ""}`, {
@@ -406,13 +444,22 @@ export interface MediaGenEvent {
     produced?: number; // present on "done" — images made
 }
 
-// stream generated images over SSE (each as it's ready); throws ApiError pre-stream (e.g. 402)
-export async function streamGenerateMedia(
-    body: MediaGenerateRequest,
-    onEvent: (event: MediaGenEvent) => void,
+// POST /media/generate-video stream event ("progress" heartbeats while the Veo operation polls)
+export interface MediaVideoGenEvent {
+    type: "progress" | "video" | "fail" | "done";
+    item?: MediaItem; // present on "video"
+    error?: string; // present on "fail"
+    produced?: number; // present on "done"
+}
+
+// POST an SSE endpoint and deliver each data frame; throws ApiError pre-stream (e.g. 402)
+async function streamPost<T>(
+    path: string,
+    body: unknown,
+    onEvent: (event: T) => void,
     signal?: AbortSignal,
 ): Promise<void> {
-    const res = await fetch("/api/media/generate", {
+    const res = await fetch(`/api${path}`, {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
@@ -445,11 +492,29 @@ export async function streamGenerateMedia(
                 const json = line.slice(5).trim();
                 if (!json) continue;
                 try {
-                    onEvent(JSON.parse(json) as MediaGenEvent);
+                    onEvent(JSON.parse(json) as T);
                 } catch {
                     // skip a malformed frame
                 }
             }
         }
     }
+}
+
+// stream generated images over SSE (each as it's ready)
+export function streamGenerateMedia(
+    body: MediaGenerateRequest,
+    onEvent: (event: MediaGenEvent) => void,
+    signal?: AbortSignal,
+): Promise<void> {
+    return streamPost("/media/generate", body, onEvent, signal);
+}
+
+// stream one generated Veo clip (progress heartbeats, then the item; ~1–2 min)
+export function streamGenerateVideo(
+    body: { prompt: string; aspect?: string },
+    onEvent: (event: MediaVideoGenEvent) => void,
+    signal?: AbortSignal,
+): Promise<void> {
+    return streamPost("/media/generate-video", body, onEvent, signal);
 }

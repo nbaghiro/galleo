@@ -23,6 +23,31 @@ const PATHS: Record<string, () => JSX.Element> = {
             <path d="M8 11V8a4 4 0 0 1 8 0v3" />
         </>
     ),
+    globe: () => (
+        <>
+            <circle cx="12" cy="12" r="9" />
+            <path d="M3 12h18" />
+            <ellipse cx="12" cy="12" rx="4" ry="9" />
+        </>
+    ),
+    mail: () => (
+        <>
+            <rect x="3" y="5" width="18" height="14" rx="2" />
+            <path d="m3 7 9 6 9-6" />
+        </>
+    ),
+    eye: () => (
+        <>
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+            <circle cx="12" cy="12" r="3" />
+        </>
+    ),
+    copy: () => (
+        <>
+            <rect x="9" y="9" width="11" height="11" rx="2" />
+            <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+        </>
+    ),
     media: () => (
         <>
             <rect x="3" y="5" width="18" height="14" rx="2" />
@@ -455,5 +480,10 @@ export const CheckIcon = named("check");
 export const ArrowUpRightIcon = named("arrowUpRight");
 export const ThemeIcon = named("theme");
 export const AgentIcon = named("agent");
+export const LockIcon = named("lock");
+export const GlobeIcon = named("globe");
+export const MailIcon = named("mail");
+export const EyeIcon = named("eye");
+export const CopyIcon = named("copy");
 
 export const ICON_NAMES: string[] = Object.keys(PATHS);
