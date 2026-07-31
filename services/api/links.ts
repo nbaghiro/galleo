@@ -1,7 +1,8 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { ArtifactContent } from "@model/artifact";
 import { can, resolveFeatures } from "@model/features";
 import type { PlanId } from "@model/billing";
@@ -11,7 +12,8 @@ import { featuresFor } from "../features";
 import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
 import { sendShareInvite } from "../mail/send";
 
-// One links row = one published share (visibility: public | protected | private).
+// One links row = one shared URL (visibility: public | protected | private); an artifact can have
+// many, each with its own label + analytics. All of them serve the live draft.
 export const links = new Hono();
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:8600";
@@ -20,11 +22,53 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SLUG_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789"; // no look-alikes (0/o/1/l)
 
-interface PublishBody {
+interface LinkBody {
+    name?: string | null;
     visibility?: string;
     password?: string | null;
     recipients?: unknown;
     message?: string | null;
+}
+
+const cleanName = (raw: unknown): string | null =>
+    typeof raw === "string" && raw.trim() ? raw.trim().slice(0, 120) : null;
+
+// Cookieless viewer-session identity: same viewer + link + UTC day → same key, so reloads
+// dedup into one view row. Rotates daily by construction; the raw IP/UA never touch the DB.
+const SESSION_PEPPER = process.env.SESSION_SECRET ?? "galleo-views";
+function viewSessionKey(c: Context, linkId: string): string {
+    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+    const ua = c.req.header("user-agent") ?? "";
+    const day = new Date().toISOString().slice(0, 10);
+    return createHash("sha256")
+        .update(`${day}|${ip}|${ua}|${linkId}|${SESSION_PEPPER}`)
+        .digest("base64url")
+        .slice(0, 24);
+}
+
+// hostname only — enough for "where did they come from", nothing identifying
+function refHost(raw: string | undefined): string {
+    if (!raw) return "direct";
+    try {
+        return new URL(raw).hostname || "direct";
+    } catch {
+        return "direct";
+    }
+}
+
+const deviceOf = (ua: string | undefined): string =>
+    ua && /Mobi|Android|iPhone|iPad/i.test(ua) ? "mobile" : "desktop";
+
+// populated when deployed behind a geo-aware proxy (Cloudflare/Vercel); null in dev
+const countryOf = (c: Context): string | null =>
+    c.req.header("cf-ipcountry") ?? c.req.header("x-vercel-ip-country") ?? null;
+
+async function isWorkspaceMember(userId: string, workspaceId: string): Promise<boolean> {
+    const [m] = await db
+        .select({ userId: schema.members.userId })
+        .from(schema.members)
+        .where(and(eq(schema.members.workspaceId, workspaceId), eq(schema.members.userId, userId)));
+    return !!m;
 }
 
 function newSlug(len = 8): string {
@@ -99,9 +143,45 @@ interface OwnedLink {
     id: string;
     artifactId: string;
     slug: string;
+    name: string | null;
     visibility: string;
     password: string | null;
-    publishedVersionId: string | null;
+    createdAt: Date;
+}
+
+interface LinkStats {
+    viewCount: number;
+    lastViewedAt: Date | null;
+}
+
+async function statsFor(linkIds: string[]): Promise<Map<string, LinkStats>> {
+    if (!linkIds.length) return new Map();
+    const rows = await db
+        .select({
+            linkId: schema.linkViews.linkId,
+            viewCount: sql<number>`count(*)::int`,
+            lastViewedAt: sql<Date | null>`max(coalesce(last_seen_at, viewed_at))`,
+        })
+        .from(schema.linkViews)
+        .where(inArray(schema.linkViews.linkId, linkIds))
+        .groupBy(schema.linkViews.linkId);
+    return new Map(
+        rows.map((r) => [r.linkId, { viewCount: r.viewCount, lastViewedAt: r.lastViewedAt }]),
+    );
+}
+
+function linkJson(l: OwnedLink, stats?: LinkStats) {
+    return {
+        id: l.id,
+        slug: l.slug,
+        name: l.name,
+        visibility: l.visibility,
+        hasPassword: !!l.password,
+        url: publicUrl(l.slug),
+        publishedAt: l.createdAt,
+        viewCount: stats?.viewCount ?? 0,
+        lastViewedAt: stats?.lastViewedAt ?? null,
+    };
 }
 
 // Load a link only if its artifact belongs to the workspace (tenant guard).
@@ -174,7 +254,8 @@ async function addRecipients(
     return added;
 }
 
-links.post("/artifacts/:id/publish", async (c) => {
+// Create a NEW link every call — one artifact can carry many (per audience/channel analytics).
+links.post("/artifacts/:id/links", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await currentWorkspace(u.id);
@@ -184,75 +265,30 @@ links.post("/artifacts/:id/publish", async (c) => {
 
     const artifactId = c.req.param("id");
     const [artifact] = await db
-        .select()
+        .select({ title: schema.artifacts.title })
         .from(schema.artifacts)
         .where(and(eq(schema.artifacts.id, artifactId), eq(schema.artifacts.workspaceId, ws.id)));
     if (!artifact) return c.json({ error: "not found" }, 404);
 
-    const body = await readJson<PublishBody>(c);
-    const [existing] = await db
-        .select()
-        .from(schema.links)
-        .where(eq(schema.links.artifactId, artifactId));
+    const body = await readJson<LinkBody>(c);
     const visibility =
-        body.visibility && VISIBILITIES.has(body.visibility)
-            ? body.visibility
-            : (existing?.visibility ?? "public");
-    if (visibility === "protected" && !body.password && !existing?.password)
+        body.visibility && VISIBILITIES.has(body.visibility) ? body.visibility : "public";
+    if (visibility === "protected" && !body.password)
         return c.json({ error: "A password is required for a protected link." }, 400);
 
-    // Reuse the current published version when the draft is unchanged, so re-publishes don't bloat history.
-    let versionId: string | null = null;
-    if (existing?.publishedVersionId) {
-        const [cur] = await db
-            .select({ content: schema.versions.content })
-            .from(schema.versions)
-            .where(eq(schema.versions.id, existing.publishedVersionId));
-        if (cur && JSON.stringify(cur.content) === JSON.stringify(artifact.draftContent))
-            versionId = existing.publishedVersionId;
-    }
-    if (!versionId) {
-        const [version] = await db
-            .insert(schema.versions)
-            .values({
-                artifactId,
-                content: artifact.draftContent,
-                label: "published",
-                authorId: u.id,
-            })
-            .returning({ id: schema.versions.id });
-        if (!version) return c.json({ error: "publish failed" }, 500);
-        versionId = version.id;
-    }
-    await db
-        .update(schema.artifacts)
-        .set({ publishedVersionId: versionId })
-        .where(and(eq(schema.artifacts.id, artifactId), eq(schema.artifacts.workspaceId, ws.id)));
+    const [link] = await db
+        .insert(schema.links)
+        .values({
+            artifactId,
+            slug: await uniqueSlug(),
+            name: cleanName(body.name),
+            visibility,
+            password: passwordFor(visibility, body.password, null),
+        })
+        .returning();
+    if (!link) return c.json({ error: "create failed" }, 500);
 
-    const password = passwordFor(visibility, body.password, existing?.password ?? null);
-    let link: OwnedLink;
-    if (existing) {
-        const [row] = await db
-            .update(schema.links)
-            .set({ visibility, password, publishedVersionId: versionId })
-            .where(eq(schema.links.id, existing.id))
-            .returning();
-        link = row!;
-    } else {
-        const [row] = await db
-            .insert(schema.links)
-            .values({
-                artifactId,
-                slug: await uniqueSlug(),
-                visibility,
-                password,
-                publishedVersionId: versionId,
-            })
-            .returning();
-        link = row!;
-    }
-
-    let recipients: RecipientView[] | undefined;
+    let recipients: RecipientView[] = [];
     if (visibility === "private") {
         const emails = cleanEmails(body.recipients);
         if (emails.length)
@@ -263,12 +299,36 @@ links.post("/artifacts/:id/publish", async (c) => {
             });
     }
 
-    return c.json({
-        slug: link.slug,
-        visibility: link.visibility,
-        url: publicUrl(link.slug),
-        recipients,
-    });
+    return c.json({ link: { ...linkJson(link), recipients } });
+});
+
+// All of one artifact's links, newest first, with per-link stats + recipients.
+links.get("/artifacts/:id/links", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await firstWorkspaceId(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+
+    const artifactId = c.req.param("id");
+    const [artifact] = await db
+        .select({ id: schema.artifacts.id })
+        .from(schema.artifacts)
+        .where(and(eq(schema.artifacts.id, artifactId), eq(schema.artifacts.workspaceId, ws)));
+    if (!artifact) return c.json({ error: "not found" }, 404);
+
+    const rows = await db
+        .select()
+        .from(schema.links)
+        .where(eq(schema.links.artifactId, artifactId))
+        .orderBy(desc(schema.links.createdAt));
+    const stats = await statsFor(rows.map((r) => r.id));
+    const out = await Promise.all(
+        rows.map(async (l) => ({
+            ...linkJson(l, stats.get(l.id)),
+            recipients: await recipientsOf(l.id, l.slug),
+        })),
+    );
+    return c.json({ links: out });
 });
 
 links.get("/links", async (c) => {
@@ -282,6 +342,7 @@ links.get("/links", async (c) => {
             id: schema.links.id,
             artifactId: schema.links.artifactId,
             slug: schema.links.slug,
+            name: schema.links.name,
             visibility: schema.links.visibility,
             createdAt: schema.links.createdAt,
         })
@@ -303,46 +364,22 @@ links.get("/links", async (c) => {
               .groupBy(schema.linkRecipients.linkId)
         : [];
     const countMap = new Map(counts.map((x) => [x.linkId, x]));
+    const stats = await statsFor(ids);
 
     return c.json({
         links: rows.map((r) => ({
             id: r.id,
             artifactId: r.artifactId,
             slug: r.slug,
+            name: r.name,
             visibility: r.visibility,
             url: publicUrl(r.slug),
             recipientCount: countMap.get(r.id)?.invited ?? 0,
             openedCount: countMap.get(r.id)?.opened ?? 0,
+            viewCount: stats.get(r.id)?.viewCount ?? 0,
+            lastViewedAt: stats.get(r.id)?.lastViewedAt ?? null,
             publishedAt: r.createdAt,
         })),
-    });
-});
-
-links.get("/links/:artifactId", async (c) => {
-    const u = await currentUser(getCookie(c, SESSION_COOKIE));
-    if (!u) return c.json({ error: "unauthorized" }, 401);
-    const ws = await firstWorkspaceId(u.id);
-    if (!ws) return c.json({ error: "no workspace" }, 400);
-
-    const artifactId = c.req.param("artifactId");
-    const [row] = await db
-        .select({ link: schema.links, workspaceId: schema.artifacts.workspaceId })
-        .from(schema.links)
-        .innerJoin(schema.artifacts, eq(schema.links.artifactId, schema.artifacts.id))
-        .where(eq(schema.links.artifactId, artifactId));
-    if (!row || row.workspaceId !== ws) return c.json({ link: null });
-
-    const link = row.link;
-    return c.json({
-        link: {
-            id: link.id,
-            slug: link.slug,
-            visibility: link.visibility,
-            hasPassword: !!link.password,
-            url: publicUrl(link.slug),
-            publishedAt: link.createdAt,
-            recipients: await recipientsOf(link.id, link.slug),
-        },
     });
 });
 
@@ -354,27 +391,183 @@ links.patch("/links/:id", async (c) => {
     const link = await ownedLink(c.req.param("id"), ws);
     if (!link) return c.json({ error: "not found" }, 404);
 
-    const body = await readJson<PublishBody>(c);
+    const body = await readJson<LinkBody>(c);
     const visibility =
         body.visibility && VISIBILITIES.has(body.visibility) ? body.visibility : link.visibility;
     if (visibility === "protected" && !body.password && !link.password)
         return c.json({ error: "A password is required for a protected link." }, 400);
     const password = passwordFor(visibility, body.password, link.password);
+    const name = body.name === undefined ? link.name : cleanName(body.name);
 
     const [row] = await db
         .update(schema.links)
-        .set({ visibility, password })
+        .set({ visibility, password, name })
         .where(eq(schema.links.id, link.id))
         .returning();
-    return c.json({
-        link: {
-            id: row!.id,
-            slug: row!.slug,
-            visibility: row!.visibility,
-            hasPassword: !!row!.password,
-            url: publicUrl(row!.slug),
+    const stats = await statsFor([row!.id]);
+    return c.json({ link: linkJson(row!, stats.get(row!.id)) });
+});
+
+links.delete("/links/:id", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await firstWorkspaceId(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+    const link = await ownedLink(c.req.param("id"), ws);
+    if (!link) return c.json({ error: "not found" }, 404);
+    await db.delete(schema.links).where(eq(schema.links.id, link.id));
+    return c.json({ ok: true });
+});
+
+interface Analytics {
+    totals: {
+        views: number;
+        lastViewedAt: Date | null;
+        avgSeconds: number | null;
+        completionPct: number | null;
+    };
+    days: { day: string; views: number }[];
+    referrers: { source: string | null; views: number }[];
+    devices: { device: string | null; views: number }[];
+    recipients?: {
+        id: string;
+        email: string;
+        views: number;
+        lastViewedAt: Date | null;
+        completionPct: number | null;
+    }[];
+}
+
+// One shape for one link or a whole artifact's links; recipients cover the private subset.
+async function analyticsFor(linkIds: string[], privateLinkIds: string[]): Promise<Analytics> {
+    const empty: Analytics = {
+        totals: { views: 0, lastViewedAt: null, avgSeconds: null, completionPct: null },
+        days: [],
+        referrers: [],
+        devices: [],
+        recipients: privateLinkIds.length ? [] : undefined,
+    };
+    if (!linkIds.length) return empty;
+
+    const lv = schema.linkViews;
+    const [totals] = await db
+        .select({
+            views: sql<number>`count(*)::int`,
+            lastViewedAt: sql<Date | null>`max(coalesce(last_seen_at, viewed_at))`,
+            avgSeconds: sql<
+                number | null
+            >`round(avg(extract(epoch from last_seen_at - viewed_at)) filter (where last_seen_at is not null))::int`,
+            completionPct: sql<
+                number | null
+            >`round(avg((max_unit + 1)::float / unit_total) filter (where max_unit is not null and unit_total > 0) * 100)::int`,
+        })
+        .from(lv)
+        .where(inArray(lv.linkId, linkIds));
+
+    const days = await db
+        .select({
+            day: sql<string>`to_char(viewed_at, 'YYYY-MM-DD')`,
+            views: sql<number>`count(*)::int`,
+        })
+        .from(lv)
+        .where(and(inArray(lv.linkId, linkIds), sql`viewed_at > now() - interval '30 days'`))
+        .groupBy(sql`to_char(viewed_at, 'YYYY-MM-DD')`)
+        .orderBy(sql`to_char(viewed_at, 'YYYY-MM-DD')`);
+
+    const referrers = await db
+        .select({ source: lv.referrer, views: sql<number>`count(*)::int` })
+        .from(lv)
+        .where(and(inArray(lv.linkId, linkIds), sql`referrer is not null`))
+        .groupBy(lv.referrer)
+        .orderBy(sql`count(*) desc`)
+        .limit(8);
+
+    const devices = await db
+        .select({ device: lv.device, views: sql<number>`count(*)::int` })
+        .from(lv)
+        .where(and(inArray(lv.linkId, linkIds), sql`device is not null`))
+        .groupBy(lv.device)
+        .orderBy(sql`count(*) desc`);
+
+    let recipients: Analytics["recipients"];
+    if (privateLinkIds.length) {
+        recipients = await db
+            .select({
+                id: schema.linkRecipients.id,
+                email: schema.linkRecipients.email,
+                views: sql<number>`count(${lv.id})::int`,
+                lastViewedAt: schema.linkRecipients.lastViewedAt,
+                completionPct: sql<
+                    number | null
+                >`round(max((${lv.maxUnit} + 1)::float / nullif(${lv.unitTotal}, 0)) * 100)::int`,
+            })
+            .from(schema.linkRecipients)
+            .leftJoin(
+                lv,
+                and(
+                    eq(lv.recipientId, schema.linkRecipients.id),
+                    eq(lv.linkId, schema.linkRecipients.linkId),
+                ),
+            )
+            .where(inArray(schema.linkRecipients.linkId, privateLinkIds))
+            .groupBy(schema.linkRecipients.id)
+            .orderBy(desc(schema.linkRecipients.invitedAt));
+    }
+
+    return {
+        totals: {
+            views: totals?.views ?? 0,
+            lastViewedAt: totals?.lastViewedAt ?? null,
+            avgSeconds: totals?.avgSeconds ?? null,
+            completionPct: totals?.completionPct ?? null,
         },
-    });
+        days,
+        referrers,
+        devices,
+        recipients,
+    };
+}
+
+// Per-link analytics — the paid slice on top of the basic counts every link owner gets.
+links.get("/links/:id/analytics", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await currentWorkspace(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+    const link = await ownedLink(c.req.param("id"), ws.id);
+    if (!link) return c.json({ error: "not found" }, 404);
+    if (!can(featuresFor(ws), "analytics"))
+        return c.json({ error: "Analytics is a Premium feature — upgrade.", upgrade: true }, 402);
+
+    return c.json(await analyticsFor([link.id], link.visibility === "private" ? [link.id] : []));
+});
+
+// Whole-artifact analytics — every link's traffic aggregated (the insights modal's "All" pane).
+links.get("/artifacts/:id/analytics", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await currentWorkspace(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+
+    const artifactId = c.req.param("id");
+    const [artifact] = await db
+        .select({ id: schema.artifacts.id })
+        .from(schema.artifacts)
+        .where(and(eq(schema.artifacts.id, artifactId), eq(schema.artifacts.workspaceId, ws.id)));
+    if (!artifact) return c.json({ error: "not found" }, 404);
+    if (!can(featuresFor(ws), "analytics"))
+        return c.json({ error: "Analytics is a Premium feature — upgrade.", upgrade: true }, 402);
+
+    const rows = await db
+        .select({ id: schema.links.id, visibility: schema.links.visibility })
+        .from(schema.links)
+        .where(eq(schema.links.artifactId, artifactId));
+    return c.json(
+        await analyticsFor(
+            rows.map((r) => r.id),
+            rows.filter((r) => r.visibility === "private").map((r) => r.id),
+        ),
+    );
 });
 
 links.post("/links/:id/recipients", async (c) => {
@@ -419,25 +612,6 @@ links.delete("/links/:id/recipients/:rid", async (c) => {
     return c.json({ ok: true });
 });
 
-links.post("/artifacts/:id/unpublish", async (c) => {
-    const u = await currentUser(getCookie(c, SESSION_COOKIE));
-    if (!u) return c.json({ error: "unauthorized" }, 401);
-    const ws = await firstWorkspaceId(u.id);
-    if (!ws) return c.json({ error: "no workspace" }, 400);
-    const artifactId = c.req.param("id");
-    const [artifact] = await db
-        .select({ id: schema.artifacts.id })
-        .from(schema.artifacts)
-        .where(and(eq(schema.artifacts.id, artifactId), eq(schema.artifacts.workspaceId, ws)));
-    if (!artifact) return c.json({ error: "not found" }, 404);
-    await db.delete(schema.links).where(eq(schema.links.artifactId, artifactId));
-    await db
-        .update(schema.artifacts)
-        .set({ publishedVersionId: null })
-        .where(and(eq(schema.artifacts.id, artifactId), eq(schema.artifacts.workspaceId, ws)));
-    return c.json({ ok: true });
-});
-
 // Custom-theme record for an anonymous viewer to registerThemes(); null for a built-in/unknown/foreign id.
 async function customThemeRecord(themeId: unknown, workspaceId: string) {
     if (typeof themeId !== "string" || !UUID_RE.test(themeId)) return null;
@@ -450,11 +624,12 @@ async function customThemeRecord(themeId: unknown, workspaceId: string) {
         : null;
 }
 
-// UNAUTHENTICATED public read — the one anonymous surface.
+// UNAUTHENTICATED public read — the one anonymous surface. Always serves the live draft:
+// a link reflects the artifact as it is now, never a pinned snapshot.
 links.get("/p/:slug/content", async (c) => {
     const slug = c.req.param("slug");
     const [link] = await db.select().from(schema.links).where(eq(schema.links.slug, slug));
-    if (!link || !link.publishedVersionId) return c.json({ error: "not found" }, 404);
+    if (!link) return c.json({ error: "not found" }, 404);
 
     // Trashed artifact's links go dark → 404 (never reveal existence).
     const [artifact] = await db
@@ -462,6 +637,7 @@ links.get("/p/:slug/content", async (c) => {
             title: schema.artifacts.title,
             workspaceId: schema.artifacts.workspaceId,
             trashedAt: schema.artifacts.trashedAt,
+            draftContent: schema.artifacts.draftContent,
         })
         .from(schema.artifacts)
         .where(eq(schema.artifacts.id, link.artifactId));
@@ -483,15 +659,9 @@ links.get("/p/:slug/content", async (c) => {
     const branded = !owner.removeBranding;
 
     // Resolve theme + format up front so the protected password page can be shown in the artifact's theme.
-    const [tv] = await db
-        .select({
-            theme: sql<string>`content->>'theme'`,
-            format: sql<string>`content->>'format'`,
-        })
-        .from(schema.versions)
-        .where(eq(schema.versions.id, link.publishedVersionId));
-    const themeId = typeof tv?.theme === "string" ? tv.theme : "studio";
-    const format = typeof tv?.format === "string" ? tv.format : undefined;
+    const content = artifact.draftContent as ArtifactContent;
+    const themeId = typeof content.theme === "string" ? content.theme : "studio";
+    const format = typeof content.format === "string" ? content.format : undefined;
     const customTheme = await customThemeRecord(themeId, artifact.workspaceId);
 
     // Access policy — failed private/unknown check → 404 (never reveal existence).
@@ -539,20 +709,73 @@ links.get("/p/:slug/content", async (c) => {
         recipientId = rec.id;
     }
 
-    const [version] = await db
-        .select({ content: schema.versions.content })
-        .from(schema.versions)
-        .where(eq(schema.versions.id, link.publishedVersionId));
-    if (!version) return c.json({ error: "not found" }, 404);
-    const content = version.content as ArtifactContent;
-
-    // NB: drizzle builders are lazy — the trailing .catch() (not a bare `void`) is what runs the query.
-    if (recipientId)
-        void db
-            .update(schema.linkRecipients)
-            .set({ lastViewedAt: new Date() })
-            .where(eq(schema.linkRecipients.id, recipientId))
-            .catch(() => {});
+    try {
+        // Owner previews don't count as views.
+        const viewer = await currentUser(getCookie(c, SESSION_COOKIE));
+        const isOwner = viewer && (await isWorkspaceMember(viewer.id, artifact.workspaceId));
+        if (!isOwner) {
+            // one row per viewer session; a same-day reload just bumps last_seen_at
+            await db
+                .insert(schema.linkViews)
+                .values({
+                    linkId: link.id,
+                    recipientId,
+                    sessionKey: viewSessionKey(c, link.id),
+                    referrer: refHost(c.req.query("ref")?.slice(0, 300)),
+                    device: deviceOf(c.req.header("user-agent")),
+                    country: countryOf(c),
+                    lastSeenAt: new Date(),
+                })
+                .onConflictDoUpdate({
+                    target: [schema.linkViews.linkId, schema.linkViews.sessionKey],
+                    set: { lastSeenAt: new Date() },
+                });
+            if (recipientId)
+                await db
+                    .update(schema.linkRecipients)
+                    .set({ lastViewedAt: new Date() })
+                    .where(eq(schema.linkRecipients.id, recipientId));
+        }
+    } catch {
+        /* analytics never blocks the read */
+    }
 
     return c.json({ title: artifact.title, content, branded, customTheme });
+});
+
+// UNAUTHENTICATED viewer heartbeat — bumps the session row created by the content read (duration +
+// furthest slide/section). Only updates an existing row, so gated readers can't write anything.
+links.post("/p/:slug/ping", async (c) => {
+    const [link] = await db
+        .select({ id: schema.links.id })
+        .from(schema.links)
+        .where(eq(schema.links.slug, c.req.param("slug")));
+    if (!link) return c.json({ ok: true }); // never reveal
+    const body = await readJson<{ u?: number; t?: number }>(c);
+    const u =
+        typeof body.u === "number" && Number.isInteger(body.u) && body.u >= 0
+            ? Math.min(body.u, 999)
+            : null;
+    const t =
+        typeof body.t === "number" && Number.isInteger(body.t) && body.t > 0
+            ? Math.min(body.t, 999)
+            : null;
+    try {
+        await db
+            .update(schema.linkViews)
+            .set({
+                lastSeenAt: new Date(),
+                ...(u !== null ? { maxUnit: sql`greatest(coalesce(max_unit, 0), ${u})` } : {}),
+                ...(t !== null ? { unitTotal: t } : {}),
+            })
+            .where(
+                and(
+                    eq(schema.linkViews.linkId, link.id),
+                    eq(schema.linkViews.sessionKey, viewSessionKey(c, link.id)),
+                ),
+            );
+    } catch {
+        /* analytics never surfaces errors to viewers */
+    }
+    return c.json({ ok: true });
 });

@@ -113,23 +113,11 @@ export const artifacts = pgTable("artifacts", {
     formatId: text("format_id").notNull(),
     themeId: text("theme_id").notNull(),
     draftContent: jsonb("draft_content").notNull().default({}),
-    publishedVersionId: uuid("published_version_id"),
     status: text("status").notNull().default("draft"),
     trashedAt: timestamp("trashed_at"), // soft delete: null = live, set = in Trash
     createdBy: uuid("created_by").references(() => users.id),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-
-export const versions = pgTable("versions", {
-    id: uuid("id").primaryKey().defaultRandom(),
-    artifactId: uuid("artifact_id")
-        .notNull()
-        .references(() => artifacts.id, { onDelete: "cascade" }),
-    content: jsonb("content").notNull(),
-    label: text("label"),
-    authorId: uuid("author_id").references(() => users.id),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const themes = pgTable("themes", {
@@ -170,18 +158,42 @@ export const shares = pgTable("shares", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// public = slug only; protected = slug + hashed password; private = per-recipient token (link_recipients). No row = unpublished.
+// public = slug only; protected = slug + hashed password; private = per-recipient token (link_recipients).
+// An artifact can have many links (one per audience/channel, each with its own analytics); none = unpublished.
 export const links = pgTable("links", {
     id: uuid("id").primaryKey().defaultRandom(),
     artifactId: uuid("artifact_id")
         .notNull()
         .references(() => artifacts.id, { onDelete: "cascade" }),
     slug: text("slug").notNull().unique(),
+    name: text("name"), // owner-facing label ("Investor update", "Twitter") — never shown to viewers
     visibility: text("visibility").notNull().default("public"), // public | protected | private
     password: text("password"), // scrypt hash, only for `protected`
-    publishedVersionId: uuid("published_version_id").references(() => versions.id),
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// view log, one row per viewer session (daily-rotating cookieless key dedups reloads); owner previews are never logged
+export const linkViews = pgTable(
+    "link_views",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        linkId: uuid("link_id")
+            .notNull()
+            .references(() => links.id, { onDelete: "cascade" }),
+        recipientId: uuid("recipient_id").references(() => linkRecipients.id, {
+            onDelete: "set null",
+        }), // private links: who viewed
+        sessionKey: text("session_key"), // sha of day|ip|ua|link — null only on pre-analytics rows
+        referrer: text("referrer"), // referrer hostname, or "direct"
+        device: text("device"), // desktop | mobile
+        country: text("country"), // from proxy geo headers (cf/vercel); null in dev
+        viewedAt: timestamp("viewed_at").notNull().defaultNow(),
+        lastSeenAt: timestamp("last_seen_at"), // bumped by the viewer heartbeat → session duration
+        maxUnit: integer("max_unit"), // furthest slide/section index reached (0-based)
+        unitTotal: integer("unit_total"), // total slides/sections in that session → completion %
+    },
+    (t) => [unique().on(t.linkId, t.sessionKey)],
+);
 
 // per-recipient grants for a private link: each invited email gets an unguessable token → possession-based access (no viewer login)
 export const linkRecipients = pgTable(
@@ -220,12 +232,12 @@ export const schema = {
     members,
     folders,
     artifacts,
-    versions,
     themes,
     assets,
     shares,
     links,
     linkRecipients,
+    linkViews,
     credits,
 };
 

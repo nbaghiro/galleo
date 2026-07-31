@@ -215,7 +215,7 @@ stores/      the client stores + app-level controllers, one file each —
              theme.ts (the app + custom theme system: app-chrome theme + favicon + overlay tokens + custom-theme CRUD into the @themes registry) ·
              share.ts (the share bridge: openShare / closeShare) · media.ts (the media-picker bridge: openMediaPicker · pickMedia · pickMediaIcon) ·
              commands.ts (the app command registrations + navigate seam) · route-context.ts (publishRoute — route→context keys, kept router-free for testing)
-components/   general reusable UI — Sidebar.tsx · modals.tsx (CreateModal; the confirm dialog is @ui/overlay's ConfirmModal, used inline) · previews.tsx (Visual · SectionThumb · PreviewCanvas) · ShareModal.tsx (public links + recipients) · MediaPicker.tsx (stock · AI generate · upload · icons)
+components/   general reusable UI — Sidebar.tsx · modals.tsx (CreateModal; the confirm dialog is @ui/overlay's ConfirmModal, used inline) · previews.tsx (Visual · SectionThumb · PreviewCanvas) · ShareModal.tsx (multi-link sharing: create/manage per-audience links + recipients + view stats) · MediaPicker.tsx (stock · AI generate · upload · icons)
 views/       the routed pages + the global modals mounted in the shell —
   AuthPage · LibraryView (/ + /folder/:id) · TemplatesView · SharedView · TrashView · PricingView ·
   EditorView (/edit/:id — the studio bridge) · PresentView (the standalone /present/:id surface, painting through @canvas) ·
@@ -274,8 +274,7 @@ embedded in the artifact's `draft_content` JSON.
 
 - `snake_case`, plural table names. Every workspace-scoped table carries `workspace_id` (the tenancy key).
 - Standard columns: `id uuid pk`, `created_at`; edited entities also have `updated_at`.
-- Content is JSON in `artifacts.draft_content` and `versions.content` — the two places an
-  `ArtifactContent` is stored.
+- Content is JSON in `artifacts.draft_content` — the single place an `ArtifactContent` is stored.
 
 ### The tables (12, as implemented in `services/schema.ts`)
 
@@ -291,19 +290,19 @@ embedded in the artifact's `draft_content` JSON.
 
 | Table         | Purpose                                                                  | Key columns                                                                                                                                                             |
 | ------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **artifacts** | the deck/doc/site entity — metadata + the working draft                  | `workspace_id`, `folder_id`, `title`, `format_id`, `theme_id`, **`draft_content` (jsonb)**, `published_version_id`, `status`, `trashed_at` (soft delete), `created_by`  |
-| **versions**  | immutable content snapshots (history / published)                        | `artifact_id`, **`content` (jsonb)**, `label`, `author_id`                                                                                                              |
+| **artifacts** | the deck/doc/site entity — metadata + the working draft                  | `workspace_id`, `folder_id`, `title`, `format_id`, `theme_id`, **`draft_content` (jsonb)**, `status`, `trashed_at` (soft delete), `created_by`                          |
 | **folders**   | organize artifacts (tree via `parent_id`)                                | `workspace_id`, `parent_id`, `name`                                                                                                                                     |
 | **themes**    | custom themes (`workspace_id` null = system)                             | `workspace_id`, `name`, **`tokens` (jsonb)**, `mood`, `is_dark`                                                                                                         |
 | **assets**    | uploaded & AI media metadata (binary in object storage or `data` base64) | `workspace_id`, `kind`, `source` (`upload`\|`generated`\|`stock`), `url`, `width`, `height`, `bytes`, `alt`, `meta` (jsonb), `data` (base64, stored media only), `mime` |
 
 **Sharing & publishing**
 
-| Table               | Purpose                                   | Key columns                                                                                                                                          |
-| ------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **shares**          | who can view/edit an artifact (ACL)       | `artifact_id`, `subject_type` (user\|link\|workspace), `subject_id`, `role`                                                                          |
-| **links**           | public / published link                   | `artifact_id`, `slug` (unique), `visibility` (public\|protected\|private), `password` (scrypt hash, protected only), `published_version_id→versions` |
-| **link_recipients** | per-recipient grants for a `private` link | `link_id→links`, `email`, `token` (unique, unguessable → possession-based access), `message`, `invited_at`, `last_viewed_at`                         |
+| Table               | Purpose                                                                                                 | Key columns                                                                                                                                                                                                                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **shares**          | who can view/edit an artifact (ACL)                                                                     | `artifact_id`, `subject_type` (user\|link\|workspace), `subject_id`, `role`                                                                                                                                                                                                                                                                 |
+| **links**           | one shared URL; an artifact can have many (one per audience)                                            | `artifact_id`, `slug` (unique), `name` (owner-facing label), `visibility` (public\|protected\|private), `password` (scrypt hash, protected only)                                                                                                                                                                                            |
+| **link_recipients** | per-recipient grants for a `private` link                                                               | `link_id→links`, `email`, `token` (unique, unguessable → possession-based access), `message`, `invited_at`, `last_viewed_at`                                                                                                                                                                                                                |
+| **link_views**      | view log, one row per viewer session (cookieless daily key dedups reloads; owner previews never logged) | `link_id→links`, `recipient_id→link_recipients` (private: who viewed), `session_key` (sha of day\|ip\|ua\|link — raw IP/UA never stored), `referrer` (hostname or `direct`), `device`, `country` (proxy geo headers), `viewed_at`, `last_seen_at` (heartbeat → duration), `max_unit` + `unit_total` (furthest slide/section → completion %) |
 
 **Billing**
 
@@ -311,11 +310,11 @@ embedded in the artifact's `draft_content` JSON.
 | ----------- | ---------------- | -------------------------------------------------- |
 | **credits** | AI-credit ledger | `workspace_id`, `delta`, `reason`, `balance_after` |
 
-> **Not their own tables today:** invites, api_keys, comments, activity, notifications, brand kits, custom
-> formats/fonts, view analytics (`link_recipients.last_viewed_at` is the one stub), custom domains, and
+> **Not their own tables today:** invites, api_keys, comments, activity, notifications (incl. "X viewed
+> your doc"), brand kits, custom formats/fonts, version history / content snapshots, custom domains, and
 > live-collab (Yjs) update logs. They're deferred; add them when the feature lands.
 
-### The content JSON (`artifacts.draft_content` / `versions.content`)
+### The content JSON (`artifacts.draft_content`)
 
 The whole tree is one `jsonb` document — an `ArtifactContent`: `format` + `theme` + `sections[]`, where
 each `Section` has one **recursive `root`** (`ElementInstance`) rather than the old `{ grid, cells }`. A
@@ -359,12 +358,12 @@ hold the tree; a column's share is `layout.width.pct` (see `rendering.md`).
   into the `@themes` registry so `resolveTheme` finds either.
 - Images currently store a **raw URL** in `src` (stable `asset:` references are a future refinement).
 - **Live editing** writes `artifacts.draft_content` (debounced autosave, `app/stores/save.ts`);
-  **saving/publishing a version** copies it into an immutable `versions` row, and
-  `artifacts.published_version_id` / `links.published_version_id` point at what the public sees.
+  **published links serve that same draft live** — a `links` row grants access, it never pins a
+  snapshot, so viewers always see the artifact as it is now.
 
 ### Indexing & search (as the data grows)
 
-- **GIN index** on `draft_content` / `content` for JSONB containment (find artifacts using an asset or
+- **GIN index** on `draft_content` for JSONB containment (find artifacts using an asset or
   element type).
 - **FTS** on `artifacts.title` + text extracted from the content tree.
 - `workspace_id` indexed on every scoped table; composite indexes on hot paths
@@ -374,9 +373,9 @@ hold the tree; a column's share is `layout.width.pct` (see `rendering.md`).
 
 ```
 workspaces ─┬─< members >─ users
-            ├─< folders ─< artifacts ─┬─< versions
-            │                         ├─< shares            (subject = user | link | workspace)
-            │                         └─< links ─< link_recipients   (private link: per-email token)
+            ├─< folders ─< artifacts ─┬─< shares            (subject = user | link | workspace)
+            │                         └─< links ─┬─< link_recipients   (private link: per-email token)
+            │                                    └─< link_views        (per-session analytics log)
             ├─< themes · assets
             └─< credits
 users ─< artifacts.created_by
