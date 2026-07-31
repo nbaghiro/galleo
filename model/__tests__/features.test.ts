@@ -4,12 +4,16 @@ import { can, featureStatus, limit, resolveFeatures, withinLimit } from "@model/
 describe("resolveFeatures · launch status gates plan grants", () => {
     it("keeps a premium plan's planned features OFF", () => {
         const premium = resolveFeatures("premium");
-        expect(premium.analytics).toBe(false);
         expect(premium.sso).toBe(false);
         expect(premium.customDomains).toBe(0);
     });
     it("won't let an override enable a planned feature", () => {
-        expect(resolveFeatures("free", { analytics: true }).analytics).toBe(false);
+        expect(resolveFeatures("free", { sso: true }).sso).toBe(false);
+    });
+    it("grants live analytics by plan and by override", () => {
+        expect(resolveFeatures("premium").analytics).toBe(true);
+        expect(resolveFeatures("pro").analytics).toBe(false);
+        expect(resolveFeatures("free", { analytics: true }).analytics).toBe(true);
     });
     it("lets an override widen a live feature", () => {
         expect(resolveFeatures("free", { removeBranding: true }).removeBranding).toBe(true);
@@ -39,6 +43,7 @@ describe("enforcement accessors", () => {
     it("featureStatus reports each feature's launch status", () => {
         expect(featureStatus("removeBranding")).toBe("live");
         expect(featureStatus("maxSectionsPerGeneration")).toBe("beta");
-        expect(featureStatus("analytics")).toBe("planned");
+        expect(featureStatus("analytics")).toBe("live");
+        expect(featureStatus("sso")).toBe("planned");
     });
 });

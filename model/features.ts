@@ -104,7 +104,7 @@ export const FEATURES: Record<FeatureKey, FeatureDef> = {
     },
     analytics: {
         label: "Analytics",
-        status: "planned",
+        status: "live",
         description: "View traffic + engagement on shared artifacts.",
     },
     apiAccess: {
