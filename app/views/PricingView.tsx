@@ -202,19 +202,30 @@ export const PricingView: Component = () => {
                         <For each={b()?.catalog ?? []}>
                             {(plan) => {
                                 const isCurrent = (): boolean => plan.id === current();
-                                const featured = plan.id === "pro";
+                                // paying users see THEIR tier featured; Pro is the upsell card only for free
+                                const featured = (): boolean =>
+                                    plan.id === (current() === "free" ? "pro" : current());
                                 return (
                                     <div
                                         class={`flex flex-col rounded-2xl border p-5 ${
-                                            featured
+                                            featured()
                                                 ? "border-accent shadow-lg"
                                                 : "border-line bg-panel"
                                         }`}
                                     >
                                         <div class="flex items-center justify-between">
                                             <span class="text-[15px] font-bold">{plan.name}</span>
-                                            <Show when={plan.badge}>
-                                                <Badge tone="accentSolid">{plan.badge}</Badge>
+                                            <Show
+                                                when={isCurrent()}
+                                                fallback={
+                                                    <Show when={plan.badge && current() === "free"}>
+                                                        <Badge tone="accentSolid">
+                                                            {plan.badge}
+                                                        </Badge>
+                                                    </Show>
+                                                }
+                                            >
+                                                <Badge tone="accentSolid">Your plan</Badge>
                                             </Show>
                                         </div>
                                         <p class="mt-0.5 text-[12.5px] text-muted">
@@ -255,7 +266,7 @@ export const PricingView: Component = () => {
                                             class={`mt-5 rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors disabled:opacity-50 ${
                                                 isCurrent()
                                                     ? "border border-line text-soft"
-                                                    : featured
+                                                    : featured()
                                                       ? "bg-accent text-onaccent hover:opacity-90"
                                                       : "border border-line text-ink hover:border-accent"
                                             }`}
