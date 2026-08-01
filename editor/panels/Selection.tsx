@@ -24,6 +24,7 @@ import {
     selection,
     setSelection,
     stageEl,
+    stopEditing,
     addSectionAfter,
     duplicateSectionAt,
     moveSectionBy,
@@ -101,6 +102,9 @@ export const DragHandle: Component = () => {
         const sx = e.clientX;
         const sy = e.clientY;
         const begin = (): void => {
+            // A drag lifts the source out of the paint — leaving inline text editing open would
+            // strand its contenteditable overlay at the old spot for the whole gesture.
+            stopEditing();
             if (c.kind === "element") {
                 const inst = getElementAt(editor.artifact, c.address);
                 const label = (inst && getElement(inst.type)?.label) || "Element";
