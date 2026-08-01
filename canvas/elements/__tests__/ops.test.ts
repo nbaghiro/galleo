@@ -105,6 +105,16 @@ describe("removal + collapse", () => {
         expect(columnFractions(art.sections[0]!)).toEqual([0.6, 0.4]);
         expect(textOf(getElementAt(art, at([0])))).toBe("a");
     });
+
+    it("deleting a nested row's last sibling strips the survivor's stale column width", () => {
+        const art = deleteElement(
+            artOf(colGroup([txt("h"), rowGroup([txt("a"), txt("b")], [0.6, 0.4])])),
+            at([1, 1]),
+        );
+        const survivor = getElementAt(art, at([1]));
+        expect(textOf(survivor)).toBe("a");
+        expect(survivor?.layout?.width).toBeUndefined();
+    });
 });
 
 describe("insertion", () => {

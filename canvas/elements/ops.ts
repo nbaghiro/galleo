@@ -157,7 +157,8 @@ function fixContainer(node: ElementInstance): ElementInstance {
     const kids = childrenOf(node);
     if (!kids) return node;
     if (node.type === "group" && kids.length === 1) {
-        const only = kids[0]!;
+        // the survivor's column width died with its row — full width, or the group's own slot
+        const only = stripWidth(kids[0]!);
         const w = node.layout?.width;
         return w !== undefined ? { ...only, layout: { ...only.layout, width: w } } : only;
     }
