@@ -384,6 +384,12 @@ const PATHS: Record<string, () => JSX.Element> = {
         </>
     ),
     check: () => <path d="M5 12.5 10 17 19 7" />,
+    backspace: () => (
+        <>
+            <path d="M8 6 H19 A2 2 0 0 1 21 8 V16 A2 2 0 0 1 19 18 H8 L3 12 Z" />
+            <path d="M11.5 10 L15.5 14 M15.5 10 L11.5 14" />
+        </>
+    ),
     arrowUpRight: () => (
         <>
             <line x1="7" y1="17" x2="17" y2="7" />

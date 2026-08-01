@@ -458,7 +458,11 @@ export const ELEMENTS: readonly ElementSchema[] = [
         label: "Video",
         category: "media",
         when: "an embeddable video (YouTube/Vimeo/mp4)",
-        fields: [{ key: "url", type: "string", desc: "the video URL" }],
+        fields: [
+            { key: "src", type: "string", desc: "the video URL (YouTube, Vimeo, or mp4)" },
+            { key: "autoplay", type: "boolean", desc: "start playing muted on view" },
+            { key: "loop", type: "boolean", desc: "loop playback" },
+        ],
     },
 
     {

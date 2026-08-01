@@ -1,28 +1,22 @@
 import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
-import { register, getElement, skeletonize, GHOST } from "@elements/spec";
-import { fit, grow } from "@model/geometry";
+import { register, getElement, skeletonize } from "@elements/spec";
+import { previewDataUri } from "@elements/previews";
+import { fit, fixed, grow } from "@model/geometry";
 import { mix } from "@themes";
 
 // palette-hidden type spliced into a preview artifact while dragging over open space
 export const DROP_GHOST = "__dropghost";
 
 interface GhostData {
-    type: string; // the dragged element's type, whose skeleton this mirrors
+    type: string; // the dragged element's type, whose preview this mirrors
     data?: unknown; // dragged element's real data → a MOVE ghost matches it (not a default)
 }
 
-// retint hand-authored GHOST fills to a theme tone so custom skeletons match the themed preview
-function retint(node: EngineNode, to: string): EngineNode {
-    const out: EngineNode = { ...node };
-    if (out.fill?.color === GHOST) out.fill = { ...out.fill, color: to };
-    if (out.children) out.children = out.children.map((c) => retint(c, to));
-    return out;
-}
-
 // the live drop preview, spliced inline so the section reflows to the post-drop state. MOVE (has data) →
-// the real element dimmed; NEW → the element's skeleton (custom `skeleton`, else auto-skeletonized).
+// the real element dimmed; NEW → the element's themed preview icon (same one the palette shows).
 const DIM = 0.45; // opacity of the real element at the drop target
+const PREVIEW_H = 84; // NEW-drop preview icon box height
 
 export const dropGhostElement: ElementSpec<GhostData> = {
     type: DROP_GHOST,
@@ -41,9 +35,12 @@ export const dropGhostElement: ElementSpec<GhostData> = {
             if (!spec || spec.type === DROP_GHOST)
                 return skeletonize({ w: grow(), h: fit(28) }, colors);
             if (data.data !== undefined) return { ...spec.layout(data.data, ctx), opacity: DIM };
-            return spec.skeleton
-                ? retint(spec.skeleton(ctx), colors.bar)
-                : skeletonize(spec.layout(spec.create(), ctx), colors);
+            // NEW from palette: the element's themed preview icon (matches the palette tile)
+            return {
+                w: grow(),
+                h: fixed(PREVIEW_H),
+                image: { src: previewDataUri(data.type, ctx.theme), fit: "contain" },
+            };
         })();
         return {
             w: grow(),

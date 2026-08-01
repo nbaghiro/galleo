@@ -24,8 +24,9 @@ export function ctxFor(
     width: number,
     theme: Tokens = DEFAULT_THEME.tokens,
     format: FormatDescriptor = DEFAULT_PROFILE,
+    plain = false,
 ): LayoutCtx {
-    return { box: { x: 0, y: 0, w: width, h: 0 }, availWidth: width, format, theme };
+    return { box: { x: 0, y: 0, w: width, h: 0 }, availWidth: width, format, theme, plain };
 }
 
 function bottom(commands: RenderCommand[]): number {
@@ -38,8 +39,9 @@ export function layoutSection(
     measure: MeasureText,
     theme: Tokens = DEFAULT_THEME.tokens,
     format: FormatDescriptor = DEFAULT_PROFILE,
+    plain = false,
 ): { commands: RenderCommand[]; regions: Region[]; height: number } {
-    const node = composeSection(section, ctxFor(width, theme, format));
+    const node = composeSection(section, ctxFor(width, theme, format, plain));
     const { commands, regions } = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure);
     return { commands, regions, height: bottom(commands) };
 }
@@ -115,8 +117,9 @@ function prepareSlideNode(
     measure: MeasureText,
     theme: Tokens,
     format: FormatDescriptor,
+    plain = false,
 ): { node: EngineNode; targetH: number } {
-    const node = composeSection(section, ctxFor(w, theme, format));
+    const node = composeSection(section, ctxFor(w, theme, format, plain));
     if (node.fill) node.fill = { ...node.fill, radius: 0, border: undefined };
     if (node.image) node.image = { ...node.image, radius: 0 };
     let natural = bottom(layout(node, { x: 0, y: 0, w, h: 100000 }, measure).commands);
@@ -149,8 +152,9 @@ export function layoutSlide(
     measure: MeasureText,
     theme: Tokens = DEFAULT_THEME.tokens,
     format: FormatDescriptor = DEFAULT_PROFILE,
+    plain = false,
 ): { commands: RenderCommand[]; height: number } {
-    const { node, targetH } = prepareSlideNode(section, w, h, measure, theme, format);
+    const { node, targetH } = prepareSlideNode(section, w, h, measure, theme, format, plain);
     const { commands } = layout(node, { x: 0, y: 0, w, h: targetH }, measure);
     return { commands, height: targetH };
 }

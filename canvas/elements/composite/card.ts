@@ -1,7 +1,7 @@
 import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
-import { getElement, register, bar, GHOST_LINE, GHOST_PANEL } from "@elements/spec";
+import { getElement, register } from "@elements/spec";
 import { fit, fixed, grow } from "@model/geometry";
 import { CARD_SHAPES, CARD_STYLES } from "@model/elements";
 import type { CardShape, CardStyle, FlexDirection } from "@model/elements";
@@ -125,15 +125,6 @@ export const cardElement: ElementSpec<CardData> = {
             visibleWhen: (d) => (d.style ?? "solid") === "solid",
         },
     ],
-    skeleton: (): EngineNode => ({
-        w: grow(),
-        h: fit(),
-        direction: "col",
-        gap: 8,
-        padding: { top: 14, right: 14, bottom: 14, left: 14 },
-        fill: { color: GHOST_PANEL, radius: 10, border: { color: GHOST_LINE, width: 1 } },
-        children: [bar(0.7, 12), bar(1, 9), bar(0.5, 9)],
-    }),
 };
 
 register(cardElement);

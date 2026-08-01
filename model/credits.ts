@@ -5,6 +5,7 @@ export const COST_UNITS = {
     plan: 3, // one outline / planning call
     section: 2, // one section written/regenerated/reasoned over
     image: 5, // one image generated (per variation)
+    video: 100, // one 8s clip generated (Veo Fast ≈ 20 images' worth of provider cost)
     text: 1, // one text run rewritten/translated
     theme: 4, // one theme designed
     reply: 2, // one chat/summary reply

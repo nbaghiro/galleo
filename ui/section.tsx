@@ -26,6 +26,7 @@ export const ScaledSectionCanvas: Component<{
     radius?: number; // card corner radius in px (default theme --radius-lg)
     bordered?: boolean;
     baseShadow?: boolean; // resting drop shadow (combines with the selection ring)
+    plain?: boolean; // read-only render: no empty-region drop affordances (default true — this is a scaled copy)
     class?: string;
 }> = (props) => {
     let wrap!: HTMLElement;
@@ -34,6 +35,7 @@ export const ScaledSectionCanvas: Component<{
     const [naturalH, setNaturalH] = createSignal(0);
 
     const w = (): number => props.width ?? 176;
+    const plain = (): boolean => props.plain ?? true;
     const frame = (): "slide" | "natural" => props.frame ?? "slide";
     const slideBox = (): { w: number; h: number } => slideFrame(props.section, props.profile);
     const boxH = (): number =>
@@ -50,6 +52,7 @@ export const ScaledSectionCanvas: Component<{
                 measureText,
                 props.theme,
                 props.profile,
+                plain(),
             );
             inner.style.cssText = scaledHostCss(lw, height, scale);
             paint(commands, inner);
@@ -64,6 +67,7 @@ export const ScaledSectionCanvas: Component<{
                 measureText,
                 props.theme,
                 props.profile,
+                plain(),
             );
             inner.style.cssText = scaledHostCss(fr.w, height, scale);
             paint(commands, inner);

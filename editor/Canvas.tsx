@@ -1,5 +1,5 @@
 import type { Region, Rect } from "@engine/node";
-import { embedFor, pickArtifactBackground, type Embed } from "./core/media";
+import { embedFor, pickArtifactBackground, type Embed, type PlayerOpts } from "./core/media";
 import type { ElementAddress, Target } from "@model/target";
 import type { ElementInstance, Section } from "@model/artifact";
 import type { Component } from "solid-js";
@@ -391,19 +391,27 @@ function walkAddressed(
 }
 
 const VideoEmbeds: Component = () => {
-    // Reuse the Embed object when id + src are unchanged, so an unrelated edit doesn't hand <For> new refs and reload every player.
+    // Reuse the Embed object when id + src + player opts are unchanged, so an unrelated edit
+    // doesn't hand <For> new refs and reload every player.
     let cache = new Map<string, Embed>();
+    const same = (a: PlayerOpts, b: PlayerOpts): boolean =>
+        a.controls === b.controls &&
+        a.autoplay === b.autoplay &&
+        a.loop === b.loop &&
+        a.muted === b.muted;
     const embeds = createMemo((): Embed[] => {
         const next = new Map<string, Embed>();
         const out: Embed[] = [];
         for (const section of editor.artifact.sections)
             walkAddressed(section, (el, addr) => {
                 if (el.type !== "video") return;
-                const e = embedFor((el.data as { url?: string }).url ?? "");
+                const d = el.data as { src?: string } & Partial<PlayerOpts>;
+                const e = embedFor(d.src ?? "", d);
                 if (!e) return;
                 const id = elementRegionId(addr);
                 const prev = cache.get(id);
-                const item = prev && prev.src === e.src ? prev : { id, ...e };
+                const item =
+                    prev && prev.src === e.src && same(prev.opts, e.opts) ? prev : { id, ...e };
                 next.set(id, item);
                 out.push(item);
             });
@@ -441,8 +449,12 @@ const VideoEmbeds: Component = () => {
                                         fallback={
                                             <video
                                                 src={embed.src}
-                                                controls
-                                                class="h-full w-full bg-black"
+                                                controls={embed.opts.controls}
+                                                autoplay={embed.opts.autoplay}
+                                                loop={embed.opts.loop}
+                                                muted={embed.opts.muted}
+                                                playsinline
+                                                class="h-full w-full bg-black object-cover"
                                                 style={{ "pointer-events": pe() }}
                                             />
                                         }

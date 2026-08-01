@@ -2,8 +2,8 @@ import type { Rect } from "@engine/node";
 import type { ControlField } from "@elements/spec";
 import type { Component } from "solid-js";
 import { createEffect, createMemo, For, Show, createSignal } from "solid-js";
-import { elementRegionId, parentTarget, regionId } from "@model/target";
-import { GUTTER } from "@elements/compose";
+import { elementRegionId, parentTarget } from "@model/target";
+import { resolveProfile } from "@engine/profile";
 import {
     duplicateAt,
     duplicatedAddr,
@@ -34,7 +34,7 @@ import {
     runTranslate,
     textAssist,
 } from "../core/ai";
-import { Field, SliderRow } from "./SharedControlFields";
+import { Field } from "./SharedControlFields";
 import { Icon } from "@ui/icons";
 import type { MarkType } from "@model/text";
 import { ColorPicker, highlightSwatches, textColorSwatches } from "@ui/color";
@@ -51,7 +51,6 @@ import {
 } from "../core/text";
 
 const BAR_GAP = 10;
-const DEFAULT_RADIUS = 12; // shown on the universal radius slider before it's explicitly set
 
 export const ContextBar: Component = () => {
     const addr = createMemo(() => {
@@ -100,35 +99,33 @@ export const ContextBar: Component = () => {
                 : undefined;
         commit(updateDataAt(editor.artifact, a, { ...data(), [key]: value }), { coalesce });
     };
-    const radius = createMemo((): number => {
-        const set = inst()?.layout?.radius;
-        if (set !== undefined) return set;
-        // Unset → show the painted (theme default) radius, so the slider reads true instead of jumping.
-        const a = addr();
-        const painted = a ? regions().find((r) => r.id === elementRegionId(a))?.radius : undefined;
-        return painted ?? DEFAULT_RADIUS;
-    });
-    const setRadius = (n: number): void => {
-        const a = addr();
-        if (!a) return;
-        commit(setElementLayout(editor.artifact, a, { ...(inst()?.layout ?? {}), radius: n }), {
-            coalesce: `bar:${elementRegionId(a)}:radius`,
-        });
-    };
     const align = createMemo((): string => inst()?.layout?.align ?? "start");
+    // `layout.align` is alignSelf — it only moves an element with horizontal slack, stacked in a
+    // column (in a row it would act on the cross axis, i.e. vertically, contradicting the icons).
+    // Rich text aligns via its own data control instead.
     const canAlign = createMemo((): boolean => {
         const a = addr();
-        const b = box();
-        if (!a || !b) return false;
-        // Offered only with horizontal slack; root's parent is the section content (minus gutter), nested is its container.
-        const rootLevel = a.path.length === 0;
+        const i = inst();
+        const s = spec();
+        if (!a || !i || !s || s.richText) return false;
         const parent = parentTarget({ kind: "element", address: a });
-        const parentBox = parent
-            ? regions().find((r) => r.id === regionId(parent))?.box
-            : undefined;
-        if (!parentBox) return false;
-        const contentW = rootLevel ? parentBox.w - 2 * GUTTER : parentBox.w;
-        return b.w < contentW - 6;
+        if (parent?.kind === "element") {
+            const pInst = getElementAt(editor.artifact, parent.address);
+            if ((pInst?.data as { direction?: string } | undefined)?.direction === "row")
+                return false;
+        }
+        const w = i.layout?.width;
+        if (w === "fill") return false;
+        if (w === "fit") return true;
+        if (w && typeof w === "object") return w.pct < 100;
+        // No explicit width → the spec's natural width: fit/fixed nodes (button, badge, icon…) have slack.
+        const probe = s.layout(i.data, {
+            box: { x: 0, y: 0, w: 800, h: 600 },
+            availWidth: 800,
+            format: resolveProfile(editor.artifact.format),
+            theme: editorTokens(),
+        });
+        return probe.w.mode !== "grow";
     });
     const setAlign = (v: "start" | "center" | "end"): void => {
         const a = addr();
@@ -187,22 +184,6 @@ export const ContextBar: Component = () => {
                                 />
                             )}
                         </For>
-                        <Separator vertical class="mx-0.5" />
-                    </Show>
-                    <Show when={spec()?.frame}>
-                        <span class="flex items-center gap-1.5 pl-1 pr-0.5 text-soft">
-                            <Icon name="corner" size={14} />
-                            <span class="w-18.5">
-                                <SliderRow
-                                    value={radius()}
-                                    min={0}
-                                    max={40}
-                                    step={1}
-                                    unit="px"
-                                    onChange={setRadius}
-                                />
-                            </span>
-                        </span>
                         <Separator vertical class="mx-0.5" />
                     </Show>
                     <Show when={editing() && spec()?.richText}>

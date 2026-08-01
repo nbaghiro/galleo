@@ -50,6 +50,8 @@ export const GUTTER = 14; // inset around a section column's top-level element (
 const pad = (n: number) => ({ top: n, right: n, bottom: n, left: n });
 
 function emptyRegionNode(ctx: LayoutCtx): EngineNode {
+    // read-only render: reserve the same slot geometry but drop the "+ drop element" editor affordance
+    if (ctx.plain) return { w: grow(), h: fit(90) };
     return {
         w: grow(),
         h: fit(90),

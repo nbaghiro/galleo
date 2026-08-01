@@ -1,4 +1,5 @@
 import type { MediaItem, MediaKind, MediaProvider } from "@model/media";
+import { KIND_PROVIDERS } from "@model/media";
 
 const KEYS = {
     unsplash: () => process.env.UNSPLASH_ACCESS_KEY,
@@ -51,6 +52,33 @@ interface PixabayHit {
     pageURL: string;
     webformatURL: string;
     largeImageURL: string;
+}
+interface PexelsVideoFile {
+    link: string;
+    file_type: string;
+    width: number | null;
+}
+interface PexelsVideo {
+    id: number;
+    width: number;
+    height: number;
+    url: string;
+    image: string; // poster frame
+    user: { name: string; url: string };
+    video_files: PexelsVideoFile[];
+}
+interface PixabayVideoSize {
+    url: string;
+    width: number;
+    height: number;
+    thumbnail: string;
+}
+interface PixabayVideoHit {
+    id: number;
+    tags: string;
+    user: string;
+    pageURL: string;
+    videos: Partial<Record<"large" | "medium" | "small" | "tiny", PixabayVideoSize>>;
 }
 interface OpenversePhoto {
     id: string;
@@ -131,14 +159,23 @@ async function searchPexels(q: string, page: number, o?: string): Promise<StockR
     return { items, hasMore: !!json.next_page };
 }
 
-async function searchPixabay(q: string, page: number, o?: string): Promise<StockResult> {
+async function searchPixabay(
+    q: string,
+    page: number,
+    o?: string,
+    kind: MediaKind = "photo",
+): Promise<StockResult> {
     const key = KEYS.pixabay()!;
     const u = new URL("https://pixabay.com/api/");
     u.searchParams.set("key", key);
     u.searchParams.set("q", q);
     u.searchParams.set("page", String(page));
     u.searchParams.set("per_page", String(PER_PAGE));
-    u.searchParams.set("image_type", "photo");
+    // vector ≈ sticker-friendly clipart (transparent-friendly, delivered as PNG)
+    u.searchParams.set(
+        "image_type",
+        kind === "illustration" ? "illustration" : kind === "sticker" ? "vector" : "photo",
+    );
     if (o) u.searchParams.set("orientation", o);
     const res = await fetch(u);
     if (!res.ok) throw new Error(`pixabay ${res.status}`);
@@ -153,6 +190,75 @@ async function searchPixabay(q: string, page: number, o?: string): Promise<Stock
         alt: h.tags,
         attribution: { provider: "Pixabay", author: h.user, sourceUrl: h.pageURL },
     }));
+    return { items, hasMore: page * PER_PAGE < json.totalHits };
+}
+
+// mid-size mp4: sharp enough inline, small enough to stream instantly
+function bestPexelsFile(files: PexelsVideoFile[]): string | undefined {
+    const mp4 = files.filter((f) => f.file_type === "video/mp4" && f.width);
+    mp4.sort((a, b) => Math.abs((a.width ?? 0) - 1280) - Math.abs((b.width ?? 0) - 1280));
+    return mp4[0]?.link;
+}
+
+async function searchPexelsVideos(q: string, page: number, o?: string): Promise<StockResult> {
+    const key = KEYS.pexels()!;
+    const u = new URL("https://api.pexels.com/videos/search");
+    u.searchParams.set("query", q);
+    u.searchParams.set("page", String(page));
+    u.searchParams.set("per_page", String(PER_PAGE));
+    if (o) u.searchParams.set("orientation", o);
+    const res = await fetch(u, { headers: { Authorization: key } });
+    if (!res.ok) throw new Error(`pexels ${res.status}`);
+    const json = (await res.json()) as { videos: PexelsVideo[]; next_page?: string };
+    const items: MediaItem[] = json.videos.flatMap((v) => {
+        const file = bestPexelsFile(v.video_files);
+        if (!file) return [];
+        return [
+            {
+                id: String(v.id),
+                source: "stock" as const,
+                url: file,
+                thumbUrl: v.image,
+                width: v.width,
+                height: v.height,
+                attribution: {
+                    provider: "Pexels",
+                    author: v.user.name,
+                    authorUrl: v.user.url,
+                    sourceUrl: v.url,
+                },
+            },
+        ];
+    });
+    return { items, hasMore: !!json.next_page };
+}
+
+async function searchPixabayVideos(q: string, page: number): Promise<StockResult> {
+    const key = KEYS.pixabay()!;
+    const u = new URL("https://pixabay.com/api/videos/");
+    u.searchParams.set("key", key);
+    u.searchParams.set("q", q);
+    u.searchParams.set("page", String(page));
+    u.searchParams.set("per_page", String(PER_PAGE));
+    const res = await fetch(u);
+    if (!res.ok) throw new Error(`pixabay ${res.status}`);
+    const json = (await res.json()) as { hits: PixabayVideoHit[]; totalHits: number };
+    const items: MediaItem[] = json.hits.flatMap((h) => {
+        const v = h.videos.medium ?? h.videos.small ?? h.videos.large ?? h.videos.tiny;
+        if (!v) return [];
+        return [
+            {
+                id: String(h.id),
+                source: "stock" as const,
+                url: v.url,
+                thumbUrl: v.thumbnail,
+                width: v.width,
+                height: v.height,
+                alt: h.tags,
+                attribution: { provider: "Pixabay", author: h.user, sourceUrl: h.pageURL },
+            },
+        ];
+    });
     return { items, hasMore: page * PER_PAGE < json.totalHits };
 }
 
@@ -210,7 +316,12 @@ export async function searchStock(
     orientation?: string,
     kind: MediaKind = "photo",
 ): Promise<StockResult> {
-    if (!stockReady()[provider]) return { items: [], hasMore: false };
+    if (!stockReady()[provider] || !KIND_PROVIDERS[kind].includes(provider))
+        return { items: [], hasMore: false };
+    if (kind === "video")
+        return provider === "pexels"
+            ? searchPexelsVideos(q, page, orient(provider, orientation))
+            : searchPixabayVideos(q, page);
     if (provider === "openverse")
         return searchOpenverse(
             q,
@@ -227,7 +338,7 @@ export async function searchStock(
     const o = orient(provider, orientation);
     if (provider === "unsplash") return searchUnsplash(q, page, o);
     if (provider === "pexels") return searchPexels(q, page, o);
-    return searchPixabay(q, page, o);
+    return searchPixabay(q, page, o, kind);
 }
 
 // Unsplash API guidelines require pinging the download-trigger when a photo is used; fire-and-forget

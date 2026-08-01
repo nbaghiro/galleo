@@ -2,9 +2,8 @@ import type { RenderCommand } from "@engine/node";
 import type { ArtifactContent } from "@model/artifact";
 import type { Tokens } from "@themes";
 import { PDFDocument, rgb } from "pdf-lib";
-import { fragment } from "@engine/layout";
 import { resolveProfile } from "@engine/profile";
-import { EXPORT_SCALE, paint, renderSlidePage, renderToCanvas } from "./backends";
+import { EXPORT_SCALE, loadImages, paint, renderSlidePage, renderToCanvas } from "./backends";
 import { measureText, layoutSection, sectionSlides } from "./commands";
 import { frameCommand, localize, type Transform } from "./pptx";
 import {
@@ -20,10 +19,7 @@ import {
 export const PRINT_W = 1100; // px fallback when no maxContentWidth
 export const SLIDE_W = 1280; // matches Present
 export const PDF_SLIDE_W = 960; // points; page height flexes with the slide aspect
-// A4 geometry (points)
-export const A4_W = 595;
-export const A4_H = 842;
-export const DOC_MARGIN = 48;
+export const A4_W = 595; // points; doc pages keep this width, height follows the section
 
 // points
 export function slidePdfPageSize(
@@ -33,25 +29,9 @@ export function slidePdfPageSize(
     return { w: pageW, h: Math.round((pageW * slide.h) / slide.w) };
 }
 
-// pageContentPxH is where fragment() slices
-export function docPageGeometry(layoutW: number): {
-    contentPtW: number;
-    scale: number;
-    pageContentPxH: number;
-} {
-    const contentPtW = A4_W - 2 * DOC_MARGIN;
-    const scale = contentPtW / layoutW;
-    return { contentPtW, scale, pageContentPxH: (A4_H - 2 * DOC_MARGIN) / scale };
-}
-
-// device px
-export function deckPngCanvasSize(
-    slides: { w: number; h: number }[],
-    scale: number = EXPORT_SCALE,
-): { width: number; height: number } {
-    const outW = Math.max(SLIDE_W, ...slides.map((s) => s.w));
-    const totalH = slides.reduce((sum, s) => sum + s.h, 0);
-    return { width: outW * scale, height: totalH * scale };
+// doc export mirrors the deck's page-per-section shape: fixed width, natural section height
+export function docSectionPageSize(layoutW: number, sectionH: number): { w: number; h: number } {
+    return { w: A4_W, h: (sectionH * A4_W) / layoutW };
 }
 
 async function canvasPng(canvas: HTMLCanvasElement): Promise<Uint8Array> {
@@ -121,31 +101,17 @@ async function exportDocPdfRaster(
 ): Promise<void> {
     const docProfile = resolveProfile("doc");
     const layoutW = docProfile.maxContentWidth ?? 744;
-
-    const all: RenderCommand[] = [];
-    let y = 0;
+    const pdf = await PDFDocument.create();
     for (const section of artifact.sections) {
         const { commands, height } = layoutSection(section, layoutW, measureText, tk, docProfile);
-        for (const c of commands) all.push({ ...c, box: { ...c.box, y: c.box.y + y } });
-        y += height; // continuous: sections merge seamlessly
-    }
-
-    const { contentPtW, pageContentPxH } = docPageGeometry(layoutW);
-    const pages = fragment(all, y, pageContentPxH);
-
-    const pdf = await PDFDocument.create();
-    for (const pageCmds of pages) {
-        const canvas = await renderToCanvas(pageCmds, layoutW, pageContentPxH, tk.bg, EXPORT_SCALE);
+        if (height < 1) continue;
+        const canvas = await renderToCanvas(commands, layoutW, height, tk.bg, EXPORT_SCALE);
         const cx = canvas.getContext("2d");
         if (brand && cx) stampBrand(cx, canvas.width, canvas.height, EXPORT_SCALE);
         const img = await pdf.embedPng(await canvasPng(canvas));
-        const page = pdf.addPage([A4_W, A4_H]);
-        page.drawImage(img, {
-            x: DOC_MARGIN,
-            y: DOC_MARGIN,
-            width: contentPtW,
-            height: A4_H - 2 * DOC_MARGIN,
-        });
+        const { w: pageW, h: pageH } = docSectionPageSize(layoutW, height);
+        const page = pdf.addPage([pageW, pageH]);
+        page.drawImage(img, { x: 0, y: 0, width: pageW, height: pageH });
     }
     download(await pdf.save(), "galleo-doc.pdf", "application/pdf");
 }
@@ -277,21 +243,14 @@ async function exportDocPdfVector(
 ): Promise<void> {
     const docProfile = resolveProfile("doc");
     const layoutW = docProfile.maxContentWidth ?? 744;
-    const all: RenderCommand[] = [];
-    let y = 0;
+    const pages: FramedPage[] = [];
     for (const section of artifact.sections) {
         const { commands, height } = layoutSection(section, layoutW, measureText, tk, docProfile);
-        for (const c of commands) all.push({ ...c, box: { ...c.box, y: c.box.y + y } });
-        y += height;
+        if (height < 1) continue;
+        const { w: pageW, h: pageH } = docSectionPageSize(layoutW, height);
+        const t: Transform = { fit: pageW / layoutW, offX: 0, offY: 0 };
+        pages.push({ framed: commands.map((c) => frameCommand(c, t)), pageW, pageH, bg: tk.bg });
     }
-    const { scale, pageContentPxH } = docPageGeometry(layoutW);
-    const t: Transform = { fit: scale, offX: DOC_MARGIN, offY: DOC_MARGIN };
-    const pages: FramedPage[] = fragment(all, y, pageContentPxH).map((pageCmds) => ({
-        framed: pageCmds.map((c) => frameCommand(c, t)),
-        pageW: A4_W,
-        pageH: A4_H,
-        bg: tk.bg,
-    }));
     await renderFramedPdf(pages, tk, brand, "galleo-doc.pdf");
 }
 
@@ -326,44 +285,78 @@ export function exportPdfAuto(
         : exportSlidePdf(artifact, tk, brand);
 }
 
-export async function exportDeckPng(
+// one PNG per section (paged formats split tall sections into numbered slide parts), zipped together
+export async function exportSectionPngs(
     artifact: ArtifactContent,
     tk: Tokens,
     opts?: ExportOptions,
 ): Promise<void> {
     const profile = resolveProfile(artifact.format);
-    const slides = artifact.sections.flatMap((s) => sectionSlides(s, tk, profile));
-    const out = document.createElement("canvas");
-    const size = deckPngCanvasSize(slides, EXPORT_SCALE);
-    out.width = size.width;
-    out.height = size.height;
-    const cx = out.getContext("2d");
-    if (!cx) return;
-    let y = 0;
-    for (const slide of slides) {
-        const canvas = await renderSlidePage(slide, tk.bg, EXPORT_SCALE);
-        cx.drawImage(canvas, 0, y * EXPORT_SCALE);
-        y += slide.h;
-        if (opts?.brand) stampBrand(cx, out.width, y * EXPORT_SCALE, EXPORT_SCALE);
+    const continuous = profile.kind === "continuous";
+    const layoutW = profile.maxContentWidth ?? PRINT_W;
+    const JSZip = (await import("jszip")).default;
+    const zip = new JSZip();
+    const pad = (n: number): string => String(n).padStart(2, "0");
+
+    const addPage = async (canvas: HTMLCanvasElement, name: string): Promise<void> => {
+        const cx = canvas.getContext("2d");
+        if (opts?.brand && cx) stampBrand(cx, canvas.width, canvas.height, EXPORT_SCALE);
+        zip.file(name, await canvasPng(canvas));
+    };
+
+    for (const [ix, section] of artifact.sections.entries()) {
+        const stem = `${pad(ix + 1)}-${section.id}`;
+        if (continuous) {
+            const { commands, height } = layoutSection(section, layoutW, measureText, tk, profile);
+            if (height < 1) continue;
+            await addPage(
+                await renderToCanvas(commands, layoutW, height, tk.bg, EXPORT_SCALE),
+                `${stem}.png`,
+            );
+        } else {
+            const slides = sectionSlides(section, tk, profile);
+            for (const [part, slide] of slides.entries()) {
+                const name = slides.length > 1 ? `${stem}-${part + 1}.png` : `${stem}.png`;
+                await addPage(await renderSlidePage(slide, tk.bg, EXPORT_SCALE), name);
+            }
+        }
     }
-    download(await canvasPng(out), "galleo-deck.png", "image/png");
+    const bytes = await zip.generateAsync({ type: "uint8array" });
+    download(bytes, "galleo-sections.zip", "application/zip");
 }
 
-// #galleo-print shows only in @media print (studio.css)
-export function exportPrint(artifact: ArtifactContent, theme: Tokens): void {
-    const width = resolveProfile(artifact.format).maxContentWidth ?? PRINT_W;
+// A4 portrait width in CSS px at 96dpi with zero @page margins — the widest safe print target
+// (US Letter is wider, so it underfills slightly rather than clipping)
+const A4_PRINT_PX = 794;
+
+// #galleo-print shows only in @media print (ui/styles.css).
+// Paper is continuous, so print ALWAYS composes with the doc profile — seamless sections exactly
+// as the editor's doc view — regardless of the artifact's current format toggle.
+export async function exportPrint(artifact: ArtifactContent, theme: Tokens): Promise<void> {
+    const profile = resolveProfile("doc");
+    const width = profile.maxContentWidth ?? PRINT_W;
+    const zoom = A4_PRINT_PX / width; // layout px → paper px, so wide layouts never clip
     const container = document.createElement("div");
     container.id = "galleo-print";
 
+    // Each section sits in its own wrapper hinted break-inside:avoid, so page breaks prefer
+    // section seams (a section taller than a page still breaks inside; the hint degrades gracefully).
+    const all: RenderCommand[] = [];
+    const flow = document.createElement("div");
+    flow.style.cssText = `width:${width}px;background:${theme.bg};zoom:${zoom}`;
     for (const section of artifact.sections) {
-        const { commands, height } = layoutSection(section, width, measureText, theme);
-        const page = document.createElement("div");
-        page.style.cssText = `position:relative;width:${width}px;height:${height}px;background:${theme.bg};break-after:page;page-break-after:always`;
-        paint(commands, page);
-        container.appendChild(page);
+        const { commands, height } = layoutSection(section, width, measureText, theme, profile);
+        all.push(...commands);
+        const seg = document.createElement("div");
+        seg.style.cssText = `position:relative;width:${width}px;height:${height}px;break-inside:avoid`;
+        paint(commands, seg);
+        flow.appendChild(seg);
     }
+    container.appendChild(flow);
 
     document.body.appendChild(container);
+    // print() snapshots synchronously — backgrounds must be in the browser cache before it fires
+    await loadImages(all);
     window.print();
     container.remove();
 }

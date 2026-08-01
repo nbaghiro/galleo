@@ -27,6 +27,7 @@ import type {
 export interface MediaProvidersState {
     stock: Record<MediaProvider, boolean>;
     generate: boolean;
+    generateVideo: boolean;
 }
 
 // GET /billing — plan + live usage + plan catalog

@@ -414,6 +414,18 @@ export function bindingLabel(id: string): string | null {
     return entry ? formatChord(entry.steps.join(" ")) : null;
 }
 
+// bare keys whose unicode glyph risks emoji presentation (tiny, non-theme-colored) → render a shared Icon
+const KEY_HINT_ICON: Record<string, string> = { delete: "backspace", backspace: "backspace" };
+
+/** Shared-Icon name for a command whose first binding is a single bare key we glyph, else null. Reactive. */
+export function keyHintIcon(id: string): string | null {
+    registryTick();
+    const entry = bindings.find((b) => b.command === id);
+    if (!entry || entry.steps.length !== 1) return null;
+    const tokens = entry.steps[0]!.split("+");
+    return tokens.length === 1 ? (KEY_HINT_ICON[tokens[0]!] ?? null) : null;
+}
+
 let installed = false;
 let seqBuffer: string[] = [];
 let seqTimer = 0;

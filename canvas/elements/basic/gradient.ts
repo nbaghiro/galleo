@@ -53,11 +53,6 @@ export const gradientElement: ElementSpec<GradientData> = {
             group: "Shape",
         },
     ],
-    skeleton: (): EngineNode => ({
-        w: grow(),
-        h: fixed(44),
-        fill: { gradient: { from: "#ded8ca", to: "#f1ede3", angle: 135 }, radius: 8 },
-    }),
 };
 
 register(gradientElement);

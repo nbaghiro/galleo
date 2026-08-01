@@ -1,14 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-    A4_H,
-    A4_W,
-    DOC_MARGIN,
-    SLIDE_W,
-    deckPngCanvasSize,
-    docPageGeometry,
-    slidePdfPageSize,
-} from "@canvas/render/export";
-import { EXPORT_SCALE } from "@canvas/render/backends";
+import { A4_W, docSectionPageSize, slidePdfPageSize } from "@canvas/render/export";
 
 describe("slidePdfPageSize", () => {
     it("keeps a fixed page width and preserves the slide aspect", () => {
@@ -20,25 +11,13 @@ describe("slidePdfPageSize", () => {
     });
 });
 
-describe("docPageGeometry", () => {
-    it("derives the A4 content width, px→pt scale, and page content height", () => {
-        const g = docPageGeometry(1000);
-        expect(g.contentPtW).toBe(A4_W - 2 * DOC_MARGIN); // 499
-        expect(g.scale).toBeCloseTo(499 / 1000, 6);
-        expect(g.pageContentPxH).toBeCloseTo((A4_H - 2 * DOC_MARGIN) / g.scale, 4);
+describe("docSectionPageSize", () => {
+    it("keeps A4 width and scales the section height with the same px→pt factor", () => {
+        const size = docSectionPageSize(744, 372);
+        expect(size.w).toBe(A4_W);
+        expect(size.h).toBeCloseTo((372 * A4_W) / 744, 6);
     });
-});
-
-describe("deckPngCanvasSize", () => {
-    it("is the widest slide × the summed heights, at scale", () => {
-        const size = deckPngCanvasSize([
-            { w: 1280, h: 720 },
-            { w: 1280, h: 900 },
-        ]);
-        expect(size.width).toBe(1280 * EXPORT_SCALE);
-        expect(size.height).toBe((720 + 900) * EXPORT_SCALE);
-    });
-    it("never falls below SLIDE_W", () => {
-        expect(deckPngCanvasSize([{ w: 800, h: 400 }], 1).width).toBe(SLIDE_W);
+    it("a section as tall as the layout is wide yields a square page", () => {
+        expect(docSectionPageSize(1000, 1000)).toEqual({ w: A4_W, h: A4_W });
     });
 });

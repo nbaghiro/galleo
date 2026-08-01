@@ -94,7 +94,7 @@ export const calloutElement: ElementSpec<CalloutData> = {
         arrange: arrangeCallout,
         withChildren: (d, children) => ({ ...d, children }),
     },
-    bar: ["tone"], // every control on the bar keeps the element inline (no docked panel)
+    bar: ["tone"],
     frame: true,
     controls: [
         {

@@ -11,20 +11,17 @@ import {
 } from "solid-js";
 import type { Tokens } from "@themes";
 import { themeCssVars } from "@themes";
-import type { ExportFormat } from "@model/billing";
 import { setArtifactFormat, getElementAt } from "@elements/ops";
 import { getElement, listElements } from "@elements/spec";
-import { exportDeckPng, exportPdfAuto, exportPrint } from "@canvas/render/export";
-import { exportPptx } from "@canvas/render/pptx";
 import { installKeyDispatcher } from "@ui/keys";
-import { Badge, Button, Eyebrow, IconButton } from "@ui/button";
+import { Button, Eyebrow, IconButton } from "@ui/button";
 import { Icon, UiThemeProvider } from "@ui/icons";
 import { TextField, FormatSwitcher } from "@ui/inputs";
-import { Menu, MenuItem } from "@ui/menu";
 import { FloatingPanel } from "@ui/overlay";
 import { Canvas, Thumb } from "./Canvas";
 import { Present } from "./Present";
 import { DataEditor } from "./panels/DataEditor";
+import { ExportModal, openExportModal } from "./panels/ExportModal";
 import { DragGhost, PaletteItem } from "./panels/Insert";
 import { ElementInspector } from "./panels/RightPanel";
 import { pickArtifactBackground } from "./core/media";
@@ -100,6 +97,7 @@ export const Editor: Component = () => {
                 <DragGhost />
                 <Present />
                 <DataEditor />
+                <ExportModal />
             </div>
         </UiThemeProvider>
     );
@@ -245,74 +243,11 @@ const BackdropCornerButton: Component = () => {
     );
 };
 
-const ExportMenu: Component = () => {
-    const [busy, setBusy] = createSignal(false);
-    const allows = (f: ExportFormat): boolean => features().exportFormats.includes(f);
-    const brand = (): boolean => !features().removeBranding;
-    const run = async (fn: () => void | Promise<void>): Promise<void> => {
-        setBusy(true);
-        try {
-            await fn();
-        } finally {
-            setBusy(false);
-        }
-    };
-    // Menu row: unlocked runs the export; locked shows a "Pro" row that routes to pricing.
-    const item = (
-        label: string,
-        format: ExportFormat,
-        fn: () => void | Promise<void>,
-    ): JSX.Element =>
-        allows(format) ? (
-            <MenuItem onClick={() => run(fn)}>{label}</MenuItem>
-        ) : (
-            <MenuItem
-                icon={<Icon name="lock" size={12} />}
-                trailing={<Badge tone="accentSoft">Pro</Badge>}
-                onClick={() => requestUpgrade()}
-            >
-                {label}
-            </MenuItem>
-        );
-    return (
-        <Menu
-            align="end"
-            width={208}
-            trigger={(m) => (
-                <Button
-                    ref={m.ref}
-                    variant="tool"
-                    size="sm"
-                    loading={busy()}
-                    onClick={() => !busy() && m.toggle()}
-                >
-                    <Show
-                        when={busy()}
-                        fallback={
-                            <>
-                                <Icon name="export" size={14} /> Export{" "}
-                                <Icon name="chevron" size={11} />
-                            </>
-                        }
-                    >
-                        Exporting
-                    </Show>
-                </Button>
-            )}
-        >
-            {item("PDF", "pdf", () =>
-                exportPdfAuto(editor.artifact, editorTokens(), { brand: brand() }),
-            )}
-            {item("PowerPoint", "pptx", () =>
-                exportPptx(editor.artifact, editorTokens(), { brand: brand() }),
-            )}
-            {item("PNG — deck", "png", () =>
-                exportDeckPng(editor.artifact, editorTokens(), { brand: brand() }),
-            )}
-            {item("Print…", "print", () => exportPrint(editor.artifact, editorTokens()))}
-        </Menu>
-    );
-};
+const ExportButton: Component = () => (
+    <Button variant="tool" size="sm" onClick={() => openExportModal()}>
+        <Icon name="export" size={14} /> Export
+    </Button>
+);
 
 const Topbar: Component = () => (
     <header class="relative z-menu flex items-center gap-3.5 border-b border-line bg-panel px-4.5">
@@ -340,7 +275,7 @@ const Topbar: Component = () => (
             <Icon name={features().publicLinks ? "link" : "lock"} size={14} />
             Share
         </Button>
-        <ExportMenu />
+        <ExportButton />
         <Button variant="tool" size="sm" onClick={() => present()}>
             <Icon name="present" size={14} />
             {editor.artifact.format === "deck" ? "Present" : "Preview"}
@@ -475,13 +410,15 @@ const Panel: Component = () => {
         return s?.kind === "element" ? s.address : null;
     });
     // Elements fully editable on-canvas skip the panel: rich-text (format bar), and any whose `bar`
-    // already surfaces every control (vacuously true for zero-control containers).
+    // already surfaces every control (vacuously true for zero-control containers). A frame forces
+    // the panel — its corner-radius slider lives only there.
     const elementInline = createMemo((): boolean => {
         const a = elementAddr();
         if (!a) return false;
         const spec = getElement(getElementAt(editor.artifact, a)?.type ?? "");
         if (!spec) return false;
         if (spec.richText) return true;
+        if (spec.frame) return false;
         const bar = spec.bar ?? [];
         return spec.controls.every((c) => bar.includes(c.key));
     });

@@ -534,7 +534,9 @@ function drawCommands(
     }
 }
 
-async function loadImages(commands: RenderCommand[]): Promise<Map<string, HTMLImageElement>> {
+export async function loadImages(
+    commands: RenderCommand[],
+): Promise<Map<string, HTMLImageElement>> {
     const srcs = [
         ...new Set(
             commands
@@ -547,13 +549,19 @@ async function loadImages(commands: RenderCommand[]): Promise<Map<string, HTMLIm
         srcs.map(
             (src) =>
                 new Promise<void>((resolve) => {
+                    // a stalled connection fires neither handler — time out so exports can't wedge
+                    const timer = setTimeout(resolve, 15_000);
+                    const settle = (): void => {
+                        clearTimeout(timer);
+                        resolve();
+                    };
                     const im = new Image();
                     im.crossOrigin = "anonymous";
                     im.onload = () => {
                         map.set(src, im);
-                        resolve();
+                        settle();
                     };
-                    im.onerror = () => resolve();
+                    im.onerror = settle;
                     im.src = src;
                 }),
         ),

@@ -1,6 +1,6 @@
 import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
-import { register, dot } from "@elements/spec";
+import { register } from "@elements/spec";
 import { fixed, grow } from "@model/geometry";
 
 // Registered but palette-hidden (see Panel's HIDDEN set).
@@ -40,7 +40,6 @@ export const avatarElement: ElementSpec<AvatarData> = {
         };
     },
     resize: { width: false, height: { key: "size", min: 40, max: 240, step: 4 } },
-    skeleton: (): EngineNode => dot(72),
     // Size via resize handle (mirrors icon); no slider.
     bar: ["src", "ring"],
     controls: [

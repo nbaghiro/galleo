@@ -1,9 +1,9 @@
-import type { ControlField, ElementSpec, LayoutCtx } from "@elements/spec";
-import type { DrawContext, DrawStyle, EngineNode, PathSink, Rect } from "@engine/node";
+import type { ControlField, ElementSpec } from "@elements/spec";
+import type { DrawContext, DrawStyle, PathSink, Rect } from "@engine/node";
 import type { Size } from "@model/geometry";
 import type { Paint, ThemeRole, Vector, VNode, VStyle, VTransform } from "@model/vector";
 import type { Tokens } from "@themes";
-import { GHOST, register } from "@elements/spec";
+import { register } from "@elements/spec";
 import { fit, fixed, grow } from "@model/geometry";
 import { hexA } from "@themes";
 
@@ -823,7 +823,6 @@ interface VectorSpecCfg<D> {
     controls: ControlField[];
     bar?: string[];
     resize?: ElementSpec<D>["resize"];
-    skeleton?: (ctx: LayoutCtx) => EngineNode;
     node: (data: D) => { w: Size; h: Size; aspect?: number };
     render: (g: DrawContext, box: Rect, data: D, theme: Tokens) => void;
 }
@@ -842,7 +841,6 @@ function vectorSpec<D>(cfg: VectorSpecCfg<D>): ElementSpec<D> {
         controls: cfg.controls,
         bar: cfg.bar,
         resize: cfg.resize,
-        skeleton: cfg.skeleton,
     };
 }
 
@@ -874,13 +872,6 @@ register(
             { key: "glyph", label: "Icon", control: "icon" },
             { key: "color", label: "Color", control: "iconColor" },
         ],
-        skeleton: (): EngineNode => ({
-            w: grow(),
-            h: fit(),
-            alignX: "center",
-            alignY: "center",
-            children: [{ w: fixed(64), h: fixed(64), fill: { color: GHOST, radius: 14 } }],
-        }),
     }),
 );
 
@@ -956,11 +947,6 @@ register(
                 group: "Outline",
             },
         ],
-        skeleton: (): EngineNode => ({
-            w: grow(),
-            h: fixed(120),
-            fill: { color: GHOST, radius: 12 },
-        }),
     }),
 );
 
@@ -984,11 +970,5 @@ register(
             { key: "doc", label: "SVG", control: "vector" },
             { key: "adoptTheme", label: "Match theme colors", control: "toggle", group: "Color" },
         ],
-        skeleton: (): EngineNode => ({
-            w: grow(),
-            h: fit(),
-            aspect: 1,
-            fill: { color: GHOST, radius: 12 },
-        }),
     }),
 );

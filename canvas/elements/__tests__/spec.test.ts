@@ -14,11 +14,9 @@ import {
     getElement,
     listElements,
     pill,
-    skeletonFor,
     skeletonize,
     walkElements,
 } from "@elements/spec";
-import { layoutCtx } from "@canvas/testkit";
 
 const textLeaf = (text: string, size = 16): EngineNode => ({
     w: grow(),
@@ -125,11 +123,5 @@ describe("skeletonize", () => {
         expect(g.fill?.radius).toBe(12);
         expect(g.fill?.border?.color).toBe(GHOST_LINE);
         expect(g.children).toHaveLength(1);
-    });
-});
-
-describe("skeletonFor", () => {
-    it("derives an auto-skeleton from a real element's layout", () => {
-        expect(skeletonFor(getElement("text")!, layoutCtx()).direction).toBe("col");
     });
 });

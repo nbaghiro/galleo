@@ -4,7 +4,6 @@ import { register } from "@elements/spec";
 import { fixed, grow } from "@model/geometry";
 import { renderDiagram, diagramTypeOptions } from "./render";
 import type { DiagramData } from "./utils";
-import { bandsSkel, boxesSkel, discSkel, gridSkel, treeSkel, twinDiscSkel } from "../skeletons";
 
 const GRAPH_TYPES = new Set(["flow", "tree", "org", "mindmap"]);
 
@@ -49,7 +48,6 @@ function diagramSpec(
     label: string,
     diagType: string,
     preset: Partial<DiagramData>,
-    skeleton: () => EngineNode,
 ): ElementSpec<DiagramData> {
     return {
         type: typeKey,
@@ -72,7 +70,6 @@ function diagramSpec(
         resize: { height: { key: "height", min: 140, max: 440, step: 10 } },
         bar: ["type", "palette"],
         controls: DIAGRAM_CONTROLS,
-        skeleton,
     };
 }
 
@@ -81,63 +78,54 @@ const VARIANTS: {
     label: string;
     type: string;
     preset: Partial<DiagramData>;
-    skel: () => EngineNode;
 }[] = [
     {
         key: "processDiagram",
         label: "Process",
         type: "process",
         preset: { items: "Research, Design, Build, Test, Launch" },
-        skel: () => boxesSkel(4),
     },
     {
         key: "cycleDiagram",
         label: "Cycle",
         type: "cycle",
         preset: { items: "Plan, Do, Check, Act" },
-        skel: discSkel,
     },
     {
         key: "pyramidDiagram",
         label: "Pyramid",
         type: "pyramid",
         preset: { items: "Vision, Strategy, Tactics, Operations" },
-        skel: () => bandsSkel([0.4, 0.6, 0.8, 1]),
     },
     {
         key: "funnelDiagram",
         label: "Funnel",
         type: "funnel",
         preset: { items: "Awareness, Interest, Consideration, Intent, Purchase" },
-        skel: () => bandsSkel([1, 0.78, 0.56, 0.36]),
     },
     {
         key: "timelineDiagram",
         label: "Timeline",
         type: "timeline",
         preset: { items: "Founded, Seed round, Series A, Expansion, IPO" },
-        skel: () => boxesSkel(4),
     },
     {
         key: "vennDiagram",
         label: "Venn",
         type: "venn",
         preset: { items: "Desirable, Feasible, Viable" },
-        skel: twinDiscSkel,
     },
     {
         key: "quadrantDiagram",
         label: "Quadrant",
         type: "quadrant",
         preset: { items: "Quick wins, Major projects, Fill-ins, Thankless tasks" },
-        skel: () => gridSkel(2, 2),
     },
     {
         key: "matrixDiagram",
         label: "Matrix",
         type: "matrix",
         preset: { items: "Strengths, Weaknesses, Opportunities, Threats" },
-        skel: () => gridSkel(2, 3),
     },
     {
         key: "treeDiagram",
@@ -147,7 +135,6 @@ const VARIANTS: {
             items: "Company, Product, Platform, Sales, Marketing",
             links: "Company>Product, Company>Sales, Product>Platform, Sales>Marketing",
         },
-        skel: treeSkel,
     },
     {
         key: "orgDiagram",
@@ -157,7 +144,6 @@ const VARIANTS: {
             items: "CEO, CTO, CFO, VP Eng, VP Sales",
             links: "CEO>CTO, CEO>CFO, CTO>VP Eng, CFO>VP Sales",
         },
-        skel: treeSkel,
     },
     {
         key: "mindmapDiagram",
@@ -167,7 +153,6 @@ const VARIANTS: {
             items: "Product Launch, Marketing, Engineering, Sales, Support",
             links: "Product Launch>Marketing, Product Launch>Engineering, Product Launch>Sales, Product Launch>Support",
         },
-        skel: treeSkel,
     },
     {
         key: "flowDiagram",
@@ -177,19 +162,14 @@ const VARIANTS: {
             items: "Start, Review, Approve, Reject, Publish",
             links: "Start->Review, Review->Approve, Review->Reject, Approve->Publish, Reject->Start",
         },
-        skel: treeSkel,
     },
 ];
 
-VARIANTS.forEach((v) => register(diagramSpec(v.key, v.label, v.type, v.preset, v.skel)));
+VARIANTS.forEach((v) => register(diagramSpec(v.key, v.label, v.type, v.preset)));
 
 // Back-compat: hidden `diagram` element so existing `{ type: "diagram" }` content keeps rendering.
 register(
-    diagramSpec(
-        "diagram",
-        "Diagram",
-        "process",
-        { items: "Research, Design, Build, Test, Launch" },
-        () => boxesSkel(4),
-    ),
+    diagramSpec("diagram", "Diagram", "process", {
+        items: "Research, Design, Build, Test, Launch",
+    }),
 );

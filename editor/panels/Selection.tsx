@@ -463,7 +463,7 @@ const action =
     "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-canvas";
 const iconAction = "inline-flex items-center rounded-full p-1.5 text-ink hover:bg-canvas";
 const stepAction =
-    "flex items-center justify-center rounded px-1 leading-none text-muted hover:bg-canvas hover:text-ink";
+    "flex items-center justify-center rounded px-1 leading-none text-muted hover:bg-canvas hover:text-ink disabled:pointer-events-none disabled:opacity-30";
 const dangerAction =
     "inline-flex items-center rounded-full p-1.5 text-ink hover:bg-red-500/12 hover:text-red-500";
 
@@ -480,6 +480,9 @@ export const SectionActions: Component = () => {
         const id = sid();
         return id ? editor.artifact.sections.find((s) => s.id === id)?.background : undefined;
     });
+    const sectionIx = createMemo(() => editor.artifact.sections.findIndex((s) => s.id === sid()));
+    const isFirst = (): boolean => sectionIx() <= 0;
+    const isLast = (): boolean => sectionIx() === editor.artifact.sections.length - 1;
     let pillRef: HTMLDivElement | undefined;
 
     // Pick + set (or remove) this section's background image via the shared media picker.
@@ -517,6 +520,7 @@ export const SectionActions: Component = () => {
                         <div class="-my-1 flex flex-col justify-center">
                             <button
                                 class={stepAction}
+                                disabled={isFirst()}
                                 title="Move section up"
                                 onClick={() => moveSectionBy(sid()!, -1)}
                             >
@@ -524,6 +528,7 @@ export const SectionActions: Component = () => {
                             </button>
                             <button
                                 class={stepAction}
+                                disabled={isLast()}
                                 title="Move section down"
                                 onClick={() => moveSectionBy(sid()!, 1)}
                             >

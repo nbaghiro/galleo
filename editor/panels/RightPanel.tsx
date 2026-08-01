@@ -2,10 +2,10 @@ import type { ElementAddress } from "@model/target";
 import type { Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
 import { elementRegionId } from "@model/target";
-import { deleteElement, getElementAt, updateDataAt } from "@elements/ops";
+import { deleteElement, getElementAt, setElementLayout, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
-import { commit, editor, setSelection } from "../core/store";
-import { PanelHeader, SchemaFields } from "./SharedControlFields";
+import { commit, editor, regions, setSelection } from "../core/store";
+import { FieldRow, PanelHeader, SchemaFields, SliderRow } from "./SharedControlFields";
 import { dataShapeFor, DATA_KEYS } from "../core/infographic";
 import { openDataEditor } from "./DataEditor";
 import { DataGrid } from "./DataEditor";
@@ -49,6 +49,24 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
         setSelection(null);
     };
 
+    const DEFAULT_RADIUS = 12; // shown before layout.radius is explicitly set
+    const radius = createMemo((): number => {
+        const set = inst()?.layout?.radius;
+        if (set !== undefined) return set;
+        // Unset → show the painted (theme default) radius, so the slider reads true instead of jumping.
+        const painted = regions().find((r) => r.id === elementRegionId(props.address))?.radius;
+        return painted ?? DEFAULT_RADIUS;
+    });
+    const setRadius = (n: number): void => {
+        commit(
+            setElementLayout(editor.artifact, props.address, {
+                ...(inst()?.layout ?? {}),
+                radius: n,
+            }),
+            { coalesce: `panel:${elementRegionId(props.address)}:radius` },
+        );
+    };
+
     return (
         <div>
             <PanelHeader
@@ -62,12 +80,24 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
             <Show
                 when={panelControls().length > 0}
                 fallback={
-                    <Show when={!editorShape()}>
+                    <Show when={!editorShape() && !spec()?.frame}>
                         <p class="text-[13px] text-muted">No editable properties.</p>
                     </Show>
                 }
             >
                 <SchemaFields controls={panelControls()} read={(k) => data()[k]} write={set} />
+            </Show>
+            <Show when={spec()?.frame}>
+                <FieldRow label="Corner radius">
+                    <SliderRow
+                        value={radius()}
+                        min={0}
+                        max={40}
+                        step={1}
+                        unit="px"
+                        onChange={setRadius}
+                    />
+                </FieldRow>
             </Show>
             <Show when={editorShape()}>
                 <div class="mb-2 mt-4 flex items-center justify-between">

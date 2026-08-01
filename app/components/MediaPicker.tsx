@@ -11,9 +11,9 @@ import {
     Switch,
 } from "solid-js";
 import type { IconItem, MediaGenStyle, MediaItem, MediaKind, MediaProvider } from "@model/media";
-import { MEDIA_ASPECTS, MEDIA_GEN_STYLES } from "@model/media";
+import { KIND_PROVIDERS, MEDIA_ASPECTS, MEDIA_GEN_STYLES } from "@model/media";
 import { editorTokens } from "@editor/core/store";
-import { api, streamGenerateMedia, type MediaProvidersState } from "../api";
+import { api, streamGenerateMedia, streamGenerateVideo, type MediaProvidersState } from "../api";
 import {
     closeMediaPicker,
     mediaRequest,
@@ -36,6 +36,7 @@ const KIND_TITLE: Record<MediaKind, string> = {
     illustration: "Add an illustration",
     sticker: "Add a sticker",
     icon: "Add an icon",
+    video: "Add a video",
 };
 const KIND_NOUN: Record<MediaKind, string> = {
     photo: "photos",
@@ -43,6 +44,7 @@ const KIND_NOUN: Record<MediaKind, string> = {
     illustration: "illustrations",
     sticker: "stickers",
     icon: "icons",
+    video: "videos",
 };
 
 const DEFAULT_QUERY: Record<MediaKind, string> = {
@@ -51,6 +53,7 @@ const DEFAULT_QUERY: Record<MediaKind, string> = {
     illustration: "abstract",
     sticker: "emoji",
     icon: "",
+    video: "nature",
 };
 
 const STARTER_ICONS = [
@@ -159,6 +162,7 @@ export const MediaPicker: Component = () => {
     const [providers, setProviders] = createSignal<MediaProvidersState>({
         stock: { openverse: true, unsplash: false, pexels: false, pixabay: false },
         generate: false,
+        generateVideo: false,
     });
     const [query, setQuery] = createSignal("");
     const [items, setItems] = createSignal<MediaItem[]>([]);
@@ -172,16 +176,43 @@ export const MediaPicker: Component = () => {
     // count of shimmer placeholders still generating
     const [generating, setGenerating] = createSignal(0);
     const [kind, setKind] = createSignal<MediaKind>("photo");
+    // a generated take chosen as the base for image-conditioned refinement
+    const [refItem, setRefItem] = createSignal<MediaItem | null>(null);
     // icon mode: separate list from the url-based media grid
     const [iconItems, setIconItems] = createSignal<IconItem[]>([]);
 
     let debounce = 0;
     let fileInput!: HTMLInputElement;
+    let scrollRef!: HTMLDivElement;
+    let sentinelEl: HTMLDivElement | undefined;
+    let io: IntersectionObserver | undefined;
+
+    // Infinite scroll: a sentinel under the grid pages in the next batch as it nears the viewport.
+    const armSentinel = (el: HTMLDivElement): void => {
+        sentinelEl = el;
+        io?.disconnect();
+        io = new IntersectionObserver(
+            (es) => {
+                if (es.some((e) => e.isIntersecting)) void loadMore();
+            },
+            { root: scrollRef, rootMargin: "500px 0px" },
+        );
+        io.observe(el);
+    };
+    async function loadMore(): Promise<void> {
+        if (!hasMore() || loading() || !isStock(source())) return;
+        await runSearch(false);
+        // a short page can leave the sentinel visible with no further scroll — re-observe to re-fire
+        if (io && sentinelEl) {
+            io.unobserve(sentinelEl);
+            io.observe(sentinelEl);
+        }
+    }
 
     const isStock = (s: Source): s is MediaProvider => (STOCK as string[]).includes(s);
     const themeVars = (): JSX.CSSProperties | undefined => overlayThemeVars();
-    // photos: all providers; other kinds: Openverse-only
-    const stockSources = (): MediaProvider[] => (kind() === "photo" ? STOCK : ["openverse"]);
+    // the rail lists only the providers that can serve the current kind
+    const stockSources = (): MediaProvider[] => KIND_PROVIDERS[kind()];
 
     createEffect(
         on(mediaRequest, (req) => {
@@ -189,9 +220,11 @@ export const MediaPicker: Component = () => {
             const k = req.kind ?? "photo";
             setKind(k);
             setGenStyle(k === "illustration" || k === "sticker" ? "illustration" : "photo");
+            if (k === "video") setAspect("16:9"); // veo supports 16:9 / 9:16 only
             setQuery(req.query ?? "");
             setError("");
             setItems([]);
+            setRefItem(null);
             setIconItems([]);
             setHasMore(false);
             setPage(1);
@@ -206,7 +239,7 @@ export const MediaPicker: Component = () => {
                 setSource("recent");
                 loadRecent();
             } else {
-                setSource("openverse");
+                setSource(KIND_PROVIDERS[k][0] ?? "openverse");
                 runSearch(true);
             }
         }),
@@ -269,6 +302,7 @@ export const MediaPicker: Component = () => {
         setSource(s);
         setError("");
         setItems([]);
+        setRefItem(null);
         setHasMore(false);
         setPage(1);
         if (s === "recent") loadRecent();
@@ -290,14 +324,20 @@ export const MediaPicker: Component = () => {
 
     async function generate(): Promise<void> {
         if (!prompt().trim()) return;
-        const want = 4;
+        const want = 1; // one take per click; earlier takes stay in the grid for comparison
         setLoading(true);
         setError("");
-        setItems([]);
+        setItems((cur) => cur.filter((it) => it.source === "generated"));
         setGenerating(want);
         try {
             await streamGenerateMedia(
-                { prompt: prompt().trim(), aspect: aspect(), n: want, style: genStyle() },
+                {
+                    prompt: prompt().trim(),
+                    aspect: aspect(),
+                    n: want,
+                    style: genStyle(),
+                    refId: refItem()?.id,
+                },
                 (e) => {
                     if (e.type === "image" && e.item) {
                         const item = e.item;
@@ -310,6 +350,33 @@ export const MediaPicker: Component = () => {
                     }
                 },
             );
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Generation failed");
+        }
+        setGenerating(0);
+        setLoading(false);
+    }
+
+    // One Veo clip per click; progress heartbeats keep the shimmer honest through the ~1–2 min wait.
+    async function generateVideoClip(): Promise<void> {
+        if (!prompt().trim()) return;
+        setLoading(true);
+        setError("");
+        setItems((cur) => cur.filter((it) => it.source === "generated"));
+        setGenerating(1);
+        try {
+            await streamGenerateVideo({ prompt: prompt().trim(), aspect: aspect() }, (e) => {
+                if (e.type === "video" && e.item) {
+                    const item = e.item;
+                    setItems((prev) => [...prev, item]);
+                    setGenerating(0);
+                } else if (e.type === "fail") {
+                    setGenerating(0);
+                    if (e.error) setError(e.error);
+                } else if (e.type === "done") {
+                    setGenerating(0);
+                }
+            });
         } catch (e) {
             setError(e instanceof Error ? e.message : "Generation failed");
         }
@@ -361,7 +428,10 @@ export const MediaPicker: Component = () => {
             if (e.key === "Escape" && mediaRequest()) closeMediaPicker();
         };
         window.addEventListener("keydown", onKey);
-        onCleanup(() => window.removeEventListener("keydown", onKey));
+        onCleanup(() => {
+            window.removeEventListener("keydown", onKey);
+            io?.disconnect();
+        });
     });
 
     const railBtn = (
@@ -418,12 +488,61 @@ export const MediaPicker: Component = () => {
                             classList={{ "mp-pop": it.source === "generated" }}
                             onClick={() => pick(it)}
                         >
-                            <img
-                                src={it.thumbUrl}
-                                alt={it.alt ?? ""}
-                                loading="lazy"
-                                class="block w-full bg-canvas"
-                            />
+                            <Show
+                                when={kind() === "video" && it.source === "generated"}
+                                fallback={
+                                    <img
+                                        src={it.thumbUrl}
+                                        alt={it.alt ?? ""}
+                                        loading="lazy"
+                                        class="block w-full bg-canvas"
+                                    />
+                                }
+                            >
+                                <video
+                                    src={it.url}
+                                    muted
+                                    loop
+                                    autoplay
+                                    playsinline
+                                    class="pointer-events-none block w-full bg-black"
+                                />
+                            </Show>
+                            <Show when={kind() === "video" && it.source !== "generated"}>
+                                <span class="absolute left-1/2 top-1/2 grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-[13px] text-white">
+                                    ▶
+                                </span>
+                            </Show>
+                            <Show
+                                when={
+                                    kind() !== "video" &&
+                                    it.source === "generated" &&
+                                    (source() === "generate" || source() === "recent")
+                                }
+                            >
+                                <span
+                                    role="button"
+                                    title="Use this take as the base for the next generation"
+                                    class="absolute right-1.5 top-1.5 rounded-full px-2 py-0.5 text-[10.5px] font-semibold text-white transition"
+                                    classList={{
+                                        "bg-accent opacity-100": refItem()?.id === it.id,
+                                        "bg-black/55 opacity-0 group-hover:opacity-100 hover:bg-accent":
+                                            refItem()?.id !== it.id,
+                                    }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        // from Recent: jump to the generate tab with this take as the base
+                                        if (source() === "recent") {
+                                            selectSource("generate");
+                                            setRefItem(it);
+                                        } else {
+                                            setRefItem(refItem()?.id === it.id ? null : it);
+                                        }
+                                    }}
+                                >
+                                    {refItem()?.id === it.id ? "Refining ✓" : "Refine"}
+                                </span>
+                            </Show>
                             <Show when={it.attribution?.author}>
                                 <span
                                     class="absolute inset-x-0 bottom-0 truncate px-2 pb-1 pt-5 text-left text-[10px] text-white opacity-0 transition group-hover:opacity-100"
@@ -449,12 +568,11 @@ export const MediaPicker: Component = () => {
                     )}
                 </For>
             </div>
-            <Show when={hasMore() && isStock(source())}>
-                <div class="mt-2 flex justify-center">
-                    <Button variant="outline" onClick={() => runSearch(false)}>
-                        {loading() ? "Loading…" : "Load more"}
-                    </Button>
-                </div>
+            <Show when={isStock(source())}>
+                <div ref={armSentinel} class="h-px" />
+                <Show when={loading() && items().length > 0}>
+                    <div class="py-3 text-center text-[12px] text-muted">Loading…</div>
+                </Show>
             </Show>
         </Show>
     );
@@ -533,7 +651,7 @@ export const MediaPicker: Component = () => {
                         <Show when={mediaRequest()?.onRemove}>
                             <Button variant="dangerGhost" size="sm" onClick={removeMedia}>
                                 <TrashIcon size={13} />
-                                Remove image
+                                Remove
                             </Button>
                         </Show>
                         <IconButton size="md" tone="muted" onClick={closeMediaPicker}>
@@ -553,9 +671,12 @@ export const MediaPicker: Component = () => {
                                 </>
                             }
                         >
-                            {railGroup("Yours")}
-                            {railBtn("recent", "Recent", RailIcon.recent)}
-                            {railBtn("upload", "Upload", RailIcon.upload)}
+                            {/* recents + uploads are image assets; video is stock-search only */}
+                            <Show when={kind() !== "video"}>
+                                {railGroup("Yours")}
+                                {railBtn("recent", "Recent", RailIcon.recent)}
+                                {railBtn("upload", "Upload", RailIcon.upload)}
+                            </Show>
                             {railGroup("Stock")}
                             <For each={stockSources()}>
                                 {(p) =>
@@ -567,7 +688,7 @@ export const MediaPicker: Component = () => {
                                     )
                                 }
                             </For>
-                            {/* generate is image-only — hidden for GIFs */}
+                            {/* generate: images via Gemini, video via Veo — GIFs have no generator */}
                             <Show when={kind() !== "gif"}>
                                 {railGroup("Create")}
                                 {railBtn(
@@ -576,7 +697,9 @@ export const MediaPicker: Component = () => {
                                     () => (
                                         <SparkleIcon size={14} />
                                     ),
-                                    !providers().generate,
+                                    kind() === "video"
+                                        ? !providers().generateVideo
+                                        : !providers().generate,
                                 )}
                             </Show>
                         </Show>
@@ -607,27 +730,64 @@ export const MediaPicker: Component = () => {
                                 <TextArea
                                     rows={2}
                                     rounded="lg"
-                                    placeholder="Describe the image — e.g. a rooftop solar array at golden hour, wide angle"
+                                    placeholder={
+                                        refItem()
+                                            ? "Describe the change — e.g. same but warmer light, closer crop"
+                                            : "Describe the image — e.g. a rooftop solar array at golden hour, wide angle"
+                                    }
                                     value={prompt()}
                                     onChange={setPrompt}
                                 />
-                                <div class="mt-2 flex flex-wrap items-center gap-1.5">
-                                    <span class="text-[11px] text-muted">Style</span>
-                                    <For each={MEDIA_GEN_STYLES}>
-                                        {(s) => (
-                                            <Chip
-                                                variant="soft"
-                                                selected={genStyle() === s.value}
-                                                onClick={() => setGenStyle(s.value)}
+                                <Show when={refItem()}>
+                                    {(r) => (
+                                        <div class="mt-2 flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/8 px-2 py-1.5 text-[12px] text-ink">
+                                            <img
+                                                src={r().thumbUrl}
+                                                alt=""
+                                                class="h-6 w-6 rounded object-cover"
+                                            />
+                                            <span class="min-w-0 flex-1 truncate">
+                                                Refining this take
+                                            </span>
+                                            <IconButton
+                                                size="xs"
+                                                tone="muted"
+                                                title="Stop refining"
+                                                onClick={() => setRefItem(null)}
                                             >
-                                                {s.label}
-                                            </Chip>
-                                        )}
-                                    </For>
-                                </div>
+                                                <CloseIcon size={11} />
+                                            </IconButton>
+                                        </div>
+                                    )}
+                                </Show>
+                                <Show when={kind() !== "video"}>
+                                    <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                                        <span class="text-[11px] text-muted">Style</span>
+                                        <For each={MEDIA_GEN_STYLES}>
+                                            {(s) => (
+                                                <Chip
+                                                    variant="soft"
+                                                    selected={genStyle() === s.value}
+                                                    onClick={() => setGenStyle(s.value)}
+                                                >
+                                                    {s.label}
+                                                </Chip>
+                                            )}
+                                        </For>
+                                    </div>
+                                </Show>
                                 <div class="mt-2 flex items-center gap-1.5">
                                     <span class="text-[11px] text-muted">Ratio</span>
-                                    <For each={MEDIA_ASPECTS}>
+                                    <For
+                                        each={
+                                            kind() === "video"
+                                                ? MEDIA_ASPECTS.filter(
+                                                      (a) =>
+                                                          a.value === "16:9" || a.value === "9:16",
+                                                  )
+                                                : MEDIA_ASPECTS
+                                        }
+                                    >
                                         {(a) => (
                                             <Chip
                                                 variant="soft"
@@ -638,22 +798,58 @@ export const MediaPicker: Component = () => {
                                             </Chip>
                                         )}
                                     </For>
-                                    <Button
-                                        variant="primary"
-                                        size="sm"
-                                        class="ml-auto"
-                                        loading={loading()}
-                                        disabled={!prompt().trim()}
-                                        onClick={generate}
-                                    >
-                                        <SparkleIcon size={13} />
-                                        {loading() ? "Generating…" : "Generate"}
-                                    </Button>
+                                    <span class="ml-auto flex items-center gap-1.5">
+                                        <Show
+                                            when={
+                                                !loading() &&
+                                                items().some((it) => it.source === "generated")
+                                            }
+                                        >
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => {
+                                                    setItems([]);
+                                                    setRefItem(null);
+                                                }}
+                                            >
+                                                Clear takes
+                                            </Button>
+                                        </Show>
+                                        <Button
+                                            variant="primary"
+                                            size="sm"
+                                            loading={loading()}
+                                            disabled={!prompt().trim()}
+                                            onClick={() =>
+                                                kind() === "video"
+                                                    ? generateVideoClip()
+                                                    : generate()
+                                            }
+                                        >
+                                            <SparkleIcon size={13} />
+                                            {loading()
+                                                ? refItem()
+                                                    ? "Refining…"
+                                                    : "Generating…"
+                                                : refItem()
+                                                  ? "Refine"
+                                                  : items().some((it) => it.source === "generated")
+                                                    ? "Generate another"
+                                                    : "Generate"}
+                                        </Button>
+                                    </span>
                                 </div>
+                                <Show when={kind() === "video"}>
+                                    <div class="mt-1.5 text-[11px] text-muted">
+                                        8-second clip with audio · 720p · takes about a minute or
+                                        two
+                                    </div>
+                                </Show>
                             </div>
                         </Show>
 
-                        <div class="min-h-0 flex-1 overflow-y-auto p-4">
+                        <div ref={scrollRef} class="min-h-0 flex-1 overflow-y-auto p-4">
                             <Switch fallback={grid()}>
                                 <Match when={source() === "icons"}>{iconGrid()}</Match>
                                 <Match when={source() === "upload"}>

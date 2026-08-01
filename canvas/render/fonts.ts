@@ -54,20 +54,42 @@ export function parseFontUrl(css: string): FontSrc | null {
     return pick(css);
 }
 
-// fetch + transcode woff2→TTF; null on any failure (slot skipped / caller falls back)
+const FONT_FETCH_TIMEOUT_MS = 10_000;
+
+// resolves null past the deadline — a stalled fetch or wasm init must not wedge an export
+function withDeadline<T>(p: Promise<T | null>, ms = FONT_FETCH_TIMEOUT_MS): Promise<T | null> {
+    return Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
+}
+
+async function fetchTtfOnce(
+    family: string,
+    weight: number,
+    italic: boolean,
+): Promise<Uint8Array | null> {
+    const res = await fetch(googleCssUrl(family, weight, italic));
+    if (!res.ok) return null; // css2 rejects weights the family lacks (e.g. Space Mono 600)
+    const src = parseFontUrl(await res.text());
+    if (!src) return null;
+    const bytes = new Uint8Array(await (await fetch(src.url)).arrayBuffer());
+    if (!src.woff2) return bytes; // already a usable sfnt (ttf/otf)
+    const { decompress } = await import("wawoff2");
+    return await decompress(bytes);
+}
+
+// fetch + transcode woff2→TTF; null on any failure (slot skipped / caller falls back).
+// Static families 400 on off-menu weights, so a miss retries at the slot's canonical weight —
+// keeps e.g. Space Mono 600 rendering as real Space Mono bold instead of a standard-font fallback.
 export async function fetchFontTtf(
     family: string,
     weight: number,
     italic: boolean,
 ): Promise<Uint8Array | null> {
     try {
-        const css = await (await fetch(googleCssUrl(family, weight, italic))).text();
-        const src = parseFontUrl(css);
-        if (!src) return null;
-        const bytes = new Uint8Array(await (await fetch(src.url)).arrayBuffer());
-        if (!src.woff2) return bytes; // already a usable sfnt (ttf/otf)
-        const { decompress } = await import("wawoff2");
-        return await decompress(bytes);
+        const exact = await withDeadline(fetchTtfOnce(family, weight, italic));
+        if (exact) return exact;
+        const snapped = weight >= BOLD_MIN ? 700 : 400;
+        if (snapped === weight) return null;
+        return await withDeadline(fetchTtfOnce(family, snapped, italic));
     } catch {
         return null;
     }

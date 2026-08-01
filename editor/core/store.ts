@@ -432,7 +432,12 @@ export function removeSectionAt(id: string): void {
 }
 
 export function moveSectionBy(id: string, delta: number): void {
-    commit(moveSection(editor.artifact, id, delta));
+    const secs = editor.artifact.sections;
+    const i = secs.findIndex((s) => s.id === id);
+    if (i < 0) return;
+    // skip a clamped no-op at the ends so it doesn't push a spurious undo entry
+    const j = Math.max(0, Math.min(secs.length - 1, i + delta));
+    if (j !== i) commit(moveSection(editor.artifact, id, delta));
 }
 
 // move to an absolute drop position (0..n in the pre-move ordering) — for drag-to-reorder

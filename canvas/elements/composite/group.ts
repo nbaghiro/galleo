@@ -1,7 +1,7 @@
 import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
-import { getElement, register, bar } from "@elements/spec";
+import { getElement, register } from "@elements/spec";
 import { fit, grow } from "@model/geometry";
 import type { FlexDirection } from "@model/elements";
 import { DIRECTION_OPTIONS } from "@elements/composite/shared";
@@ -12,7 +12,6 @@ interface GroupData {
     children: ElementInstance[];
     direction?: FlexDirection;
     align?: Align; // cross-axis
-    distribute?: Align; // main-axis
 }
 
 // infer container cross-align from all-centered/all-end text children; explicit wins
@@ -36,8 +35,8 @@ const arrangeGroup = (d: GroupData, _ctx: LayoutCtx, kids: EngineNode[]): Engine
         h: fit(),
         direction: dir,
         gap: 14,
-        alignX: dir === "row" ? d.distribute : cross,
-        alignY: dir === "row" ? cross : d.distribute,
+        alignX: dir === "row" ? undefined : cross,
+        alignY: dir === "row" ? cross : undefined,
         children: kids,
     };
 };
@@ -62,7 +61,7 @@ export const groupElement: ElementSpec<GroupData> = {
         arrange: arrangeGroup,
         withChildren: (d, children) => ({ ...d, children }),
     },
-    bar: ["direction", "align", "distribute"],
+    bar: ["direction", "align"],
     controls: [
         {
             key: "direction",
@@ -80,24 +79,7 @@ export const groupElement: ElementSpec<GroupData> = {
                 { label: "Align end", value: "end", icon: "alignItemsEnd" },
             ],
         },
-        {
-            key: "distribute",
-            label: "Distribute",
-            control: "segmented",
-            options: [
-                { label: "Distribute start", value: "start", icon: "distStart" },
-                { label: "Distribute center", value: "center", icon: "distCenter" },
-                { label: "Distribute end", value: "end", icon: "distEnd" },
-            ],
-        },
     ],
-    skeleton: (): EngineNode => ({
-        w: grow(),
-        h: fit(),
-        direction: "col",
-        gap: 8,
-        children: [bar(0.8, 12), bar(1, 9), bar(0.6, 9)],
-    }),
 };
 
 register(groupElement);

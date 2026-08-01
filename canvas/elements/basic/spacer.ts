@@ -27,11 +27,6 @@ export const spacerElement: ElementSpec<SpacerData> = {
             unit: "px",
         },
     ],
-    skeleton: (): EngineNode => ({
-        w: grow(),
-        h: fixed(22),
-        fill: { color: "#e8e3d6", radius: 4 },
-    }),
 };
 
 register(spacerElement);

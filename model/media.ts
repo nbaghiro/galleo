@@ -5,7 +5,18 @@ export type MediaProvider = "openverse" | "unsplash" | "pexels" | "pixabay";
 export type MediaSource = "stock" | "generated" | "upload";
 
 // "photo" is the default (backgrounds + the Image element)
-export type MediaKind = "photo" | "gif" | "illustration" | "sticker" | "icon";
+export type MediaKind = "photo" | "gif" | "illustration" | "sticker" | "icon" | "video";
+
+// which stock providers can serve each kind — drives the picker's provider rail and is
+// enforced server-side in searchStock (icons search Iconify, not stock)
+export const KIND_PROVIDERS: Record<MediaKind, MediaProvider[]> = {
+    photo: ["openverse", "unsplash", "pexels", "pixabay"],
+    gif: ["openverse"],
+    illustration: ["openverse", "pixabay"],
+    sticker: ["openverse", "pixabay"],
+    icon: [],
+    video: ["pexels", "pixabay"],
+};
 
 // how to credit an image (Unsplash/Pexels require visible attribution)
 export interface MediaAttribution {
@@ -39,7 +50,8 @@ export interface MediaGenerateRequest {
     prompt: string;
     aspect?: string; // "16:9" | "4:3" | "1:1" | "3:4" | "9:16"
     n?: number; // number of variations (1–4)
-    style?: MediaGenStyle; // shapes the prompt
+    style?: MediaGenStyle; // shapes the prompt (ignored when refining)
+    refId?: string; // asset id of a previous take → image-conditioned refinement
 }
 
 // each maps to a prompt prefix on the backend

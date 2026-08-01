@@ -73,7 +73,10 @@ export const bgImage = (seedOrSrc: string, scrim = 0.5): SectionBackground => ({
     scrim,
 });
 
-export const video = (url: string): ElementInstance => ({ type: "video", data: { url } });
+export const video = (src: string): ElementInstance => ({
+    type: "video",
+    data: { src, controls: true },
+});
 
 export const badge = (text: string): ElementInstance => ({ type: "badge", data: { text } });
 

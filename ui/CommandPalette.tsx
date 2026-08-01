@@ -6,6 +6,7 @@ import {
     bindingLabel,
     closePalette,
     currentCtx,
+    keyHintIcon,
     listCommands,
     paletteOpen,
     pushScope,
@@ -49,6 +50,7 @@ const PaletteBody: Component = () => {
             run: c.run,
             provider: c.provider,
             hint: bindingLabel(c.id) ?? undefined,
+            hintIcon: keyHintIcon(c.id) ?? undefined,
         }));
 
     const levelTitle = (): string | undefined => stack().at(-1)?.title;
@@ -127,7 +129,14 @@ const PaletteBody: Component = () => {
             <Show when={row.provider}>
                 <Icon name="chevronRight" size={14} />
             </Show>
-            <Show when={row.hint}>
+            <Show when={row.hintIcon}>
+                {(name) => (
+                    <span class="text-muted">
+                        <Icon name={name()} size={15} />
+                    </span>
+                )}
+            </Show>
+            <Show when={!row.hintIcon && row.hint}>
                 {(h) => <span class="font-mono text-[11px] text-muted">{h()}</span>}
             </Show>
         </button>

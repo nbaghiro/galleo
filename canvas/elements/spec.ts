@@ -34,6 +34,7 @@ export interface LayoutCtx {
     availWidth: number;
     format: FormatDescriptor;
     theme: Tokens;
+    plain?: boolean; // read-only render (previews/thumbnails): suppress editor-only affordances (empty-region drop zones)
 }
 
 export type ControlKind =
@@ -81,7 +82,7 @@ export interface ElementSpec<Data = unknown> {
     // Studio-only editing affordances (inert for layout/present/export):
     richText?: boolean; // primary text supports inline marks → marks-aware editor + mark bar
     bar?: string[]; // control keys to surface in the on-canvas format bar
-    frame?: boolean; // has a visible frame (fill/image) → offer the corner-radius control
+    frame?: boolean; // has a visible frame (fill/image) → corner-radius slider in the inspector
 
     // canvas resize handles: width → a universal ElementLayout %; height/aspect → an explicit data field
     resize?: {
@@ -90,8 +91,6 @@ export interface ElementSpec<Data = unknown> {
         aspect?: { min: number; max: number }; // bottom handle → data.aspect (width / height)
     };
     fallback?: (data: Data) => Data; // interactive -> static for paged/export
-    // palette + drop-preview ghost; if absent, derived from layout(create()) via skeletonize()
-    skeleton?: (ctx: LayoutCtx) => EngineNode;
     // compose() uses children+arrange to recurse + address nested elements; ops use children+withChildren
     // to insert/remove. `layout` stays the standalone (e.g. skeleton) path.
     container?: {
@@ -272,9 +271,4 @@ export function skeletonize(node: EngineNode, colors: GhostColors = DEFAULT_GHOS
     }
     if (node.children) out.children = node.children.map((c) => skeletonize(c, colors));
     return out;
-}
-
-export function skeletonFor(spec: ElementSpec, ctx: LayoutCtx): EngineNode {
-    if (spec.skeleton) return spec.skeleton(ctx);
-    return skeletonize(spec.layout(spec.create(), ctx));
 }

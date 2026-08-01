@@ -5,7 +5,6 @@ import { fixed, grow } from "@model/geometry";
 import { renderChart } from "./render";
 import { chartTypeOptions } from "./utils";
 import type { ChartData } from "./utils";
-import { barsSkel, bandsSkel, discSkel, dotsSkel, gridSkel } from "../skeletons";
 
 export const CHART_CONTROLS: ControlField[] = [
     // getter so it reads the live type registry each render; a frozen array would capture an empty list on hot re-exec
@@ -80,7 +79,6 @@ function chartSpec(
     label: string,
     chartType: string,
     preset: Partial<ChartData>,
-    skeleton: () => EngineNode,
 ): ElementSpec<ChartData> {
     return {
         type: typeKey,
@@ -108,19 +106,14 @@ function chartSpec(
         resize: { height: { key: "height", min: 160, max: 460, step: 10 } },
         bar: ["type", "palette"],
         controls: CHART_CONTROLS,
-        skeleton,
     };
 }
-
-const barsGhost = (): EngineNode => barsSkel([18, 34, 26, 42, 30]);
-const lineGhost = (): EngineNode => barsSkel([16, 22, 20, 30, 38]);
 
 const VARIANTS: {
     key: string;
     label: string;
     type: string;
     preset: Partial<ChartData>;
-    skel: () => EngineNode;
 }[] = [
     {
         key: "barChart",
@@ -131,7 +124,6 @@ const VARIANTS: {
             categories: "Q1, Q2, Q3, Q4",
             seriesNames: "2024, 2025",
         },
-        skel: barsGhost,
     },
     {
         key: "columnChart",
@@ -142,7 +134,6 @@ const VARIANTS: {
             categories: "North, South, East, West",
             seriesNames: "Units",
         },
-        skel: barsGhost,
     },
     {
         key: "lineChart",
@@ -153,7 +144,6 @@ const VARIANTS: {
             categories: "Jan, Feb, Mar, Apr, May, Jun",
             seriesNames: "MRR ($k)",
         },
-        skel: lineGhost,
     },
     {
         key: "areaChart",
@@ -164,21 +154,18 @@ const VARIANTS: {
             categories: "Jan, Feb, Mar, Apr, May, Jun",
             seriesNames: "Sessions (k)",
         },
-        skel: lineGhost,
     },
     {
         key: "pieChart",
         label: "Pie chart",
         type: "pie",
         preset: { values: "42, 26, 18, 14", categories: "Direct, Organic, Referral, Social" },
-        skel: discSkel,
     },
     {
         key: "donutChart",
         label: "Donut chart",
         type: "donut",
         preset: { values: "42, 26, 18, 14", categories: "Direct, Organic, Referral, Social" },
-        skel: discSkel,
     },
     {
         key: "radarChart",
@@ -188,21 +175,18 @@ const VARIANTS: {
             values: "80, 92, 70, 62, 86, 74",
             categories: "Speed, Design, Support, Price, Docs, API",
         },
-        skel: discSkel,
     },
     {
         key: "scatterChart",
         label: "Scatter plot",
         type: "scatter",
         preset: { values: "5, 12, 18, 24, 30, 38, 45\n8, 15, 14, 26, 30, 42, 40" },
-        skel: dotsSkel,
     },
     {
         key: "bubbleChart",
         label: "Bubble chart",
         type: "bubble",
         preset: { values: "10, 25, 40, 55, 70\n30, 55, 40, 68, 50\n12, 30, 20, 44, 26" },
-        skel: dotsSkel,
     },
     {
         key: "funnelChart",
@@ -212,14 +196,12 @@ const VARIANTS: {
             values: "1200, 680, 340, 120",
             categories: "Visitors, Leads, Trials, Customers",
         },
-        skel: () => bandsSkel([1, 0.78, 0.56, 0.36]),
     },
     {
         key: "gaugeChart",
         label: "Gauge",
         type: "gauge",
         preset: { values: "72, 100", categories: "Satisfaction" },
-        skel: discSkel,
     },
     {
         key: "heatmapChart",
@@ -230,7 +212,6 @@ const VARIANTS: {
             categories: "9a, 12p, 3p, 6p",
             seriesNames: "Mon, Tue, Wed",
         },
-        skel: () => gridSkel(3, 4),
     },
     {
         key: "treemapChart",
@@ -240,19 +221,12 @@ const VARIANTS: {
             values: "420, 260, 180, 140, 90, 60",
             categories: "Search, Direct, Social, Email, Referral, Ads",
         },
-        skel: () => gridSkel(2, 3),
     },
 ];
 
-VARIANTS.forEach((v) => register(chartSpec(v.key, v.label, v.type, v.preset, v.skel)));
+VARIANTS.forEach((v) => register(chartSpec(v.key, v.label, v.type, v.preset)));
 
 // back-compat: existing { type: "chart" } artifacts keep rendering; hidden from the palette
 register(
-    chartSpec(
-        "chart",
-        "Chart",
-        "bar",
-        { values: "48, 62, 55, 71", categories: "Q1, Q2, Q3, Q4" },
-        barsGhost,
-    ),
+    chartSpec("chart", "Chart", "bar", { values: "48, 62, 55, 71", categories: "Q1, Q2, Q3, Q4" }),
 );

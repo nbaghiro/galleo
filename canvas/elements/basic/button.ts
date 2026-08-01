@@ -1,6 +1,6 @@
 import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
-import { register, pill } from "@elements/spec";
+import { register } from "@elements/spec";
 import { drawIcon, type IconGlyph } from "@elements/media/vector";
 import { fit, fixed } from "@model/geometry";
 import { fontStack, hexA } from "@themes";
@@ -129,8 +129,6 @@ export const buttonElement: ElementSpec<ButtonData> = {
         { key: "href", label: "Link", control: "text", placeholder: "https://…", group: "Link" },
         { key: "icon", label: "Leading icon", control: "icon", group: "Icon" },
     ],
-    // fit-width pill collapses under auto-skeletonize, so draw a pill directly.
-    skeleton: (_ctx: LayoutCtx): EngineNode => pill(0.45, 38),
 };
 
 register(buttonElement);

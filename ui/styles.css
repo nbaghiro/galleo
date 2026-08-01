@@ -111,9 +111,12 @@ body {
     }
 }
 
-/* PDF export: show only the print container, one section per page. */
+/* PDF export: show only the print container, one section per page. Color-adjust keeps
+   section backgrounds (images, fills, scrims) in print — browsers strip them by default. */
 #galleo-print {
     display: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
 }
 @media print {
     #root {

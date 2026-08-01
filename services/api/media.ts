@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { streamSSE } from "hono/streaming";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import type {
     MediaAttribution,
@@ -17,7 +17,14 @@ import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
 import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
 import { fireDownloadTrigger, searchStock, stockReady } from "../media/providers";
-import { streamImages, imageGenReady } from "../media/generate";
+import {
+    streamImages,
+    imageGenReady,
+    generateVideo,
+    videoGenReady,
+    type GenRef,
+} from "../media/generate";
+import { costOf } from "@model/credits";
 import { getIcon, searchIcons } from "../media/icons";
 
 // Stored media lives in the assets table; stock stays a provider CDN url; all sources normalize to MediaItem.
@@ -60,7 +67,11 @@ function toItem(row: AssetRow): MediaItem {
 media.get("/media/providers", async (c) => {
     const ws = await requireWs(c);
     if (typeof ws !== "string") return ws;
-    return c.json({ stock: stockReady(), generate: imageGenReady() });
+    return c.json({
+        stock: stockReady(),
+        generate: imageGenReady(),
+        generateVideo: videoGenReady(),
+    });
 });
 
 media.get("/media/search", async (c) => {
@@ -114,16 +125,28 @@ media.post("/media/generate", async (c) => {
     const ws = await currentWorkspace(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
     if (!imageGenReady()) return c.json({ error: "image generation not configured" }, 503);
-    const { prompt, aspect, n, style } = await readJson<{
+    const { prompt, aspect, n, style, refId } = await readJson<{
         prompt?: string;
         aspect?: string;
         n?: number;
         style?: MediaGenStyle;
+        refId?: string;
     }>(c);
     if (!prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
     const p = prompt.trim();
 
-    const want = Math.max(1, Math.min(4, n ?? 4));
+    // resolve the refinement base before reserving credits, so a bad ref fails uncharged
+    let ref: GenRef | undefined;
+    if (refId) {
+        const [a] = await db
+            .select({ data: schema.assets.data, mime: schema.assets.mime })
+            .from(schema.assets)
+            .where(and(eq(schema.assets.id, refId), eq(schema.assets.workspaceId, ws.id)));
+        if (!a?.data) return c.json({ error: "reference image not found" }, 400);
+        ref = { data: a.data, mime: a.mime ?? "image/png" };
+    }
+
+    const want = Math.max(1, Math.min(4, n ?? 1));
     const reserve = estimateCost("generate-image", { variations: want });
     const limit = limitsFor(ws.plan).aiCreditsPerMonth;
     if (ws.aiCreditsUsed + reserve > limit)
@@ -145,7 +168,7 @@ media.post("/media/generate", async (c) => {
             stream.writeSSE({ data: JSON.stringify(data) });
         let produced = 0;
         try {
-            for await (const img of streamImages(p, aspect, want, style ?? "photo")) {
+            for await (const img of streamImages(p, aspect, want, style ?? "photo", ref)) {
                 if (!img) {
                     await send({ type: "fail" });
                     continue;
@@ -188,6 +211,85 @@ media.post("/media/generate", async (c) => {
                 await db
                     .update(schema.workspaces)
                     .set({ aiCreditsUsed: finalUsed })
+                    .where(eq(schema.workspaces.id, ws.id));
+            await send({ type: "done", produced });
+        }
+    });
+});
+
+// One 8s clip per request; a long-running Veo operation streams progress heartbeats while polling.
+media.post("/media/generate-video", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await currentWorkspace(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+    if (!videoGenReady()) return c.json({ error: "video generation not configured" }, 503);
+    const { prompt, aspect } = await readJson<{ prompt?: string; aspect?: string }>(c);
+    if (!prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
+    const p = prompt.trim();
+    const ar = aspect === "9:16" ? "9:16" : "16:9";
+
+    const reserve = costOf({ video: 1 });
+    const limit = limitsFor(ws.plan).aiCreditsPerMonth;
+    if (ws.aiCreditsUsed + reserve > limit)
+        return c.json(
+            {
+                error: "out of AI credits",
+                upgrade: true,
+                remaining: Math.max(0, limit - ws.aiCreditsUsed),
+            },
+            402,
+        );
+    await db
+        .update(schema.workspaces)
+        .set({ aiCreditsUsed: ws.aiCreditsUsed + reserve })
+        .where(eq(schema.workspaces.id, ws.id));
+
+    return streamSSE(c, async (stream) => {
+        const send = (data: unknown): Promise<void> =>
+            stream.writeSSE({ data: JSON.stringify(data) });
+        let produced = 0;
+        try {
+            const vid = await generateVideo(p, ar, () => send({ type: "progress" }));
+            if (!vid) {
+                await send({ type: "fail", error: "generation timed out" });
+            } else {
+                const id = crypto.randomUUID();
+                const meta: AssetMeta = { prompt: p };
+                await db.insert(schema.assets).values({
+                    id,
+                    workspaceId: ws.id,
+                    kind: "video",
+                    source: "generated",
+                    url: assetUrl(id),
+                    width: vid.width,
+                    height: vid.height,
+                    bytes: Buffer.from(vid.dataBase64, "base64").length,
+                    alt: p.slice(0, 160),
+                    meta,
+                    data: vid.dataBase64,
+                    mime: vid.mime,
+                });
+                produced = 1;
+                const item: MediaItem = {
+                    id,
+                    source: "generated",
+                    url: assetUrl(id),
+                    thumbUrl: assetUrl(id),
+                    width: vid.width,
+                    height: vid.height,
+                    alt: p.slice(0, 160),
+                    prompt: p,
+                };
+                await send({ type: "video", item });
+            }
+        } catch (e) {
+            await send({ type: "fail", error: e instanceof Error ? e.message : "failed" });
+        } finally {
+            if (!produced)
+                await db
+                    .update(schema.workspaces)
+                    .set({ aiCreditsUsed: ws.aiCreditsUsed })
                     .where(eq(schema.workspaces.id, ws.id));
             await send({ type: "done", produced });
         }
@@ -277,10 +379,11 @@ media.post("/media/use", async (c) => {
 media.get("/media/recent", async (c) => {
     const ws = await requireWs(c);
     if (typeof ws !== "string") return ws;
+    // image recents only — the picker's Recent tab renders <img> tiles (no video surface there)
     const rows = await db
         .select()
         .from(schema.assets)
-        .where(eq(schema.assets.workspaceId, ws))
+        .where(and(eq(schema.assets.workspaceId, ws), ne(schema.assets.kind, "video")))
         .orderBy(desc(schema.assets.createdAt))
         .limit(RECENT_LIMIT);
     return c.json({ items: rows.map(toItem) });

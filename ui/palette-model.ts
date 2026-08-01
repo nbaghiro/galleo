@@ -3,6 +3,7 @@ import { GROUP_LABEL, GROUP_ORDER, type CommandGroup, type PaletteItem } from ".
 
 export interface Row extends PaletteItem {
     group?: CommandGroup;
+    hintIcon?: string; // shared-Icon name shown instead of the text hint (glyph-rendered keys)
 }
 
 export const haystack = (r: Row): string => `${r.title} ${(r.keywords ?? []).join(" ")}`;
