@@ -4,6 +4,7 @@ import { setCookie, deleteCookie } from "hono/cookie";
 import type { User } from "@model/workspace";
 import { db, schema } from "../schema";
 import { readSessionPayload, makeSession, SESSION_COOKIE, SESSION_TTL_SECONDS } from "../auth";
+import { creditLimitFor } from "../features";
 
 // Defaults to {} on missing/malformed body, so field checks see undefined.
 export async function readJson<T>(c: Context): Promise<T> {
@@ -88,6 +89,13 @@ export async function currentWorkspace(userId: string) {
             .update(schema.workspaces)
             .set({ aiCreditsUsed: 0, creditsResetAt: next })
             .where(eq(schema.workspaces.id, ws.id));
+        if (ws.aiCreditsUsed > 0)
+            await db.insert(schema.credits).values({
+                workspaceId: ws.id,
+                delta: ws.aiCreditsUsed,
+                reason: "monthly-reset",
+                balanceAfter: creditLimitFor(ws),
+            });
         ws.aiCreditsUsed = 0;
         ws.creditsResetAt = next;
     }
