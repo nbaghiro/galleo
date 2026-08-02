@@ -3,7 +3,7 @@ import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 import { useLocation } from "@solidjs/router";
-import { luminance, themeCssVars, resolveTheme, THEME_LIST, THEME_CATEGORIES } from "@themes";
+import { luminance, themeCssVars, resolveTheme, THEME_LIST } from "@themes";
 import { resolveProfile } from "@engine/profile";
 import { paintSectionStack } from "@canvas/render/backends";
 import { setArtifactTheme } from "@elements/ops";
@@ -406,11 +406,10 @@ const ThemeEditorPanel: Component = () => {
         closeThemeEditor();
     };
 
-    // group built-ins into families; fixed order, empty families drop out
-    const builtInGroups = THEME_CATEGORIES.map((category) => ({
-        category,
-        themes: THEME_LIST.filter((t) => t.category === category),
-    })).filter((g) => g.themes.length);
+    const builtInGroups = [
+        { label: "Light", themes: THEME_LIST.filter((t) => !t.dark) },
+        { label: "Dark", themes: THEME_LIST.filter((t) => t.dark) },
+    ].filter((g) => g.themes.length);
 
     const card = (t: Theme, custom: boolean): JSX.Element => (
         <div class="group" style={{ width: `${CARD_W}px` }}>
@@ -595,7 +594,7 @@ const ThemeEditorPanel: Component = () => {
                                 {(g) => (
                                     <>
                                         <Eyebrow as="div" weight="normal" class="mb-2 mt-4">
-                                            {g.category}
+                                            {g.label}
                                         </Eyebrow>
                                         <div class="mb-1 flex flex-wrap gap-3">
                                             <For each={g.themes}>{(t) => card(t, false)}</For>

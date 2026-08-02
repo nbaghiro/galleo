@@ -854,7 +854,7 @@ export const marketAnalysis: ArtifactContent = doc(
     bgImage("ev-market-report-bg", 0.3),
 );
 
-export const qbr: ArtifactContent = doc("manuscript", [
+export const qbr: ArtifactContent = doc("studio", [
     section(
         "q1",
         group(

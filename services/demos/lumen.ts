@@ -22,7 +22,7 @@ import {
 } from "@model/authoring";
 
 export const lumen: ArtifactContent = web(
-    "atomic",
+    "clay",
     [
         section(
             "hero",

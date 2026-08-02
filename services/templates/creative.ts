@@ -21,7 +21,7 @@ import {
 } from "@model/authoring";
 
 export const resume: ArtifactContent = doc(
-    "manuscript",
+    "studio",
     [
         section(
             "r1",
