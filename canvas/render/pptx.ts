@@ -460,11 +460,11 @@ async function resolveFonts(used: UsedFonts): Promise<EmbedFamily[]> {
     return families.filter((f): f is EmbedFamily => f !== null);
 }
 
-export async function exportPptx(
+export async function buildPptx(
     artifact: ArtifactContent,
     tk: Tokens,
     opts?: ExportOptions,
-): Promise<void> {
+): Promise<Uint8Array> {
     const brand = opts?.brand ?? false;
     // Fonts must be resolved before we measure line breaks, or the pptx would wrap on fallback metrics.
     if (typeof document !== "undefined" && document.fonts?.ready) await document.fonts.ready;
@@ -525,16 +525,23 @@ export async function exportPptx(
         }
     }
 
-    // embed theme fonts (exact typefaces, no "missing fonts" prompt); any failure falls back to a plain export
+    // embed theme fonts (exact typefaces, no "missing fonts" prompt); any failure falls back to plain bytes
     try {
         const families = await resolveFonts(usedFonts);
         if (families.length) {
             const bytes = (await pptx.write({ outputType: "arraybuffer" })) as ArrayBuffer;
-            downloadBytes(await embedFontsIntoPptx(bytes, families), "galleo.pptx");
-            return;
+            return await embedFontsIntoPptx(bytes, families);
         }
     } catch {
-        // fall through to the un-embedded export
+        // fall through to the un-embedded bytes
     }
-    await pptx.writeFile({ fileName: "galleo.pptx" });
+    return new Uint8Array((await pptx.write({ outputType: "arraybuffer" })) as ArrayBuffer);
+}
+
+export async function exportPptx(
+    artifact: ArtifactContent,
+    tk: Tokens,
+    opts?: ExportOptions,
+): Promise<void> {
+    downloadBytes(await buildPptx(artifact, tk, opts), "galleo.pptx");
 }

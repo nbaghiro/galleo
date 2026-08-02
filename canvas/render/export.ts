@@ -39,7 +39,7 @@ async function canvasPng(canvas: HTMLCanvasElement): Promise<Uint8Array> {
     return blob ? new Uint8Array(await blob.arrayBuffer()) : new Uint8Array();
 }
 
-function download(bytes: Uint8Array | string, filename: string, type: string): void {
+export function downloadBytes(bytes: Uint8Array | string, filename: string, type: string): void {
     const url = URL.createObjectURL(new Blob([bytes as unknown as BlobPart], { type }));
     const a = document.createElement("a");
     a.href = url;
@@ -73,11 +73,11 @@ function stampBrand(
     cx.restore();
 }
 
-async function exportSlidePdfRaster(
+async function buildSlidePdfRaster(
     artifact: ArtifactContent,
     tk: Tokens,
     brand: boolean,
-): Promise<void> {
+): Promise<Uint8Array> {
     const profile = resolveProfile(artifact.format);
     const pdf = await PDFDocument.create();
     for (const section of artifact.sections) {
@@ -91,14 +91,14 @@ async function exportSlidePdfRaster(
             page.drawImage(img, { x: 0, y: 0, width: pageW, height: pageH });
         }
     }
-    download(await pdf.save(), "galleo.pdf", "application/pdf");
+    return pdf.save();
 }
 
-async function exportDocPdfRaster(
+async function buildDocPdfRaster(
     artifact: ArtifactContent,
     tk: Tokens,
     brand: boolean,
-): Promise<void> {
+): Promise<Uint8Array> {
     const docProfile = resolveProfile("doc");
     const layoutW = docProfile.maxContentWidth ?? 744;
     const pdf = await PDFDocument.create();
@@ -113,7 +113,7 @@ async function exportDocPdfRaster(
         const page = pdf.addPage([pageW, pageH]);
         page.drawImage(img, { x: 0, y: 0, width: pageW, height: pageH });
     }
-    download(await pdf.save(), "galleo-doc.pdf", "application/pdf");
+    return pdf.save();
 }
 
 // ── native (vector) PDF: emit each RenderCommand as real text/paths, raster only what PDF can't express ──
@@ -184,8 +184,7 @@ async function renderFramedPdf(
     pages: FramedPage[],
     tk: Tokens,
     brand: boolean,
-    filename: string,
-): Promise<void> {
+): Promise<Uint8Array> {
     const pdf = await PDFDocument.create();
     const measureCx = measureCtx();
     const allText = pages.flatMap((p) => p.framed).filter(isTextCmd);
@@ -205,14 +204,14 @@ async function renderFramedPdf(
         for (const c of p.framed) await emitCommand(ctx, c, measureCx);
         if (brand) drawPdfBrand(ctx, p.pageW);
     }
-    download(await pdf.save(), filename, "application/pdf");
+    return pdf.save();
 }
 
-async function exportSlidePdfVector(
+async function buildSlidePdfVector(
     artifact: ArtifactContent,
     tk: Tokens,
     brand: boolean,
-): Promise<void> {
+): Promise<Uint8Array> {
     const profile = resolveProfile(artifact.format);
     const pages: FramedPage[] = [];
     for (const section of artifact.sections) {
@@ -233,14 +232,14 @@ async function exportSlidePdfVector(
             });
         }
     }
-    await renderFramedPdf(pages, tk, brand, "galleo.pdf");
+    return renderFramedPdf(pages, tk, brand);
 }
 
-async function exportDocPdfVector(
+async function buildDocPdfVector(
     artifact: ArtifactContent,
     tk: Tokens,
     brand: boolean,
-): Promise<void> {
+): Promise<Uint8Array> {
     const docProfile = resolveProfile("doc");
     const layoutW = docProfile.maxContentWidth ?? 744;
     const pages: FramedPage[] = [];
@@ -251,62 +250,94 @@ async function exportDocPdfVector(
         const t: Transform = { fit: pageW / layoutW, offX: 0, offY: 0 };
         pages.push({ framed: commands.map((c) => frameCommand(c, t)), pageW, pageH, bg: tk.bg });
     }
-    await renderFramedPdf(pages, tk, brand, "galleo-doc.pdf");
+    return renderFramedPdf(pages, tk, brand);
 }
 
 // vector export by default; any failure (font fetch, pdf-lib) degrades to the raster path
-async function exportSlidePdf(
+async function buildSlidePdf(
     artifact: ArtifactContent,
     tk: Tokens,
     brand: boolean,
-): Promise<void> {
+): Promise<Uint8Array> {
     try {
-        await exportSlidePdfVector(artifact, tk, brand);
+        return await buildSlidePdfVector(artifact, tk, brand);
     } catch {
-        await exportSlidePdfRaster(artifact, tk, brand);
+        return buildSlidePdfRaster(artifact, tk, brand);
     }
 }
-async function exportDocPdf(artifact: ArtifactContent, tk: Tokens, brand: boolean): Promise<void> {
+async function buildDocPdf(
+    artifact: ArtifactContent,
+    tk: Tokens,
+    brand: boolean,
+): Promise<Uint8Array> {
     try {
-        await exportDocPdfVector(artifact, tk, brand);
+        return await buildDocPdfVector(artifact, tk, brand);
     } catch {
-        await exportDocPdfRaster(artifact, tk, brand);
+        return buildDocPdfRaster(artifact, tk, brand);
     }
 }
 
-export function exportPdfAuto(
+export interface PdfBuild {
+    bytes: Uint8Array;
+    filename: string;
+}
+
+export async function buildPdfAuto(
     artifact: ArtifactContent,
     tk: Tokens,
     opts?: ExportOptions,
-): Promise<void> {
+): Promise<PdfBuild> {
     const brand = opts?.brand ?? false;
     return resolveProfile(artifact.format).kind === "continuous"
-        ? exportDocPdf(artifact, tk, brand)
-        : exportSlidePdf(artifact, tk, brand);
+        ? { bytes: await buildDocPdf(artifact, tk, brand), filename: "galleo-doc.pdf" }
+        : { bytes: await buildSlidePdf(artifact, tk, brand), filename: "galleo.pdf" };
 }
 
-// one PNG per section (paged formats split tall sections into numbered slide parts), zipped together
-export async function exportSectionPngs(
+export async function exportPdfAuto(
     artifact: ArtifactContent,
     tk: Tokens,
     opts?: ExportOptions,
 ): Promise<void> {
-    const profile = resolveProfile(artifact.format);
-    const continuous = profile.kind === "continuous";
+    const { bytes, filename } = await buildPdfAuto(artifact, tk, opts);
+    downloadBytes(bytes, filename, "application/pdf");
+}
+
+export interface SectionPng {
+    name: string;
+    bytes: Uint8Array;
+}
+
+// "auto" mirrors the export (continuous → doc pages, paged → slides); "doc"/"slides" force a
+// composition — the modal previews print as doc pages and pptx as slides regardless of format
+export type PngCompose = "auto" | "doc" | "slides";
+
+// one PNG per section; paged compositions split tall sections into numbered slide parts
+export async function buildSectionPngs(
+    artifact: ArtifactContent,
+    tk: Tokens,
+    opts?: ExportOptions & { compose?: PngCompose },
+): Promise<SectionPng[]> {
+    const own = resolveProfile(artifact.format);
+    const mode = opts?.compose ?? "auto";
+    const asDoc = mode === "doc" || (mode === "auto" && own.kind === "continuous");
+    const profile = asDoc
+        ? resolveProfile("doc")
+        : mode === "slides"
+          ? resolveProfile("deck")
+          : own;
     const layoutW = profile.maxContentWidth ?? PRINT_W;
-    const JSZip = (await import("jszip")).default;
-    const zip = new JSZip();
     const pad = (n: number): string => String(n).padStart(2, "0");
+    const files: SectionPng[] = [];
 
     const addPage = async (canvas: HTMLCanvasElement, name: string): Promise<void> => {
         const cx = canvas.getContext("2d");
         if (opts?.brand && cx) stampBrand(cx, canvas.width, canvas.height, EXPORT_SCALE);
-        zip.file(name, await canvasPng(canvas));
+        files.push({ name, bytes: await canvasPng(canvas) });
     };
 
     for (const [ix, section] of artifact.sections.entries()) {
         const stem = `${pad(ix + 1)}-${section.id}`;
-        if (continuous) {
+        if (asDoc) {
             const { commands, height } = layoutSection(section, layoutW, measureText, tk, profile);
             if (height < 1) continue;
             await addPage(
@@ -321,8 +352,23 @@ export async function exportSectionPngs(
             }
         }
     }
-    const bytes = await zip.generateAsync({ type: "uint8array" });
-    download(bytes, "galleo-sections.zip", "application/zip");
+    return files;
+}
+
+export async function buildSectionPngZip(files: SectionPng[]): Promise<Uint8Array> {
+    const JSZip = (await import("jszip")).default;
+    const zip = new JSZip();
+    for (const f of files) zip.file(f.name, f.bytes);
+    return zip.generateAsync({ type: "uint8array" });
+}
+
+export async function exportSectionPngs(
+    artifact: ArtifactContent,
+    tk: Tokens,
+    opts?: ExportOptions,
+): Promise<void> {
+    const files = await buildSectionPngs(artifact, tk, opts);
+    downloadBytes(await buildSectionPngZip(files), "galleo-sections.zip", "application/zip");
 }
 
 // A4 portrait width in CSS px at 96dpi with zero @page margins — the widest safe print target

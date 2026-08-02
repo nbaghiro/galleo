@@ -1,16 +1,29 @@
 import type { Component } from "solid-js";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createResource, createSignal, For, Match, Show, Switch } from "solid-js";
 import type { ExportFormat } from "@model/billing";
-import type { FormatDescriptor } from "@model/geometry";
 import { resolveProfile } from "@engine/profile";
 import { sectionSlides } from "@canvas/render/commands";
-import { exportPdfAuto, exportPrint, exportSectionPngs, PRINT_W } from "@canvas/render/export";
-import { exportPptx } from "@canvas/render/pptx";
-import { ScaledSectionCanvas } from "@ui/section";
+import {
+    buildPdfAuto,
+    buildSectionPngs,
+    buildSectionPngZip,
+    downloadBytes,
+    exportPrint,
+    type SectionPng,
+} from "@canvas/render/export";
+import { buildPptx } from "@canvas/render/pptx";
 import { Icon } from "@ui/icons";
-import { Badge, Button, IconButton } from "@ui/button";
+import { Badge, Button, IconButton, Spinner } from "@ui/button";
 import { Modal } from "@ui/overlay";
-import { editor, editorTokens, features, requestUpgrade } from "../core/store";
+import { cachedExport } from "../core/exportCache";
+import {
+    currentArtifactId,
+    editSeq,
+    editor,
+    editorTokens,
+    features,
+    requestUpgrade,
+} from "../core/store";
 
 const [target, setTarget] = createSignal(false);
 export function openExportModal(): void {
@@ -37,14 +50,35 @@ const CTA: Record<Dest, string> = {
     print: "Open print dialog",
 };
 
+const PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+
+type Preview =
+    | { kind: "pdf"; url: string }
+    | { kind: "pages"; pages: { url: string; caption: string }[] };
+
+const blobUrl = (bytes: Uint8Array, type: string): string =>
+    URL.createObjectURL(new Blob([bytes as BlobPart], { type }));
+
+const toPages = (files: SectionPng[], caption: (f: SectionPng, i: number) => string): Preview => ({
+    kind: "pages",
+    pages: files.map((f, i) => ({ url: blobUrl(f.bytes, "image/png"), caption: caption(f, i) })),
+});
+
+const disposePreview = (p: Preview): void => {
+    if (p.kind === "pdf") URL.revokeObjectURL(p.url);
+    else p.pages.forEach((x) => URL.revokeObjectURL(x.url));
+};
+
 const Body: Component = () => {
     const [dest, setDest] = createSignal<Dest>("pdf");
     const [busy, setBusy] = createSignal(false);
 
     const profile = createMemo(() => resolveProfile(editor.artifact.format));
     const continuous = createMemo(() => profile().kind === "continuous");
-    const docProfile = resolveProfile("doc");
-    const docW = docProfile.maxContentWidth ?? PRINT_W;
+    const brand = createMemo(() => !features().removeBranding);
+    // one build per destination per artifact state — tab hops and the Export click reuse it
+    const fp = createMemo(() => `${currentArtifactId()}:${editSeq()}:${brand() ? 1 : 0}`);
+
     const nSections = createMemo(() => editor.artifact.sections.length);
     const nSlides = createMemo(() =>
         editor.artifact.sections.reduce(
@@ -53,27 +87,69 @@ const Body: Component = () => {
         ),
     );
 
-    // how the chosen destination frames each section cell
-    const cell = createMemo(
-        (): {
-            frame: "slide" | "natural";
-            profile: FormatDescriptor;
-            layoutWidth?: number;
-            width: number;
-        } => {
-            const d = dest();
-            const slide = { frame: "slide" as const, profile: profile(), width: 280 };
-            if (d === "pptx") return slide;
-            // print always composes as a doc (paper is continuous), whatever the format toggle
-            const docPage = {
-                frame: "natural" as const,
-                profile: docProfile,
-                layoutWidth: docW,
-                width: 210,
-            };
-            if (d === "print") return docPage;
-            // pdf + png mirror the export: continuous → natural per-section pages, paged → slides
-            return continuous() ? docPage : slide;
+    // cached builders — the real export artifacts, not re-renders
+    const pdfBuild = (): Promise<{ bytes: Uint8Array; filename: string; url: string }> =>
+        cachedExport(
+            "pdf",
+            fp(),
+            async () => {
+                const b = await buildPdfAuto(editor.artifact, editorTokens(), { brand: brand() });
+                return { ...b, url: blobUrl(b.bytes, "application/pdf") };
+            },
+            (v) => URL.revokeObjectURL(v.url),
+        );
+    const pngFiles = (): Promise<SectionPng[]> =>
+        cachedExport("pngs", fp(), () =>
+            buildSectionPngs(editor.artifact, editorTokens(), { brand: brand() }),
+        );
+    const pngZip = (): Promise<Uint8Array> =>
+        cachedExport("zip", fp(), async () => buildSectionPngZip(await pngFiles()));
+    const pptxBytes = (): Promise<Uint8Array> =>
+        cachedExport("pptx", fp(), () =>
+            buildPptx(editor.artifact, editorTokens(), { brand: brand() }),
+        );
+    const pngPreview = (): Promise<Preview> =>
+        cachedExport(
+            "pngs:preview",
+            fp(),
+            async () => toPages(await pngFiles(), (f) => f.name),
+            disposePreview,
+        );
+    // pptx preview: the same slides the deck carries, rendered by the same pipeline
+    const pptxPreview = (): Promise<Preview> =>
+        cachedExport(
+            "pptx:preview",
+            fp(),
+            async () =>
+                toPages(
+                    await buildSectionPngs(editor.artifact, editorTokens(), {
+                        brand: brand(),
+                        compose: "slides",
+                    }),
+                    (_f, i) => `slide ${i + 1}`,
+                ),
+            disposePreview,
+        );
+    // print composes as a doc, unbranded (the print path stamps nothing)
+    const printPreview = (): Promise<Preview> =>
+        cachedExport(
+            "print:preview",
+            fp(),
+            async () =>
+                toPages(
+                    await buildSectionPngs(editor.artifact, editorTokens(), { compose: "doc" }),
+                    (_f, i) => `page ${i + 1}`,
+                ),
+            disposePreview,
+        );
+
+    const [preview, { refetch }] = createResource(
+        () => ({ d: dest(), fp: fp() }),
+        async ({ d }): Promise<Preview> => {
+            if (d === "pdf") return { kind: "pdf", url: (await pdfBuild()).url };
+            if (d === "pptx") return pptxPreview();
+            if (d === "png") return pngPreview();
+            return printPreview();
         },
     );
 
@@ -94,14 +170,6 @@ const Body: Component = () => {
         }
     });
 
-    const caption = (ix: number, id: string): string => {
-        if (dest() === "png") {
-            const stem = `${String(ix + 1).padStart(2, "0")}-${id}`;
-            return `${stem.length > 18 ? `${stem.slice(0, 17)}…` : stem}.png`;
-        }
-        return dest() === "pptx" ? `slide ${ix + 1}` : `page ${ix + 1}`;
-    };
-
     const allowed = (d: Dest): boolean => features().exportFormats.includes(d);
     const run = async (): Promise<void> => {
         const d = dest();
@@ -110,12 +178,13 @@ const Body: Component = () => {
             return;
         }
         setBusy(true);
-        const brand = !features().removeBranding;
         try {
-            if (d === "pdf") await exportPdfAuto(editor.artifact, editorTokens(), { brand });
-            else if (d === "pptx") await exportPptx(editor.artifact, editorTokens(), { brand });
+            if (d === "pdf") {
+                const b = await pdfBuild();
+                downloadBytes(b.bytes, b.filename, "application/pdf");
+            } else if (d === "pptx") downloadBytes(await pptxBytes(), "galleo.pptx", PPTX_MIME);
             else if (d === "png")
-                await exportSectionPngs(editor.artifact, editorTokens(), { brand });
+                downloadBytes(await pngZip(), "galleo-sections.zip", "application/zip");
             else await exportPrint(editor.artifact, editorTokens());
             close();
         } finally {
@@ -127,7 +196,8 @@ const Body: Component = () => {
         <Modal
             onClose={close}
             scrim="blur"
-            class="flex h-[min(700px,90vh)] w-[min(920px,94vw)] flex-col overflow-hidden"
+            size="full"
+            class="flex h-[min(980px,94vh)] w-[min(1520px,96vw)] flex-col overflow-hidden"
         >
             <div class="flex items-center gap-3 border-b border-line px-5 py-3.5">
                 <div class="text-[15px] font-semibold">Export</div>
@@ -166,29 +236,56 @@ const Body: Component = () => {
                 </For>
             </div>
 
-            <div class="min-h-0 flex-1 overflow-auto bg-ink/90">
-                <div class="flex min-h-full w-max min-w-full items-center gap-5 px-6 py-6">
-                    <For each={editor.artifact.sections}>
-                        {(section, ix) => (
-                            <div class="flex-none">
-                                <ScaledSectionCanvas
-                                    section={section}
-                                    theme={editorTokens()}
-                                    profile={cell().profile}
-                                    frame={cell().frame}
-                                    layoutWidth={cell().layoutWidth}
-                                    width={cell().width}
-                                    lazy
-                                    baseShadow
-                                    radius={3}
-                                />
-                                <div class="mt-2 text-center font-mono text-[9.5px] text-canvas/70">
-                                    {caption(ix(), section.id)}
+            <div class="min-h-0 flex-1 overflow-hidden bg-ink/90">
+                <Switch>
+                    <Match when={preview.loading}>
+                        <div class="flex h-full flex-col items-center justify-center gap-3 text-canvas/80">
+                            <Spinner size={20} tone="accent" />
+                            <span class="text-[13px]">
+                                Rendering {DESTS.find((d) => d.id === dest())?.label}…
+                            </span>
+                        </div>
+                    </Match>
+                    <Match when={preview.error}>
+                        <div class="flex h-full flex-col items-center justify-center gap-3 text-canvas/80">
+                            <span class="text-[13px]">Preview failed to render.</span>
+                            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                                Try again
+                            </Button>
+                        </div>
+                    </Match>
+                    <Match when={preview()?.kind === "pdf" && preview()}>
+                        {(p) => (
+                            <iframe
+                                title="PDF preview"
+                                src={`${(p() as Extract<Preview, { kind: "pdf" }>).url}#toolbar=0&navpanes=0&view=FitH`}
+                                class="h-full w-full border-0"
+                            />
+                        )}
+                    </Match>
+                    <Match when={preview()?.kind === "pages" && preview()}>
+                        {(p) => (
+                            <div class="h-full overflow-y-auto">
+                                <div class="mx-auto flex w-fit flex-col items-center gap-5 py-7">
+                                    <For each={(p() as Extract<Preview, { kind: "pages" }>).pages}>
+                                        {(page) => (
+                                            <div>
+                                                <img
+                                                    src={page.url}
+                                                    alt={page.caption}
+                                                    class="block max-w-[min(1100px,88vw)] rounded-sm shadow-2xl"
+                                                />
+                                                <div class="mt-2 text-center font-mono text-[9.5px] text-canvas/70">
+                                                    {page.caption}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </For>
                                 </div>
                             </div>
                         )}
-                    </For>
-                </div>
+                    </Match>
+                </Switch>
             </div>
 
             <div class="border-t border-line px-5 py-2.5 font-mono text-[11.5px] text-muted">
