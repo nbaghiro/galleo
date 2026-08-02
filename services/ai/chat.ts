@@ -5,7 +5,7 @@ import type { ChatBlock, ChatInput, TurnEvent } from "@model/ai";
 import { estimateUsage } from "@model/tools";
 import type { ElementInstance, Section } from "@model/artifact";
 import { resolveModel } from "./provider";
-import { defaultModelFor } from "./models";
+import { modelFor } from "./models";
 import { chatSystem } from "./prompts/chat";
 import type { RunOpts } from "./run";
 import { makeContext } from "./tools/registry";
@@ -81,6 +81,8 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         image: opts.image ?? {},
         workspace: opts.workspace,
         signal: opts.signal,
+        tier: opts.tier,
+        maxSections: opts.maxSections,
     });
 
     const wrap = <I, R>(
@@ -261,7 +263,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
     };
 
     const agent = new ToolLoopAgent({
-        model: resolveModel(opts.model ?? defaultModelFor("chat")),
+        model: resolveModel(opts.model ?? modelFor("chat", opts.tier)),
         instructions: chatSystem(input.context),
         tools,
         stopWhen: stepCountIs(6),

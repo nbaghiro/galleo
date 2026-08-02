@@ -1,10 +1,12 @@
 import { generateText } from "ai";
+import type { ModelTier } from "@model/billing";
 import { resolveModel, thinklessOpts } from "./provider";
-import { defaultModelFor } from "./models";
+import { modelFor } from "./models";
 import { rewriteTextParts, translateTextParts } from "./prompts/text";
 
 export interface TextOpts {
     context?: string; // surrounding text, when only a sub-range is edited
+    tier?: ModelTier;
     signal?: AbortSignal;
 }
 
@@ -29,11 +31,12 @@ export async function rewriteText(
     opts: TextOpts = {},
 ): Promise<string> {
     const parts = rewriteTextParts(text, instruction, opts.context);
+    const modelId = modelFor("rewrite", opts.tier);
     const { text: out } = await generateText({
-        model: resolveModel(defaultModelFor("rewrite")),
+        model: resolveModel(modelId),
         system: parts.system,
         prompt: parts.prompt,
-        providerOptions: thinklessOpts(defaultModelFor("rewrite")),
+        providerOptions: thinklessOpts(modelId),
         abortSignal: opts.signal,
     });
     return clean(out, text);
@@ -45,11 +48,12 @@ export async function translateText(
     opts: TextOpts = {},
 ): Promise<string> {
     const parts = translateTextParts(text, language, opts.context);
+    const modelId = modelFor("translate", opts.tier);
     const { text: out } = await generateText({
-        model: resolveModel(defaultModelFor("translate")),
+        model: resolveModel(modelId),
         system: parts.system,
         prompt: parts.prompt,
-        providerOptions: thinklessOpts(defaultModelFor("translate")),
+        providerOptions: thinklessOpts(modelId),
         abortSignal: opts.signal,
     });
     return clean(out, text);

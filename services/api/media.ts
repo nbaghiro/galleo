@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { streamSSE } from "hono/streaming";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import type {
     MediaAttribution,
@@ -12,8 +12,11 @@ import type {
     MediaSource,
 } from "@model/media";
 import { estimateCost } from "@model/tools";
-import { limitsFor } from "@model/billing";
+import { isUnlimited } from "@model/billing";
+import type { FeatureOverrides } from "@model/features";
 import { db, schema } from "../schema";
+import { chargeCredits, settleCredits } from "../credits";
+import { featuresFor } from "../features";
 import { SESSION_COOKIE } from "../auth";
 import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
 import { fireDownloadTrigger, searchStock, stockReady } from "../media/providers";
@@ -47,6 +50,24 @@ async function requireWs(c: Context): Promise<string | Response> {
     if (!ws) return c.json({ error: "no workspace" }, 400);
     return ws;
 }
+
+const MB = 1024 * 1024;
+
+// Stored bytes only — stock rows reference the provider CDN (data/bytes stay null) and cost nothing.
+async function storageFull(
+    ws: { id: string; plan: string | null; featureOverrides?: FeatureOverrides | null },
+    incoming = 0,
+): Promise<boolean> {
+    const capMb = featuresFor(ws).storageMb;
+    if (isUnlimited(capMb)) return false;
+    const [row] = await db
+        .select({ total: sql<string>`COALESCE(SUM(${schema.assets.bytes}), 0)` })
+        .from(schema.assets)
+        .where(and(eq(schema.assets.workspaceId, ws.id), isNotNull(schema.assets.data)));
+    return Number(row?.total ?? 0) + incoming > capMb * MB;
+}
+
+const STORAGE_FULL = { error: "storage limit reached", upgrade: true } as const;
 
 type AssetRow = typeof schema.assets.$inferSelect;
 function toItem(row: AssetRow): MediaItem {
@@ -146,29 +167,29 @@ media.post("/media/generate", async (c) => {
         ref = { data: a.data, mime: a.mime ?? "image/png" };
     }
 
+    if (await storageFull(ws)) return c.json(STORAGE_FULL, 402);
     const want = Math.max(1, Math.min(4, n ?? 1));
     const reserve = estimateCost("generate-image", { variations: want });
-    const limit = limitsFor(ws.plan).aiCreditsPerMonth;
-    if (ws.aiCreditsUsed + reserve > limit)
+    const spend = await chargeCredits(ws, reserve, "generate-image");
+    if (!spend.ok)
         return c.json(
-            {
-                error: "out of AI credits",
-                upgrade: true,
-                remaining: Math.max(0, limit - ws.aiCreditsUsed),
-            },
+            { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
             402,
         );
-    await db
-        .update(schema.workspaces)
-        .set({ aiCreditsUsed: ws.aiCreditsUsed + reserve })
-        .where(eq(schema.workspaces.id, ws.id));
 
     return streamSSE(c, async (stream) => {
         const send = (data: unknown): Promise<void> =>
             stream.writeSSE({ data: JSON.stringify(data) });
         let produced = 0;
         try {
-            for await (const img of streamImages(p, aspect, want, style ?? "photo", ref)) {
+            for await (const img of streamImages(
+                p,
+                aspect,
+                want,
+                style ?? "photo",
+                ref,
+                featuresFor(ws).imageModelTier,
+            )) {
                 if (!img) {
                     await send({ type: "fail" });
                     continue;
@@ -204,14 +225,8 @@ media.post("/media/generate", async (c) => {
             }
         } finally {
             // Reconcile the reserve down to what was produced (refund the shortfall).
-            const finalUsed = produced
-                ? ws.aiCreditsUsed + estimateCost("generate-image", { variations: produced })
-                : ws.aiCreditsUsed;
-            if (finalUsed !== ws.aiCreditsUsed + reserve)
-                await db
-                    .update(schema.workspaces)
-                    .set({ aiCreditsUsed: finalUsed })
-                    .where(eq(schema.workspaces.id, ws.id));
+            const actual = produced ? estimateCost("generate-image", { variations: produced }) : 0;
+            await settleCredits(ws, actual - reserve, "generate-image:settle");
             await send({ type: "done", produced });
         }
     });
@@ -229,21 +244,14 @@ media.post("/media/generate-video", async (c) => {
     const p = prompt.trim();
     const ar = aspect === "9:16" ? "9:16" : "16:9";
 
+    if (await storageFull(ws)) return c.json(STORAGE_FULL, 402);
     const reserve = costOf({ video: 1 });
-    const limit = limitsFor(ws.plan).aiCreditsPerMonth;
-    if (ws.aiCreditsUsed + reserve > limit)
+    const spend = await chargeCredits(ws, reserve, "generate-video");
+    if (!spend.ok)
         return c.json(
-            {
-                error: "out of AI credits",
-                upgrade: true,
-                remaining: Math.max(0, limit - ws.aiCreditsUsed),
-            },
+            { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
             402,
         );
-    await db
-        .update(schema.workspaces)
-        .set({ aiCreditsUsed: ws.aiCreditsUsed + reserve })
-        .where(eq(schema.workspaces.id, ws.id));
 
     return streamSSE(c, async (stream) => {
         const send = (data: unknown): Promise<void> =>
@@ -286,19 +294,17 @@ media.post("/media/generate-video", async (c) => {
         } catch (e) {
             await send({ type: "fail", error: e instanceof Error ? e.message : "failed" });
         } finally {
-            if (!produced)
-                await db
-                    .update(schema.workspaces)
-                    .set({ aiCreditsUsed: ws.aiCreditsUsed })
-                    .where(eq(schema.workspaces.id, ws.id));
+            if (!produced) await settleCredits(ws, -reserve, "generate-video:settle");
             await send({ type: "done", produced });
         }
     });
 });
 
 media.post("/media/upload", async (c) => {
-    const ws = await requireWs(c);
-    if (typeof ws !== "string") return ws;
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await currentWorkspace(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
     const body = await readJson<{
         data?: string;
         mime?: string;
@@ -307,16 +313,18 @@ media.post("/media/upload", async (c) => {
         height?: number;
     }>(c);
     if (!body.data || !body.mime) return c.json({ error: "data and mime are required" }, 400);
+    const bytes = Buffer.from(body.data, "base64").length;
+    if (await storageFull(ws, bytes)) return c.json(STORAGE_FULL, 402);
     const id = crypto.randomUUID();
     await db.insert(schema.assets).values({
         id,
-        workspaceId: ws,
+        workspaceId: ws.id,
         kind: "image",
         source: "upload",
         url: assetUrl(id),
         width: body.width ?? null,
         height: body.height ?? null,
-        bytes: Buffer.from(body.data, "base64").length,
+        bytes,
         alt: body.name ?? null,
         meta: {},
         data: body.data,

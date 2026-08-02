@@ -19,6 +19,7 @@ export const addSectionTool = register({
         return await chatAddSection(ctx.artifact, input.afterId, input.instruction, {
             image: ctx.image,
             signal: ctx.signal,
+            tier: ctx.tier,
         });
     },
 });
@@ -36,6 +37,7 @@ export const rewriteSectionTool = register({
         const section = await chatEditSection(ctx.artifact, input.sectionId, input.instruction, {
             image: ctx.image,
             signal: ctx.signal,
+            tier: ctx.tier,
         });
         if (!section) throw new Error(`there is no section "${input.sectionId}"`);
         return section;
@@ -64,6 +66,7 @@ export const editArtifactTool = register({
         const section = await chatEditSection(found.content, input.sectionId, input.instruction, {
             image: ctx.image,
             signal: ctx.signal,
+            tier: ctx.tier,
         });
         if (!section) throw new Error(`there is no section "${input.sectionId}"`);
         return {

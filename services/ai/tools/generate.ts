@@ -31,6 +31,14 @@ export const generateArtifactTool = register({
                     .filter((s): s is string => !!s?.trim())
                     .join("\n\n");
         }
-        yield* runGenerate({ ...input, source }, { image: ctx.image, signal: ctx.signal });
+        yield* runGenerate(
+            { ...input, source },
+            {
+                image: ctx.image,
+                signal: ctx.signal,
+                tier: ctx.tier,
+                maxSections: ctx.maxSections,
+            },
+        );
     },
 });

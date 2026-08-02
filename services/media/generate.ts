@@ -1,4 +1,5 @@
 import type { MediaGenStyle } from "@model/media";
+import type { ModelTier } from "@model/billing";
 
 export interface GeneratedImage {
     dataBase64: string;
@@ -22,7 +23,10 @@ const STYLE_PREFIX: Record<MediaGenStyle, string> = {
     watercolor: "Loose watercolor painting, soft washes, textured paper, of ",
 };
 
-const MODEL = (): string => process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image";
+const BASE_IMAGE_MODEL = "gemini-3.1-flash-image";
+// basic tier always renders on the base model; paid tiers use the (possibly better) env override
+const MODEL = (tier?: ModelTier): string =>
+    tier === "basic" ? BASE_IMAGE_MODEL : process.env.GEMINI_IMAGE_MODEL || BASE_IMAGE_MODEL;
 const VIDEO_MODEL = (): string => process.env.GEMINI_VIDEO_MODEL || "veo-3.1-fast-generate-preview";
 
 export function imageGenReady(): boolean {
@@ -78,9 +82,10 @@ async function generateOne(
     aspect: string | undefined,
     style: MediaGenStyle,
     ref?: GenRef,
+    tier?: ModelTier,
 ): Promise<GeneratedImage | null> {
     const key = process.env.GOOGLE_API_KEY!;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL()}:generateContent`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL(tier)}:generateContent`;
     const styled = `${STYLE_PREFIX[style]}${prompt}`;
     const parts = ref
         ? [{ inlineData: { mimeType: ref.mime, data: ref.data } }, { text: prompt }]
@@ -109,8 +114,9 @@ export async function generateImage(
     prompt: string,
     aspect: string | undefined,
     style: MediaGenStyle = "photo",
+    tier?: ModelTier,
 ): Promise<GeneratedImage | null> {
-    return generateOne(prompt, aspect, style).catch(() => null);
+    return generateOne(prompt, aspect, style, undefined, tier).catch(() => null);
 }
 
 export interface GeneratedVideo {
@@ -201,13 +207,14 @@ export async function* streamImages(
     n: number,
     style: MediaGenStyle = "photo",
     ref?: GenRef,
+    tier?: ModelTier,
 ): AsyncGenerator<GeneratedImage | null> {
     const count = Math.max(1, Math.min(4, n || 1));
     const pending = new Map<number, Promise<{ i: number; img: GeneratedImage | null }>>();
     for (let i = 0; i < count; i++)
         pending.set(
             i,
-            generateOne(prompt, aspect, style, ref).then(
+            generateOne(prompt, aspect, style, ref, tier).then(
                 (img) => ({ i, img }),
                 () => ({ i, img: null }),
             ),

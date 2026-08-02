@@ -23,7 +23,7 @@ export const reviseElementTool = register({
             input.sectionId,
             input.element as unknown as ElementInstance,
             input.instruction,
-            { image: ctx.image, signal: ctx.signal },
+            { image: ctx.image, signal: ctx.signal, tier: ctx.tier },
         );
     },
 });

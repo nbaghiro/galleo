@@ -1,3 +1,5 @@
+import type { ModelTier } from "@model/billing";
+
 export type Provider = "anthropic" | "openai" | "google" | "xai";
 
 export type AiTask =
@@ -136,4 +138,14 @@ export const DEFAULT_MODELS: Record<AiTask, string> = {
 
 export function defaultModelFor(task: AiTask): string {
     return DEFAULT_MODELS[task];
+}
+
+// Plan-tier model selection: basic (Free) stays on flash-class models everywhere, advanced/premium
+// get the tuned defaults. Only `edit` runs a pro-class model today, so that's the step-down.
+const BASIC_OVERRIDES: Partial<Record<AiTask, string>> = {
+    edit: "google:gemini-2.5-flash",
+};
+
+export function modelFor(task: AiTask, tier: ModelTier = "premium"): string {
+    return (tier === "basic" ? BASIC_OVERRIDES[task] : undefined) ?? DEFAULT_MODELS[task];
 }

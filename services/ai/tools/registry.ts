@@ -1,4 +1,5 @@
 import type { ZodType } from "zod";
+import type { ModelTier } from "@model/billing";
 import type { ToolId } from "@model/tools";
 import type { ArtifactRef, TurnEvent } from "@model/ai";
 import type { ArtifactContent } from "@model/artifact";
@@ -15,6 +16,8 @@ export interface ToolContext {
     image: ImageOptions;
     workspace?: WorkspaceReader;
     signal?: AbortSignal;
+    tier?: ModelTier; // plan model tier, threaded to every model call in the turn
+    maxSections?: number; // plan cap on one generation's section count
     // run a sub-tool with this same context
     use<I, R>(tool: Tool<I, R>, input: I): AsyncGenerator<TurnEvent, R>;
 }
@@ -48,6 +51,8 @@ export function makeContext(base: Omit<ToolContext, "use">): ToolContext {
         image: base.image,
         workspace: base.workspace,
         signal: base.signal,
+        tier: base.tier,
+        maxSections: base.maxSections,
         use: <I, R>(tool: Tool<I, R>, input: I): AsyncGenerator<TurnEvent, R> =>
             tool.run(input, ctx),
     };

@@ -11,8 +11,9 @@ import type { ArtifactContent, Section, ElementInstance } from "@model/artifact"
 import type { MediaProvider } from "@model/media";
 import type { Usage } from "@model/credits";
 import { generateObject, generateText } from "ai";
+import type { ModelTier } from "@model/billing";
 import { resolveModel, thinklessOpts } from "./provider";
-import { defaultModelFor } from "./models";
+import { defaultModelFor, modelFor } from "./models";
 import {
     editSectionParts,
     insertSectionParts,
@@ -186,6 +187,8 @@ export interface RunOpts {
     image?: ImageOptions;
     workspace?: WorkspaceReader;
     model?: string; // override the task's default model (registry id)
+    tier?: ModelTier; // the workspace's plan tier — picks flash- vs pro-class models
+    maxSections?: number; // plan cap on one generation's section count
     onUsage?: (usage: Usage) => void;
 }
 
@@ -198,6 +201,8 @@ export async function* runTurn(req: TurnRequest, opts: RunOpts = {}): AsyncGener
                     image: opts.image ?? {},
                     workspace: opts.workspace,
                     signal: opts.signal,
+                    tier: opts.tier,
+                    maxSections: opts.maxSections,
                 }),
             );
             return;
@@ -224,19 +229,21 @@ export async function* runGenerate(
 
     yield { type: "phase", name: "outline" };
     yield { type: "narration", text: "Planning the story arc" };
-    const op = outlineParts(input);
+    const op = outlineParts(input, opts.maxSections);
+    const outlineModel = opts.model ?? modelFor("outline", opts.tier);
     const { object: outlineObj } = await generateObject({
-        model: resolveModel(opts.model ?? defaultModelFor("outline")),
+        model: resolveModel(outlineModel),
         schema: zOutline,
         system: op.system,
         prompt: op.prompt,
         abortSignal: signal,
-        providerOptions: thinklessOpts(opts.model ?? defaultModelFor("outline")),
+        providerOptions: thinklessOpts(outlineModel),
         // warm so section count + arc vary brief-to-brief; section writing stays cooler
         temperature: 0.9,
     });
     const outline: Outline = outlineObj;
-    const beats = outline.beats;
+    // hard enforcement — the prompt asks for the cap, the slice guarantees it
+    const beats = opts.maxSections ? outline.beats.slice(0, opts.maxSections) : outline.beats;
     const planBeats = beats.map(toPlanBeat);
     yield {
         type: "narration",
@@ -254,7 +261,13 @@ export async function* runGenerate(
         yield { type: "narration", text: `Writing “${beat.label}”`, mono: ` · ${beat.role}` };
         yield { type: "section.status", id: beat.id, status: "writing" };
 
-        let section = await writeSection(input, beat, outline, signal, opts.model);
+        let section = await writeSection(
+            input,
+            beat,
+            outline,
+            signal,
+            opts.model ?? modelFor("section", opts.tier),
+        );
         // force a full-bleed bg on cover + closing so those anchor moments never render flat
         if ((i === 0 || i === n - 1) && section.background?.kind !== "image") {
             section = {
@@ -319,13 +332,14 @@ async function* runSection(input: SectionInput, opts: RunOpts = {}): AsyncGenera
 
     yield { type: "phase", name: "outline" };
     const pp = sectionPlanParts(input);
+    const planModel = modelFor("outline", opts.tier);
     const { object: plan } = await generateObject({
-        model: resolveModel(defaultModelFor("outline")),
+        model: resolveModel(planModel),
         schema: zSectionPlan,
         system: pp.system,
         prompt: pp.prompt,
         abortSignal: signal,
-        providerOptions: thinklessOpts(defaultModelFor("outline")),
+        providerOptions: thinklessOpts(planModel),
         temperature: 0.9,
     });
     const beat: Beat = { ...(plan as SectionPlan), id };
@@ -342,6 +356,7 @@ async function* runSection(input: SectionInput, opts: RunOpts = {}): AsyncGenera
         beat.label,
         surface,
         signal,
+        modelFor("section", opts.tier),
     );
     if (beat.image || section.background?.kind === "image") {
         yield { type: "section.status", id, status: "image" };
@@ -437,13 +452,14 @@ export async function chatAddSection(
     const input: SectionInput = { instruction, afterId, content };
     const id = newSectionId(content);
     const pp = sectionPlanParts(input);
+    const planModel = modelFor("outline", opts.tier);
     const { object } = await generateObject({
-        model: resolveModel(defaultModelFor("outline")),
+        model: resolveModel(planModel),
         schema: zSectionPlan,
         system: pp.system,
         prompt: pp.prompt,
         abortSignal: opts.signal,
-        providerOptions: thinklessOpts(defaultModelFor("outline")),
+        providerOptions: thinklessOpts(planModel),
         temperature: 0.9,
     });
     const beat: Beat = { ...(object as SectionPlan), id };
@@ -453,6 +469,7 @@ export async function chatAddSection(
         beat.label,
         surfaceOf(content.format),
         opts.signal,
+        modelFor("section", opts.tier),
     );
     return resolveImages(section, opts.image ?? {});
 }
@@ -467,7 +484,8 @@ export async function reviseElement(
     const section = content.sections.find((s) => s.id === sectionId);
     if (!section) throw new Error("that section is not in the artifact");
     const parts = reviseElementParts(content, section, element, instruction);
-    const model = resolveModel(defaultModelFor("section"));
+    const modelId = modelFor("section", opts.tier);
+    const model = resolveModel(modelId);
     let note = "";
     for (let attempt = 0; attempt < 2; attempt++) {
         const { text } = await generateText({
@@ -475,7 +493,7 @@ export async function reviseElement(
             system: parts.system,
             prompt: parts.prompt + note,
             abortSignal: opts.signal,
-            providerOptions: thinklessOpts(defaultModelFor("section")),
+            providerOptions: thinklessOpts(modelId),
         });
         const parsed = zElement.safeParse(extractJson(text));
         if (!parsed.success) {
@@ -508,6 +526,7 @@ export async function chatEditSection(
         sectionId,
         surfaceOf(content.format),
         opts.signal,
+        modelFor("section", opts.tier),
     );
     return resolveImages(section, opts.image ?? {});
 }

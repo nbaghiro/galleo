@@ -33,7 +33,7 @@ function sourceMaterial(source?: string): string | undefined {
     );
 }
 
-export function outlineParts(input: GenerateInput): PromptParts {
+export function outlineParts(input: GenerateInput, maxSections?: number): PromptParts {
     return {
         system: stack(
             PERSONA,
@@ -48,6 +48,9 @@ export function outlineParts(input: GenerateInput): PromptParts {
             briefContext(input),
             sourceMaterial(input.source),
             lengthGuidance(input.length),
+            maxSections
+                ? `Hard limit: plan at MOST ${maxSections} sections — anything beyond is discarded.`
+                : "",
             arcGuidance(input),
             "Produce the outline now.",
         ),

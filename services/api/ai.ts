@@ -1,15 +1,14 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { getCookie } from "hono/cookie";
-import { eq } from "drizzle-orm";
 import type { TurnEvent, TurnRequest, TurnKind } from "@model/ai";
 import { isKind } from "@model/ai";
 import type { ToolId, MeterParams } from "@model/tools";
-import { estimateCost, estimateUsage } from "@model/tools";
+import { estimateCost, estimateUsage, sectionsForLength } from "@model/tools";
 import type { Usage } from "@model/credits";
 import { costOf, mergeUsage } from "@model/credits";
-import { limitsFor } from "@model/billing";
 import { db, schema } from "../schema";
+import { chargeCredits, settleCredits } from "../credits";
 import { SESSION_COOKIE } from "../auth";
 import { currentUser, currentWorkspace, readJson } from "./context";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
@@ -18,6 +17,7 @@ import { reviseElement, runTurn } from "../ai/run";
 import type { ImageOptions } from "../ai/run";
 import { generateImage, imageGenReady } from "../media/generate";
 import { makeWorkspaceReader } from "./workspace-reader";
+import { featuresFor } from "../features";
 import { rewriteText, translateText } from "../ai/text";
 import { suggestSections } from "../ai/suggest";
 import { generateThemeFromPrompt } from "../ai/theme";
@@ -32,9 +32,18 @@ const ACTION_FOR: Record<TurnKind, ToolId> = {
     chat: "ask-assistant",
 };
 
-// Pre-flight meter knobs — only generate scales (length + AI-image source).
-const meterFor = (req: TurnRequest): MeterParams =>
-    req.kind === "generate" ? { length: req.input.length, imageSource: req.input.imageSource } : {};
+// Pre-flight meter knobs — only generate scales (length + AI-image source). The plan's section cap
+// clamps the metered size, so a Free brief asking for "In-depth" is billed for (and gets) 10 sections.
+const meterFor = (req: TurnRequest, maxSections?: number): MeterParams =>
+    req.kind === "generate"
+        ? {
+              length: req.input.length,
+              imageSource: req.input.imageSource,
+              ...(maxSections
+                  ? { sections: Math.min(sectionsForLength(req.input.length), maxSections) }
+                  : {}),
+          }
+        : {};
 
 // Others 501 before any charge (blocking here avoids reserving credits for an unbuildable kind).
 const IMPLEMENTED: readonly TurnKind[] = ["generate", "section", "chat"];
@@ -57,21 +66,15 @@ ai.post("/ai/turn", async (c) => {
         return c.json({ error: "a message is required" }, 400);
 
     // Reserve before the billable model calls; 402 when spent.
-    const cost = estimateCost(ACTION_FOR[req.kind], meterFor(req));
-    const limit = limitsFor(ws.plan).aiCreditsPerMonth;
-    if (ws.aiCreditsUsed + cost > limit)
+    const feats = featuresFor(ws);
+    const meter = meterFor(req, feats.maxSectionsPerGeneration);
+    const cost = estimateCost(ACTION_FOR[req.kind], meter);
+    const spend = await chargeCredits(ws, cost, ACTION_FOR[req.kind]);
+    if (!spend.ok)
         return c.json(
-            {
-                error: "out of AI credits",
-                upgrade: true,
-                remaining: Math.max(0, limit - ws.aiCreditsUsed),
-            },
+            { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
             402,
         );
-    await db
-        .update(schema.workspaces)
-        .set({ aiCreditsUsed: ws.aiCreditsUsed + cost })
-        .where(eq(schema.workspaces.id, ws.id));
 
     // Chat is agentic: chained sub-tools report usage via onUsage, billed on top of the reserve; non-chat leaves extra empty.
     let extra: Usage = {};
@@ -93,7 +96,7 @@ ai.post("/ai/turn", async (c) => {
                           : orientation === "square"
                             ? "1:1"
                             : "16:9";
-                  const img = await generateImage(phrase, aspect);
+                  const img = await generateImage(phrase, aspect, "photo", feats.imageModelTier);
                   if (!img) return null;
                   const id = crypto.randomUUID();
                   await db.insert(schema.assets).values({
@@ -124,7 +127,14 @@ ai.post("/ai/turn", async (c) => {
             stream.writeSSE({ data: JSON.stringify({ seq: seq++, event }) });
         try {
             const workspace = makeWorkspaceReader(ws.id);
-            for await (const ev of runTurn(req, { signal: ctrl.signal, workspace, onUsage, image }))
+            for await (const ev of runTurn(req, {
+                signal: ctrl.signal,
+                workspace,
+                onUsage,
+                image,
+                tier: feats.textModelTier,
+                maxSections: feats.maxSectionsPerGeneration,
+            }))
                 await send(ev);
         } catch (e) {
             if (!ctrl.signal.aborted)
@@ -138,14 +148,10 @@ ai.post("/ai/turn", async (c) => {
             if (Object.keys(extra).length) owed += costOf(extra);
             if (wantsAiImages)
                 owed = costOf({
-                    ...estimateUsage("generate-artifact", meterFor(req)),
+                    ...estimateUsage("generate-artifact", meter),
                     image: aiImages,
                 });
-            if (owed !== cost)
-                await db
-                    .update(schema.workspaces)
-                    .set({ aiCreditsUsed: ws.aiCreditsUsed + owed })
-                    .where(eq(schema.workspaces.id, ws.id));
+            await settleCredits(ws, owed - cost, `${ACTION_FOR[req.kind]}:settle`);
         }
     });
 });
@@ -180,21 +186,12 @@ ai.post("/ai/element", async (c) => {
     if (!body?.content?.sections?.length || !body.sectionId || !body.element?.type)
         return c.json({ error: "content, sectionId, and element are required" }, 400);
 
-    const cost = estimateCost("revise-element");
-    const limit = limitsFor(ws.plan).aiCreditsPerMonth;
-    if (ws.aiCreditsUsed + cost > limit)
+    const spend = await chargeCredits(ws, estimateCost("revise-element"), "revise-element");
+    if (!spend.ok)
         return c.json(
-            {
-                error: "out of AI credits",
-                upgrade: true,
-                remaining: Math.max(0, limit - ws.aiCreditsUsed),
-            },
+            { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
             402,
         );
-    await db
-        .update(schema.workspaces)
-        .set({ aiCreditsUsed: ws.aiCreditsUsed + cost })
-        .where(eq(schema.workspaces.id, ws.id));
 
     try {
         const element = await reviseElement(
@@ -202,6 +199,7 @@ ai.post("/ai/element", async (c) => {
             body.sectionId,
             body.element,
             body.instruction,
+            { tier: featuresFor(ws).textModelTier },
         );
         return c.json({ element });
     } catch (e) {
@@ -229,27 +227,26 @@ ai.post("/ai/text", async (c) => {
     if (body.op === "translate" && !body.language?.trim())
         return c.json({ error: "a target language is required" }, 400);
 
-    const cost = estimateCost(body.op === "translate" ? "translate-text" : "rewrite-text");
-    const limit = limitsFor(ws.plan).aiCreditsPerMonth;
-    if (ws.aiCreditsUsed + cost > limit)
+    const tool = body.op === "translate" ? "translate-text" : "rewrite-text";
+    const spend = await chargeCredits(ws, estimateCost(tool), tool);
+    if (!spend.ok)
         return c.json(
-            {
-                error: "out of AI credits",
-                upgrade: true,
-                remaining: Math.max(0, limit - ws.aiCreditsUsed),
-            },
+            { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
             402,
         );
-    await db
-        .update(schema.workspaces)
-        .set({ aiCreditsUsed: ws.aiCreditsUsed + cost })
-        .where(eq(schema.workspaces.id, ws.id));
 
     try {
+        const tier = featuresFor(ws).textModelTier;
         const text =
             body.op === "translate"
-                ? await translateText(body.text, body.language!.trim(), { context: body.context })
-                : await rewriteText(body.text, body.instruction!.trim(), { context: body.context });
+                ? await translateText(body.text, body.language!.trim(), {
+                      context: body.context,
+                      tier,
+                  })
+                : await rewriteText(body.text, body.instruction!.trim(), {
+                      context: body.context,
+                      tier,
+                  });
         return c.json({ text });
     } catch (e) {
         return c.json({ error: e instanceof Error ? e.message : "the edit failed" }, 500);
@@ -265,24 +262,18 @@ ai.post("/ai/theme", async (c) => {
     const body = await readJson<{ prompt?: string; isDark?: boolean }>(c);
     if (!body?.prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
 
-    const cost = estimateCost("generate-theme");
-    const limit = limitsFor(ws.plan).aiCreditsPerMonth;
-    if (ws.aiCreditsUsed + cost > limit)
+    const spend = await chargeCredits(ws, estimateCost("generate-theme"), "generate-theme");
+    if (!spend.ok)
         return c.json(
-            {
-                error: "out of AI credits",
-                upgrade: true,
-                remaining: Math.max(0, limit - ws.aiCreditsUsed),
-            },
+            { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
             402,
         );
-    await db
-        .update(schema.workspaces)
-        .set({ aiCreditsUsed: ws.aiCreditsUsed + cost })
-        .where(eq(schema.workspaces.id, ws.id));
 
     try {
-        const theme = await generateThemeFromPrompt(body.prompt.trim(), { isDark: body.isDark });
+        const theme = await generateThemeFromPrompt(body.prompt.trim(), {
+            isDark: body.isDark,
+            tier: featuresFor(ws).textModelTier,
+        });
         return c.json({ theme });
     } catch (e) {
         return c.json({ error: e instanceof Error ? e.message : "theme generation failed" }, 500);
