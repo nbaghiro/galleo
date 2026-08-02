@@ -132,7 +132,7 @@ services:
       branch: main
       autoDeploy: true
       buildCommand: pnpm install --frozen-lockfile && pnpm build
-      preDeployCommand: pnpm db:migrate # runs after build, before cutover
+      buildCommand: … && pnpm db:migrate # migrations run at the end of the build, before cutover
       startCommand: pnpm start # NODE_ENV=production tsx services/server.ts
       healthCheckPath: /health
       envVars:
@@ -150,7 +150,7 @@ services:
 ```
 
 - **Node version:** pin via a `.node-version` file (`22`) — matches CI.
-- **Migrations on deploy:** `preDeployCommand` runs `pnpm db:migrate` against `DATABASE_URL` before the new
+- **Migrations on deploy:** the build command ends with `pnpm db:migrate` against `DATABASE_URL` before the new
   version takes traffic. Requires committed migrations (repo change) + `drizzle-kit`/`tsx` resolvable at
   deploy time (repo change).
 - **Zero-downtime:** Render health-checks `/health`, keeps the old instance until the new one is healthy.
@@ -176,7 +176,7 @@ router)`; in `vite.config.ts` drop the proxy `rewrite` (keep the `^/api/` proxy 
 4. **`secure` cookie in prod.** `services/api/session.ts` sets `httpOnly`+`sameSite:"Lax"` but no `secure`.
    Add `secure: process.env.NODE_ENV === "production"`.
 5. **Commit migrations.** `services/migrations/` is empty (dev uses `db:push`). Run `pnpm db:generate` to
-   emit SQL, commit it, and let `preDeployCommand` run `db:migrate`. From here, schema changes ship as
+   emit SQL, commit it, and let the build step run `db:migrate`. From here, schema changes ship as
    generated migrations, not `push`.
 6. **Make `tsx` + `drizzle-kit` available at deploy/runtime.** The start command runs via `tsx` and
    pre-deploy via `drizzle-kit`; move both from `devDependencies` to `dependencies` so they're

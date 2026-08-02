@@ -5,11 +5,13 @@ services:
       name: galleo
       runtime: node
       region: oregon # co-locate with the Neon project region
-      plan: starter # 512 MB / 0.5 CPU always-on; bump to `standard` (2 GB) if AI/export OOMs
+      plan: free # upgrade to `starter`+ for always-on and pre-deploy support; `standard` (2 GB) if AI/export OOMs
       branch: main
       autoDeploy: true
-      buildCommand: pnpm install --frozen-lockfile && pnpm build
-      preDeployCommand: pnpm db:migrate # applies committed migrations before cutover
+      # Migrations run at the END of the build (&&: a failed build never reaches them; a failed
+      # migration fails the build, so the old deploy stays live). The free instance type silently
+      # drops preDeployCommand — on a paid plan, move `pnpm db:migrate` to preDeployCommand instead.
+      buildCommand: pnpm install --frozen-lockfile && pnpm build && pnpm db:migrate
       startCommand: pnpm start # NODE_ENV=production tsx services/server.ts
       healthCheckPath: /health
       envVars:
