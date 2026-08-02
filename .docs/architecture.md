@@ -280,11 +280,12 @@ embedded in the artifact's `draft_content` JSON.
 
 **Identity & tenancy**
 
-| Table          | Purpose                                       | Key columns                                                                                                                                                                                                                                              |
-| -------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **users**      | a person / login                              | `email` (unique), `name`, `avatar_url`, `password_hash` (null = OAuth-only)                                                                                                                                                                              |
-| **workspaces** | the tenant that owns content + billing entity | `name`, `slug` (unique), `owner_id→users`, `plan` (text, default `free`), `seats` (int, default 1), `stripe_customer_id`, `stripe_subscription_id`, `plan_status`, `plan_period_end`, `ai_credits_used`, `credits_reset_at`, `feature_overrides` (jsonb) |
-| **members**    | user ↔ workspace + role (join, composite pk)  | `workspace_id`, `user_id`, `role`                                                                                                                                                                                                                        |
+| Table          | Purpose                                       | Key columns                                                                                                                                                                                                                                                                                                                           |
+| -------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **users**      | a person / login                              | `email` (unique), `name`, `avatar_url`, `password_hash` (null = OAuth-only), `active_workspace_id` (the membership the app opens)                                                                                                                                                                                                     |
+| **workspaces** | the tenant that owns content + billing entity | `name`, `slug` (unique), `owner_id→users`, `plan` (text, default `free`), `seats` (int, default 1), `stripe_customer_id`, `stripe_subscription_id`, `plan_status`, `plan_period_end`, `cancel_at_period_end`, `ai_credits_used`, `ai_credits_bonus` (purchased top-ups, never reset), `credits_reset_at`, `feature_overrides` (jsonb) |
+| **members**    | user ↔ workspace + role (join, composite pk)  | `workspace_id`, `user_id`, `role`                                                                                                                                                                                                                                                                                                     |
+| **invites**    | pending workspace invitations                 | `workspace_id`, `email` (unique per workspace), `role`, `token_hash` (raw token only in the emailed link), `invited_by`, `expires_at`, `accepted_at`                                                                                                                                                                                  |
 
 **Content**
 
@@ -306,11 +307,12 @@ embedded in the artifact's `draft_content` JSON.
 
 **Billing**
 
-| Table       | Purpose          | Key columns                                        |
-| ----------- | ---------------- | -------------------------------------------------- |
-| **credits** | AI-credit ledger | `workspace_id`, `delta`, `reason`, `balance_after` |
+| Table             | Purpose                                                       | Key columns                                        |
+| ----------------- | ------------------------------------------------------------- | -------------------------------------------------- |
+| **credits**       | AI-credit ledger (every charge/settle/grant/reset writes one) | `workspace_id`, `delta`, `reason`, `balance_after` |
+| **stripe_events** | webhook idempotency claims (claimed + applied in one tx)      | `id` (Stripe event id), `type`                     |
 
-> **Not their own tables today:** invites, api_keys, comments, activity, notifications (incl. "X viewed
+> **Not their own tables today:** api_keys, comments, activity, notifications (incl. "X viewed
 > your doc"), brand kits, custom formats/fonts, version history / content snapshots, custom domains, and
 > live-collab (Yjs) update logs. They're deferred; add them when the feature lands.
 
@@ -397,7 +399,8 @@ Two workstreams touch plans, decoupled by the `Plan` object:
 - **Billing owns:** the `Plan` shape + catalog, the **feature resolver** (source of truth for what a
   workspace can do), all non-AI feature/account limits, Stripe wiring, and the up/down/cancel/dunning flows.
 - **AI/credit owns:** the _values_ under `plan.ai.*` (monthly credits, sections-per-generation, model
-  tiers) and the **spend / ledger / refund mechanics** (`POST /billing/spend`, the `credits` table).
+  tiers) and the **spend / ledger / refund mechanics** (`services/credits.ts`, `POST /billing/spend`,
+  the `credits` table).
 - The contract is the `Plan` object. `ai.maxSectionsPerGeneration` is the one field the generation route
   enforces; neither side edits the other's cells.
 
@@ -513,9 +516,14 @@ featureStatus("publicLinks"): "live" | "beta" | "planned"
 
 ### Enforcement
 
-- **`services/features.ts`** — `featuresFor(ws)` reads `ws.plan` + `ws.feature_overrides`, calls the pure
-  resolver, and rolls the monthly credit window. Guards: `requireFeature(c, ws, key)` → 402
-  `{ error, upgrade:true }`; `checkLimit(c, ws, key, current)` → 402.
+- **`services/features.ts`** — `featuresFor(ws)` reads `ws.plan` + `ws.feature_overrides` and calls the
+  pure resolver; `creditLimitFor(ws)` scales the per-seat credit base by `ws.seats`. Guards:
+  `requireFeature(c, ws, key, message)` → 402 `{ error, upgrade:true }`;
+  `checkLimit(c, ws, key, current, message?)` → 402 (both return the Response to send, or null).
+- **`services/credits.ts`** — the spend engine: `chargeCredits` (row-locked conditional charge, pool then
+  bonus) and `settleCredits` (live-row reconciliation) — every AI route charges through it, and each call
+  writes a `credits` ledger row. The monthly window rolls lazily in `currentWorkspace()` and re-anchors on
+  renewal invoices.
 - The **export gate** (`canvas/render/export.ts` + editor) and the artifact cap / custom-themes / credit
   spend gates all resolve entitlements the same way. `GET /billing` returns the plan + resolved usage so the
   app drives locks, badges, and "coming soon" from one source; the editor keeps receiving features pushed in
@@ -529,7 +537,8 @@ workspace with **1 seat**; a team is a workspace on Pro/Premium with **N seats**
 separate per-user billing.
 
 - **Customer = workspace** (owner's email as contact + `metadata.workspaceId`). A user who owns multiple
-  workspaces gets one customer each (today a user has one workspace).
+  workspaces gets one customer each; a user can also be a member of other people's workspaces
+  (`users.active_workspace_id` picks the one the app opens).
 - **Seat count is orthogonal to tier.** `workspace.plan` = tier; a cached `workspace.seats` column (int,
   default 1) = quantity, synced from the webhook (`subscription.items.data[0].quantity`) so `maxMembers`
   enforcement needs no Stripe round-trip. Price = tier's per-unit price × seats.
@@ -540,38 +549,54 @@ seats`; Stripe multiplies. `plan.billing.model` tells our code to show a seat pi
 
 ### Upgrade / downgrade / cancel flows
 
-Policy (standard SaaS): **upgrades take effect immediately with proration; downgrades and cancels take
-effect at period end** (the user keeps what they paid for). Implemented in `POST /billing/change-plan`
+Policy: **upgrades invoice immediately (`always_invoice`); tier/seat downgrades apply immediately with
+`create_prorations` (the unused remainder returns as a credit on the next invoice); cancels take effect
+at period end**. Implemented in `POST /billing/change-plan`
 (in-app up/downgrade + seat + interval changes) alongside `/billing/checkout`, `/billing/portal`, and the
 signature-verified `/billing/webhook`.
 
-| From → To            | Mechanism                                                       | Timing                  | Proration       |
-| -------------------- | --------------------------------------------------------------- | ----------------------- | --------------- |
-| Free → paid          | Checkout Session                                                | immediate               | n/a             |
-| paid → higher        | `subscriptions.update` new price                                | immediate               | charge diff now |
-| paid → lower         | subscription schedule / `proration_behavior:none` at period end | period end              | none            |
-| paid → Free (cancel) | `cancel_at_period_end: true`                                    | period end              | none            |
-| seat +/− (per-seat)  | update item `quantity`                                          | up=now, down=period end | prorated        |
-| monthly ↔ annual     | `subscriptions.update` price + interval                         | per policy above        | Stripe computes |
+| From → To            | Mechanism                                             | Timing           | Proration                                  |
+| -------------------- | ----------------------------------------------------- | ---------------- | ------------------------------------------ |
+| Free → paid          | Checkout Session                                      | immediate        | n/a                                        |
+| paid → higher        | `subscriptions.update` new price                      | immediate        | charge diff now                            |
+| paid → lower         | `subscriptions.update` new price, `create_prorations` | immediate        | credit on next invoice                     |
+| paid → Free (cancel) | `cancel_at_period_end: true`                          | period end       | none                                       |
+| seat +/− (per-seat)  | update item `quantity` (floor = active member count)  | immediate        | up invoices now; down credits next invoice |
+| monthly ↔ annual     | `subscriptions.update` price + interval               | per policy above | Stripe computes                            |
 
-The webhook syncs plan/seat/status/period-end on `checkout.session.completed`,
-`customer.subscription.updated`, and `customer.subscription.deleted` → Free; `invoice.payment_failed` →
-`past_due` (+ dunning banner), `invoice.paid` → clears it. `plan_period_end` reads the real subscription
-`current_period_end`; handlers are last-write-wins and guard on the workspace whose current sub the event
-is. **Downgrade reconciliation never deletes data** — when new limits are tighter than current usage, the
-resolver's gates **soft-lock**: block _new_ actions over the cap and mark excess resources read-only with an
-upgrade prompt (automatic for every limit).
+The webhook claims each event id and applies its effects in **one transaction** (`stripe_events`):
+redeliveries no-op, and a mid-handle failure rolls the claim back so Stripe's retry re-runs it —
+at-least-once delivery, exactly-once effects. It syncs plan/seat/status/period-end/cancel-at-period-end on
+`checkout.session.completed` (payment-mode sessions grant credit packs instead),
+`customer.subscription.updated` (with a `metadata.workspaceId` fallback that can adopt a sub onto a
+workspace that missed its checkout event — only when unlinked, so stale events can't hijack), and
+`customer.subscription.deleted` → Free; `invoice.payment_failed` → `past_due` (+ dunning banner),
+`invoice.paid` → clears it, and a `subscription_cycle` invoice re-anchors the monthly credit window.
+Handlers are last-write-wins and guard on the workspace whose current sub the event is. **Downgrade
+reconciliation never deletes data** — when new limits are tighter than current usage, the resolver's gates
+**soft-lock**: block _new_ actions over the cap and mark excess resources read-only with an upgrade prompt
+(automatic for every limit).
 
 ### What's built
 
 The full data model is live: the data-driven 3-tier `Plan` catalog (Free flat · Pro/Premium per-seat) + the
-`FEATURES` registry + `resolveFeatures` (`model/`), the `services/features.ts` resolver with migrated gates,
-and `GET /billing` surfacing plan + usage. Stripe is wired end-to-end: `stripe.ts` resolves prices by env
-(`stripeReady()` gates on the Pro/Premium monthly prices), and the routes cover checkout, portal,
-`change-plan` (up/down/seat/interval with the proration policy above), `spend` (the credit gate), and the
-idempotent `webhook` (checkout/subscription/invoice events → plan·seat·status·period-end sync). The pricing
-page (`PricingView`) drives it with a monthly/annual toggle + seat selector. Remaining work is in
-**Planned / deferred**.
+`FEATURES` registry + `resolveFeatures` (`model/`), the `services/features.ts` resolver
+(`featuresFor` / `creditLimitFor` / `requireFeature` / `checkLimit`) behind every gate, and `GET /billing`
+surfacing plan + usage + the purchasable top-up packs. **Credits run through one engine**
+(`services/credits.ts`): `chargeCredits`/`settleCredits` lock the workspace row so concurrent spends
+serialize, the pool is **seats × credits/seat** (`creditLimitFor`), spend drains the monthly pool then the
+purchased bonus balance, and every charge/settle/grant/reset writes a `credits` ledger row (surfaced at
+`GET /billing/ledger` and on the pricing page). The plan's AI fields are enforced end-to-end:
+`maxSectionsPerGeneration` clamps the outline (prompt + hard slice) and the metered price, the model tiers
+pick flash- vs pro-class models (`modelFor(task, tier)` + the image-model override), and `storageMb` gates
+uploads/generation on stored bytes. Stripe is wired end-to-end: `stripe.ts` resolves prices by env and pins
+the SDK `apiVersion`, and the routes cover checkout (incl. `trial_period_days` when a plan sets it), portal,
+`change-plan` (up/down/seat/interval; seat floor = member count), `resume`, `topup` (payment-mode packs),
+`spend`, and the transactional idempotent `webhook`. Billing mutations are **owner-only**. **Teams are
+usable**: `services/api/workspace.ts` covers invite (hashed possession tokens, seat-capped, emailed) /
+accept / revoke / remove / switch, `users.active_workspace_id` picks the working membership, and the
+`MembersView` + sidebar switcher drive it. The pricing page (`PricingView`) adds per-button busy states,
+top-up buttons, and the recent-activity ledger. Remaining work is in **Planned / deferred**.
 
 ---
 
@@ -602,24 +627,27 @@ rich text driving the editor directly from `@model/text` (replacing the contente
 free-form / bento grid spanning · background jobs (no queue yet; the 8603 Redis port is reserved).
 
 **Data model.** Stable `asset:` references in element `src` (raw URLs today) · the deferred tables when
-their feature lands — invites, api_keys, comments, activity, notifications, brand kits, custom
+their feature lands — api_keys, comments, activity, notifications, brand kits, custom
 formats/fonts, view analytics (beyond the `link_recipients.last_viewed_at` stub), custom domains,
 live-collab (Yjs) update logs.
 
 **Billing — remaining flow work.**
 
-- **Members & seats UI** — the `seats` column + Stripe-`quantity` sync exist, but there is no invite /
-  role-management surface yet, so Pro/Premium are usable solo only; shipping invites + roles unlocks
-  multi-seat.
-- **Owner/admin billing gate** — billing-mutation routes still use `currentWorkspace(u.id)` with no role
-  check; only a workspace owner/admin should be able to change plan, seats, or payment method.
-- **Full flow test matrix** — up/down/cancel/dunning/seat/annual/reconciliation/idempotency coverage (see
-  `testing.md`).
+- **Member roles** — members are owner-or-editor today; an admin role (invite/billing rights without
+  ownership) is the next slice. Content-level per-member permissions ride on the shares table.
+- **Export gating is client-side by construction** — rendering happens in the browser, so the format
+  list + watermark are enforced in the editor (`ExportModal` reads pushed features); public links stay
+  the server-enforced surface (`links.ts` gates + brands server-side). Revisit only if export ever moves
+  server-side.
+- **Unknown price ids in webhooks** are claimed and skipped silently (env misconfig); surfacing them
+  needs an ops/logging story first (no `console` in app code).
 
 **Billing — open tunables / decisions.**
 
 - Credits set to **150 / 2,500 / 6,000** (Free / Pro / Premium) 🔶 — confirm with the AI session.
 - Free tier: monthly credits vs a one-time signup grant (a one-time grant caps AI COGS).
 - Annual discount depth (~2 months free today).
-- Trials? (`billing.trialDays` is wired for it, default 0.)
+- Trials? (`billing.trialDays` now flows into Checkout's `trial_period_days`; the catalog keeps 0 until
+  a trial is a product decision.)
+- Top-up pack sizing (`CREDIT_PACKS`: 1k/$10 · 5k/$40 today) 🔶 — confirm price points.
 - Should Free allow inviting a first teammate as a trial, or stay strictly solo (current)?
