@@ -26,6 +26,8 @@ import { VerifyBanner } from "./components/VerifyBanner";
 import { ShareModal } from "./components/ShareModal";
 import { ThemeEditor } from "./views/ThemeEditor";
 import { TrashView } from "./views/TrashView";
+import { WorkspaceSettingsView } from "./views/WorkspaceSettingsView";
+import { InviteView } from "./views/InviteView";
 import { UiThemeProvider } from "@ui/icons";
 import { Spinner } from "@ui/button";
 import { CommandPalette } from "@ui/CommandPalette";
@@ -109,6 +111,8 @@ export const App: Component = () => {
                             <Route path="/shared" component={SharedView} />
                             <Route path="/trash" component={TrashView} />
                             <Route path="/pricing" component={PricingView} />
+                            <Route path="/settings" component={WorkspaceSettingsView} />
+                            <Route path="/invite/:token" component={InviteView} />
                             <Route path="/edit/:id" component={EditorView} />
                             <Route path="/present/:id" component={PresentView} />
                             {/* /login (marketing sign-in) + unknowns: when already authed, land on the library */}

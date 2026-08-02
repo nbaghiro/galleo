@@ -11,6 +11,7 @@ import { folders } from "./api/folders";
 import { themes } from "./api/themes";
 import { templates } from "./api/templates";
 import { billing } from "./api/billing";
+import { workspace } from "./api/workspace";
 import { features } from "./api/features";
 import { media } from "./api/media";
 import { ai } from "./api/ai";
@@ -37,6 +38,7 @@ for (const router of [
     themes,
     templates,
     billing,
+    workspace,
     features,
     media,
     ai,

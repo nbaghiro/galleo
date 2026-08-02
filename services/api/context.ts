@@ -70,18 +70,22 @@ export async function currentUser(token: string | undefined): Promise<User | nul
 }
 
 export async function firstWorkspaceId(userId: string): Promise<string | null> {
-    const ms = await db
-        .select({ ws: schema.members.workspaceId })
-        .from(schema.members)
-        .where(eq(schema.members.userId, userId));
-    return ms[0]?.ws ?? null;
+    const ws = await currentWorkspace(userId);
+    return ws?.id ?? null;
 }
 
+// The workspace the app operates on: the user's chosen membership (users.active_workspace_id) when
+// it's still a real membership, else the oldest one (their own — created at signup, before any join).
 // Also lazily rolls the monthly credit window on read (no cron): past the reset date, zero used and push the window a month out.
 export async function currentWorkspace(userId: string) {
-    const wsId = await firstWorkspaceId(userId);
-    if (!wsId) return null;
-    const [ws] = await db.select().from(schema.workspaces).where(eq(schema.workspaces.id, wsId));
+    const rows = await db
+        .select({ ws: schema.workspaces, active: schema.users.activeWorkspaceId })
+        .from(schema.members)
+        .innerJoin(schema.workspaces, eq(schema.members.workspaceId, schema.workspaces.id))
+        .innerJoin(schema.users, eq(schema.users.id, schema.members.userId))
+        .where(eq(schema.members.userId, userId))
+        .orderBy(schema.members.createdAt);
+    const ws = rows.find((r) => r.ws.id === r.active)?.ws ?? rows[0]?.ws;
     if (!ws) return null;
     if (ws.creditsResetAt.getTime() <= Date.now()) {
         const next = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);

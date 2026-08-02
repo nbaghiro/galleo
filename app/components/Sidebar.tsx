@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "@solidjs/router";
 import { api, type ApiFolder } from "../api";
 import { logout, user } from "../stores/auth";
 import { billing, loadBilling } from "../stores/billing";
+import { loadWorkspace, switchWorkspace, workspaceState } from "../stores/workspace";
 import {
     blankArtifact,
     formatLabel,
@@ -27,6 +28,7 @@ import {
     FolderFillIcon,
     LibraryIcon,
     PlusIcon,
+    SettingsIcon,
     SharedIcon,
     SignOutIcon,
     TemplatesIcon,
@@ -45,6 +47,7 @@ export const Sidebar: Component = () => {
     const navigate = useNavigate();
     const location = useLocation();
     onMount(loadBilling);
+    onMount(loadWorkspace);
     const route = (): string => location.pathname || "/";
     onMount(() => loadFolders());
     const [dragOver, setDragOver] = createSignal<string | null>(null); // folder id, or "root" for Library
@@ -294,15 +297,40 @@ export const Sidebar: Component = () => {
                 <Mark size={24} rounded="md" />
                 GALLEO
             </a>
-            <div class="mb-2 flex items-center gap-2.5 rounded-xl border border-line bg-canvas px-2.5 py-2">
+            <button
+                class={`mb-2 flex w-full items-center gap-2.5 rounded-xl border bg-canvas px-2.5 py-2 text-left transition-colors ${route() === "/settings" ? "border-accent" : "border-line hover:border-accent/50"}`}
+                title="Workspace settings"
+                onClick={() => navigate("/settings")}
+            >
                 <Mark size={28} />
                 <span class="min-w-0 flex-1">
                     <span class="block truncate text-[12.5px] font-bold text-ink">
-                        Atelier Studio
+                        {workspaceState()?.workspace.name ?? "Workspace"}
                     </span>
-                    <span class="block text-[10.5px] text-muted">Personal workspace</span>
+                    <span class="block text-[10.5px] text-muted">
+                        {(workspaceState()?.members.length ?? 1) > 1
+                            ? `${workspaceState()!.members.length} members`
+                            : "Personal workspace"}
+                    </span>
                 </span>
-            </div>
+                <span class="flex-none text-muted">
+                    <SettingsIcon size={15} />
+                </span>
+            </button>
+            <Show when={(workspaceState()?.memberships.length ?? 0) > 1}>
+                <select
+                    class="mb-2 w-full rounded-lg border border-line bg-canvas px-2 py-1.5 text-[12px] font-semibold text-ink"
+                    onChange={(e) => void switchWorkspace(e.currentTarget.value)}
+                >
+                    <For each={workspaceState()!.memberships}>
+                        {(m) => (
+                            <option value={m.id} selected={m.active}>
+                                {m.name}
+                            </option>
+                        )}
+                    </For>
+                </select>
+            </Show>
             <NewButton />
             <nav class="mt-3 flex flex-col gap-0.5">
                 {navItem(

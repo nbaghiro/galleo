@@ -324,6 +324,20 @@ const PATHS: Record<string, () => JSX.Element> = {
             <line x1="8.3" y1="13.3" x2="15.7" y2="17.7" />
         </>
     ),
+    settings: () => (
+        <>
+            <circle cx="12" cy="12" r="3.1" />
+            <path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7" />
+        </>
+    ),
+    members: () => (
+        <>
+            <circle cx="9" cy="8" r="3.2" />
+            <path d="M3.5 19.5c0-3 2.5-5 5.5-5s5.5 2 5.5 5" />
+            <circle cx="17" cy="9.5" r="2.4" />
+            <path d="M16.5 14.6c2.4.3 4 2 4 4.4" />
+        </>
+    ),
     deck: () => (
         <>
             <rect x="2.5" y="5.5" width="19" height="13" />
@@ -462,6 +476,8 @@ const named = (name: string): Component<{ size?: number }> => {
 export const LibraryIcon = named("library");
 export const TemplatesIcon = named("templates");
 export const SharedIcon = named("shared");
+export const MembersIcon = named("members");
+export const SettingsIcon = named("settings");
 export const TrashIcon = named("trash");
 export const PlusIcon = named("plus");
 export const DeckIcon = named("deck");

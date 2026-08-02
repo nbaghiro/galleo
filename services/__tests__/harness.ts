@@ -3,6 +3,7 @@ import { db, schema } from "../schema";
 export { resetDb } from "./reset-db";
 import { SESSION_COOKIE, hashPassword, makeSession } from "../auth";
 import { session } from "../api/session";
+import { workspace } from "../api/workspace";
 import { artifacts } from "../api/artifacts";
 import { folders } from "../api/folders";
 import { themes } from "../api/themes";
@@ -22,6 +23,7 @@ for (const r of [
     themes,
     templates,
     billing,
+    workspace,
     features,
     media,
     ai,
