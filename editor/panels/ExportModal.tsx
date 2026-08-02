@@ -1,12 +1,11 @@
 import type { Component } from "solid-js";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import type { ExportFormat } from "@model/billing";
-import type { FormatDescriptor } from "@model/geometry";
 import { resolveProfile } from "@engine/profile";
 import { sectionSlides } from "@canvas/render/commands";
-import { exportPdfAuto, exportPrint, exportSectionPngs, PRINT_W } from "@canvas/render/export";
+import { backdropCss, paintSectionStack } from "@canvas/render/backends";
+import { exportPdfAuto, exportPrint, exportSectionPngs } from "@canvas/render/export";
 import { exportPptx } from "@canvas/render/pptx";
-import { ScaledSectionCanvas } from "@ui/section";
 import { Icon } from "@ui/icons";
 import { Badge, Button, IconButton } from "@ui/button";
 import { Modal } from "@ui/overlay";
@@ -44,7 +43,6 @@ const Body: Component = () => {
     const profile = createMemo(() => resolveProfile(editor.artifact.format));
     const continuous = createMemo(() => profile().kind === "continuous");
     const docProfile = resolveProfile("doc");
-    const docW = docProfile.maxContentWidth ?? PRINT_W;
     const nSections = createMemo(() => editor.artifact.sections.length);
     const nSlides = createMemo(() =>
         editor.artifact.sections.reduce(
@@ -53,28 +51,9 @@ const Body: Component = () => {
         ),
     );
 
-    // how the chosen destination frames each section cell
-    const cell = createMemo(
-        (): {
-            frame: "slide" | "natural";
-            profile: FormatDescriptor;
-            layoutWidth?: number;
-            width: number;
-        } => {
-            const d = dest();
-            const slide = { frame: "slide" as const, profile: profile(), width: 280 };
-            if (d === "pptx") return slide;
-            // print always composes as a doc (paper is continuous), whatever the format toggle
-            const docPage = {
-                frame: "natural" as const,
-                profile: docProfile,
-                layoutWidth: docW,
-                width: 210,
-            };
-            if (d === "print") return docPage;
-            // pdf + png mirror the export: continuous → natural per-section pages, paged → slides
-            return continuous() ? docPage : slide;
-        },
+    // print always composes as a doc (paper is continuous); pdf/png mirror their export path
+    const previewProfile = createMemo(() =>
+        dest() === "print" || (dest() !== "pptx" && continuous()) ? docProfile : profile(),
     );
 
     const pages = createMemo(() => (continuous() ? nSections() : nSlides()));
@@ -94,13 +73,25 @@ const Body: Component = () => {
         }
     });
 
-    const caption = (ix: number, id: string): string => {
-        if (dest() === "png") {
-            const stem = `${String(ix + 1).padStart(2, "0")}-${id}`;
-            return `${stem.length > 18 ? `${stem.slice(0, 17)}…` : stem}.png`;
-        }
-        return dest() === "pptx" ? `slide ${ix + 1}` : `page ${ix + 1}`;
-    };
+    // read-only editor-style stack, painted like the theme editor's live preview
+    let pane!: HTMLDivElement;
+    let host!: HTMLDivElement;
+    const [paneW, setPaneW] = createSignal(0);
+    onMount(() => {
+        setPaneW(pane.clientWidth);
+        const ro = new ResizeObserver(() => setPaneW(pane.clientWidth));
+        ro.observe(pane);
+        onCleanup(() => ro.disconnect());
+    });
+    createEffect(() => {
+        const w = Math.max(360, paneW() - 56);
+        const tk = editorTokens();
+        host.replaceChildren();
+        const { height } = paintSectionStack(host, editor.artifact.sections, previewProfile(), tk, {
+            fullW: w,
+        });
+        host.style.cssText = `position:relative;width:${w}px;height:${height}px`;
+    });
 
     const allowed = (d: Dest): boolean => features().exportFormats.includes(d);
     const run = async (): Promise<void> => {
@@ -127,7 +118,7 @@ const Body: Component = () => {
         <Modal
             onClose={close}
             scrim="blur"
-            class="flex h-[min(700px,90vh)] w-[min(920px,94vw)] flex-col overflow-hidden"
+            class="flex h-[min(920px,94vh)] w-[min(1200px,96vw)] flex-col overflow-hidden"
         >
             <div class="flex items-center gap-3 border-b border-line px-5 py-3.5">
                 <div class="text-[15px] font-semibold">Export</div>
@@ -166,28 +157,17 @@ const Body: Component = () => {
                 </For>
             </div>
 
-            <div class="min-h-0 flex-1 overflow-auto bg-ink/90">
-                <div class="flex min-h-full w-max min-w-full items-center gap-5 px-6 py-6">
-                    <For each={editor.artifact.sections}>
-                        {(section, ix) => (
-                            <div class="flex-none">
-                                <ScaledSectionCanvas
-                                    section={section}
-                                    theme={editorTokens()}
-                                    profile={cell().profile}
-                                    frame={cell().frame}
-                                    layoutWidth={cell().layoutWidth}
-                                    width={cell().width}
-                                    lazy
-                                    baseShadow
-                                    radius={3}
-                                />
-                                <div class="mt-2 text-center font-mono text-[9.5px] text-canvas/70">
-                                    {caption(ix(), section.id)}
-                                </div>
-                            </div>
-                        )}
-                    </For>
+            <div
+                ref={pane}
+                class="min-h-0 flex-1 overflow-y-auto"
+                style={{
+                    background: backdropCss(editor.artifact.background, editorTokens()),
+                    "background-size": "cover",
+                    "background-position": "center",
+                }}
+            >
+                <div class="flex justify-center py-7">
+                    <div ref={host} />
                 </div>
             </div>
 
