@@ -1,4 +1,4 @@
-import type { IconPick, MediaKind } from "@model/media";
+import type { IconPick, MediaItem, MediaKind } from "@model/media";
 import { clearBackgroundImage } from "@elements/ops";
 import { commit, editor, requestMediaPicker } from "./store";
 
@@ -74,7 +74,7 @@ export function embedFor(
 // Open the host media picker for a URL-delivering asset (image/video/…). Pass onRemove when a value is
 // already set so the picker offers a "Remove" action.
 export function pickMedia(
-    onPick: (url: string) => void,
+    onPick: (url: string, item?: MediaItem) => void,
     kind?: MediaKind,
     onRemove?: () => void,
 ): void {

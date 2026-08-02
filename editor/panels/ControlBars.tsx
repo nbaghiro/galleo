@@ -181,6 +181,7 @@ export const ContextBar: Component = () => {
                                     field={c}
                                     value={data()[c.key]}
                                     onChange={(v) => setData(c.key, v)}
+                                    onWrite={(k, v) => setData(k, v)}
                                 />
                             )}
                         </For>

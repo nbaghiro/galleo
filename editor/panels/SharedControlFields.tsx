@@ -1,5 +1,5 @@
 import type { ControlField } from "@elements/spec";
-import type { MediaKind } from "@model/media";
+import type { MediaItem, MediaKind } from "@model/media";
 import type { Vector } from "@model/vector";
 import type { Component, JSX } from "solid-js";
 import { parseSvg } from "@elements/media/vector";
@@ -69,11 +69,11 @@ export const MediaField: Component<{
     placeholder?: string;
     compact?: boolean;
     kind?: string;
-    onChange: (v: string) => void;
+    onChange: (v: string, item?: MediaItem) => void;
 }> = (props) => {
     const [pasting, setPasting] = createSignal(false);
     const open = (): void =>
-        pickMedia((url) => props.onChange(url), props.kind as MediaKind | undefined);
+        pickMedia((url, item) => props.onChange(url, item), props.kind as MediaKind | undefined);
     return (
         <Show
             when={!props.compact}
@@ -269,6 +269,7 @@ export const Field: Component<{
     field: ControlField;
     value: unknown;
     onChange: (v: unknown) => void;
+    onWrite?: (key: string, value: unknown) => void; // sibling-key writes (media posterKey)
     compact?: boolean;
 }> = (props) => {
     const f = (): ControlField => props.field;
@@ -331,7 +332,16 @@ export const Field: Component<{
                     placeholder={f().placeholder}
                     compact={props.compact}
                     kind={f().mediaKind}
-                    onChange={(v) => props.onChange(v)}
+                    onChange={(v, item) => {
+                        props.onChange(v);
+                        // picked item carries a still frame; a pasted URL clears any stale one
+                        const pk = f().posterKey;
+                        if (pk)
+                            props.onWrite?.(
+                                pk,
+                                item?.thumbUrl && item.thumbUrl !== v ? item.thumbUrl : undefined,
+                            );
+                    }}
                 />
             </Match>
             <Match when={f().control === "icon"}>
@@ -390,7 +400,12 @@ export const SchemaFields: Component<{
     );
     const fieldFor = (c: ControlField): JSX.Element => (
         <Show when={!c.visibleWhen || c.visibleWhen(snapshot())}>
-            <Field field={c} value={props.read(c.key)} onChange={(v) => props.write(c.key, v)} />
+            <Field
+                field={c}
+                value={props.read(c.key)}
+                onChange={(v) => props.write(c.key, v)}
+                onWrite={props.write}
+            />
         </Show>
     );
     return (

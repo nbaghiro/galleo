@@ -6,12 +6,23 @@ import { fontStack } from "@themes";
 
 interface VideoData {
     src?: string;
+    poster?: string; // still frame for every static paint (thumbs, previews, exports)
     aspect?: number; // width / height
     radius?: number;
     controls?: boolean;
     autoplay?: boolean;
     loop?: boolean;
     muted?: boolean;
+}
+
+// keep in sync with embedFor's YouTube matcher (editor/core/media.ts)
+const YT_ID =
+    /(?:youtube(?:-nocookie)?\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/;
+
+export function videoPoster(d: VideoData): string | undefined {
+    if (d.poster) return d.poster;
+    const yt = d.src?.match(YT_ID);
+    return yt ? `https://i.ytimg.com/vi/${yt[1]}/hqdefault.jpg` : undefined;
 }
 
 export const videoElement: ElementSpec<VideoData> = {
@@ -27,6 +38,13 @@ export const videoElement: ElementSpec<VideoData> = {
         alignX: "center",
         alignY: "center",
         fill: { color: "#15171c", radius: d.radius ?? Math.round(ctx.theme.radius / 1.5) },
+        image: videoPoster(d)
+            ? {
+                  src: videoPoster(d)!,
+                  fit: "cover",
+                  radius: d.radius ?? Math.round(ctx.theme.radius / 1.5),
+              }
+            : undefined,
         children: [
             {
                 w: fit(),
@@ -55,7 +73,7 @@ export const videoElement: ElementSpec<VideoData> = {
     bar: ["src"],
     resize: { aspect: { min: 0.4, max: 2.6 } },
     controls: [
-        { key: "src", label: "Video", control: "media", mediaKind: "video" },
+        { key: "src", label: "Video", control: "media", mediaKind: "video", posterKey: "poster" },
         {
             key: "radius",
             label: "Corner radius",

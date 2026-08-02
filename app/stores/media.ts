@@ -1,8 +1,8 @@
 import { createSignal } from "solid-js";
-import type { IconPick, MediaKind } from "@model/media";
+import type { IconPick, MediaItem, MediaKind } from "@model/media";
 
 export interface MediaPickRequest {
-    onPick: (url: string) => void;
+    onPick: (url: string, item?: MediaItem) => void; // item present when picked from the browser (carries the poster/thumb)
     onPickIcon?: (icon: IconPick) => void; // icon kind delivers a themed-glyph descriptor, not a url
     onRemove?: () => void; // present when a value is already set → picker offers a "Remove" action
     query?: string;
@@ -20,8 +20,8 @@ export function closeMediaPicker(): void {
     setMediaRequest(null);
 }
 
-export function pickMedia(url: string): void {
-    mediaRequest()?.onPick(url);
+export function pickMedia(url: string, item?: MediaItem): void {
+    mediaRequest()?.onPick(url, item);
     setMediaRequest(null);
 }
 

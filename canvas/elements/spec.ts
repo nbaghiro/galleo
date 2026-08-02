@@ -65,6 +65,7 @@ export interface ControlField {
     placeholder?: string;
     icon?: string; // leading glyph on the compact format bar (which drops labels)
     mediaKind?: string; // for `media` controls: the kind the picker opens (photo · gif · …)
+    posterKey?: string; // for `media` controls: sibling data key that receives the picked item's still frame
     group?: string; // optional inspector section heading
     visibleWhen?: (data: Record<string, unknown>) => boolean;
 }

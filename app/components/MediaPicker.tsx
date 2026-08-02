@@ -420,7 +420,7 @@ export const MediaPicker: Component = () => {
         } catch {
             // best-effort; never block the pick
         }
-        pickMedia(it.url);
+        pickMedia(it.url, it);
     }
 
     onMount(() => {

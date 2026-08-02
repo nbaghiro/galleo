@@ -3,7 +3,7 @@ import type { ElementAddress, Target } from "@model/target";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import type { PlanLimits } from "@model/billing";
 import type { TurnEvent, TurnRequest } from "@model/ai";
-import type { IconPick, MediaKind } from "@model/media";
+import type { IconPick, MediaItem, MediaKind } from "@model/media";
 import { createSignal } from "solid-js";
 import type { Theme, Tokens } from "@themes";
 import { duplicateSection, insertSection, moveSection, removeSection } from "@elements/ops";
@@ -323,7 +323,7 @@ export function requestShare(): void {
 
 // opens the shared media picker; no host → no-op
 export interface MediaPickerRequest {
-    onPick: (url: string) => void;
+    onPick: (url: string, item?: MediaItem) => void; // item present when picked from the browser (carries the poster/thumb)
     onPickIcon?: (icon: IconPick) => void; // icon delivers a themed-glyph descriptor, not a url
     onRemove?: () => void; // present when a value is already set → picker offers a "Remove" action
     query?: string;
