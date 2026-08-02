@@ -29,6 +29,11 @@ import {
 const reduced = (): boolean =>
     window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
+// the longest land animation (image de-blur); the board waits it out before scrolling onward
+const REVEAL_MS = 640;
+// deliberate linger on the finished section before the board moves on — reading time, not lag
+const DWELL_MS = 900;
+
 const PLACEHOLDER =
     "A launch deck for a calm operating system that helps solo studios handle projects, invoices, and cashflow in one place…";
 const EXAMPLE_PROMPTS: { text: string; format: Surface }[] = [
@@ -827,7 +832,8 @@ const Board: Component = () => {
         setAvail(board.clientWidth);
         onCleanup(() => ro.disconnect());
     });
-    // center the active section's skeleton; a short client-side pause paces reveals (never gates generation)
+    // center the active section's skeleton — but only after the previous section's land animation
+    // has finished playing, so reveals are watched in place, not mid-scroll (never gates generation)
     const centerActive = (): void => {
         const id = gen.activeSection;
         const el = id ? board?.querySelector<HTMLElement>(`[data-sid="${id}"]`) : null;
@@ -841,24 +847,26 @@ const Board: Component = () => {
     createEffect(() => {
         void gen.activeSection;
         clearTimeout(scrollTimer);
-        scrollTimer = setTimeout(centerActive, reduced() ? 0 : 420);
+        scrollTimer = setTimeout(centerActive, reduced() ? 0 : REVEAL_MS + DWELL_MS);
     });
-    createEffect(() => {
-        void placedSections().length;
-        queueMicrotask(centerActive);
-    });
-    // on finish activeSection is null, so settle at the end instead of freezing mid-scroll
+    // on finish activeSection is null, so settle at the end instead of freezing mid-scroll —
+    // after the last section's reveal has played out
     createEffect(() => {
         if (gen.phase !== "done") return;
         clearTimeout(scrollTimer);
-        queueMicrotask(() =>
-            board?.scrollTo({ top: board.scrollHeight, behavior: reduced() ? "auto" : "smooth" }),
+        scrollTimer = setTimeout(
+            () =>
+                board?.scrollTo({
+                    top: board.scrollHeight,
+                    behavior: reduced() ? "auto" : "smooth",
+                }),
+            reduced() ? 0 : REVEAL_MS + DWELL_MS,
         );
     });
     onCleanup(() => clearTimeout(scrollTimer));
-    // web bands butt together, deck cards get room, doc pages sit slightly apart
+    // continuous formats (doc/web) merge seamlessly like the engine; only paged decks float apart
     const gap = (): string =>
-        previewFormat() === "web" ? "2px" : previewFormat() === "doc" ? "14px" : "22px";
+        resolveProfile(previewFormat()).kind === "continuous" ? "0px" : "22px";
     // the artifact-level backdrop streams in via a setMeta patch — paint it behind the stack like the editor does
     const backdrop = (): string =>
         backdropCss(gen.finalContent?.background, resolveTheme(gen.theme).tokens);
@@ -896,15 +904,17 @@ const Frame: Component<{ slot: SectionSlot; index: number; avail: () => number }
     const doneReady = (): boolean => props.slot.status === "done" && !!props.slot.section;
     const active = (): boolean => ["active", "writing", "image"].includes(props.slot.status);
     const themeBg = (): string => resolveTheme(gen.theme).tokens.bg;
-    const isWeb = (): boolean => previewFormat() === "web";
+    const paged = (): boolean => resolveProfile(previewFormat()).kind !== "continuous";
 
     createEffect(() => {
         if (!box) return;
         const done = doneReady();
         const sec = done ? (props.slot.section as Section) : placeholderSection(props.slot);
         const tk = resolveTheme(gen.theme).tokens;
-        const layoutW = frameWidth(props.avail());
         const profile = resolveProfile(previewFormat());
+        // one width for skeleton AND landed paint — a skeleton can't know its bleed flag yet, so
+        // the editor's inset-vs-bleed width rule would make sections jump width when they land
+        const layoutW = frameWidth(props.avail());
         const out = done
             ? layoutSection(sec, layoutW, measureText, tk, profile)
             : layoutSectionSkeleton(sec, layoutW, measureText, tk, profile);
@@ -927,7 +937,7 @@ const Frame: Component<{ slot: SectionSlot; index: number; avail: () => number }
                     { filter: "blur(14px)", opacity: 0.4 },
                     { filter: "blur(0)", opacity: 1 },
                 ],
-                { duration: 640, fill: "both" },
+                { duration: REVEAL_MS, fill: "both" },
             ),
         );
     });
@@ -945,16 +955,28 @@ const Frame: Component<{ slot: SectionSlot; index: number; avail: () => number }
                 {String(props.index + 1).padStart(2, "0")} · {props.slot.layout.toUpperCase()}
                 {props.slot.image ? " · IMG" : ""}
             </span>
+            {/* The engine paints the finished card (surface, radius, bleed) — chrome only wraps the
+                skeleton, where the dashed ghost frame is the point. A wrapper card around landed
+                sections double-bordered them and let its background peek around the painted corners. */}
             <div
-                class="overflow-hidden transition-colors"
+                class="transition-colors"
                 classList={{
-                    "rounded-xl border": !isWeb(),
-                    "border-line shadow-[0_30px_60px_-40px_rgba(0,0,0,0.5)]":
-                        doneReady() && !isWeb(),
-                    "border-dashed border-accent/25": !doneReady() && !isWeb(),
+                    "overflow-hidden rounded-xl border border-dashed border-accent/25":
+                        !doneReady() && paged(),
                     "ring-1 ring-accent shadow-[0_0_30px_-6px_var(--color-accent)]": active(),
+                    "shadow-[0_30px_60px_-40px_rgba(0,0,0,0.5)]": doneReady() && paged(),
                 }}
-                style={{ background: themeBg() }}
+                style={{
+                    background: doneReady() ? "transparent" : themeBg(),
+                    // the wrapper hugs the painted card (bleed = full frame, content cards inset),
+                    // so the shadow and radius trace the engine's surface, not the outer frame
+                    width: `${dim().w}px`,
+                    margin: "0 auto",
+                    "border-radius":
+                        doneReady() && paged() && !(props.slot.section as Section).bleed
+                            ? `${resolveTheme(gen.theme).tokens.radius}px`
+                            : undefined,
+                }}
             >
                 <div
                     ref={box}
@@ -962,7 +984,6 @@ const Frame: Component<{ slot: SectionSlot; index: number; avail: () => number }
                         position: "relative",
                         width: `${dim().w}px`,
                         height: `${dim().h}px`,
-                        margin: "0 auto",
                     }}
                 />
             </div>
