@@ -5,7 +5,7 @@ import type { Section, ElementInstance } from "@model/artifact";
 import { row, split } from "@model/authoring";
 import { resolveProfile } from "@engine/profile";
 import { resolveTheme, themeCssVars, mix } from "@themes";
-import { paint } from "@canvas/render/backends";
+import { backdropCss, paint } from "@canvas/render/backends";
 import { measureText, layoutSection, layoutSectionSkeleton } from "@canvas/render/commands";
 import { placeholderSection } from "@canvas/elements/blueprint";
 import { appTheme } from "../stores/theme";
@@ -859,11 +859,19 @@ const Board: Component = () => {
     // web bands butt together, deck cards get room, doc pages sit slightly apart
     const gap = (): string =>
         previewFormat() === "web" ? "2px" : previewFormat() === "doc" ? "14px" : "22px";
+    // the artifact-level backdrop streams in via a setMeta patch — paint it behind the stack like the editor does
+    const backdrop = (): string =>
+        backdropCss(gen.finalContent?.background, resolveTheme(gen.theme).tokens);
     return (
         <div
             ref={board}
             class="flex h-full flex-col items-center overflow-auto px-7 py-6"
-            style={{ gap: gap() }}
+            style={{
+                gap: gap(),
+                background: backdrop(),
+                "background-size": "cover",
+                "background-position": "center",
+            }}
         >
             <Show
                 when={!gen.beats.length}
