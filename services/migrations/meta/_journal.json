@@ -43,6 +43,13 @@
       "when": 1785596379249,
       "tag": "0005_minor_nextwave",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785607289114,
+      "tag": "0006_strange_starjammers",
+      "breakpoints": true
     }
   ]
 }

@@ -23,6 +23,8 @@ export const users = pgTable("users", {
     emailVerifiedAt: timestamp("email_verified_at"), // null = email not yet confirmed
     // sessions issued before this instant are rejected — bumped on password reset (revokes stolen cookies)
     passwordChangedAt: timestamp("password_changed_at"),
+    // which membership the app opens (no FK — workspaces is declared below; validated on read)
+    activeWorkspaceId: uuid("active_workspace_id"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -73,6 +75,7 @@ export const workspaces = pgTable("workspaces", {
     cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false), // scheduled downgrade to Free at planPeriodEnd
     seats: integer("seats").notNull().default(1), // subscription quantity; synced from Stripe
     aiCreditsUsed: integer("ai_credits_used").notNull().default(0),
+    aiCreditsBonus: integer("ai_credits_bonus").notNull().default(0), // purchased top-ups; spent after the pool, never reset
     creditsResetAt: timestamp("credits_reset_at").notNull().defaultNow(),
     // per-workspace grants that override the plan; see @model/features
     featureOverrides: jsonb("feature_overrides").$type<FeatureOverrides>(),
@@ -92,6 +95,29 @@ export const members = pgTable(
         createdAt: timestamp("created_at").notNull().defaultNow(),
     },
     (t) => [primaryKey({ columns: [t.workspaceId, t.userId] })],
+);
+
+// Pending workspace invitations. Only a SHA-256 hash of the token is stored (the raw value lives in
+// the emailed link, like auth_tokens); acceptance is possession-based. One live invite per
+// (workspace, email); accepted_at set = consumed.
+export const invites = pgTable(
+    "invites",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        workspaceId: uuid("workspace_id")
+            .notNull()
+            .references(() => workspaces.id, { onDelete: "cascade" }),
+        email: text("email").notNull(),
+        role: text("role").notNull().default("editor"),
+        tokenHash: text("token_hash").notNull().unique(),
+        invitedBy: uuid("invited_by")
+            .notNull()
+            .references(() => users.id),
+        expiresAt: timestamp("expires_at").notNull(),
+        acceptedAt: timestamp("accepted_at"),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+    },
+    (t) => [unique().on(t.workspaceId, t.email)],
 );
 
 export const folders = pgTable("folders", {
@@ -239,6 +265,7 @@ export const schema = {
     authTokens,
     workspaces,
     members,
+    invites,
     folders,
     artifacts,
     themes,
