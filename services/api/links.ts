@@ -4,11 +4,11 @@ import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { createHash, randomBytes } from "node:crypto";
 import type { ArtifactContent } from "@model/artifact";
-import { can, resolveFeatures } from "@model/features";
+import { resolveFeatures } from "@model/features";
 import type { PlanId } from "@model/billing";
 import { db, schema } from "../schema";
 import { SESSION_COOKIE, hashPassword, verifyPassword } from "../auth";
-import { featuresFor } from "../features";
+import { requireFeature } from "../features";
 import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
 import { sendShareInvite } from "../mail/send";
 
@@ -260,8 +260,13 @@ links.post("/artifacts/:id/links", async (c) => {
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await currentWorkspace(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
-    if (!can(featuresFor(ws), "publicLinks"))
-        return c.json({ error: "Public links are a paid feature — upgrade.", upgrade: true }, 402);
+    const denied = requireFeature(
+        c,
+        ws,
+        "publicLinks",
+        "Public links are a paid feature — upgrade.",
+    );
+    if (denied) return denied;
 
     const artifactId = c.req.param("id");
     const [artifact] = await db
@@ -536,8 +541,8 @@ links.get("/links/:id/analytics", async (c) => {
     if (!ws) return c.json({ error: "no workspace" }, 400);
     const link = await ownedLink(c.req.param("id"), ws.id);
     if (!link) return c.json({ error: "not found" }, 404);
-    if (!can(featuresFor(ws), "analytics"))
-        return c.json({ error: "Analytics is a Premium feature — upgrade.", upgrade: true }, 402);
+    const denied = requireFeature(c, ws, "analytics", "Analytics is a Premium feature — upgrade.");
+    if (denied) return denied;
 
     return c.json(await analyticsFor([link.id], link.visibility === "private" ? [link.id] : []));
 });
@@ -555,8 +560,8 @@ links.get("/artifacts/:id/analytics", async (c) => {
         .from(schema.artifacts)
         .where(and(eq(schema.artifacts.id, artifactId), eq(schema.artifacts.workspaceId, ws.id)));
     if (!artifact) return c.json({ error: "not found" }, 404);
-    if (!can(featuresFor(ws), "analytics"))
-        return c.json({ error: "Analytics is a Premium feature — upgrade.", upgrade: true }, 402);
+    const denied = requireFeature(c, ws, "analytics", "Analytics is a Premium feature — upgrade.");
+    if (denied) return denied;
 
     const rows = await db
         .select({ id: schema.links.id, visibility: schema.links.visibility })

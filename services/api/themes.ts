@@ -2,10 +2,9 @@ import { Hono } from "hono";
 import { and, eq } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import type { ThemeInput } from "@themes";
-import { can } from "@model/features";
 import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
-import { featuresFor } from "../features";
+import { requireFeature } from "../features";
 import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
 
 // Per-workspace custom themes only (workspaceId null = built-in, never returned here).
@@ -36,14 +35,13 @@ themes.post("/themes", async (c) => {
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await currentWorkspace(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
-    if (!can(featuresFor(ws), "customThemes"))
-        return c.json(
-            {
-                error: "Custom themes are a Pro feature — upgrade to create your own.",
-                upgrade: true,
-            },
-            402,
-        );
+    const denied = requireFeature(
+        c,
+        ws,
+        "customThemes",
+        "Custom themes are a Pro feature — upgrade to create your own.",
+    );
+    if (denied) return denied;
     const body = await readJson<Partial<ThemeInput>>(c);
     if (!body.tokens) return c.json({ error: "tokens required" }, 400);
     const [t] = await db
