@@ -1,17 +1,34 @@
 import { Hono } from "hono";
-import { and, eq, isNull } from "drizzle-orm";
+import type { Context } from "hono";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import type Stripe from "stripe";
-import type { Interval, PlanId } from "@model/billing";
-import { visiblePlans, limitsFor, planFor, CREDITS_PER_GENERATION } from "@model/billing";
+import type { CreditPackId, Interval, PlanId } from "@model/billing";
+import {
+    visiblePlans,
+    limitsFor,
+    planFor,
+    packFor,
+    CREDIT_PACKS,
+    CREDITS_PER_GENERATION,
+} from "@model/billing";
 import type { ToolId, MeterParams } from "@model/tools";
 import { estimateCost } from "@model/tools";
 import type { Usage } from "@model/credits";
-import { costOf } from "@model/credits";
+import { costOf, describeUsage } from "@model/credits";
 import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
 import { currentUser, currentWorkspace, readJson } from "./context";
-import { stripe, stripeReady, priceIdFor, planForPrice, intervalForPrice } from "../billing/stripe";
+import {
+    stripe,
+    stripeReady,
+    priceIdFor,
+    planForPrice,
+    intervalForPrice,
+    packPriceId,
+} from "../billing/stripe";
+import { creditLimitFor } from "../features";
+import { chargeCredits } from "../credits";
 
 export const billing = new Hono();
 
@@ -42,9 +59,14 @@ billing.get("/billing", async (c) => {
         cancelAtPeriodEnd: ws.cancelAtPeriodEnd,
         credits: {
             used: ws.aiCreditsUsed,
-            limit: limits.aiCreditsPerMonth,
+            limit: creditLimitFor(ws),
+            bonus: ws.aiCreditsBonus,
             perGeneration: CREDITS_PER_GENERATION,
         },
+        // packs this workspace can buy right now (plan allows them + a price id is configured)
+        topUps: planFor(ws.plan).ai.creditTopUpsAllowed
+            ? CREDIT_PACKS.filter((p) => !!packPriceId(p.id))
+            : [],
         usage: { artifacts: rows.length, maxArtifacts: limits.maxArtifacts },
         seats: ws.seats,
         catalog: visiblePlans(),
@@ -52,11 +74,19 @@ billing.get("/billing", async (c) => {
     });
 });
 
+// Subscription mutations are owner-only; members read /billing but can't change what's paid for.
+const notOwner = (c: Context, ws: { ownerId: string }, userId: string): Response | null =>
+    ws.ownerId !== userId
+        ? c.json({ error: "only the workspace owner can manage billing" }, 403)
+        : null;
+
 billing.post("/billing/checkout", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await currentWorkspace(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
+    const denied = notOwner(c, ws, u.id);
+    if (denied) return denied;
     if (!stripeReady()) return c.json({ error: "billing not configured" }, 503);
     const { plan, interval, seats } = await readJson<{
         plan?: PlanId;
@@ -72,26 +102,18 @@ billing.post("/billing/checkout", async (c) => {
             ? Math.max(seats ?? p.billing.minSeats, p.billing.minSeats)
             : 1;
 
-    let customerId = ws.stripeCustomerId;
-    if (!customerId) {
-        const customer = await stripe().customers.create({
-            email: u.email,
-            name: ws.name,
-            metadata: { workspaceId: ws.id },
-        });
-        customerId = customer.id;
-        await db
-            .update(schema.workspaces)
-            .set({ stripeCustomerId: customerId })
-            .where(eq(schema.workspaces.id, ws.id));
-    }
+    const customerId = await ensureCustomer(ws, u.email);
 
     const session = await stripe().checkout.sessions.create({
         mode: "subscription",
         customer: customerId,
         line_items: [{ price, quantity }],
         client_reference_id: ws.id,
-        subscription_data: { metadata: { workspaceId: ws.id } },
+        subscription_data: {
+            metadata: { workspaceId: ws.id },
+            // trials are a catalog decision: 0 today, one field to launch (activeStatus already maps "trialing" → active)
+            ...(p.billing.trialDays > 0 ? { trial_period_days: p.billing.trialDays } : {}),
+        },
         allow_promotion_codes: true,
         custom_text: {
             submit: { message: "Change or cancel your plan anytime from Billing." },
@@ -102,11 +124,60 @@ billing.post("/billing/checkout", async (c) => {
     return c.json({ url: session.url });
 });
 
+async function ensureCustomer(
+    ws: { id: string; name: string; stripeCustomerId: string | null },
+    email: string,
+): Promise<string> {
+    if (ws.stripeCustomerId) return ws.stripeCustomerId;
+    const customer = await stripe().customers.create({
+        email,
+        name: ws.name,
+        metadata: { workspaceId: ws.id },
+    });
+    await db
+        .update(schema.workspaces)
+        .set({ stripeCustomerId: customer.id })
+        .where(eq(schema.workspaces.id, ws.id));
+    return customer.id;
+}
+
+// One-time credit pack purchase (payment-mode Checkout); the webhook grants on completion.
+billing.post("/billing/topup", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await currentWorkspace(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+    const denied = notOwner(c, ws, u.id);
+    if (denied) return denied;
+    if (!stripeReady()) return c.json({ error: "billing not configured" }, 503);
+    if (!planFor(ws.plan).ai.creditTopUpsAllowed)
+        return c.json({ error: "Credit top-ups need a paid plan — upgrade.", upgrade: true }, 402);
+    const { pack: packId } = await readJson<{ pack?: CreditPackId }>(c);
+    const pack = packFor(packId);
+    if (!pack) return c.json({ error: "invalid pack" }, 400);
+    const price = packPriceId(pack.id);
+    if (!price) return c.json({ error: "pack not configured" }, 503);
+
+    const customerId = await ensureCustomer(ws, u.email);
+    const session = await stripe().checkout.sessions.create({
+        mode: "payment",
+        customer: customerId,
+        line_items: [{ price, quantity: 1 }],
+        client_reference_id: ws.id,
+        metadata: { workspaceId: ws.id, pack: pack.id },
+        success_url: `${APP_URL}/pricing?status=topup-success`,
+        cancel_url: `${APP_URL}/pricing?status=cancel`,
+    });
+    return c.json({ url: session.url });
+});
+
 billing.post("/billing/portal", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await currentWorkspace(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
+    const denied = notOwner(c, ws, u.id);
+    if (denied) return denied;
     if (!ws.stripeCustomerId) return c.json({ error: "no subscription" }, 400);
     const session = await stripe().billingPortal.sessions.create({
         customer: ws.stripeCustomerId,
@@ -125,8 +196,11 @@ billing.post("/billing/change-plan", async (c) => {
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await currentWorkspace(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
+    const denied = notOwner(c, ws, u.id);
+    if (denied) return denied;
     if (!ws.stripeSubscriptionId)
         return c.json({ error: "no active subscription", useCheckout: true }, 400);
+    if (!stripeReady()) return c.json({ error: "billing not configured" }, 503);
     const { plan, interval, seats } = await readJson<{
         plan?: PlanId;
         interval?: Interval;
@@ -144,7 +218,6 @@ billing.post("/billing/change-plan", async (c) => {
             .where(eq(schema.workspaces.id, ws.id));
         return c.json({ ok: true, effect: "cancel_at_period_end" });
     }
-    if (!stripeReady()) return c.json({ error: "billing not configured" }, 503);
 
     const sub = await stripe().subscriptions.retrieve(ws.stripeSubscriptionId);
     const item = sub.items.data[0];
@@ -160,6 +233,21 @@ billing.post("/billing/change-plan", async (c) => {
         tp.billing.model === "per_seat" ? Math.max(seats ?? curSeats, tp.billing.minSeats) : 1;
     const newPrice = priceIdFor(targetPlan, targetInterval);
     if (!newPrice) return c.json({ error: "invalid plan" }, 400);
+
+    // seats can't drop below the people using them — remove members first
+    if (tp.billing.model === "per_seat" && targetSeats < curSeats) {
+        const memberRows = await db
+            .select({ userId: schema.members.userId })
+            .from(schema.members)
+            .where(eq(schema.members.workspaceId, ws.id));
+        if (targetSeats < memberRows.length)
+            return c.json(
+                {
+                    error: `Your workspace has ${memberRows.length} members — remove members before reducing seats.`,
+                },
+                400,
+            );
+    }
 
     const upgrading = RANK[targetPlan] > RANK[curPlan] || targetSeats > curSeats;
     await stripe().subscriptions.update(ws.stripeSubscriptionId, {
@@ -181,13 +269,38 @@ billing.post("/billing/resume", async (c) => {
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await currentWorkspace(u.id);
     if (!ws) return c.json({ error: "no workspace" }, 400);
+    const denied = notOwner(c, ws, u.id);
+    if (denied) return denied;
     if (!ws.stripeSubscriptionId) return c.json({ error: "no active subscription" }, 400);
+    if (!stripeReady()) return c.json({ error: "billing not configured" }, 503);
     await stripe().subscriptions.update(ws.stripeSubscriptionId, { cancel_at_period_end: false });
     await db
         .update(schema.workspaces)
         .set({ cancelAtPeriodEnd: false })
         .where(eq(schema.workspaces.id, ws.id));
     return c.json({ ok: true });
+});
+
+// The credit ledger, most recent first — drives the pricing page's recent-activity list.
+billing.get("/billing/ledger", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await currentWorkspace(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+    const rows = await db
+        .select()
+        .from(schema.credits)
+        .where(eq(schema.credits.workspaceId, ws.id))
+        .orderBy(desc(schema.credits.createdAt))
+        .limit(50);
+    return c.json({
+        entries: rows.map((r) => ({
+            delta: r.delta,
+            reason: r.reason,
+            balanceAfter: r.balanceAfter,
+            at: r.createdAt,
+        })),
+    });
 });
 
 // Cost precedence: exact usage bag → action+meter estimate → raw amount → default generation. 402 when spent.
@@ -210,22 +323,14 @@ billing.post("/billing/spend", async (c) => {
               ? estimateCost(action, meter)
               : (amount ?? CREDITS_PER_GENERATION),
     );
-    const limit = limitsFor(ws.plan).aiCreditsPerMonth;
-    if (ws.aiCreditsUsed + cost > limit) {
+    const reason = action ?? (usage ? describeUsage(usage) : "spend");
+    const spend = await chargeCredits(ws, cost, reason);
+    if (!spend.ok)
         return c.json(
-            {
-                error: "out of AI credits",
-                upgrade: true,
-                remaining: Math.max(0, limit - ws.aiCreditsUsed),
-            },
+            { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
             402,
         );
-    }
-    await db
-        .update(schema.workspaces)
-        .set({ aiCreditsUsed: ws.aiCreditsUsed + cost })
-        .where(eq(schema.workspaces.id, ws.id));
-    return c.json({ remaining: limit - (ws.aiCreditsUsed + cost) });
+    return c.json({ remaining: spend.remaining });
 });
 
 // Unauthenticated (verified by signature); reads the RAW body (constructEvent needs the exact bytes).
@@ -240,36 +345,46 @@ billing.post("/billing/webhook", async (c) => {
     } catch {
         return c.json({ error: "bad signature" }, 400);
     }
-    // Claim the event id before handling; a redelivery finds it already claimed and is a no-op. On a
-    // handler failure we release the claim so Stripe's retry re-runs it (at-least-once, dedup on success).
-    const [claimed] = await db
-        .insert(schema.stripeEvents)
-        .values({ id: event.id, type: event.type })
-        .onConflictDoNothing()
-        .returning({ id: schema.stripeEvents.id });
-    if (!claimed) return c.json({ received: true, duplicate: true });
-    try {
-        await handleEvent(event);
-    } catch (err) {
-        await db.delete(schema.stripeEvents).where(eq(schema.stripeEvents.id, event.id));
-        throw err;
+    // The subscription fetch happens before the claim transaction so no DB connection is held
+    // across a network call.
+    let checkoutSub: Stripe.Subscription | null = null;
+    if (event.type === "checkout.session.completed") {
+        const s = event.data.object as Stripe.Checkout.Session;
+        const subId = typeof s.subscription === "string" ? s.subscription : s.subscription?.id;
+        if (s.mode !== "payment" && subId)
+            checkoutSub = await stripe().subscriptions.retrieve(subId);
     }
-    return c.json({ received: true });
+    // Claim the event id and apply its effects in ONE transaction: a redelivery finds the claim and
+    // no-ops; any failure (including a crash mid-handle) rolls the claim back so Stripe's retry
+    // re-runs it. At-least-once delivery, exactly-once effects.
+    const duplicate = await db.transaction(async (tx) => {
+        const [claimed] = await tx
+            .insert(schema.stripeEvents)
+            .values({ id: event.id, type: event.type })
+            .onConflictDoNothing()
+            .returning({ id: schema.stripeEvents.id });
+        if (!claimed) return true;
+        await handleEvent(event, checkoutSub, tx);
+        return false;
+    });
+    return c.json(duplicate ? { received: true, duplicate: true } : { received: true });
 });
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const activeStatus = (s: Stripe.Subscription.Status): string =>
     s === "active" || s === "trialing" ? "active" : s === "past_due" ? "past_due" : "canceled";
 
-async function workspaceBySubId(subId: string) {
-    const [ws] = await db
+async function workspaceBySubId(tx: Tx, subId: string) {
+    const [ws] = await tx
         .select()
         .from(schema.workspaces)
         .where(eq(schema.workspaces.stripeSubscriptionId, subId));
     return ws ?? null;
 }
 
-async function workspaceByCustomer(customerId: string) {
-    const [ws] = await db
+async function workspaceByCustomer(tx: Tx, customerId: string) {
+    const [ws] = await tx
         .select()
         .from(schema.workspaces)
         .where(eq(schema.workspaces.stripeCustomerId, customerId));
@@ -281,18 +396,44 @@ const invCustomer = (inv: Stripe.Invoice): string | null =>
     typeof inv.customer === "string" ? inv.customer : (inv.customer?.id ?? null);
 
 // Last-write-wins syncs; sub events guard on the workspace whose CURRENT sub this is (a stale update can't resurrect a plan); dunning maps by customer.
-async function handleEvent(event: Stripe.Event): Promise<void> {
+async function handleEvent(
+    event: Stripe.Event,
+    checkoutSub: Stripe.Subscription | null,
+    tx: Tx,
+): Promise<void> {
     if (event.type === "checkout.session.completed") {
         const s = event.data.object as Stripe.Checkout.Session;
-        const wsId = s.client_reference_id;
-        const subId = typeof s.subscription === "string" ? s.subscription : s.subscription?.id;
+        const wsId = s.client_reference_id ?? s.metadata?.workspaceId;
         const customerId = typeof s.customer === "string" ? s.customer : (s.customer?.id ?? null);
-        if (!wsId || !subId) return;
-        const sub = await stripe().subscriptions.retrieve(subId);
+        if (s.mode === "payment") {
+            // Credit-pack purchase: re-derive the grant from the catalog (never trust a stale
+            // metadata credit count) and land it in the bonus balance atomically.
+            const pack = packFor(s.metadata?.pack);
+            if (!wsId || !pack) return;
+            const [after] = await tx
+                .update(schema.workspaces)
+                .set({
+                    aiCreditsBonus: sql`${schema.workspaces.aiCreditsBonus} + ${pack.credits}`,
+                })
+                .where(eq(schema.workspaces.id, wsId))
+                .returning();
+            if (after)
+                await tx.insert(schema.credits).values({
+                    workspaceId: wsId,
+                    delta: pack.credits,
+                    reason: `topup:${pack.id}`,
+                    balanceAfter:
+                        Math.max(0, creditLimitFor(after) - after.aiCreditsUsed) +
+                        after.aiCreditsBonus,
+                });
+            return;
+        }
+        if (!wsId || !checkoutSub) return;
+        const sub = checkoutSub;
         const plan = planForPrice(sub.items.data[0]?.price.id);
         if (!plan) return;
         // A fresh subscription → fresh plan + a fresh monthly credit window.
-        await db
+        await tx
             .update(schema.workspaces)
             .set({
                 plan,
@@ -308,14 +449,24 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
             .where(eq(schema.workspaces.id, wsId));
     } else if (event.type === "customer.subscription.updated") {
         const sub = event.data.object as Stripe.Subscription;
-        const ws = await workspaceBySubId(sub.id);
+        let ws = await workspaceBySubId(tx, sub.id);
+        // A missed checkout.completed leaves the sub unlinked — adopt via the metadata backref,
+        // but only onto a workspace with NO current sub, so a stale event can't hijack a newer one.
+        if (!ws && sub.metadata?.workspaceId) {
+            const [cand] = await tx
+                .select()
+                .from(schema.workspaces)
+                .where(eq(schema.workspaces.id, sub.metadata.workspaceId));
+            if (cand && !cand.stripeSubscriptionId) ws = cand;
+        }
         if (!ws) return;
         const plan = planForPrice(sub.items.data[0]?.price.id);
-        await db
+        await tx
             .update(schema.workspaces)
             .set({
                 ...(plan ? { plan } : {}),
                 planStatus: activeStatus(sub.status),
+                stripeSubscriptionId: sub.id,
                 seats: seatsOf(sub),
                 planPeriodEnd: subPeriodEnd(sub),
                 cancelAtPeriodEnd: sub.cancel_at_period_end,
@@ -323,34 +474,52 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
             .where(eq(schema.workspaces.id, ws.id));
     } else if (event.type === "customer.subscription.deleted") {
         const sub = event.data.object as Stripe.Subscription;
-        const ws = await workspaceBySubId(sub.id);
+        const ws = await workspaceBySubId(tx, sub.id);
         if (!ws) return;
         // Back to Free; data kept, over-limit use soft-locked by the resolver's gates.
-        await db
+        await tx
             .update(schema.workspaces)
             .set({
                 plan: "free",
                 planStatus: "canceled",
                 stripeSubscriptionId: null,
                 seats: 1,
+                planPeriodEnd: null,
                 cancelAtPeriodEnd: false,
             })
             .where(eq(schema.workspaces.id, ws.id));
     } else if (event.type === "invoice.payment_failed") {
         const customerId = invCustomer(event.data.object as Stripe.Invoice);
-        const ws = customerId ? await workspaceByCustomer(customerId) : null;
+        const ws = customerId ? await workspaceByCustomer(tx, customerId) : null;
         if (ws)
-            await db
+            await tx
                 .update(schema.workspaces)
                 .set({ planStatus: "past_due" })
                 .where(eq(schema.workspaces.id, ws.id));
     } else if (event.type === "invoice.paid") {
-        const customerId = invCustomer(event.data.object as Stripe.Invoice);
-        const ws = customerId ? await workspaceByCustomer(customerId) : null;
-        if (ws && ws.planStatus === "past_due")
-            await db
+        const inv = event.data.object as Stripe.Invoice;
+        const customerId = invCustomer(inv);
+        const ws = customerId ? await workspaceByCustomer(tx, customerId) : null;
+        if (!ws) return;
+        if (inv.billing_reason === "subscription_cycle") {
+            // A cycle renewal opens a fresh credit window anchored to the new period; one-off and
+            // proration invoices below only clear dunning.
+            await tx
+                .update(schema.workspaces)
+                .set({ planStatus: "active", aiCreditsUsed: 0, creditsResetAt: monthOut() })
+                .where(eq(schema.workspaces.id, ws.id));
+            if (ws.aiCreditsUsed > 0)
+                await tx.insert(schema.credits).values({
+                    workspaceId: ws.id,
+                    delta: ws.aiCreditsUsed,
+                    reason: "renewal-reset",
+                    balanceAfter: creditLimitFor(ws),
+                });
+        } else if (ws.planStatus === "past_due") {
+            await tx
                 .update(schema.workspaces)
                 .set({ planStatus: "active" })
                 .where(eq(schema.workspaces.id, ws.id));
+        }
     }
 }

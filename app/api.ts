@@ -7,7 +7,7 @@ import type {
 } from "@model/artifact";
 import type { Folder, Template, User } from "@model/workspace";
 import type { ThemeSummary as Theme, ThemeInput, Tokens } from "@themes";
-import type { Interval, Plan, PlanId } from "@model/billing";
+import type { CreditPack, CreditPackId, Interval, Plan, PlanId } from "@model/billing";
 import type { FeatureKey, FeatureStatus, Features } from "@model/features";
 import type { TurnEvent, TurnRequest } from "@model/ai";
 import type { ToolId, MeterParams } from "@model/tools";
@@ -36,11 +36,46 @@ export interface BillingState {
     status: string;
     periodEnd: string | null;
     cancelAtPeriodEnd: boolean;
-    credits: { used: number; limit: number; perGeneration: number };
+    credits: { used: number; limit: number; bonus: number; perGeneration: number };
     usage: { artifacts: number; maxArtifacts: number };
     seats: number;
     catalog: Plan[];
+    topUps: CreditPack[];
     stripeReady: boolean;
+}
+
+// GET /billing/ledger — the credit ledger (spends negative, refunds/grants positive)
+export interface LedgerEntry {
+    delta: number;
+    reason: string;
+    balanceAfter: number;
+    at: string;
+}
+
+// GET /workspace — members, pending invites (owner only), and the user's memberships
+export interface WorkspaceMember {
+    userId: string;
+    role: string;
+    joinedAt: string;
+    email: string;
+    name: string | null;
+    avatarUrl: string | null;
+    isOwner: boolean;
+}
+
+export interface WorkspaceInvite {
+    id: string;
+    email: string;
+    createdAt: string;
+    expiresAt: string;
+}
+
+export interface WorkspaceState {
+    workspace: { id: string; name: string; plan: PlanId; seats: number };
+    role: "owner" | "member";
+    members: WorkspaceMember[];
+    invites: WorkspaceInvite[];
+    memberships: { id: string; name: string; active: boolean }[];
 }
 
 // GET /features — resolved capabilities + each feature's launch status
@@ -310,6 +345,31 @@ export const api = {
             body: JSON.stringify(opts),
         }),
     resumePlan: () => req<{ ok?: boolean }>("/billing/resume", { method: "POST" }),
+    getLedger: () => req<{ entries: LedgerEntry[] }>("/billing/ledger"),
+    topUp: (pack: CreditPackId) =>
+        req<{ url: string }>("/billing/topup", { method: "POST", body: JSON.stringify({ pack }) }),
+    getWorkspace: () => req<WorkspaceState>("/workspace"),
+    inviteMember: (email: string) =>
+        req<{ invite: WorkspaceInvite; url: string; sent: boolean }>("/workspace/invites", {
+            method: "POST",
+            body: JSON.stringify({ email }),
+        }),
+    revokeInvite: (id: string) =>
+        req<{ ok: boolean }>(`/workspace/invites/${id}`, { method: "DELETE" }),
+    removeMember: (userId: string) =>
+        req<{ ok: boolean }>(`/workspace/members/${userId}`, { method: "DELETE" }),
+    switchWorkspace: (workspaceId: string) =>
+        req<{ ok: boolean }>("/workspace/switch", {
+            method: "POST",
+            body: JSON.stringify({ workspaceId }),
+        }),
+    inviteInfo: (token: string) =>
+        req<{ workspace: string; email: string }>(`/invites/${encodeURIComponent(token)}`),
+    acceptInvite: (token: string) =>
+        req<{ ok: boolean; workspaceId: string; name: string }>("/invites/accept", {
+            method: "POST",
+            body: JSON.stringify({ token }),
+        }),
     portal: () => req<{ url: string }>("/billing/portal", { method: "POST" }),
     spendCredits: (body?: {
         amount?: number;

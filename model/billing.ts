@@ -65,6 +65,25 @@ export interface Plan {
 // representative cost; real charge scales with length 🔶
 export const CREDITS_PER_GENERATION = typicalCost("generate-artifact");
 
+// One-time credit packs (paid plans only, gated by plan.ai.creditTopUpsAllowed). Bonus credits sit
+// outside the monthly window: consumed after the pool, never reset. Stripe price ids resolve from
+// env (STRIPE_PRICE_PACK_1K / STRIPE_PRICE_PACK_5K) like the plan prices.
+export type CreditPackId = "pack-1k" | "pack-5k";
+
+export interface CreditPack {
+    id: CreditPackId;
+    credits: number;
+    priceUsd: number;
+}
+
+export const CREDIT_PACKS: CreditPack[] = [
+    { id: "pack-1k", credits: 1000, priceUsd: 10 },
+    { id: "pack-5k", credits: 5000, priceUsd: 40 },
+];
+
+export const packFor = (id: string | null | undefined): CreditPack | null =>
+    CREDIT_PACKS.find((p) => p.id === id) ?? null;
+
 export const PLANS: Record<PlanId, Plan> = {
     free: {
         id: "free",

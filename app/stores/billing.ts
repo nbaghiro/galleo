@@ -1,8 +1,8 @@
 import { createSignal } from "solid-js";
 import type { Interval, PlanId } from "@model/billing";
-import type { ToolId, MeterParams } from "@model/tools";
+import type { CreditPackId } from "@model/billing";
 import type { BillingState } from "../api";
-import { api, ApiError } from "../api";
+import { api } from "../api";
 
 const [billing, setBilling] = createSignal<BillingState | null>(null);
 export { billing };
@@ -38,21 +38,12 @@ export async function resumePlan(): Promise<void> {
     await loadBilling();
 }
 
+export async function startTopUp(pack: CreditPackId): Promise<void> {
+    const { url } = await api.topUp(pack);
+    if (url) window.location.href = url;
+}
+
 export async function openPortal(): Promise<void> {
     const { url } = await api.portal();
     if (url) window.location.href = url;
 }
-
-export async function spendCredit(action: ToolId, meter?: MeterParams): Promise<boolean> {
-    try {
-        await api.spendCredits({ action, meter });
-        await loadBilling();
-        return true;
-    } catch (e) {
-        if (e instanceof ApiError && e.status === 402) return false;
-        throw e;
-    }
-}
-
-export const spendGenerationCredit = (meter?: MeterParams): Promise<boolean> =>
-    spendCredit("generate-artifact", meter);

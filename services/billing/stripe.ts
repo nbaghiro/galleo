@@ -1,5 +1,5 @@
 import Stripe from "stripe";
-import type { Interval, PlanId } from "@model/billing";
+import type { CreditPackId, Interval, PlanId } from "@model/billing";
 
 // lazy: built on first use so a missing key doesn't crash boot
 let client: Stripe | undefined;
@@ -8,7 +8,8 @@ export function stripe(): Stripe {
     if (!client) {
         const key = process.env.STRIPE_SECRET_KEY;
         if (!key) throw new Error("STRIPE_SECRET_KEY is not set");
-        client = new Stripe(key);
+        // pinned to the SDK's own version so account-level default changes can't shift wire shapes
+        client = new Stripe(key, { apiVersion: "2026-06-24.dahlia" });
     }
     return client;
 }
@@ -35,6 +36,15 @@ export function priceIdFor(plan: PlanId, interval: Interval = "month"): string |
     if (id) return id;
     // annual missing → fall back to monthly so checkout still works
     return interval === "year" ? priceIdFor(plan, "month") : undefined;
+}
+
+const PACK_ENV: Record<CreditPackId, string> = {
+    "pack-1k": "STRIPE_PRICE_PACK_1K",
+    "pack-5k": "STRIPE_PRICE_PACK_5K",
+};
+
+export function packPriceId(pack: CreditPackId): string | undefined {
+    return process.env[PACK_ENV[pack]] || undefined;
 }
 
 function priceMap(): Array<{ id: string; plan: PlanId; interval: Interval }> {

@@ -1,5 +1,5 @@
 import type { Component } from "solid-js";
-import { createMemo, createSignal, For, onMount, Show } from "solid-js";
+import { createMemo, createResource, createSignal, For, onMount, Show } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import type { Interval, Plan, PlanId } from "@model/billing";
 import { PRICED_TOOLS, costRange, isMetered, typicalCost } from "@model/tools";
@@ -8,6 +8,7 @@ import { Badge, Eyebrow, Spinner } from "@ui/button";
 import { TextField } from "@ui/inputs";
 import { Meter } from "@ui/status";
 import { Sidebar } from "../components/Sidebar";
+import { api } from "../api";
 import {
     billing,
     changePlan,
@@ -15,11 +16,22 @@ import {
     openPortal,
     resumePlan,
     startCheckout,
+    startTopUp,
 } from "../stores/billing";
 
 export const PricingView: Component = () => {
     const [params] = useSearchParams();
     onMount(loadBilling);
+
+    const [ledger] = createResource(() =>
+        api
+            .getLedger()
+            .then((r) => r.entries)
+            .catch(() => []),
+    );
+    // "generate-artifact:settle" → "generate artifact (adjusted)"
+    const reasonLabel = (r: string): string =>
+        r.replace(":settle", " (adjusted)").replace(/-/g, " ");
 
     const b = billing;
     const current = (): PlanId => b()?.plan ?? "free";
@@ -110,6 +122,12 @@ export const PricingView: Component = () => {
                             (usually a second or two). Refresh if it still shows the old tier.
                         </div>
                     </Show>
+                    <Show when={params.status === "topup-success"}>
+                        <div class="mb-5 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-[13px] text-ink">
+                            🎉 Credits purchased — they land in your bonus balance the moment Stripe
+                            confirms the payment (usually a second or two).
+                        </div>
+                    </Show>
                     <Show when={params.status === "cancel"}>
                         <div class="mb-5 rounded-xl border border-line bg-panel px-4 py-3 text-[13px] text-soft">
                             Checkout canceled — no charge. You can upgrade whenever you're ready.
@@ -180,8 +198,36 @@ export const PricingView: Component = () => {
                                         <span class="text-[13px] text-muted">
                                             / {state().credits.limit}
                                         </span>
+                                        <Show when={state().credits.bonus > 0}>
+                                            <span class="text-[12px] font-semibold text-accent">
+                                                +{state().credits.bonus} bonus
+                                            </span>
+                                        </Show>
                                     </div>
                                     <Meter value={usagePct()} trackTone="canvas" class="mt-2" />
+                                    <Show when={state().topUps.length > 0 && ready()}>
+                                        <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                            <For each={state().topUps}>
+                                                {(pack) => (
+                                                    <button
+                                                        class="inline-flex items-center gap-1 rounded-md border border-line bg-canvas px-2 py-1 text-[11.5px] font-semibold hover:border-accent disabled:opacity-60"
+                                                        disabled={anyBusy()}
+                                                        onClick={() =>
+                                                            void run(`topup:${pack.id}`, () =>
+                                                                startTopUp(pack.id),
+                                                            )
+                                                        }
+                                                    >
+                                                        <Show when={busy(`topup:${pack.id}`)}>
+                                                            <Spinner size={11} tone="current" />
+                                                        </Show>
+                                                        +{pack.credits.toLocaleString()} · $
+                                                        {pack.priceUsd}
+                                                    </button>
+                                                )}
+                                            </For>
+                                        </div>
+                                    </Show>
                                 </div>
                                 <div class="rounded-xl border border-line bg-panel px-4 py-3">
                                     <Eyebrow as="div">Artifacts</Eyebrow>
@@ -221,6 +267,31 @@ export const PricingView: Component = () => {
                                 </div>
                             </div>
                         )}
+                    </Show>
+
+                    <Show when={(ledger() ?? []).length > 0}>
+                        <div class="mb-8 rounded-xl border border-line bg-panel px-4 py-3 sm:max-w-130">
+                            <Eyebrow as="div">Recent AI activity</Eyebrow>
+                            <ul class="mt-1 divide-y divide-line text-[12.5px]">
+                                <For each={(ledger() ?? []).slice(0, 8)}>
+                                    {(e) => (
+                                        <li class="flex items-center justify-between gap-3 py-1.5 tabular-nums">
+                                            <span class="min-w-0 truncate capitalize text-ink">
+                                                {reasonLabel(e.reason)}
+                                            </span>
+                                            <span class="flex-none text-muted">
+                                                {new Date(e.at).toLocaleDateString()}
+                                            </span>
+                                            <span
+                                                class={`w-14 flex-none text-right font-semibold ${e.delta > 0 ? "text-accent" : "text-ink"}`}
+                                            >
+                                                {e.delta > 0 ? `+${e.delta}` : e.delta}
+                                            </span>
+                                        </li>
+                                    )}
+                                </For>
+                            </ul>
+                        </div>
                     </Show>
 
                     <div class="mb-4 flex flex-wrap items-center gap-3">
