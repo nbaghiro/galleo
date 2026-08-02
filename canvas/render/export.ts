@@ -334,8 +334,10 @@ const A4_PRINT_PX = 794;
 // as the editor's doc view — regardless of the artifact's current format toggle.
 export async function exportPrint(artifact: ArtifactContent, theme: Tokens): Promise<void> {
     const profile = resolveProfile("doc");
-    const width = profile.maxContentWidth ?? PRINT_W;
-    const zoom = A4_PRINT_PX / width; // layout px → paper px, so wide layouts never clip
+    // Lay out at true paper width so the browser paginates natively. CSS `zoom` (the old
+    // layout-px→paper-px scale) breaks multi-page print in Chromium — it clips everything past
+    // the first page — so we compose the doc directly at A4 width instead of scaling it down.
+    const width = A4_PRINT_PX;
     const container = document.createElement("div");
     container.id = "galleo-print";
 
@@ -343,7 +345,7 @@ export async function exportPrint(artifact: ArtifactContent, theme: Tokens): Pro
     // section seams (a section taller than a page still breaks inside; the hint degrades gracefully).
     const all: RenderCommand[] = [];
     const flow = document.createElement("div");
-    flow.style.cssText = `width:${width}px;background:${theme.bg};zoom:${zoom}`;
+    flow.style.cssText = `width:${width}px;background:${theme.bg}`;
     for (const section of artifact.sections) {
         const { commands, height } = layoutSection(section, width, measureText, theme, profile);
         all.push(...commands);

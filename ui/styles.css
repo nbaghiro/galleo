@@ -119,6 +119,13 @@ body {
     print-color-adjust: exact;
 }
 @media print {
+    /* the SPA clamps html/body to height:100%;overflow:hidden so only the canvas scrolls — that
+       same clamp clips the print flow to a single page, so release it while printing. */
+    html,
+    body {
+        height: auto !important;
+        overflow: visible !important;
+    }
     #root {
         display: none !important;
     }

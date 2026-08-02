@@ -146,7 +146,7 @@ const Body: Component = () => {
                         <button
                             class="flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors"
                             classList={{
-                                "border-ink bg-ink text-bg": dest() === d.id,
+                                "border-ink bg-ink text-canvas": dest() === d.id,
                                 "border-line text-soft hover:border-muted": dest() !== d.id,
                             }}
                             onClick={() => setDest(d.id)}
@@ -182,7 +182,7 @@ const Body: Component = () => {
                                     baseShadow
                                     radius={3}
                                 />
-                                <div class="mt-2 text-center font-mono text-[9.5px] text-bg/70">
+                                <div class="mt-2 text-center font-mono text-[9.5px] text-canvas/70">
                                     {caption(ix(), section.id)}
                                 </div>
                             </div>
