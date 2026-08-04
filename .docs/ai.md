@@ -28,6 +28,7 @@ services/ai/                   the runtime (depends only on model; may NOT impor
   text.ts      the fast text runtime — rewriteText / translateText
   chat.ts      the chat/workspace agent — an AI-SDK ToolLoopAgent whose toolset is built from the registry
   suggest.ts · theme.ts · quality.ts    focused capabilities (suggestions · theme gen · section audit)
+  brief.ts     expandBrief — prompt → an editable brief, pulled on demand from the studio's brief bar
   tools/       the executable registry: registry.ts (Tool<I,R> + ctx.use + register + WorkspaceReader) +
                one file per capability (generate · section · element · text · suggest · inspect · library ·
                manage · structure · media · theme) + register.ts (side-effect: registers the whole catalog)
@@ -41,6 +42,9 @@ services/api/
 editor/ + app/                 the client (thin — speaks the protocol, never the model)
   editor/editor.ts             injected seams: onSectionStream · onSuggestSections · onReviseElement · onTextAssist
   editor/ai/                   the in-canvas flows: section-gen · element-gen · text-assist + TextAiMenu
+  app/stores/generate.ts       the generation studio's session state machine (stages · gates · build loop ·
+                               versions · steer · draft persistence) over app/stores/generate-plan.ts (pure helpers)
+  app/views/GenerateModal.tsx + app/views/generate/    the studio shell + its stages (§12)
   app/stores/chat.ts + app/views/ChatPanel.tsx    the chat dock: chat.ts (thread + dispatch) + ChatPanel.tsx
   app/api.ts                   streamTurn (SSE reader) + the JSON transports; wired in EditorView.tsx
 ```
@@ -62,17 +66,37 @@ editor/ + app/                 the client (thin — speaks the protocol, never t
 A **turn** is one request the client makes; the runtime answers with an ordered stream of **events**; some
 events carry **patches** (structural ops) the client applies to the artifact.
 
-**Turns** — `TurnRequest = { kind, input }`, `TurnKind = "generate" | "edit" | "section" | "chat"`:
+**Turns** — `TurnRequest = { kind, input }`, `TurnKind = "generate" | "edit" | "section" | "chat" | "plan" | "build"`:
 
-| kind       | input                                                                      | what it does                                                   |
-| ---------- | -------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `generate` | `GenerateInput` (prompt, surface, theme, goal?, audience?, tone?, length?) | build a whole artifact                                         |
-| `section`  | `SectionInput` (instruction, afterId, content)                             | write + insert ONE new section                                 |
-| `chat`     | `ChatInput` (message, context, history?)                                   | a conversational agent turn                                    |
-| `edit`     | `EditInput` (instruction)                                                  | whole-artifact revision — **not yet implemented** (route 501s) |
+| kind       | input                                                                                    | what it does                                                   |
+| ---------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `generate` | `GenerateInput` (prompt, surface, theme, goal?, audience?, tone?, length?, mustInclude?) | build a whole artifact in one uninterrupted run                |
+| `plan`     | `GenerateInput`                                                                          | outline ONLY — beats stream to the client for editing          |
+| `build`    | `BuildInput` (brief, outline, beat, content, afterId, steer?, note?, anchor?, replace?)  | write ONE pre-planned, user-approved beat                      |
+| `section`  | `SectionInput` (instruction, afterId, content)                                           | write + insert ONE new section                                 |
+| `chat`     | `ChatInput` (message, context, history?)                                                 | a conversational agent turn                                    |
+| `edit`     | `EditInput` (instruction)                                                                | whole-artifact revision — **not yet implemented** (route 501s) |
 
-`ChatContext` carries the surface (`editor` with the open `content` + `focus`, or `library` with a
-`ChatLibrary` workspace summary — recent titles + count) so the agent grounds itself per surface.
+`plan` + `build` are the **generation studio's** decomposition of `generate` (§12): the client holds the
+approved outline and drives one `build` turn per beat, so pausing, steering (`steer` reaches every later
+section's prompt), per-beat regeneration (`replace` + `note`), and per-section billing all fall out of turn
+boundaries — the server never tracks a session. `Beat` carries `brief` (the one-line section instruction)
+and `covers` (which of the brief's `mustInclude` points it addresses, verbatim — the outline editor's
+coverage checklist). `BriefDraft` (prompt → goal/audience/tone/mustInclude + at most one `clarify`
+question) is the studio's Brief-stage shape.
+
+`ChatContext.imageSource` carries the run's image strategy, so a picture re-sourced from chat matches how
+the rest of the piece was built instead of silently falling back to stock. The route threads it into the
+turn's `ImageOptions` and adds any AI variations to what the turn's tools already owe (a generation
+recomputes its bill from the real count instead, because it reserved for images up front).
+
+`ChatContext` carries the surface so the agent grounds itself per surface: `editor` (the open `content` +
+`focus`), `library` (a `ChatLibrary` workspace summary — recent titles + count), or **`generate`** (a
+`ChatGeneration`: the run's stage, brief, and every beat with a `written` flag). The generate surface exists
+because mid-run the piece is half-_planned_ rather than absent — with only `content` to look at the agent saw
+an empty artifact and proposed building a separate one. On it the agent gets `revise-outline` (proposing a
+`BeatOp[]` the studio applies to its plan, since the outline lives nowhere else) and loses
+`propose-generation` and the library-management half of the catalog entirely.
 
 **Events** — `TurnEvent`, a discriminated union the runtime yields and the client dispatches:
 
@@ -151,19 +175,22 @@ your credits buy" list = tools that are both `usage`-priced **and** `live`) — 
 `ToolId`. The credit gate (§11) and the `/pricing` page read straight off this; retune a unit once and the
 paywall, the showcase, and every charge move together.
 
-**The catalog — 41 tool ids** (7 composites · 28 actions · 6 primitives):
+**The catalog — 43 tool ids** (7 composites · 30 actions · 6 primitives):
 
 - **7 composites** (whole flows): `generate-artifact` · `revise-artifact` · `add-section` · `rewrite-section`
   · `edit-artifact` (rewrite a section of _another_ library artifact) · `revise-element` · `ask-assistant`
   (the agent turn).
-- **28 actions** (single calls). Content + structure: `rewrite-text` · `translate-text` · `translate-artifact`
+- **30 actions** (single calls). Content + structure: `rewrite-text` · `translate-text` · `translate-artifact`
   · `suggest-title` · `generate-theme` · `generate-image` · `write-summary` · `write-alt-text` ·
   `write-speaker-notes` · `suggest-sections` · `show-sections` · `reorder-section` · `remove-section` ·
-  `set-format` · `set-theme`. Workspace: `find-artifacts` · `read-artifact` · `rename-artifact` ·
-  `move-artifact` · `duplicate-artifact` · `trash-artifact` · `restore-artifact` · `create-folder` ·
-  `share-artifact` · `export-artifact` · `find-templates`. Media + system: `find-stock-image` · `apply-patch`.
+  `set-format` · `set-theme`. Studio: `draft-brief` (prompt → editable structured brief, 1 cr) ·
+  Workspace: `find-artifacts` · `read-artifact` ·
+  `rename-artifact` · `move-artifact` · `duplicate-artifact` · `trash-artifact` · `restore-artifact` ·
+  `create-folder` · `share-artifact` · `export-artifact` · `find-templates`. Media + system:
+  `find-stock-image` · `apply-patch`.
 - **6 primitives** (internal building blocks): `plan-outline` · `plan-section` · `write-section` ·
-  `source-image` · `check-section` · `pick-arc`.
+  `source-image` · `check-section` · `pick-arc`. `plan-outline` is also a **live, direct, priced** step
+  now — the studio's `plan` turn bills it (3 cr), so an abandoned outline costs the plan, not the build.
 
 **Pricing — metered, not flat.** Cost = Σ of the primitive **units of work** an action produces. The units
 (`@model/credits` `COST_UNITS`, anchored so a typical ~12-section, ~3-image build ≈ 40 credits):
@@ -176,15 +203,16 @@ plan 3   ·   section 2   ·   image 5 (per AI-generated variation)   ·   text 
 and the UI previews. The **live, priced** tools ("what your credits buy") and their cost, folding in the
 former ai-prompts credit column (now derived from the code above):
 
-| tool                                                | usage (base)                  | typical / range  | notes                                               |
-| --------------------------------------------------- | ----------------------------- | ---------------- | --------------------------------------------------- |
-| `generate-artifact`                                 | `{plan:1,section:12,image:3}` | ~27–73 (metered) | scales by length; AI images add 5 each (stock=0)    |
-| `add-section` / `rewrite-section` / `edit-artifact` | `{section:1}`                 | 2                | one section written                                 |
-| `revise-element`                                    | `{text:2}`                    | 2                | one element reworked                                |
-| `rewrite-text` / `translate-text`                   | `{text:1}`                    | 1                | one run, latency-sensitive                          |
-| `generate-theme`                                    | `{theme:1}`                   | 4                | one token system (+ deterministic finalize pass)    |
-| `generate-image`                                    | `{image:1}`                   | 5 (× variations) | AI image; metered per variation                     |
-| `ask-assistant` (chat)                              | `{reply:1}`                   | 2 + sub-tools    | base reply; chained content tools bill on top (§11) |
+| tool                                                | usage (base)                  | typical / range  | notes                                                             |
+| --------------------------------------------------- | ----------------------------- | ---------------- | ----------------------------------------------------------------- |
+| `generate-artifact`                                 | `{plan:1,section:12,image:3}` | 15–73 (metered)  | scales by length; AI images add 5 each (stock=0)                  |
+| `plan-outline`                                      | `{plan:1}`                    | 3                | the studio's outline gate (a `plan` turn)                         |
+| `add-section` / `rewrite-section` / `edit-artifact` | `{section:1}`                 | 2                | one section written; a studio `build` turn bills as `add-section` |
+| `revise-element`                                    | `{text:2}`                    | 2                | one element reworked                                              |
+| `rewrite-text` / `translate-text`                   | `{text:1}`                    | 1                | one run, latency-sensitive                                        |
+| `generate-theme`                                    | `{theme:1}`                   | 4                | one token system (+ deterministic finalize pass)                  |
+| `generate-image`                                    | `{image:1}`                   | 5 (× variations) | AI image; metered per variation                                   |
+| `ask-assistant` (chat)                              | `{reply:1}`                   | 2 + sub-tools    | base reply; chained content tools bill on top (§11)               |
 
 Metered but **not yet `live`** (priced in the catalog, no route surfaced): `revise-artifact`
 (whole-artifact edit, 12–40), `translate-artifact` (5–40, fan-out), `suggest-title`, `write-summary` /
@@ -229,6 +257,8 @@ frames it as SSE):
 
 ```
 generate → generateArtifactTool.run(...)     // via the registry (§6), which wraps runGenerate
+plan     → runPlan(...)                       // outline only (the studio's gate)
+build    → runBuild(...)                      // one pre-planned beat (the studio's build loop)
 section  → runSection(...)                    // insert one section
 chat     → runChat(...)                       // the agent (§8)
 edit     → unimplemented → error              // 501
@@ -260,6 +290,16 @@ a response schema can't fill, so the section writer emits raw JSON (the prompt t
 which is `zSection.safeParse`d. On bad JSON it retries once; a valid section is run through
 `checkSection(section, surface)` (a deterministic quality audit — `quality.ts`) and, if it trips, regenerated
 once with the issues fed back. Shared by generate and insert, so both get the same repair.
+
+**`runPlan` / `runBuild` — the studio's decomposition of the same flow.** `runPlan` runs only the outline
+call (`planOutline`, the exact code `runGenerate` uses — one extracted function, not a fork), emits `plan`
+(now carrying `title` + `backdrop`), resolves the artifact backdrop, and ends — 3 credits, and the client
+owns the beats from there. `runBuild` writes ONE beat of a client-supplied (user-edited) outline through
+the same `sectionParts` → `writeSectionFrom` → `resolveImages` path as generate, with three extras:
+`steer` (a session-wide note injected into the prompt), `note` (a this-attempt-only regeneration
+instruction), and `anchor` (`cover`/`closer` — the client says which beats are the bookends now, since the
+user may have reordered them; the full-bleed background forcing keys off it). `replace: true` emits
+`replaceSection` instead of `addSection`, which is all a regeneration is.
 
 **`runSection`** mirrors generate scoped to one beat: `sectionPlanParts` → `plan` (so the skeleton renders) →
 `insertSectionParts` → the written section → `addSection` at `afterId`.
@@ -293,18 +333,62 @@ in-chat draft, or a named library target.
 result as a rich `ChatBlock` and returns a one-line `note` to the model. The **capability** is the shared
 registry tool; chat only owns **presentation**. Block kinds: `proposal` (a patch + live section preview,
 optionally `targetArtifactId`/`theme`/`format`), `suggestions`, `sections` (a carousel), `brief` (a
-`GenBrief` confirm card), `artifacts` / `templates` (pick-lists), and `action` (a `WorkspaceAction` the client
-runs or confirms).
+`GenBrief` confirm card), `artifacts` / `templates` (pick-lists), `outline` (a `BeatOp[]` revision of the live
+plan), `write` (planned beat ids the studio builds), and `action` (a `WorkspaceAction` the client runs or
+confirms).
 
-**Per-surface toolset — both surfaces have tools; the library agent is NOT tool-less.** Every turn gets a
-workspace-wide toolset:
+**Thinking is distilled, not streamed.** Chat is the only capability that keeps thinking on (every other
+call site passes `thinklessOpts()`, which zeroes the budget on Flash). The provider's thought summaries are
+markdown essays, so `runChat` accumulates them server-side and forwards only the step HEADLINES through
+`chat.thinking` — `services/ai/thinking.ts` pulls the model's own bold step names, falling back to the
+opening sentence of each finished paragraph, clipped to one line and de-duplicated. A half-written heading
+never ships, so a step can't change under the user. The full prose never crosses the wire. The client shows
+one line at a time while the agent reasons, then collapses to "Thought in N steps" you can open. Answer
+prose is unaffected and still streams token by token.
 
-- **Always available** (library or editor): `propose-generation` (confirm-card a NEW artifact — supports
-  `sourceFromMessage` paste-as-source and `sourceArtifactId` repurpose), `find-artifacts`, `read-artifact`,
-  `find-templates`, `edit-artifact` (edit a named library artifact by id), and the management set —
-  `rename-` / `move-` / `duplicate-` / `trash-` / `restore-artifact`, `create-folder`, `share-artifact`,
-  `export-artifact`.
-- **Editor-only** (added when an artifact/draft is open, i.e. `context.content` present): `suggest-sections`,
+`chat.tool` is sent **twice** per call — once to open the widget shell, once with `done: true` from `wrap`'s
+`finally`. The client upserts on `blockId`, so a tool whose `present` returns null (`read-artifact` always;
+`show-sections` / `find-artifacts` / `find-templates` when empty) still closes its shell instead of spinning
+for the rest of the session; the turn's own `finally` closes any left open by an abort. `chat.nested` carries
+a capability's progress events up to its shell, where a `narration` becomes the shell's subtitle.
+
+**Per-surface toolset — every surface has tools; the library agent is NOT tool-less.**
+
+- **Always available**: `find-artifacts`, `read-artifact`.
+- **Not generating** (library or editor): `propose-generation` (confirm-card a NEW artifact — supports
+  `sourceFromMessage` paste-as-source and `sourceArtifactId` repurpose), `find-templates`, `edit-artifact`
+  (edit a named library artifact by id), and the management set — `rename-` / `move-` / `duplicate-` /
+  `trash-` / `restore-artifact`, `create-folder`, `share-artifact`, `export-artifact`. All of it stands down
+  mid-run: inside a generation there is nothing to create and nothing else to reorganize.
+- **Generating only** (`context.generation` present), both local `tool()`s in `chat.ts` rather than registry
+  capabilities, because neither makes a sub-model call and both resolve on the client:
+    - `revise-outline` — add / update / remove / move beats in one call, changing the PLAN. The agent writes
+      the beat content itself, so there is nothing to meter; ids it invents for new beats are re-assigned by
+      the studio.
+    - `write-section` — EXECUTE the plan: it proposes which planned beats to build (`beatIds`), and the studio
+      runs the same `build` turns the board does (`buildSections` → `buildSectionNow`), so a section is written
+      by one code path whoever asked for it. The tool itself is free; the writing bills per `build` turn, and
+      the card shows that price before the user starts it. It refuses ids that aren't in the outline and skips
+      ones already written, telling the model which. Without it the agent's nearest match was `add-section`,
+      which mints a _new_ section beside the plan and leaves the planned beat unwritten — the outline and the
+      piece drift apart. The prompt says so explicitly.
+- **`rewrite-passage`** (content-scoped) — reword ONE passage inside a written section rather than the
+  whole thing: `sectionId` + `find` (copied verbatim) + `instruction`. `services/ai/passage.ts` locates the
+  text node (normalized exact match, else the _shortest_ containing node, so a common word lands on the
+  heading rather than swallowing the paragraph) and returns the section with just that node replaced, which
+  chat presents as an ordinary proposal. It exists because `rewrite-text` returns a bare string with no
+  target — usable by the editor, where selection says where it goes, but a dead end for the agent. When no
+  passage matches it lists the section's real passages back to the model rather than rewriting the wrong one.
+- **`revise-element`** and **`reimage`** (content-scoped) — the other two "regenerate one part" tools,
+  targeted the same way, since the agent has no selection to point with. `revise-element` takes
+  `sectionId` + `elementType` (+ `nth`) and re-rolls that one chart / stat / table in place; `reimage`
+  takes `sectionId` + `phrase` and re-sources the section's image, or its full-bleed backdrop with
+  `target:"backdrop"`. Both resolve a path via `services/ai/locate.ts` and return the whole section, so
+  they ride the ordinary proposal path. A miss lists the section's real element types back to the model.
+  `reimage` itself is free: `resolveImage` honours the turn's image strategy, so it finds stock unless the
+  run was started with AI images, and the route meters the variations it actually generated.
+- **Content-scoped** (added when there's an artifact/draft to act on — mid-run that means sections actually
+  _written_, so an empty draft can't invite `add-section` for an unwritten beat): `suggest-sections`,
   `add-section`, `rewrite-section`, `show-sections`, `reorder-section`, `remove-section`, `set-format`,
   `set-theme` — the tools that act on _the current_ piece.
 
@@ -360,22 +444,24 @@ stack above provider is provider-agnostic — it asks for a task's model and cal
 `resolveModel` returns:
 
 ```
-outline · generate · section     google:gemini-2.5-flash     (thinking OFF)
-rewrite · translate · theme       google:gemini-2.5-flash     (thinking OFF)
-edit                              google:gemini-2.5-pro
+every task (outline · generate · section · rewrite · translate · theme · edit)
+                                  google:gemini-3.5-flash     (thinking OFF)
 chat                              google:gemini-3.5-flash     (thinking ON — thoughts streamed)
 ```
 
-The load-bearing choice: **Flash for generation**, not Pro. A deck is ~12 sequential section calls, so Pro's
-reasoning latency stacks up badly for little quality gain on bounded creative writing; `thinklessOpts(id)`
-(`provider.ts`) sets `thinkingBudget: 0` to disable Gemini's default thinking and keep it snappy — but only
-for Flash, since Pro rejects a 0 budget ("only works in thinking mode"). Pro is reserved for whole-artifact
-`edit`, the one task that genuinely reasons over the tree.
+**One model, every task: Gemini 3.5 Flash.** It won the chat tool-routing eval outright
+(`services/ai/eval`, `pnpm ai:eval`: 100% vs 2.5-pro's 80%) at lower latency, and a deck is ~12 sequential
+section calls, so a reasoning-heavy model's latency stacks up badly for little gain on bounded creative
+writing. Running one model everywhere also means one thing to re-evaluate when a newer model lands, rather
+than six independent judgement calls. The per-task entries in `DEFAULT_MODELS` stay, so any single job can
+still be moved to a heavier model in isolation.
 
-**Chat runs on `gemini-3.5-flash`, not Pro** — an eval (`services/ai/eval`, `pnpm ai:eval`) measured 3.5-flash
-at 100% tool-routing accuracy vs 2.5-pro's 80%, at lower latency. It keeps thinking **on** (chat.ts sets
-`thinkingConfig.includeThoughts: true`, so Gemini's summarized thoughts stream as `chat.reasoning`). Re-run
-the eval before changing this default.
+`thinklessOpts(id)` (`provider.ts`) sets `thinkingBudget: 0` on any non-Pro Google model, so every task runs
+thinkless — except **chat**, which passes its own `thinkingConfig.includeThoughts: true` and streams
+Gemini's summarized thoughts as `chat.reasoning`.
+
+Plan tiers (`modelFor(task, tier)`) resolve identically today: `BASIC_OVERRIDES` is empty because no task
+runs a pro-class model. The seam stays wired for the moment one earns it on paid plans.
 
 Google leads because one `GOOGLE_API_KEY` also powers image (and, ahead, video) generation; Anthropic
 (Opus 4.8 / Sonnet 5 / Haiku 4.5), OpenAI (GPT-5 / GPT-5 mini), and xAI (Grok 4) stay registered for override.
@@ -531,10 +617,14 @@ up front (`estimateCost(toolId, meter)` from `@model/tools`), 402s when the work
 deducts against `workspaces.aiCreditsUsed`.
 
 ```
-POST /ai/turn      SSE. Runs a turn (generate · section · chat live; edit → 501). ACTION_FOR maps the
-                   TurnKind to its priced tool (generate→generate-artifact, section→add-section,
-                   chat→ask-assistant, edit→revise-artifact) and meters generate by length + image source.
-                   Frames each TurnEvent as `data: {seq, event}`.
+POST /ai/turn      SSE. Runs a turn (generate · plan · build · section · chat live; edit → 501). ACTION_FOR
+                   maps the TurnKind to its priced tool (generate→generate-artifact, plan→plan-outline,
+                   build→add-section, section→add-section, chat→ask-assistant, edit→revise-artifact) and
+                   meters generate by length + image source; a build turn with an AI-image brief reconciles
+                   real generated images on top of its section base. Frames each TurnEvent as
+                   `data: {seq, event}`.
+POST /ai/brief     Meters draft-brief (1 cr, refunded on failure). Expands a raw prompt into a BriefDraft (goal/audience/tone/mustInclude +
+                   ≤1 clarify question); `{brief:null}` on failure — the studio falls through to the raw prompt.
 POST /ai/suggest   UNMETERED. Cheap "what to add next" ideas (the insert popup); client caches per artifact.
 POST /ai/theme     One structured ThemeInput from a prompt. Meters generate-theme.
 POST /ai/element   Regenerate one element in place → { element }. Meters revise-element. The element rides in
@@ -583,9 +673,69 @@ onTextAssist                api.assistText              /ai/text       editor/ai
   proposal/suggestion/carousel/brief/pick-list/action), applies a proposal's patch (open / draft / target) on
   Apply, and runs a `WorkspaceAction` (with a confirm card for destructive/outward ones) on click.
 
+**The generation studio** (`app/views/generate/` + `app/stores/generate.ts` over the pure helpers in
+`app/stores/generate-plan.ts`) replaced the one-shot Generate modal with a staged, human-in-the-loop
+session: **Intake → Outline → Build**, one small turn per step, the client as the state machine.
+It is a single full-screen surface (`Modal size="screen"`, stamped with the session theme so the whole
+studio recolors with the artifact) whose body switches per stage; the chat rail sits alongside throughout.
+
+There are **no run-mode or gate settings**: the prompt always goes straight to an arc, and the outline is
+where every remaining decision is made. Two ways to build, both one click at the board — **Write all N**
+(the loop runs to the end) or **Write this one** per card (which parks the loop, so writing stays one
+section at a time). Editing the outline is what shaping the arc means, so a separate "steer the plan"
+mode would be a second way to do the same thing. The stages:
+
+- **Intake** — a centred composer that owns its own settings (format / length / image-source as compact
+  dropdowns in its footer, beside the attach actions) plus **context to build from**: pasted text and
+  dropped text files, merged into `GenerateInput.source` (`app/views/generate/context.ts`; binaries are
+  refused with a reason rather than read as mojibake, and the 6000-char planner clip is surfaced). Example
+  prompts sit below as a quiet list and disappear once anything is typed.
+- **Brief** — no longer a stage. The **planner reports its own reading**: `zOutline` carries `goal` /
+  `audience` / `tone` / `mustInclude`, and `runPlan` emits them on the `plan` event as `BriefRead`, so the
+  fields fill themselves with no extra call, latency, or credit. The client absorbs them only into fields
+  the user hasn't set, so a reroll can't overwrite a typed goal. Because the planner now names its own
+  must-cover points, the `covers` instruction applies on every run rather than only when the user supplied
+  points, which is what makes the outline's coverage tags appear at all. `POST /ai/brief` remains as the
+  on-demand "read it again" from the brief bar.
+
+- **Brief** — `POST /ai/brief` expands the prompt into an editable card (goal / audience / tone / length /
+  must-cover chips + at most one clarify question). Best-effort: on failure the raw prompt stands.
+- **Outline** — a `plan` turn (3 cr) returns the beats; the canvas renders each as an **editable section
+  card** at the width of the section it becomes (`OutlineCard.tsx`): title, takeaway and points edited in
+  place (`inline.tsx` — auto-growing transparent fields), layout glyph, role, coverage tags, and per-card
+  actions (write this one, add, remove, reorder; drag from the grip). Beats are the board's spine at every
+  stage, so an unwritten beat stays a card while a written one is the painted section, and nothing moves
+  when it lands. "Reroll" replans from the same brief; the Build CTA prices the commitment explicitly.
+
+    While a full run is in flight the board is **locked**: `runLocked()` (building, not paused, something
+    active or queued) puts the scroller in `overflow-hidden` — which still permits the programmatic `scrollTo`
+    that follows the active section — plus `pointer-events-none` and `select-none`, and floats a Stop pill
+    over the canvas. Stopping is `pauseBuild()`, which unlocks immediately and hands back every intervention
+    path at once (outline edits, per-section rework and versions, the console). The in-flight section still
+    lands, since writes are atomic.
+
+    Two invariants keep the board from re-rendering itself as it fills, both easy to undo by accident:
+    `<For>` iterates **beat ids**, not view objects (Solid keys by reference, so a fresh object per read
+    disposed and rebuilt every row on any store write), and each `Frame`'s paint effect **guards on a
+    signature** of section / ghost shape / width / theme / format, animating the reveal only when a genuinely
+    new section arrives. Without either, one section landing repainted the whole board and replayed every
+    reveal, which reads as the artifact reloading.
+
+- **Build** — the client loops one `build` turn per beat (2 cr each, billed as written, not reserved up
+  front). Rework while it runs: each landed frame gets a verdict bar (regenerate · regenerate
+  with a note) and version chips (every take kept; pick the keeper). A **steer** field
+  injects into every later section's prompt; **pause / stop-here** park the loop at a section boundary
+  (writes are atomic); a one-time **tone check** pauses after the cover + first content section. The draft
+  artifact is persisted at build start and re-saved per landed section, so closing the studio never loses
+  built work.
+
 **Traces:**
 
-- **Generate** — Generate modal → `POST /ai/turn {generate}` → `runGenerate`: `plan` (skeletons appear) →
+- **Studio generate** — Generate modal → `POST /ai/brief` → confirm → `POST /ai/turn {plan}` (ghost
+  skeletons + backdrop) → edit + approve → N × `POST /ai/turn {build}` (sections land one by one; regens
+  are `{build, replace:true}`) → open in editor.
+- **One-shot generate** (chat's propose-generation path; the studio's Instant is the same experience) —
+  `POST /ai/turn {generate}` → `runGenerate`: `plan` (skeletons appear) →
   per-section `addSection` patches (sections stream in) → `setMeta` (backdrop) → `turn.done`.
 - **Insert a section** — "＋ AI section" → `section-gen` → `POST /ai/turn {section}` → `plan` (one skeleton) →
   `addSection` at `afterId` → committed as one undo step.
@@ -605,8 +755,10 @@ onTextAssist                api.assistText              /ai/text       editor/ai
 
 **Live** (working builder + runtime + route):
 
-- **Generation + editing:** generate an artifact · insert-section · regenerate-section · regenerate-element ·
-  rewrite/translate text · translate-artifact (fan-out) · generate-theme · suggest-sections.
+- **Generation + editing:** the staged **generation studio** (brief → outline gate → per-beat build with
+  steer/pause/versions, §12) · one-shot generate (the same runtime, gates on auto) ·
+  insert-section · regenerate-section · regenerate-element · rewrite/translate text · translate-artifact
+  (fan-out) · generate-theme · suggest-sections.
 - **Images:** stock sourcing across four providers + **AI image generation** — wired into the generate
   pipeline (`imageSource:"ai"` → Gemini image model, stored as a workspace asset, metered per variation) and a
   standalone `/media/generate` streaming route for the media picker.

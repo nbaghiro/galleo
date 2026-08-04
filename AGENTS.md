@@ -12,6 +12,10 @@ with high-fidelity export. Net-new, TypeScript.
 - `.docs/ai.md` — the AI pipeline: the streamed turn protocol, tools, runtime, chat/workspace agent,
   prompts, routes + credit gate.
 - `.docs/frontend.md` — the shared `@ui` component library + the keyboard/command system.
+- `.docs/search.md` — library search + the ⌘K palette: the Postgres FTS index, the query, the palette
+  source registry.
+- `.docs/loading.md` — how much loads at once: list pagination, windowed artifact reads + section-op
+  writes, and paint windowing for the section stack.
 - `.docs/testing.md` — the test philosophy, the mocking contract, and the coverage map.
 
 ## Structure (model · canvas · ui · editor · app)
@@ -67,12 +71,29 @@ with high-fidelity export. Net-new, TypeScript.
   only by saying something the code cannot. When one is warranted, make it a short fragment for a genuine
   _why_: an invariant, a gotcha, a unit/range, a magic value's meaning, a "must stay in sync with X". Do
   **not** write file-header narrative essays, decorative section banners (`// ===== … =====`, `// --- … ---`,
-  box-drawing rules), or comments that restate the code/name/type. Always keep directive comments
-  (`eslint-disable`, `@ts-expect-error`, `@vitest-environment`, `/* @refresh reload */`), `TODO`/`FIXME`, and
-  license headers. No build-phase/iteration numbers in comments or docstrings (plan docs are fine).
+  box-drawing rules), or comments that restate the code/name/type. Always keep runtime directive comments
+  (`@vitest-environment`, `/* @refresh reload */`), `TODO`/`FIXME`, and license headers. No
+  build-phase/iteration numbers in comments or docstrings (plan docs are fine).
+- **No suppressions — fix the cause, never silence the check.** The repo carries **zero**
+  `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`, `prettier-ignore`, and coverage
+  pragmas (`v8`/`c8`/`istanbul ignore`); `any` is banned. Do not add one to make a gate pass. Writing
+  `eslint-disable` is not just discouraged, it is **inert**: `noInlineConfig` makes ESLint ignore the
+  directive and then fail the run for it. There is always a suppression-free form, e.g. a Solid
+  dependency read is `void props.value;` or `on(() => props.value, …)`, not a bare `props.value;`; an
+  unused binding is `_name` (matches `varsIgnorePattern`); untyped data gets a narrowing helper
+  (`@elements/coerce`, `readPublicContent`) or a real zod shape, not `as unknown as`; wide data tables
+  get Prettier's own formatting, not `prettier-ignore`. If an escape hatch is genuinely correct, add the
+  file to `ALLOW` in `scripts/check-suppressions.mjs` with a reason, so it lands in a reviewed diff.
+  Enforced in-editor by ESLint (`noInlineConfig` + `ban-ts-comment` + `--max-warnings 0`) and backstopped
+  by `pnpm check:suppressions`, which also reads files ESLint skips. Both pre-commit and CI run it.
 - **Boundaries** (ESLint, linear `model ← canvas ← ui ← editor ← app`): model ⇏ canvas/ui/editor/services/app;
   canvas ⇏ ui/editor/services/app; **ui ⇏ editor/services/app** (shared UI depends only on model + canvas +
-  `@themes`); services ⇏ canvas/ui/editor/app.
+  `@themes`); editor ⇏ services/app; app ⇏ services (it talks over HTTP); services ⇏ canvas/ui/editor/app.
+  Enforced twice, since the resolved form (`import/no-restricted-paths`) checks nothing when a specifier
+  fails to resolve: `no-restricted-imports`/`no-restricted-syntax` re-state each zone against the raw
+  specifier, covering static, type-only, and dynamic `import()`.
+- **Backend output** goes through `services/log.ts` (`out`/`warn`), never `console` or a bare
+  `process.stdout.write`.
 
 ## Commands
 
@@ -80,7 +101,14 @@ with high-fidelity export. Net-new, TypeScript.
 pnpm dev            # Vite dev server (HMR) → http://localhost:8600
 pnpm build          # production build → dist/
 pnpm typecheck      pnpm lint      pnpm format
+pnpm test           pnpm test:int  # unit; integration (needs Postgres: docker compose up -d)
 pnpm db:generate    pnpm db:migrate
+
+# guards — these also run in pre-commit + CI; a rule that can only report violations
+# cannot tell you it has stopped working, so each one is self-verifying
+pnpm check:suppressions   # no eslint-disable / @ts-* / prettier-ignore / coverage pragmas
+pnpm check:program        # every tracked .ts(x) is actually in the tsc program
+pnpm check:boundaries     # the layering law still reports, not just "no errors"
 ```
 
 Galleo owns the **86xx** host-port block (runs alongside the sibling apps). See the ports table in
@@ -94,17 +122,25 @@ The layout engine (`canvas/engine/layout.ts`, Clay-style 3-pass solver) drives a
 state) and inline text editing (`panels/TextEditor.tsx`). State in `core/store.ts` (Solid store); painting
 is the `@canvas` layer — the engine's commands paint into refs (`@canvas/render/backends`, with a
 2D-canvas mirror for Present + PDF/PNG export). Sections compose via `@elements/compose`; every element
-has a structural ghost (`skeletonize` in `@elements/spec`). **53 palette elements** register via
+has a structural ghost (`skeletonize` in `@elements/spec`). **58 palette elements** register via
 `canvas/elements/register.ts`'s side-effect imports (5 text · 7 media · 2 table · 7 composite · 7 basic ·
-13 chart types · 12 diagram types), plus palette-hidden internals (`group`, `avatar`, the back-compat
-`chart`/`diagram` catch-alls, the drop-preview); format-as-view
+13 chart types · 17 diagram types), plus palette-hidden internals (`group`, `avatar`, the
+`chart`/`diagram` storage elements, the drop-preview); format-as-view
 (`@engine/profile` + `fragment`) is built, so one artifact renders as deck / doc / web.
 
 The product SPA (`app/`, served at `/app`) wraps the studio: library / templates / trash / shared /
 editor views, a backend (`services/` Hono + Postgres/Drizzle; artifact content lives in the
-`draft_content` jsonb), a singular theme editor (`app/views/ThemeEditor.tsx`), and a **real** streamed
+`draft_content` jsonb, with a write-time `digest` + `search_text` feeding a generated `search_tsv` that
+⌘K and the library search field query over — see `.docs/search.md`), a singular theme editor
+(`app/views/ThemeEditor.tsx`), and a **real** streamed
 AI pipeline — generation, chat, section/element/text edits over the `@model/ai` turn protocol (SSE),
-served by `services/ai` (see `.docs/ai.md`). The `app/views/generate` client-side simulator is gone.
+served by `services/ai` (see `.docs/ai.md`). Whole-artifact generation runs through the staged
+**generation studio** (`app/views/generate/` over `app/stores/generate.ts`): one full-screen surface
+whose first body is a centred prompt with attachable context (pasted text + text files), then an
+outline the canvas renders as editable section cards, then a per-beat build (write all, or one at a
+time, with steer / pause / versions). One turn per step. There are no run-mode settings:
+editing the outline covers shaping the arc, and the two ways to build are both one click at the
+board. The chat rail runs the same agent on a `generate` surface that sees the outline and revises it.
 
 ## Commits
 

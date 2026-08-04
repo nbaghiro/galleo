@@ -3,7 +3,8 @@
 > The single current-state reference: what Galleo is, the layering law, a factual map of every package,
 > how data flows, the persistence model, and the billing/credit layer. Companion docs go deeper on
 > narrow slices: `rendering.md` (engine + elements + editing), `ai.md` (the AI turn protocol, tools,
-> runtime, chat), `frontend.md` (the Solid UI + component library), `testing.md`.
+> runtime, chat), `frontend.md` (the Solid UI + component library), `search.md` (library search + ⌘K),
+> `testing.md`.
 
 ## What Galleo is
 
@@ -276,7 +277,7 @@ embedded in the artifact's `draft_content` JSON.
 - Standard columns: `id uuid pk`, `created_at`; edited entities also have `updated_at`.
 - Content is JSON in `artifacts.draft_content` — the single place an `ArtifactContent` is stored.
 
-### The tables (12, as implemented in `services/schema.ts`)
+### The tables (as implemented in `services/schema.ts`)
 
 **Identity & tenancy**
 
@@ -289,12 +290,13 @@ embedded in the artifact's `draft_content` JSON.
 
 **Content**
 
-| Table         | Purpose                                                                  | Key columns                                                                                                                                                             |
-| ------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **artifacts** | the deck/doc/site entity — metadata + the working draft                  | `workspace_id`, `folder_id`, `title`, `format_id`, `theme_id`, **`draft_content` (jsonb)**, `status`, `trashed_at` (soft delete), `created_by`                          |
-| **folders**   | organize artifacts (tree via `parent_id`)                                | `workspace_id`, `parent_id`, `name`                                                                                                                                     |
-| **themes**    | custom themes (`workspace_id` null = system)                             | `workspace_id`, `name`, **`tokens` (jsonb)**, `mood`, `is_dark`                                                                                                         |
-| **assets**    | uploaded & AI media metadata (binary in object storage or `data` base64) | `workspace_id`, `kind`, `source` (`upload`\|`generated`\|`stock`), `url`, `width`, `height`, `bytes`, `alt`, `meta` (jsonb), `data` (base64, stored media only), `mime` |
+| Table               | Purpose                                                                  | Key columns                                                                                                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **artifacts**       | the deck/doc/site entity — metadata + the working draft                  | `workspace_id`, `folder_id`, `title`, `format_id`, `theme_id`, **`draft_content` (jsonb)**, `status`, `trashed_at` (soft delete), `created_by`, `digest` (jsonb cover + filmstrip), `search_text`, `search_tsv` (generated) |
+| **folders**         | organize artifacts (tree via `parent_id`)                                | `workspace_id`, `parent_id`, `name`                                                                                                                                                                                         |
+| **artifact_visits** | per-user open log (the read clock behind "Recent")                       | `user_id`, `artifact_id` (composite pk), `views`, `viewed_at`                                                                                                                                                               |
+| **themes**          | custom themes (`workspace_id` null = system)                             | `workspace_id`, `name`, **`tokens` (jsonb)**, `mood`, `is_dark`                                                                                                                                                             |
+| **assets**          | uploaded & AI media metadata (binary in object storage or `data` base64) | `workspace_id`, `kind`, `source` (`upload`\|`generated`\|`stock`), `url`, `width`, `height`, `bytes`, `alt`, `meta` (jsonb), `data` (base64, stored media only), `mime`                                                     |
 
 **Sharing & publishing**
 
@@ -365,11 +367,19 @@ hold the tree; a column's share is `layout.width.pct` (see `rendering.md`).
 
 ### Indexing & search (as the data grows)
 
-- **GIN index** on `draft_content` for JSONB containment (find artifacts using an asset or
-  element type).
-- **FTS** on `artifacts.title` + text extracted from the content tree.
-- `workspace_id` indexed on every scoped table; composite indexes on hot paths
-  (`shares(artifact_id, subject_id)`, `credits(workspace_id, created_at)`).
+- **FTS, built.** `artifacts.search_text` holds the prose extracted from the content tree on every
+  write (`model/digest.ts`); `search_tsv` is a generated column over `title` (weight A) + that text
+  (weight B) with a GIN index, so the index can never drift from the row. Read path, ranking, snippets,
+  and the ⌘K palette that consumes them: `search.md`.
+- **Paging, built.** `artifacts(workspace_id, updated_at DESC)` also serves the library's keyset
+  pagination, and the digest's per-section index (id + serialized size) is what lets a long artifact
+  load a window at a time and write back section ops. See `loading.md`.
+- `artifacts.digest` (jsonb) carries the cover + section filmstrip derived at write time, so listing or
+  searching a library never reads `draft_content` back.
+- **Still open:** a GIN index on `draft_content` for JSONB containment (find artifacts using an asset or
+  element type); `workspace_id` indexed on every scoped table beyond `artifacts(workspace_id,
+updated_at)`; composite indexes on hot paths (`shares(artifact_id, subject_id)`,
+  `credits(workspace_id, created_at)`).
 
 ### Relationship summary
 

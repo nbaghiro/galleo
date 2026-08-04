@@ -85,20 +85,20 @@ gained `at`/`align` — additive and backward-compatible.)
 
 ### `inputs.tsx`
 
-| Component     | Lvl   | Props                                            |
-| ------------- | ----- | ------------------------------------------------ |
-| `TextField`   | B     | `value, placeholder?, onChange`                  |
-| `TextArea`    | B     | `value, placeholder?, rows?, onChange`           |
-| `CellInput`   | B     | borderless grid-cell input                       |
-| `Toggle`      | B     | `value, onChange`                                |
-| `Slider`      | B     | `value, min, max, step?, unit?, onChange`        |
-| `Segmented`   | B     | `value, options:{label,value,icon?}[], onChange` |
-| `AlignField`  | C     | `value, onChange` (Segmented preset)             |
-| `FieldRow`    | C     | `label?, children`                               |
-| `Group`       | C     | `label, divider?, children`                      |
-| `PanelHeader` | C     | `title, action?`                                 |
-| `Separator`   | C     | thin rule (`onDark?`)                            |
-| `inputCls`    | token | —                                                |
+| Component     | Lvl   | Props                                                       |
+| ------------- | ----- | ----------------------------------------------------------- |
+| `TextField`   | B     | `value, placeholder?, icon?, trailing?, compact?, onChange` |
+| `TextArea`    | B     | `value, placeholder?, rows?, onChange`                      |
+| `CellInput`   | B     | borderless grid-cell input                                  |
+| `Toggle`      | B     | `value, onChange`                                           |
+| `Slider`      | B     | `value, min, max, step?, unit?, onChange`                   |
+| `Segmented`   | B     | `value, options:{label,value,icon?}[], onChange`            |
+| `AlignField`  | C     | `value, onChange` (Segmented preset)                        |
+| `FieldRow`    | C     | `label?, children`                                          |
+| `Group`       | C     | `label, divider?, children`                                 |
+| `PanelHeader` | C     | `title, action?`                                            |
+| `Separator`   | C     | thin rule (`onDark?`)                                       |
+| `inputCls`    | token | —                                                           |
 
 ### `select.tsx`
 
@@ -431,12 +431,23 @@ carry a key binding (see the keymap above). "Wires to" makes clear each is a re-
 
 ## Palette (⌘K), shortcuts sheet (⌘,), and sub-list providers
 
-- **`CommandPalette.tsx`** — a centered combobox overlay. Source = `listCommands(ctx)` (only commands whose
-  `when` passes and `palette !== false`); fuzzy over `title` + `keywords` (`fuzzy.ts`); results **grouped by
-  `CommandGroup`** in fixed order with recents floating to a "Recent" group on an empty query
-  (`palette-model.ts`, pure + tested). Row = icon + title + right-aligned `bindingLabel(id)`; dangerous
-  commands tint red. `↑`/`↓` move, Enter run/descend, Esc close (scoped), ⌘K toggle. It pushes an exclusive
-  `"palette"` scope, focuses its input, and restores focus on close (`role="combobox"`/`listbox`/`option`).
+- **`CommandPalette.tsx`** — a centered combobox overlay over two kinds of row. Commands come from
+  `listCommands(ctx)` (only those whose `when` passes and `palette !== false`), fuzzy over `title` +
+  `keywords` (`fuzzy.ts`), **grouped by `CommandGroup`** in fixed order with recents floating to a
+  "Recent" group on an empty query, and collapsed into one ranked "Commands" section while searching.
+  Results come from **palette sources** (below) and render above the commands. Row = icon + title +
+  right-aligned `bindingLabel(id)`, or, when the row carries a `thumb`, a card with thumbnail, subtitle,
+  trailing meta, and a highlighted snippet; dangerous commands tint red. `↑`/`↓` move, Enter run/descend,
+  ⌘Enter runs the row's `altRun`, Esc close (scoped), ⌘K toggle, and a leading `/` switches to the
+  command catalog (grouped while the slash stands alone, ranked once a term follows, each row showing
+  its `/alias` from `slashAlias`). It pushes an exclusive `"palette"` scope, focuses its input, and restores focus on close
+  (`role="combobox"`/`listbox`/`option`).
+- **Palette sources** (`palette-model.ts`, pure + tested) — a registry the app contributes result streams
+  to: `local(query, ctx)` runs on every keystroke against client state, `remote(query, ctx, signal)` is
+  debounced and abortable and replaces the local rows once it answers the current query. Rows carry a
+  `thumb` render prop, so `@ui` renders artifact results without knowing what an artifact is. The app
+  registers artifacts, folders, and a "generate from this query" action in
+  `app/components/palette-sources.tsx`; the search itself is documented in `search.md`.
 - **Sub-list providers** — a command with a `provider` doesn't run on Enter; it **pushes a child list** the
   same widget renders (one mechanism for every "pick one of N"). Backspace at an empty query pops back a
   level. **Only `doc.setFormat` ships a provider today** (Deck / Document / Website).
@@ -461,7 +472,8 @@ The honest not-yet-done, in rough priority order.
 - **Sub-list providers (most).** The palette supports providers but only `doc.setFormat` ships one.
   Straightforward additions: `theme.apply →` (curated + custom themes), `nav.goToSection →` (artifact
   sections → `jumpToSection`), `artifact.moveToFolder →` (folder tree), `export.as →` (gated formats),
-  `insert.element →` (element catalog by category), `nav.openArtifact →` (recents), `template.use →`.
+  `insert.element →` (element catalog by category), `template.use →`. (Opening an artifact is no longer
+  one of them: it is a palette source, not a sub-list.)
 - **`submitCancel()` helper — unbuilt.** The specced `ui/inputs.ts submitCancel({ onSubmit, onCancel,
 allowShiftEnter })` for standardizing input-local Enter-to-submit / Esc-to-cancel (Topbar title, Sidebar
   folder rename, ChatPanel send, link URL, gen prompt, recipient/search fields) was never added — those

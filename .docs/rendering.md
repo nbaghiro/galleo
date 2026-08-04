@@ -38,7 +38,8 @@ Why this shape:
 `fixed`), optional `aspect`, `direction` (row/col), `padding`, `gap`, `alignX`/`alignY`/`alignSelf`, and
 **one leaf** (`text` | `image` | `fill` | `surface`), plus `children`. An optional `clip?: {x?,y?}` clips
 descendants to the node's box on the given axes (the engine carries the resolved rect onto each command's
-`RenderCommand.clip`).
+`RenderCommand.clip`); `float?` lifts a node out of the flex flow (aligned + `dx`/`dy`-offset within the
+parent's content box, painted on top by ascending `z`); `opacity` multiplies down the subtree.
 
 **Solver** (`layout.ts`) — three O(n) passes:
 
@@ -74,8 +75,9 @@ The three "modes" are three **format profiles** fed to the same engine:
 A profile carries `kind`, width/height, `maxContentWidth`, `tokenScale` (a type/space multiplier so a
 deck reads big and a doc reads dense — _styling_, never content), `splitMinWidth`, and pagination policy
 (`paginate: always | export | never`). `resolveProfile(id)` returns the descriptor; `DEFAULT_PROFILE` is
-deck. Because dimensions are data, a custom size or a draggable/resizable canvas is a data change, not new
-layout code.
+deck; `previewContentProfile` widens a doc's content column toward the viewport for read-only previews
+(deck + web pass through). Because dimensions are data, a custom size or a draggable/resizable canvas is a
+data change, not new layout code.
 
 ### 3.1 Per-section framing — what shipped (`slideFrame`)
 
@@ -128,11 +130,9 @@ interface ElementSpec<Data> {
     // studio-only affordances (inert for layout / export):
     richText?;
     bar?;
-    frame?; // universal corner-radius (and image zoom) control
-    skeleton?;
-    fallback?;
+    frame?; // visible frame → the corner-radius control (docked inspector)
     resize?;
-    spacing?;
+    fallback?;
 }
 ```
 
@@ -143,19 +143,20 @@ engine changes**.
 
 **Studio-only spec fields** (optional, read solely by the editor — inert for layout/present/export):
 
-| Field             | Drives                                                                                                        |
-| ----------------- | ------------------------------------------------------------------------------------------------------------- |
-| `richText?`       | primary text takes inline marks → the contenteditable overlay + the inline mark bar (only `text`)             |
-| `bar?: string[]`  | which `controls` keys appear on the floating format bar                                                       |
-| `frame?: boolean` | element has a visible frame → the universal corner-radius control on the bar                                  |
-| `resize?`         | canvas drag handles: `height` (a data key) / `aspect` (`data.aspect`); width is a universal `ElementLayout` % |
-| `container?`      | `{children, arrange, withChildren}` — recursion + generic insert/remove for card/group/composite blocks       |
-| `skeleton?`       | palette + drop-preview ghost; auto-derived from `skeletonize(layout(create()))` if absent                     |
-| `fallback?`       | interactive → static substitution for paged/export                                                            |
+| Field             | Drives                                                                                                   |
+| ----------------- | -------------------------------------------------------------------------------------------------------- |
+| `richText?`       | primary text takes inline marks → the contenteditable overlay + the inline mark bar (only `text`)        |
+| `bar?: string[]`  | which `controls` keys appear on the floating format bar                                                  |
+| `frame?: boolean` | element has a visible frame → the corner-radius slider in the docked inspector (and forces it open)      |
+| `resize?`         | bottom-edge canvas handle: `height` (a data key) / `aspect` (`data.aspect`); width is the divider system |
+| `container?`      | `{children, arrange, withChildren}` — recursion + generic insert/remove for card/group/composite blocks  |
+| `fallback?`       | interactive → static substitution for paged/export                                                       |
 
 `ControlField[]` is the schema the generic inspector + format bar both render (control kinds: `select`,
-`segmented`, `align`, `slider`, `toggle`, `color`, `number`, `text`, `media`, `icon`, `iconColor`), with
-per-field `group` (inspector heading) and `visibleWhen` (conditional).
+`segmented`, `align`, `slider`, `toggle`, `color`, `number`, `text`, `media`, `icon`, `iconColor`,
+`vector`), with per-field `group` (inspector heading) and `visibleWhen` (conditional). Two fields may
+share a `key` when their `visibleWhen`s are mutually exclusive — how the diagram `axes` caption gets a
+different label and placeholder per diagram type.
 
 **Two ways an element compiles to boxes:**
 
@@ -165,10 +166,12 @@ per-field `group` (inspector heading) and `visibleWhen` (conditional).
    resolves the box, the element paints into it through a backend-abstract `DrawContext` (vector `<svg>` in
    the editor, raster canvas for present/export). Used by charts, diagrams, and the vector elements (§7).
 
-**Skeletons** (`skeletonize` in `elements/spec.ts`) — every element has a structural ghost
-(bars/blocks/pills) shown in the palette and as the live drop preview; auto-derived from `layout(create())`
-unless the spec overrides it (`skeletons.ts` holds reusable ghosts for the chart/diagram tiles). Because
-it's real engine output, previews can't drift from the element.
+**Ghosts & previews.** `skeletonize` (`elements/spec.ts`) derives a structural ghost (bars/blocks/pills)
+from any composed node — used by the AI live-build skeletons (`layoutSectionSkeleton` /
+`layoutSlideSkeleton`) and as the drop-ghost fallback; because it's real engine output, it occupies the
+exact final geometry. Palette tiles and new-from-palette drop ghosts use the hand-drawn themed SVG previews
+in `previews.ts` (`previewSvg` emits CSS-var colors so tiles recolor live with the theme; `previewDataUri`
+bakes concrete tokens for the on-canvas ghost, where CSS vars wouldn't resolve).
 
 ### 5.1 Where elements live
 
@@ -177,13 +180,16 @@ One file per element under `canvas/elements/<category>/`, plus the shared machin
 ```
 canvas/elements/
   spec.ts        ElementSpec + ControlField, the registry (register/getElement/listElements/walkElements),
-                 SECTION_CONTROLS, ghost builders (bar/block/pill/dot) + skeletonize/skeletonFor
+                 SECTION_CONTROLS, ghost builders (bar/block/pill/dot) + skeletonize
   compose.ts     composeSection/composeElement (section.root → EngineNode), PRESETS, dark-bg adaptation
   ops.ts         pure immutable content edits over the root tree by PATH (get/set/insert/remove/duplicate,
                  collapse-on-empty, addColumn, applyLayoutPreset, section bg/bleed)
-  skeletons.ts   reusable structural ghosts for chart/diagram palette tiles + drop previews
+  layouts.ts     SECTION_LAYOUTS — section presets (column splits + role-aware media left/right/top/bleed),
+                 each with applies/matches/transform over a role-tagged flatten of the root tree
+  previews.ts    hand-drawn themed SVG palette tiles (previewSvg CSS-var / previewDataUri baked tokens)
+  blueprint.ts   placeholder sections/blocks (AI generation staging)
   dropghost.ts   the internal __dropghost element (the live drop preview)
-  register.ts    the manifest — side-effect-imports every element file (pulled in by editor/register.ts)
+  register.ts    the manifest — side-effect-imports every element file (imported by app/main.tsx)
 
   text/      text · bullets("List") · callout · code · quote
   media/     image · gif · illustration · sticker · video · avatar   + shared.ts (imageLike factory)
@@ -199,23 +205,24 @@ canvas/elements/
 The **folder is code organization; the palette grouping is each spec's `category`** — `basic/` deliberately
 mixes several categories' worth of small primitives into one folder. `canvas/elements/register.ts`
 side-effect-imports every element file at startup (that's when each `register(spec)` fires);
-`editor/register.ts` imports it plus the editor-side registrations.
+`app/main.tsx` imports it.
 
 ### 5.2 The catalog
 
-**58 registered types, 53 palette-visible.** Hidden from the palette (`Panel.tsx` `HIDDEN`): `group`,
-`avatar`, `__dropghost`, and the back-compat `chart`/`diagram` catch-alls (the per-type tiles are the real
-entries). Palette rail order + labels (`editor/chrome/Panel.tsx` `CAT_ORDER` / `CAT_LABEL`):
+**63 registered types, 58 palette-visible.** Hidden from the palette (`HIDDEN` in `editor/Editor.tsx`):
+`group`, `avatar`, `__dropghost`, and the `chart`/`diagram` elements themselves — content stores one of
+those with a `data.type`, while the per-type entries are the palette tiles. Palette rail order + labels
+(`CAT_ORDER` / `CAT_LABEL`, same file):
 
-| Rail (label)  | `category`  | Elements (tier)                                                                                                                                                                                                 |
-| ------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Text**      | `text`      | text (primitive, the only `richText`), bullets/callout/code/quote (smart)                                                                                                                                       |
-| **Media**     | `media`     | image · gif · illustration · sticker · icon · graphic (primitive), video (interactive); _avatar (hidden)_                                                                                                       |
-| **Table**     | `table`     | table · stat (smart)                                                                                                                                                                                            |
-| **Composite** | `composite` | card (container), feature · profile · testimonial · pricing · cta · faq (smart); _group (hidden container)_                                                                                                     |
-| **Charts**    | `chart`     | 13 smart variants: `barChart` `columnChart` `lineChart` `areaChart` `pieChart` `donutChart` `radarChart` `scatterChart` `bubbleChart` `funnelChart` `gaugeChart` `heatmapChart` `treemapChart`                  |
-| **Diagrams**  | `diagram`   | 12 smart variants: `processDiagram` `cycleDiagram` `pyramidDiagram` `funnelDiagram` `timelineDiagram` `vennDiagram` `quadrantDiagram` `matrixDiagram` `treeDiagram` `orgDiagram` `mindmapDiagram` `flowDiagram` |
-| **Basic**     | `basic`     | badge · button · divider · embed · gradient · shape · spacer (primitive; embed is interactive)                                                                                                                  |
+| Rail (label)  | `category`  | Elements (tier)                                                                                                                                                                                                                                                                                 |
+| ------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Text**      | `text`      | text (primitive, the only `richText`), bullets/callout/code/quote (smart)                                                                                                                                                                                                                       |
+| **Media**     | `media`     | image · gif · illustration · sticker · icon · graphic (primitive), video (interactive); _avatar (hidden)_                                                                                                                                                                                       |
+| **Table**     | `table`     | table · stat (smart)                                                                                                                                                                                                                                                                            |
+| **Composite** | `composite` | card (container), feature · profile · testimonial · pricing · cta · faq (smart); _group (hidden container)_                                                                                                                                                                                     |
+| **Charts**    | `chart`     | 13 smart variants: `barChart` `columnChart` `lineChart` `areaChart` `pieChart` `donutChart` `radarChart` `scatterChart` `bubbleChart` `funnelChart` `gaugeChart` `heatmapChart` `treemapChart`                                                                                                  |
+| **Diagrams**  | `diagram`   | 17 smart variants: `processDiagram` `stepsDiagram` `cycleDiagram` `pyramidDiagram` `funnelDiagram` `timelineDiagram` `roadmapDiagram` `vennDiagram` `quadrantDiagram` `matrixDiagram` `hubDiagram` `targetDiagram` `honeycombDiagram` `treeDiagram` `orgDiagram` `mindmapDiagram` `flowDiagram` |
+| **Basic**     | `basic`     | badge · button · divider · embed · gradient · shape · spacer (primitive; embed is interactive)                                                                                                                                                                                                  |
 
 The taxonomy was **consolidated** from an earlier set: `data` → **Table**, `container` → **Composite**, and
 `interactive` / `branding` / `decoration` / `layout` all merged into **Basic**. (An earlier plan proposed a
@@ -240,68 +247,84 @@ options from, so canvas UI and the AI catalog can't drift: `TEXT_STYLES`/`TEXT_A
 (+`GRAPH_DIAGRAM_TYPES`) and the outline `BLOCK_KINDS`. `table` shares no enums (stat/table are plain scalar
 fields), so it has none. Each element imports the specific const it needs and maps it to UI labels locally.
 
+Diagrams add `DIAGRAM_STYLES` (the four node treatments), `DIAGRAM_SHAPES` (the authored silhouettes) and
+`DIAGRAM_FLOWS` (graph rank direction).
+
 `CHART_TYPES`/`DIAGRAM_TYPES` are the `data.type` discriminants kept **in lockstep** with the canvas
-chart/diagram registries. A drift guard asserting `model` value-sets == the registered canvas ids (and that
-every AI-catalog element `type` is registered), wired as `pnpm check:elements` + pre-commit, is a planned
-convention — enforced today only by the lockstep comments and the unit tests, not yet an automated script.
+chart/diagram registries. `DIAGRAM_TYPES` has a real drift guard in `diagram.test.ts` (the registry's ids
+must equal the value-set exactly); the equivalent chart assertion, plus "every AI-catalog element `type` is
+registered", is still only convention — a `pnpm check:elements` script covering all three is planned.
 
-## 6. Selection & direct manipulation (`editor/select`, `editor/inspect`, `editor/canvas`)
+## 6. Selection & direct manipulation (`editor/core`, `editor/panels`, `editor/Canvas.tsx`)
 
-A single `selection()` signal in `editor/editor.ts` (`{kind:"element", address}` | `{kind:"section", …}` |
-`null`) drives **four independent surfaces**. Every surface is positioned from the engine's `Region` boxes
+A single `selection()` signal in `editor/core/store.ts` (`{kind:"element", address}` | `{kind:"section", …}`
+| `null`) drives **four independent surfaces**. Every surface is positioned from the engine's `Region` boxes
 (the box of each id'd node), so the UI can never drift from what's painted.
 
-**① Floating format bar** — `editor/inspect/format-bar.tsx` (`ContextBar`). Renders for a selected element,
+**① Floating format bar** — `editor/panels/ControlBars.tsx` (`ContextBar`). Renders for a selected element,
 anchored just above its region box (flips below if it would clip; hidden mid-drag). Contents, in order:
 the spec's `bar` keys resolved to their `ControlField`s and rendered **compact** (same `Field` dispatcher as
-the panel, labels dropped) → the **universal radius** slider (only when `spec.frame`, written to
-`ElementLayout.radius`, not element data) → **rich-text marks** (`MarkControls`, only while editing a
-`richText` element) → **align** (only when the element has horizontal slack in its parent) → **duplicate** →
-**delete**. Continuous slider/color drags coalesce into a single undo step.
+the panel, labels dropped) → **rich-text marks** (`MarkControls`, only while editing a `richText` element) →
+**align** (only when the element has horizontal slack in its parent — decided by probing the spec's natural
+width) → one **AI ✨** (text rewrite/translate intake while inline-editing rich text, whole-element
+regenerate otherwise) → **duplicate** → **delete**. Continuous slider/color drags coalesce into a single
+undo step.
 
-**② Docked right panel** — `editor/chrome/Panel.tsx`: a vertical icon rail + a flyout that shows either the
-**palette** (tiles grouped by `category`, or a search) or the **inspector**. The routing hinges on
+**② Docked right panel** — `Panel` in `editor/Editor.tsx`: a vertical icon rail + a flyout that shows either
+the **palette** (tiles grouped by `category`, or a search) or the **inspector**. The routing hinges on
 `elementInline` — an element skips the docked inspector (bar-only) when:
 
 ```ts
-if (spec.richText || spec.container) return true;
+if (spec.richText) return true; // fully editable inline + on the bar
+if (spec.frame) return false; // the corner-radius slider lives only in the panel
 const bar = spec.bar ?? [];
-return spec.controls.length > 0 && spec.controls.every((c) => bar.includes(c.key));
+return spec.controls.every((c) => bar.includes(c.key)); // vacuously true for zero-control containers
 ```
 
-i.e. rich-text, containers, or any element whose every control already lives on the bar (the panel would add
-nothing). Otherwise a `createEffect` auto-opens the inspector for the selection.
+i.e. rich-text, or any element whose every control already lives on the bar (zero-control containers
+included) — but a framed element always opens the panel. Otherwise a `createEffect` auto-opens the
+inspector for the selection.
 
-**③ Inspectors + control kit** — `editor/inspect/inspectors.tsx` + `fields.tsx`:
+**③ Inspector + control kit** — `editor/panels/RightPanel.tsx` (`ElementInspector`) over the `Field` /
+`SchemaFields` dispatchers in `editor/panels/SharedControlFields.tsx` (which re-export the shared `@ui`
+input primitives):
 
 - **ElementInspector** renders `spec.controls` through `SchemaFields` — grouped by each field's `group`,
   each gated by `visibleWhen`, dispatched by control kind to the shared primitives (`Segmented`,
-  `SliderRow`, `ColorField`, `MediaField`, `IconField`, …). It deliberately omits spatial props
-  (width/height/align/gap/padding) — those are canvas handles. **Charts/diagrams are special**: their
-  `dataShapeFor()` returns a structured shape, so the inspector hides the raw data keys and renders an inline
-  **`DataGrid`** (a spreadsheet-style editor, `editor/inspect/DataGrid.tsx` + `data-model.ts`) instead.
-- **SectionInspector** — a **layout-preset** picker (live thumbnails; `applyLayoutPreset` sets the column
-  count + width ratios — a helper, not a stored mode; the active preset lights up by matching current
-  widths) followed by the generic `SECTION_CONTROLS` (bleed + background) through the same `SchemaFields`.
+  `SliderRow`, `ColorField`, `MediaField`, `IconField`, `VectorField`, …). It deliberately omits spatial
+  props (width/height/align/gap/padding) — those are canvas handles. When `spec.frame`, it appends the
+  universal **corner-radius** slider (written to `ElementLayout.radius`, not element data; unset, it shows
+  the painted region's radius so the slider reads true). **Charts/diagrams are special**: `dataShapeFor()`
+  (`editor/core/infographic.ts`) returns a structured shape, so the inspector hides the raw data keys
+  (`DATA_KEYS`) and renders an inline **`DataGrid`** (`editor/panels/DataEditor.tsx` — a spreadsheet-style
+  editor, expandable to a full-screen modal) instead. A diagram's `list` shape edits as Item · Detail
+  columns, plus a Value column for the types that read a numeric weight.
+- **Section layout & background** live in `editor/panels/SectionLayoutPopup.tsx`, opened from the section
+  pill (below): a preset grid of live thumbnails (`SECTION_LAYOUTS`, `@elements/layouts` — column splits +
+  role-aware media left/right/top/full-bleed, each with `applies`/`matches`/`transform`; the active preset
+  lights up by matching current fractions) followed by the generic `SECTION_CONTROLS` (bleed + background)
+  through the same `SchemaFields`.
 
-**④ On-canvas handles** — `editor/select/handles.tsx`, all live-previewed through a shared `liveEdit` signal
-(the canvas reflows per frame, commits on release):
+**④ On-canvas handles** — `editor/panels/Selection.tsx`, all live-previewed through a shared `liveEdit`
+signal (the canvas reflows per frame, commits on release):
 
+- **DragHandle** — a grip left of the hovered/selected element or section; a press becomes a move only
+  after a 5px threshold, so a plain click on the grip selects.
 - **ResizeHandles** — a single **bottom-edge** strip (corner/width handles were removed) → `resize.height`
   (a data key) or `resize.aspect` (`data.aspect`).
 - **RegionDividers** — the **primary width affordance**, ONE mechanism at every depth: thin `col-resize`
   bars between any two side-by-side siblings — the section's columns (the root row's children) or a nested
-  row — each writing that child's `ElementLayout.width.pct`.
-- **Spacing** — for containers, drag a grip between children (gap) or at the content inset (padding).
+  row — each writing both neighbours' `ElementLayout.width.pct` (a `siblings` live edit).
 
 Net: an element's entire editing surface is assembled from its `ElementSpec` — `bar` picks the quick
-controls, `controls` fills the panel, `frame`/`resize`/`container` light up canvas affordances, and
-`richText`/`dataShapeFor` swap in the specialized editors (inline text marks, chart/diagram grid).
+controls, `controls` fills the panel, `frame`/`resize`/`container` light up the radius slider and canvas
+affordances, and `richText`/`dataShapeFor` swap in the specialized editors (inline text marks,
+chart/diagram grid).
 
 ### 6.1 How it's wired (the reactive spine)
 
 None of the surfaces above query the DOM to find an element. They read a handful of signals in
-`editor/editor.ts` and position themselves from the engine's `Region` boxes. **Five signals** carry the
+`editor/core/store.ts` and position themselves from the engine's `Region` boxes. **Five signals** carry the
 whole interaction:
 
 - **`regions`** — `Region[]` the canvas republishes on every paint; each is `{ id, box, radius }` in
@@ -310,43 +333,57 @@ whole interaction:
 - **`selection` / `hover`** — a `Target | null` each (`{kind:"element", address:{section, path}}` |
   `{kind:"section", …}`), with a custom `targetsEqual` so re-selecting the same thing doesn't churn.
 - **`rightTab`** — which right-rail flyout is open (a `category` id · `"search"` · `"inspector"` · `null`).
-- **`liveEdit`** (`select/handles.tsx`) — a transient, uncommitted direct-manipulation edit (drag in flight).
-- **`editing`** (`ElementAddress | null`) — the element whose inline text is being edited.
+- **`liveEdit`** (`panels/Selection.tsx`) — a transient, uncommitted direct-manipulation edit (drag in
+  flight).
+- **`editing`** (`ElementAddress | null`) — the element whose inline text is being edited (+ `editCaret`,
+  the viewport point where editing started).
 
 "Becoming visible" = one of these turns non-null and a `Show`/`For` memo lights up. Selection itself is just
 "set the `selection` signal"; everything in §6 is a reaction to it.
 
-**Pixels → selection (`editor/canvas/Canvas.tsx`).** Each `draw()` paints the section stack and gets back
-`{tops, regions, height}`. It publishes `regions` _and_ pre-parses them once into a flat `liveHits` array of
-`{target, specificity, box}`, so a hover test is a numeric box-scan, not id-parsing per pointer move:
+**Pixels → selection (`editor/Canvas.tsx`).** Each `draw()` paints the section stack (through the
+per-section layer cache, §9) and gets back `{tops, regions, height}`. The draw is **windowed**: every
+section is laid out, so `tops`/`height` (and therefore the scrollbar) stay exact, but only the sections
+intersecting the viewport band are materialized, and only those contribute regions — nothing off-screen
+can be hovered anyway. See `loading.md`. It publishes `regions` _and_
+pre-parses them once into a flat `liveHits` array of `{target, specificity, box}`, so a hover test is a
+numeric box-scan, not id-parsing per pointer move:
 
 - **down** → records `pending = {target: hitTest(x,y), x, y}` — no selection yet.
-- **move** → sets `hover` to the hit; _or_, if `pending` is an element dragged past `DRAG_THRESHOLD`,
-  promotes to a drag-move (drop handled by `canvas/dnd.ts`).
+- **move** → sets `hover` to the hit. A body drag never starts a move — moves start only from the
+  DragHandle grip.
 - **up** → `setSelection(pending.target)`; if that element's spec is `richText`, `startEditing` at the click
   point (so clicking body text drops you straight into editing).
 - **`hitTest`** returns the highest-`specificity` region under the point → a deeper element (longer path)
-  beats a shallower one beats the section. `Escape` walks up the tree via `parentTarget`; `Delete`/`Backspace`
-  removes + collapses the column; `⌘D` duplicates; arrows reorder a selected section. Keys are ignored while a
-  form field or the inline editor has focus.
+  beats a shallower one beats the section.
+
+Keyboard runs through the `@ui/keys` command registry (`editor/core/commands.ts`), gated by context flags
+(`editor.hasSelection`, `editor.textEditing`, `present`, …): `Escape` walks up the tree via `parentTarget`;
+`Delete`/`Backspace` removes + collapses the column; `⌘D` duplicates; `⌘C/X/V` copy/cut/paste the element
+clipboard (paste lands through the same `place()` logic as a drop). Bindings are inert while a form field
+or the inline editor has focus.
 
 **The overlay stack.** All chrome is mounted as absolutely-positioned siblings over the `paintHost` inside
-one stage div — the selection/hover rings (`Overlay`), the handle layers, the section-level surfaces, the
-`ContextBar`, and the inline `TextEditor`. There's no separate drop indicator: a drop previews by reflowing
+one stage div — the selection/hover rings (`Overlay`), the drag/resize/divider handle layers, the section
+pill, the `ContextBar`, the empty-region "+ Add element" affordance, the AI generate popup/stages, live
+video embeds, and the inline `TextEditor`. There's no separate drop indicator: a drop previews by reflowing
 the painted section around an inline ghost, not by an overlay.
 
-**Drag & drop (`editor/canvas/dnd.ts`).** A drag resolves against the engine regions to ONE of four ops —
-replace an empty region, insert into a container, wrap a leaf into a new row/col, or add a section column
-(dragging to a section edge / column gutter). A move removes the source, places the element, then
+**Drag & drop (`editor/core/dnd.ts`).** A drag resolves against the engine regions to ONE of five ops —
+replace an empty region, insert into a container at the nearest gap, wrap a leaf into a new row/col, add a
+section column (a band around a column boundary), or **create a new section** (bands between/above/below
+sections — checked first, so dragging out of a section reads as "new section", never a destructive
+replace). A move removes the source, re-aims the target path across the removal, places the element, then
 **collapses** only the emptied source column (unrelated empty columns stay put). `previewDrop` runs the
 identical path, splicing an inline ghost of the dragged element — the real element dimmed for a move, its
-skeleton for a new-from-palette drop — so the live reflow matches the drop exactly, at every drop target.
+themed preview tile for a new-from-palette drop — so the live reflow matches the drop exactly, at every
+drop target.
 
-**Section-level chrome** (`editor/select/selection.tsx`):
-
-- **`SectionActions`** — a pill straddling a section's bottom edge whenever any region inside it is _hovered_:
-  Add section / Generate (AI) / Layout (selects the section).
-- **`SectionToolbar`** — reorder ↑↓ / duplicate / add-below / delete, shown when a `section` is _selected_.
+**Section-level chrome** (`editor/panels/Selection.tsx`): **`SectionActions`** — one pill straddling a
+section's bottom edge whenever any region inside it is _hovered_ (pinned while its popup is open): reorder
+↑/↓ · Add section · Generate (AI) · Layout (opens `SectionLayoutPopup`) · background image · duplicate ·
+delete. Sections also reorder by dragging the grip (the stack reflows around the lifted, dimmed section) or
+from the minimap rail.
 
 **Live edits & undo.** Every control write funnels through `commit(op(...))` with an optional `coalesce` key;
 continuous gestures — slider/color scrubs and every handle drag — pass a stable key so the whole gesture folds
@@ -376,11 +413,21 @@ closePath`); the backend begins and closes the path. **d3-shape generators rende
 - **`measureText(text, style): { width }`** — advance widths for axis labels, legends, and flow-node sizing
   (immediate-mode paint has no DOM to measure against). `canvasDrawContext` uses `cx.measureText`.
 
+`DrawStyle` also carries **`gradient`** (a linear fill across the shape's bounding box) and **`shadow`**
+(`{blur, dy, color}`), mirroring what `FillLeaf` already offers rects at the engine level — so depth and
+soft elevation are backend capabilities, not per-element simulation. Support degrades honestly: canvas
+builds a real `createLinearGradient` (deriving the extent per primitive, replaying a `path` build through
+a bounds sink) and sets `shadowBlur`/`shadowOffsetY`; both SVG emitters resolve a gradient to a `<defs>`
+`<linearGradient>` in `objectBoundingBox` units, and the DOM one adds an `feDropShadow` filter; the PDF
+context flattens a gradient to the midpoint of its stops and drops shadows, since `drawSvgPath` paints one
+flat color. Because a shadow blurs outside the shape and each surface paints into an `<svg>` sized exactly
+to its box, renderers must inset enough for it to land.
+
 Plot-area clipping is handled at the engine level (the node-level `clip?: {x?,y?}`, §2) rather than as a
-`DrawContext` method. Two `DrawContext` impls live in `canvas/render/backends.ts`: **`canvasDrawContext`**
-(Canvas 2D — present + PDF/PNG/PPTX export raster) and **`svgDrawContext`** (emits `<svg>`/`<path>` — the
-editor DOM backend, so every surface is crisp vector on screen). Export still rasterizes; a vector export
-`DrawContext` (PDF operators) is the remaining future-proofing (§10).
+`DrawContext` method. **Four** `DrawContext` impls exist: **`canvasDrawContext`** (Canvas 2D — present +
+PNG/PPTX raster) and **`svgDrawContext`** (emits `<svg>`/`<path>` — the editor DOM backend, so every surface
+is crisp vector on screen) in `canvas/render/backends.ts`; **`svgStringContext`** (`render/svg-emit.ts`, the
+node-safe string emitter PPTX embeds); and **`pdfDrawContext`** (`render/pdf-draw.ts`, native PDF vector).
 
 **Why d3 + dagre, not a chart lib.** We take the proven **pure-geometry** engines (Chart.js / ECharts /
 Observable Plot / Mermaid are all built on these same d3 modules + dagre internally) and paint them
@@ -391,8 +438,11 @@ free the day `svgDrawContext` landed (§9). Installed, DOM-free, tree-shakeable 
 **@dagrejs/dagre** (directed-graph layout — used by the `flow` diagram). Authoring is structured controls
 (pick a type, fill fields via the inspector / `DataGrid`), never a code surface.
 
-**Data model.** Persisted data stays compact text (artifact JSONB); `normalize()` lifts it to a structured
-runtime model, so old artifacts keep rendering (a legacy `kind` folds into `type`):
+**Data model.** Persisted data stays compact text (artifact JSONB). Two steps lift it: `toChartData` /
+`toDiagramData` narrow the untyped stored record to the typed `ChartData` / `DiagramData` (each field
+coerced, enums checked against their value-set, anything unrecognized dropped — so a hand-edited or
+stale artifact can't smuggle a bad value into a renderer), then `normalize()` resolves that into the
+structured runtime model, so old artifacts keep rendering (a legacy `kind` folds into `type`):
 
 ```ts
 // chart/utils.ts — persisted
@@ -415,9 +465,21 @@ interface Series {
 }
 ```
 
-Diagrams carry `DiagramData { type?, items: string, links?: string, palette?, height? }` → `ResolvedDiagram
-{ type, items, nodes, edges }` (`links` are `"A->B"` edges for flow, `"Parent>Child"` for tree/org/mindmap).
-The inspector's `DataGrid` edits these string fields as a spreadsheet (§6③).
+Diagrams carry `DiagramData { type?, items, links?, axes?, palette?, style?, numbers?, shape?, flow?,
+height? }` → `ResolvedDiagram { type, items: DiagItem[], nodes, edges, axes, options }`.
+
+- **`items`** is one entry per line, `"Label | detail | value"`, parsed to `DiagItem {label, body?, value?}`.
+  Splitting prefers newlines and only falls back to commas when there are none, so a detail may contain a
+  comma while legacy comma-separated lists keep parsing unchanged. `value` is read only where it means
+  something (funnel/pyramid band weight, roadmap lane span, timeline marker). `formatItems` is the exact
+  inverse, dropping empty trailing segments — the grid round-trips through it.
+- **`links`** are `"A->B"` edges for flow, `"Parent>Child"` for tree/org/mindmap, with an optional `":label"`
+  tail that the flow renderer paints as a chip on the edge.
+- **`axes`** is a per-type caption list: quadrant axis ends, matrix column-then-row headers, roadmap columns.
+- **`options`** (`style · numbers · shape · flow`) reaches renderers through `DiagramCtx.opts`, mirroring
+  how charts pass `ChartOptions` — no renderer re-reads raw data.
+
+The inspector's `DataGrid` edits these as a spreadsheet (§6③).
 
 **Registry entry.** Mirrors the element registry; adding a type = one file + one `registerChart(...)` /
 `registerDiagram(...)`, no branch in a growing function, no engine change:
@@ -438,18 +500,52 @@ interface DiagramType {
 ```
 
 `chart/render.ts` / `diagram/render.ts` side-effect-import every per-type file (so they self-register),
-`normalize`, look up `getChart(type)` (falling back to `bar` / `process`), and call `render`. Shared chrome
-lives in `utils.ts`: `cartesianFrame`/`numericAxes` (axes, gridlines, nice ticks via d3-scale), `legendRow`,
-`seriesColors` (theme-accent ramp or hue-rotated palette), `pieLike`, number formatting.
+`normalize`, look up `getChart(type)` (falling back to `bar` / `process`), and call `render`. Chart chrome
+lives in `chart/utils.ts`: `cartesianFrame`/`numericAxes` (axes, gridlines, nice ticks via d3-scale),
+`legendRow`, `seriesColors` (theme-accent ramp or hue-rotated palette), `pieLike`, number formatting.
+
+### 7.1 The diagram vocabulary (`diagram/utils.ts`)
+
+Every diagram type paints through one shared vocabulary, so styling is fixed once rather than per renderer:
+
+- **`nodePaint(style, color, theme, emphasis?)`** resolves one of four treatments — `card` (paper fill,
+  hairline, soft shadow) · `tinted` (a wash of the node color) · `solid` (filled, with a slight gradient
+  toward the bottom edge for depth) · `outline` — into concrete `{fill, gradient, stroke, shadow, ink, dim}`.
+  `emphasis` promotes a node to solid whatever the artifact-wide style is (tree/org/mindmap roots, flow
+  terminals, the hub centre).
+- **`inkOn(bg, theme)`** picks a label color by measured contrast: whichever theme ink clears WCAG AA on that
+  fill, else black or white (their better half is never below 4.58:1, so a legible choice always exists).
+  This is what fixed pyramid/funnel labels, which used to be pinned to `onAccent` over arbitrary band colors.
+- **`diagramColors`** returns **opaque** hex for both palettes. The categorical set already was; the accent
+  ramp is rebuilt as solid mixes toward the page, because its old alpha steps could be neither
+  contrast-tested nor interpolated in a gradient.
+- **`drawNode(g, box, item, theme, opts)`** is the single node painter: silhouette (`rounded · pill ·
+chevron · hexagon`, plus `diamond`, which only flowcharts assign themselves), an optional number badge on
+  the leading edge, and a title over an optional detail line (`stackedLabel`).
+- **`drawLink`** draws a rounded-elbow polyline with a filled arrowhead; **`drawEdgeLabel`** puts an edge
+  caption on a chip so it stays readable where it crosses a connector.
+- **`bandStack` · `buildTree`/`layoutTree`/`boxWidth`** remain the shared layouts for pyramid/funnel and the
+  three hierarchy types.
+
+**Fitting is the renderers' contract.** A surface paints into an `<svg>` sized exactly to its box, so
+anything outside is silently clipped away — content must never overflow. Renderers therefore derive sizes
+from the space each row/lane/ring actually gets (`cell = avail / rows`, gap a fraction of it) rather than
+from constants that can exceed it, and suppress detail lines or badges when a box is too small to hold them.
+`diagram.test.ts` asserts this per type: every draw call stays inside the box across three box sizes and a
+crowded ten-item list.
 
 **Type catalog — built.** _Charts (13):_ bar · column · line · area · pie · donut · radar · scatter ·
-bubble · funnel · gauge · heatmap · treemap. _Diagrams (12):_ process · cycle · pyramid · funnel · timeline ·
-venn · quadrant · matrix · tree · org · mindmap · flow (flow via dagre; tree/org/mindmap via d3-hierarchy).
+bubble · funnel · gauge · heatmap · treemap. _Diagrams (17):_ process · steps · cycle · pyramid · funnel ·
+timeline · roadmap · venn · quadrant · matrix · hub · target · honeycomb · tree · org · mindmap · flow
+(flow via dagre; tree/org/mindmap via d3-hierarchy). Flow infers its shapes rather than taking new syntax:
+a label ending in `?` is a decision diamond, and the nodes nothing points at (or that point nowhere) are
+pill terminals.
 
-**Built vs deferred.** The whole `DrawContext.path/measureText` foundation, the d3-scale/shape/hierarchy +
-dagre registries, and the two catalogs above are shipped end-to-end (editor inspector + `DataGrid` + PDF/PPTX
-export). Deferred breadth (§10): sankey/sunburst/waterfall/histogram (+ streamgraph/rose/network/ER), d3-array
-/ d3-sankey / elkjs, hover tooltips, and vector PDF.
+**Built vs deferred.** The whole `DrawContext` foundation (`path`/`measureText`/`gradient`/`shadow`), the
+d3-scale/shape/hierarchy + dagre registries, and the two catalogs above are shipped end-to-end (editor
+inspector + `DataGrid` + PDF/PPTX export). Deferred breadth (§10): sankey/sunburst/waterfall/histogram
+(+ streamgraph/rose/network/ER), d3-array / d3-sankey / elkjs, hover tooltips, and **per-item icons** —
+the substrate takes them, but authoring needs an icon column in the `DataGrid` plus the AI-catalog field.
 
 ## 8. The render bridge — compose → commands (`canvas/render/commands.ts`)
 
@@ -482,18 +578,24 @@ One `RenderCommand[]` → multiple serializers:
 
 - **DOM** — absolutely-positioned divs, used for editing (so text selection / contenteditable work). A
   self-painted `surface` command paints into a nested `<svg>` via `svgDrawContext`, so charts / diagrams /
-  icons / shapes / graphics are crisp vector on screen.
+  icons / shapes / graphics are crisp vector on screen. That `<svg>` is sized to the command's box and
+  clips to it, which is why surface renderers must keep their geometry inside (§7.1).
 - **2D canvas** — mirrors the DOM output; reused for Present and PDF/PNG/PPTX export, so _what you edit is
   what you export_. `canvasDrawContext` (the raster `DrawContext`) lives here for the self-painted surfaces.
 
 Both honor each command's `clip` rect (CSS clip-path / canvas clip).
 
+The stack painter keeps a **per-section layer cache** keyed on section identity (ops never mutate, so an
+untouched section reuses its whole laid-out DOM layer) plus layout width / theme / profile / the
+inline-edit `hideId` — so a keystroke re-lays-out one section, not the document. `paintReconcile` reuses
+child `<div>`s slot-for-slot, resetting each so a kind change can't inherit stale styling.
+
 ## 10. Status & deferred
 
 **Built:** the engine, all three format views + per-section `frame.aspect`, compose from the recursive root +
-the layout presets, the full element contract (58 types) with skeletons + direct-manipulation sizing (one
-divider system, edge-drop columns, collapse-on-empty), the chart/diagram registries (d3 + dagre), DOM + canvas
-backends, PDF/PNG export, deck present, PPTX export.
+the layout presets, the full element contract (63 types) with skeletons + direct-manipulation sizing (one
+divider system, edge-drop columns, collapse-on-empty), the chart/diagram registries (d3 + dagre) over a
+shared node/connector vocabulary, DOM + canvas backends, PDF/PNG export, deck present, PPTX export.
 
 **PPTX export** (`render/pptx.ts` — the whole exporter in one file: RenderCommand→spec mappers, font
 embedding, and the slide-assembly shell) — every artifact exports as a **deck** (all formats run through the
@@ -546,8 +648,8 @@ first-class paged format whose W×H lives on the **artifact**, for posters / soc
 **Charts & diagrams breadth** — more chart types (sankey via d3-sankey · sunburst via d3-hierarchy · waterfall
 · histogram · streamgraph · rose · network/ER) and denser graph layouts (**elkjs** where dagre's layered
 output isn't clean enough); **hover tooltips / click** (surfaces are static rasters — needs editor-level
-hit-testing over the surface box); a **drift-guard script** (`pnpm check:elements`) asserting the `model`
-value-sets match the registered ids (§5.3).
+hit-testing over the surface box); a **drift-guard script** (`pnpm check:elements`) generalizing the
+`DIAGRAM_TYPES` assertion in `diagram.test.ts` to charts + the AI catalog (§5.3).
 
 **Rendering core** — engine-native rich text (`@model/text` is scaffolded; the editor uses a contenteditable
 overlay today); free-form / bento grid spanning; native (editable) PowerPoint charts — charts export as vector
