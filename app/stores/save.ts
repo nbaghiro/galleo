@@ -1,11 +1,23 @@
 import { createEffect, on, onCleanup, untrack } from "solid-js";
-import { currentArtifactId, editor, editSeq, themeForPersist } from "@editor/core/store";
+import type { ArtifactContent } from "@model/artifact";
+import { diffSections } from "@model/content";
+import {
+    currentArtifactId,
+    editor,
+    editSeq,
+    isWindowed,
+    themeForPersist,
+} from "@editor/core/store";
 import { api } from "../api";
 
 // Autosave coalesces a burst of edits into one PATCH: debounce ~1.2s, but force-flush every ~10s during
 // continuous editing and on tab hide/unload; one PATCH in flight, edits during a save trigger one more.
+// What it sends is the difference from what the server is known to hold, so a keystroke rewrites one
+// section rather than the whole document — and a windowed client, which only holds part of the
+// document, can save at all.
 const DEBOUNCE_MS = 1200;
 const MAX_INTERVAL_MS = 10_000;
+const RETRY_MS = 3_000; // after a failed save; the baseline is unchanged, so the retry resends it
 
 // exposed so navigation can checkpoint the current doc before switching
 let activeFlush: (() => Promise<void>) | null = null;
@@ -18,6 +30,17 @@ export function installAutosave(): void {
     let windowStart = 0; // when the current un-saved edit window opened
     let saving = false;
     let dirtyWhileSaving = false;
+    // the server's known state, and what the diff behind each save is taken against
+    let savedId: string | null = untrack(currentArtifactId);
+    let saved: ArtifactContent | null = savedId ? untrack(() => editor.artifact) : null;
+
+    const saveWhole = async (
+        id: string,
+        content: ArtifactContent,
+        themeId: string,
+    ): Promise<void> => {
+        await api.saveArtifact(id, { draftContent: content, themeId, formatId: content.format });
+    };
 
     async function flush(): Promise<void> {
         const id = untrack(currentArtifactId);
@@ -32,14 +55,32 @@ export function installAutosave(): void {
         const art = untrack(() => editor.artifact);
         // While previewing in the app theme, persist the artifact's real saved theme (not the preview).
         const themeId = untrack(themeForPersist);
+        const persisted: ArtifactContent = { ...art, theme: themeId };
+        const windowed = untrack(isWindowed);
+        const baseline = savedId === id ? saved : null;
         try {
-            await api.saveArtifact(id, {
-                draftContent: { ...art, theme: themeId },
-                themeId,
-                formatId: art.format,
-            });
+            const ops = baseline ? diffSections(baseline, persisted) : null;
+            if (ops && !ops.length) {
+                // nothing the server doesn't already have
+            } else if (ops) {
+                try {
+                    await api.patchContent(id, { ops, themeId, formatId: art.format });
+                } catch (e) {
+                    // A client holding the whole document can always fall back to replacing it; a
+                    // windowed one cannot, and must surface the failure as a retry instead.
+                    if (windowed) throw e;
+                    await saveWhole(id, persisted, themeId);
+                }
+            } else {
+                await saveWhole(id, persisted, themeId);
+            }
+            saved = persisted;
+            savedId = id;
         } catch {
-            dirtyWhileSaving = true; // failed — retry on the next flush
+            // The baseline is untouched, so the same change is still pending. Retry on a timer rather
+            // than immediately: a persistent failure would otherwise spin.
+            window.clearTimeout(timer);
+            timer = window.setTimeout(() => flush(), RETRY_MS);
         }
         saving = false;
         if (dirtyWhileSaving) {
@@ -47,6 +88,14 @@ export function installAutosave(): void {
             flush();
         }
     }
+
+    // A load establishes the baseline the next diff is taken against; it is not itself a save.
+    createEffect(
+        on(currentArtifactId, (id) => {
+            savedId = id;
+            saved = id ? untrack(() => editor.artifact) : null;
+        }),
+    );
 
     // Fires only on real edits (editSeq bumps); loading an artifact doesn't bump it, so loads never save.
     createEffect(

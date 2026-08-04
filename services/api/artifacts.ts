@@ -1,90 +1,59 @@
 import { Hono } from "hono";
-import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
-import type { ArtifactInput, Cover, SectionSummary } from "@model/artifact";
+import type {
+    ArtifactContent,
+    ArtifactInput,
+    ArtifactPage,
+    ArtifactWindow,
+    ContentPatch,
+    Section,
+    SectionOp,
+} from "@model/artifact";
+import { applySectionOps } from "@model/content";
+import { artifactDigest, artifactSearchText } from "@model/digest";
 import { isUnlimited } from "@model/billing";
 import { limit } from "@model/features";
 import { db, schema } from "../schema";
 import { SESSION_COOKIE } from "../auth";
 import { featuresFor } from "../features";
 import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
+import { decodeCursor, encodeCursor, pageLimit } from "./pagination";
 
 export const artifacts = new Hono();
 
-interface RawEl {
-    type?: string;
-    data?: { style?: string; text?: string; src?: string; children?: RawEl[] };
-}
-interface RawDraft {
-    background?: { image?: string };
-    sections?: { background?: { image?: string }; root?: RawEl }[];
-}
+const LIST_LIMIT = 24;
+const LIST_MAX = 100;
 
-const walkRaw = (el: RawEl | undefined, visit: (el: RawEl) => void): void => {
-    if (!el) return;
-    visit(el);
-    for (const ch of el.data?.children ?? []) walkRaw(ch, visit);
-};
-
-function coverOf(draft: unknown): Cover {
-    const d = draft as RawDraft;
-    const sec = d.sections?.[0];
-    if (!sec) return {};
-    const texts: { style?: string; text?: string }[] = [];
-    let image = d.background?.image ?? sec.background?.image;
-    walkRaw(sec.root, (el) => {
-        if (el.type === "text" && el.data) texts.push({ style: el.data.style, text: el.data.text });
-        if (el.type === "image" && !image && el.data?.src) image = el.data.src;
-    });
-    const find = (...styles: string[]): string | undefined =>
-        texts.find((t) => t.style && styles.includes(t.style))?.text;
-    return {
-        eyebrow: find("label"),
-        title: find("h1", "h2", "h3"),
-        sub: find("subtitle", "body", "caption"),
-        image,
-    };
-}
-
-function sectionsSummary(draft: unknown): SectionSummary[] {
-    const d = draft as RawDraft;
-    return (d.sections ?? []).map((sec, idx) => {
-        let title: string | undefined;
-        const kinds = new Set<string>();
-        walkRaw(sec.root, (el) => {
-            if (el.type === "text" && el.data) {
-                const st = el.data.style;
-                if (el.data.text && !title && st && !["label", "caption"].includes(st))
-                    title = el.data.text;
-            }
-            if (el.type && !["text", "group", "card"].includes(el.type)) kinds.add(el.type);
-        });
-        let kind = "cover";
-        if (idx > 0) {
-            kind = "content";
-            if (kinds.has("chart")) kind = "chart";
-            else if (kinds.has("table")) kind = "table";
-            else if (kinds.has("diagram")) kind = "diagram";
-            else if (
-                kinds.has("image") ||
-                kinds.has("video") ||
-                kinds.has("embed") ||
-                sec.background?.image
-            )
-                kind = "media";
-            else if (kinds.has("stat")) kind = "stat";
-            else if (kinds.has("quote")) kind = "quote";
-        }
-        return { title: title?.slice(0, 64), kind };
-    });
-}
-
+// Every filter the library offers is applied here rather than in the client, because a page is only
+// coherent if the server and the client agree on what the list contains.
 artifacts.get("/artifacts", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
     const ws = await firstWorkspaceId(u.id);
-    if (!ws) return c.json({ artifacts: [] });
+    if (!ws) return c.json({ artifacts: [], nextCursor: null } satisfies ArtifactPage);
     const trashed = c.req.query("trashed") === "1";
+    const alpha = c.req.query("sort") === "az";
+    const folder = c.req.query("folder");
+    const format = c.req.query("format");
+    const take = pageLimit(c.req.query("limit"), LIST_LIMIT, LIST_MAX);
+    const cursor = decodeCursor(c.req.query("cursor"));
+
+    // One sort key per mode; the cursor carries that key's value at the last row of the previous page.
+    // A–Z sorts on lower(title) so it reads the way the client used to sort it, not by ASCII case.
+    const timeCol = trashed ? schema.artifacts.trashedAt : schema.artifacts.updatedAt;
+    const sortKey = alpha ? sql`lower(${schema.artifacts.title})` : sql`${timeCol}`;
+    const keyOf = (row: { title: string; updatedAt: Date; trashedAt: Date | null }): string =>
+        alpha
+            ? row.title.toLowerCase()
+            : ((trashed ? row.trashedAt : row.updatedAt)?.toISOString() ?? "");
+    // row comparison = the standard keyset seek; the casts keep uuid/timestamp comparable to text params
+    const seek = cursor
+        ? alpha
+            ? sql`(${sortKey}, ${schema.artifacts.id}) > (${cursor.key}, ${cursor.id}::uuid)`
+            : sql`(${sortKey}, ${schema.artifacts.id}) < (${cursor.key}::timestamp, ${cursor.id}::uuid)`
+        : undefined;
+
     const rows = await db
         .select({
             id: schema.artifacts.id,
@@ -94,7 +63,7 @@ artifacts.get("/artifacts", async (c) => {
             folderId: schema.artifacts.folderId,
             updatedAt: schema.artifacts.updatedAt,
             trashedAt: schema.artifacts.trashedAt,
-            draftContent: schema.artifacts.draftContent,
+            digest: schema.artifacts.digest,
         })
         .from(schema.artifacts)
         .where(
@@ -103,15 +72,32 @@ artifacts.get("/artifacts", async (c) => {
                 trashed
                     ? isNotNull(schema.artifacts.trashedAt)
                     : isNull(schema.artifacts.trashedAt),
+                folder ? eq(schema.artifacts.folderId, folder) : undefined,
+                format ? eq(schema.artifacts.formatId, format) : undefined,
+                seek,
             ),
         )
-        .orderBy(desc(trashed ? schema.artifacts.trashedAt : schema.artifacts.updatedAt));
-    const list = rows.map(({ draftContent, ...meta }) => ({
+        .orderBy(
+            alpha ? sql`${sortKey} asc` : sql`${sortKey} desc`,
+            alpha ? asc(schema.artifacts.id) : desc(schema.artifacts.id),
+        )
+        .limit(take + 1); // one extra row answers "is there a next page" without a count query
+
+    const page = rows.slice(0, take);
+    const last = page.at(-1);
+    // digest is null only until `db:backfill-search` has visited a pre-index row
+    const list = page.map(({ digest, updatedAt, trashedAt, ...meta }) => ({
         ...meta,
-        cover: coverOf(draftContent),
-        sections: sectionsSummary(draftContent),
+        updatedAt: updatedAt.toISOString(),
+        trashedAt: trashedAt?.toISOString() ?? null,
+        cover: digest?.cover ?? {},
+        sections: digest?.sections ?? [],
     }));
-    return c.json({ artifacts: list });
+    return c.json({
+        artifacts: list,
+        nextCursor:
+            rows.length > take && last ? encodeCursor({ key: keyOf(last), id: last.id }) : null,
+    } satisfies ArtifactPage);
 });
 
 artifacts.post("/artifacts", async (c) => {
@@ -145,6 +131,8 @@ artifacts.post("/artifacts", async (c) => {
             formatId: body.formatId ?? "deck",
             themeId: body.themeId ?? "studio",
             draftContent: body.draftContent ?? {},
+            digest: artifactDigest(body.draftContent),
+            searchText: artifactSearchText(body.draftContent),
             folderId: body.folderId ?? null,
             createdBy: u.id,
         })
@@ -152,6 +140,26 @@ artifacts.post("/artifacts", async (c) => {
     if (!a) return c.json({ error: "create failed" }, 500);
     return c.json({ id: a.id });
 });
+
+const asContent = (draft: unknown): ArtifactContent => {
+    const d = (draft ?? {}) as Partial<ArtifactContent>;
+    return {
+        format: d.format ?? "deck",
+        theme: d.theme ?? "studio",
+        sections: Array.isArray(d.sections) ? d.sections : [],
+        ...(d.background ? { background: d.background } : {}),
+    };
+};
+
+// "from:count"; anything malformed means "no window", i.e. the whole artifact
+function parseWindow(raw: string | undefined): { from: number; count: number } | null {
+    if (!raw) return null;
+    const [a, b] = raw.split(":");
+    const from = Math.trunc(Number(a));
+    const count = Math.trunc(Number(b));
+    if (!Number.isFinite(from) || !Number.isFinite(count) || from < 0 || count <= 0) return null;
+    return { from, count: Math.min(count, 200) };
+}
 
 artifacts.get("/artifacts/:id", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
@@ -165,6 +173,33 @@ artifacts.get("/artifacts/:id", async (c) => {
             and(eq(schema.artifacts.id, c.req.param("id")), eq(schema.artifacts.workspaceId, ws)),
         );
     if (!a) return c.json({ error: "not found" }, 404);
+    const win = parseWindow(c.req.query("window"));
+    if (win) {
+        const content = asContent(a.draftContent);
+        const { sections, ...shell } = content;
+        // The index comes from the stored digest, but only if it carries section ids — a digest written
+        // before windowed loading has none, and guessing them would strand placeholders that can never
+        // be matched. Recompute in that case; the backfill makes it moot.
+        const stored = a.digest?.sections;
+        const index =
+            stored?.length && stored.every((s) => s.id)
+                ? stored
+                : artifactDigest(a.draftContent).sections;
+        return c.json({
+            artifact: {
+                id: a.id,
+                title: a.title,
+                themeId: a.themeId,
+                formatId: a.formatId,
+                updatedAt: a.updatedAt.toISOString(),
+                shell,
+                total: sections.length,
+                index,
+                from: win.from,
+                sections: sections.slice(win.from, win.from + win.count),
+            } satisfies ArtifactWindow,
+        });
+    }
     return c.json({
         artifact: {
             id: a.id,
@@ -175,6 +210,52 @@ artifacts.get("/artifacts/:id", async (c) => {
             updatedAt: a.updatedAt,
         },
     });
+});
+
+// A later window, by id (the editor scrolled) or by range (the library card wants the first few).
+artifacts.get("/artifacts/:id/sections", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await firstWorkspaceId(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+    const [a] = await db
+        .select({ draftContent: schema.artifacts.draftContent })
+        .from(schema.artifacts)
+        .where(
+            and(eq(schema.artifacts.id, c.req.param("id")), eq(schema.artifacts.workspaceId, ws)),
+        );
+    if (!a) return c.json({ error: "not found" }, 404);
+    const all = asContent(a.draftContent).sections;
+    const ids = c.req.query("ids");
+    if (ids) {
+        const want = new Set(ids.split(",").filter(Boolean).slice(0, 200));
+        return c.json({ sections: all.filter((s) => want.has(s.id)) });
+    }
+    const win = parseWindow(c.req.query("window")) ?? { from: 0, count: 24 };
+    return c.json({ sections: all.slice(win.from, win.from + win.count) });
+});
+
+// Records that this user opened the artifact — the read clock behind "Recent" in ⌘K and the library.
+artifacts.post("/artifacts/:id/visit", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await firstWorkspaceId(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+    const [a] = await db
+        .select({ id: schema.artifacts.id })
+        .from(schema.artifacts)
+        .where(
+            and(eq(schema.artifacts.id, c.req.param("id")), eq(schema.artifacts.workspaceId, ws)),
+        );
+    if (!a) return c.json({ error: "not found" }, 404);
+    await db
+        .insert(schema.artifactVisits)
+        .values({ userId: u.id, artifactId: a.id })
+        .onConflictDoUpdate({
+            target: [schema.artifactVisits.userId, schema.artifactVisits.artifactId],
+            set: { viewedAt: new Date(), views: sql`${schema.artifactVisits.views} + 1` },
+        });
+    return c.json({ ok: true });
 });
 
 artifacts.post("/artifacts/:id/trash", async (c) => {
@@ -229,6 +310,66 @@ artifacts.delete("/trash", async (c) => {
     return c.json({ ok: true });
 });
 
+const isSectionOp = (op: unknown): op is SectionOp => {
+    if (!op || typeof op !== "object") return false;
+    const { kind, section, id, ids, shell } = op as Record<string, unknown>;
+    if (kind === "set" || kind === "insert")
+        return !!section && typeof (section as Section).id === "string";
+    if (kind === "remove") return typeof id === "string";
+    if (kind === "order") return Array.isArray(ids) && ids.every((x) => typeof x === "string");
+    if (kind === "shell") return !!shell && typeof shell === "object";
+    return false;
+};
+
+/**
+ * The write half of windowed loading: the client sends what changed instead of the whole tree. Read,
+ * apply, and re-derive happen in one transaction, and a batch naming a section the server doesn't have
+ * is rejected whole (409) so the two sides resynchronize rather than diverge quietly.
+ */
+artifacts.patch("/artifacts/:id/content", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await firstWorkspaceId(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+    const body = await readJson<ContentPatch>(c);
+    const ops = Array.isArray(body.ops) ? body.ops.filter(isSectionOp) : [];
+    if (!ops.length) return c.json({ error: "no ops" }, 400);
+    const where = and(
+        eq(schema.artifacts.id, c.req.param("id")),
+        eq(schema.artifacts.workspaceId, ws),
+    );
+
+    const result = await db.transaction(async (tx) => {
+        const [row] = await tx
+            .select({ draftContent: schema.artifacts.draftContent })
+            .from(schema.artifacts)
+            .where(where)
+            .for("update");
+        if (!row) return { status: 404 as const, error: "not found" };
+        const next = applySectionOps(asContent(row.draftContent), ops);
+        if (!next.ok) return { status: 409 as const, error: next.reason };
+        const [saved] = await tx
+            .update(schema.artifacts)
+            .set({
+                draftContent: next.content,
+                digest: artifactDigest(next.content),
+                searchText: artifactSearchText(next.content),
+                ...(body.themeId !== undefined ? { themeId: body.themeId } : {}),
+                ...(body.formatId !== undefined ? { formatId: body.formatId } : {}),
+                updatedAt: new Date(),
+            })
+            .where(where)
+            .returning({ updatedAt: schema.artifacts.updatedAt, total: sql<number>`1` });
+        return {
+            status: 200 as const,
+            updatedAt: saved!.updatedAt,
+            total: next.content.sections.length,
+        };
+    });
+    if (result.status !== 200) return c.json({ error: result.error }, result.status);
+    return c.json({ ok: true, updatedAt: result.updatedAt, total: result.total });
+});
+
 artifacts.patch("/artifacts/:id", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -239,7 +380,12 @@ artifacts.patch("/artifacts/:id", async (c) => {
     if (body.title !== undefined) patch.title = body.title;
     if (body.themeId !== undefined) patch.themeId = body.themeId;
     if (body.formatId !== undefined) patch.formatId = body.formatId;
-    if (body.draftContent !== undefined) patch.draftContent = body.draftContent;
+    if (body.draftContent !== undefined) {
+        patch.draftContent = body.draftContent;
+        // re-derived here, never trusted from the client; search_tsv follows search_text automatically
+        patch.digest = artifactDigest(body.draftContent);
+        patch.searchText = artifactSearchText(body.draftContent);
+    }
     if (body.folderId !== undefined) patch.folderId = body.folderId;
     // a folder-only move shouldn't reorder the library; bump updatedAt only for real edits
     if (

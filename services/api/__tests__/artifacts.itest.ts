@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
+import { artifactDigest, artifactSearchText } from "@model/digest";
 import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
 import { db, schema } from "../../schema";
 
@@ -25,14 +26,24 @@ const draftWithCover = {
     ],
 };
 
-// bypasses the create route (fixture setup)
+// bypasses the create route (fixture setup); still derives what the route derives, so a fixture row
+// is indistinguishable from a real one
 async function insertArtifact(
     workspaceId: string,
     over: Partial<typeof schema.artifacts.$inferInsert> = {},
 ): Promise<string> {
+    const draft = over.draftContent;
     const [a] = await db
         .insert(schema.artifacts)
-        .values({ workspaceId, formatId: "deck", themeId: "studio", ...over })
+        .values({
+            workspaceId,
+            formatId: "deck",
+            themeId: "studio",
+            ...(draft
+                ? { digest: artifactDigest(draft), searchText: artifactSearchText(draft) }
+                : {}),
+            ...over,
+        })
         .returning({ id: schema.artifacts.id });
     return a!.id;
 }
@@ -125,6 +136,50 @@ describe("artifact routes", () => {
         expect(edit.status).toBe(200);
         const afterEdit = (await edit.json()) as { updatedAt: string };
         expect(new Date(afterEdit.updatedAt).getTime()).toBeGreaterThan(past.getTime());
+    });
+
+    it("derives the digest + search text on create, and re-derives them on a content edit", async () => {
+        const { userId } = await seedUser();
+        const res = await authed(
+            userId,
+            "/artifacts",
+            jsonInit("POST", { title: "Indexed", draftContent: draftWithCover }),
+        );
+        const { id } = (await res.json()) as { id: string };
+        const read = async (): Promise<typeof schema.artifacts.$inferSelect> => {
+            const [row] = await db
+                .select()
+                .from(schema.artifacts)
+                .where(eq(schema.artifacts.id, id));
+            return row!;
+        };
+
+        const created = await read();
+        expect(created.digest?.cover.title).toBe("Hello Title");
+        expect(created.searchText).toContain("Hello Title");
+        expect(created.searchText).toContain("Sub copy");
+
+        const edited = {
+            format: "deck",
+            theme: "studio",
+            sections: [
+                { id: "s1", root: { type: "text", data: { style: "h1", text: "Renamed cover" } } },
+            ],
+        };
+        await authed(userId, `/artifacts/${id}`, jsonInit("PATCH", { draftContent: edited }));
+        const after = await read();
+        expect(after.digest?.cover.title).toBe("Renamed cover");
+        expect(after.searchText).toBe("Renamed cover");
+        expect(after.searchText).not.toContain("Sub copy");
+    });
+
+    it("leaves the search text alone on a metadata-only patch", async () => {
+        const { userId, workspaceId } = await seedUser();
+        const id = await insertArtifact(workspaceId, { draftContent: draftWithCover });
+        await authed(userId, `/artifacts/${id}`, jsonInit("PATCH", { title: "New name" }));
+        const [row] = await db.select().from(schema.artifacts).where(eq(schema.artifacts.id, id));
+        expect(row!.searchText).toContain("Hello Title");
+        expect(row!.digest?.cover.title).toBe("Hello Title");
     });
 
     it("GET /artifacts lists with the cover + section filmstrip DTO", async () => {

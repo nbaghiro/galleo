@@ -40,7 +40,9 @@ async function canvasPng(canvas: HTMLCanvasElement): Promise<Uint8Array> {
 }
 
 export function downloadBytes(bytes: Uint8Array | string, filename: string, type: string): void {
-    const url = URL.createObjectURL(new Blob([bytes as unknown as BlobPart], { type }));
+    // a Uint8Array can be backed by a SharedArrayBuffer, which Blob rejects; copy into a plain one
+    const part: BlobPart = typeof bytes === "string" ? bytes : new Uint8Array(bytes);
+    const url = URL.createObjectURL(new Blob([part], { type }));
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;

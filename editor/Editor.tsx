@@ -35,6 +35,7 @@ import {
     editor,
     editorTheme,
     editorTokens,
+    ensureAllSections,
     features,
     leftOpen,
     moveSectionBy,
@@ -276,7 +277,14 @@ const Topbar: Component = () => (
             Share
         </Button>
         <ExportButton />
-        <Button variant="tool" size="sm" onClick={() => present()}>
+        <Button
+            variant="tool"
+            size="sm"
+            onClick={() => {
+                void ensureAllSections(); // Present walks the whole deck
+                present();
+            }}
+        >
             <Icon name="present" size={14} />
             {editor.artifact.format === "deck" ? "Present" : "Preview"}
         </Button>
@@ -387,8 +395,8 @@ const Minimap: Component = () => {
 
 // --- Panel (right dock) ---
 
-// hidden from the palette: internal container/drop-preview + back-compat chart/diagram catch-alls (per-type tiles show instead).
-const HIDDEN = new Set(["group", "__dropghost", "chart", "diagram", "avatar"]);
+// hidden from the palette: internals with no standalone meaning (containers, the drop preview, the composite avatar)
+const HIDDEN = new Set(["group", "__dropghost", "avatar"]);
 const CAT_ORDER = ["text", "media", "table", "composite", "chart", "diagram", "basic"];
 const CAT_LABEL: Record<string, string> = {
     text: "Text",

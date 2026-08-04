@@ -5,6 +5,7 @@ import {
     createResource,
     createSignal,
     For,
+    onCleanup,
     onMount,
     Show,
 } from "solid-js";
@@ -14,6 +15,7 @@ import { resolveTheme } from "@themes";
 import { api, type ArtifactSummary, type LinkSummary, type Visibility } from "../api";
 import { artifacts, formatLabel, loadLibrary, relativeTime } from "../stores/library";
 import { links, loadLinks } from "../stores/links";
+import { fetchHits } from "../stores/search";
 import { featuresState, loadFeatures } from "../stores/features";
 import { openShare, shareRequest } from "../stores/share";
 import {
@@ -38,7 +40,7 @@ import { PreviewCanvas } from "../components/previews";
 
 // an artifact with every link published for it — the Shared page's unit
 interface Item {
-    art: ArtifactSummary;
+    art: LinkSummary["artifact"];
     links: LinkSummary[];
 }
 
@@ -173,8 +175,9 @@ export const SharedView: Component = () => {
             else byArtifact.set(link.artifactId, [link]);
         }
         const out: Item[] = [];
-        for (const [artifactId, ls] of byArtifact) {
-            const art = artifacts().find((a) => a.id === artifactId);
+        for (const [, ls] of byArtifact) {
+            // the artifact metadata rides along on the link row, so this page never needs the whole library
+            const art = ls[0]?.artifact;
             if (art) out.push({ art, links: ls });
         }
         return out;
@@ -201,19 +204,40 @@ export const SharedView: Component = () => {
         setCopied(url);
         window.setTimeout(() => setCopied((c) => (c === url ? null : c)), 1600);
     };
-    const share = (a: ArtifactSummary): void => {
+    const share = (a: { id: string; title: string }): void => {
         setPicker(false);
         setInsight(null);
         openShare({ artifactId: a.id, title: a.title });
     };
     const alreadyShared = (id: string): boolean => links().some((l) => l.artifactId === id);
 
+    // the picker searches the whole workspace rather than the page the library happens to hold
+    const [found, setFound] = createSignal<ArtifactSummary[] | null>(null);
+    createEffect(() => {
+        const q = query().trim();
+        if (!q) {
+            setFound(null);
+            return;
+        }
+        const ctrl = new AbortController();
+        const t = window.setTimeout(() => {
+            fetchHits(q, ctrl.signal, 24)
+                .then((hits) => !ctrl.signal.aborted && setFound(hits))
+                .catch(() => {
+                    /* fall back to the loaded page */
+                });
+        }, 160);
+        onCleanup(() => {
+            ctrl.abort();
+            window.clearTimeout(t);
+        });
+    });
     const pickList = createMemo(() => {
         const q = query().trim().toLowerCase();
-        const list = q
-            ? artifacts().filter((a) => a.title.toLowerCase().includes(q))
-            : [...artifacts()];
-        return list.sort((a, b) => Number(alreadyShared(a.id)) - Number(alreadyShared(b.id)));
+        const list =
+            found() ??
+            (q ? artifacts().filter((a) => a.title.toLowerCase().includes(q)) : [...artifacts()]);
+        return [...list].sort((a, b) => Number(alreadyShared(a.id)) - Number(alreadyShared(b.id)));
     });
 
     const Card: Component<{ it: Item }> = (p) => {

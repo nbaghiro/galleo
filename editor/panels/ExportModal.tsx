@@ -21,12 +21,15 @@ import {
     editSeq,
     editor,
     editorTokens,
+    ensureAllSections,
     features,
     requestUpgrade,
 } from "../core/store";
 
 const [target, setTarget] = createSignal(false);
 export function openExportModal(): void {
+    // export needs the whole document; a windowed artifact fills in the rest first
+    void ensureAllSections();
     setTarget(true);
 }
 const close = (): void => {

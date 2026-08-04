@@ -4,7 +4,13 @@ import type { Section, SectionBackground } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
 import { paint, backdropCss, scaledHostCss } from "@canvas/render/backends";
-import { measureText, layoutSlide, layoutSection } from "@canvas/render/commands";
+import {
+    measureText,
+    layoutSlide,
+    layoutSlideSkeleton,
+    layoutSection,
+    layoutSectionSkeleton,
+} from "@canvas/render/commands";
 import { slideFrame } from "@engine/profile";
 
 // Engine render of one Section, CSS-scaled to `width` — a true zoomed-out copy (identical wraps), not a re-wrap in a narrow box.
@@ -27,6 +33,7 @@ export const ScaledSectionCanvas: Component<{
     bordered?: boolean;
     baseShadow?: boolean; // resting drop shadow (combines with the selection ring)
     plain?: boolean; // read-only render: no empty-region drop affordances (default true — this is a scaled copy)
+    skeleton?: boolean; // paint the structural ghost instead of the content — a planned section's shape
     class?: string;
 }> = (props) => {
     let wrap!: HTMLElement;
@@ -46,29 +53,40 @@ export const ScaledSectionCanvas: Component<{
         if (frame() === "natural") {
             const lw = props.layoutWidth ?? 1120;
             const scale = w() / lw;
-            const { commands, height } = layoutSection(
-                props.section,
-                lw,
-                measureText,
-                props.theme,
-                props.profile,
-                plain(),
-            );
+            const { commands, height } = props.skeleton
+                ? layoutSectionSkeleton(props.section, lw, measureText, props.theme, props.profile)
+                : layoutSection(
+                      props.section,
+                      lw,
+                      measureText,
+                      props.theme,
+                      props.profile,
+                      plain(),
+                  );
             inner.style.cssText = scaledHostCss(lw, height, scale);
             paint(commands, inner);
             setNaturalH(Math.round(height * scale));
         } else {
             const fr = slideBox();
             const scale = w() / fr.w;
-            const { commands, height } = layoutSlide(
-                props.section,
-                fr.w,
-                fr.h,
-                measureText,
-                props.theme,
-                props.profile,
-                plain(),
-            );
+            const { commands, height } = props.skeleton
+                ? layoutSlideSkeleton(
+                      props.section,
+                      fr.w,
+                      fr.h,
+                      measureText,
+                      props.theme,
+                      props.profile,
+                  )
+                : layoutSlide(
+                      props.section,
+                      fr.w,
+                      fr.h,
+                      measureText,
+                      props.theme,
+                      props.profile,
+                      plain(),
+                  );
             inner.style.cssText = scaledHostCss(fr.w, height, scale);
             paint(commands, inner);
         }

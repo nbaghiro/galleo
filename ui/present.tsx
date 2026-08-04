@@ -3,7 +3,12 @@ import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { previewContentProfile, resolveProfile, slideFrame } from "@engine/profile";
 import { resolveTheme } from "@themes";
-import { paintSectionStack } from "@canvas/render/backends";
+import {
+    createSectionStackCache,
+    paintSectionStack,
+    type StackWindow,
+} from "@canvas/render/backends";
+import { stackWindow, windowMoved } from "@canvas/render/window";
 import { slideElement, sectionSlideCount } from "@canvas/render/present";
 import { backdropHostStyle, SlideProgress } from "./section";
 import { FloatingBar } from "./overlay";
@@ -28,11 +33,16 @@ export const PresentSurface: Component<{
     const profile = createMemo(() => resolveProfile(props.artifact.format));
     const paged = createMemo(() => profile().kind === "paged");
     // A tall paged section spans several 16:9 slides; map a flat slide index ↔ (section, page).
-    const slideCounts = createMemo(() =>
-        paged()
-            ? props.artifact.sections.map((s) => sectionSlideCount(s, tokens(), profile()))
-            : [],
-    );
+    // Counting slides lays out every section, which is the whole deck's work before slide one. Count the
+    // sections up to and including the one on screen, and treat the rest as one slide each until reached.
+    const [counted, setCounted] = createSignal(0);
+    const slideCounts = createMemo(() => {
+        if (!paged()) return [];
+        const upTo = Math.max(counted(), 1);
+        return props.artifact.sections.map((s, i) =>
+            i < upTo ? sectionSlideCount(s, tokens(), profile()) : 1,
+        );
+    });
     const total = (): number =>
         paged() ? slideCounts().reduce((a, b) => a + b, 0) : props.artifact.sections.length;
     const locate = (flat: number): { si: number; page: number } => {
@@ -71,22 +81,41 @@ export const PresentSurface: Component<{
         slide.style.borderRadius = "4px";
         host.replaceChildren(slide);
     };
+    // one stage for the life of the surface, so a repaint on scroll swaps layers instead of the document
+    let stage: HTMLDivElement | null = null;
+    const stackCache = createSectionStackCache();
+    let lastWindow: StackWindow | null = null;
+
     const renderContinuous = (): void => {
         if (!host) return;
         const fullW = host.clientWidth || window.innerWidth;
         // preview isn't bound to the editor's fixed reading-column width — let a doc widen with the viewport
         const prof = previewContentProfile(profile(), fullW);
-        const stage = document.createElement("div");
+        if (!stage) {
+            stage = document.createElement("div");
+            host.replaceChildren(stage);
+        }
         stage.style.cssText = `position:relative;width:${fullW}px`;
+        const viewH = host.clientHeight || window.innerHeight;
+        const win = stackWindow(host.scrollTop, viewH);
+        lastWindow = win;
         const { tops, height } = paintSectionStack(stage, props.artifact.sections, prof, tokens(), {
             fullW,
+            cache: stackCache,
+            window: win,
         });
         sectionTops = tops;
         stage.style.height = `${height}px`;
-        host.replaceChildren(stage);
         reportScrollProgress();
     };
     const render = (): void => (paged() ? renderPaged() : renderContinuous());
+
+    // continuous: scrolling repaints once the materialized band has really moved
+    const onScrollWindow = (): void => {
+        if (paged() || !host) return;
+        const viewH = host.clientHeight || window.innerHeight;
+        if (windowMoved(lastWindow, stackWindow(host.scrollTop, viewH), viewH)) renderContinuous();
+    };
 
     // continuous: a section counts as reached once its top scrolls into view
     const reportScrollProgress = (): void => {
@@ -103,7 +132,10 @@ export const PresentSurface: Component<{
         render();
     });
     createEffect(() => {
-        if (paged()) props.onProgress?.(index(), total());
+        if (!paged()) return;
+        const { si } = locate(index());
+        setCounted((c) => Math.max(c, si + 2)); // count one ahead of where the viewer is
+        props.onProgress?.(index(), total());
     });
 
     const toggleFs = (): void => {
@@ -158,7 +190,11 @@ export const PresentSurface: Component<{
                 }
                 style={hostStyle()}
                 onClick={() => paged() && next()}
-                onScroll={() => !paged() && reportScrollProgress()}
+                onScroll={() => {
+                    if (paged()) return;
+                    reportScrollProgress();
+                    onScrollWindow();
+                }}
             />
             <Show when={paged()}>
                 <SlideProgress index={index()} total={total()} />

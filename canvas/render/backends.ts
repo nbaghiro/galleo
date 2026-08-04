@@ -228,13 +228,26 @@ export function svgDrawContext(svg: SVGSVGElement): DrawContext {
     };
 }
 
-// keep a live Image() per URL so re-paints (replaceChildren) don't cancel in-flight bg fetches
+// Keep a live Image() per URL so re-paints (replaceChildren) don't cancel in-flight bg fetches. Bounded
+// and LRU: a long artifact would otherwise pin every image it ever painted for the life of the session.
+const WARM_MAX = 60;
 const warmed = new Map<string, HTMLImageElement>();
 function warmImage(src: string): void {
-    if (!src || warmed.has(src)) return;
+    if (!src) return;
+    const existing = warmed.get(src);
+    if (existing) {
+        warmed.delete(src); // re-insert to mark it most-recently used
+        warmed.set(src, existing);
+        return;
+    }
     const im = new Image();
     im.src = src;
     warmed.set(src, im);
+    while (warmed.size > WARM_MAX) {
+        const oldest = warmed.keys().next().value;
+        if (oldest === undefined) break;
+        warmed.delete(oldest);
+    }
 }
 
 function applyCommand(el: HTMLElement, c: RenderCommand): void {
@@ -279,7 +292,7 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
             const img = document.createElement("img");
             img.src = im.src;
             img.draggable = false;
-            img.decoding = "sync";
+            img.decoding = "async"; // never block the paint of the rest of the stack on one decode
             img.style.cssText = `width:100%;height:100%;object-fit:${im.fit};object-position:center;transform:scale(${im.zoom});display:block`;
             el.appendChild(img);
         } else {
@@ -631,14 +644,17 @@ export function backdropCss(bg: SectionBackground | undefined, tokens: Tokens): 
     return tokens.bg;
 }
 
-// cache keyed on section identity (ops preserve untouched sections) → redraw reuses unchanged layers; one cache per host
+// Cache keyed on section identity (ops preserve untouched sections) → a redraw reuses unchanged work;
+// one cache per host. Layout and layer are cached separately: layout is cheap and needed for geometry
+// even off-screen, while a layer is DOM, images, and SVG, so it is only kept for what is near the view.
 interface SectionCacheEntry {
     section: Section;
     layoutW: number;
     theme: Tokens;
     profileId: string;
     hideKey: string;
-    layer: HTMLElement;
+    commands: RenderCommand[];
+    layer: HTMLElement | null;
     regions: Region[]; // section-local (offset into stage coords per draw)
     height: number;
 }
@@ -648,6 +664,18 @@ export interface SectionStackCache {
 export function createSectionStackCache(): SectionStackCache {
     return { entries: new Map() };
 }
+
+// Half a viewport of retention beyond the paint window, so a small scroll oscillation doesn't thrash
+// DOM that is about to be needed again.
+const KEEP_MARGIN = 400;
+
+export interface StackWindow {
+    top: number;
+    bottom: number;
+}
+
+const intersects = (top: number, height: number, w: StackWindow): boolean =>
+    top < w.bottom && top + height > w.top;
 
 // single source of truth for section width (stack painter + minimap thumb must agree so text wraps identically)
 export function sectionLayoutWidth(
@@ -659,7 +687,16 @@ export function sectionLayoutWidth(
     return bleed ? fullW : Math.min(fullW - 64, profile.maxContentWidth ?? 1080);
 }
 
-// regions in stage coords; height includes the trailing gap
+/**
+ * Paints the section stack into `host`, absolutely positioned, and reports the geometry the editor
+ * navigates by (`tops`, total `height`) plus the hit-test `regions`.
+ *
+ * With `window`, only sections intersecting it are materialized: every section is still laid out, so
+ * tops and height stay exact and the scrollbar never lies, but the DOM, images, and chart SVGs of what
+ * is off-screen are neither built nor kept. Regions follow the same rule, since nothing off-screen can
+ * be hovered or clicked. Without a window the whole stack is materialized, which is what export,
+ * printing, and small artifacts want.
+ */
 export function paintSectionStack(
     host: HTMLElement,
     sections: Section[],
@@ -671,10 +708,14 @@ export function paintSectionStack(
         hideId?: string | null;
         dimId?: string | null; // a section being drag-reordered — painted dimmed as a "lifted" preview
         cache?: SectionStackCache;
+        window?: StackWindow;
+        // height to reserve for a section whose content hasn't loaded yet (windowed content)
+        estimate?: (section: Section) => number | undefined;
     },
-): { tops: number[]; regions: Region[]; height: number } {
+): { tops: number[]; regions: Region[]; height: number; painted: number } {
     const gap = profile.kind === "continuous" ? 0 : SECTION_GAP; // doc/web merge seamlessly
     const cache = opts.cache;
+    const win = opts.window;
     const tops: number[] = [];
     const regions: Region[] = [];
     const layers: HTMLElement[] = [];
@@ -688,56 +729,89 @@ export function paintSectionStack(
         // hideKey only in the edited section's cache key → an edit repaints one section, not the stack
         const hideKey = opts.hideId?.startsWith(`el:${section.id}:`) ? opts.hideId : "";
         const prev = cache?.entries.get(section.id);
-        let entry: SectionCacheEntry;
-        if (
+        const reuse =
             prev &&
             prev.section === section &&
             prev.layoutW === layoutW &&
             prev.theme === theme &&
             prev.profileId === profile.id &&
-            prev.hideKey === hideKey
-        ) {
+            prev.hideKey === hideKey;
+
+        // a placeholder section reserves its estimated height and lays out nothing
+        const reserved = opts.estimate?.(section);
+        let entry: SectionCacheEntry;
+        if (reuse) {
             entry = prev;
-        } else {
-            const res = layoutSection(section, layoutW, measureText, theme, profile);
-            const commands = hideKey
-                ? res.commands.filter((c) => !(c.kind === "text" && c.id === hideKey))
-                : res.commands;
-            const layer = prev?.layer ?? document.createElement("div");
-            if (cache) paintReconcile(layer, commands);
-            else paint(commands, layer);
-            layer.style.position = "absolute"; // paint() forces relative; keep layers out of flow
+        } else if (reserved !== undefined) {
             entry = {
                 section,
                 layoutW,
                 theme,
                 profileId: profile.id,
                 hideKey,
-                layer,
+                commands: [],
+                layer: null,
+                regions: [],
+                height: reserved,
+            };
+            cache?.entries.set(section.id, entry);
+        } else {
+            const res = layoutSection(section, layoutW, measureText, theme, profile);
+            const commands = hideKey
+                ? res.commands.filter((c) => !(c.kind === "text" && c.id === hideKey))
+                : res.commands;
+            entry = {
+                section,
+                layoutW,
+                theme,
+                profileId: profile.id,
+                hideKey,
+                commands,
+                layer: prev?.layer ?? null,
                 regions: res.regions,
                 height: res.height,
             };
             cache?.entries.set(section.id, entry);
         }
-        entry.layer.style.left = `${x}px`;
-        entry.layer.style.top = `${y}px`;
-        entry.layer.style.width = `${layoutW}px`;
-        entry.layer.style.height = `${entry.height}px`;
-        entry.layer.style.opacity = opts.dimId === section.id ? "0.4" : "1"; // reset each paint (layers cache)
-        layers.push(entry.layer);
-        for (const r of entry.regions)
-            regions.push({
-                id: r.id,
-                box: { x: r.box.x + x, y: r.box.y + y, w: r.box.w, h: r.box.h },
-            });
+
+        const inWindow = !win || intersects(y, entry.height, win);
+        if (inWindow && entry.commands.length) {
+            if (!entry.layer) {
+                entry.layer = document.createElement("div");
+                paint(entry.commands, entry.layer);
+            } else if (!reuse) {
+                if (cache) paintReconcile(entry.layer, entry.commands);
+                else paint(entry.commands, entry.layer);
+            }
+            const layer = entry.layer;
+            layer.style.position = "absolute"; // paint() forces relative; keep layers out of flow
+            layer.style.left = `${x}px`;
+            layer.style.top = `${y}px`;
+            layer.style.width = `${layoutW}px`;
+            layer.style.height = `${entry.height}px`;
+            layer.style.opacity = opts.dimId === section.id ? "0.4" : "1"; // reset each paint (layers cache)
+            layers.push(layer);
+            for (const r of entry.regions)
+                regions.push({
+                    id: r.id,
+                    box: { x: r.box.x + x, y: r.box.y + y, w: r.box.w, h: r.box.h },
+                });
+        } else if (win && entry.layer && !intersects(y, entry.height, keep(win))) {
+            entry.layer = null; // out of retention range: drop the DOM, keep the layout
+        }
         tops.push(y);
         y += entry.height + gap;
     }
     if (cache)
         for (const id of [...cache.entries.keys()]) if (!live.has(id)) cache.entries.delete(id);
     host.replaceChildren(...layers);
-    return { tops, regions, height: y };
+    return { tops, regions, height: y, painted: layers.length };
 }
+
+const keep = (w: StackWindow): StackWindow => ({
+    top: w.top - KEEP_MARGIN,
+    bottom: w.bottom + KEEP_MARGIN,
+});
 
 export function fitSlideContent(
     commands: RenderCommand[],

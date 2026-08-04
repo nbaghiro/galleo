@@ -15,7 +15,9 @@ import {
     paintSectionStack,
     scaledHostCss,
     sectionLayoutWidth,
+    type StackWindow,
 } from "@canvas/render/backends";
+import { estimateSectionHeight, stackWindow, windowMoved } from "@canvas/render/window";
 import { measureText, layoutSection } from "@canvas/render/commands";
 import { applyDrop, computeDropTarget, drag, previewDrop, setDrag } from "./core/dnd";
 import { applyLiveEdit, liveEdit, sectionDrop, sectionDragId } from "./panels/Selection";
@@ -32,6 +34,8 @@ import {
     setCanvasContentWidth,
     jumpToSection,
     leftOpen,
+    pending as pendingSections,
+    requestSections,
     setCanvasEl,
     setHover,
     setRegions,
@@ -67,6 +71,9 @@ export const Canvas: Component = () => {
     // Cache so a frame re-lays-out only the changed section (see paintSectionStack).
     const stackCache = createSectionStackCache();
 
+    // the band of the stage that is materialized; recomputed as the scroller moves
+    let lastWindow: StackWindow | null = null;
+
     // track off (DnD): hit-testing stays on the stable real layout so the drop target doesn't chase itself.
     // track on (resize/column): regions update so handles follow the element.
     const draw = (preview?: Section[] | null, track = false, dimId?: string | null): void => {
@@ -78,15 +85,36 @@ export const Canvas: Component = () => {
         // hide the painted text of the edited element — the live overlay shows it
         const editAddr = editing();
         const editId = editAddr ? elementRegionId(editAddr) : null;
+        const viewH = scrollEl.clientHeight || 800;
+        const win = stackWindow(scrollEl.scrollTop, viewH);
+        lastWindow = win;
+        const waiting = pendingSections();
+        const beforeTops = editor.sectionTops;
         const { tops, regions, height } = paintSectionStack(
             paintHost,
             preview ?? editor.artifact.sections,
             profile,
             editorTokens(),
-            { fullW, hideId: editId, dimId, cache: stackCache },
+            {
+                fullW,
+                hideId: editId,
+                dimId,
+                cache: stackCache,
+                window: win,
+                estimate: waiting.size
+                    ? (s) =>
+                          waiting.has(s.id)
+                              ? estimateSectionHeight(s, profile, fullW, waiting.get(s.id))
+                              : undefined
+                    : undefined,
+            },
         );
         stageEl.style.height = `${height}px`;
+        // A section that just loaded is rarely the estimated height. If it sat above the viewport, hold
+        // the reader's place by absorbing the difference into scrollTop.
+        anchorScroll(beforeTops, tops);
         setSectionTops(tops);
+        if (waiting.size) requestVisibleSections(tops, win);
         if (!preview || track) {
             liveRegions = regions;
             setRegions(regions);
@@ -97,6 +125,34 @@ export const Canvas: Component = () => {
             }
             liveHits = hits;
         }
+    };
+
+    const anchorScroll = (before: number[], after: number[]): void => {
+        if (before.length !== after.length) return;
+        const top = scrollEl.scrollTop;
+        let shift = 0;
+        for (let i = 0; i < before.length; i++) {
+            if (before[i]! >= top) break; // only what sat above the viewport can move it
+            shift = after[i]! - before[i]!;
+        }
+        if (shift) scrollEl.scrollTop = top + shift;
+    };
+
+    // ask for the placeholders the window is about to reach (plus a page of lead)
+    const requestVisibleSections = (tops: number[], win: StackWindow): void => {
+        const waiting = pendingSections();
+        if (!waiting.size) return;
+        const lead = (win.bottom - win.top) / 2;
+        const sections = editor.artifact.sections;
+        const want: string[] = [];
+        for (let i = 0; i < sections.length; i++) {
+            const id = sections[i]!.id;
+            if (!waiting.has(id)) continue;
+            const top = tops[i] ?? 0;
+            const bottom = (tops[i + 1] ?? top) + 1;
+            if (bottom >= win.top - lead && top <= win.bottom + lead) want.push(id);
+        }
+        if (want.length) void requestSections(want);
     };
 
     // Coalesce draws to one paint per frame; latest queued state wins.
@@ -183,6 +239,15 @@ export const Canvas: Component = () => {
         setStageEl(stageEl);
         const ro = new ResizeObserver(() => scheduleDraw(null, false));
         ro.observe(scrollEl);
+        // Scrolling only repaints once the materialized band has really moved, so ordinary scrolling
+        // inside the overscan costs nothing.
+        const onScroll = (): void => {
+            const next = stackWindow(scrollEl.scrollTop, scrollEl.clientHeight || 800);
+            if (windowMoved(lastWindow, next, scrollEl.clientHeight || 800))
+                scheduleDraw(null, false);
+        };
+        scrollEl.addEventListener("scroll", onScroll, { passive: true });
+        onCleanup(() => scrollEl.removeEventListener("scroll", onScroll));
         // On font load, drop the layer cache so the next draw re-lays-out with real metrics, not fallback-face ones.
         const onFonts = (): void => {
             stackCache.entries.clear();

@@ -1,6 +1,7 @@
 import type { ArtifactContent } from "@model/artifact";
 import type { Component } from "solid-js";
 import {
+    createEffect,
     createMemo,
     createSignal,
     For,
@@ -11,10 +12,11 @@ import {
     Show,
     Switch,
 } from "solid-js";
-import { useNavigate, useParams } from "@solidjs/router";
+import { useNavigate, useParams, useSearchParams } from "@solidjs/router";
 import { resolveTheme, fontStack } from "@themes";
-import { type ArtifactSummary } from "../api";
+import { type ArtifactSummary, type SearchHit } from "../api";
 import {
+    CARD_SECTIONS,
     FORMAT_IDS,
     formatLabel,
     formatLabelPlural,
@@ -23,21 +25,26 @@ import {
     artifacts,
     artifactsLoaded,
     duplicateArtifact,
-    loadContents,
+    ensureCardContent,
     loadLibrary,
+    loadMoreArtifacts,
     moveArtifact,
     moveArtifacts,
+    nextCursor,
     removeArtifact,
     removeArtifacts,
     setDraggingArtifact,
+    type LibraryQuery,
 } from "../stores/library";
 import { appTheme } from "../stores/theme";
 import { openGenerate } from "../stores/generate";
 import { folders } from "../stores/folders";
+import { fetchHitPage, LIBRARY_LIMIT } from "../stores/search";
 import { ConfirmModal, FloatingBar } from "@ui/overlay";
-import { Button, Chip, Eyebrow, IconButton } from "@ui/button";
+import { Button, Chip, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@ui/menu";
 import { Separator, TextField } from "@ui/inputs";
+import { bindingLabel } from "@ui/keys";
 import { EmptyState } from "@ui/status";
 import {
     CheckIcon,
@@ -137,39 +144,132 @@ const EmptyLibrary: Component<{ onGenerate: () => void; onTemplates: () => void 
 export const LibraryView: Component = () => {
     const navigate = useNavigate();
     const params = useParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [loading, setLoading] = createSignal(!artifactsLoaded());
-    const [query, setQuery] = createSignal("");
+    // ?q= carries a query in from ⌘K's "show all results"
+    const [query, setQuery] = createSignal(
+        typeof searchParams.q === "string" ? searchParams.q : "",
+    );
     const [fmt, setFmt] = createSignal("all");
     const [sort, setSort] = createSignal<"recent" | "az">("recent");
 
-    onMount(() => {
-        (async () => {
-            // always revalidate on entry so editor edits + new artifacts show on return
-            await loadLibrary();
-            setLoading(false);
-            await loadContents();
-        })();
-    });
-
     const folderId = (): string | undefined => params.id;
     const folder = createMemo(() => folders().find((f) => f.id === folderId()));
-    // current folder (or all), before search/format filters
-    const scope = createMemo(() => {
-        const fid = folderId();
-        return fid ? artifacts().filter((d) => d.folderId === fid) : artifacts();
+
+    // Filters are server-side now: a page is only coherent if both ends agree on what the list holds.
+    // Any change to them refetches page one.
+    createEffect(() => {
+        const q: LibraryQuery = { folderId: folderId() ?? null, format: fmt(), sort: sort() };
+        void loadLibrary(q).then(() => setLoading(false));
     });
-    const shown = createMemo(() => {
-        let list = scope();
+
+    const setSearch = (v: string): void => {
+        setQuery(v);
+        setSearchParams({ q: v || null }, { replace: true });
+    };
+
+    // A query switches the list over to ranked results, which is its own paged source. The local pass
+    // over the loaded page fills the gap until the first response lands.
+    const [hits, setHits] = createSignal<SearchHit[] | null>(null);
+    const [hitsDone, setHitsDone] = createSignal(false);
+    const [searching, setSearching] = createSignal(false);
+    let debounce = 0;
+    let inflight: AbortController | null = null;
+    createEffect(() => {
+        const q = query().trim();
+        inflight?.abort();
+        window.clearTimeout(debounce);
+        if (!q) {
+            setHits(null);
+            setHitsDone(false);
+            return;
+        }
+        const ctrl = new AbortController();
+        inflight = ctrl;
+        setSearching(true);
+        debounce = window.setTimeout(() => {
+            fetchHitPage(q, 0, LIBRARY_LIMIT, ctrl.signal)
+                .then((page) => {
+                    if (ctrl.signal.aborted) return;
+                    setHits(page);
+                    setHitsDone(page.length < LIBRARY_LIMIT);
+                })
+                .catch(() => {
+                    /* keep the local pass; search degrades, it doesn't break */
+                })
+                .finally(() => {
+                    if (!ctrl.signal.aborted) setSearching(false);
+                });
+        }, 160);
+    });
+    onCleanup(() => {
+        inflight?.abort();
+        window.clearTimeout(debounce);
+    });
+
+    const loadMoreHits = async (): Promise<void> => {
+        const q = query().trim();
+        const have = hits();
+        if (!q || !have || hitsDone() || searching()) return;
+        setSearching(true);
+        try {
+            const page = await fetchHitPage(q, have.length, LIBRARY_LIMIT);
+            const seen = new Set(have.map((h) => h.id));
+            setHits([...have, ...page.filter((h) => !seen.has(h.id))]);
+            setHitsDone(page.length < LIBRARY_LIMIT);
+        } catch {
+            /* the sentinel will try again on the next intersection */
+        } finally {
+            setSearching(false);
+        }
+    };
+
+    // the instant local pass: titles and covers already in hand, until the server answers
+    const localMatches = createMemo(() => {
         const q = query().trim().toLowerCase();
-        if (q)
-            list = list.filter(
-                (d) =>
-                    d.title.toLowerCase().includes(q) ||
-                    (d.cover?.title ?? "").toLowerCase().includes(q),
-            );
-        if (fmt() !== "all") list = list.filter((d) => d.formatId === fmt());
-        if (sort() === "az") list = [...list].sort((a, b) => a.title.localeCompare(b.title));
-        return list;
+        if (!q) return [];
+        return artifacts().filter(
+            (d) =>
+                d.title.toLowerCase().includes(q) ||
+                (d.cover?.title ?? "").toLowerCase().includes(q),
+        );
+    });
+
+    const shown = createMemo((): ArtifactSummary[] =>
+        query().trim() ? (hits() ?? localMatches()) : artifacts(),
+    );
+    const exhausted = (): boolean => (query().trim() ? hitsDone() : !nextCursor());
+    const loadMore = (): void => {
+        if (query().trim()) void loadMoreHits();
+        else void loadMoreArtifacts();
+    };
+
+    // any narrowing is on, so an empty list means "no matches" rather than "no artifacts"
+    const filtering = (): boolean => !!query().trim() || fmt() !== "all";
+
+    // one observer, re-pointed at whichever sentinel element is currently mounted
+    let sentinelObserver: IntersectionObserver | null = null;
+    const observeSentinel = (el: HTMLElement): void => {
+        sentinelObserver?.disconnect();
+        sentinelObserver = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((e) => e.isIntersecting)) loadMore();
+            },
+            { rootMargin: "600px" },
+        );
+        sentinelObserver.observe(el);
+    };
+    onCleanup(() => sentinelObserver?.disconnect());
+
+    // how many of the visible rows are here only because their body text matched
+    const contentOnly = createMemo(() => {
+        const q = query().trim().toLowerCase();
+        if (!q) return 0;
+        return shown().filter(
+            (d) =>
+                !d.title.toLowerCase().includes(q) &&
+                !(d.cover?.title ?? "").toLowerCase().includes(q),
+        ).length;
     });
     const FORMATS: [string, string][] = [
         ["all", "All"],
@@ -239,9 +339,28 @@ export const LibraryView: Component = () => {
         const img = (): string | undefined => cv().image;
         const secs = () => p.d.sections ?? [];
         const content = (): ArtifactContent | undefined => contents()[p.d.id];
+        // the digest knows the real section count, so the card can size itself before content lands
+        const skeletonCount = (): number => Math.min(secs().length || CARD_SECTIONS, CARD_SECTIONS);
+        const rest = (): number => Math.max(0, secs().length - CARD_SECTIONS);
         // Always open in the artifact's saved theme; the editor's theme picker offers a "switch to app theme" shortcut.
         const open = (): void => navigate(`/edit/${p.d.id}`);
         const [hovered, setHovered] = createSignal(false);
+
+        // The card asks for its own sections, and only on its way into view. Nothing below the fold
+        // costs a request.
+        let cardEl!: HTMLElement;
+        onMount(() => {
+            const io = new IntersectionObserver(
+                (entries) => {
+                    if (!entries.some((e) => e.isIntersecting)) return;
+                    io.disconnect();
+                    void ensureCardContent(p.d.id);
+                },
+                { rootMargin: "400px" },
+            );
+            io.observe(cardEl);
+            onCleanup(() => io.disconnect());
+        });
         // shift-click, or any click while selecting, toggles instead of opening
         const onCardClick = (e: MouseEvent): void => {
             if (e.shiftKey || selectMode()) {
@@ -253,6 +372,7 @@ export const LibraryView: Component = () => {
         };
         return (
             <section
+                ref={(el) => (cardEl = el)}
                 class={`flex items-center gap-7 border-b border-line px-9 py-7 ${isSelected(p.d.id) ? "bg-accent/5" : ""}`}
             >
                 <div
@@ -443,11 +563,11 @@ export const LibraryView: Component = () => {
                             Open →
                         </Button>
                     </div>
-                    <div class="flex gap-3 overflow-x-auto pb-2 pt-0.5">
+                    <div class="flex items-center gap-3 overflow-x-auto pb-2 pt-0.5">
                         <Show
                             when={content()}
                             fallback={
-                                <Index each={Array.from({ length: secs().length || 6 })}>
+                                <Index each={Array.from({ length: skeletonCount() })}>
                                     {() => (
                                         <div class="h-24.75 w-44 flex-none animate-pulse rounded-lg border border-line bg-line/40" />
                                     )}
@@ -465,6 +585,16 @@ export const LibraryView: Component = () => {
                                     />
                                 )}
                             </For>
+                        </Show>
+                        <Show when={rest()}>
+                            {(n) => (
+                                <button
+                                    class="h-24.75 w-20 flex-none rounded-lg border border-dashed border-line text-[12px] font-medium text-muted hover:border-accent hover:text-accent"
+                                    onClick={onCardClick}
+                                >
+                                    +{n()}
+                                </button>
+                            )}
                         </Show>
                     </div>
                 </div>
@@ -492,9 +622,12 @@ export const LibraryView: Component = () => {
                                     {folder()?.name ?? "Library"}
                                 </h1>
                                 <p class="mt-0.5 text-[13px] text-muted">
-                                    {shown().length === scope().length
-                                        ? `${scope().length} ${scope().length === 1 ? "artifact" : "artifacts"}`
-                                        : `${shown().length} of ${scope().length} artifacts`}
+                                    {`${shown().length}${exhausted() ? "" : "+"} ${
+                                        shown().length === 1 ? "artifact" : "artifacts"
+                                    }`}
+                                    <Show when={contentOnly()}>
+                                        {(n) => <> · {n()} matched inside</>}
+                                    </Show>
                                 </p>
                             </div>
                         </div>
@@ -504,17 +637,34 @@ export const LibraryView: Component = () => {
                                 class="w-56"
                                 placeholder="Search artifacts…"
                                 value={query()}
-                                onChange={(v) => setQuery(v)}
+                                onChange={(v) => setSearch(v)}
+                                trailing={
+                                    // reads the live binding, so the hint can't outlive the shortcut
+                                    <Show when={!query() && bindingLabel("view.commandPalette")}>
+                                        {(label) => (
+                                            <kbd
+                                                class="flex-none rounded border border-line px-1 py-0.5 font-mono text-[10.5px] leading-none text-muted"
+                                                title="Search everywhere"
+                                            >
+                                                {label()}
+                                            </kbd>
+                                        )}
+                                    </Show>
+                                }
                             />
-                            <button
-                                class="rounded-lg border border-line bg-panel px-3 py-2 text-[12.5px] font-medium text-soft hover:text-ink"
-                                onClick={() => setSort((s) => (s === "recent" ? "az" : "recent"))}
-                            >
-                                Sort:{" "}
-                                <span class="text-ink">
-                                    {sort() === "recent" ? "Recent" : "A–Z"}
-                                </span>
-                            </button>
+                            <Show when={!query().trim()}>
+                                <button
+                                    class="rounded-lg border border-line bg-panel px-3 py-2 text-[12.5px] font-medium text-soft hover:text-ink"
+                                    onClick={() =>
+                                        setSort((s) => (s === "recent" ? "az" : "recent"))
+                                    }
+                                >
+                                    Sort:{" "}
+                                    <span class="text-ink">
+                                        {sort() === "recent" ? "Recent" : "A–Z"}
+                                    </span>
+                                </button>
+                            </Show>
                         </div>
                     </div>
                     <div class="mt-4 flex items-center gap-1.5">
@@ -544,45 +694,54 @@ export const LibraryView: Component = () => {
                         when={shown().length}
                         fallback={
                             <Show
-                                when={scope().length === 0 && !folderId()}
+                                when={filtering()}
                                 fallback={
                                     <Show
-                                        when={scope().length}
+                                        when={folderId()}
                                         fallback={
-                                            <EmptyState
-                                                class="h-64"
-                                                title="This folder is empty."
-                                                subtitle="Drag artifacts onto this folder to add them."
+                                            <EmptyLibrary
+                                                onGenerate={openGenerate}
+                                                onTemplates={() => navigate("/templates")}
                                             />
                                         }
                                     >
                                         <EmptyState
                                             class="h-64"
-                                            title="No artifacts match your filters."
-                                            action={
-                                                <Button
-                                                    variant="link"
-                                                    class="text-[12px]"
-                                                    onClick={() => {
-                                                        setQuery("");
-                                                        setFmt("all");
-                                                    }}
-                                                >
-                                                    Clear filters
-                                                </Button>
-                                            }
+                                            title="This folder is empty."
+                                            subtitle="Drag artifacts onto this folder to add them."
                                         />
                                     </Show>
                                 }
                             >
-                                <EmptyLibrary
-                                    onGenerate={openGenerate}
-                                    onTemplates={() => navigate("/templates")}
+                                <EmptyState
+                                    class="h-64"
+                                    title="No artifacts match your filters."
+                                    action={
+                                        <Button
+                                            variant="link"
+                                            class="text-[12px]"
+                                            onClick={() => {
+                                                setSearch("");
+                                                setFmt("all");
+                                            }}
+                                        >
+                                            Clear filters
+                                        </Button>
+                                    }
                                 />
                             </Show>
                         }
                     >
                         <For each={shown()}>{(d) => <Band d={d} />}</For>
+                        {/* the page-turn: crossing this asks for the next page, until there is none */}
+                        <Show when={!exhausted()}>
+                            <div
+                                ref={(el) => observeSentinel(el)}
+                                class="flex h-20 items-center justify-center text-[12px] text-muted"
+                            >
+                                <Spinner size={16} />
+                            </div>
+                        </Show>
                     </Show>
                 </Show>
             </main>

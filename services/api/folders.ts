@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import type { FolderInput } from "@model/workspace";
 import { db, schema } from "../schema";
@@ -23,7 +23,14 @@ folders.get("/folders", async (c) => {
         .from(schema.folders)
         .where(eq(schema.folders.workspaceId, ws))
         .orderBy(schema.folders.createdAt);
-    return c.json({ folders: rows });
+    // counted here rather than from the client's artifact list, which is now one page deep
+    const counts = await db
+        .select({ folderId: schema.artifacts.folderId, count: sql<number>`count(*)::int` })
+        .from(schema.artifacts)
+        .where(and(eq(schema.artifacts.workspaceId, ws), isNull(schema.artifacts.trashedAt)))
+        .groupBy(schema.artifacts.folderId);
+    const byFolder = new Map(counts.map((r) => [r.folderId, r.count]));
+    return c.json({ folders: rows.map((f) => ({ ...f, count: byFolder.get(f.id) ?? 0 })) });
 });
 
 folders.post("/folders", async (c) => {

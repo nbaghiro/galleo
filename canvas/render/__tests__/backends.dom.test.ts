@@ -2,14 +2,17 @@
 import "@elements/register";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { RenderCommand } from "@engine/node";
+import type { Section } from "@model/artifact";
 import {
     canvasDrawContext,
+    createSectionStackCache,
     fitSlideContent,
     paint,
     paintSectionStack,
     renderSlidePage,
     renderToCanvas,
 } from "@canvas/render/backends";
+import { SECTION_GAP } from "@canvas/render/commands";
 import { resolveProfile } from "@engine/profile";
 import { inst, installCanvas2D, sectionOf, textMetricsCtx, tokens } from "@canvas/testkit";
 
@@ -123,6 +126,76 @@ describe("paintSectionStack", () => {
         expect(tops[1]).toBeGreaterThan(0);
         expect(height).toBeGreaterThan(tops[1]!);
         expect(regions.some((r) => r.id === "section:s1")).toBe(true);
+    });
+});
+
+describe("paintSectionStack — windowing", () => {
+    const many = (n: number): Section[] =>
+        Array.from({ length: n }, (_, i) =>
+            sectionOf(inst("text", { text: `S${i}` }), { id: `s${i}` }),
+        );
+    const deck = resolveProfile("deck");
+    const draw = (
+        host: HTMLElement,
+        sections: Section[],
+        opts: Parameters<typeof paintSectionStack>[4],
+    ): ReturnType<typeof paintSectionStack> =>
+        paintSectionStack(host, sections, deck, tokens, opts);
+
+    it("reports the same geometry windowed as unwindowed, and paints only the intersecting band", () => {
+        const sections = many(12);
+        const full = draw(document.createElement("div"), sections, { fullW: 1000 });
+        const host = document.createElement("div");
+        const windowed = draw(host, sections, {
+            fullW: 1000,
+            window: { top: 0, bottom: full.tops[2]! },
+        });
+
+        expect(windowed.tops).toEqual(full.tops);
+        expect(windowed.height).toBe(full.height);
+        expect(windowed.painted).toBeLessThan(full.painted);
+        expect(host.children.length).toBe(windowed.painted);
+    });
+
+    it("only reports regions for what it painted — nothing off-screen can be hit", () => {
+        const sections = many(12);
+        const full = draw(document.createElement("div"), sections, { fullW: 1000 });
+        const windowed = draw(document.createElement("div"), sections, {
+            fullW: 1000,
+            window: { top: 0, bottom: full.tops[1]! },
+        });
+        expect(windowed.regions.some((r) => r.id === "section:s0")).toBe(true);
+        expect(windowed.regions.some((r) => r.id === "section:s11")).toBe(false);
+        expect(windowed.regions.length).toBeLessThan(full.regions.length);
+    });
+
+    it("paints a section as the window reaches it, and releases it once far behind", () => {
+        const sections = many(12);
+        const cache = createSectionStackCache();
+        const host = document.createElement("div");
+        const geom = draw(document.createElement("div"), sections, { fullW: 1000 });
+        const far = geom.tops[9]!;
+
+        draw(host, sections, { fullW: 1000, cache, window: { top: 0, bottom: geom.tops[1]! } });
+        expect(cache.entries.get("s0")?.layer).toBeTruthy();
+        expect(cache.entries.get("s9")?.layer).toBeFalsy();
+
+        draw(host, sections, { fullW: 1000, cache, window: { top: far, bottom: geom.height } });
+        expect(cache.entries.get("s9")?.layer).toBeTruthy();
+        expect(cache.entries.get("s0")?.layer).toBeFalsy(); // DOM released
+        expect(cache.entries.get("s0")?.height).toBeGreaterThan(0); // layout kept
+    });
+
+    it("reserves an estimated height for a section that has no content yet", () => {
+        const sections = many(3);
+        const host = document.createElement("div");
+        const { tops, height, painted } = draw(host, sections, {
+            fullW: 1000,
+            estimate: (s) => (s.id === "s1" ? 500 : undefined),
+        });
+        expect(tops[2]! - tops[1]!).toBe(500 + SECTION_GAP);
+        expect(painted).toBe(2); // the placeholder materializes nothing
+        expect(height).toBeGreaterThan(500);
     });
 });
 
