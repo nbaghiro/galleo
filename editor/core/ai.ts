@@ -371,11 +371,27 @@ export interface RewritePreset {
 }
 
 export const REWRITE_PRESETS: RewritePreset[] = [
-    { label: "Improve writing", instruction: "Improve the writing — clearer, more polished and compelling — without changing its meaning or length much." }, // prettier-ignore
-    { label: "Make it punchier", instruction: "Make it punchier and more confident: short, declarative, high-impact." }, // prettier-ignore
-    { label: "Make shorter", instruction: "Make it more concise — the same message in noticeably fewer words." }, // prettier-ignore
-    { label: "Make longer", instruction: "Expand it with a little more detail and texture, keeping the same voice." }, // prettier-ignore
-    { label: "Fix spelling & grammar", instruction: "Fix any spelling, grammar, and punctuation mistakes. Change nothing else." }, // prettier-ignore
+    {
+        label: "Improve writing",
+        instruction:
+            "Improve the writing — clearer, more polished and compelling — without changing its meaning or length much.",
+    },
+    {
+        label: "Make it punchier",
+        instruction: "Make it punchier and more confident: short, declarative, high-impact.",
+    },
+    {
+        label: "Make shorter",
+        instruction: "Make it more concise — the same message in noticeably fewer words.",
+    },
+    {
+        label: "Make longer",
+        instruction: "Expand it with a little more detail and texture, keeping the same voice.",
+    },
+    {
+        label: "Fix spelling & grammar",
+        instruction: "Fix any spelling, grammar, and punctuation mistakes. Change nothing else.",
+    },
     { label: "More formal", instruction: "Make the tone more formal and professional." },
     { label: "More casual", instruction: "Make the tone more casual and conversational." },
 ];

@@ -35,7 +35,7 @@ export type AnyTool = Tool<never, unknown>;
 const REGISTRY = new Map<ToolId, AnyTool>();
 
 export function register<I, R>(t: Tool<I, R>): Tool<I, R> {
-    REGISTRY.set(t.id, t as unknown as AnyTool);
+    REGISTRY.set(t.id, t as AnyTool);
     return t;
 }
 export function getTool(id: ToolId): AnyTool | undefined {

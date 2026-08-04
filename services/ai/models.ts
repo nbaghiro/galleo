@@ -123,28 +123,29 @@ export function getModel(id: string): ModelInfo | undefined {
     return MODELS_BY_ID[id];
 }
 
+// One model for every task: Gemini 3.5 Flash. It won the chat tool-routing eval outright
+// (100% vs 2.5-pro's 80%) at lower latency, and running one model everywhere means a single thing
+// to re-evaluate rather than six. Per-task entries stay so any one job can be retuned in isolation.
+const FLASH = "google:gemini-3.5-flash";
+
 export const DEFAULT_MODELS: Record<AiTask, string> = {
-    generate: "google:gemini-2.5-flash",
-    outline: "google:gemini-2.5-flash",
-    section: "google:gemini-2.5-flash",
-    edit: "google:gemini-2.5-pro",
-    rewrite: "google:gemini-2.5-flash",
-    translate: "google:gemini-2.5-flash",
-    // eval (services/ai/eval) measured 3.5-flash 100% tool-routing vs 2.5-pro's 80%. Re-run `pnpm ai:eval` before changing.
-    chat: "google:gemini-3.5-flash",
-    // tiny structured output — Flash ~7s vs Pro ~12s at comparable quality (finalize pass guarantees safety)
-    theme: "google:gemini-2.5-flash",
+    generate: FLASH,
+    outline: FLASH,
+    section: FLASH,
+    edit: FLASH,
+    rewrite: FLASH,
+    translate: FLASH,
+    chat: FLASH,
+    theme: FLASH,
 };
 
 export function defaultModelFor(task: AiTask): string {
     return DEFAULT_MODELS[task];
 }
 
-// Plan-tier model selection: basic (Free) stays on flash-class models everywhere, advanced/premium
-// get the tuned defaults. Only `edit` runs a pro-class model today, so that's the step-down.
-const BASIC_OVERRIDES: Partial<Record<AiTask, string>> = {
-    edit: "google:gemini-2.5-flash",
-};
+// Plan-tier model selection. Nothing runs a pro-class model today, so basic and premium resolve
+// alike; the seam stays wired for the moment a task earns a heavier model on paid plans.
+const BASIC_OVERRIDES: Partial<Record<AiTask, string>> = {};
 
 export function modelFor(task: AiTask, tier: ModelTier = "premium"): string {
     return (tier === "basic" ? BASIC_OVERRIDES[task] : undefined) ?? DEFAULT_MODELS[task];

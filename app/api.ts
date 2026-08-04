@@ -2,14 +2,18 @@ import type {
     Artifact,
     ArtifactContent,
     ArtifactInput,
-    ArtifactSummary,
+    ArtifactPage,
+    ArtifactWindow,
+    ContentPatch,
     ElementInstance,
+    SearchResponse,
+    Section,
 } from "@model/artifact";
 import type { Folder, Template, User } from "@model/workspace";
 import type { ThemeSummary as Theme, ThemeInput, Tokens } from "@themes";
 import type { CreditPack, CreditPackId, Interval, Plan, PlanId } from "@model/billing";
 import type { FeatureKey, FeatureStatus, Features } from "@model/features";
-import type { TurnEvent, TurnRequest } from "@model/ai";
+import type { BriefDraft, TurnEvent, TurnRequest } from "@model/ai";
 import type { ToolId, MeterParams } from "@model/tools";
 import type { Usage } from "@model/credits";
 import type {
@@ -30,6 +34,7 @@ export interface MediaProvidersState {
     generateVideo: boolean;
 }
 
+// POST /ai/review — a whole-piece audit finding + the coverage verdict
 // GET /billing — plan + live usage + plan catalog
 export interface BillingState {
     plan: PlanId;
@@ -84,6 +89,8 @@ export interface FeaturesState {
     status: Record<FeatureKey, FeatureStatus>;
 }
 
+type ApiCoverShape = { eyebrow?: string; title?: string; sub?: string; image?: string };
+
 // public = anyone with URL; protected = URL + password; private = invited emails only
 export type Visibility = "public" | "protected" | "private";
 
@@ -99,6 +106,14 @@ export interface ShareRecipient {
 export interface LinkSummary {
     id: string;
     artifactId: string;
+    // joined server-side: the Shared view renders a row without the library list being loaded
+    artifact: {
+        id: string;
+        title: string;
+        formatId: string;
+        themeId: string;
+        cover?: ApiCoverShape;
+    };
     slug: string;
     name: string | null; // owner-facing label, never shown to viewers
     visibility: Visibility;
@@ -162,6 +177,20 @@ export interface PublicContent {
     branded: boolean;
     customTheme: CustomThemeRecord | null;
 }
+// The public viewer is unauthenticated and reads a raw body, so the shape is checked here rather
+// than assumed. `content` stays a single assertion: ArtifactContent is validated by the renderer.
+function readPublicContent(d: Record<string, unknown>): PublicContent | null {
+    if (typeof d.title !== "string" || typeof d.content !== "object" || d.content === null) {
+        return null;
+    }
+    return {
+        title: d.title,
+        content: d.content as ArtifactContent,
+        branded: d.branded === true,
+        customTheme: (d.customTheme as CustomThemeRecord | null | undefined) ?? null,
+    };
+}
+
 // content or a gate; a gated response still carries the theme so the prompt shows themed
 export type PublicResult =
     | { ok: true; content: PublicContent }
@@ -179,7 +208,11 @@ export type {
     Cover as ApiCover,
     SectionSummary as ApiSection,
     ArtifactSummary,
+    ArtifactWindow,
     Artifact,
+    ContentPatch,
+    SearchHit,
+    SearchResponse,
 } from "@model/artifact";
 export type {
     User as ApiUser,
@@ -241,9 +274,25 @@ export const api = {
         }),
     resendVerification: () => req<{ ok: true }>("/auth/resend-verification", { method: "POST" }),
     logout: () => req<{ ok: true }>("/auth/logout", { method: "POST" }),
-    listArtifacts: () => req<{ artifacts: ArtifactSummary[] }>("/artifacts"),
+    // `qs` carries the page's filters + cursor; the server owns folder/format/sort so pages stay coherent
+    listArtifacts: (qs = "") => req<ArtifactPage>(`/artifacts${qs ? `?${qs}` : ""}`),
     listTemplates: () => req<{ templates: Template[] }>("/templates"),
     getArtifact: (id: string) => req<{ artifact: Artifact }>(`/artifacts/${id}`),
+    // the windowed read: the shell + the full section index + only the sections asked for
+    getArtifactWindow: (id: string, from: number, count: number) =>
+        req<{ artifact: ArtifactWindow }>(`/artifacts/${id}?window=${from}:${count}`),
+    getSections: (id: string, at: { ids: string[] } | { from: number; count: number }) =>
+        req<{ sections: Section[] }>(
+            "ids" in at
+                ? `/artifacts/${id}/sections?ids=${at.ids.map(encodeURIComponent).join(",")}`
+                : `/artifacts/${id}/sections?window=${at.from}:${at.count}`,
+        ),
+    // the write half of windowed loading: send what changed, not the whole tree
+    patchContent: (id: string, patch: ContentPatch) =>
+        req<{ ok: true; updatedAt: string; total: number }>(`/artifacts/${id}/content`, {
+            method: "PATCH",
+            body: JSON.stringify(patch),
+        }),
     createArtifact: (patch: ArtifactInput) =>
         req<{ id: string }>("/artifacts", { method: "POST", body: JSON.stringify(patch) }),
     suggestSections: (content: ArtifactContent) =>
@@ -251,6 +300,16 @@ export const api = {
             method: "POST",
             body: JSON.stringify({ content }),
         }).then((r) => r.suggestions),
+    // `previous` asks for a different reading of the same prompt rather than the same one again
+    draftBrief: (
+        prompt: string,
+        surface?: string,
+        previous?: { goal: string; audience: string; tone: string; mustInclude?: string[] },
+    ) =>
+        req<{ brief: BriefDraft | null }>("/ai/brief", {
+            method: "POST",
+            body: JSON.stringify({ prompt, surface, previous }),
+        }).then((r) => r.brief),
     reviseElement: (
         content: ArtifactContent,
         sectionId: string,
@@ -272,7 +331,15 @@ export const api = {
             method: "POST",
             body: JSON.stringify(req_),
         }).then((r) => r.text),
-    listTrash: () => req<{ artifacts: ArtifactSummary[] }>("/artifacts?trashed=1"),
+    // q empty = the recents landing state; signal lets the palette cancel a superseded keystroke
+    search: (q: string, limit?: number, signal?: AbortSignal, offset?: number) =>
+        req<SearchResponse>(
+            `/search?q=${encodeURIComponent(q)}${limit ? `&limit=${limit}` : ""}` +
+                (offset ? `&offset=${offset}` : ""),
+            signal ? { signal } : undefined,
+        ),
+    recordVisit: (id: string) => req<{ ok: true }>(`/artifacts/${id}/visit`, { method: "POST" }),
+    listTrash: () => req<ArtifactPage>("/artifacts?trashed=1&limit=100"),
     trashArtifact: (id: string) => req<{ ok: true }>(`/artifacts/${id}/trash`, { method: "POST" }),
     restoreArtifact: (id: string) =>
         req<{ ok: true }>(`/artifacts/${id}/restore`, { method: "POST" }),
@@ -439,7 +506,12 @@ export const api = {
         } catch {
             /* non-JSON body */
         }
-        if (res.ok) return { ok: true, content: data as unknown as PublicContent };
+        if (res.ok) {
+            const content = readPublicContent(data);
+            // a 200 whose body isn't the expected shape is a broken response, not content
+            if (content) return { ok: true, content };
+            return { ok: false, status: 502, customTheme: null };
+        }
         return {
             ok: false,
             status: res.status,

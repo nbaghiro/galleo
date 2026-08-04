@@ -13,6 +13,7 @@ import { features } from "../api/features";
 import { media } from "../api/media";
 import { ai } from "../api/ai";
 import { links } from "../api/links";
+import { search } from "../api/search";
 
 // Kept in sync with server.ts's router list by hand.
 export const app = new Hono();
@@ -28,6 +29,7 @@ for (const r of [
     media,
     ai,
     links,
+    search,
 ])
     app.route("/", r);
 

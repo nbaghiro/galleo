@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { getCookie } from "hono/cookie";
-import type { TurnEvent, TurnRequest, TurnKind } from "@model/ai";
+import type { Surface, TurnEvent, TurnRequest, TurnKind } from "@model/ai";
 import { isKind } from "@model/ai";
 import type { ToolId, MeterParams } from "@model/tools";
 import { estimateCost, estimateUsage, sectionsForLength } from "@model/tools";
@@ -21,6 +21,9 @@ import { featuresFor } from "../features";
 import { rewriteText, translateText } from "../ai/text";
 import { suggestSections } from "../ai/suggest";
 import { generateThemeFromPrompt } from "../ai/theme";
+import { expandBrief } from "../ai/brief";
+import type { BriefRead } from "../ai/prompts/brief";
+import { warn } from "../log";
 
 export const ai = new Hono();
 
@@ -30,6 +33,8 @@ const ACTION_FOR: Record<TurnKind, ToolId> = {
     edit: "revise-artifact",
     section: "add-section",
     chat: "ask-assistant",
+    plan: "plan-outline",
+    build: "add-section",
 };
 
 // Pre-flight meter knobs — only generate scales (length + AI-image source). The plan's section cap
@@ -46,7 +51,7 @@ const meterFor = (req: TurnRequest, maxSections?: number): MeterParams =>
         : {};
 
 // Others 501 before any charge (blocking here avoids reserving credits for an unbuildable kind).
-const IMPLEMENTED: readonly TurnKind[] = ["generate", "section", "chat"];
+const IMPLEMENTED: readonly TurnKind[] = ["generate", "section", "chat", "plan", "build"];
 
 ai.post("/ai/turn", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
@@ -58,12 +63,23 @@ ai.post("/ai/turn", async (c) => {
     if (!req || !isKind(req.kind)) return c.json({ error: "a valid turn kind is required" }, 400);
     if (!IMPLEMENTED.includes(req.kind))
         return c.json({ error: `${req.kind} turns aren’t available yet` }, 501);
-    if (req.kind === "generate" && !req.input?.prompt?.trim())
+    if ((req.kind === "generate" || req.kind === "plan") && !req.input?.prompt?.trim())
         return c.json({ error: "a prompt is required" }, 400);
     if (req.kind === "section" && (!req.input?.instruction?.trim() || !req.input?.content))
         return c.json({ error: "an instruction and the current artifact are required" }, 400);
     if (req.kind === "chat" && !req.input?.message?.trim())
         return c.json({ error: "a message is required" }, 400);
+    if (
+        req.kind === "build" &&
+        (!req.input?.brief?.prompt?.trim() ||
+            !req.input?.beat?.id ||
+            !req.input?.outline?.beats?.length ||
+            !req.input?.content)
+    )
+        return c.json(
+            { error: "a brief, outline, beat, and the artifact so far are required" },
+            400,
+        );
 
     // Reserve before the billable model calls; 402 when spent.
     const feats = featuresFor(ws);
@@ -83,8 +99,15 @@ ai.post("/ai/turn", async (c) => {
     };
 
     // Stock by default (free). AI images are counted so the turn can reconcile the estimate to the real count (stock fallback unbilled).
-    const wantsAiImages =
-        req.kind === "generate" && req.input.imageSource === "ai" && imageGenReady();
+    const imageSource =
+        req.kind === "generate"
+            ? req.input.imageSource
+            : req.kind === "build"
+              ? req.input.brief.imageSource
+              : req.kind === "chat"
+                ? req.input.context.imageSource // so a re-sourced image matches the rest of the piece
+                : undefined;
+    const wantsAiImages = imageSource === "ai" && imageGenReady();
     let aiImages = 0;
     const image: ImageOptions = wantsAiImages
         ? {
@@ -147,15 +170,53 @@ ai.post("/ai/turn", async (c) => {
             let owed = cost;
             if (Object.keys(extra).length) owed += costOf(extra);
             if (wantsAiImages)
-                owed = costOf({
-                    ...estimateUsage("generate-artifact", meter),
-                    image: aiImages,
-                });
+                // A generation RESERVED for images, so its bill is recomputed from the real count.
+                // A chat turn reserved none, so any it made are added to what its tools already owe.
+                owed =
+                    req.kind === "chat"
+                        ? owed + costOf({ image: aiImages })
+                        : costOf({
+                              ...estimateUsage(ACTION_FOR[req.kind], meter),
+                              image: aiImages,
+                          });
             await settleCredits(ws, owed - cost, `${ACTION_FOR[req.kind]}:settle`);
         }
     });
 });
 
+// One small structured call — cheap, but a model call, so it's metered like any other.
+// `previous` marks a re-read: the runtime rules that reading out and comes back with another angle.
+ai.post("/ai/brief", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await currentWorkspace(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+    if (!aiReady()) return c.json({ brief: null });
+    const body = await readJson<{ prompt?: string; surface?: Surface; previous?: BriefRead }>(c);
+    if (!body?.prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
+
+    const spend = await chargeCredits(ws, estimateCost("draft-brief"), "draft-brief");
+    if (!spend.ok)
+        return c.json(
+            { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
+            402,
+        );
+
+    try {
+        const brief = await expandBrief(body.prompt.trim(), body.surface, {
+            tier: featuresFor(ws).textModelTier,
+            previous: body.previous,
+        });
+        return c.json({ brief });
+    } catch (e) {
+        // refund a read that produced nothing — the user got no value from it
+        await settleCredits(ws, -estimateCost("draft-brief"), "draft-brief:refund");
+        warn(`[ai:brief] ${e instanceof Error ? e.message : "failed"}`.slice(0, 400));
+        return c.json({ brief: null });
+    }
+});
+
+// Unmetered: the deterministic audit always answers, the LLM critique rides on top when it can.
 // Unmetered: one tiny call, client-cached per artifact; empty on failure (client has a deterministic fallback).
 ai.post("/ai/suggest", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));

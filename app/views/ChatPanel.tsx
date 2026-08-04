@@ -4,6 +4,7 @@ import { useNavigate } from "@solidjs/router";
 import type { ChatBlock, GenBrief, WorkspaceAction } from "@model/ai";
 import type { Section } from "@model/artifact";
 import { estimateCost } from "@model/tools";
+import { Credits } from "../components/credits";
 import type { Tokens } from "@themes";
 import { resolveTheme, themeCssVars } from "@themes";
 import { placeholderSection } from "@canvas/elements/blueprint";
@@ -23,7 +24,10 @@ type Artifacts = Extract<ChatBlock, { type: "artifacts" }>;
 type Templates = Extract<ChatBlock, { type: "templates" }>;
 import {
     actionLabel,
+    applyOutline,
+    applyWrite,
     applyProposal,
+    applyTheme,
     busy,
     chatOpen,
     closeChat,
@@ -45,6 +49,7 @@ import {
     thread,
     toggleChat,
 } from "../stores/chat";
+import { generateOpen } from "../stores/generate";
 
 const ProposalCard: Component<{
     msgId: number;
@@ -116,6 +121,201 @@ const ProposalCard: Component<{
     );
 };
 
+type DesignedTheme = Extract<ChatBlock, { type: "theme" }>;
+
+// A theme is judged by looking at it, so the card IS the swatch.
+const ThemeCard: Component<{
+    msgId: number;
+    blockId: string;
+    applied?: "applied" | "discarded";
+    theme: DesignedTheme;
+}> = (props) => {
+    const tk = (): Tokens => props.theme.tokens;
+    return (
+        <div class="mt-1 overflow-hidden rounded-xl border border-line">
+            <div class="flex flex-col gap-1 p-3" style={{ background: tk().bg, color: tk().ink }}>
+                <span
+                    class="text-[15px] leading-tight"
+                    style={{ "font-family": `'${tk().fontDisplay}', serif` }}
+                >
+                    {props.theme.name}
+                </span>
+                <span class="text-[11.5px]" style={{ color: tk().muted }}>
+                    {props.theme.mood} · {props.theme.isDark ? "dark" : "light"}
+                </span>
+                <div class="mt-1 flex gap-1">
+                    <For each={[tk().accent, tk().surface, tk().line, tk().soft]}>
+                        {(c) => (
+                            <span
+                                class="size-4 rounded-full"
+                                style={{ background: c, outline: `1px solid ${tk().line}` }}
+                            />
+                        )}
+                    </For>
+                </div>
+            </div>
+            <div class="flex items-center justify-end gap-2 border-t border-line bg-canvas px-3 py-2">
+                <Show
+                    when={!props.applied}
+                    fallback={
+                        <span
+                            class="flex-none text-[11px] font-semibold uppercase tracking-[0.1em]"
+                            classList={{
+                                "text-accent": props.applied === "applied",
+                                "text-muted": props.applied === "discarded",
+                            }}
+                        >
+                            {props.applied === "applied" ? "Applied ✓" : "Discarded"}
+                        </span>
+                    }
+                >
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => discardProposal(props.msgId, props.blockId)}
+                    >
+                        Discard
+                    </Button>
+                    <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => void applyTheme(props.msgId, props.blockId)}
+                    >
+                        Save + apply
+                    </Button>
+                </Show>
+            </div>
+        </div>
+    );
+};
+
+type WriteRequest = Extract<ChatBlock, { type: "write" }>;
+
+// Writing planned beats is real spend, so the card prices it and waits — the studio runs the same
+// build turns the board does once the user says go.
+const WriteCard: Component<{
+    msgId: number;
+    blockId: string;
+    applied?: "applied" | "discarded";
+    write: WriteRequest;
+}> = (props) => {
+    const cost = (): number => props.write.beatIds.length * estimateCost("add-section");
+    return (
+        <div class="mt-1 overflow-hidden rounded-xl border border-line bg-canvas">
+            <div class="flex flex-col gap-0.5 px-3 py-2">
+                <span class="text-[12px] text-ink">{props.write.summary}</span>
+                <span class="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+                    {props.write.beatIds.length} section
+                    {props.write.beatIds.length === 1 ? "" : "s"} ·{" "}
+                    {props.write.beatIds.join(" · ")}
+                </span>
+            </div>
+            <div class="flex items-center justify-end gap-2 border-t border-line px-3 py-2">
+                <Show
+                    when={!props.applied}
+                    fallback={
+                        <span
+                            class="flex-none text-[11px] font-semibold uppercase tracking-[0.1em]"
+                            classList={{
+                                "text-accent": props.applied === "applied",
+                                "text-muted": props.applied === "discarded",
+                            }}
+                        >
+                            {props.applied === "applied" ? "Writing ✓" : "Discarded"}
+                        </span>
+                    }
+                >
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => discardProposal(props.msgId, props.blockId)}
+                    >
+                        Not now
+                    </Button>
+                    <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => applyWrite(props.msgId, props.blockId)}
+                    >
+                        Write {props.write.beatIds.length} · <Credits n={cost()} />
+                    </Button>
+                </Show>
+            </div>
+        </div>
+    );
+};
+
+type OutlineRevision = Extract<ChatBlock, { type: "outline" }>;
+
+const OP_VERB: Record<string, string> = {
+    addBeat: "Add",
+    updateBeat: "Rewrite",
+    removeBeat: "Remove",
+    moveBeat: "Move",
+};
+
+// An outline revision has nothing to preview — the change IS the plan, so it reads as a list of
+// what would happen to which beat.
+const OutlineCardProposal: Component<{
+    msgId: number;
+    blockId: string;
+    applied?: "applied" | "discarded";
+    outline: OutlineRevision;
+}> = (props) => (
+    <div class="mt-1 overflow-hidden rounded-xl border border-line bg-canvas">
+        <div class="flex flex-col gap-1 px-3 py-2">
+            <span class="text-[12px] text-ink">{props.outline.summary}</span>
+            <For each={props.outline.ops}>
+                {(op) => (
+                    <span class="flex items-baseline gap-1.5 text-[11.5px] text-muted">
+                        <span class="font-mono text-[9.5px] uppercase tracking-[0.12em] text-accent">
+                            {OP_VERB[op.op] ?? op.op}
+                        </span>
+                        <span class="min-w-0 truncate">
+                            {op.op === "addBeat"
+                                ? op.beat.label
+                                : op.op === "updateBeat"
+                                  ? (op.patch.label ?? op.id)
+                                  : op.id}
+                        </span>
+                    </span>
+                )}
+            </For>
+        </div>
+        <div class="flex items-center justify-end gap-2 border-t border-line px-3 py-2">
+            <Show
+                when={!props.applied}
+                fallback={
+                    <span
+                        class="flex-none text-[11px] font-semibold uppercase tracking-[0.1em]"
+                        classList={{
+                            "text-accent": props.applied === "applied",
+                            "text-muted": props.applied === "discarded",
+                        }}
+                    >
+                        {props.applied === "applied" ? "Applied ✓" : "Discarded"}
+                    </span>
+                }
+            >
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => discardProposal(props.msgId, props.blockId)}
+                >
+                    Discard
+                </Button>
+                <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => applyOutline(props.msgId, props.blockId)}
+                >
+                    Update the outline
+                </Button>
+            </Show>
+        </div>
+    </div>
+);
+
 // Typewriter reveal — decouples display from the provider's bursty (sentence-sized) chunks; reveals arrived text at a steady, backlog-aware pace. `done` fast-forwards to the full text.
 // bumped each reveal frame so the scroll container can track the newest text
 const [revealPulse, setRevealPulse] = createSignal(0);
@@ -162,35 +362,55 @@ const SmoothText: Component<{
     return <>{props.render(props.text.slice(0, shown()))}</>;
 };
 
-const ReasoningBlock: Component<{ text: string; done: boolean }> = (props) => {
-    const [open, setOpen] = createSignal(!props.done);
-    createEffect(() => {
-        if (props.done) setOpen(false);
-    });
+// One line, not an essay. While the agent reasons this shows only the step it's on; afterwards it
+// shrinks to a count you can open to see the short list. The full thought prose never reaches here.
+const ThinkingBlock: Component<{ steps: string[]; done: boolean }> = (props) => {
+    const [open, setOpen] = createSignal(false);
+    const latest = (): string => props.steps[props.steps.length - 1] ?? "Thinking";
+    const n = (): number => props.steps.length;
+
     return (
-        <div class="mt-0.5 overflow-hidden rounded-lg border border-line bg-canvas/60">
-            <button
-                class="flex w-full items-center gap-2 px-2.5 py-1.5 text-[11.5px] font-medium text-muted transition-colors hover:text-soft"
-                onClick={() => setOpen((o) => !o)}
-            >
-                <Show when={!props.done} fallback={<Icon name="sparkle" size={12} />}>
+        <Show
+            when={props.done}
+            fallback={
+                <div class="mt-0.5 flex items-center gap-2 py-0.5 text-[11.5px] text-muted">
                     <Spinner size={11} />
-                </Show>
-                <span>{props.done ? "Thoughts" : "Thinking…"}</span>
-                <span class="ml-auto opacity-60">
-                    <Icon name={open() ? "chevronDown" : "chevronRight"} size={12} />
-                </span>
-            </button>
-            <Show when={open()}>
-                <div class="border-t border-line px-2.5 py-2">
-                    <SmoothText
-                        text={props.text}
-                        done={props.done}
-                        render={(s) => <Markdown text={s} muted />}
-                    />
+                    {/* keyed on the text so each new step fades in rather than snapping */}
+                    <Show when={latest()} keyed>
+                        {(text) => <span class="min-w-0 truncate gc-step">{text}…</span>}
+                    </Show>
+                    <style>{`
+                      @keyframes gc-step { from { opacity: 0 } to { opacity: 1 } }
+                      .gc-step { animation: gc-step 220ms ease-out both }
+                      @media (prefers-reduced-motion: reduce) { .gc-step { animation: none } }
+                    `}</style>
+                </div>
+            }
+        >
+            <Show when={n() > 0}>
+                <div class="mt-0.5">
+                    <button
+                        class="flex items-center gap-1.5 py-0.5 text-[11px] text-muted transition-colors hover:text-soft"
+                        onClick={() => setOpen((o) => !o)}
+                    >
+                        <Icon name="sparkle" size={11} />
+                        <span>
+                            Thought in {n()} step{n() === 1 ? "" : "s"}
+                        </span>
+                        <Icon name={open() ? "chevronDown" : "chevronRight"} size={11} />
+                    </button>
+                    <Show when={open()}>
+                        <ol class="mt-1 flex flex-col gap-0.5 border-l border-line pl-2.5">
+                            <For each={props.steps}>
+                                {(step) => (
+                                    <li class="text-[11px] leading-snug text-muted">{step}</li>
+                                )}
+                            </For>
+                        </ol>
+                    </Show>
                 </div>
             </Show>
-        </div>
+        </Show>
     );
 };
 
@@ -488,8 +708,8 @@ const TemplatesList: Component<{ items: Templates["items"] }> = (props) => (
 
 const BlockView: Component<{ msgId: number; b: UIBlock }> = (props) => (
     <>
-        <Show when={props.b.k === "reasoning" ? props.b : null}>
-            {(b) => <ReasoningBlock text={b().text} done={b().done} />}
+        <Show when={props.b.k === "thinking" ? props.b : null}>
+            {(b) => <ThinkingBlock steps={b().steps} done={b().done} />}
         </Show>
         <Show when={props.b.k === "brief" ? props.b : null}>
             {(b) => <BriefCard brief={b().brief} />}
@@ -512,10 +732,44 @@ const BlockView: Component<{ msgId: number; b: UIBlock }> = (props) => (
         </Show>
         <Show when={props.b.k === "tool" && !props.b.done ? props.b : null}>
             {(b) => (
-                <div class="mt-1 inline-flex items-center gap-2 rounded-full border border-line bg-canvas px-3 py-1.5 text-[11.5px] text-soft">
+                <div class="mt-1 inline-flex max-w-full items-center gap-2 rounded-full border border-line bg-canvas px-3 py-1.5 text-[11.5px] text-soft">
                     <Spinner size={12} />
-                    {b().title}…
+                    <span class="flex-none">{b().title}…</span>
+                    {/* the capability's own progress line, forwarded as chat.nested */}
+                    <Show when={b().detail}>
+                        <span class="min-w-0 truncate text-muted">{b().detail}</span>
+                    </Show>
                 </div>
+            )}
+        </Show>
+        <Show when={props.b.k === "widget" && props.b.block.type === "theme" ? props.b : null}>
+            {(b) => (
+                <ThemeCard
+                    msgId={props.msgId}
+                    blockId={b().blockId}
+                    applied={b().applied}
+                    theme={b().block as DesignedTheme}
+                />
+            )}
+        </Show>
+        <Show when={props.b.k === "widget" && props.b.block.type === "write" ? props.b : null}>
+            {(b) => (
+                <WriteCard
+                    msgId={props.msgId}
+                    blockId={b().blockId}
+                    applied={b().applied}
+                    write={b().block as WriteRequest}
+                />
+            )}
+        </Show>
+        <Show when={props.b.k === "widget" && props.b.block.type === "outline" ? props.b : null}>
+            {(b) => (
+                <OutlineCardProposal
+                    msgId={props.msgId}
+                    blockId={b().blockId}
+                    applied={b().applied}
+                    outline={b().block as OutlineRevision}
+                />
             )}
         </Show>
         <Show when={props.b.k === "widget" && props.b.block.type === "proposal" ? props.b : null}>
@@ -576,7 +830,8 @@ const BlockView: Component<{ msgId: number; b: UIBlock }> = (props) => (
     </>
 );
 
-const MessageView: Component<{ m: ChatMsg }> = (props) => (
+// exported so the generation studio's console renders the same thread as the dock
+export const MessageView: Component<{ m: ChatMsg }> = (props) => (
     <Show
         when={props.m.role === "assistant"}
         fallback={
@@ -615,6 +870,8 @@ const emptyExamples = (): string[] => (inEditor() ? EDITOR_EXAMPLES : LIBRARY_EX
 
 export const ChatPanel: Component = () => {
     const [input, setInput] = createSignal("");
+    // The studio hosts the same thread in its console, so the dock stands down while it's open.
+    const hidden = (): boolean => generateOpen();
     let list!: HTMLDivElement;
     let field!: HTMLTextAreaElement;
 
@@ -668,7 +925,7 @@ export const ChatPanel: Component = () => {
 
     return (
         <UiThemeProvider tokens={chatTokens}>
-            <div style={chatVars()}>
+            <div style={chatVars()} classList={{ hidden: hidden() }}>
                 <Show when={!chatOpen()}>
                     <button
                         class="fixed bottom-6 right-6 z-drawer flex h-12 w-12 items-center justify-center rounded-full bg-accent text-onaccent shadow-xl transition-transform hover:scale-105"

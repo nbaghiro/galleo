@@ -1,6 +1,8 @@
 import { z } from "zod";
+import type { Section } from "@model/artifact";
 import { register } from "./registry";
 import { rewriteText, translateText } from "../text";
+import { findPassage, replacePassage, textNodes } from "../locate";
 
 export const rewriteTextTool = register({
     id: "rewrite-text",
@@ -25,5 +27,38 @@ export const translateTextTool = register({
     }),
     async *run(input, ctx) {
         return await translateText(input.text, input.language, { signal: ctx.signal });
+    },
+});
+
+// The agent-facing half of rewrite-text: `rewrite-text` returns a bare string with nowhere to put it,
+// so this one targets a passage inside a real section and returns the section with it replaced —
+// which the chat layer presents as an ordinary proposal.
+export const rewritePassageTool = register({
+    id: "rewrite-passage",
+    describe:
+        "Rewrite ONE passage inside a section, leaving the rest of it untouched. Use this when the user wants specific wording changed (a headline, a bullet, a sentence) rather than the whole section rewritten. `find` must be copied from the section's real text.",
+    input: z.object({
+        sectionId: z.string().describe("the id of the section the passage is in"),
+        find: z
+            .string()
+            .describe("the passage to rewrite, copied VERBATIM from the section's current text"),
+        instruction: z
+            .string()
+            .describe("how to change it, e.g. 'make it punchier' or 'cut it to six words'"),
+    }),
+    async *run(input, ctx): AsyncGenerator<never, Section> {
+        const section = ctx.artifact?.sections.find((s) => s.id === input.sectionId);
+        if (!section) throw new Error(`There is no section “${input.sectionId}” in this piece.`);
+        const hit = findPassage(section.root, input.find);
+        if (!hit) {
+            const available = textNodes(section.root)
+                .map((n) => `“${n.text.slice(0, 60)}”`)
+                .join(", ");
+            throw new Error(
+                `No passage matching that text in ${input.sectionId}. Its passages are: ${available || "none"}.`,
+            );
+        }
+        const rewritten = await rewriteText(hit.text, input.instruction, { signal: ctx.signal });
+        return replacePassage(section, hit.path, rewritten.trim() || hit.text);
     },
 });

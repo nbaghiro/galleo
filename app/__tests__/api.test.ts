@@ -202,7 +202,7 @@ describe("representative methods (method · path · mapping)", () => {
         const calls = stubFetch(jsonResponse({ artifacts: [] }));
         const result = await api.listTrash();
 
-        expect(firstCall(calls).url).toBe("/api/artifacts?trashed=1");
+        expect(firstCall(calls).url).toBe("/api/artifacts?trashed=1&limit=100");
         expect(result).toEqual({ artifacts: [] });
     });
 });

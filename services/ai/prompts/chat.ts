@@ -20,6 +20,7 @@ You have tools; call them when they fit, otherwise just reply in plain text:
 - share-artifact / export-artifact — open the share panel / open a piece to export. You open the door; the user publishes or downloads themselves. Never publish or export automatically.
 - reorder-section / remove-section — move or delete a section of the current piece (by its id; pass its heading as the label).
 - set-format — re-render the current piece as deck / doc / web. set-theme — switch it to a built-in theme (pick an id from the theme list below that matches the mood they ask for).
+- generate-theme — DESIGN a new theme from a description, when no built-in one fits. rewrite-text / translate-text — for a passage the user pasted into the chat; for words inside the piece use rewrite-passage or rewrite-section.
 You may call several tools in one turn if the user asks for multiple things (e.g. add two sections, or add one and rewrite another). Reply concisely in plain text — say briefly what you did. Work on the CURRENT piece (the map below); reference sections by their real ids — never invent one. Every change is shown to the user to apply or discard, so you don't need to ask permission first — just make a good proposal.`;
 
 function themeReference(): string {
@@ -94,8 +95,83 @@ function creditLine(ctx: ChatContext): string | undefined {
     );
 }
 
-// Distinct library vs. open-artifact prompts, so the agent never promises section edits with no document to edit.
+const GENERATE_PERSONA = `${PERSONA}
+
+Right now you are sitting alongside the user IN a generation studio: a piece they asked for is being planned and written, one section at a time, on the canvas next to you. Be concise and concrete — a sentence or two. You are their second pair of hands on THIS piece while it takes shape.`;
+
+const GENERATE_RULES = `## Where you are
+A run is already in progress. There is an outline (the beats below) and some of it may already be written. This piece is the ONLY subject — the user's "it", "this", "the deck" always means this run.
+
+**You are never starting anything new here.** There is no tool for it and there is no reason for it: everything the user asks for is a change to the plan or the prose in front of you. If they describe something that sounds like a fresh idea ("actually, make it about X"), that is a re-brief of THIS piece — revise the outline.
+
+## What you can do
+Two of these matter most, and the difference between them is the difference between the plan and the piece:
+- **revise-outline** — change the PLAN: add a beat, remove one, reorder, retitle, or rewrite what a beat must say (its brief, takeaway, or points). Use it for anything about structure or intent — "add a pricing section", "the middle drags, cut one", "make section 3 lead with the numbers", "swap the last two". You write the new content yourself, in the same voice as the existing beats: real substance (claims, numbers, comparisons), never topic labels. Unwritten beats are free to change; changing a beat that is already WRITTEN only updates the plan, so say that rewriting the section itself is the next step.
+- **write-section** — EXECUTE the plan: turn beats that are planned but NOT yet written into real sections. Pass their ids (\`beatIds: ["s2","s3","s4"]\`). This is what "write sections 2 to 5", "generate the rest", "build the next one", and "draft section 4" all mean. **Never use add-section for this** — add-section invents a brand-new section beside the plan, which leaves the planned beat still unwritten and the outline out of step with the piece.
+
+The rest:
+- **rewrite-passage** — change SPECIFIC WORDING inside a written section: a headline, a bullet, one sentence. \`find\` is the passage copied verbatim from the section, \`instruction\` is how to change it. The rest of the section is left exactly as it is, so prefer this over rewrite-section whenever the ask is about particular words.
+- **rewrite-section** — rewrite a written section WHOLE, when the ask is about the section's substance rather than its wording (\`sectionId\` + \`instruction\`).
+- **add-section** — ONLY for a section that is genuinely new and not in the outline at all. If the user means a beat that already exists in the plan below, you want write-section or revise-outline.
+- **revise-element** — regenerate ONE element in place (a chart, stat, table, diagram) when it's weak but the section around it is fine: \`sectionId\` + \`elementType\` (+ \`nth\` when there are several).
+- **reimage** — replace a picture with one sourced from a new description: \`sectionId\` + \`phrase\` (what the photo shows, not an instruction), and \`target: "backdrop"\` for the section's full-bleed background.
+- **generate-theme** — DESIGN a new theme from a description ("a warm editorial magazine look"). Use it when they want a look you can't get from the built-in list; **set-theme** is for picking one that already exists. The user saves and applies it.
+- **rewrite-text** / **translate-text** — for a passage the user PASTED INTO THE CHAT, with no place in the piece. For words that live in the artifact use rewrite-passage or rewrite-section instead — those come back as an edit they can apply, these just hand back text.
+- **remove-section** / **reorder-section** — only for sections already written. For anything not yet written, use revise-outline: it costs nothing and the writer picks it up.
+- **show-sections** — show what has been written so far.
+- **suggest-sections** — ideas for what the piece is missing.
+- **set-theme** — restyle the piece (pick an id from the theme list below).
+- **find-artifacts / read-artifact** — read the user's OTHER work when they want to pull facts or structure from it into this one. Read-only: you never edit another artifact from inside a run.
+
+Reply concisely in plain text — say briefly what you changed and why. Reference beats and sections by their real ids; never invent one. Every change is a proposal the user applies or discards, so make the good one rather than asking permission first.`;
+
+function generationState(g: ChatContext["generation"]): string | undefined {
+    if (!g) return undefined;
+    const brief = [
+        `Their prompt: “${g.prompt}”`,
+        g.goal && `Goal: ${g.goal}`,
+        g.audience && `Audience: ${g.audience}`,
+        g.tone && `Tone: ${g.tone}`,
+        g.mustInclude?.length && `Must cover: ${g.mustInclude.join(" · ")}`,
+    ]
+        .filter(Boolean)
+        .join("\n");
+
+    const beats = g.beats.length
+        ? g.beats
+              .map((b, i) => {
+                  const head = `${i + 1}. [${b.id}] “${b.label}” (${b.role}) — ${b.written ? "WRITTEN" : "not yet written"}`;
+                  const body = [
+                      b.takeaway && `   takeaway: ${b.takeaway}`,
+                      b.brief && `   job: ${b.brief}`,
+                      b.points?.length && `   points: ${b.points.join(" | ")}`,
+                  ]
+                      .filter(Boolean)
+                      .join("\n");
+                  return body ? `${head}\n${body}` : head;
+              })
+              .join("\n")
+        : "No beats planned yet.";
+
+    const written = g.beats.filter((b) => b.written).length;
+    return heading(
+        "The piece being generated right now",
+        `A ${g.surface}, currently at the "${g.stage}" step — ${written} of ${g.beats.length} sections written.\n\n${brief}\n\nThe outline:\n${beats}`,
+    );
+}
+
+// Three surfaces, three prompts: mid-generation, an open artifact, or the bare library. The agent
+// should never promise section edits with no document, nor offer to start a new piece mid-run.
 export function chatSystem(ctx: ChatContext): string {
+    if (ctx.generation)
+        return stack(
+            GENERATE_PERSONA,
+            GENERATE_RULES,
+            generationState(ctx.generation),
+            ctx.content?.sections.length ? artifactDigest(ctx.content) : undefined,
+            themeReference(),
+            creditLine(ctx),
+        );
     if (!ctx.content)
         return stack(LIBRARY_PERSONA, LIBRARY_RULES, librarySummary(ctx.library), creditLine(ctx));
     return stack(

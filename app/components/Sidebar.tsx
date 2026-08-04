@@ -8,7 +8,6 @@ import { loadWorkspace, switchWorkspace, workspaceState } from "../stores/worksp
 import {
     blankArtifact,
     formatLabel,
-    artifacts,
     draggingArtifact,
     moveArtifact,
     setDraggingArtifact,
@@ -28,7 +27,6 @@ import {
     FolderFillIcon,
     LibraryIcon,
     PlusIcon,
-    SettingsIcon,
     SharedIcon,
     SignOutIcon,
     TemplatesIcon,
@@ -177,7 +175,7 @@ export const Sidebar: Component = () => {
     const FolderNode: Component<{ f: ApiFolder; depth: number }> = (np) => {
         const kids = (): ApiFolder[] => folders().filter((x) => x.parentId === np.f.id);
         const expanded = (): boolean => !collapsed().has(np.f.id);
-        const count = (): number => artifacts().filter((d) => d.folderId === np.f.id).length;
+        const count = (): number => np.f.count ?? 0; // counted server-side; the client list is one page deep
         const active = (): boolean => route() === `/folder/${np.f.id}`;
         return (
             <>
@@ -312,9 +310,6 @@ export const Sidebar: Component = () => {
                             ? `${workspaceState()!.members.length} members`
                             : "Personal workspace"}
                     </span>
-                </span>
-                <span class="flex-none text-muted">
-                    <SettingsIcon size={15} />
                 </span>
             </button>
             <Show when={(workspaceState()?.memberships.length ?? 0) > 1}>

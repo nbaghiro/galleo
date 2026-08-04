@@ -2,9 +2,11 @@ import type {
     ChatBlock,
     ChatContext,
     ChatFocus,
+    ChatGeneration,
     ChatLibrary,
     GenBrief,
     GenerateInput,
+    OutlinePatch,
     Patch,
     TurnEvent,
     TurnRequest,
@@ -16,9 +18,15 @@ import type { Template } from "@model/workspace";
 import { applyPatch } from "@model/ai";
 import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
-import { commit, currentArtifactId, editor, selection } from "@editor/core/store";
+import {
+    commit,
+    currentArtifactId,
+    editor,
+    ensureAllSections,
+    selection,
+} from "@editor/core/store";
 import { api, streamTurn } from "../api";
-import { appTheme } from "./theme";
+import { appTheme, saveCustomTheme } from "./theme";
 import { openShare } from "./share";
 import { billing, loadBilling } from "./billing";
 import {
@@ -36,9 +44,9 @@ import {
 import { addFolder, folders } from "./folders";
 
 export type UIBlock =
-    | { k: "reasoning"; text: string; done: boolean }
+    | { k: "thinking"; steps: string[]; done: boolean }
     | { k: "text"; text: string }
-    | { k: "tool"; blockId: string; tool: string; title: string; done: boolean }
+    | { k: "tool"; blockId: string; tool: string; title: string; done: boolean; detail?: string }
     | { k: "brief"; brief: GenBrief }
     | { k: "draft"; draftId: string }
     | {
@@ -91,7 +99,34 @@ export function activeDraft(): Draft | null {
     return d && d.state === "live" ? d : null;
 }
 
+// The agent's subject, injected by whoever owns it. The editor is the implicit default; the
+// generation studio binds its live draft while it's open, so freeform edits mid-build run the
+// SAME agent, tools, and proposal path as editing a finished artifact.
+export interface ChatTarget {
+    content: () => ArtifactContent;
+    apply: (patch: Patch) => void;
+    focus?: () => ChatFocus | undefined;
+    artifactId?: () => string | undefined;
+    label?: string; // what the composer calls it ("this draft")
+    // a live generation run: its presence switches the agent onto the generate surface, where the
+    // outline is the subject and starting a separate artifact isn't offered at all
+    generation?: () => ChatGeneration | undefined;
+    applyBeats?: (ops: OutlinePatch) => void;
+    writeBeats?: (beatIds: string[]) => void;
+    imageSource?: () => "stock" | "ai" | undefined;
+}
+const [chatTarget, setChatTarget] = createSignal<ChatTarget | null>(null);
+export { chatTarget };
+
+// returns an unbind so the owner can release it on cleanup
+export function bindChatTarget(t: ChatTarget): () => void {
+    setChatTarget(() => t);
+    return () => setChatTarget((cur) => (cur === t ? null : cur));
+}
+
 export function previewSource(): { theme: string; format: string } {
+    const t = chatTarget();
+    if (t) return { theme: t.content().theme, format: t.content().format };
     const d = activeDraft();
     if (d) return { theme: d.content.theme, format: d.content.format };
     return { theme: editor.artifact.theme, format: editor.artifact.format };
@@ -160,6 +195,20 @@ function meta(): Pick<ChatContext, "plan" | "credits"> {
 }
 
 function buildContext(): ChatContext {
+    // a bound target (the studio's live draft) outranks the editor — it's what's on screen
+    const t = chatTarget();
+    if (t) {
+        const generation = t.generation?.();
+        return {
+            surface: generation ? "generate" : "editor",
+            artifactId: t.artifactId?.(),
+            content: t.content(),
+            focus: t.focus?.(),
+            ...(generation && { generation }),
+            ...(t.imageSource?.() === "ai" && { imageSource: "ai" as const }),
+            ...meta(),
+        };
+    }
     const id = currentArtifactId();
     if (editorActive() && id)
         return {
@@ -184,21 +233,24 @@ function updateMsg(id: number, fn: (m: ChatMsg) => void): void {
     );
 }
 
-function closeReasoning(m: ChatMsg): void {
-    for (const b of m.blocks) if (b.k === "reasoning" && !b.done) b.done = true;
+function closeThinking(m: ChatMsg): void {
+    for (const b of m.blocks) if (b.k === "thinking" && !b.done) b.done = true;
 }
 
-function pushReasoning(id: number, delta: string): void {
+// steps land one line at a time into the open thinking block; a new one opens per reasoning run,
+// so a turn that thinks, calls a tool, then thinks again reads as two passes rather than one blob
+function pushThinking(id: number, label?: string): void {
     updateMsg(id, (m) => {
         const last = m.blocks[m.blocks.length - 1];
-        if (last && last.k === "reasoning" && !last.done) last.text += delta;
-        else m.blocks.push({ k: "reasoning", text: delta, done: false });
+        const open = last && last.k === "thinking" && !last.done ? last : null;
+        if (!open) m.blocks.push({ k: "thinking", steps: label ? [label] : [], done: false });
+        else if (label && open.steps[open.steps.length - 1] !== label) open.steps.push(label);
     });
 }
 
 function pushText(id: number, delta: string): void {
     updateMsg(id, (m) => {
-        closeReasoning(m);
+        closeThinking(m);
         const last = m.blocks[m.blocks.length - 1];
         if (last && last.k === "text") last.text += delta;
         else m.blocks.push({ k: "text", text: delta });
@@ -207,23 +259,44 @@ function pushText(id: number, delta: string): void {
 
 function dispatch(ev: TurnEvent, aid: number): void {
     switch (ev.type) {
-        case "chat.reasoning":
-            pushReasoning(aid, ev.delta);
+        case "chat.thinking":
+            pushThinking(aid, ev.label);
             break;
         case "chat.text":
             pushText(aid, ev.delta);
             break;
         case "chat.tool":
-            updateMsg(aid, (m) =>
-                m.blocks.push({
-                    k: "tool",
-                    blockId: ev.blockId,
-                    tool: ev.tool,
-                    title: ev.title,
-                    done: false,
-                }),
-            );
+            // sent twice: once to open the shell, once with done — so a tool with nothing to show
+            // still closes instead of spinning for the rest of the session
+            updateMsg(aid, (m) => {
+                const shell = m.blocks.find(
+                    (b): b is Extract<UIBlock, { k: "tool" }> =>
+                        b.k === "tool" && b.blockId === ev.blockId,
+                );
+                if (shell) shell.done = shell.done || !!ev.done;
+                else
+                    m.blocks.push({
+                        k: "tool",
+                        blockId: ev.blockId,
+                        tool: ev.tool,
+                        title: ev.title,
+                        done: !!ev.done,
+                    });
+            });
             break;
+        case "chat.nested": {
+            // a capability's own progress line, shown under its shell rather than dropped
+            const inner = ev.event;
+            if (inner.type !== "narration") break;
+            updateMsg(aid, (m) => {
+                const shell = m.blocks.find(
+                    (b): b is Extract<UIBlock, { k: "tool" }> =>
+                        b.k === "tool" && b.blockId === ev.blockId,
+                );
+                if (shell && !shell.done) shell.detail = inner.text;
+            });
+            break;
+        }
         case "chat.block":
             // action blocks have side effects (library stores) → handled outside the store updater
             if (ev.block.type === "action") {
@@ -251,6 +324,8 @@ function dispatch(ev: TurnEvent, aid: number): void {
 export async function sendChat(text: string): Promise<void> {
     const t = text.trim();
     if (!t || busy()) return;
+    // the agent reasons over (and patches) the whole document, so a windowed artifact fills in first
+    await ensureAllSections();
     // prior turns → text, computed before this exchange is appended
     const history = thread.messages
         .slice(-8)
@@ -288,7 +363,8 @@ export async function sendChat(text: string): Promise<void> {
         setBusy(false);
         updateMsg(aid, (m) => {
             m.streaming = false;
-            closeReasoning(m); // don't leave the bubble spinning on a tool-only / interrupted turn
+            closeThinking(m); // don't leave the bubble spinning on a tool-only / interrupted turn
+            for (const b of m.blocks) if (b.k === "tool") b.done = true;
         });
         abort = null;
         void loadBilling();
@@ -555,27 +631,72 @@ async function saveProposalToArtifact(id: string, patch: Patch): Promise<void> {
     }
 }
 
+function markApplied(msgId: number, blockId: string, state: "applied" | "discarded"): void {
+    updateMsg(msgId, (m) => {
+        const b = m.blocks.find((x) => x.k === "widget" && x.blockId === blockId);
+        if (b && b.k === "widget") b.applied = state;
+    });
+}
+
+// an outline revision goes to the studio's plan, not to the artifact tree — only the bound target
+// holds the beats, so there is nothing to fall back to
+export function applyOutline(msgId: number, blockId: string): void {
+    const w = findWidget(msgId, blockId);
+    if (!w || w.block.type !== "outline" || w.applied) return;
+    chatTarget()?.applyBeats?.(w.block.ops);
+    markApplied(msgId, blockId, "applied");
+}
+
+// A designed theme has to exist in the workspace before an artifact can point at it, so applying is
+// save-then-patch rather than a plain patch.
+export async function applyTheme(msgId: number, blockId: string): Promise<void> {
+    const w = findWidget(msgId, blockId);
+    if (!w || w.block.type !== "theme" || w.applied) return;
+    const b = w.block;
+    const saved = await saveCustomTheme({
+        name: b.name,
+        tokens: b.tokens,
+        tag: b.mood,
+        dark: b.isDark,
+    });
+    if (!saved) return; // the save failed — leave it applyable rather than marking it done
+    const patch: Patch = [{ op: "setMeta", theme: saved.id }];
+    const t = chatTarget();
+    if (t) t.apply(patch);
+    else {
+        const d = activeDraft();
+        if (d) setDrafts(d.id, "content", applyPatch(d.content, patch));
+        else commit(applyPatch(editor.artifact, patch));
+    }
+    markApplied(msgId, blockId, "applied");
+}
+
+// writing runs through the studio's own build turns, so the console and the board share one path
+export function applyWrite(msgId: number, blockId: string): void {
+    const w = findWidget(msgId, blockId);
+    if (!w || w.block.type !== "write" || w.applied) return;
+    chatTarget()?.writeBeats?.(w.block.beatIds);
+    markApplied(msgId, blockId, "applied");
+}
+
 export function applyProposal(msgId: number, blockId: string): void {
     const w = findWidget(msgId, blockId);
     if (!w || w.block.type !== "proposal" || w.applied) return;
     const p = w.block;
-    // three targets: named artifact (API), live draft (patch), else open editor (undoable commit)
+    // four targets: named artifact (API), a bound target (the studio), live draft, else the open editor
+    const t = chatTarget();
     if (p.targetArtifactId) {
         void saveProposalToArtifact(p.targetArtifactId, p.patch);
+    } else if (t) {
+        t.apply(p.patch);
     } else {
         const d = activeDraft();
         if (d) setDrafts(d.id, "content", applyPatch(d.content, p.patch));
         else commit(applyPatch(editor.artifact, p.patch));
     }
-    updateMsg(msgId, (m) => {
-        const b = m.blocks.find((x) => x.k === "widget" && x.blockId === blockId);
-        if (b && b.k === "widget") b.applied = "applied";
-    });
+    markApplied(msgId, blockId, "applied");
 }
 
 export function discardProposal(msgId: number, blockId: string): void {
-    updateMsg(msgId, (m) => {
-        const b = m.blocks.find((x) => x.k === "widget" && x.blockId === blockId);
-        if (b && b.k === "widget") b.applied = "discarded";
-    });
+    markApplied(msgId, blockId, "discarded");
 }

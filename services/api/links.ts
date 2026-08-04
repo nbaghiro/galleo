@@ -350,6 +350,11 @@ links.get("/links", async (c) => {
             name: schema.links.name,
             visibility: schema.links.visibility,
             createdAt: schema.links.createdAt,
+            // joined so the Shared view can render a row without holding the whole library client-side
+            title: schema.artifacts.title,
+            formatId: schema.artifacts.formatId,
+            themeId: schema.artifacts.themeId,
+            digest: schema.artifacts.digest,
         })
         .from(schema.links)
         .innerJoin(schema.artifacts, eq(schema.links.artifactId, schema.artifacts.id))
@@ -375,6 +380,13 @@ links.get("/links", async (c) => {
         links: rows.map((r) => ({
             id: r.id,
             artifactId: r.artifactId,
+            artifact: {
+                id: r.artifactId,
+                title: r.title,
+                formatId: r.formatId,
+                themeId: r.themeId,
+                cover: r.digest?.cover ?? {},
+            },
             slug: r.slug,
             name: r.name,
             visibility: r.visibility,

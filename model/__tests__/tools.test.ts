@@ -5,6 +5,7 @@ import {
     estimateUsage,
     isMetered,
     sectionsForLength,
+    TOOL_CATALOG,
     toolsFor,
     typicalCost,
 } from "@model/tools";
@@ -75,6 +76,15 @@ describe("toolsFor", () => {
     });
 });
 
+describe("studio tools", () => {
+    it("plan-outline is a live, direct, plan-priced step (the outline gate charges it)", () => {
+        const t = TOOL_CATALOG["plan-outline"];
+        expect(t.surfaces).toContain("direct");
+        expect(t.live).toBe(true);
+        expect(estimateCost("plan-outline")).toBe(3);
+    });
+});
+
 describe("costRange / isMetered", () => {
     it("collapses to a point for a fixed-cost tool", () => {
         const range = costRange("add-section");
@@ -85,5 +95,13 @@ describe("costRange / isMetered", () => {
         const range = costRange("generate-artifact");
         expect(range.min).toBeLessThanOrEqual(range.max);
         expect(isMetered("generate-artifact")).toBe(true);
+    });
+});
+
+describe("draft-brief pricing", () => {
+    it("is a live, metered call — cheap, but never free", () => {
+        const t = TOOL_CATALOG["draft-brief"];
+        expect(t.live).toBe(true);
+        expect(estimateCost("draft-brief")).toBe(1);
     });
 });
