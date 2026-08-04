@@ -1,7 +1,22 @@
 import type { Component, JSX } from "solid-js";
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import {
+    createEffect,
+    createMemo,
+    createSignal,
+    For,
+    onCleanup,
+    onMount,
+    Show,
+    untrack,
+} from "solid-js";
 import { Icon } from "./icons";
-import { paletteDisplay, type Row } from "./palette-model";
+import {
+    listPaletteSources,
+    paletteDisplay,
+    snippetRuns,
+    type Bucket,
+    type Row,
+} from "./palette-model";
 import {
     bindingLabel,
     closePalette,
@@ -10,6 +25,7 @@ import {
     listCommands,
     paletteOpen,
     pushScope,
+    slashAlias,
     type KeyCtx,
 } from "./keys";
 
@@ -17,6 +33,11 @@ interface Level {
     title: string;
     rows: Row[];
 }
+
+// A leading "/" turns the palette into the command catalog: browsable when it stands alone, filtered as
+// you keep typing. Landing on the artifact list keeps jump-to first, which is what ⌘K is mostly for.
+const COMMAND_PREFIX = "/";
+const REMOTE_DEBOUNCE = 130; // ms of quiet before a source's `remote` fires
 
 const [recentIds, setRecentIds] = createSignal<string[]>([]);
 function noteRun(id: string): void {
@@ -36,8 +57,13 @@ const PaletteBody: Component = () => {
     const [query, setQuery] = createSignal("");
     const [stack, setStack] = createSignal<Level[]>([]);
     const [active, setActive] = createSignal(0);
+    // last resolved remote rows per source, tagged with the query they answer
+    const [remote, setRemote] = createSignal<Record<string, { query: string; rows: Row[] }>>({});
 
     const ctx = (): KeyCtx => currentCtx();
+    const commandMode = (): boolean => query().startsWith(COMMAND_PREFIX);
+    const term = (): string =>
+        commandMode() ? query().slice(COMMAND_PREFIX.length).trim() : query().trim();
 
     const rootRows = (): Row[] =>
         listCommands(ctx()).map((c) => ({
@@ -46,6 +72,7 @@ const PaletteBody: Component = () => {
             group: c.group,
             icon: c.icon,
             keywords: c.keywords,
+            slash: slashAlias(c),
             dangerous: c.dangerous,
             run: c.run,
             provider: c.provider,
@@ -56,10 +83,64 @@ const PaletteBody: Component = () => {
     const levelTitle = (): string | undefined => stack().at(-1)?.title;
     const levelRows = createMemo<Row[]>(() => stack().at(-1)?.rows ?? rootRows());
 
+    const atRoot = (): boolean => stack().length === 0;
+
+    // sources only feed the root list; a sub-list is its own closed world
+    const buckets = createMemo<Bucket[]>(() => {
+        if (!atRoot() || commandMode()) return [];
+        const q = term();
+        const cached = remote();
+        return listPaletteSources(ctx()).map((s) => {
+            const fresh = cached[s.id];
+            const rows =
+                fresh && fresh.query === q ? fresh.rows : (s.local?.(q, untrack(ctx)) ?? []);
+            return { section: s.section, rows };
+        });
+    });
+
+    let debounce = 0;
+    let inflight: AbortController | null = null;
+    createEffect(() => {
+        const q = term();
+        const skip = !atRoot() || commandMode();
+        const sources = listPaletteSources(untrack(ctx));
+        inflight?.abort();
+        window.clearTimeout(debounce);
+        if (skip) return;
+        const due = sources.filter((s) => s.remote && q.length >= (s.minQuery ?? 1));
+        if (!due.length) return;
+        const ctrl = new AbortController();
+        inflight = ctrl;
+        debounce = window.setTimeout(() => {
+            for (const s of due)
+                void s
+                    .remote?.(q, untrack(ctx), ctrl.signal)
+                    .then((rows) => {
+                        if (ctrl.signal.aborted) return;
+                        setRemote((r) => ({ ...r, [s.id]: { query: q, rows } }));
+                    })
+                    .catch(() => {
+                        /* a failed or aborted source falls back to its local rows */
+                    });
+        }, REMOTE_DEBOUNCE);
+    });
+    onCleanup(() => {
+        inflight?.abort();
+        window.clearTimeout(debounce);
+    });
+
     const display = createMemo(() =>
-        paletteDisplay(levelRows(), query(), stack().length === 0, recentIds()),
+        paletteDisplay({
+            commands: levelRows(),
+            query: term(),
+            atRoot: atRoot(),
+            recentIds: recentIds(),
+            buckets: buckets(),
+            commandMode: commandMode(),
+        }),
     );
     const visible = createMemo<Row[]>(() => display().map((d) => d.row));
+    const activeRow = (): Row | undefined => visible()[active()];
 
     createEffect(() => {
         visible();
@@ -71,7 +152,7 @@ const PaletteBody: Component = () => {
         el?.scrollIntoView?.({ block: "nearest" });
     });
 
-    const choose = async (row: Row): Promise<void> => {
+    const choose = async (row: Row, alt = false): Promise<void> => {
         if (row.provider) {
             const items = await row.provider(ctx());
             setStack((s) => [...s, { title: row.title, rows: items }]);
@@ -81,7 +162,8 @@ const PaletteBody: Component = () => {
         }
         closePalette();
         noteRun(row.id);
-        await row.run?.(ctx());
+        if (alt && row.altRun) await row.altRun(ctx());
+        else await row.run?.(ctx());
     };
 
     const onKeyDown = (e: KeyboardEvent): void => {
@@ -95,7 +177,7 @@ const PaletteBody: Component = () => {
         } else if (e.key === "Enter") {
             e.preventDefault();
             const row = rows[active()];
-            if (row) void choose(row);
+            if (row) void choose(row, e.metaKey || e.ctrlKey);
         } else if (e.key === "Backspace" && !query() && stack().length) {
             e.preventDefault();
             setStack((s) => s.slice(0, -1));
@@ -112,20 +194,41 @@ const PaletteBody: Component = () => {
         });
     });
 
-    const rowButton = (row: Row, i: number): JSX.Element => (
-        <button
-            type="button"
-            data-row={i}
-            role="option"
-            aria-selected={i === active()}
-            class={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13.5px] ${
-                i === active() ? "bg-canvas" : "hover:bg-canvas/60"
-            } ${row.dangerous ? "text-accent" : "text-ink"}`}
-            onMouseMove={() => setActive(i)}
-            onClick={() => void choose(row)}
-        >
+    const cardRow = (row: Row): JSX.Element => (
+        <>
+            <span class="h-12.5 w-20 flex-none overflow-hidden rounded-md">{row.thumb?.()}</span>
+            <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span class="truncate font-medium">{row.title}</span>
+                <Show when={row.subtitle}>
+                    {(s) => <span class="truncate text-[11.5px] text-muted">{s()}</span>}
+                </Show>
+                <Show when={row.snippet}>
+                    {(s) => (
+                        <span class="truncate text-[11.5px] text-soft">
+                            <For each={snippetRuns(s())}>
+                                {(run) => (
+                                    <Show when={run.hit} fallback={run.text}>
+                                        <mark class="bg-accent/15 text-ink">{run.text}</mark>
+                                    </Show>
+                                )}
+                            </For>
+                        </span>
+                    )}
+                </Show>
+            </span>
+            <Show when={row.meta}>
+                {(m) => <span class="flex-none pt-0.5 text-[11px] text-muted">{m()}</span>}
+            </Show>
+        </>
+    );
+
+    const commandRow = (row: Row): JSX.Element => (
+        <>
             <Show when={row.icon}>{(name) => <Icon name={name()} size={15} />}</Show>
             <span class="min-w-0 flex-1 truncate">{row.title}</span>
+            <Show when={commandMode() && row.slash}>
+                {(alias) => <span class="font-mono text-[11px] text-muted">{alias()}</span>}
+            </Show>
             <Show when={row.provider}>
                 <Icon name="chevronRight" size={14} />
             </Show>
@@ -139,6 +242,24 @@ const PaletteBody: Component = () => {
             <Show when={!row.hintIcon && row.hint}>
                 {(h) => <span class="font-mono text-[11px] text-muted">{h()}</span>}
             </Show>
+        </>
+    );
+
+    const rowButton = (row: Row, i: number): JSX.Element => (
+        <button
+            type="button"
+            data-row={i}
+            role="option"
+            aria-selected={i === active()}
+            class={`flex w-full gap-2.5 rounded-lg px-2.5 text-left text-[13.5px] ${
+                row.thumb ? "items-start py-2" : "items-center py-2"
+            } ${i === active() ? "bg-canvas" : "hover:bg-canvas/60"} ${
+                row.dangerous ? "text-accent" : "text-ink"
+            }`}
+            onMouseMove={() => setActive(i)}
+            onClick={(e) => void choose(row, e.metaKey || e.ctrlKey)}
+        >
+            {row.thumb ? cardRow(row) : commandRow(row)}
         </button>
     );
 
@@ -166,7 +287,9 @@ const PaletteBody: Component = () => {
                     ref={inputEl}
                     class="w-full bg-transparent px-4 py-3.5 text-[15px] text-ink outline-none placeholder:text-muted"
                     placeholder={
-                        levelTitle() ? `Search ${levelTitle()}…` : "Type a command or search…"
+                        levelTitle()
+                            ? `Search ${levelTitle()}…`
+                            : "Jump to an artifact, or / for commands…"
                     }
                     value={query()}
                     spellcheck={false}
@@ -182,7 +305,7 @@ const PaletteBody: Component = () => {
                         when={display().length}
                         fallback={
                             <div class="px-3 py-6 text-center text-[13px] text-muted">
-                                No matching commands.
+                                Nothing matches “{term()}”.
                             </div>
                         }
                     >
@@ -201,6 +324,14 @@ const PaletteBody: Component = () => {
                             )}
                         </For>
                     </Show>
+                </div>
+                <div class="flex items-center gap-3 border-t border-line px-3.5 py-1.5 text-[10.5px] text-muted">
+                    <span>↑↓ navigate</span>
+                    <span>↵ open</span>
+                    <Show when={activeRow()?.altLabel}>{(label) => <span>⌘↵ {label()}</span>}</Show>
+                    <span class="ml-auto">
+                        Type <span class="font-mono">{COMMAND_PREFIX}</span> for commands
+                    </span>
                 </div>
             </div>
         </div>

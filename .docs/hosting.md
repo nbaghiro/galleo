@@ -132,7 +132,7 @@ services:
       branch: main
       autoDeploy: true
       buildCommand: pnpm install --frozen-lockfile && pnpm build
-      buildCommand: … && pnpm db:migrate # migrations run at the end of the build, before cutover
+      buildCommand: … && pnpm db:migrate && pnpm db:backfill-search # both run at the end of the build, before cutover
       startCommand: pnpm start # NODE_ENV=production tsx services/server.ts
       healthCheckPath: /health
       envVars:
@@ -153,6 +153,9 @@ services:
 - **Migrations on deploy:** the build command ends with `pnpm db:migrate` against `DATABASE_URL` before the new
   version takes traffic. Requires committed migrations (repo change) + `drizzle-kit`/`tsx` resolvable at
   deploy time (repo change).
+- **Data backfills on deploy:** `pnpm db:backfill-search` follows the migration, because a schema change that
+  adds a derived column leaves existing rows unindexed (their covers render empty and their body text is
+  unsearchable until it runs). It visits only unindexed rows, so it is a no-op on every later deploy.
 - **Zero-downtime:** Render health-checks `/health`, keeps the old instance until the new one is healthy.
 - **Rollback:** Render dashboard → Deploys → Rollback to the previous successful deploy (instant; re-run
   `db:migrate` only if the rollback crosses a schema change — prefer forward-only, additive migrations).
@@ -205,7 +208,8 @@ Ordered, because the Blueprint must exist in the repo before Render can read it:
    the service's `https://galleo.onrender.com`), `ANTHROPIC_API_KEY`, plus any optional media/mail keys.
    `SESSION_SECRET` is generated automatically.
 4. **First deploy runs**: `pnpm build` → `pnpm db:migrate` (applies `0000_*` to the empty Neon DB) →
-   `pnpm start` → health check `/health`. Watch the deploy log.
+   `pnpm db:backfill-search` (a no-op on an empty DB) → `pnpm start` → health check `/health`. Watch the
+   deploy log.
 5. **Seed (optional)** — to get the demo login in prod, run `pnpm seed` once from a Render **Shell** (or a
    one-off job) with prod `DATABASE_URL`. Skip if you want an empty prod DB.
 6. **Custom domain** — see below. After it resolves, update `APP_URL` → `https://galleo.app` and redeploy
@@ -269,8 +273,8 @@ first real bottleneck is media storage, not compute (below).
 
 ## Operational notes
 
-- **Deploy:** push to `main` → Render builds → `db:migrate` → health check → cutover. Watch the deploy log
-  in the Render dashboard.
+- **Deploy:** push to `main` → Render builds → `db:migrate` → `db:backfill-search` → health check → cutover.
+  Watch the deploy log in the Render dashboard.
 - **Logs / metrics:** Render dashboard per service (stdout + CPU/mem). The app obeys the repo's no-`console`
   rule, so app logging is intentionally quiet — add a structured logger when we need request traces.
 - **Secrets rotation:** rotate `SESSION_SECRET` invalidates all sessions (the token is `HMAC(userId)`);

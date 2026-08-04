@@ -18,14 +18,24 @@ export function fuzzyScore(query: string, text: string): number | null {
     return qi === q.length ? score : null;
 }
 
-export function rankItems<T>(query: string, items: T[], haystack: (item: T) => string): T[] {
+/** Matching items with their scores, best first. An empty query keeps the input order at score 0. */
+export function rankScored<T>(
+    query: string,
+    items: T[],
+    haystack: (item: T) => string,
+): { item: T; score: number }[] {
     const q = query.trim();
-    if (!q) return items;
+    if (!q) return items.map((item) => ({ item, score: 0 }));
     const scored: { item: T; score: number }[] = [];
     for (const item of items) {
         const s = fuzzyScore(q, haystack(item));
         if (s !== null) scored.push({ item, score: s });
     }
     scored.sort((a, b) => b.score - a.score);
-    return scored.map((r) => r.item);
+    return scored;
+}
+
+export function rankItems<T>(query: string, items: T[], haystack: (item: T) => string): T[] {
+    if (!query.trim()) return items;
+    return rankScored(query, items, haystack).map((r) => r.item);
 }

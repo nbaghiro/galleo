@@ -7,11 +7,19 @@ import {
     type Component,
     createEffect,
 } from "solid-js";
-import type { Section, ArtifactContent } from "@model/artifact";
+import type { Section, ArtifactContent, Cover } from "@model/artifact";
 import { resolveProfile } from "@engine/profile";
-import { resolveTheme } from "@themes";
-import { backdropCss, paintSectionStack } from "@canvas/render/backends";
+import { resolveTheme, type Tokens } from "@themes";
+import { appTheme } from "../stores/theme";
+import {
+    backdropCss,
+    createSectionStackCache,
+    paintSectionStack,
+    type StackWindow,
+} from "@canvas/render/backends";
+import { stackWindow, windowMoved } from "@canvas/render/window";
 import { SECTION_GAP } from "@canvas/render/commands";
+import { placeholderSection } from "@canvas/elements/blueprint";
 import { ScaledSectionCanvas } from "@ui/section";
 
 // abstract motion, styled in visuals.css; pass `viz` to pin one (else cycles)
@@ -160,6 +168,39 @@ export const Visual: Component<{ viz?: Viz }> = (props) => {
     );
 };
 
+// The library/palette artifact tile: the cover image when there is one, else a themed placeholder.
+// Deliberately not a real render — it stays cheap enough for a list of results.
+export const ArtifactThumb: Component<{ cover?: Cover; class?: string }> = (props) => {
+    const tk = (): Tokens => resolveTheme(appTheme()).tokens;
+    return (
+        <Show
+            when={props.cover?.image}
+            fallback={
+                <div
+                    class={`grid h-full w-full place-items-center ${props.class ?? ""}`}
+                    style={{ background: `linear-gradient(150deg, ${tk().surface}, ${tk().bg})` }}
+                >
+                    <span
+                        class="h-1/4 w-1/4 rounded-[25%]"
+                        style={{ background: tk().accent, opacity: "0.9" }}
+                    />
+                </div>
+            }
+        >
+            {(src) => (
+                <div
+                    class={`h-full w-full ${props.class ?? ""}`}
+                    style={{
+                        "background-image": `url(${src()})`,
+                        "background-size": "cover",
+                        "background-position": "center",
+                    }}
+                />
+            )}
+        </Show>
+    );
+};
+
 const DEFAULT_W = 176;
 
 export const MiniCanvas: Component<{
@@ -178,6 +219,36 @@ export const MiniCanvas: Component<{
         frame="slide"
         lazy={props.lazy}
         radius={0}
+        class={props.class}
+    />
+);
+
+// A section that doesn't exist yet, drawn by the engine from its blueprint: the real column split
+// and the real block shapes, at thumbnail scale. What the outline card shows for a planned beat, so
+// changing its layout or image flag is visible rather than described.
+export const BlueprintThumb: Component<{
+    id: string;
+    layout: string;
+    blocks: string[];
+    image: boolean;
+    themeId: string;
+    formatId: string;
+    width?: number;
+    class?: string;
+}> = (props) => (
+    <ScaledSectionCanvas
+        section={placeholderSection({
+            id: props.id,
+            layout: props.layout,
+            blocks: props.blocks,
+            image: props.image,
+        })}
+        theme={resolveTheme(props.themeId).tokens}
+        profile={resolveProfile(props.formatId)}
+        width={props.width ?? 148}
+        frame="slide"
+        skeleton
+        bordered
         class={props.class}
     />
 );
@@ -216,6 +287,9 @@ export const PreviewCanvas: Component<{ content: ArtifactContent; format: () => 
     props,
 ) => {
     let host!: HTMLDivElement;
+    let stage: HTMLDivElement | null = null;
+    const cache = createSectionStackCache();
+    let lastWindow: StackWindow | null = null;
 
     const render = (): void => {
         if (!host) return;
@@ -224,20 +298,35 @@ export const PreviewCanvas: Component<{ content: ArtifactContent; format: () => 
         const gap = profile.kind === "continuous" ? 0 : SECTION_GAP;
         const fullW = host.clientWidth || 1100;
         host.style.background = backdropCss(props.content.background, tk);
-        const stage = document.createElement("div");
+        if (!stage) {
+            stage = document.createElement("div");
+            host.replaceChildren(stage);
+        }
         stage.style.cssText = `position:relative;width:${fullW}px`;
+        const viewH = host.clientHeight || 800;
+        const win = stackWindow(host.scrollTop, viewH);
+        lastWindow = win;
         const { height } = paintSectionStack(stage, props.content.sections, profile, tk, {
             fullW,
             startY: PAD,
+            cache,
+            window: win,
         });
         stage.style.height = `${height - gap + PAD}px`;
-        host.replaceChildren(stage);
     };
 
     createEffect(() => {
         props.format();
+        void props.content; // track the artifact too: a different one starts a fresh stage
+        stage = null;
+        cache.entries.clear();
         render();
     });
 
-    return <div ref={host} class="h-full w-full overflow-y-auto" />;
+    const onScroll = (): void => {
+        const viewH = host?.clientHeight || 800;
+        if (windowMoved(lastWindow, stackWindow(host.scrollTop, viewH), viewH)) render();
+    };
+
+    return <div ref={host} class="h-full w-full overflow-y-auto" onScroll={onScroll} />;
 };

@@ -56,6 +56,7 @@ export const TextField: Component<
         type?: "text" | "password" | "email" | "search" | "url" | "number";
         compact?: boolean;
         icon?: string;
+        trailing?: JSX.Element; // inside the frame, after the input (key hint, unit, clear button)
         class?: string;
         onChange: (v: string) => void;
     }
@@ -65,12 +66,13 @@ export const TextField: Component<
         "type",
         "compact",
         "icon",
+        "trailing",
         "class",
         "onChange",
     ]);
     return (
         <Show
-            when={local.icon}
+            when={local.icon || local.trailing}
             fallback={
                 <input
                     {...rest}
@@ -84,7 +86,7 @@ export const TextField: Component<
             <div
                 class={`flex items-center gap-2 rounded-md border border-line bg-canvas px-2 ${local.compact ? "py-1" : "py-1.5"} text-ink focus-within:border-accent ${local.class ?? ""}`}
             >
-                <Icon name={local.icon!} size={14} />
+                <Show when={local.icon}>{(name) => <Icon name={name()} size={14} />}</Show>
                 <input
                     {...rest}
                     type={local.type ?? "text"}
@@ -92,6 +94,7 @@ export const TextField: Component<
                     value={local.value}
                     onInput={(e) => local.onChange(e.currentTarget.value)}
                 />
+                {local.trailing}
             </div>
         </Show>
     );

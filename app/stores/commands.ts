@@ -3,13 +3,7 @@ import { openGenerate } from "./generate";
 import { openThemeEditor } from "./theme";
 import { toggleChat } from "./chat";
 import { logout } from "./auth";
-
-// injected by App.tsx (useNavigate must run in a component)
-let nav: ((path: string) => void) | null = null;
-export function setNavigate(fn: (path: string) => void): void {
-    nav = fn;
-}
-const go = (path: string): void => nav?.(path);
+import { go } from "./navigate";
 
 registerCommands([
     {
@@ -48,6 +42,7 @@ registerCommands([
         group: "file",
         icon: "sparkle",
         keywords: ["create", "new", "generate"],
+        slash: "/generate",
         run: () => openGenerate(),
     },
     {
@@ -56,6 +51,7 @@ registerCommands([
         group: "theme",
         icon: "theme",
         keywords: ["appearance", "color"],
+        slash: "/theme",
         run: () => openThemeEditor(),
     },
     {
@@ -64,6 +60,7 @@ registerCommands([
         group: "ai",
         icon: "agent",
         keywords: ["assistant"],
+        slash: "/chat",
         run: () => toggleChat(),
     },
     {
@@ -72,6 +69,7 @@ registerCommands([
         group: "account",
         icon: "arrowUpRight",
         keywords: ["billing", "upgrade"],
+        slash: "/pricing",
         run: () => go("/pricing"),
     },
     {

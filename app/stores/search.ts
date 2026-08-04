@@ -1,0 +1,113 @@
+import type { SearchHit } from "@model/artifact";
+import { rankScored } from "@ui/fuzzy";
+import { api } from "../api";
+import { artifacts, artifactsLoaded, formatLabel, relativeTime } from "./library";
+
+// Data half of ⌘K search: an instant pass over the library the client already holds, the debounced
+// server call behind it (@ui/CommandPalette owns the debounce and the abort), and the small cache that
+// makes backspacing free. The rows themselves are assembled in components/palette-sources.tsx.
+
+export const SEARCH_LIMIT = 8; // artifact rows in the palette before "show all results"
+export const LIBRARY_LIMIT = 50; // the library grid shows the long tail, not a top-N
+const CACHE_TTL = 30_000; // ms; long enough to cover a typing session, short enough to stay honest
+const CACHE_MAX = 24;
+
+interface Entry {
+    at: number;
+    hits: SearchHit[];
+}
+const cache = new Map<string, Entry>();
+// the limit is part of the key: the palette's 9 rows can't answer the library's 50
+const key = (q: string, limit: number): string => `${limit}:${q.trim().toLowerCase()}`;
+
+export function cachedHits(q: string, limit: number, now = Date.now()): SearchHit[] | null {
+    const k = key(q, limit);
+    const entry = cache.get(k);
+    if (!entry) return null;
+    if (now - entry.at > CACHE_TTL) {
+        cache.delete(k);
+        return null;
+    }
+    return entry.hits;
+}
+
+export function putHits(q: string, limit: number, hits: SearchHit[], now = Date.now()): void {
+    cache.set(key(q, limit), { at: now, hits });
+    if (cache.size > CACHE_MAX) {
+        const oldest = cache.keys().next().value;
+        if (oldest !== undefined) cache.delete(oldest);
+    }
+}
+
+/** Dropped whenever the library changes under us, so a renamed or deleted artifact can't linger. */
+export function clearSearchCache(): void {
+    cache.clear();
+}
+
+export async function fetchHits(
+    q: string,
+    signal?: AbortSignal,
+    limit = SEARCH_LIMIT + 1, // one over the display cap, so "show all results" knows there is more
+): Promise<SearchHit[]> {
+    const cached = cachedHits(q, limit);
+    if (cached) return cached;
+    const { artifacts: hits } = await api.search(q, limit, signal);
+    putHits(q, limit, hits);
+    return hits;
+}
+
+/** A later page of results. Rank order is stable per query, so an offset is a real page boundary. */
+export async function fetchHitPage(
+    q: string,
+    offset: number,
+    limit = LIBRARY_LIMIT,
+    signal?: AbortSignal,
+): Promise<SearchHit[]> {
+    if (!offset) return fetchHits(q, signal, limit);
+    const { artifacts: hits } = await api.search(q, limit, signal, offset);
+    return hits;
+}
+
+/**
+ * Reconcile a server hit against the library the client holds: titles and covers come from the store
+ * so a rename is never stale, and an artifact that has since left the library (trashed, deleted) drops
+ * out. Hits are kept as-is until the store has loaded, so a cold ⌘K still shows results.
+ */
+export function reconcile(hits: SearchHit[]): SearchHit[] {
+    if (!artifactsLoaded()) return hits;
+    const live = new Map(artifacts().map((a) => [a.id, a]));
+    return hits.flatMap((hit) => {
+        const now = live.get(hit.id);
+        return now ? [{ ...hit, ...now }] : [];
+    });
+}
+
+const haystack = (a: SearchHit): string =>
+    `${a.title} ${a.cover?.title ?? ""} ${a.cover?.eyebrow ?? ""} ${a.cover?.sub ?? ""}`;
+
+/**
+ * Titles and covers only: everything the browser already has, so the first frame after a keystroke is
+ * never blank. Content matches arrive from the server a moment later and replace these.
+ */
+export function localHits(query: string, limit = SEARCH_LIMIT): SearchHit[] {
+    const list = artifacts();
+    if (!query.trim())
+        return [...list]
+            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+            .slice(0, limit)
+            .map((a) => ({ ...a, matchedIn: "title" as const }));
+    return rankScored(query, list, haystack)
+        .slice(0, limit)
+        .map(({ item }) => ({ ...item, matchedIn: "title" as const }));
+}
+
+export const hitSubtitle = (hit: SearchHit): string =>
+    [hit.author?.name, formatLabel(hit.formatId)].filter(Boolean).join(" · ");
+
+export const hitMeta = (hit: SearchHit): string => `Edited ${relativeTime(hit.updatedAt)}`;
+
+/** Fire-and-forget read clock; a failure here must never block opening an artifact. */
+export function recordVisit(id: string): void {
+    clearSearchCache(); // the recents order just changed
+    api.recordVisit(id).catch(() => {});
+}

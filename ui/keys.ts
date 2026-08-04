@@ -93,6 +93,18 @@ export interface Command {
     palette?: boolean; // show in ⌘K (default true; false = binding-only)
     provider?: (ctx: KeyCtx) => PaletteItem[] | Promise<PaletteItem[]>; // sub-list palette
     dangerous?: boolean;
+    slash?: string; // "/generate" — set only where the id derives a poor one (see `slashAlias`)
+}
+
+/**
+ * The `/name` a command answers to in the palette. Derived from the id's last segment so every command
+ * has one without a registration having to think about it; `slash` overrides where that reads badly
+ * ("share.open" would give "/open").
+ */
+export function slashAlias(cmd: Pick<Command, "id" | "slash">): string {
+    if (cmd.slash) return cmd.slash.startsWith("/") ? cmd.slash : `/${cmd.slash}`;
+    const tail = cmd.id.split(".").pop() ?? cmd.id;
+    return `/${tail.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase()}`;
 }
 
 export interface Binding {

@@ -6,13 +6,23 @@ import {
     integer,
     bigint,
     boolean,
+    customType,
+    index,
     jsonb,
     primaryKey,
     unique,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import type { ArtifactDigest } from "@model/artifact";
 import type { FeatureOverrides } from "@model/features";
+
+// Postgres FTS vector. Drizzle has no native type and the value is never written by hand — it is a
+// generated column derived from `title` + `search_text`, so the index can't drift from the row.
+const tsvector = customType<{ data: string; driverData: string }>({
+    dataType: () => "tsvector",
+});
 
 export const users = pgTable("users", {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -130,22 +140,56 @@ export const folders = pgTable("folders", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const artifacts = pgTable("artifacts", {
-    id: uuid("id").primaryKey().defaultRandom(),
-    workspaceId: uuid("workspace_id")
-        .notNull()
-        .references(() => workspaces.id),
-    folderId: uuid("folder_id").references(() => folders.id),
-    title: text("title").notNull().default("Untitled"),
-    formatId: text("format_id").notNull(),
-    themeId: text("theme_id").notNull(),
-    draftContent: jsonb("draft_content").notNull().default({}),
-    status: text("status").notNull().default("draft"),
-    trashedAt: timestamp("trashed_at"), // soft delete: null = live, set = in Trash
-    createdBy: uuid("created_by").references(() => users.id),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const artifacts = pgTable(
+    "artifacts",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        workspaceId: uuid("workspace_id")
+            .notNull()
+            .references(() => workspaces.id),
+        folderId: uuid("folder_id").references(() => folders.id),
+        title: text("title").notNull().default("Untitled"),
+        formatId: text("format_id").notNull(),
+        themeId: text("theme_id").notNull(),
+        draftContent: jsonb("draft_content").notNull().default({}),
+        status: text("status").notNull().default("draft"),
+        trashedAt: timestamp("trashed_at"), // soft delete: null = live, set = in Trash
+        createdBy: uuid("created_by").references(() => users.id),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+        updatedAt: timestamp("updated_at").notNull().defaultNow(),
+        // both derived from draft_content on every write (@model/digest), so listing and searching a
+        // library never have to read the content trees back
+        digest: jsonb("digest").$type<ArtifactDigest>(),
+        searchText: text("search_text"),
+        searchTsv: tsvector("search_tsv").generatedAlwaysAs(
+            sql`setweight(to_tsvector('english', coalesce(title, '')), 'A') || setweight(to_tsvector('english', coalesce(search_text, '')), 'B')`,
+        ),
+    },
+    (t) => [
+        index("artifacts_search_tsv_idx").using("gin", t.searchTsv),
+        index("artifacts_ws_updated_idx").on(t.workspaceId, t.updatedAt.desc()),
+    ],
+);
+
+// Per-user open log for the library + ⌘K "Recent" list. `updated_at` is an edit clock, not a read clock,
+// so recency has to be recorded separately; one row per (user, artifact), upserted on open.
+export const artifactVisits = pgTable(
+    "artifact_visits",
+    {
+        userId: uuid("user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        artifactId: uuid("artifact_id")
+            .notNull()
+            .references(() => artifacts.id, { onDelete: "cascade" }),
+        views: integer("views").notNull().default(1),
+        viewedAt: timestamp("viewed_at").notNull().defaultNow(),
+    },
+    (t) => [
+        primaryKey({ columns: [t.userId, t.artifactId] }),
+        index("artifact_visits_user_viewed_idx").on(t.userId, t.viewedAt.desc()),
+    ],
+);
 
 export const themes = pgTable("themes", {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -268,6 +312,7 @@ export const schema = {
     invites,
     folders,
     artifacts,
+    artifactVisits,
     themes,
     assets,
     shares,

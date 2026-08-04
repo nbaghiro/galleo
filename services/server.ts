@@ -4,6 +4,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { readSession, SESSION_COOKIE } from "./auth";
+import { out } from "./log";
 import { session } from "./api/session";
 import { oauth } from "./api/oauth";
 import { artifacts } from "./api/artifacts";
@@ -16,6 +17,7 @@ import { features } from "./api/features";
 import { media } from "./api/media";
 import { ai } from "./api/ai";
 import { links } from "./api/links";
+import { search } from "./api/search";
 
 // Fail fast rather than boot with a forgeable session key: without a real SESSION_SECRET, `makeSession`
 // signs with the public dev default and anyone can mint a valid cookie for any user.
@@ -43,6 +45,7 @@ for (const router of [
     media,
     ai,
     links,
+    search,
 ])
     app.route("/api", router);
 
@@ -70,4 +73,4 @@ if (process.env.NODE_ENV === "production") {
 // Render injects PORT; API_PORT is the local-dev override (8601 default).
 const port = Number(process.env.PORT ?? process.env.API_PORT ?? 8601);
 serve({ fetch: app.fetch, port });
-process.stdout.write(`Galleo listening on port ${port}\n`);
+out(`Galleo listening on port ${port}`);

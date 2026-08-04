@@ -27,5 +27,16 @@
             "@editor/*": ["editor/*"]
         }
     },
-    "include": ["model", "canvas", "ui", "editor", "services", "app", "publish", "website", "*.ts"]
+    "include": [
+        "model",
+        "canvas",
+        "ui",
+        "editor",
+        "services",
+        "app",
+        "publish",
+        "website",
+        "scripts",
+        "*.ts"
+    ]
 }

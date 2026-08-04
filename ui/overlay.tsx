@@ -157,14 +157,17 @@ export const Popover: Component<{
 };
 
 // Rendered inline (not portaled) so it inherits the theme from its DOM ancestor; pass `vars` to stamp a snapshot when mounted outside a themed tree.
-type ModalSize = "sm" | "md" | "lg" | "xl" | "full";
+type ModalSize = "sm" | "md" | "lg" | "xl" | "full" | "screen";
 const MODAL_W: Record<ModalSize, string> = {
     sm: "max-w-100",
     md: "max-w-130",
     lg: "max-w-180",
     xl: "max-w-240",
     full: "max-w-380",
+    screen: "max-w-none h-full",
 };
+// "screen" fills the viewport, so the inset padding, radius and border would only cut into it
+const SCREEN = "screen" as const;
 type Scrim = "dim" | "blur" | "light";
 const SCRIM: Record<Scrim, string> = {
     dim: "bg-black/50",
@@ -210,7 +213,8 @@ export const Modal: Component<{
     });
     return (
         <div
-            class="fixed inset-0 flex items-center justify-center p-4 text-ink"
+            class="fixed inset-0 flex items-center justify-center text-ink"
+            classList={{ "p-4": props.size !== SCREEN }}
             style={{ "z-index": props.z ?? Z.modal, ...(props.vars ?? {}) }}
         >
             <div
@@ -222,7 +226,10 @@ export const Modal: Component<{
                 role="dialog"
                 aria-modal="true"
                 tabindex="-1"
-                class={`relative w-full ${MODAL_W[props.size ?? "md"]} rounded-2xl border border-line outline-none ${SURFACE[props.surface ?? "panel"]} shadow-2xl ${props.class ?? ""}`}
+                class={`relative w-full outline-none ${MODAL_W[props.size ?? "md"]} ${SURFACE[props.surface ?? "panel"]} ${props.class ?? ""}`}
+                classList={{
+                    "rounded-2xl border border-line shadow-2xl": props.size !== SCREEN,
+                }}
             >
                 {props.children}
             </div>

@@ -1,8 +1,10 @@
 import "dotenv/config";
 import type { ArtifactContent } from "@model/artifact";
+import { artifactDigest, artifactSearchText } from "@model/digest";
 import { eq } from "drizzle-orm";
 import { db, schema } from "./schema";
 import { hashPassword } from "./auth";
+import { out as log, warn } from "./log";
 import { createWorkspaceForUser } from "./provision";
 import { TEMPLATES } from "./templates";
 import { aria } from "./demos/aria";
@@ -30,10 +32,6 @@ const DEMOS: Demo[] = [
 
 const DEMO_EMAIL = "demo@galleo.app";
 const DEMO_PASSWORD = "galleo-demo-2026";
-
-const log = (s: string): void => {
-    process.stdout.write(`${s}\n`);
-};
 
 type Doc = { title: string; artifact: ArtifactContent };
 const demo = (id: string): Doc => {
@@ -113,6 +111,8 @@ async function seed(): Promise<void> {
                 formatId: d.artifact.format,
                 themeId: d.artifact.theme,
                 draftContent: d.artifact,
+                digest: artifactDigest(d.artifact),
+                searchText: artifactSearchText(d.artifact),
                 folderId,
                 createdBy: user.id,
             });
@@ -218,6 +218,6 @@ async function seed(): Promise<void> {
 seed()
     .then(() => process.exit(0))
     .catch((e: unknown) => {
-        process.stderr.write(`${String(e)}\n`);
+        warn(String(e));
         process.exit(1);
     });

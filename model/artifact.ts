@@ -9,11 +9,6 @@ export interface ElementInstance {
     layout?: ElementLayout;
 }
 
-// legacy; retained only for @model/section's migration
-export interface Cell {
-    element?: ElementInstance;
-}
-
 export interface SectionBackground {
     kind: "none" | "color" | "gradient" | "image";
     color?: string;
@@ -54,6 +49,8 @@ export interface Cover {
 export interface SectionSummary {
     title?: string;
     kind: string;
+    id?: Id; // stable section id; absent on digests written before windowed loading
+    size?: number; // serialized bytes — what a not-yet-loaded section reserves space from
 }
 
 export interface ArtifactSummary {
@@ -70,6 +67,80 @@ export interface ArtifactSummary {
 
 export interface Artifact extends ArtifactSummary {
     draftContent: ArtifactContent;
+}
+
+// derived on every write and stored alongside the content, so listing a library never reads the trees
+export interface ArtifactDigest {
+    cover: Cover;
+    sections: SectionSummary[];
+}
+
+// a matched excerpt; `marks` are [start, end) offsets into `text` the client renders highlighted
+export interface SearchSnippet {
+    text: string;
+    marks: [number, number][];
+}
+
+// GET /search row: the library summary plus why it matched and who owns it
+export interface SearchHit extends ArtifactSummary {
+    author?: { name: string | null; avatarUrl: string | null } | null;
+    lastViewedAt?: string | null;
+    matchedIn?: "title" | "content";
+    snippet?: SearchSnippet | null;
+}
+
+export interface SearchResponse {
+    artifacts: SearchHit[];
+    took: number; // server-side query milliseconds, for the perf budget
+}
+
+// GET /artifacts — one keyset page; `nextCursor` null once the list is exhausted
+export interface ArtifactPage {
+    artifacts: ArtifactSummary[];
+    nextCursor: string | null;
+}
+
+// everything about an artifact except its sections — the part a windowed load always carries
+export interface ArtifactShell {
+    format: Id;
+    theme: Id;
+    background?: SectionBackground;
+}
+
+/**
+ * GET /artifacts/:id?window=from:count — the shell, the full section index (ids + sizes, from the
+ * stored digest), and only the requested slice of sections. `total <= count` means the client holds
+ * the whole artifact and behaves exactly as an unwindowed load.
+ */
+export interface ArtifactWindow {
+    id: string;
+    title: string;
+    themeId: string;
+    formatId: string;
+    updatedAt: string;
+    shell: ArtifactShell;
+    total: number;
+    index: SectionSummary[]; // one entry per section, in order
+    from: number;
+    sections: Section[];
+}
+
+/**
+ * PATCH /artifacts/:id/content — the edits a windowed client can express without holding the whole
+ * document. Applied in order, in one transaction; `set`/`remove` on an unknown id fails the request
+ * rather than silently diverging.
+ */
+export type SectionOp =
+    | { kind: "set"; section: Section }
+    | { kind: "insert"; section: Section; index: number }
+    | { kind: "remove"; id: Id }
+    | { kind: "order"; ids: Id[] }
+    | { kind: "shell"; shell: ArtifactShell };
+
+export interface ContentPatch {
+    ops: SectionOp[];
+    themeId?: string;
+    formatId?: string;
 }
 
 // create or patch — every field optional
