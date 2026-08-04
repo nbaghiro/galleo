@@ -35,6 +35,13 @@ export function paletteFor(t: Tokens): PreviewPalette {
     };
 }
 
+// flat-top hexagon path centred at (cx, cy)
+const hexPath = (cx: number, cy: number, w: number, h: number): string => {
+    const n = h * 0.34;
+    const [l, r, t, b] = [cx - w / 2, cx + w / 2, cy - h / 2, cy + h / 2];
+    return `M${l + n} ${t}L${r - n} ${t}L${r} ${cy}L${r - n} ${b}L${l + n} ${b}L${l} ${cy}Z`;
+};
+
 function elementPreviews(c: PreviewPalette): Record<string, string> {
     const { accent, ink, muted, surface, line, onaccent } = c;
     return {
@@ -137,14 +144,6 @@ function elementPreviews(c: PreviewPalette): Record<string, string> {
         <text x="14" y="42" font-family="ui-sans-serif, system-ui, sans-serif" font-size="30" font-weight="800" fill="${accent}">98%</text>
         <rect x="15" y="52" width="74" height="6" rx="3" fill="${muted}" opacity="0.7"/>`,
 
-        chart: `
-        <line x1="14" y1="58" x2="126" y2="58" stroke="${line}" stroke-width="1.5"/>
-        <rect x="20" y="40" width="14" height="18" rx="2.5" fill="${accent}" opacity="0.5"/>
-        <rect x="42" y="26" width="14" height="32" rx="2.5" fill="${accent}" opacity="0.72"/>
-        <rect x="64" y="34" width="14" height="24" rx="2.5" fill="${accent}" opacity="0.6"/>
-        <rect x="86" y="18" width="14" height="40" rx="2.5" fill="${accent}"/>
-        <rect x="108" y="30" width="14" height="28" rx="2.5" fill="${accent}" opacity="0.82"/>`,
-
         table: `
         <rect x="14" y="16" width="112" height="44" rx="7" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
         <path d="M14 31 H126 M14 45.5 H126 M51 16 V60 M89 16 V60" stroke="${line}" stroke-width="1.1"/>
@@ -157,13 +156,6 @@ function elementPreviews(c: PreviewPalette): Record<string, string> {
         <rect x="22" y="50" width="20" height="4.5" rx="2" fill="${muted}" opacity="0.4"/>
         <rect x="60" y="50" width="20" height="4.5" rx="2" fill="${muted}" opacity="0.4"/>
         <rect x="98" y="50" width="16" height="4.5" rx="2" fill="${muted}" opacity="0.4"/>`,
-
-        diagram: `
-        <rect x="14" y="26" width="30" height="20" rx="5" fill="${accent}" fill-opacity="0.12" stroke="${accent}" stroke-width="1.5"/>
-        <rect x="55" y="26" width="30" height="20" rx="5" fill="${accent}" fill-opacity="0.12" stroke="${accent}" stroke-width="1.5"/>
-        <rect x="96" y="26" width="30" height="20" rx="5" fill="${accent}" fill-opacity="0.12" stroke="${accent}" stroke-width="1.5"/>
-        <path d="M44 36 H55 M85 36 H96" stroke="${accent}" stroke-width="1.5"/>
-        <path d="M52 33 L55 36 L52 39 M93 33 L96 36 L93 39" stroke="${accent}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
 
         barChart: `
         <line x1="14" y1="58" x2="126" y2="58" stroke="${line}" stroke-width="1.5"/>
@@ -256,9 +248,15 @@ function elementPreviews(c: PreviewPalette): Record<string, string> {
         <rect x="106" y="40" width="16" height="16" rx="2" fill="${accent}" fill-opacity="0.28"/>`,
 
         processDiagram: `
-        <rect x="14" y="26" width="30" height="20" rx="5" fill="${accent}" fill-opacity="0.12" stroke="${accent}" stroke-width="1.5"/>
-        <rect x="55" y="26" width="30" height="20" rx="5" fill="${accent}" fill-opacity="0.12" stroke="${accent}" stroke-width="1.5"/>
-        <rect x="96" y="26" width="30" height="20" rx="5" fill="${accent}" fill-opacity="0.12" stroke="${accent}" stroke-width="1.5"/>
+        <rect x="14" y="24" width="30" height="24" rx="5" fill="${accent}" fill-opacity="0.12" stroke="${accent}" stroke-width="1.5"/>
+        <rect x="55" y="24" width="30" height="24" rx="5" fill="${accent}" fill-opacity="0.12" stroke="${accent}" stroke-width="1.5"/>
+        <rect x="96" y="24" width="30" height="24" rx="5" fill="${accent}" fill-opacity="0.12" stroke="${accent}" stroke-width="1.5"/>
+        <circle cx="23" cy="36" r="5" fill="${accent}"/>
+        <circle cx="64" cy="36" r="5" fill="${accent}"/>
+        <circle cx="105" cy="36" r="5" fill="${accent}"/>
+        <rect x="31" y="33.5" width="9" height="5" rx="2.5" fill="${accent}" fill-opacity="0.55"/>
+        <rect x="72" y="33.5" width="9" height="5" rx="2.5" fill="${accent}" fill-opacity="0.55"/>
+        <rect x="113" y="33.5" width="9" height="5" rx="2.5" fill="${accent}" fill-opacity="0.55"/>
         <path d="M44 36 H55 M85 36 H96" stroke="${accent}" stroke-width="1.5"/>
         <path d="M52 33 L55 36 L52 39 M93 33 L96 36 L93 39" stroke="${accent}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
 
@@ -332,11 +330,47 @@ function elementPreviews(c: PreviewPalette): Record<string, string> {
         <rect x="8" y="45" width="20" height="11" rx="5.5" fill="${accent}" fill-opacity="0.55" stroke="${accent}" stroke-width="1.2"/>`,
 
         flowDiagram: `
-        <rect x="16" y="28" width="30" height="16" rx="4" fill="${accent}" fill-opacity="0.14" stroke="${accent}" stroke-width="1.4"/>
+        <rect x="16" y="28" width="30" height="16" rx="8" fill="${accent}"/>
         <path d="M70 20 L88 36 L70 52 L52 36 Z" fill="${accent}" fill-opacity="0.14" stroke="${accent}" stroke-width="1.4"/>
-        <rect x="98" y="28" width="28" height="16" rx="4" fill="${accent}" fill-opacity="0.14" stroke="${accent}" stroke-width="1.4"/>
+        <rect x="98" y="28" width="28" height="16" rx="8" fill="${accent}" fill-opacity="0.55"/>
         <path d="M46 36 H52 M88 36 H98" stroke="${accent}" stroke-width="1.4"/>
         <path d="M49 33 L52 36 L49 39 M95 33 L98 36 L95 39" stroke="${accent}" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+
+        stepsDiagram: `
+        <rect x="14" y="46" width="26" height="16" rx="3" fill="${accent}" fill-opacity="0.32"/>
+        <rect x="44" y="34" width="26" height="28" rx="3" fill="${accent}" fill-opacity="0.52"/>
+        <rect x="74" y="22" width="26" height="40" rx="3" fill="${accent}" fill-opacity="0.74"/>
+        <rect x="104" y="10" width="26" height="52" rx="3" fill="${accent}"/>`,
+
+        roadmapDiagram: `
+        <path d="M46 8 V64 M82 8 V64 M118 8 V64" stroke="${line}" stroke-width="1"/>
+        <rect x="12" y="16" width="58" height="12" rx="6" fill="${accent}"/>
+        <rect x="48" y="32" width="62" height="12" rx="6" fill="${accent}" fill-opacity="0.68"/>
+        <rect x="84" y="48" width="44" height="12" rx="6" fill="${accent}" fill-opacity="0.44"/>`,
+
+        hubDiagram: `
+        <path d="M70 36 L70 15 M70 36 L106 24 M70 36 L106 50 M70 36 L34 50 M70 36 L34 24" stroke="${accent}" stroke-width="1.3" opacity="0.45"/>
+        <circle cx="70" cy="14" r="7" fill="${accent}" fill-opacity="0.5"/>
+        <circle cx="108" cy="23" r="7" fill="${accent}" fill-opacity="0.5"/>
+        <circle cx="108" cy="51" r="7" fill="${accent}" fill-opacity="0.5"/>
+        <circle cx="32" cy="51" r="7" fill="${accent}" fill-opacity="0.5"/>
+        <circle cx="32" cy="23" r="7" fill="${accent}" fill-opacity="0.5"/>
+        <rect x="51" y="27" width="38" height="18" rx="9" fill="${accent}"/>`,
+
+        targetDiagram: `
+        <circle cx="52" cy="36" r="26" fill="${accent}" fill-opacity="0.2"/>
+        <circle cx="52" cy="36" r="17" fill="${accent}" fill-opacity="0.45"/>
+        <circle cx="52" cy="36" r="8" fill="${accent}"/>
+        <rect x="88" y="16" width="38" height="5" rx="2.5" fill="${muted}" opacity="0.6"/>
+        <rect x="88" y="33" width="38" height="5" rx="2.5" fill="${muted}" opacity="0.5"/>
+        <rect x="88" y="50" width="28" height="5" rx="2.5" fill="${muted}" opacity="0.4"/>`,
+
+        honeycombDiagram: `
+        <path d="${hexPath(52, 22, 32, 26)}" fill="${accent}" fill-opacity="0.75"/>
+        <path d="${hexPath(88, 22, 32, 26)}" fill="${accent}" fill-opacity="0.5"/>
+        <path d="${hexPath(34, 50, 32, 26)}" fill="${accent}" fill-opacity="0.35"/>
+        <path d="${hexPath(70, 50, 32, 26)}" fill="${accent}"/>
+        <path d="${hexPath(106, 50, 32, 26)}" fill="${accent}" fill-opacity="0.55"/>`,
 
         button: `
         <rect x="30" y="25" width="80" height="22" rx="11" fill="${accent}"/>

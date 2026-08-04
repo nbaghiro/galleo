@@ -8,8 +8,8 @@ import { getElement } from "@elements/spec";
 import { canvasDrawContext } from "@canvas/render/backends";
 import { renderChart } from "@elements/chart/render";
 import { renderDiagram } from "@elements/diagram/render";
-import type { ChartData } from "@elements/chart/utils";
-import type { DiagramData } from "@elements/diagram/utils";
+import { toChartData } from "@elements/chart/utils";
+import { toDiagramData } from "@elements/diagram/utils";
 import { commit, editor, editorTokens } from "../core/store";
 import { Badge, Button, IconButton } from "@ui/button";
 import { CellInput } from "@ui/inputs";
@@ -22,12 +22,14 @@ import {
     invalidNumber,
     itemLimit,
     limitNote,
+    usesItemValue,
     DATA_KEYS,
     type DataModel,
     type GraphModel,
     type HierModel,
     type Kind,
     type KvModel,
+    type ListModel,
     type MatrixModel,
     type PointsModel,
     type ScalarModel,
@@ -58,10 +60,9 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
     const [model, setModel] = createStore<DataModel>(parseModel(kind, shape, data0));
 
     const limit = itemLimit(kind, type);
+    const valued = usesItemValue(kind, type);
     const overLimit = (): boolean =>
-        limit !== undefined &&
-        shape === "list" &&
-        (model as { items: string[] }).items.length >= limit;
+        limit !== undefined && shape === "list" && (model as ListModel).items.length >= limit;
 
     const currentData = (): Record<string, unknown> =>
         (getElementAt(editor.artifact, addr)?.data ?? {}) as Record<string, unknown>;
@@ -404,13 +405,17 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
             );
         }
         if (shape === "list") {
-            const m = model as { items: string[] };
+            const m = model as ListModel;
             return (
                 <table class="w-full border-collapse">
                     <thead>
                         <tr>
                             <th class={`${TH} w-8 text-center`}>#</th>
-                            <th class={`${TH} w-full`}>Item</th>
+                            <th class={`${TH} w-2/5`}>Item</th>
+                            <th class={`${TH} w-full`}>Detail</th>
+                            <Show when={valued}>
+                                <th class={`${TH} w-20`}>Value</th>
+                            </Show>
                             <th class={TH} />
                         </tr>
                     </thead>
@@ -423,20 +428,43 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                     </td>
                                     <td class={CELL}>
                                         <CellInput
-                                            value={it()}
+                                            value={it().label}
                                             onChange={(v) =>
                                                 edit((d) => {
-                                                    (d as { items: string[] }).items[i] = v;
+                                                    (d as ListModel).items[i]!.label = v;
                                                 }, `item${i}`)
                                             }
                                         />
                                     </td>
+                                    <td class={CELL}>
+                                        <CellInput
+                                            value={it().body}
+                                            onChange={(v) =>
+                                                edit((d) => {
+                                                    (d as ListModel).items[i]!.body = v;
+                                                }, `body${i}`)
+                                            }
+                                        />
+                                    </td>
+                                    <Show when={valued}>
+                                        <td class={CELL}>
+                                            <CellInput
+                                                class={numRing(it().value)}
+                                                value={it().value}
+                                                onChange={(v) =>
+                                                    edit((d) => {
+                                                        (d as ListModel).items[i]!.value = v;
+                                                    }, `value${i}`)
+                                                }
+                                            />
+                                        </td>
+                                    </Show>
                                     <td class="border-b border-line/50 text-center">
                                         <button
                                             class={DEL}
                                             onClick={() =>
                                                 edit((d) => {
-                                                    (d as { items: string[] }).items.splice(i, 1);
+                                                    (d as ListModel).items.splice(i, 1);
                                                 }, "struct")
                                             }
                                         >
@@ -678,8 +706,9 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                 m.rows.push("New");
                 m.cells.push(m.cols.map(() => "0"));
             } else if (shape === "list") {
-                const items = (d as { items: string[] }).items;
-                if (limit === undefined || items.length < limit) items.push("New");
+                const items = (d as ListModel).items;
+                if (limit === undefined || items.length < limit)
+                    items.push({ label: "New", body: "", value: "" });
             } else if (shape === "hierarchy") {
                 const m = d as HierModel;
                 m.nodes.push({ label: "New", parent: m.nodes[0]?.label ?? "" });
@@ -788,9 +817,8 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
         const d = currentData();
         const box = { x: 0, y: 0, w: W, h: H };
         try {
-            if (kind === "chart")
-                renderChart(canvasDrawContext(cx), box, d as unknown as ChartData, tk);
-            else renderDiagram(canvasDrawContext(cx), box, d as unknown as DiagramData, tk);
+            if (kind === "chart") renderChart(canvasDrawContext(cx), box, toChartData(d), tk);
+            else renderDiagram(canvasDrawContext(cx), box, toDiagramData(d), tk);
         } catch {
             /* malformed intermediate value — skip this frame */
         }

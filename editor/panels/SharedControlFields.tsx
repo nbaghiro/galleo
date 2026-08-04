@@ -188,7 +188,8 @@ export const IconField: Component<{
 };
 
 // Stores the theme-role name (not a hex) so the icon re-tints when the theme changes.
-const ICON_ROLES: { role: string; label: string }[] = [
+type IconRole = "accent" | "ink" | "soft" | "muted";
+const ICON_ROLES: { role: IconRole; label: string }[] = [
     { role: "accent", label: "Accent" },
     { role: "ink", label: "Ink" },
     { role: "soft", label: "Soft" },
@@ -197,8 +198,7 @@ const ICON_ROLES: { role: string; label: string }[] = [
 export const IconColorField: Component<{ value?: string; onChange: (v: string) => void }> = (
     props,
 ) => {
-    const tok = (r: string): string =>
-        (editorTokens() as unknown as Record<string, string>)[r] ?? "#888888";
+    const tok = (r: IconRole): string => editorTokens()[r];
     const active = (): string => props.value ?? "accent";
     const isHex = (): boolean => active().startsWith("#");
     return (

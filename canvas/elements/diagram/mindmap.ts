@@ -3,28 +3,31 @@ import {
     boxWidth,
     buildTree,
     drawNode,
+    fitNodeHeight,
+    itemOf,
+    labelsOf,
     layoutTree,
+    maxLabelHeight,
+    nodeText,
     registerDiagram,
+    treeLeaves,
     type DiagramCtx,
     type ResolvedDiagram,
     type TreeDatum,
 } from "./utils";
 
+const PAD = 7;
+
 function renderMindmap(diagram: ResolvedDiagram, ctx: DiagramCtx): void {
     const { g, W, H, theme } = ctx;
-    if (diagram.nodes.length === 0) return;
+    if (diagram.items.length === 0) return;
     const data = buildTree(diagram);
     if (!data) return;
 
-    const nodeH = 32;
-    const nodeW = boxWidth(
-        g,
-        theme,
-        diagram.nodes.map((n) => n.label),
-        104,
-        84,
-        138,
-    );
+    const nodeW = boxWidth(g, theme, labelsOf(diagram.items), 104, 84, 138);
+    // runs left→right, so rows stack across the leaves, not the depth
+    const needed = maxLabelHeight(g, diagram.items, nodeW - PAD * 2, nodeText(theme)) + 16;
+    const nodeH = fitNodeHeight(needed, 32, H - 24, treeLeaves(data), 12);
     const { root, placed } = layoutTree(data, W, H, nodeW, nodeH, true);
     const pos = new Map(placed.map((p) => [p.node, p] as const));
 
@@ -55,12 +58,19 @@ function renderMindmap(diagram: ResolvedDiagram, ctx: DiagramCtx): void {
 
     for (const p of placed) {
         const isRoot = p.node.depth === 0;
-        drawNode(g, p.cx - nodeW / 2, p.cy - nodeH / 2, nodeW, nodeH, p.node.data.label, theme, {
-            radius: 16,
-            fill: isRoot ? theme.accent : theme.surface,
-            stroke: isRoot ? theme.accent : branchColor(p.node),
-            ink: isRoot ? theme.onAccent : theme.ink,
-        });
+        drawNode(
+            g,
+            { x: p.cx - nodeW / 2, y: p.cy - nodeH / 2, w: nodeW, h: nodeH },
+            itemOf(p.node.data),
+            theme,
+            {
+                radius: 16,
+                pad: PAD,
+                fill: isRoot ? theme.accent : theme.surface,
+                stroke: isRoot ? theme.accent : branchColor(p.node),
+                ink: isRoot ? theme.onAccent : theme.ink,
+            },
+        );
     }
 }
 

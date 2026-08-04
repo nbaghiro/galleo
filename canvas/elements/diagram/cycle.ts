@@ -1,5 +1,5 @@
 import { hexA } from "@themes";
-import { arrowPath, drawNode, registerDiagram, type Renderer } from "./utils";
+import { drawLink, drawNode, registerDiagram, type Renderer } from "./utils";
 
 const cycle: Renderer = (diagram, ctx) => {
     const { g, W, H, theme } = ctx;
@@ -20,11 +20,11 @@ const cycle: Renderer = (diagram, ctx) => {
         const end = -Math.PI / 2 + (i + 1) * gapA - gapA * 0.28;
         const pts: [number, number][] = [];
         for (let s = 0; s <= 8; s++) pts.push(at(start + ((end - start) * s) / 8));
-        arrowPath(g, pts, theme.muted);
+        drawLink(g, pts, theme, { color: theme.muted, width: 2 });
     }
-    items.forEach((label, i) => {
+    items.forEach((item, i) => {
         const [x, y] = at(-Math.PI / 2 + i * gapA);
-        drawNode(g, x - nodeW / 2, y - nodeH / 2, nodeW, nodeH, label, theme, {
+        drawNode(g, { x: x - nodeW / 2, y: y - nodeH / 2, w: nodeW, h: nodeH }, item, theme, {
             fill: hexA(cols[i]!, 0.14),
             stroke: cols[i]!,
         });

@@ -226,7 +226,7 @@ const VARIANTS: {
 
 VARIANTS.forEach((v) => register(chartSpec(v.key, v.label, v.type, v.preset)));
 
-// back-compat: existing { type: "chart" } artifacts keep rendering; hidden from the palette
+// the stored element: templates + AI write this, with data.type picking the renderer
 register(
     chartSpec("chart", "Chart", "bar", { values: "48, 62, 55, 71", categories: "Q1, Q2, Q3, Q4" }),
 );

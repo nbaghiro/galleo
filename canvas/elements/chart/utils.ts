@@ -4,12 +4,13 @@ import { fontStack, hexA, hexToRgb, luminance, mix } from "@themes";
 import { scaleBand, scaleLinear, scalePoint } from "d3-scale";
 import { curveCatmullRom, curveLinear } from "d3-shape";
 import type { CurveFactory } from "d3-shape";
+import { bool, num, oneOf, str } from "@elements/coerce";
 
-export type PaletteMode = "ramp" | "categorical";
+export const PALETTE_MODES = ["ramp", "categorical"] as const;
+export type PaletteMode = (typeof PALETTE_MODES)[number];
 
 export interface ChartData {
     type?: string;
-    kind?: string; // legacy discriminant, folded into `type` on normalize
     values: string; // series by newline, points by comma
     categories?: string; // comma-separated
     seriesNames?: string; // comma-separated
@@ -79,7 +80,7 @@ function splitList(s: string | undefined): string[] {
         .filter(Boolean);
 }
 
-// a single-line `values` (legacy shape) parses to one series
+// a single-line `values` parses to one series
 function parseSeries(values: string, names: string[]): Series[] {
     return (values ?? "")
         .split("\n")
@@ -93,10 +94,23 @@ function parseSeries(values: string, names: string[]): Series[] {
         .map((points, i) => ({ name: names[i] ?? `Series ${i + 1}`, points }));
 }
 
-const LEGACY_KIND: Record<string, string> = { bar: "bar", line: "line", pie: "pie" };
+export function toChartData(d: Record<string, unknown>): ChartData {
+    return {
+        type: str(d.type),
+        values: str(d.values) ?? "",
+        categories: str(d.categories),
+        seriesNames: str(d.seriesNames),
+        palette: oneOf(d.palette, PALETTE_MODES),
+        stacked: bool(d.stacked),
+        smooth: bool(d.smooth),
+        showValues: bool(d.showValues),
+        showGrid: bool(d.showGrid),
+        height: num(d.height),
+    };
+}
 
 export function normalize(d: ChartData): ResolvedChart {
-    const type = d.type ?? (d.kind ? (LEGACY_KIND[d.kind] ?? d.kind) : "bar");
+    const type = d.type ?? "bar";
     const palette: PaletteMode = d.palette === "categorical" ? "categorical" : "ramp";
     return {
         type,

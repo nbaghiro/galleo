@@ -4,15 +4,46 @@ import {
     boxWidth,
     buildTree,
     clamp,
+    diagramColors,
+    formatItems,
     getDiagram,
+    inkOn,
+    labelsOf,
     layoutTree,
     normalizeDiagram,
 } from "@elements/diagram/utils";
+import { num, str } from "@elements/coerce";
+import { DIAGRAM_TYPES } from "@model/elements";
+import "@elements/register";
+import { contrastRatio } from "@themes";
 import { recordingDrawContext, tokens } from "@canvas/testkit";
 
+// DrawCall fields are `unknown` (any op, any shape), so a recorded text style narrows before use.
+const fontSize = (style: unknown): number =>
+    style !== null && typeof style === "object" && "size" in style ? (num(style.size) ?? 13) : 13;
+
 describe("normalizeDiagram", () => {
-    it("splits items on comma or newline", () => {
-        expect(normalizeDiagram({ items: "A, B\nC" }).items).toEqual(["A", "B", "C"]);
+    it("splits a plain list on commas", () => {
+        expect(labelsOf(normalizeDiagram({ items: "A, B, C" }).items)).toEqual(["A", "B", "C"]);
+    });
+    it("splits on newlines when present, so a detail may contain commas", () => {
+        const items = normalizeDiagram({ items: "A | one, two\nB" }).items;
+        expect(labelsOf(items)).toEqual(["A", "B"]);
+        expect(items[0]!.body).toBe("one, two");
+    });
+    it("reads 'label | detail | value' segments, leaving absent ones undefined", () => {
+        const [full, bare] = normalizeDiagram({ items: "Leads | from ads | 42\nPlain" }).items;
+        expect(full).toEqual({ label: "Leads", body: "from ads", value: 42 });
+        expect(bare).toEqual({ label: "Plain", body: undefined, value: undefined });
+    });
+    it("ignores a non-numeric value segment", () => {
+        expect(normalizeDiagram({ items: "A | b | soon" }).items[0]!.value).toBeUndefined();
+    });
+    it("parses axis captions", () => {
+        expect(normalizeDiagram({ items: "A", axes: "lo, hi" }).axes).toEqual(["lo", "hi"]);
+    });
+    it("defaults the presentation options", () => {
+        expect(normalizeDiagram({ items: "A" }).options).toEqual({ flow: "down" });
     });
     it("parses edges 'From->To:label', dropping malformed entries", () => {
         const d = normalizeDiagram({ items: "A,B", links: "A->B:yes, broken, C>D" });
@@ -21,9 +52,8 @@ describe("normalizeDiagram", () => {
             { from: "C", to: "D", label: undefined },
         ]);
     });
-    it("resolves the type: type → legacy → default process", () => {
+    it("resolves the type, defaulting to process", () => {
         expect(normalizeDiagram({ items: "A", type: "tree" }).type).toBe("tree");
-        expect(normalizeDiagram({ items: "A", kind: "funnel" }).type).toBe("funnel");
         expect(normalizeDiagram({ items: "A" }).type).toBe("process");
     });
 });
@@ -82,12 +112,44 @@ describe("clamp", () => {
     });
 });
 
+describe("formatItems", () => {
+    it("round-trips through the parser", () => {
+        const src = "Leads | from ads | 42\nPlain";
+        expect(formatItems(normalizeDiagram({ items: src }).items)).toBe(src);
+    });
+    it("keeps a plain list comma-joined, and drops empty trailing segments", () => {
+        expect(formatItems(normalizeDiagram({ items: "A, B" }).items)).toBe("A, B");
+    });
+    it("switches to newlines once any entry carries a detail", () => {
+        expect(formatItems([{ label: "A", body: "x" }, { label: "B" }])).toBe("A | x\nB");
+    });
+});
+
+describe("diagramColors", () => {
+    it("returns opaque hex for both palettes, so fills can be measured and blended", () => {
+        for (const mode of ["ramp", "categorical"] as const)
+            for (const c of diagramColors(tokens, 5, mode)) expect(c).toMatch(/^#[0-9a-f]{6}$/i);
+    });
+});
+
+describe("inkOn", () => {
+    it("picks a label color that clears AA against the fill it sits on", () => {
+        for (const bg of ["#ffffff", "#101010", tokens.accent, "#7f7f7f"])
+            expect(contrastRatio(inkOn(bg, tokens), bg)).toBeGreaterThanOrEqual(4.5);
+    });
+});
+
 describe("registry", () => {
     it("registers every diagram type", () => {
         const ids = diagramTypeOptions().map((o) => o.value);
         expect(ids).toContain("process");
         expect(ids).toContain("flow");
         expect(getDiagram("tree")?.id).toBe("tree");
+    });
+    // drift guard: the model value-set and the canvas registry must name the same types
+    it("matches the DIAGRAM_TYPES value-set exactly", () => {
+        const ids = diagramTypeOptions().map((o) => o.value);
+        expect([...ids].sort()).toEqual([...DIAGRAM_TYPES].sort());
     });
 });
 
@@ -97,6 +159,11 @@ describe("renderDiagram", () => {
         items: "Step one, Step two, Step three",
         links: "Step one->Step two, Step two->Step three",
     };
+    const rich = {
+        items: "Step one | first detail | 12\nStep two | second detail | 8\nStep three | third | 4",
+        links: "Step one->Step two:yes, Step two->Step three",
+        axes: "low, high, near, far",
+    };
 
     for (const { value: id } of diagramTypeOptions()) {
         it(`${id} produces draw calls for valid data`, () => {
@@ -104,7 +171,128 @@ describe("renderDiagram", () => {
             renderDiagram(ctx, box, { ...data, type: id }, tokens);
             expect(calls.length).toBeGreaterThan(0);
         });
+
+        it(`${id} survives a single item in a cramped box`, () => {
+            const { ctx } = recordingDrawContext();
+            expect(() =>
+                renderDiagram(
+                    ctx,
+                    { x: 0, y: 0, w: 60, h: 40 },
+                    { items: "Only", type: id },
+                    tokens,
+                ),
+            ).not.toThrow();
+        });
     }
+
+    // a surface clips to its own <svg>, so anything outside is silently lost
+    describe("stays inside the surface box", () => {
+        const crowded = Array.from(
+            { length: 10 },
+            (_, i) => `Item ${i + 1} | detail ${i + 1}`,
+        ).join("\n");
+        const boxes = [
+            { x: 0, y: 0, w: 420, h: 280 },
+            { x: 0, y: 0, w: 260, h: 220 }, // a narrow column, where crowding bites first
+            { x: 0, y: 0, w: 900, h: 300 },
+        ];
+        const SLACK = 4; // strokes and shadows may bleed a hair
+
+        for (const { value: id } of diagramTypeOptions()) {
+            it(id, () => {
+                for (const b of boxes) {
+                    for (const items of [rich.items, crowded]) {
+                        const { ctx, calls } = recordingDrawContext();
+                        renderDiagram(ctx, b, { ...rich, items, type: id }, tokens);
+                        const within = (x: number, y: number, what: string): void => {
+                            const where = `${id} ${b.w}x${b.h} ${what}`;
+                            expect(x, where).toBeGreaterThanOrEqual(-SLACK);
+                            expect(x, where).toBeLessThanOrEqual(b.w + SLACK);
+                            expect(y, where).toBeGreaterThanOrEqual(-SLACK);
+                            expect(y, where).toBeLessThanOrEqual(b.h + SLACK);
+                        };
+                        for (const c of calls) {
+                            if (c.op === "text" || c.op === "moveTo" || c.op === "lineTo")
+                                within(c.x as number, c.y as number, String(c.op));
+                            if (c.op === "rect") {
+                                within(c.x as number, c.y as number, "rect origin");
+                                within(
+                                    (c.x as number) + (c.w as number),
+                                    (c.y as number) + (c.h as number),
+                                    "rect corner",
+                                );
+                            }
+                            if (c.op === "circle") {
+                                const [cx, cy, r] = [c.cx, c.cy, c.r] as number[];
+                                within(cx! - r!, cy! - r!, "circle");
+                                within(cx! + r!, cy! + r!, "circle");
+                            }
+                            for (const [px, py] of (c.points ?? []) as [number, number][])
+                                within(px, py, "polyline");
+                        }
+                    }
+                }
+            });
+        }
+    });
+
+    // inside the surface isn't enough — a label must stay inside its own node box
+    describe("keeps each label inside its own node box", () => {
+        const longDetails = [
+            "01 Site Prep & Species | Deep soil analysis and native selection",
+            "02 Structural Planting | High-density grids with engineered soils",
+            "03 Canopy Stewardship | Two-year community irrigation contracts",
+        ].join("\n");
+        const links =
+            "01 Site Prep & Species>02 Structural Planting, 01 Site Prep & Species>03 Canopy Stewardship";
+
+        for (const id of ["org", "tree", "mindmap"]) {
+            it(id, () => {
+                const b = { x: 0, y: 0, w: 690, h: 450 };
+                const { ctx, calls } = recordingDrawContext();
+                renderDiagram(ctx, b, { type: id, items: longDetails, links }, tokens);
+                const rects = calls
+                    .filter((c) => c.op === "rect")
+                    .map((c) => ({
+                        x: num(c.x) ?? 0,
+                        y: num(c.y) ?? 0,
+                        w: num(c.w) ?? 0,
+                        h: num(c.h) ?? 0,
+                    }));
+                const texts = calls
+                    .filter((c) => c.op === "text")
+                    .map((c) => ({
+                        text: str(c.text) ?? "",
+                        x: num(c.x) ?? 0,
+                        y: num(c.y) ?? 0,
+                        size: fontSize(c.style),
+                    }));
+                expect(texts.length).toBeGreaterThan(0);
+                let checked = 0;
+                for (const t of texts) {
+                    // slack on purpose: matching only labels already inside would skip the overflow
+                    const mid = (r: { y: number; h: number }): number =>
+                        Math.abs(t.y - (r.y + r.h / 2));
+                    const own = rects
+                        .filter((r) => t.x >= r.x && t.x <= r.x + r.w && mid(r) < r.h / 2 + 40)
+                        .sort((a, b) => mid(a) - mid(b))[0];
+                    if (!own) continue;
+                    checked++;
+                    const half = (t.size * 1.25) / 2;
+                    expect(t.y - half, `${id}: "${t.text}" above its node`).toBeGreaterThanOrEqual(
+                        own.y - 0.5,
+                    );
+                    expect(t.y + half, `${id}: "${t.text}" below its node`).toBeLessThanOrEqual(
+                        own.y + own.h + 0.5,
+                    );
+                }
+                expect(
+                    checked,
+                    `${id}: no label matched a node — the guard would be vacuous`,
+                ).toBeGreaterThan(0);
+            });
+        }
+    });
 
     it("renders nothing when there are no items", () => {
         const { ctx, calls } = recordingDrawContext();

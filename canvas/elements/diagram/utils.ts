@@ -1,16 +1,27 @@
-import type { DrawContext, DrawTextStyle } from "@engine/node";
+import type { DrawContext, DrawStyle, DrawTextStyle, PathSink, Rect } from "@engine/node";
 import type { Tokens } from "@themes";
-import { fontStack } from "@themes";
+import type { DiagramFlow } from "@model/elements";
+import { contrastRatio, fontStack, hexA, luminance, mix } from "@themes";
+import { PALETTE_MODES, seriesColors, type PaletteMode } from "@elements/chart/utils";
+import { num, oneOf, str } from "@elements/coerce";
+import { DIAGRAM_FLOWS } from "@model/elements";
 import { hierarchy, tree, type HierarchyPointNode } from "d3-hierarchy";
 
 // Authored/persisted diagram data (artifact JSONB).
 export interface DiagramData {
-    type?: string; // process | cycle | pyramid | funnel | timeline | venn | quadrant | matrix | tree | org | mindmap | flow
-    kind?: string; // legacy discriminant (process | pyramid | funnel | cycle)
-    items: string; // labels, newline- or comma-separated
+    type?: string; // process | steps | cycle | pyramid | funnel | timeline | roadmap | venn | quadrant | matrix | hub | target | honeycomb | tree | org | mindmap | flow
+    items: string; // one entry per line (or comma-separated): "Label | detail | value"
     links?: string; // edges: "A->B, B->C" (flow) or "Parent>Child" (tree/org/mindmap)
-    palette?: "ramp" | "categorical"; // node fills: accent ramp (mono) or hue-rotated (multi)
+    axes?: string; // quadrant/matrix axis captions: "x low, x high, y low, y high"
+    palette?: PaletteMode; // node fills: accent ramp (mono) or hue-rotated (multi)
+    flow?: DiagramFlow; // graph rank direction
     height?: number;
+}
+
+export interface DiagItem {
+    label: string;
+    body?: string;
+    value?: number;
 }
 
 export interface DiagNode {
@@ -24,11 +35,17 @@ export interface DiagEdge {
     label?: string;
 }
 
+export interface DiagramOptions {
+    flow: DiagramFlow;
+}
+
 export interface ResolvedDiagram {
     type: string;
-    items: string[];
+    items: DiagItem[];
     nodes: DiagNode[];
     edges: DiagEdge[];
+    axes: string[];
+    options: DiagramOptions;
 }
 
 export interface DiagramCtx {
@@ -36,6 +53,7 @@ export interface DiagramCtx {
     W: number;
     H: number;
     theme: Tokens;
+    opts: DiagramOptions;
     colors: (n: number) => string[];
 }
 
@@ -62,19 +80,24 @@ export function diagramTypeOptions(): { label: string; value: string }[] {
     return [...registry.values()].map((t) => ({ label: t.label, value: t.id }));
 }
 
-function splitItems(s: string | undefined): string[] {
-    return (s ?? "")
-        .split(/[\n,]/)
+// newline-split when present, so a detail may contain commas
+function splitLines(s: string | undefined): string[] {
+    const raw = s ?? "";
+    return (raw.includes("\n") ? raw.split("\n") : raw.split(","))
         .map((x) => x.trim())
         .filter(Boolean);
 }
 
+// "Label | detail | 42"; later segments optional
+function parseItem(line: string): DiagItem {
+    const [label = "", body, value] = line.split("|").map((p) => p.trim());
+    const n = value === undefined ? NaN : parseFloat(value);
+    return { label, body: body || undefined, value: Number.isFinite(n) ? n : undefined };
+}
+
 // "From->To" / "From>To", optional ":label" tail (e.g. "A->B:yes").
 function parseEdges(links: string | undefined): DiagEdge[] {
-    return (links ?? "")
-        .split(/[\n,]/)
-        .map((e) => e.trim())
-        .filter(Boolean)
+    return splitLines(links)
         .map((e): DiagEdge | null => {
             const [pair, label] = e.split(":");
             const parts = (pair ?? "").split(/->|>/).map((p) => p.trim());
@@ -84,22 +107,68 @@ function parseEdges(links: string | undefined): DiagEdge[] {
         .filter((e): e is DiagEdge => e !== null);
 }
 
-const LEGACY_KIND: Record<string, string> = {
-    process: "process",
-    pyramid: "pyramid",
-    funnel: "funnel",
-    cycle: "cycle",
-};
+export function toDiagramData(d: Record<string, unknown>): DiagramData {
+    return {
+        type: str(d.type),
+        items: str(d.items) ?? "",
+        links: str(d.links),
+        axes: str(d.axes),
+        palette: oneOf(d.palette, PALETTE_MODES),
+        flow: oneOf(d.flow, DIAGRAM_FLOWS),
+        height: num(d.height),
+    };
+}
 
 export function normalizeDiagram(d: DiagramData): ResolvedDiagram {
-    const type = d.type ?? (d.kind ? (LEGACY_KIND[d.kind] ?? d.kind) : "process");
-    const items = splitItems(d.items);
+    const type = d.type ?? "process";
+    const items = splitLines(d.items).map(parseItem);
     return {
         type,
         items,
-        nodes: items.map((label) => ({ id: label, label })),
+        nodes: items.map((i) => ({ id: i.label, label: i.label })),
         edges: parseEdges(d.links),
+        axes: splitLines(d.axes),
+        options: { flow: d.flow ?? "down" },
     };
+}
+
+export const labelsOf = (items: DiagItem[]): string[] => items.map((i) => i.label);
+
+// inverse of parseItem; newline-joined once any entry has a detail, which may contain commas
+export function formatItems(items: DiagItem[]): string {
+    const one = (i: DiagItem): string => {
+        const parts = [i.label, i.body ?? "", i.value === undefined ? "" : String(i.value)];
+        while (parts.length > 1 && parts[parts.length - 1] === "") parts.pop();
+        return parts.join(" | ");
+    };
+    const rich = items.some((i) => i.body || i.value !== undefined);
+    return items.map(one).join(rich ? "\n" : ", ");
+}
+
+// the on-dark tokens use rgba surfaces, so mixing needs an opaque stand-in
+export const isDarkTheme = (t: Tokens): boolean => luminance(t.ink) > 0.6;
+
+export function paper(theme: Tokens): string {
+    const s = theme.surface;
+    return s.startsWith("#") && s.length >= 7 ? s : isDarkTheme(theme) ? "#1e1e1e" : "#ffffff";
+}
+
+// opaque: the accent ramp's alpha steps can't be contrast-tested
+export function diagramColors(theme: Tokens, n: number, mode: PaletteMode): string[] {
+    if (mode === "categorical") return seriesColors(theme, n, "categorical");
+    const base = paper(theme);
+    const count = Math.max(1, n);
+    return Array.from({ length: count }, (_, i) =>
+        mix(theme.accent, base, Math.min(0.62, i * (count > 4 ? 0.13 : 0.16))),
+    );
+}
+
+// by measured contrast; black/white always clears AA where the theme inks don't
+export function inkOn(bg: string, theme: Tokens): string {
+    const onInk = contrastRatio(theme.ink, bg);
+    const onAccent = contrastRatio(theme.onAccent, bg);
+    if (Math.max(onInk, onAccent) >= 4.5) return onInk >= onAccent ? theme.ink : theme.onAccent;
+    return contrastRatio("#ffffff", bg) >= contrastRatio("#000000", bg) ? "#ffffff" : "#000000";
 }
 
 export const nodeFont = (t: Tokens): string => fontStack("ui", t);
@@ -113,6 +182,18 @@ export const nodeText = (theme: Tokens, extra?: Partial<DrawTextStyle>): DrawTex
     baseline: "middle",
     ...extra,
 });
+
+export const captionText = (theme: Tokens, extra?: Partial<DrawTextStyle>): DrawTextStyle => ({
+    fill: theme.muted,
+    size: 11,
+    weight: 500,
+    font: nodeFont(theme),
+    align: "center",
+    baseline: "middle",
+    ...extra,
+});
+
+export const LINE_H = 15; // shared label line rhythm
 
 export function wrapLabel(
     g: DrawContext,
@@ -144,93 +225,268 @@ export function centerLabel(
     cy: number,
     maxWidth: number,
     style: DrawTextStyle,
-    lineHeight = 15,
+    lineHeight = LINE_H,
 ): void {
     const lines = wrapLabel(g, text, maxWidth, style);
     const top = cy - ((lines.length - 1) * lineHeight) / 2;
     lines.forEach((ln, i) => g.text(ln, cx, top + i * lineHeight, style));
 }
 
-export interface NodeStyle {
+// title over an optional detail line; returns the height occupied
+const BODY_GAP = 3;
+
+// height stackedLabel will occupy, for sizing a box before painting into it
+export function labelHeight(
+    g: DrawContext,
+    item: DiagItem,
+    maxWidth: number,
+    title: DrawTextStyle,
+    body?: DrawTextStyle,
+): number {
+    const titleH = wrapLabel(g, item.label, maxWidth, title).length * (title.size ?? 13) * 1.25;
+    if (!item.body || !body) return titleH;
+    const bodyH = wrapLabel(g, item.body, maxWidth, body).length * (body.size ?? 11) * 1.3;
+    return titleH + BODY_GAP + bodyH;
+}
+
+export function maxLabelHeight(
+    g: DrawContext,
+    items: DiagItem[],
+    maxWidth: number,
+    title: DrawTextStyle,
+    body?: DrawTextStyle,
+): number {
+    return Math.max(0, ...items.map((i) => labelHeight(g, i, maxWidth, title, body)));
+}
+
+export function stackedLabel(
+    g: DrawContext,
+    item: DiagItem,
+    cx: number,
+    cy: number,
+    maxWidth: number,
+    title: DrawTextStyle,
+    body?: DrawTextStyle,
+): number {
+    const titleLh = (title.size ?? 13) * 1.25;
+    const titleLines = wrapLabel(g, item.label, maxWidth, title);
+    // no detail → the plain centred label, on centerLabel's own line rhythm
+    if (!item.body || !body) {
+        centerLabel(g, item.label, cx, cy, maxWidth, title);
+        return titleLines.length * LINE_H;
+    }
+    const bodyLh = (body.size ?? 11) * 1.3;
+    const bodyLines = wrapLabel(g, item.body, maxWidth, body);
+    const gap = BODY_GAP;
+    const total = titleLines.length * titleLh + gap + bodyLines.length * bodyLh;
+    let y = cy - total / 2 + titleLh / 2;
+    titleLines.forEach((ln) => {
+        g.text(ln, cx, y, title);
+        y += titleLh;
+    });
+    y += gap - titleLh / 2 + bodyLh / 2;
+    bodyLines.forEach((ln) => {
+        g.text(ln, cx, y, body);
+        y += bodyLh;
+    });
+    return total;
+}
+
+export interface NodePaint {
+    fill?: string;
+    stroke?: string;
+    width?: number;
+    ink: string; // label color that reads on the resolved fill
+    dim: string; // supporting-text color on the same fill
+}
+
+// ink is measured against the resolved fill, so a light band can't get light-on-light text
+export function nodePaint(color: string, theme: Tokens, over?: Partial<NodePaint>): NodePaint {
+    const fill = over?.fill ?? theme.surface;
+    const ink = over?.ink ?? inkOn(fill.startsWith("#") ? fill : paper(theme), theme);
+    return {
+        fill,
+        stroke: over?.stroke ?? color,
+        width: over?.width ?? 1.5,
+        ink,
+        dim: hexA(ink, 0.66),
+    };
+}
+
+// diamond/hexagon are assigned by the renderer, not authored
+export type NodeShape = "rounded" | "pill" | "hexagon" | "diamond";
+
+const NOTCH = 0.34; // hexagon/diamond point depth, as a fraction of the node height
+
+function shapeInto(p: PathSink, shape: NodeShape, b: Rect): void {
+    if (shape === "diamond") {
+        p.moveTo(b.x + b.w / 2, b.y);
+        p.lineTo(b.x + b.w, b.y + b.h / 2);
+        p.lineTo(b.x + b.w / 2, b.y + b.h);
+        p.lineTo(b.x, b.y + b.h / 2);
+        p.closePath();
+        return;
+    }
+    const notch = Math.min(b.h * NOTCH, b.w / 2);
+    p.moveTo(b.x + notch, b.y);
+    p.lineTo(b.x + b.w - notch, b.y);
+    p.lineTo(b.x + b.w, b.y + b.h / 2);
+    p.lineTo(b.x + b.w - notch, b.y + b.h);
+    p.lineTo(b.x + notch, b.y + b.h);
+    p.lineTo(b.x, b.y + b.h / 2);
+    p.closePath();
+}
+
+export interface NodeOpts {
+    color?: string;
     fill?: string;
     stroke?: string;
     ink?: string;
+    shape?: NodeShape;
     radius?: number;
-    width?: number; // stroke width
+    titleSize?: number;
+    pad?: number;
+    showBody?: boolean; // a detail line renders only where the caller has sized the box for it
 }
 
 export function drawNode(
     g: DrawContext,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    label: string,
+    b: Rect,
+    item: DiagItem,
     theme: Tokens,
-    ns: NodeStyle = {},
+    o: NodeOpts = {},
 ): void {
-    g.rect(x, y, w, h, {
-        fill: ns.fill ?? theme.surface,
-        stroke: ns.stroke ?? theme.accent,
-        width: ns.width ?? 1.5,
-        radius: ns.radius ?? 10,
+    const shape = o.shape ?? "rounded";
+    const paint = nodePaint(o.color ?? theme.accent, theme, {
+        fill: o.fill,
+        stroke: o.stroke,
+        ink: o.ink,
     });
-    centerLabel(
-        g,
-        label,
-        x + w / 2,
-        y + h / 2,
-        w - 14,
-        nodeText(theme, { fill: ns.ink ?? theme.ink }),
-    );
+    const ds: DrawStyle = { fill: paint.fill, stroke: paint.stroke, width: paint.width };
+
+    const angled = shape === "hexagon" || shape === "diamond";
+    if (angled) {
+        g.path((p) => shapeInto(p, shape, b), ds);
+    } else {
+        const radius = shape === "pill" ? b.h / 2 : (o.radius ?? 10);
+        g.rect(b.x, b.y, b.w, b.h, { ...ds, radius });
+    }
+
+    // angled silhouettes eat their horizontal extremes, so text insets past the point
+    const notch = shape === "diamond" ? b.w / 4 : angled ? b.h * NOTCH : 0;
+    const pad = (o.pad ?? 7) + notch;
+    const maxW = Math.max(24, b.w - pad * 2);
+    const title = nodeText(theme, { fill: paint.ink, size: o.titleSize ?? 13 });
+    const body = o.showBody ? captionText(theme, { fill: paint.dim, size: 11 }) : undefined;
+    stackedLabel(g, item, b.x + b.w / 2, b.y + b.h / 2, maxW, title, body);
 }
 
-export function arrow(
+export const linkColor = (theme: Tokens): string => mix(theme.line, theme.ink, 0.25);
+
+const HEAD_SPREAD = 0.42; // half-angle of the arrowhead barbs, radians
+const HEAD_SIZE = 6;
+
+function headAt(
     g: DrawContext,
     x1: number,
     y1: number,
     x2: number,
     y2: number,
     color: string,
-    width = 2,
-    head = 6,
+    size: number,
 ): void {
-    g.line(x1, y1, x2, y2, { stroke: color, width });
     const a = Math.atan2(y2 - y1, x2 - x1);
     g.polyline(
         [
             [x2, y2],
-            [x2 - head * Math.cos(a - 0.42), y2 - head * Math.sin(a - 0.42)],
-            [x2 - head * Math.cos(a + 0.42), y2 - head * Math.sin(a + 0.42)],
+            [x2 - size * Math.cos(a - HEAD_SPREAD), y2 - size * Math.sin(a - HEAD_SPREAD)],
+            [x2 - size * Math.cos(a + HEAD_SPREAD), y2 - size * Math.sin(a + HEAD_SPREAD)],
         ],
         { fill: color },
     );
 }
 
-export function arrowPath(
+export interface LinkOpts {
+    color?: string;
+    width?: number;
+    head?: boolean;
+    dashed?: boolean;
+    corner?: number; // elbow rounding for orthogonal runs
+}
+
+// rounded-elbow polyline with an optional arrowhead
+export function drawLink(
     g: DrawContext,
     points: [number, number][],
-    color: string,
-    width = 2,
-    head = 6,
+    theme: Tokens,
+    o: LinkOpts = {},
 ): void {
     if (points.length < 2) return;
-    g.polyline(points, { stroke: color, width });
+    const color = o.color ?? linkColor(theme);
+    const width = o.width ?? 1.8;
+    const corner = o.corner ?? 0; // straight by default; callers opt into rounded elbows
+    const style: DrawStyle = {
+        stroke: color,
+        width,
+        dash: o.dashed ? [width * 3, width * 2.5] : undefined,
+        ...(corner > 0 ? { cap: "round" as const, join: "round" as const } : {}),
+    };
+    if (points.length === 2) {
+        g.line(points[0]![0], points[0]![1], points[1]![0], points[1]![1], style);
+    } else if (corner <= 0) {
+        g.polyline(points, style);
+    } else {
+        g.path((p) => {
+            p.moveTo(points[0]![0], points[0]![1]);
+            for (let i = 1; i < points.length - 1; i++) {
+                const [px, py] = points[i - 1]!;
+                const [cx, cy] = points[i]!;
+                const [nx, ny] = points[i + 1]!;
+                const inLen = Math.hypot(cx - px, cy - py) || 1;
+                const outLen = Math.hypot(nx - cx, ny - cy) || 1;
+                const r = Math.min(corner, inLen / 2, outLen / 2);
+                p.lineTo(cx - ((cx - px) / inLen) * r, cy - ((cy - py) / inLen) * r);
+                p.quadraticCurveTo(
+                    cx,
+                    cy,
+                    cx + ((nx - cx) / outLen) * r,
+                    cy + ((ny - cy) / outLen) * r,
+                );
+            }
+            const last = points[points.length - 1]!;
+            p.lineTo(last[0], last[1]);
+        }, style);
+    }
+    if (o.head === false) return;
     const [x2, y2] = points[points.length - 1]!;
     const [x1, y1] = points[points.length - 2]!;
-    const a = Math.atan2(y2 - y1, x2 - x1);
-    g.polyline(
-        [
-            [x2, y2],
-            [x2 - head * Math.cos(a - 0.42), y2 - head * Math.sin(a - 0.42)],
-            [x2 - head * Math.cos(a + 0.42), y2 - head * Math.sin(a + 0.42)],
-        ],
-        { fill: color },
-    );
+    headAt(g, x1, y1, x2, y2, color, HEAD_SIZE);
+}
+
+// on a chip, so it reads where it crosses a connector
+export function drawEdgeLabel(
+    g: DrawContext,
+    x: number,
+    y: number,
+    text: string,
+    theme: Tokens,
+): void {
+    if (!text) return;
+    const style = captionText(theme, { fill: theme.soft, size: 10.5 });
+    const w = g.measureText(text, style).width + 12;
+    const h = 17;
+    g.rect(x - w / 2, y - h / 2, w, h, {
+        fill: paper(theme),
+        stroke: mix(theme.line, paper(theme), 0.3),
+        width: 1,
+        radius: h / 2,
+    });
+    g.text(text, x, y, style);
 }
 
 export const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
+// narrowTop → pyramid (triangle); else funnel (wide top).
 // narrowTop → pyramid (triangle); else funnel (wide top).
 export function bandStack(narrowTop: boolean): Renderer {
     return (diagram, ctx) => {
@@ -247,10 +503,10 @@ export function bandStack(narrowTop: boolean): Renderer {
         const wide = W / 2 - pad;
         const narrow = wide * 0.14;
         const halfAt = (y: number): number => {
-            const t = (y - top) / (bottom - top);
+            const t = (y - top) / (bottom - top || 1);
             return narrowTop ? narrow + (wide - narrow) * t : wide - (wide - narrow) * t;
         };
-        items.forEach((label, i) => {
+        items.forEach((item, i) => {
             const y0 = top + i * bandH;
             const y1 = y0 + bandH - 3;
             const h0 = halfAt(y0);
@@ -267,28 +523,42 @@ export function bandStack(narrowTop: boolean): Renderer {
             );
             const my = (y0 + y1) / 2;
             const mw = Math.max(24, halfAt(my) * 2 - 12);
-            centerLabel(g, label, cx, my, mw, nodeText(theme, { fill: theme.onAccent }));
+            // measured against the band it sits on, rather than assuming onAccent reads on every colour
+            centerLabel(
+                g,
+                item.label,
+                cx,
+                my,
+                mw,
+                nodeText(theme, { fill: inkOn(cols[i]!, theme) }),
+            );
         });
     };
 }
 
 export interface TreeDatum {
     label: string;
+    body?: string;
     children: TreeDatum[];
 }
 
 // Root = the node never used as an edge `to`; with no edges the first node roots a star.
 // Cycles/diamonds cut by visiting each node once.
 export function buildTree(diagram: ResolvedDiagram): TreeDatum | null {
-    const { nodes, edges } = diagram;
-    if (nodes.length === 0) return null;
-    const labelOf = new Map(nodes.map((n) => [n.id, n.label] as const));
+    const { items, edges } = diagram;
+    if (items.length === 0) return null;
+    const byId = new Map(items.map((i) => [i.label, i] as const));
+    const datum = (id: string): TreeDatum => {
+        const it = byId.get(id);
+        return { label: it?.label ?? id, body: it?.body, children: [] };
+    };
 
     if (edges.length === 0) {
-        const [root, ...rest] = nodes;
+        const [root, ...rest] = items;
         return {
             label: root!.label,
-            children: rest.map((n) => ({ label: n.label, children: [] })),
+            body: root!.body,
+            children: rest.map((n) => ({ label: n.label, body: n.body, children: [] })),
         };
     }
 
@@ -301,16 +571,16 @@ export function buildTree(diagram: ResolvedDiagram): TreeDatum | null {
         hasParent.add(e.to);
     }
 
-    const rootId = nodes.find((n) => !hasParent.has(n.id))?.id ?? nodes[0]!.id;
+    const rootId = items.find((n) => !hasParent.has(n.label))?.label ?? items[0]!.label;
     const seen = new Set<string>();
     const build = (id: string): TreeDatum => {
         seen.add(id);
-        const children: TreeDatum[] = [];
+        const node = datum(id);
         for (const c of kids.get(id) ?? []) {
             if (seen.has(c)) continue;
-            children.push(build(c));
+            node.children.push(build(c));
         }
-        return { label: labelOf.get(id) ?? id, children };
+        return node;
     };
     return build(rootId);
 }
@@ -327,6 +597,22 @@ export function boxWidth(
     let longest = 0;
     for (const l of labels) longest = Math.max(longest, g.measureText(l, nodeText(theme)).width);
     return clamp(Math.max(base, longest + 24), min, max);
+}
+
+export const treeDepth = (n: TreeDatum): number => 1 + Math.max(0, ...n.children.map(treeDepth));
+
+export const treeLeaves = (n: TreeDatum): number =>
+    n.children.length === 0 ? 1 : n.children.reduce((sum, c) => sum + treeLeaves(c), 0);
+
+// fits the tallest label, capped so `slots` rows still fit: positions scale down, boxes don't
+export function fitNodeHeight(
+    needed: number,
+    min: number,
+    space: number,
+    slots: number,
+    gap: number,
+): number {
+    return clamp(needed, min, Math.max(min, space / Math.max(1, slots) - gap));
 }
 
 export interface Placed {
@@ -373,15 +659,19 @@ export function layoutTree(
     );
     const midX = (minX + maxX) / 2;
 
+    // centre the natural extent; a shallow tree would otherwise hug the top
+    const mainNode = horizontal ? nodeW : nodeH;
+    const mainSpace = horizontal ? W : H;
+    const base = (mainSpace - (spanY * s + mainNode)) / 2 + mainNode / 2;
+
     const placed = all.map((node): Placed => {
         const cross = (node.x - midX) * s;
         const main = (node.y - minY) * s;
-        if (horizontal) {
-            const base = spanY > 0 ? pad + nodeW / 2 : W / 2;
-            return { node, cx: base + main, cy: H / 2 + cross };
-        }
-        const base = spanY > 0 ? pad + nodeH / 2 : H / 2;
-        return { node, cx: W / 2 + cross, cy: base + main };
+        return horizontal
+            ? { node, cx: base + main, cy: H / 2 + cross }
+            : { node, cx: W / 2 + cross, cy: base + main };
     });
     return { root, placed };
 }
+
+export const itemOf = (node: TreeDatum): DiagItem => ({ label: node.label, body: node.body });

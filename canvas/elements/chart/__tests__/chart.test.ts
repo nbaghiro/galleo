@@ -15,9 +15,8 @@ describe("normalize", () => {
             { name: "Series 1", points: [1, 3] },
         ]);
     });
-    it("resolves the type: type → legacy kind → default bar", () => {
+    it("resolves the type, defaulting to bar", () => {
         expect(normalize({ values: "1", type: "line" }).type).toBe("line");
-        expect(normalize({ values: "1", kind: "pie" }).type).toBe("pie");
         expect(normalize({ values: "1" }).type).toBe("bar");
     });
     it("defaults showGrid to true", () => {

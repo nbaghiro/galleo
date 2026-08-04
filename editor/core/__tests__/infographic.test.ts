@@ -103,7 +103,7 @@ describe("invalidNumber", () => {
 
 describe("itemLimit", () => {
     it("caps venn / quadrant diagrams and leaves other diagrams uncapped", () => {
-        expect(itemLimit("diagram", "venn")).toBe(3);
+        expect(itemLimit("diagram", "venn")).toBe(4); // 3 sets + the overlap caption
         expect(itemLimit("diagram", "quadrant")).toBe(4);
         expect(itemLimit("diagram", "process")).toBeUndefined();
     });

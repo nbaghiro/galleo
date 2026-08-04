@@ -73,13 +73,18 @@ export type ChartType = (typeof CHART_TYPES)[number];
 // data.type discriminant; kept in lockstep with the canvas diagram registry; graph types read links
 export const DIAGRAM_TYPES = [
     "process",
+    "steps",
     "cycle",
     "pyramid",
     "funnel",
     "timeline",
+    "roadmap",
     "venn",
     "quadrant",
     "matrix",
+    "hub",
+    "target",
+    "honeycomb",
     "tree",
     "org",
     "mindmap",
@@ -88,6 +93,9 @@ export const DIAGRAM_TYPES = [
 export type DiagramType = (typeof DIAGRAM_TYPES)[number];
 
 export const GRAPH_DIAGRAM_TYPES = ["flow", "tree", "org", "mindmap"] as const;
+
+export const DIAGRAM_FLOWS = ["down", "right"] as const;
+export type DiagramFlow = (typeof DIAGRAM_FLOWS)[number];
 
 // outline planning vocabulary; one block leads each column
 export const BLOCK_KINDS = [

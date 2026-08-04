@@ -1,11 +1,14 @@
 import { hexA } from "@themes";
 import { centerLabel, nodeText, registerDiagram, type Renderer } from "./utils";
 
+const SETS = 3; // circles; a 4th item captions the shared centre
+
 const venn: Renderer = (diagram, ctx) => {
     const { g, W, H, theme } = ctx;
-    const items = diagram.items.slice(0, 3);
-    if (items.length === 0) return;
-    const n = items.length;
+    const sets = diagram.items.slice(0, SETS);
+    if (sets.length === 0) return;
+    const centre = diagram.items[SETS];
+    const n = sets.length;
     const cols = ctx.colors(n);
     const cx = W / 2;
     const cy = H / 2;
@@ -33,8 +36,18 @@ const venn: Renderer = (diagram, ctx) => {
         const len = Math.hypot(dx, dy) || 1;
         const lx = n === 1 ? cx : c[0] + (dx / len) * r * 0.45;
         const ly = n === 1 ? cy : c[1] + (dy / len) * r * 0.45;
-        centerLabel(g, items[i]!, lx, ly, r, nodeText(theme, { fill: theme.ink }));
+        centerLabel(g, sets[i]!.label, lx, ly, r, nodeText(theme, { fill: theme.ink }));
     });
+    // a 4th item names where the sets overlap
+    if (centre && n === SETS)
+        centerLabel(
+            g,
+            centre.label,
+            cx,
+            cy + off * 0.12,
+            r * 0.8,
+            nodeText(theme, { fill: theme.ink, size: 12 }),
+        );
 };
 
 registerDiagram({ id: "venn", label: "Venn", render: venn });

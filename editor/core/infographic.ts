@@ -1,7 +1,7 @@
 import { normalize as normalizeChart, catList } from "@elements/chart/utils";
-import { normalizeDiagram } from "@elements/diagram/utils";
-import type { ChartData } from "@elements/chart/utils";
-import type { DiagramData } from "@elements/diagram/utils";
+import { formatItems, normalizeDiagram } from "@elements/diagram/utils";
+import { toChartData } from "@elements/chart/utils";
+import { toDiagramData, type DiagItem } from "@elements/diagram/utils";
 
 export type Shape =
     | "series"
@@ -31,13 +31,18 @@ const CHART_SHAPE: Record<string, Shape> = {
 };
 const DIAGRAM_SHAPE: Record<string, Shape> = {
     process: "list",
+    steps: "list",
     cycle: "list",
     pyramid: "list",
     funnel: "list",
     timeline: "list",
+    roadmap: "list",
     venn: "list",
     quadrant: "list",
     matrix: "list",
+    hub: "list",
+    target: "list",
+    honeycomb: "list",
     tree: "hierarchy",
     org: "hierarchy",
     mindmap: "hierarchy",
@@ -73,7 +78,7 @@ export interface ScalarModel {
     max: string;
 }
 export interface ListModel {
-    items: string[];
+    items: { label: string; body: string; value: string }[];
 }
 export interface HierModel {
     nodes: { label: string; parent: string }[];
@@ -96,7 +101,7 @@ const s = (n: number): string => String(n);
 
 export function parseModel(kind: Kind, shape: Shape, data: Record<string, unknown>): DataModel {
     if (kind === "chart") {
-        const r = normalizeChart(data as unknown as ChartData);
+        const r = normalizeChart(toChartData(data));
         const cats = catList(r);
         if (shape === "labelValue") {
             const pts = r.series[0]?.points ?? [];
@@ -135,7 +140,7 @@ export function parseModel(kind: Kind, shape: Shape, data: Record<string, unknow
             })),
         };
     }
-    const r = normalizeDiagram(data as unknown as DiagramData);
+    const r = normalizeDiagram(toDiagramData(data));
     if (shape === "hierarchy") {
         const parentOf: Record<string, string> = {};
         r.edges.forEach((e) => (parentOf[e.to] = e.from));
@@ -147,7 +152,13 @@ export function parseModel(kind: Kind, shape: Shape, data: Record<string, unknow
             edges: r.edges.map((e) => ({ from: e.from, to: e.to, label: e.label ?? "" })),
         };
     }
-    return { items: [...r.items] };
+    return {
+        items: r.items.map((i) => ({
+            label: i.label,
+            body: i.body ?? "",
+            value: i.value === undefined ? "" : String(i.value),
+        })),
+    };
 }
 
 export function serializeModel(kind: Kind, shape: Shape, m: DataModel): Record<string, unknown> {
@@ -204,7 +215,15 @@ export function serializeModel(kind: Kind, shape: Shape, m: DataModel): Record<s
                 .join(", "),
         };
     }
-    return { items: (m as ListModel).items.join(", ") };
+    const items: DiagItem[] = (m as ListModel).items.map((i) => {
+        const n = parseFloat(i.value);
+        return {
+            label: i.label,
+            body: i.body || undefined,
+            value: Number.isFinite(n) ? n : undefined,
+        };
+    });
+    return { items: formatItems(items) };
 }
 
 // Data keys the grid owns — hidden from the inspector so the two don't duplicate.
@@ -216,13 +235,19 @@ export function invalidNumber(v: string): boolean {
     return t !== "" && !Number.isFinite(Number(t));
 }
 
-// Venn ≤3 sets, quadrant exactly 4; extra rows ignored on render.
-const ITEM_LIMIT: Record<string, number> = { venn: 3, quadrant: 4 };
+// Venn = 3 sets + an optional 4th captioning the overlap, quadrant exactly 4; extra rows ignored on render.
+const ITEM_LIMIT: Record<string, number> = { venn: 4, quadrant: 4 };
 export function itemLimit(kind: Kind, type: string): number | undefined {
     return kind === "diagram" ? ITEM_LIMIT[type] : undefined;
 }
 export function limitNote(type: string): string {
-    if (type === "venn") return "A Venn diagram shows up to 3 sets — extra items are ignored.";
+    if (type === "venn")
+        return "A Venn shows 3 sets; a 4th item captions where they overlap. Extra items are ignored.";
     if (type === "quadrant") return "A quadrant uses the first 4 items, one per quadrant.";
     return "";
 }
+
+// Diagram types whose list entries carry a numeric weight (band size, lane span, milestone marker).
+const VALUED = new Set(["funnel", "pyramid", "roadmap", "timeline"]);
+export const usesItemValue = (kind: Kind, type: string): boolean =>
+    kind === "diagram" && VALUED.has(type);
