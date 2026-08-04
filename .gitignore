@@ -9,3 +9,6 @@ coverage/
 
 # one-off generation debug output (pnpm agent:gen)
 /.gen/
+
+# transient probe dir from scripts/check-boundaries.mjs
+canvas/boundary-check-*/

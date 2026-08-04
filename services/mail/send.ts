@@ -1,3 +1,4 @@
+import { out } from "../log";
 const FROM = process.env.MAIL_FROM ?? "Galleo <onboarding@resend.dev>";
 
 export function mailReady(): boolean {
@@ -16,7 +17,7 @@ export interface EmailMessage {
 export async function sendEmail(msg: EmailMessage): Promise<void> {
     const key = process.env.RESEND_API_KEY;
     if (!key) {
-        process.stdout.write(`[email:dev] to=${msg.to} | ${msg.subject}\n${msg.text}\n`);
+        out(`[email:dev] to=${msg.to} | ${msg.subject}\n${msg.text}`);
         return;
     }
     const res = await fetch("https://api.resend.com/emails", {

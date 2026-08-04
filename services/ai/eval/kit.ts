@@ -2,10 +2,9 @@ import { writeFileSync } from "fs";
 import { generateObject } from "ai";
 import type { ZodType } from "zod";
 import { resolveModel, thinklessOpts } from "../provider";
+import { out as log } from "../../log";
 
-export const log = (s = ""): void => {
-    process.stdout.write(`${s}\n`);
-};
+export { log };
 
 export function arg(name: string, fallback: string): string {
     const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
