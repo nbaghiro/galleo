@@ -21,7 +21,7 @@ import { sectionExemplars } from "./exemplars";
 import type { PromptParts } from "./system";
 
 const OUTLINE_JOB = `## Your job
-Plan the artifact: a title, a backdrop, and an ordered list of beats (sections). The backdrop is the artifact's full-bleed background image — describe a moody, on-theme atmospheric scene that evokes the subject (a wide, low-detail environment, since it sits behind every section under a scrim), never a generic abstract texture. Give the piece a real narrative arc that fits the topic — the beat roles (scene, tension, turn, proof, momentum, close) are a toolbox to draw on, not a fixed sequence: use the ones the story needs, in the order it needs, and repeat proof/momentum beats where the argument earns them. For each beat: an id (s1, s2, …), a short working label, its narrative role, the layout you intend (\`layout\` — a named preset: full · split-6040 · split-4060 · two-col · three-up), and — crucially — design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Vary layouts and blocks across the piece, and place visual blocks (image / stat / chart / diagram / table) where they earn their spot rather than defaulting to walls of text — the layout you choose is rendered as a live skeleton and the section writer must fill it exactly. Also give each beat whether it leads with an image and a one-line brief of what it must say. Give the opening (scene) and closing (close) sections a full-bleed background image — set image=true for them; they anchor the piece. Don't pad and don't truncate.`;
+Plan the artifact: your reading of the brief, a title, a backdrop, and an ordered list of beats (sections). Start by stating what you take the piece to be — its \`goal\` (what it has to achieve), \`audience\` (who it's for), and \`tone\` (how it should sound) — inferred from the prompt and any source material; these are shown to the user and every section is written against them, so make them specific rather than generic. The backdrop is the artifact's full-bleed background image — describe a moody, on-theme atmospheric scene that evokes the subject (a wide, low-detail environment, since it sits behind every section under a scrim), never a generic abstract texture. Give the piece a real narrative arc that fits the topic — the beat roles (scene, tension, turn, proof, momentum, close) are a toolbox to draw on, not a fixed sequence: use the ones the story needs, in the order it needs, and repeat proof/momentum beats where the argument earns them. For each beat: an id (s1, s2, …), a short working label, its narrative role, the layout you intend (\`layout\` — a named preset: full · split-6040 · split-4060 · two-col · three-up), and — crucially — design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Vary layouts and blocks across the piece, and place visual blocks (image / stat / chart / diagram / table) where they earn their spot rather than defaulting to walls of text — the layout you choose is rendered as a live skeleton and the section writer must fill it exactly. Also give each beat whether it leads with an image. Then WRITE THE STORY, not a table of contents — for every beat give all three of: \`brief\` (one line naming the section's job), \`takeaway\` (a full sentence stating the one thing the reader leaves with), and \`points\` (the 2–4 concrete moves it makes, in order — the actual claims, numbers, comparisons, or steps, never topic labels like "benefits" or "overview"). Decide the real substance here: what each section actually argues, and with what. A section written from "Traction" is generic; one written from "1,900 studios joined in five months, four in five still active at week eight, and the curve steepened after the referral launch" is not. Make consecutive beats build on each other rather than restating the same idea. Give the opening (scene) and closing (close) sections a full-bleed background image — set image=true for them; they anchor the piece. Don't pad and don't truncate.`;
 
 function sourceMaterial(source?: string): string | undefined {
     const s = source?.trim();
@@ -51,6 +51,9 @@ export function outlineParts(input: GenerateInput, maxSections?: number): Prompt
             maxSections
                 ? `Hard limit: plan at MOST ${maxSections} sections — anything beyond is discarded.`
                 : "",
+            input.mustInclude?.length
+                ? `Every "Must cover" point in the brief gets a home: for each beat, set \`covers\` to the point(s) it covers, copied VERBATIM from the list. Every point appears in at least one beat's \`covers\`; leave \`covers\` off beats that cover none. Echo that same list back as \`mustInclude\`.`
+                : `Name the 2–5 points this piece must cover for the brief to be satisfied (\`mustInclude\`), then give each one a home: set each beat's \`covers\` to the point(s) it covers, copied VERBATIM from your own list. Every point appears in at least one beat's \`covers\`; leave \`covers\` off beats that cover none.`,
             arcGuidance(input),
             "Produce the outline now.",
         ),
@@ -77,6 +80,11 @@ function placement(beat: Beat, outline: Outline): string {
             `Artifact title: ${outline.title}`,
             `Beat ${idx + 1} of ${outline.beats.length}: "${beat.label}" (role: ${beat.role})`,
             beat.brief && `What it must say: ${beat.brief}`,
+            beat.takeaway && `The one thing the reader must leave with: ${beat.takeaway}`,
+            beat.points?.length &&
+                `Make these moves, in this order — this is the section's substance, so write them out properly rather than gesturing at them:\n${beat.points
+                    .map((p, i) => `  ${i + 1}. ${p}`)
+                    .join("\n")}`,
             beat.layout &&
                 `Use EXACTLY this layout — the plan chose it and a live preview is already showing it: ${beat.layout}.`,
             blockLine(beat),
@@ -110,12 +118,30 @@ function sectionSystem(surface: Surface, theme: string): string {
     );
 }
 
-export function sectionParts(input: GenerateInput, beat: Beat, outline: Outline): PromptParts {
+// steer = a session-wide note applying to every section from here on; note = this attempt only
+export interface SectionExtras {
+    steer?: string;
+    note?: string;
+}
+
+export function sectionParts(
+    input: GenerateInput,
+    beat: Beat,
+    outline: Outline,
+    extras: SectionExtras = {},
+): PromptParts {
     return {
         system: sectionSystem(input.surface, input.theme),
         prompt: stack(
             briefContext(input),
             placement(beat, outline),
+            extras.steer?.trim() &&
+                heading("Steering note from the reader — follow it", extras.steer.trim()),
+            extras.note?.trim() &&
+                heading(
+                    "What to change versus the previous attempt",
+                    `${extras.note.trim()}\nThis is a fresh take on the same beat — keep the beat's job and layout, change the content to satisfy the note.`,
+                ),
             `Write section "${beat.id}" now — real, specific, finished content.`,
         ),
     };
@@ -155,6 +181,9 @@ function insertPlacement(beat: Beat, input: SectionInput): string {
             [
                 `Role: ${beat.role}. Working title: "${beat.label}".`,
                 beat.brief && `What it must say: ${beat.brief}`,
+                beat.takeaway && `The reader must leave with: ${beat.takeaway}`,
+                beat.points?.length &&
+                    `Make these moves, in order:\n${beat.points.map((p, i) => `  ${i + 1}. ${p}`).join("\n")}`,
                 beat.layout &&
                     `Use EXACTLY this layout — a live preview is already showing it: ${beat.layout}.`,
                 blockLine(beat),

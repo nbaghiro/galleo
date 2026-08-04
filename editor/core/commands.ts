@@ -253,6 +253,7 @@ registerCommands([
         title: "Change format…",
         group: "file",
         icon: "layout",
+        slash: "/format",
         when: inEditor,
         provider: () =>
             FORMATS.map((f) => ({
@@ -268,6 +269,7 @@ registerCommands([
         title: "Start presenting",
         group: "present",
         icon: "present",
+        slash: "/present",
         when: inEditor,
         run: () => present(),
     },
@@ -276,6 +278,7 @@ registerCommands([
         title: "Share…",
         group: "share",
         icon: "shared",
+        slash: "/share",
         when: inEditor,
         run: () => requestShare(),
     },

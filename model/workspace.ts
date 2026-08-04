@@ -14,6 +14,7 @@ export interface Folder {
     name: string;
     parentId?: string | null;
     createdAt: string;
+    count?: number; // live artifacts in the folder, counted server-side (the client list is paged)
 }
 
 export interface Template {

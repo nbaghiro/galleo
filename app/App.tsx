@@ -15,7 +15,7 @@ import {
 import { AuthPage } from "./views/AuthPage";
 import { EditorView } from "./views/EditorView";
 import { ChatPanel } from "./views/ChatPanel";
-import { GenerateModal } from "./views/GenerateModal";
+import { GenerateStudio } from "./views/generate/Mission";
 import { LibraryView } from "./views/LibraryView";
 import { PresentView } from "./views/PresentView";
 import { PricingView } from "./views/PricingView";
@@ -33,7 +33,9 @@ import { Spinner } from "@ui/button";
 import { CommandPalette } from "@ui/CommandPalette";
 import { ShortcutsSheet } from "@ui/ShortcutsSheet";
 import { installKeyDispatcher } from "@ui/keys";
-import { setNavigate } from "./stores/commands"; // import also runs the app-command registrations
+import { setNavigate } from "./stores/navigate";
+import "./stores/commands"; // side-effect: register the app commands
+import "./components/palette-sources"; // side-effect: register the ⌘K artifact + action sources
 import { publishRoute } from "./stores/route-context";
 import "@editor/core/commands"; // side-effect: register studio commands + editor context keys
 
@@ -47,7 +49,7 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => {
     return (
         <>
             {props.children}
-            <GenerateModal />
+            <GenerateStudio />
             <ThemeEditor />
             <MediaPicker />
             <ShareModal />

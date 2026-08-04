@@ -72,6 +72,25 @@ describe("outlineParts", () => {
         expect(out.prompt).toContain("Source material");
         expect(out.prompt).toContain("raw pasted facts");
     });
+    it("lists must-cover points and demands verbatim `covers` tagging when given", () => {
+        const out = outlineParts({ ...input, mustInclude: ["the team", "pricing tiers"] });
+        expect(out.prompt).toContain("- pricing tiers");
+        expect(out.prompt).toContain("VERBATIM from the list");
+        expect(out.prompt).toContain("Echo that same list back");
+    });
+    // with no points from the user the planner names its own, so coverage works on every run
+    it("asks the planner to name its own must-cover points when none were given", () => {
+        const out = outlineParts(input).prompt;
+        expect(out).toContain("`covers`");
+        expect(out).toContain("Name the 2–5 points");
+        expect(out).not.toContain("VERBATIM from the list");
+    });
+    it("asks for the reading — goal, audience and tone — in the outline itself", () => {
+        const out = outlineParts(input).system;
+        expect(out).toContain("`goal`");
+        expect(out).toContain("`audience`");
+        expect(out).toContain("`tone`");
+    });
 });
 
 describe("sectionParts", () => {
@@ -109,6 +128,35 @@ describe("sectionParts", () => {
     });
     it("teaches the element catalog in the system half", () => {
         expect(sectionParts(input, outline.beats[0]!, outline).system).toContain("## Elements");
+    });
+    it("hands the section writer the takeaway and the ordered moves, not just a label", () => {
+        const rich = {
+            ...outline.beats[1]!,
+            takeaway: "The admin tax is the real cost, not the software.",
+            points: ["11.3 hours a week lost", "$8,400 sitting unpaid", "47% never forecast"],
+        };
+        const out = sectionParts(input, rich, { ...outline, beats: [outline.beats[0]!, rich] });
+        expect(out.prompt).toContain("The admin tax is the real cost");
+        expect(out.prompt).toContain("1. 11.3 hours a week lost");
+        expect(out.prompt).toContain("3. 47% never forecast");
+    });
+    it("says nothing about moves when the beat has none", () => {
+        const out = sectionParts(input, outline.beats[2]!, outline);
+        expect(out.prompt).not.toContain("Make these moves");
+    });
+
+    it("injects the steering note when the session carries one", () => {
+        const out = sectionParts(input, outline.beats[1]!, outline, { steer: "fewer bullets" });
+        expect(out.prompt).toContain("Steering note");
+        expect(out.prompt).toContain("fewer bullets");
+        expect(sectionParts(input, outline.beats[1]!, outline).prompt).not.toContain(
+            "Steering note",
+        );
+    });
+    it("injects the regenerate note as a fresh-take instruction", () => {
+        const out = sectionParts(input, outline.beats[1]!, outline, { note: "more numbers" });
+        expect(out.prompt).toContain("previous attempt");
+        expect(out.prompt).toContain("more numbers");
     });
 });
 

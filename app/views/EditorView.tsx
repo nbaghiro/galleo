@@ -11,8 +11,9 @@ import {
     editor,
     endThemePreview,
     keepPreviewedTheme,
-    loadArtifactContent,
+    loadArtifactWindow,
     onHome,
+    onLoadSections,
     onMediaPicker,
     onPersistTitle,
     onReviseElement,
@@ -34,10 +35,15 @@ import { openMediaPicker } from "../stores/media";
 import { openShare } from "../stores/share";
 import { can, loadFeatures } from "../stores/features";
 import { renameArtifactById } from "../stores/library";
+import { recordVisit } from "../stores/search";
 import { billing, loadBilling } from "../stores/billing";
 import { setEditorActive } from "../stores/chat";
 import { appTheme, loadCustomThemes, setFaviconOverride, openThemeEditor } from "../stores/theme";
 import { flushAutosave, installAutosave } from "../stores/save";
+
+// Sections fetched with the artifact itself. Comfortably above what a normal deck or doc holds, so
+// windowing only engages for the artifacts that actually need it.
+const FIRST_WINDOW = 24;
 
 export const EditorView: Component = () => {
     const params = useParams();
@@ -69,8 +75,11 @@ export const EditorView: Component = () => {
         setReady(false);
         setError("");
         try {
-            const { artifact } = await api.getArtifact(id);
-            loadArtifactContent(artifact.id, artifact.draftContent);
+            // Always a windowed read. An artifact with no more sections than the first window arrives
+            // whole and behaves exactly as it always has; a long one fills in as the canvas reaches it.
+            const { artifact } = await api.getArtifactWindow(id, 0, FIRST_WINDOW);
+            loadArtifactWindow(artifact.id, artifact.shell, artifact.index, artifact.sections);
+            recordVisit(id); // every open path lands here, so this is the one read-clock write
             // "view in app theme" → preview without touching the saved theme
             if (searchParams.as === "app") startThemePreview(appTheme());
             setReady(true);
@@ -80,6 +89,13 @@ export const EditorView: Component = () => {
     };
 
     onMount(() => {
+        // the transport behind a placeholder section resolving as the canvas reaches it
+        onLoadSections(async (ids) => {
+            const id = params.id;
+            if (!id) return [];
+            const { sections } = await api.getSections(id, { ids });
+            return sections;
+        });
         onHome(() => flushAutosave().then(() => navigate("/")));
         onSwitchArtifact((id) => flushAutosave().then(() => navigate(`/edit/${id}`)));
         onThemePicker(() => openThemeEditor());

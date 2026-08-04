@@ -163,9 +163,11 @@ describe("ELEMENT_TYPES / isEmittableType / isKind", () => {
         expect(isEmittableType("text")).toBe(true);
         expect(isEmittableType("__dropghost")).toBe(false);
     });
-    it("isKind recognizes the four turn kinds", () => {
+    it("isKind recognizes every turn kind, including the studio's plan/build", () => {
         expect(isKind("generate")).toBe(true);
         expect(isKind("chat")).toBe(true);
+        expect(isKind("plan")).toBe(true);
+        expect(isKind("build")).toBe(true);
         expect(isKind("nope")).toBe(false);
     });
 });

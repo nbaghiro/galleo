@@ -41,9 +41,9 @@ export const group = (...children: ElementInstance[]): ElementInstance => ({
 
 export const button = (label: string): ElementInstance => ({ type: "button", data: { label } });
 
-export const chart = (kind: string, values: string, height = 240): ElementInstance => ({
+export const chart = (type: string, values: string, height = 240): ElementInstance => ({
     type: "chart",
-    data: { kind, values, height },
+    data: { type, values, height },
 });
 
 export const divider = (): ElementInstance => ({ type: "divider", data: {} });
@@ -90,9 +90,9 @@ export const table = (data: string, header = true): ElementInstance => ({
     data: { data, header },
 });
 
-export const diagram = (kind: string, items: string, height = 220): ElementInstance => ({
+export const diagram = (type: string, items: string, height = 220): ElementInstance => ({
     type: "diagram",
-    data: { kind, items, height },
+    data: { type, items, height },
 });
 
 export const embed = (title: string, url: string): ElementInstance => ({

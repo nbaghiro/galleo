@@ -1,6 +1,12 @@
 import type { Region } from "@engine/node";
 import type { ElementAddress, Target } from "@model/target";
-import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
+import type {
+    ArtifactContent,
+    ArtifactShell,
+    ElementInstance,
+    Section,
+    SectionSummary,
+} from "@model/artifact";
 import type { PlanLimits } from "@model/billing";
 import type { TurnEvent, TurnRequest } from "@model/ai";
 import type { IconPick, MediaItem, MediaKind } from "@model/media";
@@ -185,7 +191,7 @@ export function undo(): void {
     if (prev === undefined) return;
     coalesceKey = null;
     future.push(snapshot());
-    setContent(prev.content);
+    setContent(hydrate(prev.content));
     restoreTitle(prev.title);
     bumpSeq();
     bumpHistory();
@@ -196,7 +202,7 @@ export function redo(): void {
     if (next === undefined) return;
     coalesceKey = null;
     past.push(snapshot());
-    setContent(next.content);
+    setContent(hydrate(next.content));
     restoreTitle(next.title);
     bumpSeq();
     bumpHistory();
@@ -405,9 +411,104 @@ export function loadArtifactContent(id: string, art: ArtifactContent): void {
     savedThemeUnderPreview = null;
     setPreviewingTheme(false);
     setCurrentArtifactId(id);
+    setPending(new Map());
+    stubs.clear();
+    resolved.clear();
     setContent(art);
     bumpHistory();
 }
+
+// ── windowed content ─────────────────────────────────────────────────────────
+// A long artifact arrives as a shell plus the sections around the viewport; the rest are placeholders
+// that reserve their recorded byte size until the canvas asks for them. A placeholder is never edited
+// (there is nothing on screen to select), so it can be swapped in without touching history.
+
+const [pending, setPending] = createSignal<Map<string, number>>(new Map());
+export { pending };
+export const pendingSize = (id: string): number | undefined => pending().get(id);
+export const isWindowed = (): boolean => pending().size > 0;
+
+const stubs = new Map<string, Section>(); // the exact placeholder objects, for identity checks
+const resolved = new Map<string, Section>(); // what each placeholder became
+
+let loadSections: ((ids: string[]) => Promise<Section[]>) | null = null;
+export function onLoadSections(fn: (ids: string[]) => Promise<Section[]>): void {
+    loadSections = fn;
+}
+
+/** Load an artifact the server sliced: shell + index, with placeholders where content is missing. */
+export function loadArtifactWindow(
+    id: string,
+    shell: ArtifactShell,
+    index: SectionSummary[],
+    have: Section[],
+): void {
+    const bySid = new Map(have.map((s) => [s.id, s]));
+    const missing = new Map<string, number>();
+    const nextStubs = new Map<string, Section>();
+    const sections = index.map((entry, i) => {
+        const sid = entry.id ?? `s-${i}`;
+        const real = bySid.get(sid);
+        if (real) return real;
+        const stub: Section = { id: sid, root: emptyRegion() };
+        missing.set(sid, entry.size ?? 0);
+        nextStubs.set(sid, stub);
+        return stub;
+    });
+    loadArtifactContent(id, { ...shell, sections });
+    stubs.clear();
+    for (const [sid, stub] of nextStubs) stubs.set(sid, stub);
+    setPending(missing);
+}
+
+const requesting = new Set<string>();
+
+/** Fetch the named placeholders and swap them in. Not an edit: no history entry, no autosave. */
+export async function requestSections(ids: string[]): Promise<void> {
+    const want = ids.filter((id) => pending().has(id) && !requesting.has(id));
+    if (!want.length || !loadSections) return;
+    for (const id of want) requesting.add(id);
+    try {
+        const got = await loadSections(want);
+        if (!got.length) return;
+        const by = new Map(got.map((s) => [s.id, s]));
+        for (const s of got) resolved.set(s.id, s);
+        setContent((c) => ({ ...c, sections: c.sections.map((s) => by.get(s.id) ?? s) }));
+        setPending((p) => {
+            const next = new Map(p);
+            for (const s of got) next.delete(s.id);
+            return next;
+        });
+    } catch {
+        /* leave them pending; the next window pass asks again */
+    } finally {
+        for (const id of want) requesting.delete(id);
+    }
+}
+
+/** Everything, for the operations that cannot work on part of a document: export, present, AI, share. */
+export async function ensureAllSections(): Promise<void> {
+    while (pending().size) {
+        const before = pending().size;
+        await requestSections([...pending().keys()]);
+        if (pending().size >= before) return; // no progress (offline) — don't spin
+    }
+}
+
+// A history snapshot taken while a section was still a placeholder must not un-load it on undo. Swap
+// by object identity, so a section that was genuinely edited keeps its edited value.
+const hydrate = (art: ArtifactContent): ArtifactContent => {
+    if (!resolved.size) return art;
+    let changed = false;
+    const sections = art.sections.map((s) => {
+        if (stubs.get(s.id) !== s) return s;
+        const now = resolved.get(s.id);
+        if (!now) return s;
+        changed = true;
+        return now;
+    });
+    return changed ? { ...art, sections } : art;
+};
 
 function newSectionId(): string {
     return `s-${crypto.randomUUID().slice(0, 8)}`;

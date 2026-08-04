@@ -32,6 +32,12 @@ export function briefContext(input: GenerateInput): string {
         input.audience && `Audience: ${input.audience}`,
         input.tone && `Tone: ${input.tone}`,
         input.length && `Length: ${input.length}`,
+        input.mustInclude?.length &&
+            `Must cover:\n${input.mustInclude.map((m) => `- ${m}`).join("\n")}`,
+        input.clarifications?.length &&
+            `Answers you already have (treat as settled, don't ask again):\n${input.clarifications
+                .map((c) => `- ${c}`)
+                .join("\n")}`,
     ].filter(Boolean);
     return heading("The brief", lines.join("\n"));
 }

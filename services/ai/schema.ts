@@ -1,9 +1,38 @@
 import { z } from "zod";
 
+// These mirror @model's ElementLayout + SectionBackground so a parsed element/section IS an
+// ElementInstance/Section, with no assertion at the call site. The outer .catch(undefined) keeps the
+// tolerance the previous open records had: a malformed layout/background drops that one field
+// instead of failing the whole parse and burning a generation retry.
+const zElementLayout = z
+    .object({
+        width: z.union([z.literal("fit"), z.literal("fill"), z.object({ pct: z.number() })]),
+        height: z.union([z.literal("fit"), z.literal("fill")]),
+        align: z.union([z.literal("start"), z.literal("center"), z.literal("end")]),
+        radius: z.number(),
+    })
+    .partial();
+
+const zSectionBackground = z
+    .object({
+        kind: z.union([
+            z.literal("none"),
+            z.literal("color"),
+            z.literal("gradient"),
+            z.literal("image"),
+        ]),
+        color: z.string().optional(),
+        gradient: z.object({ from: z.string(), to: z.string(), angle: z.number().optional() }),
+        image: z.string(),
+        scrim: z.number(),
+        dark: z.boolean(),
+    })
+    .partial({ color: true, gradient: true, image: true, scrim: true, dark: true });
+
 export const zElement = z.object({
     type: z.string().describe("element type from the catalog (text, image, group, stat, chart, …)"),
     data: z.record(z.string(), z.unknown()).describe("element data per the catalog for this type"),
-    layout: z.record(z.string(), z.unknown()).optional(),
+    layout: zElementLayout.optional().catch(undefined),
 });
 
 export const zSection = z.object({
@@ -11,7 +40,7 @@ export const zSection = z.object({
     root: zElement.describe(
         "the section's content as ONE element: a `group` with direction 'row' for side-by-side columns (each child carries layout.width, e.g. {pct:60}), 'col' to stack — nestable to any depth; or a single element for a full-width section",
     ),
-    background: z.record(z.string(), z.unknown()).optional(),
+    background: zSectionBackground.optional().catch(undefined),
     bleed: z.boolean().optional(),
 });
 
@@ -36,10 +65,40 @@ export const zBeat = z.object({
         .string()
         .optional()
         .describe("one line telling the section writer what this section must say"),
+    takeaway: z
+        .string()
+        .optional()
+        .describe(
+            "the single thing the reader should leave this section with, as a full sentence — the point the section exists to land",
+        ),
+    points: z
+        .array(z.string())
+        .optional()
+        .describe(
+            "the 2–4 concrete moves this section makes, in the order it makes them — the actual claims, numbers, comparisons, or steps, not topic labels",
+        ),
+    covers: z
+        .array(z.string())
+        .optional()
+        .describe(
+            "which of the brief's must-cover points this beat covers — copy each covered point VERBATIM; omit when none",
+        ),
 });
 
 export const zOutline = z.object({
     title: z.string().describe("the artifact title"),
+    goal: z
+        .string()
+        .nullish()
+        .describe("what this piece has to achieve, in a few words — the job it does for its maker"),
+    audience: z.string().nullish().describe("who it is aimed at, in a few words"),
+    tone: z.string().nullish().describe("how it should sound, in a word or two"),
+    mustInclude: z
+        .array(z.string())
+        .nullish()
+        .describe(
+            "the 2–5 points this piece has to cover for the brief to be satisfied, each a short noun phrase; tag the beats that cover them via `covers`",
+        ),
     backdrop: z
         .string()
         .describe(
@@ -90,6 +149,28 @@ export const zImagePrompt = z.object({
     prompt: z.string().describe("a single vivid image-generation prompt, on-theme, no commentary"),
 });
 
+// the structured expansion of a raw prompt (the studio's Brief stage)
+export const zBriefDraft = z.object({
+    goal: z.string().describe("what the piece must achieve, one short line"),
+    audience: z.string().describe("who it's for, one short line"),
+    tone: z.string().describe("the register to write in, 2–4 words"),
+    // Deliberately unconstrained: min/max here turn an otherwise-fine read into a hard failure,
+    // and the count is guidance, not correctness. normalizeBrief trims the list instead.
+    mustInclude: z
+        .array(z.string())
+        .describe(
+            "2–6 points the piece must cover — short noun phrases pulled from (or clearly implied by) the prompt, each one checkable",
+        ),
+    // nullish, not optional: models emit `null` for an optional field they chose not to fill
+    clarify: z
+        .string()
+        .nullish()
+        .describe(
+            "AT MOST one question, only when its answer would genuinely change the outline; omit otherwise",
+        ),
+});
+
 export type Outline = z.infer<typeof zOutline>;
 export type Beat = z.infer<typeof zBeat>;
 export type ThemeGen = z.infer<typeof zTheme>;
+export type BriefDraftGen = z.infer<typeof zBriefDraft>;

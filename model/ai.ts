@@ -1,4 +1,5 @@
 import type { ArtifactContent, ElementInstance, Section, SectionBackground } from "@model/artifact";
+import type { Tokens } from "@model/theme";
 import { LAYOUT_PRESETS, removeAtPath, updateAtPath } from "@model/section";
 import {
     BULLET_MARKERS,
@@ -13,7 +14,7 @@ import {
     TEXT_STYLES,
 } from "@model/elements";
 
-export type TurnKind = "generate" | "edit" | "section" | "chat";
+export type TurnKind = "generate" | "edit" | "section" | "chat" | "plan" | "build";
 export type Surface = "deck" | "doc" | "web";
 
 export interface GenerateInput {
@@ -24,10 +25,44 @@ export interface GenerateInput {
     audience?: string;
     tone?: string;
     length?: string;
+    mustInclude?: string[]; // points the piece must cover; the outline tags beats with them
+    clarifications?: string[]; // answered "Q — A" lines from the brief stage; the planner reads them
     contextRefs?: string[]; // ids into the artifact's ContextPack
     source?: string;
     sourceArtifactId?: string;
     imageSource?: "stock" | "ai"; // stock (default, free) or AI-generated
+}
+
+// a structured expansion of a raw prompt the user edits before anything is planned
+export interface BriefDraft {
+    prompt: string;
+    surface?: Surface;
+    goal?: string;
+    audience?: string;
+    tone?: string;
+    length?: string;
+    mustInclude?: string[];
+    clarify?: string; // ONE question, only when the answer would change the outline
+}
+
+// the approved plan a build turn writes against
+export interface PlanOutline {
+    title: string;
+    backdrop?: string;
+    beats: Beat[];
+}
+
+// write ONE pre-planned beat of an approved outline (the studio's client-driven build loop)
+export interface BuildInput {
+    brief: GenerateInput;
+    outline: PlanOutline;
+    beat: Beat;
+    content: ArtifactContent; // the artifact as built so far
+    afterId: string | null; // insert after this id; null ⇒ front
+    steer?: string; // session-wide steering note, applies from here on
+    note?: string; // per-attempt instruction (regenerate-with-note)
+    anchor?: "cover" | "closer"; // force a full-bleed background on the piece's bookends
+    replace?: boolean; // true ⇒ emit replaceSection (a regeneration), else addSection
 }
 
 export interface EditInput {
@@ -76,12 +111,54 @@ export interface ArtifactRef {
     updatedAt?: string;
 }
 
+// A beat as the chat agent sees it mid-generation: what it's meant to say, and whether it's written.
+// what the planner understood the prompt to be asking for
+export interface BriefRead {
+    goal?: string;
+    audience?: string;
+    tone?: string;
+    mustInclude?: string[];
+}
+
+export interface ChatBeat {
+    id: string;
+    label: string;
+    role: string;
+    brief?: string;
+    takeaway?: string;
+    points?: string[];
+    written: boolean;
+}
+
+// The live generation session. Its presence is what tells the agent it is INSIDE a run — the piece
+// is half-planned rather than absent, so proposing a separate new artifact is always wrong.
+export interface ChatGeneration {
+    stage: string; // planning · outline · building · review · done
+    surface: Surface;
+    prompt: string;
+    goal?: string;
+    audience?: string;
+    tone?: string;
+    mustInclude?: string[];
+    beats: ChatBeat[];
+}
+
+// Outline edits are not artifact edits: they change the plan, which only the studio holds.
+export type BeatOp =
+    | { op: "addBeat"; afterId: string | null; beat: Beat }
+    | { op: "updateBeat"; id: string; patch: Partial<Beat> }
+    | { op: "removeBeat"; id: string }
+    | { op: "moveBeat"; id: string; afterId: string | null };
+export type OutlinePatch = BeatOp[];
+
 export interface ChatContext {
-    surface: "editor" | "library";
+    surface: "editor" | "library" | "generate";
     artifactId?: string;
     content?: ArtifactContent; // the open artifact; server derives the model's digest from it
     focus?: ChatFocus;
     library?: ChatLibrary; // present on the "library" surface (no open artifact)
+    generation?: ChatGeneration; // present on the "generate" surface (a run in progress)
+    imageSource?: "stock" | "ai"; // so re-sourcing an image matches how the piece was built
     plan?: string; // so the agent can hint at gated capabilities
     credits?: { remaining: number; limit: number }; // so the agent can answer "how many left"
 }
@@ -134,18 +211,29 @@ export type ChatBlock =
     | { type: "brief"; brief: GenBrief } // a proposed generation the user confirms
     | { type: "artifacts"; items: ArtifactRef[] } // library search results — a pick-list
     | { type: "templates"; items: TemplateRef[] } // starter templates — a pick-list
+    | { type: "outline"; summary: string; ops: OutlinePatch } // a proposed edit to the live outline
+    // a designed theme: the client saves it to the workspace, then points the artifact at the new id
+    | { type: "theme"; name: string; mood: string; isDark: boolean; tokens: Tokens }
+    | { type: "write"; summary: string; beatIds: string[] } // write these already-planned beats
     | { type: "action"; action: WorkspaceAction }; // a workspace action the client runs (or confirms)
 
 export type TurnRequest =
     | { kind: "generate"; input: GenerateInput }
     | { kind: "edit"; input: EditInput }
     | { kind: "section"; input: SectionInput }
-    | { kind: "chat"; input: ChatInput };
+    | { kind: "chat"; input: ChatInput }
+    | { kind: "plan"; input: GenerateInput }
+    | { kind: "build"; input: BuildInput };
 
 export type TurnStatus = "pending" | "running" | "done" | "error" | "canceled";
 
 export const isKind = (k: string): k is TurnKind =>
-    k === "generate" || k === "edit" || k === "section" || k === "chat";
+    k === "generate" ||
+    k === "edit" ||
+    k === "section" ||
+    k === "chat" ||
+    k === "plan" ||
+    k === "build";
 
 export type PatchOp =
     | { op: "setMeta"; theme?: string; format?: string; background?: SectionBackground | null }
@@ -183,7 +271,10 @@ function applyOp(content: ArtifactContent, op: PatchOp): ArtifactContent {
             return next;
         }
         case "addSection":
-            return { ...content, sections: insertAfter(content.sections, op.afterId, op.section) };
+            return {
+                ...content,
+                sections: insertAfter(content.sections, op.afterId, op.section),
+            };
         case "replaceSection":
             return {
                 ...content,
@@ -245,19 +336,35 @@ export interface Beat {
     layout?: string; // a named layout preset; shapes the pre-content skeleton
     image?: boolean; // carries a prominent image (drives sourcing + ghost)
     blocks?: string[]; // the block kind leading each column, in order
+    brief?: string; // one line telling the section writer what this section must say
+    takeaway?: string; // the one thing the reader should leave this section with
+    points?: string[]; // the 2–4 concrete moves/claims the section makes, in order
+    covers?: string[]; // which of the brief's mustInclude points this beat covers (verbatim)
 }
 
 export type TurnEvent =
     | { type: "turn.start"; kind: TurnKind }
     | { type: "phase"; name: Phase }
     | { type: "narration"; text: string; mono?: string; sub?: string } // Console terminal lines
-    | { type: "plan"; beats: Beat[] }
+    // `brief` is the planner's own reading of the prompt (goal / audience / tone / must-cover),
+    // folded into this call rather than a separate one — no extra latency, no extra credit
+    | {
+          type: "plan";
+          beats: Beat[];
+          title?: string;
+          backdrop?: string;
+          brief?: BriefRead;
+      }
     | { type: "section.status"; id: string; status: SectionStatus }
     | { type: "patch"; ops: Patch } // apply to the canvas as it streams
     | { type: "reply"; text: string } // chat/research answer
-    | { type: "chat.reasoning"; delta: string } // streamed thinking tokens
+    // one short headline per move in the agent's reasoning loop; no label = it just started thinking.
+    // The full thought prose is distilled server-side and never crosses the wire.
+    | { type: "chat.thinking"; label?: string }
     | { type: "chat.text"; delta: string } // streamed assistant prose
-    | { type: "chat.tool"; blockId: string; tool: string; title: string } // a tool started → a widget shell appears
+    // a tool started → a widget shell appears; sent again with done:true so a tool that produces no
+    // block (a read, an empty search) still closes its shell instead of spinning forever
+    | { type: "chat.tool"; blockId: string; tool: string; title: string; done?: boolean }
     | { type: "chat.nested"; blockId: string; event: TurnEvent } // a capability event routed to a block's widget
     | { type: "chat.block"; blockId: string; block: ChatBlock } // a finished widget block
     | { type: "turn.done"; summary?: string }
@@ -543,18 +650,23 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 type: "enum",
                 required: true,
                 values: DIAGRAM_TYPES,
-                desc: "which diagram. For a LINEAR sequence of steps use `process` (connected steps, reads left-to-right) — NOT `flow`. `cycle` = a repeating loop; `funnel` = narrowing stages; `pyramid` = layered levels; `timeline` = dated milestones; `matrix`/`quadrant` = a 2×2; `venn` = overlapping sets. Reserve the graph types (`flow`, `tree`, `org`, `mindmap`) for genuine BRANCHING relationships — they require the `links` field.",
+                desc: "which diagram. For a LINEAR sequence of steps use `process` (connected steps, reads left-to-right) — NOT `flow`. `steps` = a staircase of escalating stages; `cycle` = a repeating loop; `funnel` = narrowing stages; `pyramid` = layered levels; `timeline` = dated milestones; `roadmap` = phases across time columns; `matrix`/`quadrant` = a 2×2; `venn` = overlapping sets; `hub` = one centre with satellites (first item is the centre); `target` = nested scopes, widest first; `honeycomb` = a cluster of peer values. Reserve the graph types (`flow`, `tree`, `org`, `mindmap`) for genuine BRANCHING relationships — they require the `links` field.",
             },
             {
                 key: "items",
                 type: "text",
                 required: true,
-                desc: "the node labels, comma- or newline-separated",
+                desc: "the node labels, comma-separated — or one per line, which is required if any label contains a comma. An entry may add a short supporting phrase after a pipe ('Label | why it matters'), rendered smaller under the label by `process`, `matrix`, `steps`, `roadmap`, `hub`, `target` and `honeycomb` ONLY; every other type draws the label alone and silently drops it, so don't write one for them. A number after a second pipe ('Label | detail | 2') is read only by `roadmap`, where it sets how many columns the lane spans.",
             },
             {
                 key: "links",
                 type: "text",
-                desc: "edges for graph diagrams (flow/tree/org/mindmap) only: 'A->B, B->C', optional ':label' tail e.g. 'A->B:yes'",
+                desc: "edges for graph diagrams (flow/tree/org/mindmap) only: 'A->B, B->C', optional ':label' tail e.g. 'A->B:yes'. In a `flow`, a label ending in '?' renders as a decision diamond.",
+            },
+            {
+                key: "axes",
+                type: "text",
+                desc: "captions, comma-separated, only for: `quadrant` (4 axis ends: x low, x high, y low, y high), `matrix` (column headers then row headers), `roadmap` (the time columns, e.g. 'Q1, Q2, Q3, Q4')",
             },
         ],
     },

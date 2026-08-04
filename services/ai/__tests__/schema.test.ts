@@ -3,6 +3,7 @@ import {
     zElement,
     zSection,
     zBeat,
+    zBriefDraft,
     zOutline,
     zSectionPlan,
     zRewrite,
@@ -114,6 +115,63 @@ describe("zBeat", () => {
     it("rejects a beat missing its required `id`", () => {
         const bad = zBeat.safeParse({ label: "Intro", role: "scene" });
         expect(bad.success).toBe(false);
+    });
+
+    it("accepts the story fields the outline now plans — takeaway + ordered points", () => {
+        const ok = zBeat.safeParse({
+            id: "s4",
+            label: "The cost",
+            role: "proof",
+            takeaway: "Admin is the real expense.",
+            points: ["11.3h/week lost", "$8,400 unpaid"],
+        });
+        expect(ok.success).toBe(true);
+    });
+
+    it("accepts optional `covers` tags (the must-cover checklist)", () => {
+        const ok = zBeat.safeParse({
+            id: "s3",
+            label: "Team",
+            role: "proof",
+            covers: ["the team"],
+        });
+        expect(ok.success).toBe(true);
+    });
+});
+
+describe("zBriefDraft", () => {
+    it("requires goal/audience/tone + 2–6 must-cover points; clarify optional", () => {
+        const ok = zBriefDraft.safeParse({
+            goal: "raise a seed round",
+            audience: "early-stage investors",
+            tone: "confident, plain",
+            mustInclude: ["the team", "traction"],
+        });
+        expect(ok.success).toBe(true);
+        const withQ = zBriefDraft.safeParse({
+            goal: "g",
+            audience: "a",
+            tone: "t",
+            mustInclude: ["x", "y"],
+            clarify: "Live pitch or email attachment?",
+        });
+        expect(withQ.success).toBe(true);
+    });
+    it("tolerates a null clarify — models emit null for an optional field they skip", () => {
+        const ok = zBriefDraft.safeParse({
+            goal: "g",
+            audience: "a",
+            tone: "t",
+            mustInclude: ["x", "y"],
+            clarify: null,
+        });
+        expect(ok.success).toBe(true);
+    });
+    it("does not fail an otherwise-fine read over the point COUNT — that's normalized, not validated", () => {
+        for (const mustInclude of [["only one"], Array.from({ length: 9 }, (_, i) => `p${i}`)])
+            expect(
+                zBriefDraft.safeParse({ goal: "g", audience: "a", tone: "t", mustInclude }).success,
+            ).toBe(true);
     });
 });
 

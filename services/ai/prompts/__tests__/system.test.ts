@@ -66,6 +66,15 @@ describe("briefContext", () => {
         expect(out).toContain("Tone: bold");
         expect(out).toContain("Length: short");
     });
+    it("carries answered clarifications so the planner can't ask again", () => {
+        const out = briefContext({
+            ...base,
+            clarifications: ["Should it also include pricing? — Yes"],
+        });
+        expect(out).toContain("Should it also include pricing? — Yes");
+        expect(out).toContain("don't ask again");
+        expect(briefContext(base)).not.toContain("Answers you already have");
+    });
 });
 
 describe("artifactDigest", () => {

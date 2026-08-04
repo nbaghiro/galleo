@@ -3,6 +3,8 @@ import type {
     TurnRequest,
     TurnKind,
     Beat as PlanBeat,
+    BriefRead,
+    BuildInput,
     GenerateInput,
     SectionInput,
     Surface,
@@ -13,6 +15,7 @@ import type { Usage } from "@model/credits";
 import { generateObject, generateText } from "ai";
 import type { ModelTier } from "@model/billing";
 import { resolveModel, thinklessOpts } from "./provider";
+import { warn } from "../log";
 import { defaultModelFor, modelFor } from "./models";
 import {
     editSectionParts,
@@ -129,7 +132,7 @@ export async function resolveImage(
     }
     const stock = await findStock(phrase, orientation);
     if (stock) return stock;
-    process.stderr.write(`[ai:image] no image for "${clip(phrase, 60)}" — using placeholder\n`);
+    warn(`[ai:image] no image for "${clip(phrase, 60)}" — using placeholder`);
     return picsum(phrase);
 }
 
@@ -180,6 +183,10 @@ const toPlanBeat = (b: Beat): PlanBeat => ({
     layout: b.layout,
     image: b.image,
     blocks: b.blocks,
+    brief: b.brief,
+    takeaway: b.takeaway,
+    points: b.points,
+    covers: b.covers,
 });
 
 export interface RunOpts {
@@ -215,7 +222,45 @@ export async function* runTurn(req: TurnRequest, opts: RunOpts = {}): AsyncGener
         case "chat":
             yield* runChat(req.input, opts);
             return;
+        case "plan":
+            yield* runPlan(req.input, opts);
+            return;
+        case "build":
+            yield* runBuild(req.input, opts);
+            return;
     }
+}
+
+// the one outline call — shared by the one-shot generate and the studio's plan turn
+// the planner's reading, normalized — nullish fields come back as null from Google's schema
+function briefRead(outline: Outline): BriefRead {
+    const text = (v: string | null | undefined): string | undefined => v?.trim() || undefined;
+    const points = (outline.mustInclude ?? []).map((p) => p.trim()).filter(Boolean);
+    return {
+        goal: text(outline.goal),
+        audience: text(outline.audience),
+        tone: text(outline.tone),
+        ...(points.length ? { mustInclude: points } : {}),
+    };
+}
+
+async function planOutline(input: GenerateInput, opts: RunOpts): Promise<Outline> {
+    const op = outlineParts(input, opts.maxSections);
+    const outlineModel = opts.model ?? modelFor("outline", opts.tier);
+    const { object } = await generateObject({
+        model: resolveModel(outlineModel),
+        schema: zOutline,
+        system: op.system,
+        prompt: op.prompt,
+        abortSignal: opts.signal,
+        providerOptions: thinklessOpts(outlineModel),
+        // warm so section count + arc vary brief-to-brief; section writing stays cooler
+        temperature: 0.9,
+    });
+    const outline: Outline = object;
+    // hard enforcement — the prompt asks for the cap, the slice guarantees it
+    if (opts.maxSections) outline.beats = outline.beats.slice(0, opts.maxSections);
+    return outline;
 }
 
 export async function* runGenerate(
@@ -229,21 +274,8 @@ export async function* runGenerate(
 
     yield { type: "phase", name: "outline" };
     yield { type: "narration", text: "Planning the story arc" };
-    const op = outlineParts(input, opts.maxSections);
-    const outlineModel = opts.model ?? modelFor("outline", opts.tier);
-    const { object: outlineObj } = await generateObject({
-        model: resolveModel(outlineModel),
-        schema: zOutline,
-        system: op.system,
-        prompt: op.prompt,
-        abortSignal: signal,
-        providerOptions: thinklessOpts(outlineModel),
-        // warm so section count + arc vary brief-to-brief; section writing stays cooler
-        temperature: 0.9,
-    });
-    const outline: Outline = outlineObj;
-    // hard enforcement — the prompt asks for the cap, the slice guarantees it
-    const beats = opts.maxSections ? outline.beats.slice(0, opts.maxSections) : outline.beats;
+    const outline = await planOutline(input, opts);
+    const beats = outline.beats;
     const planBeats = beats.map(toPlanBeat);
     yield {
         type: "narration",
@@ -251,7 +283,7 @@ export async function* runGenerate(
         mono: ` · ${beats.length} sections`,
         sub: beats.map((b) => b.role).join("  →  "),
     };
-    yield { type: "plan", beats: planBeats };
+    yield { type: "plan", beats: planBeats, title: outline.title, backdrop: outline.backdrop };
 
     yield { type: "phase", name: "build" };
     const n = beats.length;
@@ -307,6 +339,105 @@ export async function* runGenerate(
     yield { type: "phase", name: "compose" };
     yield { type: "phase", name: "done" };
     yield { type: "turn.done", summary: `Composed ${n} sections — “${clip(outline.title, 48)}”` };
+}
+
+// the studio's plan turn: outline only — beats stream to the client for editing, nothing is written
+export async function* runPlan(
+    input: GenerateInput,
+    opts: RunOpts = {},
+): AsyncGenerator<TurnEvent> {
+    yield { type: "turn.start", kind: "plan" };
+    yield { type: "phase", name: "intake" };
+    yield { type: "narration", text: "Reading the brief", sub: clip(input.prompt, 90) };
+
+    yield { type: "phase", name: "outline" };
+    yield { type: "narration", text: "Planning the story arc" };
+    const outline = await planOutline(input, opts);
+    yield {
+        type: "narration",
+        text: `Planned “${clip(outline.title, 48)}”`,
+        mono: ` · ${outline.beats.length} sections`,
+        sub: outline.beats.map((b) => b.role).join("  →  "),
+    };
+    yield {
+        type: "plan",
+        beats: outline.beats.map(toPlanBeat),
+        title: outline.title,
+        backdrop: outline.backdrop,
+        brief: briefRead(outline),
+    };
+    // resolve the artifact backdrop now so the board wears it while the outline is being edited
+    const backdrop = await resolveImage(
+        outline.backdrop || `${outline.title}, moody cinematic wide shot, soft focus`,
+        "landscape",
+        opts.image ?? {},
+    );
+    yield {
+        type: "patch",
+        ops: [{ op: "setMeta", background: { kind: "image", image: backdrop, scrim: 0.6 } }],
+    };
+    yield { type: "phase", name: "done" };
+    yield {
+        type: "turn.done",
+        summary: `Planned ${outline.beats.length} sections — “${clip(outline.title, 48)}”`,
+    };
+}
+
+// the studio's build turn: write ONE pre-planned, user-approved beat
+export async function* runBuild(input: BuildInput, opts: RunOpts = {}): AsyncGenerator<TurnEvent> {
+    const beat: Beat = input.beat;
+    // sectionParts wants the full Outline shape; the approved plan carries it minus a required backdrop
+    const outline: Outline = {
+        title: input.outline.title,
+        backdrop: input.outline.backdrop ?? "",
+        beats: input.outline.beats,
+    };
+    yield { type: "turn.start", kind: "build" };
+    yield { type: "phase", name: "build" };
+    yield { type: "section.status", id: beat.id, status: "active" };
+    yield {
+        type: "narration",
+        text: `${input.replace ? "Reworking" : "Writing"} “${beat.label}”`,
+        mono: ` · ${beat.role}`,
+    };
+    yield { type: "section.status", id: beat.id, status: "writing" };
+
+    let section = await writeSectionFrom(
+        sectionParts(input.brief, beat, outline, { steer: input.steer, note: input.note }),
+        beat.id,
+        beat.label,
+        input.brief.surface,
+        opts.signal,
+        opts.model ?? modelFor("section", opts.tier),
+    );
+    // the piece's bookends never render flat — same rule as the one-shot flow
+    if (input.anchor && section.background?.kind !== "image") {
+        section = {
+            ...section,
+            background: { kind: "image", image: input.brief.prompt, scrim: 0.5 },
+        };
+    }
+    if (beat.image || section.background?.kind === "image") {
+        yield { type: "section.status", id: beat.id, status: "image" };
+        yield { type: "narration", text: `Sourcing an image for “${beat.label}”` };
+    }
+    section = await resolveImages(section, opts.image ?? {});
+
+    yield { type: "phase", name: "compose" };
+    yield {
+        type: "patch",
+        ops: [
+            input.replace
+                ? { op: "replaceSection", id: beat.id, section }
+                : { op: "addSection", afterId: input.afterId, section },
+        ],
+    };
+    yield { type: "section.status", id: beat.id, status: "done" };
+    yield { type: "phase", name: "done" };
+    yield {
+        type: "turn.done",
+        summary: `${input.replace ? "Reworked" : "Placed"} “${clip(beat.label, 48)}”`,
+    };
 }
 
 // fresh non-colliding section id — mirror the editor's "s-xxxx" scheme
@@ -396,7 +527,7 @@ async function writeSectionFrom(
                 "\n\nYour previous reply was not valid JSON. Return ONLY the JSON object, nothing else.";
             continue;
         }
-        const section = { ...(parsed.data as unknown as Section), id };
+        const section = { ...parsed.data, id };
         // auto-repair: one regenerate with issues fed back; accept whatever's valid on the final attempt
         const { ok, issues } = checkSection(section, surface);
         if (ok || attempt === 1) return section;
