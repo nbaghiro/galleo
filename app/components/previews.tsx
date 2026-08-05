@@ -7,7 +7,7 @@ import {
     type Component,
     createEffect,
 } from "solid-js";
-import type { Section, ArtifactContent, Cover } from "@model/artifact";
+import type { Section, ArtifactContent, Cover, SectionSummary } from "@model/artifact";
 import { resolveProfile } from "@engine/profile";
 import { resolveTheme, type Tokens } from "@themes";
 import { appTheme } from "../stores/theme";
@@ -168,8 +168,7 @@ export const Visual: Component<{ viz?: Viz }> = (props) => {
     );
 };
 
-// The library/palette artifact tile: the cover image when there is one, else a themed placeholder.
-// Deliberately not a real render — it stays cheap enough for a list of results.
+// deliberately not a real render: it stays cheap enough for a list of results
 export const ArtifactThumb: Component<{ cover?: Cover; class?: string }> = (props) => {
     const tk = (): Tokens => resolveTheme(appTheme()).tokens;
     return (
@@ -223,9 +222,7 @@ export const MiniCanvas: Component<{
     />
 );
 
-// A section that doesn't exist yet, drawn by the engine from its blueprint: the real column split
-// and the real block shapes, at thumbnail scale. What the outline card shows for a planned beat, so
-// changing its layout or image flag is visible rather than described.
+// drawn by the engine from a blueprint, so a planned beat's layout and image flag are shown, not described
 export const BlueprintThumb: Component<{
     id: string;
     layout: string;
@@ -255,6 +252,7 @@ export const BlueprintThumb: Component<{
 
 export const SectionThumb: Component<{
     section: Section;
+    ghost?: SectionSummary; // the digest's summary, painted until the section itself loads
     themeId: string;
     formatId: string;
     label?: string;
@@ -264,6 +262,7 @@ export const SectionThumb: Component<{
 }> = (props) => (
     <ScaledSectionCanvas
         section={props.section}
+        ghost={props.ghost}
         theme={resolveTheme(props.themeId).tokens}
         profile={resolveProfile(props.formatId)}
         width={props.width ?? DEFAULT_W}

@@ -129,6 +129,12 @@ describe("paintSectionStack", () => {
     });
 });
 
+const rect = (h: number): RenderCommand => ({
+    kind: "rect",
+    box: { x: 0, y: 0, w: 100, h },
+    fill: { color: "#eee" },
+});
+
 describe("paintSectionStack — windowing", () => {
     const many = (n: number): Section[] =>
         Array.from({ length: n }, (_, i) =>
@@ -186,16 +192,43 @@ describe("paintSectionStack — windowing", () => {
         expect(cache.entries.get("s0")?.height).toBeGreaterThan(0); // layout kept
     });
 
-    it("reserves an estimated height for a section that has no content yet", () => {
+    it("reserves a placeholder's height and paints its stand-in", () => {
         const sections = many(3);
         const host = document.createElement("div");
+        const stand = { commands: [rect(500)], height: 500 };
         const { tops, height, painted } = draw(host, sections, {
             fullW: 1000,
-            estimate: (s) => (s.id === "s1" ? 500 : undefined),
+            placeholder: (s) => (s.id === "s1" ? stand : undefined),
         });
         expect(tops[2]! - tops[1]!).toBe(500 + SECTION_GAP);
-        expect(painted).toBe(2); // the placeholder materializes nothing
+        expect(painted).toBe(3); // the stand-in is painted like any other layer
         expect(height).toBeGreaterThan(500);
+    });
+
+    it("keeps a placeholder out of the hit-test regions", () => {
+        const sections = many(2);
+        const { regions } = draw(document.createElement("div"), sections, {
+            fullW: 1000,
+            placeholder: (s) =>
+                s.id === "s0" ? { commands: [rect(300)], height: 300 } : undefined,
+        });
+        expect(regions.some((r) => r.id === "section:s0")).toBe(false);
+        expect(regions.some((r) => r.id === "section:s1")).toBe(true);
+    });
+
+    it("repaints a section once its content replaces the stand-in", () => {
+        const sections = many(1);
+        const cache = createSectionStackCache();
+        const host = document.createElement("div");
+        draw(host, sections, {
+            fullW: 1000,
+            cache,
+            placeholder: () => ({ commands: [rect(400)], height: 400 }),
+        });
+        expect(cache.entries.get("s0")?.height).toBe(400);
+        const real = draw(host, sections, { fullW: 1000, cache });
+        expect(cache.entries.get("s0")?.height).not.toBe(400);
+        expect(real.regions.some((r) => r.id === "section:s0")).toBe(true);
     });
 });
 

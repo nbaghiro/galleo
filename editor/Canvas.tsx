@@ -17,7 +17,14 @@ import {
     sectionLayoutWidth,
     type StackWindow,
 } from "@canvas/render/backends";
-import { estimateSectionHeight, stackWindow, windowMoved } from "@canvas/render/window";
+import {
+    planSectionRequests,
+    stackWindow,
+    viewIsCold,
+    windowMoved,
+    type Slot,
+} from "@canvas/render/window";
+import { layoutPlaceholder } from "@canvas/render/placeholder";
 import { measureText, layoutSection } from "@canvas/render/commands";
 import { applyDrop, computeDropTarget, drag, previewDrop, setDrag } from "./core/dnd";
 import { applyLiveEdit, liveEdit, sectionDrop, sectionDragId } from "./panels/Selection";
@@ -34,7 +41,9 @@ import {
     setCanvasContentWidth,
     jumpToSection,
     leftOpen,
+    knownHeight,
     pending as pendingSections,
+    rememberHeight,
     requestSections,
     setCanvasEl,
     setHover,
@@ -68,21 +77,20 @@ export const Canvas: Component = () => {
     let liveHits: { target: Target; spec: number; box: Rect }[] = [];
     let pending: { target: Target | null; x: number; y: number } | null = null;
 
-    // Cache so a frame re-lays-out only the changed section (see paintSectionStack).
+    // so a frame re-lays-out only the changed section (see paintSectionStack)
     const stackCache = createSectionStackCache();
 
-    // the band of the stage that is materialized; recomputed as the scroller moves
+    // the band of the stage that is materialized
     let lastWindow: StackWindow | null = null;
 
-    // track off (DnD): hit-testing stays on the stable real layout so the drop target doesn't chase itself.
-    // track on (resize/column): regions update so handles follow the element.
+    // track: regions follow the preview (resize/column); off for DnD, so the drop target holds still
     const draw = (preview?: Section[] | null, track = false, dimId?: string | null): void => {
         if (!paintHost) return;
         const profile = resolveProfile(editor.artifact.format);
         const padL = leftOpen() ? PANEL_L : RAIL_GAP;
         const fullW = Math.max(360, (scrollEl.clientWidth || 800) - padL - RAIL_R);
         setCanvasContentWidth(fullW); // so minimap thumbnails match this width
-        // hide the painted text of the edited element — the live overlay shows it
+        // hide the painted text of the edited element; the live overlay shows it
         const editAddr = editing();
         const editId = editAddr ? elementRegionId(editAddr) : null;
         const viewH = scrollEl.clientHeight || 800;
@@ -90,7 +98,7 @@ export const Canvas: Component = () => {
         lastWindow = win;
         const waiting = pendingSections();
         const beforeTops = editor.sectionTops;
-        const { tops, regions, height } = paintSectionStack(
+        const { tops, heights, regions, height } = paintSectionStack(
             paintHost,
             preview ?? editor.artifact.sections,
             profile,
@@ -101,20 +109,33 @@ export const Canvas: Component = () => {
                 dimId,
                 cache: stackCache,
                 window: win,
-                estimate: waiting.size
-                    ? (s) =>
-                          waiting.has(s.id)
-                              ? estimateSectionHeight(s, profile, fullW, waiting.get(s.id))
-                              : undefined
+                placeholder: waiting.size
+                    ? (s, layoutW) => {
+                          const summary = waiting.get(s.id);
+                          return summary
+                              ? layoutPlaceholder(
+                                    s,
+                                    summary,
+                                    layoutW,
+                                    editorTokens(),
+                                    profile,
+                                    fullW,
+                                    knownHeight(s.id, fullW),
+                                )
+                              : undefined;
+                      }
                     : undefined,
             },
         );
         stageEl.style.height = `${height}px`;
-        // A section that just loaded is rarely the estimated height. If it sat above the viewport, hold
-        // the reader's place by absorbing the difference into scrollTop.
+        const drawn = preview ?? editor.artifact.sections;
+        for (const [i, sec] of drawn.entries())
+            if (!waiting.has(sec.id)) rememberHeight(sec.id, fullW, heights[i] ?? 0);
+        // a loaded section rarely matches its estimate; absorb the difference to hold the reader's place
         anchorScroll(beforeTops, tops);
         setSectionTops(tops);
-        if (waiting.size) requestVisibleSections(tops, win);
+        // fetching runs on its own clock (see scheduleFetch): painting must never wait on the network
+        if (waiting.size) scheduleFetch(viewH);
         if (!preview || track) {
             liveRegions = regions;
             setRegions(regions);
@@ -138,24 +159,42 @@ export const Canvas: Component = () => {
         if (shift) scrollEl.scrollTop = top + shift;
     };
 
-    // ask for the placeholders the window is about to reach (plus a page of lead)
-    const requestVisibleSections = (tops: number[], win: StackWindow): void => {
+    // fetch only once scrolling settles, so a fling across the stack costs one request, not dozens
+    const SETTLE_MS = 100;
+    const PREFETCH_MAX = 8; // bounds the lead only; everything on screen is always requested
+    let settleTimer = 0;
+    let lastScrollTop = 0;
+    let lastScrollAt = 0;
+    let velocity = 0; // px/ms, signed by direction of travel
+
+    const slotsNow = (): Slot[] => {
         const waiting = pendingSections();
-        if (!waiting.size) return;
-        const lead = (win.bottom - win.top) / 2;
-        const sections = editor.artifact.sections;
-        const want: string[] = [];
-        for (let i = 0; i < sections.length; i++) {
-            const id = sections[i]!.id;
-            if (!waiting.has(id)) continue;
-            const top = tops[i] ?? 0;
-            const bottom = (tops[i + 1] ?? top) + 1;
-            if (bottom >= win.top - lead && top <= win.bottom + lead) want.push(id);
-        }
+        const tops = editor.sectionTops;
+        return editor.artifact.sections.map((s, i) => ({
+            id: s.id,
+            top: tops[i] ?? 0,
+            bottom: tops[i + 1] ?? (tops[i] ?? 0) + 1,
+            pending: waiting.has(s.id),
+        }));
+    };
+
+    const fetchNow = (viewH: number, prefetch: boolean): void => {
+        if (!pendingSections().size) return;
+        const view = { top: scrollEl.scrollTop, bottom: scrollEl.scrollTop + viewH };
+        const lead = prefetch ? Math.sign(velocity || 1) * viewH : 0;
+        const want = planSectionRequests({ slots: slotsNow(), view, lead, max: PREFETCH_MAX });
         if (want.length) void requestSections(want);
     };
 
-    // Coalesce draws to one paint per frame; latest queued state wins.
+    const scheduleFetch = (viewH: number): void => {
+        const view = { top: scrollEl.scrollTop, bottom: scrollEl.scrollTop + viewH };
+        // nothing readable on screen: don't make the viewer wait out the settle
+        if (viewIsCold(slotsNow(), view)) fetchNow(viewH, false);
+        window.clearTimeout(settleTimer);
+        settleTimer = window.setTimeout(() => fetchNow(viewH, true), SETTLE_MS);
+    };
+
+    // one paint per frame; the latest queued state wins
     let rafId = 0;
     let queued: { sections: Section[] | null; track: boolean; dimId?: string | null } | null = null;
     const scheduleDraw = (
@@ -193,8 +232,7 @@ export const Canvas: Component = () => {
     };
 
     const onPointerDown = (e: PointerEvent): void => {
-        // A pointerdown reaching here while editing is an OUTSIDE click (in-editor ones are stopped) —
-        // record it so release can commit the current edit.
+        // a pointerdown reaching here while editing is an outside click; in-editor ones are stopped
         if (drag() || liveEdit()) return;
         pending = { target: hitTest(...point(e)), x: e.clientX, y: e.clientY };
     };
@@ -210,8 +248,7 @@ export const Canvas: Component = () => {
         const t = pending.target;
         const caret = { x: pending.x, y: pending.y };
         pending = null;
-        // stopEditing first (idempotent — blur usually already committed) so clicking another text element
-        // switches straight into editing it, caret at the click point.
+        // stop editing first (idempotent) so a click on another text element switches straight into it
         if (editing()) stopEditing();
         setSelection(t);
         if (t?.kind === "element") {
@@ -227,8 +264,7 @@ export const Canvas: Component = () => {
         openContextMenu(e.clientX, e.clientY, t);
     };
 
-    // Double-click the visible backdrop (the gutters/top/bottom, where target is the scroller itself,
-    // not a section) to replace the document background image.
+    // the backdrop is the scroller itself: the gutters, top and bottom, not a section
     const onBackdropDblClick = (e: MouseEvent): void => {
         const bg = editor.artifact.background;
         if (e.target === scrollEl && bg?.kind === "image" && bg.image) pickArtifactBackground();
@@ -239,16 +275,24 @@ export const Canvas: Component = () => {
         setStageEl(stageEl);
         const ro = new ResizeObserver(() => scheduleDraw(null, false));
         ro.observe(scrollEl);
-        // Scrolling only repaints once the materialized band has really moved, so ordinary scrolling
-        // inside the overscan costs nothing.
+        // repaint only once the materialized band moves, so scrolling inside the overscan costs nothing
         const onScroll = (): void => {
-            const next = stackWindow(scrollEl.scrollTop, scrollEl.clientHeight || 800);
-            if (windowMoved(lastWindow, next, scrollEl.clientHeight || 800))
+            const viewH = scrollEl.clientHeight || 800;
+            const now = performance.now();
+            const dt = now - lastScrollAt;
+            if (dt > 0 && lastScrollAt) velocity = (scrollEl.scrollTop - lastScrollTop) / dt;
+            lastScrollTop = scrollEl.scrollTop;
+            lastScrollAt = now;
+            if (windowMoved(lastWindow, stackWindow(scrollEl.scrollTop, viewH), viewH))
                 scheduleDraw(null, false);
+            else if (pendingSections().size) scheduleFetch(viewH);
         };
         scrollEl.addEventListener("scroll", onScroll, { passive: true });
-        onCleanup(() => scrollEl.removeEventListener("scroll", onScroll));
-        // On font load, drop the layer cache so the next draw re-lays-out with real metrics, not fallback-face ones.
+        onCleanup(() => {
+            scrollEl.removeEventListener("scroll", onScroll);
+            window.clearTimeout(settleTimer);
+        });
+        // drop the layer cache so the next draw measures with real font metrics, not the fallback face
         const onFonts = (): void => {
             stackCache.entries.clear();
             scheduleDraw(null, false);
@@ -262,8 +306,7 @@ export const Canvas: Component = () => {
         });
     });
 
-    // A move drag previews for the whole gesture (source lifted out immediately); a new-from-palette drag
-    // only once it has a target.
+    // a move drag previews for the whole gesture; a palette drag only once it has a target
     const preview = createMemo<{ sections: Section[]; track: boolean; dimId?: string } | null>(
         () => {
             const edit = liveEdit();
@@ -275,7 +318,7 @@ export const Canvas: Component = () => {
                     sections: previewDrop(editor.artifact, d.target, d.payload).sections,
                     track: false,
                 };
-            // Section reorder: reflow the dragged section into its slot and dim it (not a bare insertion line).
+            // a section reorder previews as a reflow into the slot, not a bare insertion line
             const sid = sectionDragId();
             const sd = sectionDrop();
             if (sid && sd !== null) {
@@ -290,7 +333,7 @@ export const Canvas: Component = () => {
         },
     );
 
-    // draw runs later in a rAF (outside tracking) — read every repaint dep here synchronously or it won't redraw.
+    // draw runs later in a rAF, outside tracking: read every repaint dep here or it won't redraw
     createEffect(() => {
         editSeq();
         currentArtifactId();
@@ -301,14 +344,13 @@ export const Canvas: Component = () => {
         scheduleDraw(p?.sections ?? null, p?.track ?? false, p?.dimId ?? null);
     });
 
-    // Drag cursor can be anywhere on screen — track it on the window.
+    // the drag cursor can leave the canvas, so track it on the window
     const isDragging = createMemo(() => drag() !== null);
     createEffect(() => {
         if (!isDragging()) return;
         const move = (e: PointerEvent): void => {
             const target = computeDropTarget(editor.artifact, liveRegions, ...point(e));
-            // Sticky target: keep the last valid one when the cursor is over a gutter/off-canvas, so the
-            // preview doesn't flash back. Only a NEW valid target replaces it.
+            // sticky target: over a gutter the last valid one holds, so the preview doesn't flash back
             setDrag((d) =>
                 d ? { ...d, x: e.clientX, y: e.clientY, target: target ?? d.target } : d,
             );
@@ -385,7 +427,7 @@ export const Thumb: Component<{
 }> = (props) => {
     let wrap!: HTMLButtonElement;
     let inner!: HTMLDivElement;
-    // Defer layout until the thumb nears the rail (up-front layout of unseen thumbs is wasted). Once seen, stay painted.
+    // lay out only once the thumb nears the rail; once seen it stays painted
     const [seen, setSeen] = createSignal(false);
 
     onMount(() => {
@@ -405,7 +447,7 @@ export const Thumb: Component<{
 
     createEffect(() => {
         if (!seen()) return;
-        // Lay out at the canvas's real width + format, then CSS-scale down — a true zoomed-out copy, not a re-wrap in a narrower box.
+        // lay out at the canvas width, then CSS-scale down, so the thumb is a true zoomed-out copy
         const theme = editorTokens();
         const profile = resolveProfile(editor.artifact.format);
         const layoutW = sectionLayoutWidth(props.section, profile, canvasContentWidth());
@@ -439,8 +481,7 @@ export const Thumb: Component<{
     );
 };
 
-// Live iframe/<video> players positioned over the painted (static) video elements.
-// Visit each element with its address — must mirror how compose tags region ids so elementRegionId matches.
+// addresses must mirror how compose tags region ids, so elementRegionId matches
 function walkAddressed(
     section: Section,
     visit: (el: ElementInstance, addr: ElementAddress) => void,
@@ -456,8 +497,7 @@ function walkAddressed(
 }
 
 const VideoEmbeds: Component = () => {
-    // Reuse the Embed object when id + src + player opts are unchanged, so an unrelated edit
-    // doesn't hand <For> new refs and reload every player.
+    // reuse the Embed when id, src and opts are unchanged, or <For> gets new refs and reloads players
     let cache = new Map<string, Embed>();
     const same = (a: PlayerOpts, b: PlayerOpts): boolean =>
         a.controls === b.controls &&
@@ -494,7 +534,7 @@ const VideoEmbeds: Component = () => {
                 return (
                     <Show when={region()}>
                         {(r) => {
-                            // Interactive only when selected, so a click on an idle player selects it instead of starting playback.
+                            // interactive only when selected, so a click on an idle player selects it
                             const pe = (): "auto" | "none" =>
                                 selected(embed.id) ? "auto" : "none";
                             return (

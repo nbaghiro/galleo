@@ -107,7 +107,7 @@ export function canvasDrawContext(cx: CanvasRenderingContext2D): DrawContext {
         path(build, s) {
             apply(s);
             cx.beginPath();
-            build(cx); // the 2D context is itself a PathSink (moveTo/arc/bezierCurveTo/…)
+            build(cx); // the 2D context is itself a PathSink
             finish(s);
         },
         text(text, x, y, s: DrawTextStyle) {
@@ -134,8 +134,7 @@ function measureCx(): CanvasRenderingContext2D | null {
     return measureCanvas;
 }
 
-// Vector DrawContext: emits <svg> children. Same contract as canvasDrawContext, so every surface
-// (charts, diagrams, icons, shapes, graphics) renders as crisp vector on the editor's DOM backend.
+// Same contract as canvasDrawContext, so surfaces render as crisp vector on the DOM backend.
 export function svgDrawContext(svg: SVGSVGElement): DrawContext {
     const make = (tag: string): SVGElement => document.createElementNS(SVG_NS, tag);
     const stylize = (el: SVGElement, s: DrawStyle, stroked = false): void => {
@@ -228,8 +227,7 @@ export function svgDrawContext(svg: SVGSVGElement): DrawContext {
     };
 }
 
-// Keep a live Image() per URL so re-paints (replaceChildren) don't cancel in-flight bg fetches. Bounded
-// and LRU: a long artifact would otherwise pin every image it ever painted for the life of the session.
+// Keeps in-flight bg fetches alive across re-paints; LRU-bounded so nothing pins for the session.
 const WARM_MAX = 60;
 const warmed = new Map<string, HTMLImageElement>();
 function warmImage(src: string): void {
@@ -258,7 +256,7 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
     el.style.height = `${c.box.h}px`;
     el.style.boxSizing = "border-box";
     if (c.opacity !== undefined) el.style.opacity = String(c.opacity);
-    // clip via clip-path insets, box-relative (reused els reset to cssText:"" first)
+    // box-relative clip-path insets; reused els have cssText reset first
     if (c.clip) {
         const b = c.box;
         const cl = c.clip;
@@ -292,7 +290,7 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
             const img = document.createElement("img");
             img.src = im.src;
             img.draggable = false;
-            img.decoding = "async"; // never block the paint of the rest of the stack on one decode
+            img.decoding = "async"; // don't block the stack's paint on one decode
             img.style.cssText = `width:100%;height:100%;object-fit:${im.fit};object-position:center;transform:scale(${im.zoom});display:block`;
             el.appendChild(img);
         } else {
@@ -310,7 +308,7 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
     } else if (c.kind === "text") {
         paintText(el, c.text);
     } else {
-        // surfaces (charts/diagrams/icons/shapes/graphics) paint as crisp vector SVG on the DOM backend
+        // surfaces paint as vector SVG on the DOM backend
         const svg = document.createElementNS(SVG_NS, "svg");
         svg.setAttribute("width", "100%");
         svg.setAttribute("height", "100%");
@@ -331,7 +329,7 @@ export function paint(commands: RenderCommand[], host: HTMLElement): void {
     }
 }
 
-// reuse child <div>s slot-for-slot; reset each first so a kind change can't inherit old styling
+// reset each reused <div> first so a kind change can't inherit old styling
 function paintReconcile(host: HTMLElement, commands: RenderCommand[]): void {
     const nodes = host.childNodes;
     for (let i = 0; i < commands.length; i++) {
@@ -644,9 +642,7 @@ export function backdropCss(bg: SectionBackground | undefined, tokens: Tokens): 
     return tokens.bg;
 }
 
-// Cache keyed on section identity (ops preserve untouched sections) → a redraw reuses unchanged work;
-// one cache per host. Layout and layer are cached separately: layout is cheap and needed for geometry
-// even off-screen, while a layer is DOM, images, and SVG, so it is only kept for what is near the view.
+// Keyed on section identity; layout is always cached, the DOM layer only near the view.
 interface SectionCacheEntry {
     section: Section;
     layoutW: number;
@@ -654,6 +650,7 @@ interface SectionCacheEntry {
     profileId: string;
     hideKey: string;
     commands: RenderCommand[];
+    ghost: boolean; // a stand-in, so resolving the real content is always a cache miss
     layer: HTMLElement | null;
     regions: Region[]; // section-local (offset into stage coords per draw)
     height: number;
@@ -665,8 +662,7 @@ export function createSectionStackCache(): SectionStackCache {
     return { entries: new Map() };
 }
 
-// Half a viewport of retention beyond the paint window, so a small scroll oscillation doesn't thrash
-// DOM that is about to be needed again.
+// Retention beyond the paint window, so a small scroll oscillation doesn't thrash DOM.
 const KEEP_MARGIN = 400;
 
 export interface StackWindow {
@@ -677,26 +673,17 @@ export interface StackWindow {
 const intersects = (top: number, height: number, w: StackWindow): boolean =>
     top < w.bottom && top + height > w.top;
 
-// single source of truth for section width (stack painter + minimap thumb must agree so text wraps identically)
+// stack painter + minimap thumb must agree here so text wraps identically
 export function sectionLayoutWidth(
     section: Section,
     profile: FormatDescriptor,
     fullW: number,
 ): number {
-    const bleed = (section.bleed ?? false) || profile.id === "web";
+    const bleed = (section.bleed ?? false) || profile.bleedSections === true;
     return bleed ? fullW : Math.min(fullW - 64, profile.maxContentWidth ?? 1080);
 }
 
-/**
- * Paints the section stack into `host`, absolutely positioned, and reports the geometry the editor
- * navigates by (`tops`, total `height`) plus the hit-test `regions`.
- *
- * With `window`, only sections intersecting it are materialized: every section is still laid out, so
- * tops and height stay exact and the scrollbar never lies, but the DOM, images, and chart SVGs of what
- * is off-screen are neither built nor kept. Regions follow the same rule, since nothing off-screen can
- * be hovered or clicked. Without a window the whole stack is materialized, which is what export,
- * printing, and small artifacts want.
- */
+/** Windowed: off-screen sections still lay out (tops/height exact) but build no DOM or regions. */
 export function paintSectionStack(
     host: HTMLElement,
     sections: Section[],
@@ -706,17 +693,21 @@ export function paintSectionStack(
         fullW: number;
         startY?: number;
         hideId?: string | null;
-        dimId?: string | null; // a section being drag-reordered — painted dimmed as a "lifted" preview
+        dimId?: string | null; // the drag-reordered section, painted dimmed
         cache?: SectionStackCache;
         window?: StackWindow;
-        // height to reserve for a section whose content hasn't loaded yet (windowed content)
-        estimate?: (section: Section) => number | undefined;
+        // stand-in for a section whose content hasn't loaded yet
+        placeholder?: (
+            section: Section,
+            layoutW: number,
+        ) => { commands: RenderCommand[]; height: number } | undefined;
     },
-): { tops: number[]; regions: Region[]; height: number; painted: number } {
+): { tops: number[]; heights: number[]; regions: Region[]; height: number; painted: number } {
     const gap = profile.kind === "continuous" ? 0 : SECTION_GAP; // doc/web merge seamlessly
     const cache = opts.cache;
     const win = opts.window;
     const tops: number[] = [];
+    const heights: number[] = [];
     const regions: Region[] = [];
     const layers: HTMLElement[] = [];
     const live = new Set<string>();
@@ -729,30 +720,31 @@ export function paintSectionStack(
         // hideKey only in the edited section's cache key → an edit repaints one section, not the stack
         const hideKey = opts.hideId?.startsWith(`el:${section.id}:`) ? opts.hideId : "";
         const prev = cache?.entries.get(section.id);
+        const ghost = opts.placeholder?.(section, layoutW);
         const reuse =
             prev &&
+            prev.ghost === !!ghost &&
             prev.section === section &&
             prev.layoutW === layoutW &&
             prev.theme === theme &&
             prev.profileId === profile.id &&
             prev.hideKey === hideKey;
 
-        // a placeholder section reserves its estimated height and lays out nothing
-        const reserved = opts.estimate?.(section);
         let entry: SectionCacheEntry;
         if (reuse) {
             entry = prev;
-        } else if (reserved !== undefined) {
+        } else if (ghost) {
             entry = {
                 section,
                 layoutW,
                 theme,
                 profileId: profile.id,
                 hideKey,
-                commands: [],
-                layer: null,
-                regions: [],
-                height: reserved,
+                commands: ghost.commands,
+                ghost: true,
+                layer: prev?.layer ?? null,
+                regions: [], // a stand-in isn't selectable
+                height: ghost.height,
             };
             cache?.entries.set(section.id, entry);
         } else {
@@ -767,6 +759,7 @@ export function paintSectionStack(
                 profileId: profile.id,
                 hideKey,
                 commands,
+                ghost: false,
                 layer: prev?.layer ?? null,
                 regions: res.regions,
                 height: res.height,
@@ -800,12 +793,13 @@ export function paintSectionStack(
             entry.layer = null; // out of retention range: drop the DOM, keep the layout
         }
         tops.push(y);
+        heights.push(entry.height);
         y += entry.height + gap;
     }
     if (cache)
         for (const id of [...cache.entries.keys()]) if (!live.has(id)) cache.entries.delete(id);
     host.replaceChildren(...layers);
-    return { tops, regions, height: y, painted: layers.length };
+    return { tops, heights, regions, height: y, painted: layers.length };
 }
 
 const keep = (w: StackWindow): StackWindow => ({

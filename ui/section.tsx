@@ -1,9 +1,10 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
-import type { Section, SectionBackground } from "@model/artifact";
+import type { Section, SectionBackground, SectionSummary } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
 import { paint, backdropCss, scaledHostCss } from "@canvas/render/backends";
+import { layoutPlaceholder } from "@canvas/render/placeholder";
 import {
     measureText,
     layoutSlide,
@@ -13,10 +14,11 @@ import {
 } from "@canvas/render/commands";
 import { slideFrame } from "@engine/profile";
 
-// Engine render of one Section, CSS-scaled to `width` — a true zoomed-out copy (identical wraps), not a re-wrap in a narrow box.
+// CSS-scaled to `width`, so it is a true zoomed-out copy (identical wraps), not a re-wrap in a narrow box.
 
 export const ScaledSectionCanvas: Component<{
     section: Section;
+    ghost?: SectionSummary; // paint the stand-in for this summary instead of the section
     theme: Tokens;
     profile: FormatDescriptor;
     width?: number;
@@ -69,24 +71,35 @@ export const ScaledSectionCanvas: Component<{
         } else {
             const fr = slideBox();
             const scale = w() / fr.w;
-            const { commands, height } = props.skeleton
-                ? layoutSlideSkeleton(
+            const ghost = props.ghost;
+            const { commands, height } = ghost
+                ? layoutPlaceholder(
                       props.section,
+                      ghost,
                       fr.w,
-                      fr.h,
-                      measureText,
                       props.theme,
                       props.profile,
+                      fr.w,
+                      fr.h,
                   )
-                : layoutSlide(
-                      props.section,
-                      fr.w,
-                      fr.h,
-                      measureText,
-                      props.theme,
-                      props.profile,
-                      plain(),
-                  );
+                : props.skeleton
+                  ? layoutSlideSkeleton(
+                        props.section,
+                        fr.w,
+                        fr.h,
+                        measureText,
+                        props.theme,
+                        props.profile,
+                    )
+                  : layoutSlide(
+                        props.section,
+                        fr.w,
+                        fr.h,
+                        measureText,
+                        props.theme,
+                        props.profile,
+                        plain(),
+                    );
             inner.style.cssText = scaledHostCss(fr.w, height, scale);
             paint(commands, inner);
         }
@@ -121,12 +134,12 @@ export const ScaledSectionCanvas: Component<{
         width: `${w()}px`,
         height: `${boxH()}px`,
         background: props.theme.bg,
-        // default radius = theme --radius-lg so tiles round in step with the chrome; an explicit `radius` (incl. 0) wins.
+        // default radius = theme --radius-lg; an explicit `radius` (including 0) wins.
         "border-radius": props.radius !== undefined ? `${props.radius}px` : "var(--radius-lg)",
         ...(props.bordered ? { border: "1px solid var(--color-line)" } : {}),
         ...(boxShadow() ? { "box-shadow": boxShadow() } : {}),
     });
-    // A thunk (not stored JSX) so the one mounted branch mints its own nodes — inner/wrap refs assigned once.
+    // A thunk (not stored JSX) so the mounted branch mints its own nodes; refs are assigned once.
     const body = (): JSX.Element => (
         <>
             <div ref={inner} />

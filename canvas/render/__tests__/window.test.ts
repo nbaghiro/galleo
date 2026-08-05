@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { Section } from "@model/artifact";
 import { resolveProfile } from "@engine/profile";
-import { estimateSectionHeight, OVERSCAN, stackWindow, windowMoved } from "@canvas/render/window";
+import {
+    estimateSectionHeight,
+    OVERSCAN,
+    planSectionRequests,
+    stackWindow,
+    viewIsCold,
+    windowMoved,
+    type Slot,
+} from "@canvas/render/window";
 
 const bare = (over: Partial<Section> = {}): Section => ({
     id: "s1",
@@ -69,5 +77,77 @@ describe("estimateSectionHeight", () => {
 
     it("falls back to a body-sized block when the size is unknown", () => {
         expect(estimateSectionHeight(bare(), resolveProfile("doc"), 1000)).toBe(260);
+    });
+});
+
+// a stack of 10 sections, 100px each, all still loading unless named as loaded
+const slots = (loaded: string[] = []): Slot[] =>
+    Array.from({ length: 10 }, (_, i) => ({
+        id: `s${i}`,
+        top: i * 100,
+        bottom: i * 100 + 100,
+        pending: !loaded.includes(`s${i}`),
+    }));
+
+describe("planSectionRequests", () => {
+    const view = { top: 300, bottom: 600 };
+
+    it("asks for what is on screen, nearest the middle first", () => {
+        expect(planSectionRequests({ slots: slots(), view, lead: 0, max: 8 })).toEqual([
+            "s4",
+            "s3",
+            "s5",
+        ]);
+    });
+
+    it("skips sections already loaded", () => {
+        expect(planSectionRequests({ slots: slots(["s3", "s4"]), view, lead: 0, max: 8 })).toEqual([
+            "s5",
+        ]);
+    });
+
+    it("prefetches only in the direction of travel", () => {
+        const down = planSectionRequests({ slots: slots(), view, lead: 300, max: 8 });
+        expect(down).toContain("s7");
+        expect(down).not.toContain("s1");
+        const up = planSectionRequests({ slots: slots(), view, lead: -300, max: 8 });
+        expect(up).toContain("s1");
+        expect(up).not.toContain("s7");
+    });
+
+    it("puts everything visible ahead of anything prefetched", () => {
+        const ids = planSectionRequests({ slots: slots(), view, lead: 600, max: 8 });
+        expect(ids.slice(0, 3).sort()).toEqual(["s3", "s4", "s5"]);
+    });
+
+    it("caps the prefetch tail, so one fling cannot queue the document", () => {
+        // 3 visible, then 4 of the lead
+        expect(planSectionRequests({ slots: slots(), view, lead: 10_000, max: 4 })).toHaveLength(7);
+    });
+
+    it("never truncates what is on screen, however tall the viewport", () => {
+        const tall = { top: 0, bottom: 1000 }; // ten sections at once
+        expect(planSectionRequests({ slots: slots(), view: tall, lead: 0, max: 2 })).toHaveLength(
+            10,
+        );
+    });
+
+    it("is empty when nothing pending is in reach", () => {
+        expect(
+            planSectionRequests({ slots: slots(["s3", "s4", "s5"]), view, lead: 0, max: 8 }),
+        ).toEqual([]);
+    });
+});
+
+describe("viewIsCold", () => {
+    const view = { top: 300, bottom: 600 };
+    it("is true when the visible band holds only placeholders", () => {
+        expect(viewIsCold(slots(), view)).toBe(true);
+    });
+    it("is false as soon as one visible section has content", () => {
+        expect(viewIsCold(slots(["s4"]), view)).toBe(false);
+    });
+    it("is false when the band holds nothing at all", () => {
+        expect(viewIsCold(slots(), { top: 5000, bottom: 5300 })).toBe(false);
     });
 });

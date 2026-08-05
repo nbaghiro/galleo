@@ -13,8 +13,10 @@ import {
     isWindowed,
     loadArtifactContent,
     loadArtifactWindow,
+    knownHeight,
     onLoadSections,
     pending,
+    rememberHeight,
     redo,
     requestSections,
     undo,
@@ -37,7 +39,8 @@ describe("loadArtifactWindow", () => {
         loadArtifactWindow("doc", shell, index(["a", "b", "c", "d"]), [real("a"), real("b")]);
         expect(ids()).toEqual(["a", "b", "c", "d"]);
         expect([...pending().keys()]).toEqual(["c", "d"]);
-        expect(pending().get("c")).toBe(900); // the size the digest recorded
+        // the summary the stand-in is drawn from, not just a height
+        expect(pending().get("c")).toMatchObject({ id: "c", kind: "content", size: 900 });
         expect(isWindowed()).toBe(true);
     });
 
@@ -101,6 +104,51 @@ describe("ensureAllSections", () => {
         await ensureAllSections();
         expect(load).toHaveBeenCalledTimes(1);
         expect(pending().size).toBe(1);
+    });
+});
+
+describe("switching artifacts mid-flight", () => {
+    it("drops a response that lands after the switch, rather than splicing it in", async () => {
+        await inRootAsync(async () => {
+            loadArtifactWindow("doc-a", shell, index(["a", "shared"]), [real("a")]);
+            let release: (s: Section[]) => void = () => {};
+            onLoadSections(() => new Promise<Section[]>((res) => (release = res)));
+            const inFlight = requestSections(["shared"]);
+
+            // the user opens another artifact whose sections happen to share an id
+            loadArtifactWindow("doc-b", shell, index(["shared"]), [real("shared")]);
+            const before = editor.artifact.sections[0];
+            release([sectionOf(emptyRegion(), { id: "shared" })]);
+            await inFlight;
+
+            expect(editor.artifact.sections[0]).toBe(before); // untouched
+        });
+    });
+
+    it("releases in-flight ids so the next artifact can ask for the same one", async () => {
+        loadArtifactWindow("doc-a", shell, index(["x"]), []);
+        onLoadSections(() => new Promise<Section[]>(() => {}));
+        void requestSections(["x"]);
+        loadArtifactWindow("doc-b", shell, index(["x"]), []);
+        const asked: string[][] = [];
+        onLoadSections(async (want) => {
+            asked.push(want);
+            return want.map(real);
+        });
+        await requestSections(["x"]);
+        expect(asked).toEqual([["x"]]);
+    });
+});
+
+describe("remembered heights", () => {
+    it("returns a section's measured height for the same width bucket, and forgets on load", () => {
+        loadArtifactWindow("doc", shell, index(["a"]), [real("a")]);
+        rememberHeight("a", 1000, 480);
+        expect(knownHeight("a", 1000)).toBe(480);
+        expect(knownHeight("a", 1010)).toBe(480); // same width bucket
+        expect(knownHeight("a", 600)).toBeUndefined(); // a different layout width
+        loadArtifactContent("other", { ...shell, sections: [real("a")] });
+        expect(knownHeight("a", 1000)).toBeUndefined();
     });
 });
 

@@ -1,4 +1,4 @@
-import type { ArtifactContent, ElementInstance } from "@model/artifact";
+import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import { emptyRegion } from "@model/section";
 import { createSignal } from "solid-js";
 import { api, type ArtifactSummary } from "../api";
@@ -45,7 +45,7 @@ const queryString = (q: LibraryQuery, cursor?: string | null): string => {
     return p.toString();
 };
 
-// a page fetched under stale filters must not be appended; every fetch carries the epoch it started in
+// a page fetched under stale filters must not be appended; each fetch carries its epoch
 let epoch = 0;
 
 /** Fetch page one under `q`, replacing the list. */
@@ -90,50 +90,94 @@ export async function loadMoreArtifacts(): Promise<void> {
 }
 
 let firstLoad: Promise<void> | null = null;
-/**
- * Load the library once, on demand. ⌘K can be the first thing that needs it (opened from the editor,
- * where the library view never mounted), and the local instant pass has nothing to rank until it lands.
- */
+/** Load the library once, on demand: ⌘K may need it before the library view has ever mounted. */
 export function ensureLibrary(): Promise<void> {
     if (!firstLoad) firstLoad = loadLibrary();
     return firstLoad;
 }
 
-// how many sections a card's filmstrip shows, and therefore how much content it asks for
-export const CARD_SECTIONS = 6;
+// ids per request; a wide strip asks for more than this, split across requests rather than truncated
+export const CARD_BATCH = 8;
+// artifacts whose sections stay in memory; a long scroll would otherwise accumulate the whole library
+const CARD_CACHE_MAX = 30;
+
+// sections held per artifact, keyed by section id: a strip loads the ones scrolled into view, not all
+const [cardSections, setCardSections] = createSignal<Record<string, Record<string, Section>>>({});
+export { cardSections };
+
+export const cardSection = (artifactId: string, sectionId: string): Section | undefined =>
+    cardSections()[artifactId]?.[sectionId];
+
+const recentCards: string[] = [];
+function touchCard(id: string): void {
+    const at = recentCards.indexOf(id);
+    if (at >= 0) recentCards.splice(at, 1);
+    recentCards.unshift(id);
+}
+
+function evictCards(
+    next: Record<string, Record<string, Section>>,
+): Record<string, Record<string, Section>> {
+    if (recentCards.length <= CARD_CACHE_MAX) return next;
+    const drop = recentCards.splice(CARD_CACHE_MAX);
+    const kept = { ...next };
+    for (const id of drop) delete kept[id];
+    return kept;
+}
+
+/** Seed a card from content the client just wrote, so its strip doesn't refetch what it has. */
+export function seedCardSections(id: string, sections: Section[]): void {
+    const by: Record<string, Section> = {};
+    for (const sec of sections) by[sec.id] = sec;
+    touchCard(id);
+    setCardSections(evictCards({ ...cardSections(), [id]: by }));
+    staleContent.delete(id);
+}
 
 const inFlight = new Map<string, Promise<void>>();
+const flightKey = (id: string, ids: string[]): string => `${id}:${[...ids].sort().join(",")}`;
 
-/**
- * Fetch just enough of an artifact to draw its card, and only when the card is on its way into view.
- * Deduped per id; a re-entry after a server-side edit refetches once.
- */
-export function ensureCardContent(id: string): Promise<void> {
-    const stale = staleContent.has(id);
-    if (contents()[id] && !stale) return Promise.resolve();
-    const running = inFlight.get(id);
+/** Section ids of `want` this card doesn't hold yet. */
+export function missingCardSections(id: string, want: string[]): string[] {
+    const have = cardSections()[id] ?? {};
+    const fresh = !staleContent.has(id);
+    return want.filter((sid) => !(fresh && have[sid]));
+}
+
+function fetchCardBatch(id: string, need: string[]): Promise<void> {
+    const key = flightKey(id, need);
+    const running = inFlight.get(key);
     if (running) return running;
     const run = (async (): Promise<void> => {
         try {
-            const { sections } = await api.getSections(id, { from: 0, count: CARD_SECTIONS });
-            const meta = artifacts().find((a) => a.id === id);
-            setContents({
-                ...contents(),
-                [id]: {
-                    format: meta?.formatId ?? "deck",
-                    theme: meta?.themeId ?? "studio",
-                    sections,
-                },
-            });
+            const { sections } = await api.getSections(id, { ids: need });
+            const held = staleContent.has(id) ? {} : (cardSections()[id] ?? {});
+            const merged = { ...held };
+            for (const sec of sections) merged[sec.id] = sec;
+            touchCard(id);
+            setCardSections(evictCards({ ...cardSections(), [id]: merged }));
             staleContent.delete(id);
         } catch {
-            /* the card keeps its skeleton */
+            /* the tiles keep their stand-ins */
         } finally {
-            inFlight.delete(id);
+            inFlight.delete(key);
         }
     })();
-    inFlight.set(id, run);
+    inFlight.set(key, run);
     return run;
+}
+
+/**
+ * Fetch the named sections for a card, splitting a wide strip across requests rather than dropping the
+ * overflow: on a large monitor every visible tile must resolve, not the first batch of them.
+ */
+export function ensureCardSections(id: string, want: string[]): Promise<void> {
+    const need = missingCardSections(id, want);
+    if (!need.length) return Promise.resolve();
+    const batches: Promise<void>[] = [];
+    for (let i = 0; i < need.length; i += CARD_BATCH)
+        batches.push(fetchCardBatch(id, need.slice(i, i + CARD_BATCH)));
+    return Promise.all(batches).then(() => undefined);
 }
 
 export function moveArtifact(id: string, folderId: string | null): void {
@@ -213,6 +257,7 @@ export async function duplicateArtifact(orig: ArtifactSummary): Promise<string |
         const dup: ArtifactSummary = { ...orig, id, title, updatedAt: new Date().toISOString() };
         setArtifacts([dup, ...artifacts()]);
         setContents({ ...contents(), [id]: content });
+        seedCardSections(id, content.sections);
         return id;
     } catch {
         return null;
@@ -261,13 +306,13 @@ export async function persistArtifact(
         };
         setArtifacts([summary, ...artifacts()]);
         setContents({ ...contents(), [id]: content });
+        seedCardSections(id, content.sections);
         return id;
     } catch {
         return null;
     }
 }
 
-// the update path for a persisted generation draft — saves content + keeps the store in sync
 export async function updateArtifactContent(
     id: string,
     content: ArtifactContent,
@@ -294,6 +339,7 @@ export async function updateArtifactContent(
             ),
         );
         setContents({ ...contents(), [id]: content });
+        seedCardSections(id, content.sections);
         return true;
     } catch {
         return false;

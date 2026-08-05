@@ -2,12 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ArtifactPage, ArtifactSummary, Section } from "@model/artifact";
 import {
     artifacts,
-    CARD_SECTIONS,
-    contents,
-    ensureCardContent,
+    CARD_BATCH,
+    cardSection,
+    ensureCardSections,
     loadLibrary,
     loadMoreArtifacts,
+    missingCardSections,
     nextCursor,
+    seedCardSections,
 } from "../library";
 
 interface FetchCall {
@@ -119,39 +121,87 @@ describe("loadMoreArtifacts", () => {
     });
 });
 
-describe("ensureCardContent", () => {
+describe("ensureCardSections", () => {
     const sections = (ids: string[]): { sections: Section[] } => ({
         sections: ids.map((id) => ({ id, root: { type: "text", data: { text: id } } })),
     });
 
-    it("asks only for the sections the card shows", async () => {
+    it("asks only for the tiles the strip is looking at", async () => {
         stubFetch([page(["a1"], null)]);
         await loadLibrary({});
-        const calls = stubFetch([sections(["s1", "s2"])]);
-        await ensureCardContent("a1");
-        expect(calls[0]!.url).toBe(`/api/artifacts/a1/sections?window=0:${CARD_SECTIONS}`);
-        expect(contents()["a1"]!.sections.map((s) => s.id)).toEqual(["s1", "s2"]);
-        expect(contents()["a1"]!.format).toBe("deck"); // shell comes from the row already in hand
+        const calls = stubFetch([sections(["s2", "s3"])]);
+        await ensureCardSections("a1", ["s2", "s3"]);
+        expect(calls[0]!.url).toBe("/api/artifacts/a1/sections?ids=s2,s3");
+        expect(cardSection("a1", "s2")?.id).toBe("s2");
+        expect(cardSection("a1", "s9")).toBeUndefined();
     });
 
-    it("fetches once for concurrent callers and not at all when already held", async () => {
-        stubFetch([page(["a3"], null)]); // its own id: the content cache is process-wide
+    it("merges a later batch into what the card already holds", async () => {
+        stubFetch([page(["a2"], null)]);
+        await loadLibrary({});
+        stubFetch([sections(["s1"])]);
+        await ensureCardSections("a2", ["s1"]);
+        stubFetch([sections(["s2"])]);
+        await ensureCardSections("a2", ["s2"]);
+        expect(cardSection("a2", "s1")?.id).toBe("s1");
+        expect(cardSection("a2", "s2")?.id).toBe("s2");
+    });
+
+    it("never asks twice for the same batch, or at all for what it holds", async () => {
+        stubFetch([page(["a3"], null)]);
         await loadLibrary({});
         const calls = stubFetch([sections(["s1"])]);
-        await Promise.all([ensureCardContent("a3"), ensureCardContent("a3")]);
-        expect(calls).toHaveLength(1);
-        await ensureCardContent("a3");
+        await Promise.all([ensureCardSections("a3", ["s1"]), ensureCardSections("a3", ["s1"])]);
+        await ensureCardSections("a3", ["s1"]);
         expect(calls).toHaveLength(1);
     });
 
-    it("leaves the card without content when the fetch fails", async () => {
-        stubFetch([page(["a2"], null)]);
+    it("splits a wide strip across requests rather than dropping the overflow", async () => {
+        stubFetch([page(["a4"], null)]);
+        await loadLibrary({});
+        const want = Array.from({ length: CARD_BATCH * 2 + 3 }, (_, i) => `s${i}`);
+        const calls = stubFetch([sections(want)]);
+        await ensureCardSections("a4", want);
+
+        expect(calls).toHaveLength(3); // every visible tile is asked for, none silently dropped
+        const asked = calls.flatMap((c) => c.url.split("ids=")[1]!.split(","));
+        expect(asked.sort()).toEqual([...want].sort());
+        for (const c of calls)
+            expect(c.url.split("ids=")[1]!.split(",").length).toBeLessThanOrEqual(CARD_BATCH);
+    });
+
+    it("asks for nothing it already holds", async () => {
+        stubFetch([page(["a7"], null)]);
+        await loadLibrary({});
+        stubFetch([sections(["s1"])]);
+        await ensureCardSections("a7", ["s1"]);
+        const calls = stubFetch([sections(["s2"])]);
+        await ensureCardSections("a7", ["s1", "s2"]);
+        expect(calls[0]!.url).toBe("/api/artifacts/a7/sections?ids=s2");
+        expect(missingCardSections("a7", ["s1", "s2"])).toEqual([]);
+    });
+
+    it("leaves the tiles as stand-ins when the fetch fails", async () => {
+        stubFetch([page(["a5"], null)]);
         await loadLibrary({});
         vi.stubGlobal(
             "fetch",
             vi.fn(() => Promise.reject(new Error("offline"))),
         );
-        await ensureCardContent("a2");
-        expect(contents()["a2"]).toBeUndefined();
+        await ensureCardSections("a5", ["s1"]);
+        expect(cardSection("a5", "s1")).toBeUndefined();
+    });
+
+    it("takes sections the client just wrote without a round trip", async () => {
+        seedCardSections("a6", [{ id: "s1", root: { type: "text", data: { text: "x" } } }]);
+        expect(cardSection("a6", "s1")?.id).toBe("s1");
+        expect(missingCardSections("a6", ["s1"])).toEqual([]);
+    });
+
+    it("forgets the least recently touched cards rather than growing forever", () => {
+        for (let i = 0; i < 40; i++)
+            seedCardSections(`card${i}`, [{ id: "s1", root: { type: "text", data: {} } }]);
+        expect(cardSection("card0", "s1")).toBeUndefined();
+        expect(cardSection("card39", "s1")?.id).toBe("s1");
     });
 });

@@ -5,7 +5,7 @@ import {
     scaledHostCss,
     sectionLayoutWidth,
 } from "@canvas/render/backends";
-import { resolveProfile } from "@engine/profile";
+import { previewContentProfile, resolveProfile } from "@engine/profile";
 import { inst, sectionOf, tokens } from "@canvas/testkit";
 
 describe("scaledHostCss", () => {
@@ -57,6 +57,11 @@ describe("sectionLayoutWidth", () => {
             900,
         );
         expect(sectionLayoutWidth(s, web, 900)).toBe(900);
+    });
+    it("a doc bled for a phone fills the board, unlike the same doc on desktop", () => {
+        const doc = resolveProfile("doc");
+        expect(sectionLayoutWidth(s, doc, 430)).toBe(430 - 64);
+        expect(sectionLayoutWidth(s, previewContentProfile(doc, 430, true), 430)).toBe(430);
     });
 });
 
