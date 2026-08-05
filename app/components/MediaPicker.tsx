@@ -187,7 +187,6 @@ export const MediaPicker: Component = () => {
     let sentinelEl: HTMLDivElement | undefined;
     let io: IntersectionObserver | undefined;
 
-    // Infinite scroll: a sentinel under the grid pages in the next batch as it nears the viewport.
     const armSentinel = (el: HTMLDivElement): void => {
         sentinelEl = el;
         io?.disconnect();
@@ -357,7 +356,7 @@ export const MediaPicker: Component = () => {
         setLoading(false);
     }
 
-    // One Veo clip per click; progress heartbeats keep the shimmer honest through the ~1–2 min wait.
+    // progress heartbeats keep the shimmer honest through the ~1–2 min wait
     async function generateVideoClip(): Promise<void> {
         if (!prompt().trim()) return;
         setLoading(true);

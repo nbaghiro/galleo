@@ -1,9 +1,5 @@
 import type { Tokens } from "@themes";
 
-// Theme-driven SVG previews per element type. Colors come from a palette so the same bodies serve two
-// consumers: the editor palette/insert tiles (CSS-var colors → live theme recolor via the page) and the
-// on-canvas drop-ghost (concrete token colors baked into a data-URI, where CSS vars wouldn't resolve).
-
 export interface PreviewPalette {
     accent: string;
     ink: string;
@@ -13,7 +9,7 @@ export interface PreviewPalette {
     onaccent: string;
 }
 
-// CSS custom properties — resolve against the page's --color-* vars, so a theme switch recolors inline SVG.
+// resolve against the page's --color-* vars, so a theme switch recolors inline SVG
 export const CSS_VAR_PALETTE: PreviewPalette = {
     accent: "var(--color-accent)",
     ink: "var(--color-ink)",
@@ -464,17 +460,17 @@ function elementPreviews(c: PreviewPalette): Record<string, string> {
 const fallback = (c: PreviewPalette): string =>
     `<rect x="20" y="20" width="100" height="32" rx="7" fill="${c.muted}" opacity="0.25"/>`;
 
-// inner SVG shapes for a type (no <svg> wrapper), colored by `c`
+// inner shapes only, no <svg> wrapper
 export function previewBody(type: string, c: PreviewPalette = CSS_VAR_PALETTE): string {
     return elementPreviews(c)[type] ?? fallback(c);
 }
 
-// full responsive SVG string — inline via innerHTML in the palette/insert tiles (CSS vars recolor live)
+// inlined via innerHTML in the palette/insert tiles, where CSS vars recolor live
 export function previewSvg(type: string, c: PreviewPalette = CSS_VAR_PALETTE): string {
     return `<svg viewBox="0 0 140 72" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" fill="none" xmlns="http://www.w3.org/2000/svg">${previewBody(type, c)}</svg>`;
 }
 
-// concrete-size data-URI (colors baked from tokens) — for an engine image leaf, where CSS vars can't resolve
+// for an engine image leaf, where CSS vars can't resolve
 export function previewDataUri(type: string, t: Tokens): string {
     const svg = `<svg viewBox="0 0 140 72" width="140" height="72" fill="none" xmlns="http://www.w3.org/2000/svg">${previewBody(type, paletteFor(t))}</svg>`;
     return `data:image/svg+xml,${encodeURIComponent(svg)}`;

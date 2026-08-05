@@ -1,9 +1,6 @@
 import type { ElementInstance, Section } from "@model/artifact";
 import { childrenRaw, updateAtPath } from "@model/section";
 
-// Finding a target inside a section's element tree — a passage, an element, an image — so an edit can
-// aim at one part rather than regenerating the whole section. Pure: the model calls live in the tools.
-
 export interface Passage {
     path: number[]; // into the section root, for updateAtPath
     text: string;
@@ -28,12 +25,7 @@ export function textNodes(root: ElementInstance): Passage[] {
     return out;
 }
 
-/**
- * The node the model meant. Exact (normalized) match wins; failing that the SHORTEST node containing
- * the phrase, so a word that appears in both a heading and a paragraph resolves to the heading rather
- * than swallowing the longer block. Returns null when nothing matches — the caller tells the model
- * what is actually there instead of rewriting the wrong thing.
- */
+/** Exact (normalized) match wins, else the shortest containing node; null when nothing matches. */
 export function findPassage(root: ElementInstance, find: string): Passage | null {
     const needle = norm(find);
     if (!needle) return null;

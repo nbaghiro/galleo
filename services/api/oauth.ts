@@ -9,9 +9,7 @@ import { googleProvider, oauthProvidersReady, OAUTH_SCOPES } from "../oauth";
 import { appUrl } from "../app-url";
 import { setSessionCookie } from "./context";
 
-// Google OAuth sign-in. Standard two-leg flow: /auth/google mints state + PKCE and redirects to Google,
-// /auth/google/callback verifies + exchanges the code and reads the identity. Failures redirect to
-// /login?authError=<code> for the auth page to explain.
+// Failures redirect to /login?authError=<code>, which the auth page explains.
 export const oauth = new Hono();
 
 const STATE_COOKIE = "oauth_state";
@@ -47,7 +45,6 @@ const googleIdentity: IdentityReader = (claims) => {
     };
 };
 
-// Redirect leg: stash state + PKCE in cookies, bounce to the provider.
 function begin(c: Context, client: Google): Response {
     const state = generateState();
     const verifier = generateCodeVerifier();
@@ -64,7 +61,6 @@ function begin(c: Context, client: Google): Response {
     return c.redirect(url.toString());
 }
 
-// Callback leg: verify state, exchange the code, resolve the identity to a user, sign in.
 async function complete(
     c: Context,
     provider: AuthProvider,

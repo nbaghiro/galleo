@@ -3,14 +3,12 @@ import { LAYOUT_PRESETS } from "@model/section";
 import { COST_UNITS } from "@model/credits";
 import { estimateCost } from "@model/tools";
 
-// pure helpers behind the generate session store — no Solid, no IO, unit-testable
-
 export const LAYOUT_IDS: string[] = Object.keys(LAYOUT_PRESETS);
 
 export const columnsFor = (layout?: string): number =>
     LAYOUT_PRESETS[layout ?? "full"]?.length ?? 1;
 
-// resize a beat's per-column block list to a new layout, keeping what fits
+// keeps the blocks that still fit the new column count
 export function blocksForLayout(layout: string, prev?: string[]): string[] {
     const n = columnsFor(layout);
     const kept = (prev ?? []).slice(0, n);
@@ -94,15 +92,13 @@ export const briefCost = (): number => estimateCost("draft-brief");
 export const planCost = (): number => estimateCost("plan-outline");
 export const sectionCost = (): number => estimateCost("add-section");
 
-// what the remaining build will cost; AI images priced per image-leading beat
+// AI images are priced per image-leading beat
 export function buildCost(beats: Beat[], imageSource?: "stock" | "ai"): number {
     const images = imageSource === "ai" ? beats.filter((b) => b.image).length : 0;
     return beats.length * sectionCost() + images * COST_UNITS.image;
 }
 
-// Only a question literally asking to include something can become a must-cover point. A choice
-// question ("live pitch or email attachment?") must yield null — turning that into a point would
-// invent a requirement the user never stated.
+// a choice question ("A or B?") must yield null, not invent a requirement the user never stated
 const INCLUDE_QUESTION =
     /^(should|shall|does|do|would|will|can|could)\s+(it|this|that|we|you|the\s+\S+)?\s*(also\s+)?(include|cover|mention|have|show|address|feature)\s+/i;
 

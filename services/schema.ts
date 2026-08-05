@@ -18,8 +18,7 @@ import postgres from "postgres";
 import type { ArtifactDigest } from "@model/artifact";
 import type { FeatureOverrides } from "@model/features";
 
-// Postgres FTS vector. Drizzle has no native type and the value is never written by hand — it is a
-// generated column derived from `title` + `search_text`, so the index can't drift from the row.
+// Drizzle has no tsvector type; the column is generated from title + search_text, never written by hand
 const tsvector = customType<{ data: string; driverData: string }>({
     dataType: () => "tsvector",
 });
@@ -38,9 +37,7 @@ export const users = pgTable("users", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Linked OAuth identities (Google). One row per (provider, provider account) → the local user it
-// authenticates. `password_hash` stays null for accounts created purely via OAuth; a user can have both
-// a password and one or more linked providers (matched on a verified email).
+// a user can have both a password and linked providers; linking by email requires a verified address
 export const oauthAccounts = pgTable(
     "oauth_accounts",
     {
@@ -55,9 +52,7 @@ export const oauthAccounts = pgTable(
     (t) => [unique().on(t.provider, t.providerAccountId)],
 );
 
-// Short-lived, single-use tokens for email verification + password reset. Only a SHA-256 hash of the
-// token is stored — the raw value lives solely in the emailed link, so a DB leak can't be replayed.
-// `purpose` separates the two flows; `consumedAt` makes it one-time; `expiresAt` bounds its lifetime.
+// only the SHA-256 hash is stored, so a DB leak can't replay the emailed token
 export const authTokens = pgTable("auth_tokens", {
     id: uuid("id").primaryKey().defaultRandom(),
     userId: uuid("user_id")
@@ -107,9 +102,7 @@ export const members = pgTable(
     (t) => [primaryKey({ columns: [t.workspaceId, t.userId] })],
 );
 
-// Pending workspace invitations. Only a SHA-256 hash of the token is stored (the raw value lives in
-// the emailed link, like auth_tokens); acceptance is possession-based. One live invite per
-// (workspace, email); accepted_at set = consumed.
+// only the token's SHA-256 hash is stored (like auth_tokens); acceptance is possession-based
 export const invites = pgTable(
     "invites",
     {
@@ -157,8 +150,7 @@ export const artifacts = pgTable(
         createdBy: uuid("created_by").references(() => users.id),
         createdAt: timestamp("created_at").notNull().defaultNow(),
         updatedAt: timestamp("updated_at").notNull().defaultNow(),
-        // both derived from draft_content on every write (@model/digest), so listing and searching a
-        // library never have to read the content trees back
+        // derived from draft_content on every write (@model/digest), so lists never read the trees back
         digest: jsonb("digest").$type<ArtifactDigest>(),
         searchText: text("search_text"),
         searchTsv: tsvector("search_tsv").generatedAlwaysAs(
@@ -171,8 +163,7 @@ export const artifacts = pgTable(
     ],
 );
 
-// Per-user open log for the library + ⌘K "Recent" list. `updated_at` is an edit clock, not a read clock,
-// so recency has to be recorded separately; one row per (user, artifact), upserted on open.
+// updated_at is an edit clock, not a read clock, so open recency is recorded separately here
 export const artifactVisits = pgTable(
     "artifact_visits",
     {
@@ -229,8 +220,7 @@ export const shares = pgTable("shares", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// public = slug only; protected = slug + hashed password; private = per-recipient token (link_recipients).
-// An artifact can have many links (one per audience/channel, each with its own analytics); none = unpublished.
+// public = slug only, protected = slug + password hash, private = per-recipient token; none = unpublished
 export const links = pgTable("links", {
     id: uuid("id").primaryKey().defaultRandom(),
     artifactId: uuid("artifact_id")
@@ -243,7 +233,7 @@ export const links = pgTable("links", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// view log, one row per viewer session (daily-rotating cookieless key dedups reloads); owner previews are never logged
+// one row per viewer session (a daily rotating key dedups reloads); owner previews are never logged
 export const linkViews = pgTable(
     "link_views",
     {
@@ -266,7 +256,7 @@ export const linkViews = pgTable(
     (t) => [unique().on(t.linkId, t.sessionKey)],
 );
 
-// per-recipient grants for a private link: each invited email gets an unguessable token → possession-based access (no viewer login)
+// each invited email gets an unguessable token: possession-based access, no viewer login
 export const linkRecipients = pgTable(
     "link_recipients",
     {
@@ -294,15 +284,14 @@ export const credits = pgTable("credits", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Idempotency ledger for Stripe webhooks: the event id is claimed before handling so a redelivery
-// (Stripe retries until 2xx) can't re-apply the same effect — e.g. re-zero a workspace's credits.
+// the event id is claimed before handling, so a Stripe redelivery can't re-apply the same effect
 export const stripeEvents = pgTable("stripe_events", {
     id: text("id").primaryKey(), // Stripe event id (evt_…)
     type: text("type").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// `postgres(url)` is lazy (connects on first query, not import), so importing this for `drizzle-kit generate` stays connection-free
+// postgres(url) is lazy, so importing this for `drizzle-kit generate` stays connection-free
 export const schema = {
     users,
     oauthAccounts,
@@ -328,6 +317,5 @@ if (url === undefined || url === "") {
     throw new Error("DATABASE_URL is not set");
 }
 
-// prepare:false → works on Neon's pooled endpoint (PgBouncer transaction mode rejects prepared statements)
-// and scales past one instance; harmless on direct/local. Migrations still run against the direct endpoint.
+// prepare:false: PgBouncer transaction mode rejects prepared statements; harmless on direct/local
 export const db = drizzle(postgres(url, { prepare: false }), { schema });

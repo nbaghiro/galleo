@@ -40,12 +40,12 @@ import { Separator } from "@ui/inputs";
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 const EDGE = 8; // draggable border thickness
-const DRAG_THRESHOLD = 5; // px of pointer travel before a grip press becomes an actual drag (vs. a click)
+const DRAG_THRESHOLD = 5; // px of travel before a grip press becomes a drag, not a click
 
 export const [sectionDrop, setSectionDrop] = createSignal<number | null>(null);
 export const [sectionDragId, setSectionDragId] = createSignal<string | null>(null);
 
-// Which section gap the cursor sits in, vs. the pre-drag tops.
+// the gap the cursor sits in, against the pre-drag tops
 function sectionTargetAt(clientY: number, tops: number[]): number {
     const stage = stageEl();
     if (!stage || !tops.length) return 0;
@@ -57,7 +57,7 @@ function sectionTargetAt(clientY: number, tops: number[]): number {
     return tops.length;
 }
 
-// Target detection runs against a snapshot of the pre-drag tops, so it stays stable while the stack reorders under the cursor.
+// targets against a snapshot of the tops, so it stays stable while the stack reorders under the cursor
 export function startSectionDrag(id: string): void {
     const tops = [...editor.sectionTops];
     const start = editor.artifact.sections.findIndex((s) => s.id === id);
@@ -97,13 +97,12 @@ export const DragHandle: Component = () => {
         e.stopPropagation();
         const c = ctx();
         if (!c) return;
-        // Don't start until the pointer passes a threshold: a plain click on the grip must only select, not lift.
-        // Capture-phase move listener so it fires even over the grip (whose own onPointerMove stops bubbling).
+        // a plain click on the grip must only select, so wait for the threshold; the capture-phase
+        // listener is needed because the grip's own onPointerMove stops bubbling
         const sx = e.clientX;
         const sy = e.clientY;
         const begin = (): void => {
-            // A drag lifts the source out of the paint — leaving inline text editing open would
-            // strand its contenteditable overlay at the old spot for the whole gesture.
+            // a drag lifts the source out of the paint; an open text overlay would strand
             stopEditing();
             if (c.kind === "element") {
                 const inst = getElementAt(editor.artifact, c.address);
@@ -136,8 +135,7 @@ export const DragHandle: Component = () => {
     return (
         <Show when={ctx()}>
             {(c) => (
-                // Hit-zone runs flush to the element's left edge so crossing onto it keeps the region hovered;
-                // onPointerMove stops the canvas recomputing hover while you're over it.
+                // flush to the element's left edge, so crossing onto it keeps the region hovered
                 <div
                     class="absolute z-menu flex cursor-grab items-center active:cursor-grabbing"
                     style={{
@@ -240,7 +238,7 @@ interface Divider {
 }
 
 function siblingDividers(sid: string, regs: Region[]): Divider[] {
-    // Group regions by parent path → sibling set: root's children (path []) are section columns, deeper groups are nested rows.
+    // group by parent path: root children (path []) are section columns, deeper groups are nested rows
     const groups = new Map<
         string,
         { parentPath: number[]; members: { index: number; box: Rect }[] }
@@ -262,7 +260,7 @@ function siblingDividers(sid: string, regs: Region[]): Divider[] {
     const out: Divider[] = [];
     for (const g of groups.values()) {
         if (g.members.length < 2) continue;
-        // Only reallocate between siblings sharing a horizontal band; skip column-stacked sets and grids (rows fully below one another).
+        // only siblings sharing a horizontal band; skips column stacks and grids
         const tops = g.members.map((m) => m.box.y);
         const bottoms = g.members.map((m) => m.box.y + m.box.h);
         if (Math.max(...tops) >= Math.min(...bottoms)) continue;
@@ -303,7 +301,7 @@ function siblingDividers(sid: string, regs: Region[]): Divider[] {
 }
 
 export const RegionDividers: Component = () => {
-    // Hovered section's dividers, else the selected one. Hidden mid-drag — the dragged region is stale.
+    // hovered section, else the selected one; hidden mid-drag, when the dragged region is stale
     const sid = createMemo<string | null>(() => {
         if (drag() || sectionDragId()) return null;
         const t = hover() ?? selection();
@@ -361,7 +359,7 @@ export const RegionDividers: Component = () => {
     );
 };
 
-// Uncommitted handle edit: the canvas paints applyLiveEdit(...) live while dragging, then commits the same op on release.
+// uncommitted handle edit: painted live while dragging, committed as the same op on release
 export type LiveEdit =
     | {
           kind: "element";
@@ -403,11 +401,11 @@ export function applyLiveEdit(art: ArtifactContent, edit: LiveEdit): ArtifactCon
     return out;
 }
 
-// Fallback radius for nodes that paint no corner (text, groups): square in doc/web, small round on decks.
+// for nodes that paint no corner (text, groups): square in doc/web, slightly round on decks
 const fallbackRadius = (): number =>
     resolveProfile(editor.artifact.format).kind === "continuous" ? 0 : 7;
 
-// Highlights are box-shadow rings (no layout impact); each region carries its painted radius so the outline hugs with no gap.
+// rings are box-shadow, so they cost no layout; the region's painted radius makes them hug
 
 function regionFor(t: Target | null): Region | null {
     if (!t) return null;
@@ -425,7 +423,7 @@ const ring = (r: Region, shadow: string) => ({
 });
 
 export const Overlay: Component = () => {
-    // Suppressed mid-drag: the painted layout has shifted, so a ring would strand over a stale spot.
+    // suppressed mid-drag: the painted layout has shifted, so a ring would strand
     const sel = createMemo(() => (drag() || sectionDragId() ? null : regionFor(selection())));
     const hov = createMemo(() => {
         if (drag() || sectionDragId()) return null;
@@ -471,7 +469,7 @@ const stepAction =
 const dangerAction =
     "inline-flex items-center rounded-full p-1.5 text-ink hover:bg-red-500/12 hover:text-red-500";
 
-// SectionActions pins its bar to the open-popup section so the anchor stays mounted if the cursor drifts away.
+// pinned to the open-popup section, so the anchor stays mounted if the cursor drifts away
 const [layoutOpen, setLayoutOpen] = createSignal<string | null>(null);
 
 export const SectionActions: Component = () => {
@@ -489,7 +487,6 @@ export const SectionActions: Component = () => {
     const isLast = (): boolean => sectionIx() === editor.artifact.sections.length - 1;
     let pillRef: HTMLDivElement | undefined;
 
-    // Pick + set (or remove) this section's background image via the shared media picker.
     const pickSectionBg = (): void => {
         const id = sid()!;
         const bg = sectionBg();

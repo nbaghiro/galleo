@@ -17,8 +17,7 @@ import { getElement } from "@elements/spec";
 
 export type DragPayload = { kind: "new"; type: string } | { kind: "move"; from: ElementAddress };
 
-// Per op: replace/wrap use `path`; insert uses `path`+`index`; column/newSection use `index` (newSection
-// ignores section/path). `before` places a wrap's new element first.
+// per op: replace/wrap use path; insert path+index; column/newSection index; before = wrap first
 export interface DropTarget {
     section: string;
     op: "replace" | "insert" | "wrap" | "column" | "newSection";
@@ -63,7 +62,7 @@ const groupAxis = (inst?: ElementInstance): "row" | "col" =>
         ? "row"
         : "col";
 
-// { path, box } per element region in the section, deepest first.
+// deepest first
 function elementsUnder(
     regions: Region[],
     sid: string,
@@ -79,7 +78,7 @@ function elementsUnder(
     return out.sort((a, b) => b.path.length - a.path.length);
 }
 
-// Child boxes one level under `parentPath`, sorted along `axis`.
+// sorted along the axis
 function childBoxes(
     regions: Region[],
     sid: string,
@@ -98,7 +97,7 @@ function childBoxes(
     return out.sort((a, b) => (axis === "row" ? a.box.x - b.box.x : a.box.y - b.box.y));
 }
 
-// Insertion index for the cursor: first child whose midpoint it hasn't passed, else the end. Monotonic — no oscillation while dragging.
+// first child whose midpoint the cursor hasn't passed; monotonic, so it can't oscillate mid-drag
 function gapIndex(kids: { box: Rect }[], axis: "row" | "col", px: number, py: number): number {
     const pos = axis === "row" ? px : py;
     for (let i = 0; i < kids.length; i++) {
@@ -109,7 +108,7 @@ function gapIndex(kids: { box: Rect }[], axis: "row" | "col", px: number, py: nu
     return kids.length;
 }
 
-// Top-level columns: the root row's children, else the whole root as one column.
+// the root row's children, else the whole root as one column
 function sectionColumns(regions: Region[], sid: string): Rect[] {
     const cols = childBoxes(regions, sid, [], "row");
     if (cols.length) return cols.map((c) => c.box);
@@ -117,7 +116,7 @@ function sectionColumns(regions: Region[], sid: string): Rect[] {
     return root ? [root] : [];
 }
 
-// A drop in the band around a column boundary (incl. outer edges) → new column there.
+// a drop within EDGE of a column boundary (outer edges included) makes a new column there
 function columnDropZone(sid: string, columns: Rect[], px: number, py: number): DropTarget | null {
     if (!columns.length) return null;
     const top = Math.min(...columns.map((c) => c.y));
@@ -156,8 +155,7 @@ const NEW_SECTION = (index: number): DropTarget => ({
 
 const SECTION_EDGE = 44; // reach of the above-first / below-last new-section bands
 
-// A drop between sections (or above first / below last) → a new section there. Checked before per-section
-// logic so dragging OUT suggests "new section", not a destructive "replace".
+// checked before the per-section logic: dragging out suggests a new section, not a replace
 function sectionGapZone(
     regions: Region[],
     art: ArtifactContent,
@@ -186,7 +184,6 @@ export function computeDropTarget(
     px: number,
     py: number,
 ): DropTarget | null {
-    // Between/around sections → new section (priority over per-section logic below).
     const gap = sectionGapZone(regions, art, px, py);
     if (gap) return gap;
 
@@ -194,7 +191,7 @@ export function computeDropTarget(
     if (!sectionReg) return null;
     const sid = sectionReg.id.split(":")[1]!;
 
-    // Column-boundary band takes priority — how you make a new column.
+    // the column band takes priority: it is the only way to make a new column
     const columns = sectionColumns(regions, sid);
     const colZone = columnDropZone(sid, columns, px, py);
     if (colZone) return colZone;
@@ -202,8 +199,7 @@ export function computeDropTarget(
     const hits = elementsUnder(regions, sid, px, py);
     const hit = hits[0];
     if (!hit) {
-        // Bare side padding: fill only if the section is genuinely empty — a non-empty one is not a
-        // "replace everything" target.
+        // bare side padding fills only an empty section; a non-empty one is no replace-everything target
         const root = getElementAt(art, { section: sid, path: [] });
         if (isContainer(root) && childCount(root) === 0)
             return {
@@ -229,7 +225,6 @@ export function computeDropTarget(
             direction: "col",
         };
 
-    // On a container → insert among its children at the nearest gap.
     if (isContainer(inst)) {
         const axis = groupAxis(inst);
         return {
@@ -242,8 +237,7 @@ export function computeDropTarget(
         };
     }
 
-    // Leaf inside a container → insert into the parent at the nearest sibling gap. Purely the monotonic
-    // gap index (no center flip — that flickered).
+    // insert into the parent at the nearest sibling gap; no center flip, which flickered
     const parentPath = hit.path.slice(0, -1);
     const parentInst = hit.path.length
         ? getElementAt(art, { section: sid, path: parentPath })
@@ -260,7 +254,7 @@ export function computeDropTarget(
         };
     }
 
-    // Leaf that IS the section root → wrap into a new row/col; axis + side from the cursor's position in its box.
+    // a leaf that is the section root wraps into a new row/col; axis and side come from the cursor
     const b = hit.box;
     const horizontal =
         Math.abs((px - (b.x + b.w / 2)) / b.w) > Math.abs((py - (b.y + b.h / 2)) / b.h);
@@ -281,8 +275,7 @@ const result = (
     address: ElementAddress | null,
 ): { content: ArtifactContent; address: ElementAddress | null } => ({ content, address });
 
-// Land `element` at a `DropTarget`, dispatching to the width-aware ops. Also used by paste (clipboard.ts)
-// so paste uses the same layout logic as a drop.
+// also used by paste (clipboard.ts), so a paste lands with the same layout logic as a drop
 export function place(
     art: ArtifactContent,
     target: DropTarget,
@@ -325,7 +318,7 @@ export function place(
     }
 }
 
-// Rebase a path captured against the pre-op tree: a removal shifts later siblings down one, an insert shifts them up one.
+// rebase a path captured against the pre-op tree: a removal shifts later siblings down, an insert up
 function adjustAfterRemoval(path: number[], removed: number[]): number[] {
     if (!removed.length || path.length < removed.length) return path;
     const d = removed.length - 1;
@@ -346,8 +339,7 @@ function adjustAfterInsert(path: number[], parent: number[], index: number): num
     return next;
 }
 
-// Move: remove the element, re-aim the target against the post-removal tree, place it, then collapse the
-// emptied source column. Shared by the real drop + preview so the ghost matches.
+// re-aims the target against the post-removal tree; shared by the real drop and the preview
 function moveInto(
     art: ArtifactContent,
     from: ElementAddress,
@@ -367,7 +359,7 @@ function moveInto(
         index: sameParentBefore ? target.index - 1 : target.index,
     };
     const placed = place(base, aimed, element);
-    // Collapse the emptied source column, mapping its parent path through the insertion.
+    // map the source parent path through the insertion before collapsing
     const srcParent =
         insParent !== null
             ? adjustAfterInsert(from.path.slice(0, -1), insParent, aimed.index)
@@ -406,13 +398,12 @@ export function applyDrop(
     return resolveDrop(art, target, payload);
 }
 
-// Remove the dragged element + collapse its emptied column — the base a move drag shows for the whole gesture (source leaves immediately, never snaps back).
+// the base a move drag shows for the whole gesture: the source leaves at once, never snaps back
 function liftOut(art: ArtifactContent, from: ElementAddress): ArtifactContent {
     return collapseSection(removeAt(art, from), from.section, from.path.slice(0, -1));
 }
 
-// The artifact painted mid-drag. A move lifts the source first, then splices a ghost where it lands; a
-// new-from-palette drag ghosts only once it has a target. Mirrors applyDrop so the reflow matches.
+// mirrors applyDrop, so the mid-drag reflow matches where the drop will land
 export function previewDrop(
     art: ArtifactContent,
     target: DropTarget | null,

@@ -1,5 +1,3 @@
-// themes are data: a semantic token set read by role
-
 export type ColorToken =
     | "bg"
     | "surface"
@@ -45,9 +43,9 @@ export function fontStack(role: FontRole, t: Tokens): string {
     return `'${t.fontBody}', sans-serif`;
 }
 
-// Tailwind CSS vars for a theme; set on a root element to recolor the chrome
+// set on a root element to recolor the chrome
 export function themeCssVars(t: Tokens): Record<string, string> {
-    // radius scale derived from the theme's section radius; anchored so radius 16 = Tailwind's default scale
+    // anchored so radius 16 lands on Tailwind's default radius scale
     const rad = (base: number): string => `${Math.round((base * t.radius) / 16 / 0.25) * 0.25}px`;
     return {
         "--color-canvas": t.bg,
@@ -218,7 +216,6 @@ const GARISH_HUE: [number, number] = [95, 155];
 
 const toDeg = (h: number): number => ((((h * 180) / Math.PI) % 360) + 360) % 360;
 
-// clamp chroma + lightness, floor darkness, keep the accent visible vs the page
 function sanitizeAccent(hex: string, dark: boolean, bg: string): string {
     const o = hexToOklch(hex);
     const deg = toDeg(o.H);
@@ -238,7 +235,6 @@ function sanitizeAccent(hex: string, dark: boolean, bg: string): string {
     return out;
 }
 
-// nudge fg toward black/white until it clears ratio vs bg
 function reachContrast(
     fg: string,
     bg: string,
@@ -270,7 +266,7 @@ export function finalizeTheme(t: Tokens): Tokens {
         surface = oklchToHex({ ...bo, L: bo.L + 0.045 });
     }
 
-    // legible text on the surface: AA+ ink, stepping down for soft/muted
+    // AA+ on the surface for ink, stepping down for soft/muted
     const ink = reachContrast(t.ink, surface, 5.5, textToward);
     const soft = reachContrast(t.soft, surface, 3.8, textToward);
     const muted = reachContrast(t.muted, surface, 2.6, textToward);

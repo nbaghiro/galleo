@@ -3,10 +3,6 @@ import { rankScored } from "@ui/fuzzy";
 import { api } from "../api";
 import { artifacts, artifactsLoaded, formatLabel, relativeTime } from "./library";
 
-// Data half of ⌘K search: an instant pass over the library the client already holds, the debounced
-// server call behind it (@ui/CommandPalette owns the debounce and the abort), and the small cache that
-// makes backspacing free. The rows themselves are assembled in components/palette-sources.tsx.
-
 export const SEARCH_LIMIT = 8; // artifact rows in the palette before "show all results"
 export const LIBRARY_LIMIT = 50; // the library grid shows the long tail, not a top-N
 const CACHE_TTL = 30_000; // ms; long enough to cover a typing session, short enough to stay honest
@@ -68,11 +64,7 @@ export async function fetchHitPage(
     return hits;
 }
 
-/**
- * Reconcile a server hit against the library the client holds: titles and covers come from the store
- * so a rename is never stale, and an artifact that has since left the library (trashed, deleted) drops
- * out. Hits are kept as-is until the store has loaded, so a cold ⌘K still shows results.
- */
+/** Renames stay fresh, gone artifacts drop out; hits pass through until the store has loaded. */
 export function reconcile(hits: SearchHit[]): SearchHit[] {
     if (!artifactsLoaded()) return hits;
     const live = new Map(artifacts().map((a) => [a.id, a]));
@@ -85,10 +77,7 @@ export function reconcile(hits: SearchHit[]): SearchHit[] {
 const haystack = (a: SearchHit): string =>
     `${a.title} ${a.cover?.title ?? ""} ${a.cover?.eyebrow ?? ""} ${a.cover?.sub ?? ""}`;
 
-/**
- * Titles and covers only: everything the browser already has, so the first frame after a keystroke is
- * never blank. Content matches arrive from the server a moment later and replace these.
- */
+/** Titles and covers only, so the first frame after a keystroke is never blank. */
 export function localHits(query: string, limit = SEARCH_LIMIT): SearchHit[] {
     const list = artifacts();
     if (!query.trim())

@@ -12,8 +12,7 @@ export interface EmailMessage {
     text: string;
 }
 
-// Transactional send for the auth flows. Surfaces real failures (callers best-effort `.catch`), and with
-// no RESEND_API_KEY logs the message so local flows stay testable.
+// Throws on failure (callers `.catch`); with no RESEND_API_KEY it logs so local flows stay testable.
 export async function sendEmail(msg: EmailMessage): Promise<void> {
     const key = process.env.RESEND_API_KEY;
     if (!key) {

@@ -10,7 +10,7 @@ export type ExportFormat = "png" | "pdf" | "print" | "pptx" | "slides";
 export interface PlanBilling {
     model: BillingModel;
     priceMonthly: number; // USD; 0 = free
-    priceAnnualMonthly: number; // effective $/mo billed yearly; 0 = free
+    priceAnnualMonthly: number; // USD; 0 = free
     minSeats: number;
     maxSeats: number | null; // null = unbounded / contact sales
     trialDays: number; // 0 = none
@@ -57,17 +57,16 @@ export interface Plan {
     visible: boolean; // false = staged: not shown/sold yet
     contactSales: boolean; // "Talk to us" instead of Checkout
     billing: PlanBilling;
-    ai: PlanAi; // 🔶 values owned by the AI/credit session
+    ai: PlanAi;
     account: PlanAccount;
     features: PlanFeatures;
 }
 
-// representative cost; real charge scales with length 🔶
+// representative cost; the real charge scales with length
 export const CREDITS_PER_GENERATION = typicalCost("generate-artifact");
 
-// One-time credit packs (paid plans only, gated by plan.ai.creditTopUpsAllowed). Bonus credits sit
-// outside the monthly window: consumed after the pool, never reset. Stripe price ids resolve from
-// env (STRIPE_PRICE_PACK_1K / STRIPE_PRICE_PACK_5K) like the plan prices.
+// gated by plan.ai.creditTopUpsAllowed; pack credits sit outside the monthly window, spent after it
+// prices resolve from STRIPE_PRICE_PACK_1K / STRIPE_PRICE_PACK_5K, like the plan prices
 export type CreditPackId = "pack-1k" | "pack-5k";
 
 export interface CreditPack {
@@ -244,7 +243,7 @@ export function priceFor(id: string | null | undefined, interval: Interval): num
     return interval === "year" ? b.priceAnnualMonthly : b.priceMonthly;
 }
 
-// legacy flat shape — new code uses resolveFeatures()
+// legacy flat shape; new code uses resolveFeatures()
 export interface PlanLimits {
     maxArtifacts: number;
     aiCreditsPerMonth: number;

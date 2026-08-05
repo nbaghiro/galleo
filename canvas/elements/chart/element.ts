@@ -7,7 +7,7 @@ import { chartTypeOptions } from "./utils";
 import type { ChartData } from "./utils";
 
 export const CHART_CONTROLS: ControlField[] = [
-    // getter so it reads the live type registry each render; a frozen array would capture an empty list on hot re-exec
+    // getter: a frozen array would capture an empty registry on hot re-exec
     {
         key: "type",
         label: "Type",

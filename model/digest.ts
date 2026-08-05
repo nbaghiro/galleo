@@ -1,8 +1,7 @@
 import type { ArtifactDigest, Cover, SectionSummary } from "@model/artifact";
 
-// Read-only derivations over a stored content tree: the library cover, the section filmstrip, and the
-// flat text the search index is built from. Runs against `artifacts.draft_content` as it comes out of
-// jsonb, so every shape here is optional — a row may have been written by any past version.
+// runs against `artifacts.draft_content` raw out of jsonb, so every shape here stays optional:
+// a row may have been written by any past version
 
 interface RawEl {
     type?: string;
@@ -110,7 +109,7 @@ export const artifactDigest = (draft: unknown): ArtifactDigest => ({
 
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
-// keys whose values are ids/enums/paints, never prose — indexing them would match every artifact
+// values are ids/enums/paints, never prose; indexing them would match every artifact
 const NOISE_KEYS = new Set([
     "align",
     "color",

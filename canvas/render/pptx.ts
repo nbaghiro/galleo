@@ -87,8 +87,7 @@ export interface Transform {
     offY: number;
 }
 
-// maps page command coords into the fixed 1280×720 slide by composing two fits (mirrors renderSlidePage):
-// (1) content→own frame, (2) frame→fixed slide (letterbox odd aspects); identity for a standard deck page
+// composes content→frame and frame→fixed-slide fits; mirrors renderSlidePage
 export function slideTransform(page: { w: number; h: number; contentH: number }): Transform {
     const contentFit = Math.min(1, page.h / page.contentH);
     const offXc = (page.w - page.w * contentFit) / 2;
@@ -116,7 +115,7 @@ const scaleFill = (f: FillLeaf, fit: number): FillLeaf => ({
     border: f.border ? { ...f.border, width: f.border.width * fit } : undefined,
 });
 
-// place box + scale intrinsic lengths (size, lineHeight, radius, border) by fit; a surface's paint callback is resolution-independent so it rides along
+// surface paint callbacks are resolution-independent, so only boxes and intrinsic lengths scale
 export function frameCommand(c: RenderCommand, t: Transform): RenderCommand {
     const box = placeRect(c.box, t);
     const clip = c.clip ? placeRect(c.clip, t) : undefined;
@@ -152,7 +151,7 @@ export function frameCommand(c: RenderCommand, t: Transform): RenderCommand {
     }
 }
 
-// move a command's box to the origin (for rasterizing onto its own box-sized canvas); clip made box-relative
+// origin-relative box, for rasterizing onto its own box-sized canvas
 export function localize(c: RenderCommand): RenderCommand {
     const dx = c.box.x;
     const dy = c.box.y;
@@ -161,14 +160,14 @@ export function localize(c: RenderCommand): RenderCommand {
     return { ...c, box, clip };
 }
 
-// rect → native shape unless it needs a gradient/clip (no autoshape for those); box-shadow intentionally not a trigger (canvas backend paints none either).
-// images + surfaces always rasterize — pptx can't express scrim/zoom/arbitrary-radius crops or vector paths.
+// gradients/clips have no autoshape, and pptx can't express image crops or vector paths, so those rasterize.
+// box-shadow is deliberately not a trigger: the canvas backend paints none either.
 export type Emit = "shape" | "text" | "raster";
 
 export function classify(c: RenderCommand): Emit {
     if (c.kind === "text") return "text";
     if (c.kind === "rect") return c.fill?.gradient || c.clip ? "raster" : "shape";
-    return "raster"; // image, surface
+    return "raster";
 }
 
 export interface ShapeSpec {
@@ -176,7 +175,7 @@ export interface ShapeSpec {
     options: PptxGenJS.ShapeProps;
 }
 
-// autoshape for a solid/bordered rect; null when nothing to paint (caller skips)
+// null when there's nothing to paint (caller skips)
 export function rectShapeSpec(c: RenderCommand): ShapeSpec | null {
     if (c.kind !== "rect") return null;
     const f = c.fill;
@@ -219,11 +218,11 @@ export function leafForRuns(leaf: TextLeaf): TextLeaf {
     return leaf.runs && leaf.runs.length > 0 ? leaf : { ...leaf, runs: [{ text: leaf.text }] };
 }
 
-// any visible text? an all-empty box is skipped, not emitted
+// an all-empty box is skipped, not emitted
 export const hasText = (lines: RunLine[]): boolean =>
     lines.some((l) => l.frags.some((f) => f.text.length > 0));
 
-// pre-wrapped lines (from layoutRuns, so breaks match screen) → styled runs with a forced breakLine per line but the last; wrap/autoFit OFF so PowerPoint never re-flows. box/text are FRAMED (fixed-slide px).
+// lines arrive pre-wrapped (breaks match screen), so wrap/autoFit stay off and PowerPoint never re-flows
 export function textSpec(text: TextLeaf, box: Rect, lines: RunLine[]): TextSpec {
     const baseColor = cssColor(text.color)?.color ?? DEFAULT_INK;
     const runs: PptxGenJS.TextProps[] = [];
@@ -288,8 +287,7 @@ export function brandSpec(): TextSpec {
     };
 }
 
-// pptxgenjs names fonts but embeds no data (→ "missing fonts" on machines without them); we fetch the woff2,
-// transcode to TTF (fonts.ts), and inject as an OOXML embedded font. Any failure degrades to a plain export.
+// pptxgenjs names fonts but embeds no data ("missing fonts" elsewhere), so we inject the TTFs ourselves
 const SLOT_ORDER: FontSlot[] = ["regular", "bold", "italic", "boldItalic"];
 
 // never embedded: system fonts textSpec substitutes (Consolas for code, Arial for the brand mark)
@@ -350,7 +348,6 @@ export interface EmbedFamily {
     slots: { slot: FontSlot; ttf: Uint8Array }[];
 }
 
-// inject fonts into a .pptx: add ppt/fonts/fontN.fntdata per slot + patch content-types, rels, presentation.xml
 export async function embedFontsIntoPptx(
     pptxBytes: ArrayBuffer,
     families: EmbedFamily[],
@@ -395,7 +392,7 @@ function measureCtx(): CanvasRenderingContext2D {
     return sharedCtx;
 }
 
-// rasterize a framed command → transparent PNG data URL (shared 2D backend, so pixel-identical to PNG/PDF export)
+// transparent PNG through the shared 2D backend, so it is pixel-identical to PNG/PDF export
 async function rasterUrl(framed: RenderCommand): Promise<string | undefined> {
     const { w, h } = framed.box;
     if (w < 0.5 || h < 0.5) return undefined;
@@ -403,8 +400,7 @@ async function rasterUrl(framed: RenderCommand): Promise<string | undefined> {
     return canvas.toDataURL("image/png");
 }
 
-// paint a surface into an SVG string → data URI; pptxgenjs embeds it with an auto-generated PNG fallback
-// (the `<asvg:svgBlip>` dual-blip), so charts/diagrams/icons/graphics stay crisp vector in PowerPoint.
+// pptxgenjs embeds this SVG with a generated PNG fallback (the dual-blip), so surfaces stay vector
 function surfaceSvgUri(framed: RenderCommand): string | undefined {
     if (framed.kind !== "surface") return undefined;
     const { w, h } = framed.box;
@@ -428,7 +424,7 @@ function downloadBytes(bytes: Uint8Array, filename: string): void {
     setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-// distinct (typeface, slot) fonts a deck paints → only those are fetched/embedded; typeface → slot → representative weight/style
+// typeface → slot → a representative weight/style; only what the deck paints gets fetched
 type UsedFonts = Map<string, Map<FontSlot, { weight: number; italic: boolean }>>;
 
 function recordFont(used: UsedFonts, font: string, code: boolean): void {
@@ -442,7 +438,6 @@ function recordFont(used: UsedFonts, font: string, code: boolean): void {
     if (!slots.has(slot)) slots.set(slot, { weight, italic });
 }
 
-// fetch + transcode every recorded font in parallel; drop failures
 async function resolveFonts(used: UsedFonts): Promise<EmbedFamily[]> {
     const families = await Promise.all(
         [...used].map(async ([typeface, slotMap]) => {
@@ -504,8 +499,7 @@ export async function buildPptx(
                     const { runs, options } = textSpec(framed.text, framed.box, lines);
                     slide.addText(runs, options);
                 } else {
-                    // surfaces embed as vector SVG (crisp in PowerPoint); other rasters (images,
-                    // gradient/clipped rects) stay PNG
+                    // surfaces embed as vector SVG; other rasters stay PNG
                     const data = surfaceSvgUri(framed) ?? (await rasterUrl(framed));
                     if (data)
                         slide.addImage({
@@ -525,7 +519,6 @@ export async function buildPptx(
         }
     }
 
-    // embed theme fonts (exact typefaces, no "missing fonts" prompt); any failure falls back to plain bytes
     try {
         const families = await resolveFonts(usedFonts);
         if (families.length) {

@@ -218,7 +218,6 @@ export const Segmented: Component<{
     </div>
 );
 
-// The artifact format (deck/doc/web) switcher — a Segmented over the shared FORMATS list.
 export const FormatSwitcher: Component<{
     value: string;
     onChange: (value: string) => void;

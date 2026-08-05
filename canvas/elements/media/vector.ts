@@ -7,19 +7,18 @@ import { register } from "@elements/spec";
 import { fit, fixed, grow } from "@model/geometry";
 import { hexA } from "@themes";
 
-// Iconify glyph shape — the icon picker + button author this ({ id · inner SVG · viewBox }); parseSvg lifts
-// `body` into a Vector at paint time.
+// Iconify glyph: parseSvg lifts `body` into a Vector at paint time.
 export interface IconGlyph {
     id: string;
     body: string;
     vb: string;
 }
 
-// ── affine (2×3): apply(x,y) = [a·x + c·y + e, b·x + d·y + f] ──────────────────────────────────────
+// affine (2×3): apply(x,y) = [a·x + c·y + e, b·x + d·y + f]
 type Affine = [number, number, number, number, number, number]; // a b c d e f
 const IDENT: Affine = [1, 0, 0, 1, 0, 0];
 
-// A ∘ B — B applied first.
+// A ∘ B: B applied first.
 function mul(a: Affine, b: Affine): Affine {
     return [
         a[0] * b[0] + a[2] * b[1],
@@ -48,7 +47,6 @@ function transformAffine(tf: VTransform): Affine {
     return m;
 }
 
-// ── SVG path `d` → PathSink (M/L/H/V/C/S/Q/T/A/Z + relatives), points routed through `map` ─────────
 type Pt = [number, number];
 type Map2 = (x: number, y: number) => Pt;
 
@@ -259,7 +257,7 @@ function emitPath(d: string, sink: PathSink, map: Map2): void {
     }
 }
 
-// ── SVG markup → Vector (the sanitizing ingest boundary: only these tags/attrs survive) ────────────
+// the sanitizing ingest boundary: only these tags/attrs survive
 const attr = (tag: string, name: string): string | undefined =>
     tag.match(new RegExp(`\\b${name.replace("-", "\\-")}="([^"]*)"`))?.[1];
 
@@ -430,9 +428,8 @@ export function parseSvg(markup: string, vbHint?: string): Vector {
     return { vb: dims, nodes: parseNodes(inner) };
 }
 
-// ── Vector → DrawContext ───────────────────────────────────────────────────────────────────────────
 const KAPPA = 0.5523;
-// SVG initial values (fill: black, stroke: none) — the root the node tree inherits from.
+// SVG initial values: the root the node tree inherits from.
 const SVG_INITIAL: VStyle = { fill: { color: "#000" }, stroke: "none" };
 
 function concrete(p: Paint, theme: Tokens | undefined): string | undefined {
@@ -492,7 +489,7 @@ function drawStyleOf(style: VStyle, m: Affine, theme: Tokens | undefined, o: Dra
     return ds;
 }
 
-// "Adopt theme": remap literal colors to the nearest theme role by luminance so imported art recolors.
+// remap literal colors to the nearest theme role by luminance, so imported art recolors
 function adopt(p: Paint | undefined, o: DrawOpts): Paint | undefined {
     if (!o.adoptTheme || !p || p === "none" || p === "currentColor" || "role" in p) return p;
     const lum = luminanceOf(p.color);
@@ -588,8 +585,7 @@ function paintNode(
     }
 }
 
-// Paint a Vector into (box), mapping its viewBox in (contain by default). `tint` forces every color to one
-// paint (monochrome icons); `adoptTheme` remaps literal colors to theme roles.
+// `tint` forces one paint (monochrome icons); `adoptTheme` remaps literals to theme roles.
 export function drawVector(
     g: DrawContext,
     box: Rect,
@@ -607,8 +603,7 @@ export function drawVector(
     for (const node of v.nodes) paintNode(g, node, base, SVG_INITIAL, theme, o);
 }
 
-// Draw an icon glyph tinted to one color into (x,y,size). Bare glyphs (ICON_LIBRARY) are stroke-based,
-// so wrap them in a stroke context; glyphs carrying their own fill/stroke are unaffected by the wrapper.
+// bare ICON_LIBRARY glyphs are stroke-based, so wrap them in a stroke context
 export function drawIcon(
     g: DrawContext,
     glyph: IconGlyph,
@@ -623,7 +618,7 @@ export function drawIcon(
     });
 }
 
-// ── shape presets (rectangle/ellipse/triangle/star/line/arrow) → Vector, authored in box coords ────
+// shape presets, authored in box coords
 export type ShapeKind = "rectangle" | "ellipse" | "triangle" | "star" | "line" | "arrow";
 const isStroked = (k: ShapeKind): boolean => k === "line" || k === "arrow";
 
@@ -711,8 +706,7 @@ export function shapeVector(kind: ShapeKind, w: number, h: number, o: ShapeOpts)
     return { vb: [0, 0, w, h], nodes };
 }
 
-// ── curated Lucide-style glyphs (stroke, 24-box) for diagram presets + the node-icon quick picker ──
-// (keys kept in lockstep with the diagram `icons` field description in model/ai.ts)
+// stroke glyphs, 24-box; keys stay in sync with the diagram `icons` description in model/ai.ts
 export const ICON_LIBRARY: Record<string, IconGlyph> = {
     search: {
         id: "search",
@@ -814,7 +808,6 @@ const DEFAULT_GRAPHIC = parseSvg(
     `<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="18" fill="none" stroke="currentColor" stroke-width="3"/><path d="M16 24l6 6 12-12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 );
 
-// ── the three elements over one substrate (icon · shape · graphic) ─────────────────────────────────
 interface VectorSpecCfg<D> {
     type: string;
     label: string;
@@ -844,7 +837,6 @@ function vectorSpec<D>(cfg: VectorSpecCfg<D>): ElementSpec<D> {
     };
 }
 
-// icon — a themed glyph tinted to one role/color.
 interface IconData {
     glyph: IconGlyph;
     color?: string; // theme role (accent/ink/soft/muted) or hex
@@ -875,7 +867,6 @@ register(
     }),
 );
 
-// shape — a parametric vector primitive.
 interface ShapeData {
     kind: ShapeKind;
     fill?: string; // solids: fill; line/arrow: line color; unset → accent
@@ -950,7 +941,6 @@ register(
     }),
 );
 
-// graphic — arbitrary imported / AI vector art (stored as a normalized Vector).
 interface GraphicData {
     doc: Vector;
     adoptTheme?: boolean;

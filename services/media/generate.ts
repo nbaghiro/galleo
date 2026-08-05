@@ -14,7 +14,7 @@ export interface GenRef {
     mime: string;
 }
 
-// woven into the prompt as a leading phrase (no structured "style" field); "photo" is intentionally empty
+// woven into the prompt as a leading phrase; "photo" is intentionally empty
 const STYLE_PREFIX: Record<MediaGenStyle, string> = {
     photo: "",
     illustration: "Flat vector illustration, clean bold shapes, minimal, of ",
@@ -33,7 +33,7 @@ export function imageGenReady(): boolean {
     return !!process.env.GOOGLE_API_KEY;
 }
 
-// same key as image gen; Veo needs the key's project on the paid tier (as does image gen)
+// same key as image gen; Veo needs the key's project on the paid tier
 export function videoGenReady(): boolean {
     return !!process.env.GOOGLE_API_KEY;
 }
@@ -75,8 +75,8 @@ function extractImage(json: GeminiResponse): { data: string; mime: string } | nu
     return null;
 }
 
-// aspect is sent as imageConfig and woven into the prompt, so it lands whether or not the model honors
-// the field. With a ref image the prompt is an edit instruction — no style prefix (the image carries it).
+// aspect goes in imageConfig AND the prompt, so it lands whether or not the model honors the field;
+// with a ref image the prompt is an edit instruction, so no style prefix (the image carries it)
 async function generateOne(
     prompt: string,
     aspect: string | undefined,
@@ -145,9 +145,8 @@ const GL_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-// Veo is a long-running operation: start → poll (~1–3 min) → download the file-service uri
-// (held ~2 days server-side, so the caller must persist the bytes). onPoll ticks each poll —
-// the SSE route uses it to heartbeat progress. Returns null on timeout / empty result.
+// Veo is a long-running operation: start → poll → download; the uri is held ~2 days, so the caller
+// must persist the bytes. onPoll ticks each poll (the SSE route heartbeats with it); null on timeout.
 export async function generateVideo(
     prompt: string,
     aspect: "16:9" | "9:16" = "16:9",

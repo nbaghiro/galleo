@@ -37,8 +37,6 @@ export const colGroup = (children: ElementInstance[]): ElementInstance => ({
 // childless group; compose paints it as the dashed drop placeholder
 export const emptyRegion = (): ElementInstance => ({ type: "group", data: { children: [] } });
 
-// registry-free tree navigation over the data.children convention
-
 export function childrenRaw(inst: ElementInstance): ElementInstance[] | undefined {
     const kids = (inst.data as { children?: ElementInstance[] }).children;
     return Array.isArray(kids) ? kids : undefined;

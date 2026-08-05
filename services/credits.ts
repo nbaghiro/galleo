@@ -2,9 +2,8 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "./schema";
 import { creditLimitFor } from "./features";
 
-// The single spend path for AI credits. Each charge locks the workspace row (SELECT … FOR UPDATE)
-// so concurrent requests serialize: none can pass a near-limit gate twice or clobber a balance.
-// Spend order: the monthly pool first, then purchased bonus credits (which never reset).
+// each charge locks the workspace row (SELECT … FOR UPDATE) so concurrent requests serialize and none
+// passes a near-limit gate twice; spend order is the monthly pool, then bonus credits (never reset)
 
 type WorkspaceCreditFields = {
     id: string;
@@ -57,10 +56,8 @@ export async function chargeCredits(
     });
 }
 
-// Post-run reconciliation: delta > 0 bills usage beyond the reserve, delta < 0 refunds an
-// over-reserve. Applied against the LIVE row, so spends that landed while a long turn streamed are
-// preserved. Extra spend can push the pool past its cap (the work already ran; the gate blocks the
-// next action); refunds restore the monthly pool.
+// delta > 0 bills usage beyond the reserve, delta < 0 refunds an over-reserve; applied against the
+// LIVE row, so a spend that landed mid-turn survives and extra spend can push the pool past its cap
 export async function settleCredits(
     ws: WorkspaceCreditFields,
     delta: number,

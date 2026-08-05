@@ -1,6 +1,5 @@
-// Keyset (not offset) pagination: a cursor names the last row seen, so a concurrent edit can't make a
-// row repeat or vanish between pages. The cursor is opaque to the client and cheap to validate — a
-// tampered or stale one degrades to "start from the beginning" rather than an error page.
+// Keyset, not offset: the cursor names the last row seen, so a concurrent edit can't make a row repeat
+// or vanish. A tampered or stale cursor degrades to "start from the beginning" rather than erroring.
 
 export interface Cursor {
     key: string; // the sort column's value at the last row (ISO timestamp or title)
@@ -23,7 +22,6 @@ export function decodeCursor(raw: string | undefined): Cursor | null {
     }
 }
 
-/** Clamp a client-supplied page size into a range the server is happy to serve. */
 export function pageLimit(raw: string | undefined, fallback: number, max: number): number {
     const n = Math.trunc(Number(raw));
     if (!Number.isFinite(n) || n <= 0) return fallback;

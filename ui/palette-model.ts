@@ -44,11 +44,7 @@ export interface PaletteSection {
     order: number; // ascending; commands sit at 100 so sources land above them
 }
 
-/**
- * A stream of rows the palette merges into its list. `local` runs on every keystroke against client
- * state (instant); `remote` is debounced and abortable, and replaces the local rows for a query once
- * it lands. Registered by the app, so `@ui` stays free of product concepts.
- */
+/** Rows merged into the list: `local` runs per keystroke, `remote` is debounced and replaces it. */
 export interface PaletteSource {
     id: string;
     section: PaletteSection;
@@ -106,14 +102,7 @@ export interface DisplayOpts {
     commandMode?: boolean;
 }
 
-/**
- * The flat, header-annotated list the palette renders.
- *
- * Three shapes. Landing (no query): the sources — recent artifacts, mainly — plus the handful of
- * commands you last ran, because the whole catalog underneath a jump-to list buries it. Searching:
- * sources first in section order, then matching commands under one header. Command mode ("/"): the
- * catalog alone, grouped when the term is empty and ranked once it isn't.
- */
+/** The flat, header-annotated list the palette renders: landing, searching, or "/" command mode. */
 export function paletteDisplay(o: DisplayOpts): DisplayRow[] {
     const q = o.query.trim();
     const commands = o.commands;

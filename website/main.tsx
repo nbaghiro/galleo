@@ -11,9 +11,7 @@ const APP_THEME_KEY = "galleo:app-theme";
 const CUSTOM_KEY = "galleo:custom-themes";
 const DEFAULT = "studio";
 
-// The app caches its workspace custom themes here; register them so a CUSTOM app-chrome theme resolves on
-// this separate build too. Must be an explicit call in the entry — the app-store import's side effect that
-// used to do this gets tree-shaken out of the production website bundle.
+// Register the app's cached custom themes explicitly; the store side effect is tree-shaken here.
 try {
     const custom = JSON.parse(localStorage.getItem(CUSTOM_KEY) || "[]") as Theme[];
     if (Array.isArray(custom) && custom.length) registerThemes(custom);

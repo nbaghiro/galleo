@@ -42,8 +42,7 @@ export function checkLimit(
     );
 }
 
-// The workspace's whole monthly pool: creditsPerMonth is per seat on per-seat plans, so the pool
-// scales with purchased seats (overrides still apply to the per-seat base via the resolver).
+// creditsPerMonth is per seat on per-seat plans, so the pool scales with purchased seats
 export function creditLimitFor(ws: {
     plan: string | null;
     seats: number;

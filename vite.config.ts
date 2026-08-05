@@ -16,9 +16,7 @@ function cookieValue(header: string | undefined, name: string): string | undefin
     return undefined;
 }
 
-// Mirror the production server (services/server.ts) so localhost behaves identically: contextual "/"
-// (the app when a valid session cookie is present, else marketing), /home = marketing, /p/* = publish,
-// everything else = the app SPA.
+// Must mirror the routing in services/server.ts, else localhost and prod disagree on "/".
 function appSpaFallback(): Plugin {
     return {
         name: "app-spa-fallback",
@@ -48,8 +46,7 @@ export default defineConfig({
     server: {
         port: 8600,
         strictPort: true,
-        // regex key (^ + trailing slash) so it doesn't swallow the /api.ts module request a bare "/api" would.
-        // No rewrite: the backend mounts routers under /api, so dev forwards /api/* verbatim, matching prod.
+        // Regex key, not "/api": a bare prefix would also swallow the /api.ts module request.
         proxy: {
             "^/api/": {
                 target: "http://localhost:8601",

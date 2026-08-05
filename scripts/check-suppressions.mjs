@@ -1,26 +1,20 @@
 // Suppression guard: fails when a new escape hatch lands in tracked source.
 //
-// Most of these are already blocked by eslint.config.js (noInlineConfig + ban-ts-comment), but only
-// in files ESLint actually lints and only for rules ESLint owns. This check is the backstop: it reads
-// tracked source directly, so it still fires inside an ignored directory, in a file type ESLint skips,
-// or for a marker no linter models at all (prettier-ignore, coverage pragmas, double assertions).
+// The backstop to eslint.config.js: it reads tracked source directly, so it also fires in ignored
+// directories, file types ESLint skips, and for markers no linter models (prettier-ignore, coverage).
+// Adding an exception means editing ALLOW below, so it shows up in review.
 //
-// Adding an exception means editing ALLOW below, which shows up in review. That is the point.
-//
-// Uses process.stdout.write rather than console because `no-console` is an error repo-wide; this is
-// standalone repo tooling, so it does not go through services/log.ts.
+// Uses process.stdout.write rather than console because `no-console` is an error repo-wide.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 
 const SELF = "scripts/check-suppressions.mjs";
 
-// Markers that must never appear. `budget` markers are capped instead, for cases where the escape
-// hatch is the honest tool (a partial test double of a large third-party type).
+// Markers that must never appear; `budget` markers are capped instead.
 //
-// Directives only take effect at the start of a comment, so they are anchored to `//` or `/*`. That
-// keeps prose that merely names one (this file, config comments, docs) from tripping the guard, while
-// still catching every form that actually suppresses something.
+// Anchored to `//` or `/*` because a directive only takes effect at a comment's start: prose that
+// merely names one (this file, docs) must not trip the guard.
 const directive = (body) => new RegExp(String.raw`(?://|/\*)\s*${body}`);
 
 const MARKERS = [

@@ -6,10 +6,8 @@ import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
 import { db, schema } from "../../schema";
 import { chargeCredits, settleCredits } from "../../credits";
 
-// The one external oracle we fake: the live Stripe SDK client (mocked at the package boundary, so the
-// `new Stripe(key)` in services/billing/stripe.ts hands back this stub). The pure price↔plan helpers
-// (priceIdFor / planForPrice / intervalForPrice / stripeReady) run for real off the stubbed env, so
-// mapping bugs still surface here — only the network calls are stand-ins.
+// Mocked at the package boundary, so the `new Stripe(key)` in services/billing/stripe.ts hands back
+// this stub; the pure price↔plan helpers still run for real off the stubbed env.
 const stripeMock = vi.hoisted(() => ({
     customers: { create: vi.fn() },
     checkout: { sessions: { create: vi.fn() } },
@@ -18,7 +16,7 @@ const stripeMock = vi.hoisted(() => ({
     webhooks: { constructEvent: vi.fn() },
 }));
 
-// `new Stripe(key)` must call a constructor — a function that returns stripeMock (arrows can't be `new`ed).
+// A function, not an arrow: `new Stripe(key)` needs something constructible.
 vi.mock("stripe", () => ({
     default: vi.fn(function StripeCtor() {
         return stripeMock;
@@ -72,8 +70,7 @@ function fakeSub(o: SubOverrides = {}): Stripe.Subscription {
     } as unknown as Stripe.Subscription;
 }
 
-// id feeds the webhook's idempotency claim; unique per test (the DB is truncated between tests), and
-// reused verbatim to simulate a Stripe redelivery.
+// The id feeds the webhook's idempotency claim; reused verbatim to simulate a redelivery.
 const stripeEvent = (type: string, object: unknown, id = "evt_test"): Stripe.Event =>
     ({ id, type, data: { object } }) as unknown as Stripe.Event;
 
@@ -89,8 +86,7 @@ async function getWs(id: string) {
     return ws!;
 }
 
-// Deliver an event to the webhook. constructEvent is faked to return `ev`, so signature verification
-// is bypassed — the handler logic (the thing under test) still runs against the real DB.
+// constructEvent is faked, so signature verification is bypassed and the handler still runs for real.
 function postWebhook(ev: Stripe.Event): Promise<Response> {
     stripeMock.webhooks.constructEvent.mockReturnValue(ev);
     return request("/billing/webhook", {

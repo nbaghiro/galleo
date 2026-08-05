@@ -16,9 +16,9 @@ export interface DrawStyle {
     width?: number; // stroke width
     radius?: number; // rect corner radius
     dash?: number[];
-    fillRule?: "nonzero" | "evenodd"; // path/polygon fill winding
-    cap?: "butt" | "round" | "square"; // stroke line cap
-    join?: "miter" | "round" | "bevel"; // stroke line join
+    fillRule?: "nonzero" | "evenodd";
+    cap?: "butt" | "round" | "square";
+    join?: "miter" | "round" | "bevel";
 }
 
 export interface DrawTextStyle {
@@ -30,7 +30,7 @@ export interface DrawTextStyle {
     baseline?: "top" | "middle" | "bottom";
 }
 
-// Structural subset of CanvasRenderingContext2D, so the canvas backend passes its context straight through; also what d3-shape generators render into via `.context()`.
+// Structural subset of CanvasRenderingContext2D, so the 2D context and d3-shape generators fit it directly.
 export interface PathSink {
     moveTo(x: number, y: number): void;
     lineTo(x: number, y: number): void;
@@ -49,7 +49,7 @@ export interface PathSink {
     closePath(): void;
 }
 
-// Backend-abstract drawing API for surface elements (charts, diagrams). Coordinates are local to the element's box.
+// Coordinates are local to the element's box.
 export interface DrawContext {
     rect(x: number, y: number, w: number, h: number, style: DrawStyle): void;
     line(x1: number, y1: number, x2: number, y2: number, style: DrawStyle): void;
@@ -66,7 +66,7 @@ export interface DrawContext {
     // The backend begins and closes the path; `build` only issues sink calls.
     path(build: (sink: PathSink) => void, style: DrawStyle): void;
     text(text: string, x: number, y: number, style: DrawTextStyle): void;
-    // Advance width for laying out labels inside a surface (immediate-mode paint has no DOM to measure against).
+    // Advance width for labels: an immediate-mode paint has no DOM to measure against.
     measureText(text: string, style: DrawTextStyle): { width: number };
 }
 
@@ -91,7 +91,7 @@ export interface TextLeaf {
     color?: string;
     align?: Align;
     wrap: "words" | "none";
-    // When present, paints as this sequence (runs inherit base font/size, override weight/color); absent → the plain `text` path. Invariant: concatenation of all `runs[].text` equals `text`.
+    // Invariant: the concatenation of `runs[].text` equals `text`; absent → the plain `text` path.
     runs?: Run[];
 }
 
@@ -129,9 +129,9 @@ export interface EngineNode {
     alignX?: Align;
     alignY?: Align;
     alignSelf?: Align; // overrides the parent's cross-axis alignment
-    // Clip descendants to this node's box on the given axes. Inert until set; the engine carries the resolved rect on each command (`RenderCommand.clip`).
+    // Clips descendants on the given axes; the resolved rect rides on each command.
     clip?: { x?: boolean; y?: boolean };
-    // Lifted OUT of the parent's flex flow (doesn't affect siblings or fit size), positioned by x/y align + dx/dy offset, painted on top (higher `z` later). Inert until set.
+    // Lifted out of the flow (no effect on siblings or fit size), painted on top, higher `z` later.
     float?: { x?: Align; y?: Align; dx?: number; dy?: number; z?: number };
     opacity?: number; // 0..1, multiplied down the subtree
     text?: TextLeaf;
@@ -141,7 +141,7 @@ export interface EngineNode {
     children?: EngineNode[];
 }
 
-// Effective (ancestor-intersected) clip rect; backends honor it (CSS clip-path / canvas clip). Absent = no clip.
+// `clip` is the ancestor-intersected rect the backends honor; absent = no clip.
 export type RenderCommand =
     | { kind: "rect"; box: Rect; fill?: FillLeaf; id?: string; opacity?: number; clip?: Rect }
     | { kind: "text"; box: Rect; text: TextLeaf; id?: string; opacity?: number; clip?: Rect }
@@ -155,7 +155,7 @@ export type RenderCommand =
           clip?: Rect;
       };
 
-// Final box of every node with an id. Separate from paint so selection/hit-testing don't depend on what was drawn.
+// Separate from paint so selection and hit-testing don't depend on what was drawn.
 export interface Region {
     id: string;
     box: Rect;

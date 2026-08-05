@@ -1,15 +1,10 @@
 import type { ArtifactContent, SectionOp } from "@model/artifact";
 
-// Document-level edits expressed as section ops. A windowed client only holds part of the document, so
-// it cannot save by replacing the whole tree; it sends what changed instead. Applied server-side, and
-// shared here so the client can predict exactly what the server will do.
+// applied server-side, and shared here so a windowed client can predict what the server will do
 
-export type ApplyResult = { ok: true; content: ArtifactContent } | { ok: false; reason: string }; // the whole batch is rejected — never half-applied
+export type ApplyResult = { ok: true; content: ArtifactContent } | { ok: false; reason: string }; // the whole batch is rejected, never half-applied
 
-/**
- * Apply ops in order to a fresh copy. An op naming a section that isn't there means the client and the
- * server disagree about the document, which is a reload, not something to paper over.
- */
+/** Applied in order to a fresh copy; an unknown section id means client and server disagree. */
 export function applySectionOps(content: ArtifactContent, ops: SectionOp[]): ApplyResult {
     let sections = [...content.sections];
     let shell = {
@@ -43,10 +38,7 @@ export function applySectionOps(content: ArtifactContent, ops: SectionOp[]): App
     return { ok: true, content: { ...shell, sections } };
 }
 
-/**
- * The ops that turn `before` into `after`, by section identity. Untouched sections keep their object
- * identity through every editor op, so an unchanged section is free to detect and never sent.
- */
+/** Diffs by section identity: editor ops preserve it, so an unchanged section is free to detect. */
 export function diffSections(before: ArtifactContent, after: ArtifactContent): SectionOp[] {
     const ops: SectionOp[] = [];
     const had = new Map(before.sections.map((s) => [s.id, s]));

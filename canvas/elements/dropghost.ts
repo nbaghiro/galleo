@@ -13,8 +13,6 @@ interface GhostData {
     data?: unknown; // dragged element's real data → a MOVE ghost matches it (not a default)
 }
 
-// the live drop preview, spliced inline so the section reflows to the post-drop state. MOVE (has data) →
-// the real element dimmed; NEW → the element's themed preview icon (same one the palette shows).
 const DIM = 0.45; // opacity of the real element at the drop target
 const PREVIEW_H = 84; // NEW-drop preview icon box height
 

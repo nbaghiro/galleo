@@ -30,7 +30,7 @@ export function setAppTheme(id: string): void {
     }
 }
 
-// live, non-persisted override — theme editor's draft, recolors the app behind the modal
+// live, non-persisted: the theme editor's draft recolors the app behind the modal
 const [appThemeOverride, setAppThemeOverride] = createSignal<Tokens | null>(null);
 export { appThemeOverride };
 export function setAppThemePreview(tokens: Tokens | null): void {
@@ -75,11 +75,11 @@ export function setFavicon(tokens: Tokens): void {
     link.href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-// overlays over the editor adopt the artifact/editor theme (else app-chrome), to match the surface underneath
+// overlays adopt the editor's theme, to match the surface underneath
 export const editorThemeCssVars = (): JSX.CSSProperties =>
     themeCssVars(editorTokens()) as JSX.CSSProperties;
 
-// call once in the component body: stamps the theme at open (reads untracked), won't restyle while previewed underneath
+// call once in the component body: stamps the theme at open, not on later previews
 export function overlayThemeVars(): JSX.CSSProperties | undefined {
     return useLocation().pathname.includes("/edit/") ? editorThemeCssVars() : undefined;
 }
@@ -104,7 +104,7 @@ export const THEME_SAMPLE: Section = {
     ),
 };
 
-// localStorage cache so a reload hydrates custom themes synchronously (no default flash before the fetch)
+// localStorage cache so a reload hydrates custom themes with no default flash before the fetch
 const CUSTOM_KEY = "galleo:custom-themes";
 function readCustomCache(): Theme[] {
     try {
@@ -127,7 +127,7 @@ function toTheme(a: ApiTheme): Theme {
 }
 
 function sync(list: Theme[]): void {
-    // register into the (non-reactive) @themes map before flipping the signal, so the re-render resolves custom themes
+    // register into the non-reactive @themes map before flipping the signal, so the re-render resolves
     registerThemes(list);
     setCustomThemes(list);
     try {

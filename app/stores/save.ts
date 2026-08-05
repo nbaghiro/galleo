@@ -10,11 +10,7 @@ import {
 } from "@editor/core/store";
 import { api } from "../api";
 
-// Autosave coalesces a burst of edits into one PATCH: debounce ~1.2s, but force-flush every ~10s during
-// continuous editing and on tab hide/unload; one PATCH in flight, edits during a save trigger one more.
-// What it sends is the difference from what the server is known to hold, so a keystroke rewrites one
-// section rather than the whole document — and a windowed client, which only holds part of the
-// document, can save at all.
+// sends the difference from what the server is known to hold, so a windowed client can save at all
 const DEBOUNCE_MS = 1200;
 const MAX_INTERVAL_MS = 10_000;
 const RETRY_MS = 3_000; // after a failed save; the baseline is unchanged, so the retry resends it
@@ -30,7 +26,7 @@ export function installAutosave(): void {
     let windowStart = 0; // when the current un-saved edit window opened
     let saving = false;
     let dirtyWhileSaving = false;
-    // the server's known state, and what the diff behind each save is taken against
+    // the server's known state; each save's diff is taken against it
     let savedId: string | null = untrack(currentArtifactId);
     let saved: ArtifactContent | null = savedId ? untrack(() => editor.artifact) : null;
 
@@ -66,8 +62,7 @@ export function installAutosave(): void {
                 try {
                     await api.patchContent(id, { ops, themeId, formatId: art.format });
                 } catch (e) {
-                    // A client holding the whole document can always fall back to replacing it; a
-                    // windowed one cannot, and must surface the failure as a retry instead.
+                    // a whole-document client can fall back to replacing it; a windowed one cannot
                     if (windowed) throw e;
                     await saveWhole(id, persisted, themeId);
                 }
@@ -77,8 +72,7 @@ export function installAutosave(): void {
             saved = persisted;
             savedId = id;
         } catch {
-            // The baseline is untouched, so the same change is still pending. Retry on a timer rather
-            // than immediately: a persistent failure would otherwise spin.
+            // the baseline is untouched, so the change is still pending; retry on a timer, not at once
             window.clearTimeout(timer);
             timer = window.setTimeout(() => flush(), RETRY_MS);
         }
@@ -97,7 +91,7 @@ export function installAutosave(): void {
         }),
     );
 
-    // Fires only on real edits (editSeq bumps); loading an artifact doesn't bump it, so loads never save.
+    // fires only on real edits: loading an artifact doesn't bump editSeq, so loads never save
     createEffect(
         on(
             editSeq,

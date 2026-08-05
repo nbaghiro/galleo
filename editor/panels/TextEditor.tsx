@@ -39,11 +39,10 @@ import type { Run } from "@engine/node";
 
 type TextFields = { text?: string; marks?: Mark[] } & Record<string, unknown>;
 
-// Selection to restore after an AI-edit remount (the rewritten span). Set by replaceRange, consumed once
-// on next mount. Module-level — only one field mounts at a time.
+// restored on the next mount after an AI edit; module-level, since only one field mounts at a time
 let pendingSel: { from: number; to: number } | null = null;
 
-// Map a viewport point to a caret Range (Chrome/Safari caretRangeFromPoint vs Firefox caretPositionFromPoint).
+// Chrome/Safari caretRangeFromPoint vs Firefox caretPositionFromPoint
 interface CaretDoc {
     caretRangeFromPoint?(x: number, y: number): Range | null;
     caretPositionFromPoint?(x: number, y: number): { offsetNode: Node; offset: number } | null;
@@ -59,7 +58,7 @@ function caretRangeAtPoint(x: number, y: number): Range | null {
     return r;
 }
 
-// Contenteditable overlay styled to match the engine-rendered text exactly; edits flow live into the model.
+// contenteditable overlay styled to match the engine-rendered text exactly
 const EditingField: Component<{ address: ElementAddress }> = (props) => {
     let el!: HTMLDivElement;
 
@@ -69,7 +68,7 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         const i = inst();
         const spec = i ? getElement(i.type) : undefined;
         if (!i || !spec?.richText) return null;
-        // Match composeSection's over-image recoloring, so the overlay isn't dark over an image background.
+        // mirrors composeSection's over-image recoloring, so the overlay isn't dark over an image
         const base = editorTokens();
         const section = editor.artifact.sections.find((s) => s.id === props.address.section);
         const tokens = section ? sectionContentTokens(section, base) : base;
@@ -90,7 +89,7 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         setTextSelection(off);
         const marks = fields().marks ?? [];
         setActiveMarks(computeActiveMarks(marks, off.from, off.to));
-        // Value marks (color/hl/link) covering the selection — for the pickers' preselect + preview.
+        // value marks covering the selection, for the pickers' preselect and preview
         const values: Partial<Record<MarkType, string>> = {};
         for (const t of ["color", "hl", "link"] as MarkType[]) {
             const m = marks.find(
@@ -101,8 +100,7 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         setActiveValues(values);
     };
 
-    // Run a mark op over the live selection (or an explicit range captured before focus moved to a toolbar
-    // field), then restore focus + selection.
+    // `range` is passed when focus already moved to a toolbar field
     const runMark = (
         op: "toggle" | "set" | "clear",
         type: MarkType,
@@ -128,9 +126,7 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         syncSel();
     };
 
-    // Replace [from, to) with AI-edited text: splice the model live (one undo step, like typing), then
-    // RE-MOUNT the overlay. The re-mount matters — the browser won't reliably repaint an in-place change to
-    // a focused contenteditable made outside a user gesture; a fresh mount always paints.
+    // re-mount: a focused contenteditable won't reliably repaint a change made outside a user gesture
     const replaceRange = (from: number, to: number, insert: string): void => {
         if (!inst()) return;
         const data = fields();
@@ -184,7 +180,7 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
     };
 
     const onKeyDown = (e: KeyboardEvent): void => {
-        // Enter/Escape end the edit; mark shortcuts (⌘B/I/U…) are handled globally (no execCommand here).
+        // mark shortcuts (⌘B/I/U) are handled globally; no execCommand here
         if (e.key === "Escape" || (e.key === "Enter" && !e.shiftKey)) {
             e.preventDefault();
             stopEditing();
@@ -221,7 +217,7 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
                 // Keep editing alive when focus moves into the format bar (e.g. the link URL input).
                 const rt = e.relatedTarget as HTMLElement | null;
                 if (rt?.closest("[data-galleo-toolbar]")) return;
-                // If editing already switched to another element, this is a stale blur from the outgoing field — don't cancel.
+                // a stale blur from the outgoing field once editing switched elsewhere; don't cancel
                 const cur = editing();
                 if (cur && elementRegionId(cur) !== elementRegionId(props.address)) return;
                 stopEditing();
@@ -232,14 +228,13 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
 };
 
 export const TextEditor: Component = () => (
-    // `keyed`: a new editing address (or fresh ref from remountEditing) rebuilds the field, so an external edit re-mounts and paints reliably.
+    // `keyed`: a new address or a fresh ref rebuilds the field, so an external edit re-mounts and paints
     <Show when={editing()} keyed>
         {(addr) => <EditingField address={addr} />}
     </Show>
 );
 
-// DOM ⇄ marks bridge: renders {text, marks} to styled spans and reads them back. We own the span markup
-// (a `data-m` descriptor per run) so read-back is exact.
+// we own the span markup (a `data-m` descriptor per run), so read-back is exact
 
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
@@ -329,7 +324,7 @@ function mergeMarks(
     return [...byType.values()];
 }
 
-// Read the (possibly user-mutated) DOM back into {text, marks}; text nodes inherit ancestor-span marks, adjacent same-mark segments coalesce.
+// the DOM may be user-mutated: text nodes inherit ancestor-span marks, same-mark segments coalesce
 export function readMarks(el: HTMLElement): { text: string; marks: Mark[] } {
     let text = "";
     const segs: { from: number; to: number; marks: { type: MarkType; value?: string }[] }[] = [];

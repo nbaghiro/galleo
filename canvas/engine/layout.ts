@@ -1,7 +1,7 @@
 import type { Align, EngineNode, MeasureText, Rect, Region, RenderCommand } from "@engine/node";
 import type { Size } from "@model/geometry";
 
-// Mutable working node: the input EngineNode + its resolved box, filled across three passes then flattened to commands.
+// Mutable working node: the resolved box, filled across the three passes, then flattened to commands.
 interface LayoutNode {
     node: EngineNode;
     x: number;
@@ -9,7 +9,7 @@ interface LayoutNode {
     w: number;
     h: number;
     children: LayoutNode[];
-    // Explicit `clip` plus an overflow axis the height pass adds for a bounded box shorter than its content; `emit` reads this, not `node.clip`.
+    // The height pass adds axes here for a bounded box shorter than its content; `emit` reads this, not `node.clip`.
     clip?: { x?: boolean; y?: boolean };
 }
 
@@ -38,7 +38,7 @@ interface Span {
     grow: boolean;
 }
 
-// Fit children to `avail`: underflow grows `grow` children toward max, overflow shrinks any above min toward min. Fixed/percent never move; at the limits the remainder overflows. Sizes index-aligned with `spans`.
+// Grow/shrink into `avail`; fixed/percent never move, so at the limits the remainder overflows.
 function distribute(spans: Span[], avail: number): number[] {
     const size = spans.map((s) => s.base);
     let slack = avail - size.reduce((a, b) => a + b, 0);
@@ -82,7 +82,7 @@ function intrinsicWidth(n: EngineNode, measure: MeasureText): number {
     return padX(n) + kids.reduce((mx, c) => Math.max(mx, childW(c)), 0);
 }
 
-// percent/fit resolve against `avail` (row space after gaps); fit can shrink to `min` on overflow, reflowing its text taller in the height pass.
+// `avail` is row space after gaps; fit can shrink to `min`, reflowing its text taller in the height pass.
 function widthSpan(c: EngineNode, avail: number, measure: MeasureText): Span {
     switch (c.w.mode) {
         case "fixed":
@@ -162,7 +162,7 @@ function resolveHeight(s: Size, assigned: number, intrinsic: number): number {
 
 function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText): void {
     const node = ln.node;
-    // Aspect boxes size height from width/aspect regardless of content; children lay out within the resolved box.
+    // Aspect boxes take height from width/aspect regardless of content.
     if (node.aspect) {
         ln.h = resolveHeight(node.h, assignedH, ln.w / node.aspect);
         const inner = Math.max(0, ln.h - padY(node));
@@ -180,7 +180,7 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText):
 
     const contentH = Math.max(0, assignedH - padY(node));
     if (isRow(node)) {
-        // Measure non-grow children first to set the row's cross height, then stretch grow children to it. In a `fit` row it's the tallest sibling, not the container — else a `grow` bar fills the unbounded measurement height.
+        // A `fit` row's cross height is its tallest sibling, not the container's unbounded measurement height.
         let maxH = 0;
         const growKids: LayoutNode[] = [];
         for (const c of ln.children) {
@@ -201,12 +201,11 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText):
             maxH = Math.max(maxH, c.h);
         }
         ln.h = resolveHeight(node.h, assignedH, maxH + padY(node));
-        // A bounded row shorter than its tallest child clips the vertical overflow.
         if (ln.h + 0.5 < maxH + padY(node)) ln.clip = mergeClip(ln.clip, { y: true });
         return;
     }
 
-    // Non-grow children resolve to natural height; grow children fill the leftover via the grow/shrink pass. fit stays pinned (min == base == max) — vertical shrink would clip content.
+    // Non-grow children pin at their natural height (min == base == max): vertical shrink would clip content.
     const flow = ln.children.filter((c) => !c.node.float);
     const gaps = (node.gap ?? 0) * Math.max(0, flow.length - 1);
     const spans: Span[] = flow.map((c) => {
@@ -225,7 +224,6 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText):
 
     const childrenH = flow.reduce((sum, c) => sum + c.h, 0) + gaps;
     ln.h = resolveHeight(node.h, assignedH, childrenH + padY(node));
-    // A bounded column (anything but `fit`) shorter than its content clips the overflow.
     if (ln.h + 0.5 < childrenH + padY(node)) ln.clip = mergeClip(ln.clip, { y: true });
 }
 
@@ -266,7 +264,6 @@ function layoutPositions(ln: LayoutNode, x: number, y: number): void {
             cy += c.h + gap;
         }
     }
-    // Floats placed over the flow, aligned within the content box + a dx/dy offset.
     for (const c of ln.children) {
         if (!c.node.float) continue;
         const f = c.node.float;
@@ -278,7 +275,7 @@ function layoutPositions(ln: LayoutNode, x: number, y: number): void {
 
 const CLIP_INF = 1e7; // stand-in for "unbounded" on a non-clipped axis
 
-// Intersect the incoming clip with `box` on the axes this node bounds. Undefined incoming clip = unbounded on both axes.
+// Intersects the incoming clip with `box` on the bounded axes; an undefined parent is unbounded.
 function clipRect(parent: Rect | undefined, box: Rect, cfg: { x?: boolean; y?: boolean }): Rect {
     const l = Math.max(cfg.x ? box.x : -CLIP_INF, parent ? parent.x : -CLIP_INF);
     const t = Math.max(cfg.y ? box.y : -CLIP_INF, parent ? parent.y : -CLIP_INF);
@@ -339,7 +336,7 @@ export function layout(
     return { commands, regions };
 }
 
-// Greedy pagination: break at the lowest command bottom-edge inside the page that cuts no other command; hard-break only when a single block is taller than the page. Each page's commands offset to y = 0.
+// Greedy: break at the lowest bottom edge that splits no command; each page's commands shift to y = 0.
 
 const EPS = 0.5;
 
@@ -365,7 +362,6 @@ export function fragment(
         let breakY = Math.min(limit, totalHeight);
 
         if (limit < totalHeight) {
-            // candidate breaks: bottom edges inside this page
             const cands = sorted
                 .map((c) => c.box.y + c.box.h)
                 .filter((y) => y > top + EPS && y <= limit + EPS);

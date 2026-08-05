@@ -57,7 +57,6 @@ export type ToolSurface = "agent" | "direct" | "mcp" | "internal";
 // showcase grouping for the credits table
 export type ToolCategory = "create" | "edit" | "text" | "media" | "theme" | "assist";
 
-// knobs a metered tool scales by; all optional
 export interface MeterParams {
     length?: string; // "Short" | "Standard" | "In-depth"
     sections?: number;
@@ -458,7 +457,6 @@ export const PRICED_TOOLS: ToolMeta[] = Object.values(TOOL_CATALOG).filter(
     (t) => t.usage && t.live,
 );
 
-// the meter if it has one, else base usage
 export function estimateUsage(id: ToolId, m: MeterParams = {}): Usage {
     const t = TOOL_CATALOG[id];
     return t.meter ? t.meter(m) : (t.usage ?? {});

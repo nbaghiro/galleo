@@ -26,8 +26,7 @@ const draftWithCover = {
     ],
 };
 
-// bypasses the create route (fixture setup); still derives what the route derives, so a fixture row
-// is indistinguishable from a real one
+// bypasses the create route but derives what the route derives, so the row is indistinguishable
 async function insertArtifact(
     workspaceId: string,
     over: Partial<typeof schema.artifacts.$inferInsert> = {},

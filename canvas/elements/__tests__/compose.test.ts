@@ -93,7 +93,7 @@ describe("composeSection", () => {
     });
 
     it("crops an over-100% column row at the section edge instead of spilling past the card", () => {
-        // two 70% columns = 140% → the second overflows the row (percent can't shrink); the clip must contain it
+        // two 70% columns = 140%: percent can't shrink, so the clip must contain the overflow
         const section = sectionOf(
             rowGroup([inst("text", { text: "L" }), inst("text", { text: "R" })], [0.7, 0.7]),
         );

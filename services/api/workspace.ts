@@ -7,8 +7,7 @@ import { SESSION_COOKIE } from "../auth";
 import { currentUser, currentWorkspace, readJson } from "./context";
 import { sendWorkspaceInvite } from "../mail/send";
 
-// Members & invites for the current workspace. Mutations are owner-only; invite acceptance is
-// possession-based (the raw token lives only in the emailed link — mirrors link_recipients).
+// Invite acceptance is possession-based: the raw token lives only in the emailed link.
 
 export const workspace = new Hono();
 
@@ -79,8 +78,7 @@ workspace.get("/workspace", async (c) => {
     });
 });
 
-// Owner invites an email; the seat count caps members + pending invites. Always returns the accept
-// URL (like the share-link flow) so an unconfigured-mail dev setup stays usable.
+// Returns the accept URL as well as mailing it, so an unconfigured-mail dev setup stays usable.
 workspace.post("/workspace/invites", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -171,7 +169,7 @@ async function inviteByToken(token: string) {
     return row;
 }
 
-// Token preview for the accept page (auth required — the page sits behind the app's sign-in gate).
+// Auth required: the accept page sits behind the app's sign-in gate.
 workspace.get("/invites/:token", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);

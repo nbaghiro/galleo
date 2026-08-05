@@ -96,11 +96,7 @@ export interface Command {
     slash?: string; // "/generate" — set only where the id derives a poor one (see `slashAlias`)
 }
 
-/**
- * The `/name` a command answers to in the palette. Derived from the id's last segment so every command
- * has one without a registration having to think about it; `slash` overrides where that reads badly
- * ("share.open" would give "/open").
- */
+/** The `/name` a command answers to: the id's last segment, unless `slash` overrides it. */
 export function slashAlias(cmd: Pick<Command, "id" | "slash">): string {
     if (cmd.slash) return cmd.slash.startsWith("/") ? cmd.slash : `/${cmd.slash}`;
     const tail = cmd.id.split(".").pop() ?? cmd.id;
@@ -266,7 +262,7 @@ interface BindingEntry {
 }
 const bindings: BindingEntry[] = [];
 
-// Bumped on every registration so the palette / sheet / tooltip labels react to new commands + bindings.
+// Bumped on every registration so palette / sheet / tooltip labels react to new commands.
 const [registryTick, setRegistryTick] = createSignal(0);
 export { registryTick };
 function bumpRegistry(): void {
@@ -322,7 +318,7 @@ export function getContext(key: string): boolean {
 
 export interface ScopeOpts {
     exclusive?: boolean; // swallow unmatched mod-combos so lower shortcuts don't leak (a true modal)
-    onEscape?: () => void; // centralized Esc-to-dismiss
+    onEscape?: () => void;
 }
 interface ScopeFrame extends ScopeOpts {
     name: string;
@@ -426,7 +422,7 @@ export function bindingLabel(id: string): string | null {
     return entry ? formatChord(entry.steps.join(" ")) : null;
 }
 
-// bare keys whose unicode glyph risks emoji presentation (tiny, non-theme-colored) → render a shared Icon
+// bare keys whose unicode glyph risks emoji presentation, so render a shared Icon instead
 const KEY_HINT_ICON: Record<string, string> = { delete: "backspace", backspace: "backspace" };
 
 /** Shared-Icon name for a command whose first binding is a single bare key we glyph, else null. Reactive. */
@@ -471,7 +467,6 @@ export function installKeyDispatcher(): () => void {
         const inputFocused = isInputFocused();
         const ctx = makeCtx(inputFocused);
 
-        // 1) Escape → the topmost scope that wants to dismiss on Escape (modals / palette / popovers).
         if (chord === "escape") {
             const stack = scopeStack();
             for (let i = stack.length - 1; i >= 0; i--) {
@@ -485,7 +480,6 @@ export function installKeyDispatcher(): () => void {
             }
         }
 
-        // 2) Continue an in-flight sequence (bare keys only; never mid-typing).
         if (seqBuffer.length && !inputFocused) {
             const attempt = [...seqBuffer, chord];
             const seqs = seqBindings(ctx);
@@ -508,10 +502,9 @@ export function installKeyDispatcher(): () => void {
                 e.preventDefault();
                 return;
             }
-            resetSeq(); // dead end — fall through
+            resetSeq(); // dead end, fall through
         }
 
-        // 3) A single-chord binding.
         const cmd = resolveChord(chord, ctx);
         if (cmd) {
             e.preventDefault();
@@ -520,7 +513,6 @@ export function installKeyDispatcher(): () => void {
             return;
         }
 
-        // 4) Begin a sequence if this bare key is the first step of one.
         if (!inputFocused && !chord.includes("+")) {
             const starts = seqBindings(ctx).some((b) => b.steps[0] === chord);
             if (starts) {
@@ -531,7 +523,7 @@ export function installKeyDispatcher(): () => void {
             }
         }
 
-        // 5) exclusive top scope swallows stray mod-combos so lower-scope shortcuts don't leak while open
+        // an exclusive top scope swallows stray mod-combos so lower-scope shortcuts don't leak
         const top = scopeStack().at(-1);
         if (top?.exclusive && chord.includes("mod+") && !inputFocused) e.preventDefault();
     };

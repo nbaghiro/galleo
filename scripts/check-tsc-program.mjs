@@ -1,8 +1,7 @@
 // Program-membership guard: fails when a tracked .ts/.tsx file is not in the tsc program.
 //
-// `website/` shipped to production untypechecked because tsconfig's `include` listed directories by
-// hand and nobody noticed the omission: tsc reports success on the files it was given, and says
-// nothing about the ones it never saw. A green typecheck is only meaningful alongside this check.
+// tsc reports success on the files it was given and says nothing about the ones it never saw, so a
+// green typecheck only means something alongside this check (`website/` once shipped untypechecked).
 
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -15,10 +14,8 @@ const tracked = execFileSync("git", ["ls-files", "*.ts", "*.tsx"], { encoding: "
     .split("\n")
     .filter((f) => f && existsSync(f));
 
-// tsc exits non-zero whenever the tree has a type error, which is routine mid-refactor. It still
-// prints --listFiles, so read stdout either way and keep only the absolute paths; diagnostics are
-// relative ("app/x.ts(3,4): error TS...") and drop out. Membership is a separate question from
-// whether the code currently compiles, and `pnpm typecheck` already owns the latter.
+// tsc exits non-zero on any type error, routine mid-refactor, but still prints --listFiles: read
+// stdout either way and keep only absolute paths, since diagnostics are relative and drop out.
 let listing = "";
 try {
     listing = execFileSync("pnpm", ["exec", "tsc", "--noEmit", "--listFiles"], {

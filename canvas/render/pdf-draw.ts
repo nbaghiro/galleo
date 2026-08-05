@@ -43,8 +43,7 @@ const capStyle = (c?: DrawStyle["cap"]): LineCapStyle =>
           : LineCapStyle.Butt;
 
 function svgOpts(s: DrawStyle, pageH: number): PDFPageDrawSVGOptions {
-    // drawSvgPath anchors at (x,y) then flips y (1 0 0 -1), so an absolute-coord path anchored at
-    // (0, pageH) lands at (px, pageH - py) — PDF's bottom-left origin. (Verified against pdf-lib output.)
+    // drawSvgPath flips y, so anchoring at (0, pageH) lands an absolute-coord path at (px, pageH - py)
     const o: PDFPageDrawSVGOptions = { x: 0, y: pageH };
     const f = pdfColor(s.fill);
     if (f) {
@@ -69,7 +68,7 @@ export interface Ctx {
     fonts: FontResolver;
 }
 
-// absolute-coord SVG path `d` → native PDF vector (fill/stroke), y-flipped
+// `d` is in absolute page coords; svgOpts does the y-flip
 export function drawPathAbs(c: Ctx, d: string, s: DrawStyle): void {
     if (!d) return;
     c.page.drawSvgPath(d, svgOpts(s, c.pageH));
@@ -85,7 +84,7 @@ export function roundRectPath(x: number, y: number, w: number, h: number, r: num
     );
 }
 
-// A DrawContext that paints a surface natively into the page, offsetting local coords by the surface box.
+// offsets surface-local coords by the surface box
 export function pdfDrawContext(c: Ctx, ox: number, oy: number): DrawContext {
     const tx = (x: number): number => ox + x;
     const ty = (y: number): number => oy + y;
@@ -155,7 +154,7 @@ export function pdfDrawContext(c: Ctx, ox: number, oy: number): DrawContext {
     };
 }
 
-// draw a single text string; (x,y) is where the canvas backend would place it (align + baseline honored)
+// (x,y) is where the canvas backend would place it: align + baseline honored
 export function drawTextAbs(c: Ctx, text: string, x: number, y: number, s: DrawTextStyle): void {
     if (!text) return;
     const size = s.size ?? 12;
@@ -182,7 +181,7 @@ export function drawTextAbs(c: Ctx, text: string, x: number, y: number, s: DrawT
     });
 }
 
-// ── native rect + text commands (document-level, boxes already in pt) ───────────────────────────────
+// boxes already in pt
 export function emitRect(
     c: Ctx,
     box: { x: number; y: number; w: number; h: number },
@@ -204,7 +203,7 @@ export function emitRect(
     if (style.fill || style.stroke) drawPathAbs(c, d, style);
 }
 
-// port of backends.drawRuns to native PDF text (positions/wrap from layoutRuns, so breaks match screen)
+// mirrors backends.drawRuns; wrap comes from layoutRuns so breaks match screen
 export function emitText(
     c: Ctx,
     cmd: Extract<RenderCommand, { kind: "text" }>,
@@ -261,14 +260,12 @@ export function emitText(
     });
 }
 
-// ── font embedding (fontkit) ─────────────────────────────────────────────────────────────────────
 export type FontResolver = (family: string, weight: number, italic: boolean) => PDFFont;
 
 const fontKey = (family: string, weight: number, italic: boolean): string =>
     `${family}|${slotFor(weight, italic)}`;
 
-// collect fonts from text commands + the theme's own families, embed them (subset), and return a resolver
-// that falls back to the closest embedded font, then Helvetica — so drawText never throws.
+// the resolver falls back to the closest embedded font, then Helvetica, so drawText never throws
 export async function buildFontBook(
     pdf: PDFDocument,
     textCmds: Extract<RenderCommand, { kind: "text" }>[],

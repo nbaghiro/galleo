@@ -35,7 +35,6 @@ interface FeatureDef {
     description: string;
 }
 
-// 🔶 = AI/credit session owns the value + when it goes live
 export const FEATURES: Record<FeatureKey, FeatureDef> = {
     removeBranding: {
         label: "Remove Galleo mark",
@@ -69,22 +68,22 @@ export const FEATURES: Record<FeatureKey, FeatureDef> = {
     },
     creditsPerMonth: {
         label: "Monthly AI credits",
-        status: "live", // 🔶 spend enforced by the AI/credit session
+        status: "live", // spend is enforced by the credit gate, not here
         description: "AI generation budget per month.",
     },
     maxSectionsPerGeneration: {
         label: "Sections per generation",
-        status: "beta", // 🔶
+        status: "beta",
         description: "Cap on how large one AI generation can be.",
     },
     textModelTier: {
         label: "AI text model",
-        status: "beta", // 🔶
+        status: "beta",
         description: "Which text models the generator may use.",
     },
     imageModelTier: {
         label: "AI image model",
-        status: "beta", // 🔶
+        status: "beta",
         description: "Which image models media generation may use.",
     },
     workspaceThemes: {
@@ -128,7 +127,7 @@ export const FEATURES: Record<FeatureKey, FeatureDef> = {
 export const featureStatus = (key: FeatureKey): FeatureStatus => FEATURES[key].status;
 const launched = (key: FeatureKey): boolean => FEATURES[key].status !== "planned";
 
-// resolved feature set — read via can()/limit(); produced by resolveFeatures()
+// produced by resolveFeatures(); read via can()/limit()
 export interface Features {
     planId: PlanId;
     removeBranding: boolean;
@@ -155,7 +154,6 @@ export interface Features {
 // per-workspace patch; can't grant a "planned" (unbuilt) feature
 export type FeatureOverrides = Partial<Omit<Features, "planId">>;
 
-// resolve a plan (+ overrides) into the effective feature set
 export function resolveFeatures(planId: PlanId, overrides?: FeatureOverrides): Features {
     const p = planFor(planId);
     const pf = p.features;

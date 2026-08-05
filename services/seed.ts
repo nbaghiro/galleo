@@ -122,8 +122,7 @@ async function seed(): Promise<void> {
 
     log(`• seeded ${docs} artifacts across ${folders} folders`);
 
-    // Recent-media library — "recently used" images for the media picker's Recent tab. Reset first so
-    // re-seeding stays idempotent. picsum gives stable, varied photos without any API key.
+    // reset first so re-seeding stays idempotent; picsum gives stable photos without an API key
     await db.delete(schema.assets).where(eq(schema.assets.workspaceId, wsId));
     const cc = (author: string) => ({
         provider: "Openverse",

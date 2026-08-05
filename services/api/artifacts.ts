@@ -25,8 +25,7 @@ export const artifacts = new Hono();
 const LIST_LIMIT = 24;
 const LIST_MAX = 100;
 
-// Every filter the library offers is applied here rather than in the client, because a page is only
-// coherent if the server and the client agree on what the list contains.
+// Filters apply server-side: a page is only coherent if both sides agree on what the list contains.
 artifacts.get("/artifacts", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -39,15 +38,14 @@ artifacts.get("/artifacts", async (c) => {
     const take = pageLimit(c.req.query("limit"), LIST_LIMIT, LIST_MAX);
     const cursor = decodeCursor(c.req.query("cursor"));
 
-    // One sort key per mode; the cursor carries that key's value at the last row of the previous page.
-    // A–Z sorts on lower(title) so it reads the way the client used to sort it, not by ASCII case.
+    // A–Z sorts on lower(title), not by ASCII case.
     const timeCol = trashed ? schema.artifacts.trashedAt : schema.artifacts.updatedAt;
     const sortKey = alpha ? sql`lower(${schema.artifacts.title})` : sql`${timeCol}`;
     const keyOf = (row: { title: string; updatedAt: Date; trashedAt: Date | null }): string =>
         alpha
             ? row.title.toLowerCase()
             : ((trashed ? row.trashedAt : row.updatedAt)?.toISOString() ?? "");
-    // row comparison = the standard keyset seek; the casts keep uuid/timestamp comparable to text params
+    // the casts keep uuid/timestamp comparable to the text cursor params
     const seek = cursor
         ? alpha
             ? sql`(${sortKey}, ${schema.artifacts.id}) > (${cursor.key}, ${cursor.id}::uuid)`
@@ -177,9 +175,8 @@ artifacts.get("/artifacts/:id", async (c) => {
     if (win) {
         const content = asContent(a.draftContent);
         const { sections, ...shell } = content;
-        // The index comes from the stored digest, but only if it carries section ids — a digest written
-        // before windowed loading has none, and guessing them would strand placeholders that can never
-        // be matched. Recompute in that case; the backfill makes it moot.
+        // Only trust the stored digest's index when it carries section ids: a digest written before
+        // windowed loading has none, and guessing them would strand unmatchable placeholders.
         const stored = a.digest?.sections;
         const index =
             stored?.length && stored.every((s) => s.id)
@@ -212,7 +209,6 @@ artifacts.get("/artifacts/:id", async (c) => {
     });
 });
 
-// A later window, by id (the editor scrolled) or by range (the library card wants the first few).
 artifacts.get("/artifacts/:id/sections", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -235,7 +231,7 @@ artifacts.get("/artifacts/:id/sections", async (c) => {
     return c.json({ sections: all.slice(win.from, win.from + win.count) });
 });
 
-// Records that this user opened the artifact — the read clock behind "Recent" in ⌘K and the library.
+// The read clock behind "Recent" in ⌘K and the library.
 artifacts.post("/artifacts/:id/visit", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -322,9 +318,8 @@ const isSectionOp = (op: unknown): op is SectionOp => {
 };
 
 /**
- * The write half of windowed loading: the client sends what changed instead of the whole tree. Read,
- * apply, and re-derive happen in one transaction, and a batch naming a section the server doesn't have
- * is rejected whole (409) so the two sides resynchronize rather than diverge quietly.
+ * Read, apply, and re-derive in one transaction; a batch naming a section the server doesn't have is
+ * rejected whole (409) so the two sides resynchronize rather than diverge quietly.
  */
 artifacts.patch("/artifacts/:id/content", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));

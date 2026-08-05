@@ -41,8 +41,7 @@ export function makeSession(userId: string): string {
     return sign(encoded);
 }
 
-// Verify the signature + expiry and return the payload (uid + issued-at). `iat` lets the auth layer reject
-// sessions minted before a password reset (see currentUser). Returns null on any tamper/expiry.
+// `iat` lets the auth layer reject sessions minted before a password reset (see currentUser)
 export function readSessionPayload(token: string | undefined): { uid: string; iat: number } | null {
     if (!token) return null;
     const dot = token.lastIndexOf(".");
@@ -52,7 +51,6 @@ export function readSessionPayload(token: string | undefined): { uid: string; ia
     const a = Buffer.from(token);
     const b = Buffer.from(expected);
     if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-    // signature verified — now decode the payload and enforce its expiry
     let payload: SessionPayload;
     try {
         payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as SessionPayload;

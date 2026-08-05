@@ -1,9 +1,8 @@
 // Boundary self-check: proves the layering law still reports, rather than trusting a clean run.
 //
 // `import/no-restricted-paths` silently checks nothing when a specifier fails to resolve, which is how
-// the law sat dead in this repo: ESLint reported success because it never examined a single import.
-// A rule that can only report violations cannot tell you it has stopped working, so this plants a real
-// violation and fails if either enforcement path stays quiet.
+// the law once sat dead here: ESLint reported success without examining a single import. So this
+// plants a real violation and fails if either enforcement path stays quiet.
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";

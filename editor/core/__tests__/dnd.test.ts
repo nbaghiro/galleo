@@ -54,8 +54,7 @@ const leafRegions = (): Region[] => [
     reg("el:s1", 40, 40, 320, 120),
 ];
 
-// A move reuses the same DropTarget shape as a palette drop; build insert targets directly so the tests
-// exercise moveInto's rebasing rather than re-deriving them from regions (covered above).
+// insert targets are built directly, so these exercise moveInto's rebasing, not region derivation
 const insertAt = (path: number[], index: number): DropTarget => ({
     section: "s1",
     op: "insert",

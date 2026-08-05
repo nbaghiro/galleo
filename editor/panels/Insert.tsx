@@ -76,7 +76,7 @@ export const EmptyRegionAdd: Component = () => {
     );
 };
 
-// Insert picker: presets first, then common types. Shared by the empty-cell add + the add-beside gap.
+// shared by the empty-cell add and the add-beside gap
 const QUICK = [
     "text",
     "image",
@@ -141,7 +141,7 @@ export const PaletteItem: Component<{ type: string }> = (props) => {
     );
 };
 
-// Right-click menu; items depend on the hit-tested target. State lives here so the canvas can open it.
+// state lives here so the canvas can open it
 type MenuState = { x: number; y: number; target: Target | null };
 const [menu, setMenu] = createSignal<MenuState | null>(null);
 
@@ -227,7 +227,7 @@ export const ContextMenu: Component = () => (
     </Show>
 );
 
-// Label pill trailing the cursor while dragging. Always mounted; visibility toggled.
+// always mounted; only visibility toggles
 export const DragGhost: Component = () => (
     <div
         class="pointer-events-none fixed z-overlay rounded-full border border-line bg-panel/95 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-lg backdrop-blur-md"

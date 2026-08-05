@@ -11,8 +11,7 @@ export async function readJson<T>(c: Context): Promise<T> {
     return (await c.req.json().catch(() => ({}))) as T;
 }
 
-// DB user row → the public `User` wire shape (folds the nullable verified timestamp into a boolean).
-// Single-sourced so currentUser + the auth routes project identically.
+// Single-sourced so currentUser and the auth routes project identically.
 export function toUser(u: {
     id: string;
     email: string;
@@ -29,9 +28,8 @@ export function toUser(u: {
     };
 }
 
-// Session cookie policy in one place — login, signup, reset, and the OAuth callbacks all set it the same
-// way. httpOnly keeps it out of JS; SameSite=Lax lets it ride the OAuth top-level redirect back; secure
-// is on in prod (HTTPS) and off in dev (http).
+// One place for the policy: SameSite=Lax lets the cookie ride the OAuth top-level redirect back, and
+// secure is prod-only because dev is http.
 export function setSessionCookie(c: Context, userId: string): void {
     setCookie(c, SESSION_COOKIE, makeSession(userId), {
         httpOnly: true,
@@ -61,9 +59,8 @@ export async function currentUser(token: string | undefined): Promise<User | nul
         .from(schema.users)
         .where(eq(schema.users.id, payload.uid));
     if (!u) return null;
-    // reject any session minted before the last password reset — a stolen cookie dies with the reset.
-    // Compare at second granularity: makeSession floors iat to whole seconds, so the reset's OWN freshly
-    // minted session (same second, but passwordChangedAt keeps sub-second ms) must not be rejected.
+    // Reject any session minted before the last password reset. Second granularity: makeSession floors
+    // iat, so the reset's own freshly minted session (same second) must not be rejected.
     if (u.passwordChangedAt && payload.iat < Math.floor(u.passwordChangedAt.getTime() / 1000))
         return null;
     return toUser(u);
@@ -74,9 +71,8 @@ export async function firstWorkspaceId(userId: string): Promise<string | null> {
     return ws?.id ?? null;
 }
 
-// The workspace the app operates on: the user's chosen membership (users.active_workspace_id) when
-// it's still a real membership, else the oldest one (their own — created at signup, before any join).
-// Also lazily rolls the monthly credit window on read (no cron): past the reset date, zero used and push the window a month out.
+// The user's chosen membership when it's still real, else the oldest (their own, created at signup).
+// Also lazily rolls the monthly credit window on read, since there is no cron.
 export async function currentWorkspace(userId: string) {
     const rows = await db
         .select({ ws: schema.workspaces, active: schema.users.activeWorkspaceId })

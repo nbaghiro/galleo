@@ -1,5 +1,3 @@
-// Engine-native rich-text core (a hidden contenteditable is only an input/IME sink).
-
 // a contiguous styled slice; each flag only turns a style ON (never off)
 export interface Run {
     text: string;
@@ -72,7 +70,6 @@ function sameStyle(a: Run, b: Run): boolean {
     );
 }
 
-// merge adjacent runs with identical styles
 function coalesce(runs: Run[]): Run[] {
     const out: Run[] = [];
     for (const r of runs) {
@@ -83,7 +80,7 @@ function coalesce(runs: Run[]): Run[] {
     return out;
 }
 
-// string + marks → styled runs; overlapping marks flatten at each boundary
+// overlapping marks flatten at each boundary
 export function toRuns(text: string, marks: Mark[]): Run[] {
     const len = text.length;
     if (len === 0) return [];
@@ -172,7 +169,6 @@ export function removeMark(marks: Mark[], from: number, to: number, type: MarkTy
     return normalizeMarks(out);
 }
 
-// toggle type over [from, to): remove if fully covering, else add
 export function toggleMark(
     marks: Mark[],
     from: number,

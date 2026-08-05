@@ -1,8 +1,7 @@
 import type { Context, MiddlewareHandler } from "hono";
 import { getConnInfo } from "@hono/node-server/conninfo";
 
-// In-memory fixed-window limiter for the auth endpoints. Per-process (resets on restart, not shared across
-// instances); a Redis-backed limiter would replace it if we run more than one API node.
+// Fixed-window and per-process: buckets reset on restart and aren't shared across instances.
 
 interface RateWindow {
     count: number;
@@ -15,9 +14,8 @@ interface RateLimitOptions {
     windowMs: number;
 }
 
-// Never key on `X-Forwarded-For` — it's client-settable, so anyone could rotate it for a fresh bucket. Use
-// the platform's trusted client-IP header: Render's Cloudflare front overwrites CF-Connecting-IP with the
-// real client. Dev buckets everything under the Vite proxy peer (fine). Override for a different proxy.
+// Never key on `X-Forwarded-For`: it's client-settable, so anyone could rotate it for a fresh bucket.
+// Render's Cloudflare front overwrites CF-Connecting-IP with the real client; override for other proxies.
 const CLIENT_IP_HEADER = (process.env.CLIENT_IP_HEADER ?? "cf-connecting-ip").toLowerCase();
 
 function clientIp(c: Context): string {

@@ -1,6 +1,5 @@
 import type { ArtifactContent } from "@model/artifact";
 
-// account + library wire DTOs (user, folders, templates), shared backend ↔ frontend
 export interface User {
     id: string;
     email: string;
@@ -45,7 +44,7 @@ export interface ResetBody {
     password?: string;
 }
 
-// The OAuth providers we support (matches oauth_accounts.provider on the backend).
+// matches oauth_accounts.provider on the backend
 export type AuthProvider = "google";
 
 export interface FolderInput {

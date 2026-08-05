@@ -1,11 +1,7 @@
-// Shared font utilities for the export backends: parse CSS `font` shorthands, bucket weight/italic into
-// slots, and fetch+transcode a Google font to TTF (the sfnt both pptx font-embedding and pdf-lib need).
-
 export const BOLD_MIN = 600; // weights ≥ this render bold (PowerPoint/PDF have bold/regular only)
 
 export type FontSlot = "regular" | "bold" | "italic" | "boldItalic";
 
-// four slots per typeface; weights collapse to bold (≥ BOLD_MIN) × italic
 export function slotFor(weight: number, italic: boolean): FontSlot {
     const bold = weight >= BOLD_MIN;
     return bold ? (italic ? "boldItalic" : "bold") : italic ? "italic" : "regular";
@@ -20,7 +16,7 @@ export function familyFromFont(font: string): string {
     return first.replace(/^['"]|['"]$/g, "") || "Arial";
 }
 
-// numeric weight from a `font` shorthand; 400 when absent
+// 400 when the shorthand carries no weight
 export function weightFromFont(font: string): number {
     const m = font.match(/(?:^|\s)(\d{3})\s+\d/);
     return m ? parseInt(m[1]!, 10) : 400;
@@ -28,14 +24,13 @@ export function weightFromFont(font: string): number {
 
 export const italicFromFont = (font: string): boolean => font.trimStart().startsWith("italic");
 
-// Google Fonts CSS URL; a browser UA gets woff2 back. display=swap is harmless
+// a browser UA gets woff2 back from this
 export function googleCssUrl(family: string, weight: number, italic: boolean): string {
     const fam = family.trim().replace(/\s+/g, "+");
     return `https://fonts.googleapis.com/css2?family=${fam}:ital,wght@${italic ? 1 : 0},${weight}&display=swap`;
 }
 
-// font URL from a Google Fonts CSS response, preferring the latin subset; Google serves woff2 (modern UA) or
-// ttf/otf (legacy) — flag whether a woff2→TTF transcode is needed
+// Google serves woff2 to a modern UA, ttf/otf to legacy; `woff2` flags whether a transcode is needed
 export interface FontSrc {
     url: string;
     woff2: boolean;
@@ -76,9 +71,7 @@ async function fetchTtfOnce(
     return await decompress(bytes);
 }
 
-// fetch + transcode woff2→TTF; null on any failure (slot skipped / caller falls back).
-// Static families 400 on off-menu weights, so a miss retries at the slot's canonical weight —
-// keeps e.g. Space Mono 600 rendering as real Space Mono bold instead of a standard-font fallback.
+// Static families 400 on off-menu weights, so a miss retries at the slot's canonical weight.
 export async function fetchFontTtf(
     family: string,
     weight: number,

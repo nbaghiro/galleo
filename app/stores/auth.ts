@@ -25,8 +25,7 @@ export async function signup(email: string, password: string, name: string): Pro
     setUser(u);
 }
 
-// Completes a password reset: the backend sets the new password and signs the user in (cookie), so we
-// adopt the returned user just like login/signup.
+// the backend signs the user in as part of the reset, so adopt the returned user as login does
 export async function resetPassword(token: string, password: string): Promise<void> {
     const { user: u } = await api.resetPassword(token, password);
     setUser(u);
@@ -35,7 +34,6 @@ export async function resetPassword(token: string, password: string): Promise<vo
 export async function logout(): Promise<void> {
     await api.logout().catch(() => {});
     clearCustomThemes();
-    // Land on the login screen via a fresh load (clears app state). The cookie is gone, so "/" would
-    // resolve to the marketing site — go to /login, which always serves the app + its sign-in gate.
+    // the cookie is gone, so "/" would resolve to the marketing site; /login always serves the app
     window.location.assign("/login");
 }

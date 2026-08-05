@@ -19,7 +19,7 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
         return i ? getElement(i.type) : undefined;
     });
     const data = createMemo(() => (inst()?.data ?? {}) as Record<string, unknown>);
-    // Charts/diagrams get the visual data editor; their raw data fields are hidden here (the grid owns them).
+    // charts/diagrams get the visual data editor; the grid owns their raw data fields
     const editorShape = createMemo(() => {
         const s = spec();
         return s ? dataShapeFor(s.category, String(data().type ?? "")) : undefined;
@@ -28,13 +28,13 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
         const all = spec()?.controls ?? [];
         return editorShape() ? all.filter((c) => !DATA_KEYS.has(c.key)) : all;
     });
-    // Re-key the inline grid on the element + its type so it re-parses when either changes.
+    // re-key so the grid re-parses when the element or its type changes
     const gridKey = createMemo(
         () => `${elementRegionId(props.address)}:${String(data().type ?? "")}`,
     );
 
     const set = (key: string, value: unknown): void => {
-        // Slider/color are dragged continuously — coalesce their stream into one undo step.
+        // slider/color drag continuously; coalesce the stream into one undo step
         const control = spec()?.controls.find((c) => c.key === key)?.control;
         const coalesce =
             control === "slider" || control === "color"
@@ -53,7 +53,7 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
     const radius = createMemo((): number => {
         const set = inst()?.layout?.radius;
         if (set !== undefined) return set;
-        // Unset → show the painted (theme default) radius, so the slider reads true instead of jumping.
+        // unset: show the painted theme radius, so the slider doesn't jump on first drag
         const painted = regions().find((r) => r.id === elementRegionId(props.address))?.radius;
         return painted ?? DEFAULT_RADIUS;
     });

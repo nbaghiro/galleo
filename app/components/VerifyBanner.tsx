@@ -3,8 +3,7 @@ import { createSignal, Show } from "solid-js";
 import { user } from "../stores/auth";
 import { api } from "../api";
 
-// Dismissible pill nudging unverified email/password users to confirm their address. OAuth users land
-// verified so they never see it.
+// OAuth users land verified, so they never see it
 export const VerifyBanner: Component = () => {
     const [sent, setSent] = createSignal(false);
     const [busy, setBusy] = createSignal(false);

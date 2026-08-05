@@ -34,8 +34,7 @@ import {
     undo,
 } from "@editor/core/store";
 
-// The store is module-level singletons shared across the suite; each test resets by loading a fresh artifact.
-// editSeq accumulates across tests, so assertions compare deltas, never absolutes.
+// the store is module-level singletons: editSeq accumulates across tests, so assertions use deltas
 
 const makeArt = (ids: string[]): ArtifactContent =>
     artifactOf(ids.map((id) => sectionOf(emptyRegion(), { id })));

@@ -3,7 +3,7 @@ import type { ElementSchema, FieldSpec } from "@model/ai";
 import { TEXT_STYLES } from "@model/elements";
 import { THEME_LIST, resolveTheme } from "@themes";
 
-// Generated from the same @model/ai data the Zod schema validates against, so catalog and accepted shape can't drift.
+// generated from the same @model/ai data the Zod schema validates, so the two can't drift
 
 function fieldLine(f: FieldSpec): string {
     const bits: string[] = [];

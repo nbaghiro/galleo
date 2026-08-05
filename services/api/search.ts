@@ -8,7 +8,7 @@ import { rateLimit } from "./ratelimit";
 
 export const search = new Hono();
 
-// One request per keystroke burst (the client debounces), so the ceiling only has to stop a runaway loop.
+// The client debounces, so the ceiling only has to stop a runaway loop.
 const searchLimiter = rateLimit({ name: "search", limit: 240, windowMs: 60_000 });
 
 const MAX_QUERY = 200; // longer than any real jump-to query; keeps the tsquery bounded

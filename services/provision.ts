@@ -2,9 +2,6 @@ import { randomBytes } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "./schema";
 
-// New-account provisioning (signup, OAuth, and the seed). The one place that wires a user + workspace +
-// owner membership together — a fresh user needs all three before any artifact query.
-
 export interface ProvisionInput {
     email: string;
     name?: string | null;
@@ -22,7 +19,7 @@ export interface ProvisionedUser {
 
 const SLUG_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 
-// A short random tail so workspace slugs stay unique without a collision-prone counter.
+// a random tail keeps workspace slugs unique without a collision-prone counter
 function randomSuffix(len: number): string {
     const bytes = randomBytes(len);
     let out = "";
@@ -39,8 +36,7 @@ function slugRoot(base: string): string {
     return cleaned || "workspace";
 }
 
-// Generate a slug that isn't already taken. Checks a handful of candidates, then falls back to a long
-// random tail (astronomically unlikely to collide) so this always terminates.
+// a handful of candidates, then a long random tail, so this always terminates
 async function uniqueSlug(base: string): Promise<string> {
     const root = slugRoot(base);
     for (let i = 0; i < 6; i++) {
@@ -59,8 +55,7 @@ function workspaceNameFor(name: string | null | undefined, email: string): strin
     return `${who}'s Workspace`;
 }
 
-// Create a workspace owned by `userId` plus its owner membership. `slug` is generated unless pinned
-// (the seed pins "demo"). Returns the new workspace's id + slug.
+// slug is generated unless pinned (the seed pins "demo")
 export async function createWorkspaceForUser(
     userId: string,
     opts: { name: string; slug?: string; slugBase?: string; plan?: string },
@@ -75,8 +70,7 @@ export async function createWorkspaceForUser(
     return ws;
 }
 
-// Insert a fresh user and their first workspace + owner membership. The caller must have already
-// confirmed the email is free (signup returns 409, OAuth links to the existing user instead).
+// the caller must have confirmed the email is free (signup 409s, OAuth links to the existing user)
 export async function provisionUser(input: ProvisionInput): Promise<ProvisionedUser> {
     const email = input.email.trim().toLowerCase();
     const [user] = await db
@@ -108,11 +102,8 @@ export interface OAuthProfile {
     avatarUrl?: string | null;
 }
 
-// Resolve an OAuth identity to a local user, linking to an existing (provider, providerAccountId) row,
-// else an existing account by email, else a fresh OAuth-only user. Linking by email requires the provider
-// to have VERIFIED the address (`emailVerified`) — otherwise a provider that asserts an address it doesn't
-// control could take over an existing account by email. Returns "email_taken" when an unverified provider
-// email collides with an existing account, so the caller refuses the sign-in.
+// linking by email requires a provider-VERIFIED address: otherwise a provider asserting an address it
+// doesn't control could take over the account, so an unverified collision returns "email_taken"
 export async function linkOAuthAccount(
     provider: string,
     providerAccountId: string,
@@ -154,10 +145,8 @@ export async function linkOAuthAccount(
         } = {};
         if (!byEmail.name && profile.name) patch.name = profile.name;
         if (!byEmail.avatarUrl && profile.avatarUrl) patch.avatarUrl = profile.avatarUrl;
-        // Existing account whose email was NEVER confirmed: its password + any prior links were set by
-        // someone who never proved inbox control (a possible pre-hijack seed). The now-proven owner
-        // reclaims it — mark verified, drop the untrusted password, and clear those links (only the
-        // verified provider linked just below survives).
+        // an unconfirmed account's password + links were set by someone who never proved inbox
+        // control, so the now-proven owner reclaims it: drop that password, clear those links
         if (!byEmail.emailVerifiedAt) {
             patch.emailVerifiedAt = new Date();
             if (byEmail.passwordHash) patch.passwordHash = null;

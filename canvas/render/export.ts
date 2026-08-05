@@ -29,7 +29,7 @@ export function slidePdfPageSize(
     return { w: pageW, h: Math.round((pageW * slide.h) / slide.w) };
 }
 
-// doc export mirrors the deck's page-per-section shape: fixed width, natural section height
+// mirrors the deck's page-per-section shape: fixed width, natural section height
 export function docSectionPageSize(layoutW: number, sectionH: number): { w: number; h: number } {
     return { w: A4_W, h: (sectionH * A4_W) / layoutW };
 }
@@ -50,7 +50,7 @@ export function downloadBytes(bytes: Uint8Array | string, filename: string, type
     setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-// brand: stamp the free-tier watermark; paid plans pass false
+// brand: the free-tier watermark; paid plans pass false
 export interface ExportOptions {
     brand?: boolean;
 }
@@ -118,8 +118,6 @@ async function buildDocPdfRaster(
     return pdf.save();
 }
 
-// ── native (vector) PDF: emit each RenderCommand as real text/paths, raster only what PDF can't express ──
-
 let sharedMeasureCx: CanvasRenderingContext2D | undefined;
 function measureCtx(): CanvasRenderingContext2D {
     if (!sharedMeasureCx) {
@@ -134,7 +132,7 @@ const themeFamilies = (tk: Tokens): string[] => [tk.fontDisplay, tk.fontBody, tk
 const isTextCmd = (c: RenderCommand): c is Extract<RenderCommand, { kind: "text" }> =>
     c.kind === "text";
 
-// embed a command as a raster PNG placed at its box (y-flipped) — for images, gradients, clipped content
+// raster PNG placed at its box, y-flipped for PDF's bottom-left origin
 async function rasterEmbed(ctx: Ctx, c: RenderCommand): Promise<void> {
     const { w, h } = c.box;
     if (w < 0.5 || h < 0.5) return;
@@ -148,7 +146,7 @@ async function rasterEmbed(ctx: Ctx, c: RenderCommand): Promise<void> {
     });
 }
 
-// emit one framed command (box already in pt) natively; raster-fallback for what PDF vector can't express
+// box already in pt; raster-fallback for what PDF vector can't express
 async function emitCommand(
     ctx: Ctx,
     c: RenderCommand,
@@ -255,7 +253,7 @@ async function buildDocPdfVector(
     return renderFramedPdf(pages, tk, brand);
 }
 
-// vector export by default; any failure (font fetch, pdf-lib) degrades to the raster path
+// vector by default; any failure degrades to the raster path
 async function buildSlidePdf(
     artifact: ArtifactContent,
     tk: Tokens,
@@ -309,11 +307,10 @@ export interface SectionPng {
     bytes: Uint8Array;
 }
 
-// "auto" mirrors the export (continuous → doc pages, paged → slides); "doc"/"slides" force a
-// composition — the modal previews print as doc pages and pptx as slides regardless of format
+// "auto" follows the format (continuous → doc pages, paged → slides); "doc"/"slides" force a composition
 export type PngCompose = "auto" | "doc" | "slides";
 
-// one PNG per section; paged compositions split tall sections into numbered slide parts
+// one PNG per section; paged compositions split tall sections into numbered parts
 export async function buildSectionPngs(
     artifact: ArtifactContent,
     tk: Tokens,
@@ -373,24 +370,18 @@ export async function exportSectionPngs(
     downloadBytes(await buildSectionPngZip(files), "galleo-sections.zip", "application/zip");
 }
 
-// A4 portrait width in CSS px at 96dpi with zero @page margins — the widest safe print target
-// (US Letter is wider, so it underfills slightly rather than clipping)
+// A4 portrait width in CSS px at 96dpi, zero @page margins; Letter is wider, so it underfills, not clips
 const A4_PRINT_PX = 794;
 
-// #galleo-print shows only in @media print (ui/styles.css).
-// Paper is continuous, so print ALWAYS composes with the doc profile — seamless sections exactly
-// as the editor's doc view — regardless of the artifact's current format toggle.
+// #galleo-print is print-only (ui/styles.css); paper is continuous, so print always composes as doc
 export async function exportPrint(artifact: ArtifactContent, theme: Tokens): Promise<void> {
     const profile = resolveProfile("doc");
-    // Lay out at true paper width so the browser paginates natively. CSS `zoom` (the old
-    // layout-px→paper-px scale) breaks multi-page print in Chromium — it clips everything past
-    // the first page — so we compose the doc directly at A4 width instead of scaling it down.
+    // Lay out at true paper width: CSS `zoom` breaks multi-page print in Chromium (clips past page one).
     const width = A4_PRINT_PX;
     const container = document.createElement("div");
     container.id = "galleo-print";
 
-    // Each section sits in its own wrapper hinted break-inside:avoid, so page breaks prefer
-    // section seams (a section taller than a page still breaks inside; the hint degrades gracefully).
+    // per-section wrapper hints break-inside:avoid, so breaks prefer section seams
     const all: RenderCommand[] = [];
     const flow = document.createElement("div");
     flow.style.cssText = `width:${width}px;background:${theme.bg}`;

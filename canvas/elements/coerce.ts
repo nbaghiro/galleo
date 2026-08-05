@@ -1,5 +1,4 @@
 // ElementInstance.data is `unknown` by design, so anything reading it has to narrow first.
-// These keep a wrong-typed field from reaching a parser that assumed its declared type.
 
 export const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 

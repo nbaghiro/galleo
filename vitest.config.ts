@@ -23,8 +23,8 @@ export default defineConfig({
             provider: "v8",
             reporter: ["text", "html"],
             reportsDirectory: "coverage",
-            // Every layer, so an untested one shows as 0% instead of being invisible. Note the
-            // services/** figure counts unit tests only — its API routes are covered by `test:int`.
+            // Every layer, so an untested one reads 0% instead of vanishing; services/** is unit-only
+            // here, its routes are covered by `test:int`.
             include: ["model/**", "canvas/**", "ui/**", "editor/**", "app/**", "services/**"],
             exclude: [
                 "**/*.test.ts",
@@ -33,21 +33,20 @@ export default defineConfig({
                 "**/*.testkit.ts",
                 "**/__tests__/**",
                 "**/*.d.ts",
-                // IO shell (pdf-lib, canvas.toBlob, window.print) dominates; pure geometry tested in export.test.ts
+                // IO shell dominates; pure geometry tested in export.test.ts
                 "canvas/render/export.ts",
-                // browser/network IO (pptxgenjs, jszip, fetch) dominates; pure sections tested in pptx.test.ts
+                // IO shell dominates; pure sections tested in pptx.test.ts
                 "canvas/render/pptx.ts",
-                // offline model-eval harness, run by hand and never imported by the product
+                // offline eval harness, never imported by the product
                 "services/ai/eval/**",
-                // seed + starter content: data, exercised end-to-end by the integration suite
+                // seed data, exercised end-to-end by the integration suite
                 "services/demos/**",
                 "services/templates/**",
                 "services/seed.ts",
-                // drizzle-generated snapshots/journal (json), not source
+                // drizzle-generated json, not source
                 "services/migrations/**",
             ],
-            // Floors, not targets: set just under today's numbers so a real regression fails while
-            // ordinary churn does not. Raise them when a layer genuinely improves.
+            // Floors, not targets: just under today's numbers, so a regression fails but churn does not.
             thresholds: {
                 lines: 40,
                 statements: 40,

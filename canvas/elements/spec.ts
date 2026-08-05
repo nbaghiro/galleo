@@ -18,7 +18,6 @@ export function listElements(): ElementSpec[] {
     return [...registry.values()];
 }
 
-// visit every element depth-first: the root, then container children
 export function walkElements(section: Section, visit: (el: ElementInstance) => void): void {
     const recurse = (el?: ElementInstance): void => {
         if (!el) return;
@@ -34,7 +33,7 @@ export interface LayoutCtx {
     availWidth: number;
     format: FormatDescriptor;
     theme: Tokens;
-    plain?: boolean; // read-only render (previews/thumbnails): suppress editor-only affordances (empty-region drop zones)
+    plain?: boolean; // read-only render (previews/thumbnails): no editor-only affordances
 }
 
 export type ControlKind =
@@ -92,8 +91,7 @@ export interface ElementSpec<Data = unknown> {
         aspect?: { min: number; max: number }; // bottom handle → data.aspect (width / height)
     };
     fallback?: (data: Data) => Data; // interactive -> static for paged/export
-    // compose() uses children+arrange to recurse + address nested elements; ops use children+withChildren
-    // to insert/remove. `layout` stays the standalone (e.g. skeleton) path.
+    // compose() uses children+arrange; ops use children+withChildren; `layout` stands alone
     container?: {
         children: (data: Data) => ElementInstance[];
         arrange: (data: Data, ctx: LayoutCtx, children: EngineNode[]) => EngineNode;
@@ -101,8 +99,7 @@ export interface ElementSpec<Data = unknown> {
     };
 }
 
-// section property panel schema (flat scalar props); the studio adapts these flat keys to the structured
-// Section (bleed + background) on read/write
+// flat scalar props; the studio adapts them to the structured Section on read/write
 export const SECTION_CONTROLS: ControlField[] = [
     {
         key: "bleed",
@@ -178,9 +175,9 @@ export const SECTION_CONTROLS: ControlField[] = [
     },
 ];
 
-export const GHOST = "#e3ddce"; // bars / boxes
-export const GHOST_PANEL = "#f4f0e8"; // panel backgrounds
-export const GHOST_LINE = "#e0d9c8"; // borders
+export const GHOST = "#e3ddce";
+export const GHOST_PANEL = "#f4f0e8";
+export const GHOST_LINE = "#e0d9c8";
 
 export const bar = (widthFrac: number, h: number): EngineNode => ({
     w: percent(widthFrac),
@@ -251,7 +248,6 @@ export function skeletonize(node: EngineNode, colors: GhostColors = DEFAULT_GHOS
             children: textBars(node.text.text, node.text.size, colors.bar),
         };
     }
-    // a media leaf (image/surface, no children) → a single ghost panel
     if ((node.image || node.surface) && !node.children) {
         return {
             ...base,
@@ -259,7 +255,7 @@ export function skeletonize(node: EngineNode, colors: GhostColors = DEFAULT_GHOS
             fill: { color: colors.bar, radius: node.image?.radius ?? 8 },
         };
     }
-    // any container (incl. a section with a bg image) ghosts its panel + recurses, keeping real height/grid
+    // containers keep their real height/grid and ghost only the panel
     const out: EngineNode = { ...base };
     if (node.fill || node.image || node.surface) {
         out.fill = {

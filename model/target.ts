@@ -1,6 +1,6 @@
 import type { Id } from "@model/artifact";
 
-// element addressed by index path into section.root ([] = root); ids never contain ":", the id separator
+// section ids never contain ":", the region-id separator
 
 export interface ElementAddress {
     section: Id;

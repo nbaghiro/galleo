@@ -10,8 +10,8 @@ import type { ElementLayout } from "@model/geometry";
 import { getElement } from "@elements/spec";
 import { LAYOUT_PRESETS, colGroup, emptyRegion, rowGroup, withWidth } from "@model/section";
 
-// A section's content is ONE recursive tree (`section.root`); an element is addressed by its index PATH —
-// `[]` the root, `[0]` its first child. Every op returns a fresh tree, never mutating the input.
+// Elements are addressed by index path into `section.root` (`[]` = the root); every op returns a
+// fresh tree, never mutating the input.
 
 const clamp = (i: number, len: number): number => Math.max(0, Math.min(i, len));
 
@@ -22,7 +22,7 @@ function mapSection(art: ArtifactContent, id: Id, fn: (s: Section) => Section): 
 const putRoot = (art: ArtifactContent, id: Id, root: ElementInstance): ArtifactContent =>
     mapSection(art, id, (s) => ({ ...s, root }));
 
-// container access via the spec `container` contract (registry-aware mirror of @model/section's raw walk)
+// registry-aware mirror of @model/section's raw walk
 function childrenOf(inst: ElementInstance): ElementInstance[] | null {
     const spec = getElement(inst.type);
     return spec?.container ? spec.container.children(inst.data) : null;
@@ -151,13 +151,12 @@ function renormalizeWidths(children: ElementInstance[]): ElementInstance[] {
     return children.map((c, i) => withWidth(c, Math.round((filled[i]! / sum) * 100)));
 }
 
-// after a container lost a child: unwrap a redundant single-child group (hoisting its width), else
-// rebalance a row's widths
+// after a container lost a child: unwrap a redundant single-child group, else rebalance widths
 function fixContainer(node: ElementInstance): ElementInstance {
     const kids = childrenOf(node);
     if (!kids) return node;
     if (node.type === "group" && kids.length === 1) {
-        // the survivor's column width died with its row — full width, or the group's own slot
+        // the survivor's column width died with its row: full width, or the group's own slot
         const only = stripWidth(kids[0]!);
         const w = node.layout?.width;
         return w !== undefined ? { ...only, layout: { ...only.layout, width: w } } : only;
@@ -196,7 +195,6 @@ export function deleteElement(art: ArtifactContent, addr: ElementAddress): Artif
     return collapseSection(removeAt(art, addr), addr.section, addr.path.slice(0, -1));
 }
 
-// insert `element` as child `index` of the container at `parentAddr`; no-op if the target isn't a container
 export function insertChild(
     art: ArtifactContent,
     parentAddr: ElementAddress,
@@ -206,8 +204,7 @@ export function insertChild(
     return updateElementAt(art, parentAddr, (parent) => {
         const kids = childrenOf(parent);
         if (!kids) return parent;
-        // width invariant: a row's columns are all width-less (even split) or all present summing to 100%.
-        // Strip the newcomer's stale width + renormalize; non-row containers insert verbatim.
+        // width invariant: a row's columns are all width-less (even split) or all summing to 100%
         const row = isRow(parent);
         const next = [...kids];
         next.splice(clamp(index, next.length), 0, row ? stripWidth(element) : element);
@@ -215,7 +212,7 @@ export function insertChild(
     });
 }
 
-// wrap `addr` + `element` into a group of `direction`; used when dropping beside a leaf (no container yet)
+// used when dropping beside a leaf, where there is no container yet
 export function wrapWith(
     art: ArtifactContent,
     addr: ElementAddress,
@@ -261,12 +258,11 @@ export function duplicatedAddr(addr: ElementAddress): ElementAddress {
     return { section: addr.section, path };
 }
 
-// the section's top-level columns: the root row's children, else the whole root as one column
 function currentColumns(root: ElementInstance): ElementInstance[] {
     return isRow(root) ? (childrenOf(root) ?? []) : [root];
 }
 
-// insert a column at `index` (wrapping a non-row root into a row first); columns drop widths → even split
+// wraps a non-row root into a row first; columns drop widths → even split
 export function addColumn(
     art: ArtifactContent,
     sectionId: Id,
@@ -283,8 +279,7 @@ export function addColumn(
     return { art: putRoot(art, sectionId, root), path: single ? [] : [at] };
 }
 
-// rebuild `fractions.length` columns: pad with empty regions when growing, merge overflow into the last
-// kept column when shrinking
+// pad with empty regions when growing; merge overflow into the last kept column when shrinking
 function splitRoot(cols: ElementInstance[], fractions: number[]): ElementInstance {
     const n = fractions.length;
     let next: ElementInstance[];
@@ -299,7 +294,7 @@ function splitRoot(cols: ElementInstance[], fractions: number[]): ElementInstanc
     return n === 1 ? stripWidth(next[0]!) : rowGroup(next, fractions);
 }
 
-// reflow a section into columns of the given fractions; shared by applyLayoutPreset + @elements/layouts
+// shared by applyLayoutPreset + @elements/layouts
 export function splitSection(section: Section, fractions: number[]): Section {
     return { ...section, root: splitRoot(currentColumns(section.root).map(stripWidth), fractions) };
 }
@@ -312,7 +307,7 @@ export function applyLayoutPreset(
     return mapSection(art, sectionId, (s) => splitSection(s, LAYOUT_PRESETS[presetId] ?? [1]));
 }
 
-// width fractions of the current top-level columns (for the inspector's active-preset match)
+// for the inspector's active-preset match
 export function columnFractions(section: Section): number[] {
     const cols = currentColumns(section.root);
     if (cols.length <= 1) return [1];
@@ -330,7 +325,6 @@ export function setSectionBackground(
     return mapSection(art, section, (s) => ({ ...s, background }));
 }
 
-// Drop the image from a background, reverting to whatever fill remains (gradient/color) or none.
 export function clearBackgroundImage(bg: SectionBackground): SectionBackground {
     return {
         ...bg,

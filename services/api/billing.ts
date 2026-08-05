@@ -63,7 +63,6 @@ billing.get("/billing", async (c) => {
             bonus: ws.aiCreditsBonus,
             perGeneration: CREDITS_PER_GENERATION,
         },
-        // packs this workspace can buy right now (plan allows them + a price id is configured)
         topUps: planFor(ws.plan).ai.creditTopUpsAllowed
             ? CREDIT_PACKS.filter((p) => !!packPriceId(p.id))
             : [],
@@ -74,7 +73,7 @@ billing.get("/billing", async (c) => {
     });
 });
 
-// Subscription mutations are owner-only; members read /billing but can't change what's paid for.
+// Owner-only: members read /billing but can't change what's paid for.
 const notOwner = (c: Context, ws: { ownerId: string }, userId: string): Response | null =>
     ws.ownerId !== userId
         ? c.json({ error: "only the workspace owner can manage billing" }, 403)
@@ -111,7 +110,7 @@ billing.post("/billing/checkout", async (c) => {
         client_reference_id: ws.id,
         subscription_data: {
             metadata: { workspaceId: ws.id },
-            // trials are a catalog decision: 0 today, one field to launch (activeStatus already maps "trialing" → active)
+            // 0 in the catalog today; activeStatus already maps "trialing" → active if we set one.
             ...(p.billing.trialDays > 0 ? { trial_period_days: p.billing.trialDays } : {}),
         },
         allow_promotion_codes: true,
@@ -141,7 +140,7 @@ async function ensureCustomer(
     return customer.id;
 }
 
-// One-time credit pack purchase (payment-mode Checkout); the webhook grants on completion.
+// Payment-mode Checkout; the webhook grants the credits on completion.
 billing.post("/billing/topup", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -182,7 +181,6 @@ billing.post("/billing/portal", async (c) => {
     const session = await stripe().billingPortal.sessions.create({
         customer: ws.stripeCustomerId,
         return_url: `${APP_URL}/pricing`,
-        // Configured portal when STRIPE_PORTAL_CONFIG is set; else the account's default.
         ...(process.env.STRIPE_PORTAL_CONFIG
             ? { configuration: process.env.STRIPE_PORTAL_CONFIG }
             : {}),
@@ -190,7 +188,7 @@ billing.post("/billing/portal", async (c) => {
     return c.json({ url: session.url });
 });
 
-// Downgrade to Free = cancel at period end; upgrade invoices immediately (prorated); other changes prorate onto the next invoice.
+// Downgrade to Free cancels at period end; an upgrade invoices immediately, other changes prorate.
 billing.post("/billing/change-plan", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -255,7 +253,6 @@ billing.post("/billing/change-plan", async (c) => {
         cancel_at_period_end: false,
         proration_behavior: upgrading ? "always_invoice" : "create_prorations",
     });
-    // Any paid change clears a pending cancel.
     await db
         .update(schema.workspaces)
         .set({ cancelAtPeriodEnd: false })
@@ -263,7 +260,6 @@ billing.post("/billing/change-plan", async (c) => {
     return c.json({ ok: true, effect: upgrading ? "upgraded" : "changed" });
 });
 
-// Undo a scheduled downgrade — keep the current paid plan running past period end.
 billing.post("/billing/resume", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -281,7 +277,6 @@ billing.post("/billing/resume", async (c) => {
     return c.json({ ok: true });
 });
 
-// The credit ledger, most recent first — drives the pricing page's recent-activity list.
 billing.get("/billing/ledger", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -303,7 +298,6 @@ billing.get("/billing/ledger", async (c) => {
     });
 });
 
-// Cost precedence: exact usage bag → action+meter estimate → raw amount → default generation. 402 when spent.
 billing.post("/billing/spend", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -345,8 +339,7 @@ billing.post("/billing/webhook", async (c) => {
     } catch {
         return c.json({ error: "bad signature" }, 400);
     }
-    // The subscription fetch happens before the claim transaction so no DB connection is held
-    // across a network call.
+    // Fetched before the claim transaction so no DB connection is held across a network call.
     let checkoutSub: Stripe.Subscription | null = null;
     if (event.type === "checkout.session.completed") {
         const s = event.data.object as Stripe.Checkout.Session;
@@ -354,9 +347,8 @@ billing.post("/billing/webhook", async (c) => {
         if (s.mode !== "payment" && subId)
             checkoutSub = await stripe().subscriptions.retrieve(subId);
     }
-    // Claim the event id and apply its effects in ONE transaction: a redelivery finds the claim and
-    // no-ops; any failure (including a crash mid-handle) rolls the claim back so Stripe's retry
-    // re-runs it. At-least-once delivery, exactly-once effects.
+    // Claim + effects in ONE transaction: a redelivery finds the claim and no-ops, and any failure
+    // rolls the claim back so Stripe's retry re-runs it.
     const duplicate = await db.transaction(async (tx) => {
         const [claimed] = await tx
             .insert(schema.stripeEvents)
@@ -395,7 +387,7 @@ const seatsOf = (sub: Stripe.Subscription): number => sub.items.data[0]?.quantit
 const invCustomer = (inv: Stripe.Invoice): string | null =>
     typeof inv.customer === "string" ? inv.customer : (inv.customer?.id ?? null);
 
-// Last-write-wins syncs; sub events guard on the workspace whose CURRENT sub this is (a stale update can't resurrect a plan); dunning maps by customer.
+// Sub events guard on the workspace whose CURRENT sub this is, so a stale update can't resurrect a plan.
 async function handleEvent(
     event: Stripe.Event,
     checkoutSub: Stripe.Subscription | null,
@@ -406,8 +398,7 @@ async function handleEvent(
         const wsId = s.client_reference_id ?? s.metadata?.workspaceId;
         const customerId = typeof s.customer === "string" ? s.customer : (s.customer?.id ?? null);
         if (s.mode === "payment") {
-            // Credit-pack purchase: re-derive the grant from the catalog (never trust a stale
-            // metadata credit count) and land it in the bonus balance atomically.
+            // Re-derive the grant from the catalog — never trust a stale metadata credit count.
             const pack = packFor(s.metadata?.pack);
             if (!wsId || !pack) return;
             const [after] = await tx
@@ -432,7 +423,6 @@ async function handleEvent(
         const sub = checkoutSub;
         const plan = planForPrice(sub.items.data[0]?.price.id);
         if (!plan) return;
-        // A fresh subscription → fresh plan + a fresh monthly credit window.
         await tx
             .update(schema.workspaces)
             .set({
@@ -450,8 +440,8 @@ async function handleEvent(
     } else if (event.type === "customer.subscription.updated") {
         const sub = event.data.object as Stripe.Subscription;
         let ws = await workspaceBySubId(tx, sub.id);
-        // A missed checkout.completed leaves the sub unlinked — adopt via the metadata backref,
-        // but only onto a workspace with NO current sub, so a stale event can't hijack a newer one.
+        // A missed checkout.completed leaves the sub unlinked; adopt it only onto a workspace with
+        // NO current sub, so a stale event can't hijack a newer one.
         if (!ws && sub.metadata?.workspaceId) {
             const [cand] = await tx
                 .select()
@@ -502,8 +492,7 @@ async function handleEvent(
         const ws = customerId ? await workspaceByCustomer(tx, customerId) : null;
         if (!ws) return;
         if (inv.billing_reason === "subscription_cycle") {
-            // A cycle renewal opens a fresh credit window anchored to the new period; one-off and
-            // proration invoices below only clear dunning.
+            // Only a cycle renewal opens a fresh credit window; other invoices just clear dunning.
             await tx
                 .update(schema.workspaces)
                 .set({ planStatus: "active", aiCreditsUsed: 0, creditsResetAt: monthOut() })

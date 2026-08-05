@@ -47,8 +47,7 @@ export const Menu: Component<{
     );
 };
 
-// ↑/↓ wrap focus between menuitems; Enter/Space activate natively (button).
-// Exclusive Popover scope keeps these arrows from being shadowed by page shortcuts.
+// ↑/↓ wrap focus; Enter/Space activate natively. The exclusive Popover scope keeps them unshadowed.
 const MenuList: Component<{ children: JSX.Element }> = (props) => {
     let el!: HTMLDivElement;
     onMount(() => {

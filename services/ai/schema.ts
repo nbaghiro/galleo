@@ -1,9 +1,7 @@
 import { z } from "zod";
 
-// These mirror @model's ElementLayout + SectionBackground so a parsed element/section IS an
-// ElementInstance/Section, with no assertion at the call site. The outer .catch(undefined) keeps the
-// tolerance the previous open records had: a malformed layout/background drops that one field
-// instead of failing the whole parse and burning a generation retry.
+// mirrors @model's ElementLayout + SectionBackground, so a parsed element/section IS an
+// ElementInstance/Section; .catch(undefined) drops a malformed field instead of failing the parse
 const zElementLayout = z
     .object({
         width: z.union([z.literal("fit"), z.literal("fill"), z.object({ pct: z.number() })]),
@@ -149,13 +147,11 @@ export const zImagePrompt = z.object({
     prompt: z.string().describe("a single vivid image-generation prompt, on-theme, no commentary"),
 });
 
-// the structured expansion of a raw prompt (the studio's Brief stage)
 export const zBriefDraft = z.object({
     goal: z.string().describe("what the piece must achieve, one short line"),
     audience: z.string().describe("who it's for, one short line"),
     tone: z.string().describe("the register to write in, 2–4 words"),
-    // Deliberately unconstrained: min/max here turn an otherwise-fine read into a hard failure,
-    // and the count is guidance, not correctness. normalizeBrief trims the list instead.
+    // no min/max: the count is guidance, not correctness, and normalizeBrief trims the list
     mustInclude: z
         .array(z.string())
         .describe(

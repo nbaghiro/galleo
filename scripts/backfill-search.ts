@@ -4,8 +4,7 @@ import { artifactDigest, artifactSearchText } from "@model/digest";
 import { db, schema } from "../services/schema";
 import { out } from "../services/log";
 
-// One-shot backfill of artifacts.search_text + artifacts.digest for rows written before the search
-// index existed (search_tsv is a generated column, so filling the text is all it needs). Idempotent:
+// Backfills artifacts.search_text + digest (search_tsv is generated, so the text is all it needs).
 // --all recomputes every row, e.g. after changing the extractor; otherwise only unindexed rows.
 
 const BATCH = 200;

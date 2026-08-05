@@ -82,7 +82,7 @@ const PAD: Record<Density, BoxInsets> = {
 };
 const MIN_CELL_TEXT_H = 20; // keep empty cell's text region clickable
 
-// padding lives on the wrapper, not the text leaf (a leaf drops its own padding) so inline-edit stays aligned
+// padding on the wrapper, not the leaf (a leaf drops its own), so inline-edit stays aligned
 function arrangeTable(g: Grid, ctx: LayoutCtx, kids: EngineNode[]): EngineNode {
     const pad = PAD[g.density];
     const line = ctx.theme.line;

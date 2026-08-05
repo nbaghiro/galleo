@@ -34,8 +34,7 @@ interface Level {
     rows: Row[];
 }
 
-// A leading "/" turns the palette into the command catalog: browsable when it stands alone, filtered as
-// you keep typing. Landing on the artifact list keeps jump-to first, which is what ⌘K is mostly for.
+// A leading "/" turns the palette into the command catalog; the landing list stays jump-to first.
 const COMMAND_PREFIX = "/";
 const REMOTE_DEBOUNCE = 130; // ms of quiet before a source's `remote` fires
 

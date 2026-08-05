@@ -224,7 +224,6 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
     );
 };
 
-// Create flow: label + audience (+ password / invites), one POST on submit.
 const CreateForm: Component<{
     onCreate: (body: {
         name: string | null;
@@ -325,7 +324,6 @@ const CreateForm: Component<{
     );
 };
 
-// One share link: collapsed = url + stats at a glance; expanded = full management.
 const LinkRow: Component<{
     link: LinkState;
     expanded: boolean;

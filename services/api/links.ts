@@ -12,8 +12,6 @@ import { requireFeature } from "../features";
 import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
 import { sendShareInvite } from "../mail/send";
 
-// One links row = one shared URL (visibility: public | protected | private); an artifact can have
-// many, each with its own label + analytics. All of them serve the live draft.
 export const links = new Hono();
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:8600";
@@ -33,8 +31,7 @@ interface LinkBody {
 const cleanName = (raw: unknown): string | null =>
     typeof raw === "string" && raw.trim() ? raw.trim().slice(0, 120) : null;
 
-// Cookieless viewer-session identity: same viewer + link + UTC day → same key, so reloads
-// dedup into one view row. Rotates daily by construction; the raw IP/UA never touch the DB.
+// Cookieless view dedup: same viewer + link + UTC day → same key; the raw IP/UA never touch the DB.
 const SESSION_PEPPER = process.env.SESSION_SECRET ?? "galleo-views";
 function viewSessionKey(c: Context, linkId: string): string {
     const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
@@ -117,7 +114,7 @@ function pwFail(slug: string): void {
     else e.count += 1;
 }
 
-// Only protected links carry a hash; keep the existing one when no new password is given (don't wipe on other edits).
+// Only protected links carry a hash; keep the existing one so an unrelated edit doesn't wipe it.
 function passwordFor(
     visibility: string,
     provided: string | null | undefined,
@@ -307,7 +304,6 @@ links.post("/artifacts/:id/links", async (c) => {
     return c.json({ link: { ...linkJson(link), recipients } });
 });
 
-// All of one artifact's links, newest first, with per-link stats + recipients.
 links.get("/artifacts/:id/links", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -455,7 +451,6 @@ interface Analytics {
     }[];
 }
 
-// One shape for one link or a whole artifact's links; recipients cover the private subset.
 async function analyticsFor(linkIds: string[], privateLinkIds: string[]): Promise<Analytics> {
     const empty: Analytics = {
         totals: { views: 0, lastViewedAt: null, avgSeconds: null, completionPct: null },
@@ -545,7 +540,6 @@ async function analyticsFor(linkIds: string[], privateLinkIds: string[]): Promis
     };
 }
 
-// Per-link analytics — the paid slice on top of the basic counts every link owner gets.
 links.get("/links/:id/analytics", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -559,7 +553,6 @@ links.get("/links/:id/analytics", async (c) => {
     return c.json(await analyticsFor([link.id], link.visibility === "private" ? [link.id] : []));
 });
 
-// Whole-artifact analytics — every link's traffic aggregated (the insights modal's "All" pane).
 links.get("/artifacts/:id/analytics", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -629,7 +622,7 @@ links.delete("/links/:id/recipients/:rid", async (c) => {
     return c.json({ ok: true });
 });
 
-// Custom-theme record for an anonymous viewer to registerThemes(); null for a built-in/unknown/foreign id.
+// Null for a built-in/unknown/foreign id; the anonymous viewer feeds this to registerThemes().
 async function customThemeRecord(themeId: unknown, workspaceId: string) {
     if (typeof themeId !== "string" || !UUID_RE.test(themeId)) return null;
     const [t] = await db
@@ -641,8 +634,7 @@ async function customThemeRecord(themeId: unknown, workspaceId: string) {
         : null;
 }
 
-// UNAUTHENTICATED public read — the one anonymous surface. Always serves the live draft:
-// a link reflects the artifact as it is now, never a pinned snapshot.
+// UNAUTHENTICATED — always serves the live draft, never a pinned snapshot.
 links.get("/p/:slug/content", async (c) => {
     const slug = c.req.param("slug");
     const [link] = await db.select().from(schema.links).where(eq(schema.links.slug, slug));
@@ -660,7 +652,7 @@ links.get("/p/:slug/content", async (c) => {
         .where(eq(schema.artifacts.id, link.artifactId));
     if (!artifact || artifact.trashedAt) return c.json({ error: "not found" }, 404);
 
-    // Link is active only while the OWNER's plan grants public links (also drives branding); downgrade to Free deactivates.
+    // Active only while the OWNER's plan grants public links; a downgrade to Free deactivates it.
     const [ownerWs] = await db
         .select({
             plan: schema.workspaces.plan,
@@ -760,8 +752,7 @@ links.get("/p/:slug/content", async (c) => {
     return c.json({ title: artifact.title, content, branded, customTheme });
 });
 
-// UNAUTHENTICATED viewer heartbeat — bumps the session row created by the content read (duration +
-// furthest slide/section). Only updates an existing row, so gated readers can't write anything.
+// UNAUTHENTICATED — only updates an existing session row, so a gated reader can't write anything.
 links.post("/p/:slug/ping", async (c) => {
     const [link] = await db
         .select({ id: schema.links.id })

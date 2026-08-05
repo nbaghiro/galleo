@@ -2,7 +2,7 @@ import type { Accessor, Component, JSX } from "solid-js";
 import { createSignal, For, onMount, Show } from "solid-js";
 import { THEME_LIST } from "@themes";
 
-// single source of truth for the marketing "N designer themes" claim — never let it drift from the library
+// the marketing "N designer themes" claim, so it cannot drift from the theme library
 const THEME_COUNT = THEME_LIST.length;
 
 const announceItems = [
@@ -324,8 +324,7 @@ const Wordmark: Component = () => (
     </a>
 );
 
-// Auth-aware header CTA: signed-in visitors get "Go to app" (→ / = the app), signed-out get sign-in (→
-// /login). The session cookie is httpOnly, so ask the API. null = still checking → show the signed-out CTA.
+// The session cookie is httpOnly, so ask the API; null = still checking, show the signed-out CTA.
 const AuthCta: Component = () => {
     const [authed, setAuthed] = createSignal<boolean | null>(null);
     onMount(async () => {

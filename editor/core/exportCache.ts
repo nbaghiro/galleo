@@ -1,6 +1,4 @@
-// Built export artifacts, cached per destination until the artifact changes. Keyed by a caller
-// fingerprint (artifact id + edit seq + brand), so tab switches and the Export click reuse one build.
-// Values are promises — concurrent readers share a single in-flight build; failures aren't cached.
+// values are promises, so concurrent readers share one in-flight build; failures aren't cached
 
 interface Entry {
     fp: string;

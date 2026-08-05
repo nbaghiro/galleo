@@ -2,8 +2,7 @@ import { randomBytes, createHash } from "node:crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { db, schema } from "./schema";
 
-// Email-verification + password-reset tokens. The raw token goes only into the emailed link; we persist
-// its SHA-256 so a DB leak can't be replayed. Tokens are single-use (consumedAt) and time-bounded.
+// the raw token goes only into the emailed link; storing its SHA-256 makes a DB leak unreplayable
 
 export type TokenPurpose = "verify" | "reset";
 
@@ -11,7 +10,7 @@ function hashToken(raw: string): string {
     return createHash("sha256").update(raw).digest("hex");
 }
 
-// Mint a token for `purpose`, store its hash with an expiry, and return the RAW token for the link.
+// returns the RAW token for the link; only its hash is stored
 export async function createAuthToken(
     userId: string,
     purpose: TokenPurpose,
@@ -25,9 +24,7 @@ export async function createAuthToken(
     return raw;
 }
 
-// Validate + consume a token in one atomic UPDATE: only an unconsumed, unexpired row of the right
-// purpose flips to consumed and yields its userId. Returns null otherwise (so it can't be replayed,
-// even under a concurrent double-submit).
+// validate + consume in one atomic UPDATE, so a token can't be replayed under a double-submit
 export async function consumeAuthToken(
     raw: string | undefined,
     purpose: TokenPurpose,

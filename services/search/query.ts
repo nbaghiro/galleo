@@ -2,11 +2,10 @@ import { sql } from "drizzle-orm";
 import type { ArtifactDigest, SearchHit, SearchSnippet } from "@model/artifact";
 import { db } from "../schema";
 
-// Library search over the FTS columns maintained in services/api/artifacts.ts. Every engine detail
-// (tsquery syntax, ranking, headline markers) is confined to this file: the route only passes a string.
+// Searches the FTS columns maintained in services/api/artifacts.ts.
 
-// Sentinel delimiters around a headline match. Control characters rather than tags, so nothing the
-// server returns can be mistaken for markup; the route converts them to offsets before responding.
+// Control chars, not tags, so a headline marker can't be mistaken for markup; the route converts
+// them to offsets before responding.
 const START = "\u0002";
 const STOP = "\u0003";
 
@@ -18,10 +17,8 @@ const MAX_OFFSET = 500; // deep paging past this is a filter problem, not a pagi
 const MAX_TERMS = 8; // a pathological query shouldn't turn into a 200-lexeme AND
 
 /**
- * User input → a safe tsquery: terms ANDed, the last one a prefix so results narrow as you type.
- * Everything that isn't a letter, digit, or space is dropped, so no operator can reach the parser.
- * Returns null when nothing indexable is left (pure punctuation), in which case only the title match
- * applies.
+ * User input → a safe tsquery: terms ANDed, the last a prefix. Non-alphanumerics are dropped so no
+ * operator reaches the parser. Null when nothing indexable is left.
  */
 export function toTsQuery(input: string): string | null {
     const terms = input
@@ -39,8 +36,7 @@ export const likeTerm = (input: string): string => input.replace(/[\\%_]/g, (ch)
 
 /**
  * Headline string with sentinel markers → display text plus [start, end) highlight ranges. Whitespace
- * collapses as it goes (a fragment can straddle the blank line between two sections, and the row is a
- * single line either way), so offsets are always taken against the text actually rendered.
+ * collapses as it goes, so offsets are taken against the single line actually rendered.
  */
 export function parseSnippet(raw: string | null | undefined): SearchSnippet | null {
     if (!raw) return null;
@@ -102,10 +98,7 @@ const clampLimit = (n: number | undefined): number =>
 const clampOffset = (n: number | undefined): number =>
     Math.max(0, Math.min(MAX_OFFSET, Math.trunc(n ?? 0) || 0));
 
-/**
- * The library's "recent" list: what this user last opened, falling back to when the artifact was last
- * edited so a never-opened artifact still surfaces.
- */
+/** What this user last opened, falling back to updatedAt so a never-opened artifact still surfaces. */
 export async function recentArtifacts(opts: {
     workspaceId: string;
     userId: string;
@@ -125,8 +118,8 @@ export async function recentArtifacts(opts: {
 }
 
 /**
- * Ranked full-text search over title (weight A) and content (weight B), plus a substring match on the
- * title so fragments mid-word ("nomi" in "Economics") and stop-word queries still find something.
+ * Ranked FTS over title (weight A) and content (weight B), plus a title substring match so mid-word
+ * fragments ("nomi" in "Economics") and stop-word queries still find something.
  */
 export async function searchArtifacts(opts: {
     workspaceId: string;

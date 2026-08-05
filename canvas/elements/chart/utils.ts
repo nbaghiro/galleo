@@ -42,7 +42,7 @@ export interface ResolvedChart {
     options: ChartOptions;
 }
 
-// local-origin size — plots draw from 0,0
+// local-origin size: plots draw from 0,0
 export interface PlotCtx {
     g: DrawContext;
     W: number;
@@ -324,7 +324,7 @@ export function cartesianFrame(
 export const curveFor = (smooth: boolean): CurveFactory =>
     smooth ? curveCatmullRom.alpha(0.5) : curveLinear;
 
-// d3-shape generators type against CanvasRenderingContext2D; our PathSink is the structural slice cast at `.context()`
+// d3-shape types against CanvasRenderingContext2D; PathSink is the slice we cast at `.context()`
 export type Sink = CanvasRenderingContext2D;
 
 export interface NumFrame {
@@ -386,7 +386,7 @@ export function numericAxes(
     return { x, y };
 }
 
-// slices drawn manually centered at (cx, cy); d3.arc() centers at the origin, which would pin the pie to the top-left
+// drawn manually: d3.arc() centers at the origin, which would pin the pie to the top-left
 export function pieLike(donut: boolean) {
     return (chart: ResolvedChart, ctx: PlotCtx): void => {
         const { g, W, H, theme } = ctx;

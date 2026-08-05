@@ -23,7 +23,7 @@ function flatten(inst: ElementInstance, out: ElementInstance[]): void {
     else out.push(inst);
 }
 
-// ordered, role-tagged, width-stripped block list — the lossless bridge every preset rebuilds from
+// the lossless bridge every preset rebuilds from
 export function sectionBlocks(section: Section): { role: Role; inst: ElementInstance }[] {
     const out: ElementInstance[] = [];
     flatten(section.root, out);
@@ -132,7 +132,7 @@ const mediaPresets: SectionLayout[] = [
         id: "media-bleed",
         label: "Full-bleed image",
         group: "media",
-        // Needs a real image (with a src) to move into the background, plus content to overlay.
+        // needs a real image (with a src) for the background, plus content to overlay
         applies: (s) => {
             const b = sectionBlocks(s);
             return b.some((x) => imageSrc(x.inst)) && b.some((x) => x.role === "content");

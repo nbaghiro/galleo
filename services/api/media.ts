@@ -30,7 +30,6 @@ import {
 import { costOf } from "@model/credits";
 import { getIcon, searchIcons } from "../media/icons";
 
-// Stored media lives in the assets table; stock stays a provider CDN url; all sources normalize to MediaItem.
 export const media = new Hono();
 
 const RECENT_LIMIT = 48;
@@ -139,7 +138,7 @@ media.get("/media/icon", async (c) => {
     }
 });
 
-// Metered per image: reserve the requested count up front, reconcile down to what came back so failed variations aren't charged.
+// Metered per image: reserved up front, reconciled down so failed variations aren't charged.
 media.post("/media/generate", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -224,7 +223,6 @@ media.post("/media/generate", async (c) => {
                 await send({ type: "image", item });
             }
         } finally {
-            // Reconcile the reserve down to what was produced (refund the shortfall).
             const actual = produced ? estimateCost("generate-image", { variations: produced }) : 0;
             await settleCredits(ws, actual - reserve, "generate-image:settle");
             await send({ type: "done", produced });
@@ -232,7 +230,7 @@ media.post("/media/generate", async (c) => {
     });
 });
 
-// One 8s clip per request; a long-running Veo operation streams progress heartbeats while polling.
+// One 8s clip per request; progress heartbeats keep the stream alive while Veo is polled.
 media.post("/media/generate-video", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -343,10 +341,9 @@ media.post("/media/upload", async (c) => {
     });
 });
 
-// Stored-media url pattern — recognise to bump recency on re-use.
 const STORED_URL = /\/media\/asset\/([0-9a-f-]{36})$/i;
 
-// Stored media just bumps recency; stock logs the CDN url + fires the Unsplash download trigger (their API terms).
+// Stock also fires the Unsplash download trigger, which their API terms require.
 media.post("/media/use", async (c) => {
     const ws = await requireWs(c);
     if (typeof ws !== "string") return ws;
@@ -354,7 +351,7 @@ media.post("/media/use", async (c) => {
     if (!item?.url) return c.json({ error: "item required" }, 400);
     const storedId = STORED_URL.exec(item.url)?.[1];
     if (storedId) {
-        // Already in the library — bump to the top of Recent (mirrors the stock dedup below).
+        // Already in the library — bump to the top of Recent.
         await db
             .update(schema.assets)
             .set({ createdAt: new Date() })

@@ -1,6 +1,6 @@
 import type { DrawContext, DrawStyle, DrawTextStyle, PathSink } from "@engine/node";
 
-// circular arc (canvas center-parameterization) → cubic path segments (≤90° each) appended to a `d` string
+// canvas center-parameterized arc → cubic path segments, ≤90° each
 export function arcSegments(
     cx: number,
     cy: number,
@@ -29,7 +29,7 @@ export function arcSegments(
     return d;
 }
 
-// A `DrawContext.path` build callback → an SVG path `d` string (shared by every SVG/PDF emitter).
+// shared by every SVG/PDF emitter
 export function buildPathData(build: (sink: PathSink) => void): string {
     let d = "";
     const sink: PathSink = {
@@ -89,8 +89,7 @@ const baseline = (b: DrawTextStyle["baseline"]): string =>
             ? "central"
             : "alphabetic";
 
-// A DrawContext that accumulates an SVG string (node-safe; used for PPTX embedding). `svg()` wraps a full
-// document sized to the surface box. Mirrors svgDrawContext (the editor's DOM emitter) op-for-op.
+// node-safe (used for PPTX embedding); mirrors svgDrawContext op-for-op
 export function svgStringContext(w: number, h: number): { ctx: DrawContext; svg: () => string } {
     const parts: string[] = [];
     const ctx: DrawContext = {

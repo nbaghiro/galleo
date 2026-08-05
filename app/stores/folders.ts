@@ -50,7 +50,7 @@ function hexToHsl(hex: string): [number, number, number] {
     return [h, s * 100, l * 100];
 }
 
-// per-folder color derived from the theme accent (hue-rotated by id hash) so it recolors with the theme
+// hue-rotated from the theme accent by an id hash, so it recolors with the theme
 export function folderColor(id: string): string {
     const theme = resolveTheme(appTheme());
     const [h, s, l] = hexToHsl(theme.tokens.accent);

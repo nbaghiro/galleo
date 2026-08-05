@@ -56,7 +56,7 @@ export function dataShapeFor(category: string, type: string): Shape | undefined 
     return undefined;
 }
 
-// Cells kept as strings (parsed on serialize) so text inputs don't fight numeric coercion mid-keystroke.
+// cells stay strings (parsed on serialize) so inputs don't fight numeric coercion mid-keystroke
 export interface SeriesModel {
     categories: string[];
     series: { name: string; values: string[] }[];
@@ -226,7 +226,7 @@ export function serializeModel(kind: Kind, shape: Shape, m: DataModel): Record<s
     return { items: formatItems(items) };
 }
 
-// Data keys the grid owns — hidden from the inspector so the two don't duplicate.
+// the grid owns these; hidden from the inspector so the two don't duplicate
 export const DATA_KEYS = new Set(["values", "categories", "seriesNames", "items", "links"]);
 
 // Empty = 0 (valid); non-empty non-finite = invalid.
@@ -235,7 +235,7 @@ export function invalidNumber(v: string): boolean {
     return t !== "" && !Number.isFinite(Number(t));
 }
 
-// Venn = 3 sets + an optional 4th captioning the overlap, quadrant exactly 4; extra rows ignored on render.
+// venn = 3 sets plus an optional 4th captioning the overlap, quadrant exactly 4; extra rows ignored
 const ITEM_LIMIT: Record<string, number> = { venn: 4, quadrant: 4 };
 export function itemLimit(kind: Kind, type: string): number | undefined {
     return kind === "diagram" ? ITEM_LIMIT[type] : undefined;
@@ -247,7 +247,7 @@ export function limitNote(type: string): string {
     return "";
 }
 
-// Diagram types whose list entries carry a numeric weight (band size, lane span, milestone marker).
+// list entries here carry a numeric weight (band size, lane span, milestone marker)
 const VALUED = new Set(["funnel", "pyramid", "roadmap", "timeline"]);
 export const usesItemValue = (kind: Kind, type: string): boolean =>
     kind === "diagram" && VALUED.has(type);

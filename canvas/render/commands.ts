@@ -66,7 +66,7 @@ export function layoutSectionSkeleton(
     return { commands, height: bottom(commands) };
 }
 
-// first aspect-ratio media (image/video) — what makes a section taller than a slide
+// first aspect-ratio media: what makes a section taller than a slide
 function findAspectMedia(n: EngineNode): EngineNode | null {
     if (n.aspect !== undefined) return n;
     for (const c of n.children ?? []) {
@@ -76,7 +76,7 @@ function findAspectMedia(n: EngineNode): EngineNode | null {
     return null;
 }
 
-// convert a section's dominant aspect media to fill-and-crop so it absorbs slide slack instead of forcing a tall scale-down
+// fill-and-crop the dominant media so it absorbs slide slack instead of forcing a scale-down
 function coverFitMedia(root: EngineNode): { containers: EngineNode[]; media: EngineNode[] } {
     // el:… ids mark real content-flow cells (composeElement tags them), not a leaf's internal layout
     const flows: EngineNode[] = [];
@@ -109,7 +109,7 @@ function coverFitMedia(root: EngineNode): { containers: EngineNode[]; media: Eng
     return { containers, media };
 }
 
-// full-bleed slide node: drop radii/borders, fill the frame; cover-fit media to absorb slack, else keep natural height for the caller to scale down
+// full-bleed slide node; media absorbs slide slack when it can, else the caller scales the natural height down
 function prepareSlideNode(
     section: Section,
     w: number,
@@ -126,7 +126,7 @@ function prepareSlideNode(
     if (natural > h) {
         const { containers, media } = coverFitMedia(node);
         if (containers.length) {
-            // probe: collapse media to 0 and measure the rest; if it fits, media can absorb the overflow → grow containers, pin to frame
+            // probe with media collapsed: if the rest fits, media can absorb the overflow
             for (const m of media) m.h = fixed(0);
             const minH = bottom(layout(node, { x: 0, y: 0, w, h: 100000 }, measure).commands);
             for (const m of media) m.h = grow();
@@ -163,12 +163,12 @@ export interface SlidePage {
     commands: RenderCommand[];
     w: number;
     h: number;
-    contentH: number; // height the commands span within [w × ?]; caller scales it to fit h (== h for a page)
+    contentH: number; // height the commands span; caller scales it to fit h (== h for a paginated page)
 }
 
-const PAGINATE_ABOVE = 1.2; // a section taller than 1.2× its frame paginates; below, it scales onto one slide
+const PAGINATE_ABOVE = 1.2; // taller than this × its frame paginates; below, it scales onto one slide
 
-// a section's 16:9 slides: one scaled slide, or several paginated via fragment() when too tall. Present + export both render from this.
+// one scaled slide, or several paginated when too tall; Present and export both render from this
 export function sectionSlides(
     section: Section,
     theme: Tokens = DEFAULT_THEME.tokens,
@@ -263,7 +263,7 @@ interface Piece {
 
 type Token = { kind: "box" | "glue" | "break"; pieces: Piece[] };
 
-// tokens: boxes (words may span runs), glues (collapsed space), breaks (\n) — mirrors measure's wrap
+// boxes may span runs, glue collapses whitespace; mirrors measure's wrap
 function tokenize(leaf: TextLeaf): Token[] {
     const tokens: Token[] = [];
     let word: Piece[] = [];
@@ -453,7 +453,7 @@ export const measureText = (leaf: TextLeaf, maxWidth: number): Measured => {
     if (hit) return hit;
     const result = measureUncached(leaf, maxWidth);
     if (measureCache.size >= MEASURE_CACHE_CAP) {
-        // FIFO-evict the oldest quarter (Map preserves insertion order) — cheap and occasional.
+        // FIFO-evict the oldest quarter (Map preserves insertion order)
         let n = MEASURE_CACHE_CAP >> 2;
         for (const k of measureCache.keys()) {
             measureCache.delete(k);

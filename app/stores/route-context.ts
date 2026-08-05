@@ -1,6 +1,6 @@
 import { setContext } from "@ui/keys";
 
-// router-free (only @ui/keys) so it stays unit-testable — sibling stores pull @solidjs/router, which throws in the vitest server build
+// router-free so it stays unit-testable: @solidjs/router throws in the vitest server build
 export function publishRoute(pathname: string): void {
     const p = pathname || "/";
     setContext("app", true);

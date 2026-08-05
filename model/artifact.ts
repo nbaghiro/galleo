@@ -50,7 +50,7 @@ export interface SectionSummary {
     title?: string;
     kind: string;
     id?: Id; // stable section id; absent on digests written before windowed loading
-    size?: number; // serialized bytes — what a not-yet-loaded section reserves space from
+    size?: number; // serialized bytes; a not-yet-loaded section reserves height from it
 }
 
 export interface ArtifactSummary {
@@ -81,7 +81,7 @@ export interface SearchSnippet {
     marks: [number, number][];
 }
 
-// GET /search row: the library summary plus why it matched and who owns it
+// GET /search row
 export interface SearchHit extends ArtifactSummary {
     author?: { name: string | null; avatarUrl: string | null } | null;
     lastViewedAt?: string | null;
@@ -100,18 +100,14 @@ export interface ArtifactPage {
     nextCursor: string | null;
 }
 
-// everything about an artifact except its sections — the part a windowed load always carries
+// everything except the sections: the part a windowed load always carries
 export interface ArtifactShell {
     format: Id;
     theme: Id;
     background?: SectionBackground;
 }
 
-/**
- * GET /artifacts/:id?window=from:count — the shell, the full section index (ids + sizes, from the
- * stored digest), and only the requested slice of sections. `total <= count` means the client holds
- * the whole artifact and behaves exactly as an unwindowed load.
- */
+/** GET /artifacts/:id?window=from:count; `total <= count` means the client holds it all. */
 export interface ArtifactWindow {
     id: string;
     title: string;
@@ -125,11 +121,7 @@ export interface ArtifactWindow {
     sections: Section[];
 }
 
-/**
- * PATCH /artifacts/:id/content — the edits a windowed client can express without holding the whole
- * document. Applied in order, in one transaction; `set`/`remove` on an unknown id fails the request
- * rather than silently diverging.
- */
+/** PATCH /artifacts/:id/content; applied in order in one transaction, an unknown id fails it. */
 export type SectionOp =
     | { kind: "set"; section: Section }
     | { kind: "insert"; section: Section; index: number }
@@ -143,7 +135,7 @@ export interface ContentPatch {
     formatId?: string;
 }
 
-// create or patch — every field optional
+// create or patch: every field optional
 export interface ArtifactInput {
     title?: string;
     themeId?: string;

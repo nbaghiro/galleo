@@ -16,7 +16,7 @@ import { layout } from "@engine/layout";
 import { resolveProfile } from "@engine/profile";
 import { DEFAULT_THEME } from "@themes";
 
-// canvas-suite test helpers; `measure` is the only mocked dep (see .docs/testing.md)
+// `measure` is the only mocked dep (see .docs/testing.md)
 
 // deterministic glyph metrics: 8px/char, 16px/line, wraps at maxWidth
 export const measure: MeasureText = (leaf, maxW) => {
@@ -148,7 +148,7 @@ export function textMetricsCtx(): CanvasRenderingContext2D {
     } as unknown as CanvasRenderingContext2D;
 }
 
-// patch HTMLCanvasElement.getContext("2d") (happy-dom); call once in a beforeAll before any measurement
+// call once in a beforeAll, before any measurement (happy-dom)
 export function installCanvas2D(): void {
     const HC = (globalThis as Record<string, unknown>).HTMLCanvasElement as
         | { prototype: Record<string, unknown> }

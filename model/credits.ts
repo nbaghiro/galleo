@@ -23,7 +23,6 @@ export function costOf(usage: Usage): number {
     return Math.max(1, Math.round(sum));
 }
 
-// add usage bags together
 export function mergeUsage(...usages: Usage[]): Usage {
     const out: Usage = {};
     for (const usage of usages)

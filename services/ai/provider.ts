@@ -55,7 +55,7 @@ export function resolveModel(id: string): LanguageModel {
     }
 }
 
-// Pro models reject thinkingBudget:0 ("only works in thinking mode"), so only Flash gets the 0-budget override
+// Pro models reject thinkingBudget:0 ("only works in thinking mode"), so only Flash gets it
 export function thinklessOpts(id: string) {
     const info = getModel(id);
     if (info?.provider === "google" && !/pro/i.test(info.model)) {

@@ -19,8 +19,7 @@ import { ai } from "./api/ai";
 import { links } from "./api/links";
 import { search } from "./api/search";
 
-// Fail fast rather than boot with a forgeable session key: without a real SESSION_SECRET, `makeSession`
-// signs with the public dev default and anyone can mint a valid cookie for any user.
+// without a real SESSION_SECRET, sessions sign with the public dev default: anyone could mint a cookie
 if (process.env.NODE_ENV === "production") {
     const s = process.env.SESSION_SECRET;
     if (!s || s === "dev-secret-change-me")
@@ -29,9 +28,8 @@ if (process.env.NODE_ENV === "production") {
 
 const app = new Hono();
 app.get("/health", (c) => c.json({ ok: true }));
-// Routers carry their own full paths and mount under /api, matching the client's relative /api/* calls in
-// BOTH dev (Vite proxies /api → here, no rewrite) and prod (this process serves /api directly) — one route
-// map, no environment-specific paths.
+// routers carry their own full paths and mount under /api, so dev (Vite proxies /api here, no
+// rewrite) and prod share one route map
 for (const router of [
     session,
     oauth,
@@ -49,13 +47,12 @@ for (const router of [
 ])
     app.route("/api", router);
 
-// An unknown /api path is a 404, never the SPA — shields the API namespace from the static fallback below.
+// an unknown /api path is a 404, never the SPA fallback below
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
 
-// In production the same process also serves the built SPA (dist/), so the whole app is ONE origin: /api
-// stays same-site (cookies + SSE stream direct, no proxy buffering). In dev, Vite serves the SPA with HMR
-// and proxies /api here, so this block stays off. root is cwd-relative; `pnpm start` and Render both run
-// from the repo root.
+// in production this process also serves the built SPA, so /api stays same-origin (cookies + SSE
+// direct, no proxy buffering); the static roots are cwd-relative, and both `pnpm start` and Render
+// run from the repo root
 if (process.env.NODE_ENV === "production") {
     app.use("/assets/*", serveStatic({ root: "./dist" })); // hashed static assets (host-agnostic)
     app.get("/p/*", serveStatic({ path: "./dist/publish/index.html" })); // public read-only viewer
@@ -66,7 +63,7 @@ if (process.env.NODE_ENV === "production") {
         const path = authed ? "./dist/app/index.html" : "./dist/index.html";
         return serveStatic({ path })(c, next);
     });
-    // every other route is the app SPA (/edit, /templates, /login, …); its auth gate renders sign-in when needed
+    // every other route is the app SPA; its own auth gate renders sign-in when needed
     app.get("*", serveStatic({ path: "./dist/app/index.html" }));
 }
 

@@ -40,7 +40,7 @@ import {
 const TH =
     "sticky top-0 z-[1] whitespace-nowrap border-b border-line bg-canvas px-2.5 py-2 text-left text-[12px] font-semibold text-soft";
 const CELL = "border-b border-r border-line/50";
-// Still used by the cell-embedded native <select>s (which stay bespoke).
+// still used by the cell-embedded native <select>s
 const IN =
     "w-full min-w-18 bg-transparent px-2.5 py-2 text-[13px] text-ink outline-none focus:bg-canvas";
 const DEL = "px-2 text-[13px] text-muted transition-colors hover:text-accent";
@@ -67,7 +67,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
     const currentData = (): Record<string, unknown> =>
         (getElementAt(editor.artifact, addr)?.data ?? {}) as Record<string, unknown>;
 
-    // Edits under one field coalesce into a single undo step; a new field/structural op starts a new one.
+    // edits under one field coalesce into one undo step; a new field or structural op starts another
     function apply(coalesceSuffix: string): void {
         commit(
             updateDataAt(editor.artifact, addr, {
@@ -799,7 +799,7 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
     const currentData = (): Record<string, unknown> =>
         (getElementAt(editor.artifact, addr)?.data ?? {}) as Record<string, unknown>;
 
-    // Grid commits every keystroke; tracking currentData() keeps the preview live.
+    // the grid commits every keystroke; tracking currentData() keeps the preview live
     function drawPreview(): void {
         if (!cv) return;
         const W = cv.clientWidth || 280;
@@ -895,7 +895,7 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
 export const DataEditor: Component = () => (
     <Show when={target()} keyed>
         {(addr) => (
-            // Re-mount (re-parse the grid) on a type switch — a different type may have a different shape.
+            // re-parse the grid on a type switch: a different type may have a different shape
             <Show
                 when={
                     String(

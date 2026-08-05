@@ -15,7 +15,7 @@ function sectionSize(s: Section): number {
     return countEls(s.root);
 }
 
-// Keep `layout` (a child's column width) — load-bearing in the recursive model, so exemplars show how columns carry widths.
+// keep `layout`: a child's column width is load-bearing, so exemplars show how columns carry widths
 function cleanElement(el: ElementInstance): Record<string, unknown> {
     const data: Record<string, unknown> = { ...(el.data as Record<string, unknown>) };
     if (Array.isArray(data.children)) {

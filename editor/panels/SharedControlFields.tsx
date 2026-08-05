@@ -242,8 +242,7 @@ export const IconColorField: Component<{ value?: string; onChange: (v: string) =
     );
 };
 
-// Paste-SVG → a parsed, sanitized Vector (graphic element). Storage is the IR, so the textarea is a
-// write-only import surface, not a round-trip editor.
+// storage is the parsed IR, so the textarea is a write-only import surface, not a round-trip editor
 export const VectorField: Component<{ value?: Vector; onChange: (v: Vector) => void }> = (
     props,
 ) => {
@@ -275,7 +274,7 @@ export const Field: Component<{
     const f = (): ControlField => props.field;
     const num = (): number => Number(props.value ?? f().min ?? 0);
     const str = (): string => String(props.value ?? "");
-    // A thunk, not a shared element — reusing one node across branches silently drops the reactive inner content.
+    // a thunk, not a shared element: reusing one node across branches drops the reactive content
     const control = (): JSX.Element => (
         <Switch
             fallback={
@@ -334,7 +333,7 @@ export const Field: Component<{
                     kind={f().mediaKind}
                     onChange={(v, item) => {
                         props.onChange(v);
-                        // picked item carries a still frame; a pasted URL clears any stale one
+                        // a picked item carries a still frame; a pasted URL clears any stale one
                         const pk = f().posterKey;
                         if (pk)
                             props.onWrite?.(
@@ -376,7 +375,7 @@ export const Field: Component<{
     );
 };
 
-// Grouping keys off the stable control list, so editing a value never re-renders the panel and steals focus (only visibleWhen remounts).
+// grouped off the stable control list, so editing a value doesn't re-render the panel and steal focus
 export const SchemaFields: Component<{
     controls: ControlField[];
     read: (key: string) => unknown;

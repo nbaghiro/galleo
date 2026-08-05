@@ -22,12 +22,10 @@ import {
     type TextAssistRequest,
 } from "./store";
 
-// --- element regeneration ---
-
 const isAtOrUnder = (path: number[], ancestor: number[]): boolean =>
     ancestor.every((v, i) => path[i] === v);
 
-// child of these = a fragment of one composed unit → regenerate the whole parent, not the piece alone
+// children of these are fragments of one composed unit: regenerate the parent, not the piece
 const COUPLED = new Set(["quote", "stat", "bullets"]);
 // nothing to regenerate → no affordance
 const INERT = new Set(["divider", "video"]);
@@ -70,7 +68,7 @@ export const elementGenBusy = (): boolean => elementGen.status === "working";
 
 let elemErrTimer = 0;
 
-// re-check the target still exists before committing — the user may have edited/undone mid-flight
+// re-check the target exists before committing: the user may have edited or undone mid-flight
 export async function regenerateElement(addr: ElementAddress, instruction?: string): Promise<void> {
     const reviser = getReviseElement();
     if (!reviser || elementGenBusy()) return;
@@ -107,8 +105,6 @@ export async function regenerateElement(addr: ElementAddress, instruction?: stri
         );
     }
 }
-
-// --- section generation ---
 
 // fixed id for the single placeholder (one gen at a time); never collides with a real id
 const PLACEHOLDER_ID = "__gen_new__";
@@ -191,7 +187,7 @@ export async function runSectionGen(instruction: string): Promise<void> {
     setSelection(null);
 
     ctrl = new AbortController();
-    // holder, not a bare `let`: assigned only inside the callback, which CFA can't see → would narrow to `never`
+    // holder, not a bare `let`: CFA can't see the callback assignment and would narrow it to `never`
     const out: { section: Section | null } = { section: null };
     const request: TurnRequest = {
         kind: "section",
@@ -248,7 +244,7 @@ export async function runSectionGen(instruction: string): Promise<void> {
         return;
     }
 
-    // land against the pre-generation baseline so one undo removes it cleanly (no placeholder left in history)
+    // land against the pre-generation baseline, so one undo removes it and history holds no placeholder
     const landed = out.section;
     setSectionGen({ stage: "done" });
     doneTimer = window.setTimeout(() => {
@@ -261,8 +257,6 @@ export async function runSectionGen(instruction: string): Promise<void> {
         setSectionGen({ stage: null, afterId: null, beat: null, caption: "", error: null });
     }, 800);
 }
-
-// --- section suggestions ---
 
 function collectTypes(el: ElementInstance | undefined, into: Set<string>): void {
     if (!el) return;
@@ -304,7 +298,7 @@ export function suggestSections(content: ArtifactContent, n = 6): string[] {
         { on: !has("table"), text: "Add a comparison table", w: 6 },
         { on: !has("diagram"), text: "Show the process as a diagram", w: 5 },
         { on: !has("card"), text: "Break the highlights into three cards", w: 4 },
-        // evergreen — always eligible, low weight, so short artifacts still fill out
+        // evergreen: always eligible at low weight, so short artifacts still fill out
         { on: true, text: "Add a proof or results section", w: 3 },
         { on: true, text: "Add a “how it works” section", w: 2 },
         { on: true, text: "Add an FAQ or objections section", w: 1 },
@@ -320,7 +314,7 @@ export function suggestSections(content: ArtifactContent, n = 6): string[] {
     return out;
 }
 
-// cache key: a suggestion set is reused until the section count or opening headline changes
+// a suggestion set is reused until the section count or opening headline changes
 function cacheKey(id: string, content: ArtifactContent): string {
     const head = content.sections[0] ? firstText(content.sections[0]).slice(0, 48) : "";
     return `${id}:${content.sections.length}:${head}`;
@@ -350,8 +344,6 @@ export async function fetchSuggestions(
         return suggestSections(content);
     }
 }
-
-// --- text assist (rewrite / translate) ---
 
 type Range = { from: number; to: number };
 
@@ -396,7 +388,7 @@ export const REWRITE_PRESETS: RewritePreset[] = [
     { label: "More casual", instruction: "Make the tone more casual and conversational." },
 ];
 
-// shortlist only — the model accepts any language name
+// shortlist only; the model accepts any language name
 export const LANGUAGES: string[] = [
     "Spanish",
     "French",

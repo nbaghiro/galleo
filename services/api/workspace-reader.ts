@@ -4,7 +4,7 @@ import type { ArtifactRef } from "@model/ai";
 import type { WorkspaceReader } from "../ai/tools/registry";
 import { db, schema } from "../schema";
 
-// Guard before a uuid column — Postgres throws on a bad uuid (a model may pass a title/truncated id) instead of just not matching.
+// Postgres throws on a malformed uuid rather than just not matching, and a model may pass a title.
 const isUuid = (s: string): boolean =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 

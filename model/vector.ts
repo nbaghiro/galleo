@@ -1,8 +1,6 @@
-// Backend-abstract, theme-aware vector document. The renderer maps `vb` (viewBox) into the target box
-// and resolves each Paint against the active theme, so one Vector recolors across themes. SVG is only an
-// ingest format (parseSvg → Vector); this IR is what gets stored and painted.
+// SVG is only an ingest format (parseSvg → Vector); this IR is what gets stored and painted
 
-// Color roles == the Tokens color fields (kept in sync with @themes Tokens).
+// the Tokens color fields; must stay in sync with @themes Tokens
 export type ThemeRole =
     | "bg"
     | "surface"
@@ -13,7 +11,7 @@ export type ThemeRole =
     | "onAccent"
     | "line";
 
-// A color: a theme role (recolors with the theme), a literal, `none`, or SVG `currentColor` (→ the tint).
+// a role recolors with the theme; `currentColor` resolves to the tint
 export type Paint = { role: ThemeRole } | { color: string } | "none" | "currentColor";
 
 export interface VStyle {
@@ -59,7 +57,7 @@ export type VNode =
     | { t: "poly"; pts: [number, number][]; closed: boolean; style: VStyle; tf?: VTransform }
     | { t: "group"; children: VNode[]; style?: VStyle; tf?: VTransform };
 
-// vb: [minX, minY, width, height].
+// vb = viewBox: [minX, minY, width, height]
 export interface Vector {
     vb: [number, number, number, number];
     nodes: VNode[];

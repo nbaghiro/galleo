@@ -28,7 +28,7 @@ import {
 
 const [target, setTarget] = createSignal(false);
 export function openExportModal(): void {
-    // export needs the whole document; a windowed artifact fills in the rest first
+    // export needs the whole document, so a windowed artifact fills in the rest first
     void ensureAllSections();
     setTarget(true);
 }
@@ -79,7 +79,7 @@ const Body: Component = () => {
     const profile = createMemo(() => resolveProfile(editor.artifact.format));
     const continuous = createMemo(() => profile().kind === "continuous");
     const brand = createMemo(() => !features().removeBranding);
-    // one build per destination per artifact state — tab hops and the Export click reuse it
+    // one build per destination per artifact state; tab hops and the Export click reuse it
     const fp = createMemo(() => `${currentArtifactId()}:${editSeq()}:${brand() ? 1 : 0}`);
 
     const nSections = createMemo(() => editor.artifact.sections.length);
@@ -90,7 +90,7 @@ const Body: Component = () => {
         ),
     );
 
-    // cached builders — the real export artifacts, not re-renders
+    // the real export artifacts, not re-renders
     const pdfBuild = (): Promise<{ bytes: Uint8Array; filename: string; url: string }> =>
         cachedExport(
             "pdf",
@@ -118,7 +118,7 @@ const Body: Component = () => {
             async () => toPages(await pngFiles(), (f) => f.name),
             disposePreview,
         );
-    // pptx preview: the same slides the deck carries, rendered by the same pipeline
+    // the same slides the deck carries, rendered by the same pipeline
     const pptxPreview = (): Promise<Preview> =>
         cachedExport(
             "pptx:preview",

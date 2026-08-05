@@ -90,7 +90,6 @@ folders.delete("/folders/:id", async (c) => {
             }
         }
     }
-    // move their artifacts back to "no folder", then remove the folders
     for (const fid of doomed) {
         await db
             .update(schema.artifacts)
