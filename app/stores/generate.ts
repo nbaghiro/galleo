@@ -1,4 +1,5 @@
 import type { ArtifactContent, Section } from "@model/artifact";
+import type { GenMeta } from "@model/genmeta";
 import type {
     Beat,
     BriefRead,
@@ -18,6 +19,8 @@ import { applyPatch } from "@model/ai";
 import { api, streamTurn } from "../api";
 import { bindChatTarget } from "./chat";
 import { appTheme } from "./theme";
+import { reportError } from "./errors";
+import { attachArtifact, beginRun, currentRunSteps, nameRun, noteStep } from "./model-usage";
 import { persistArtifact, updateArtifactContent } from "./library";
 import {
     buildCost,
@@ -201,8 +204,10 @@ const track = (): AbortController => {
     return c;
 };
 
-const fail = (stage: Stage, message: string): void =>
+const fail = (stage: Stage, message: string, cause?: unknown): void => {
     setGen({ stage: "error", errorStage: stage, error: message });
+    reportError(cause ?? new Error(message), message);
+};
 
 const isAbort = (e: unknown): boolean =>
     e instanceof DOMException ? e.name === "AbortError" : false;
@@ -468,6 +473,7 @@ export async function startSession(input: SessionStart): Promise<void> {
         },
         content: { format: input.surface, theme: input.theme, sections: [] },
     });
+    beginRun(clip(input.prompt, 60));
     bindStudioToChat();
     await startPlan();
 }
@@ -510,6 +516,7 @@ export function answerClarify(answer: string): void {
 
 // a re-read of the same prompt (POST /ai/brief), any time in the session
 export async function redraftBrief(): Promise<void> {
+    noteStep("brief");
     if (gen.briefLoading) return;
     setGen({ briefLoading: true, briefFailed: false });
     try {
@@ -536,8 +543,9 @@ export async function redraftBrief(): Promise<void> {
             });
         setGen("clarify", draft?.clarify ?? null);
         markBriefDirty();
-    } catch {
+    } catch (e) {
         setGen("briefFailed", true);
+        reportError(e, "Couldn’t read the brief");
     } finally {
         setGen("briefLoading", false);
     }
@@ -545,14 +553,16 @@ export async function redraftBrief(): Promise<void> {
 
 export async function startPlan(): Promise<void> {
     setGen({ stage: "planning", planning: true, clarify: null });
+    noteStep("outline");
     try {
         await runTurnStream({ kind: "plan", input: { ...gen.brief } }, planCost());
         if (gen.stage !== "planning") return; // canceled
         setGen({ planning: false, stage: "outline" });
+        nameRun(gen.title);
     } catch (e) {
         if (isAbort(e)) return;
         setGen("planning", false);
-        fail("planning", e instanceof Error ? e.message : "Planning failed.");
+        fail("planning", "Couldn’t plan the outline", e);
     }
 }
 
@@ -642,7 +652,7 @@ export async function buildSectionNow(id: string): Promise<void> {
     } catch (e) {
         if (!isAbort(e)) {
             requeueInFlight();
-            fail("building", e instanceof Error ? e.message : "That section didn’t land.");
+            fail("building", "Couldn’t write that section", e);
         }
     } finally {
         // nothing is active between one-off writes; a stale id disables every other card's Write button
@@ -660,6 +670,7 @@ export async function buildSections(ids: string[]): Promise<void> {
 
 async function buildOne(index: number): Promise<boolean> {
     const beat = gen.beats[index]!;
+    noteStep("section");
     const anchor =
         index === 0 ? "cover" : index === gen.beats.length - 1 ? ("closer" as const) : undefined;
     await runTurnStream(
@@ -715,7 +726,7 @@ async function buildLoop(): Promise<void> {
     } catch (e) {
         if (!isAbort(e) && gen.stage === "building") {
             requeueInFlight();
-            fail("building", e instanceof Error ? e.message : "The build failed.");
+            fail("building", "The build stopped", e);
         }
     } finally {
         buildRunning = false;
@@ -784,7 +795,8 @@ export async function regenerateSection(id: string, note?: string): Promise<bool
         );
         void saveDraft();
         return true;
-    } catch {
+    } catch (e) {
+        reportError(e, "Couldn’t rework that section");
         return false;
     } finally {
         const j = slotIndex(id);
@@ -808,15 +820,40 @@ async function saveDraft(): Promise<void> {
 
 // the one point a draft becomes a library artifact; until it runs the session lives in memory, so a
 // cancelled generation leaves no stub behind
+
+// the durable record of the run, written with the artifact rather than kept only in this browser
+function runMeta(): GenMeta {
+    const b = gen.brief;
+    return {
+        at: new Date().toISOString(),
+        models: currentRunSteps(),
+        prompt: b.prompt,
+        surface: b.surface,
+        ...(b.length ? { length: b.length } : {}),
+        ...(b.imageSource ? { imageSource: b.imageSource } : {}),
+        ...(b.goal ? { goal: b.goal } : {}),
+        ...(b.audience ? { audience: b.audience } : {}),
+        ...(b.tone ? { tone: b.tone } : {}),
+        ...(b.mustInclude?.length ? { mustInclude: [...b.mustInclude] } : {}),
+        ...(gen.steer.trim() ? { steer: gen.steer.trim() } : {}),
+        ...(b.source ? { source: b.source } : {}),
+        beats: gen.beats.map((x) => ({ id: x.id, label: x.label, role: x.role })),
+    };
+}
+
 export async function saveGenerated(formatId?: string): Promise<string | null> {
     const content = formatId ? { ...gen.content, format: formatId } : gen.content;
     if (!content.sections.length) return null;
     if (gen.draftId) {
-        await updateArtifactContent(gen.draftId, content, gen.title || undefined);
+        await updateArtifactContent(gen.draftId, content, gen.title || undefined, runMeta());
+        attachArtifact(gen.draftId);
         return gen.draftId;
     }
-    const id = await persistArtifact(content, gen.title || undefined);
-    if (id) setGen("draftId", id);
+    const id = await persistArtifact(content, gen.title || undefined, null, runMeta());
+    if (id) {
+        setGen("draftId", id);
+        attachArtifact(id);
+    }
     return id;
 }
 

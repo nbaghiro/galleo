@@ -41,6 +41,8 @@ import {
     restoreFromTrash,
 } from "./library";
 import { addFolder, folders } from "./folders";
+import { reportError } from "./errors";
+import { noteStep } from "./model-usage";
 import { textInsertAt, type ChatMsg, type UIBlock } from "./chat-blocks";
 
 const [thread, setThread] = createStore<{ messages: ChatMsg[] }>({ messages: [] });
@@ -325,6 +327,7 @@ export async function sendChat(text: string): Promise<void> {
     ]);
 
     setBusy(true);
+    noteStep("chat"); // lands on the studio's run when one is open, ignored otherwise
     abort = new AbortController();
     const request: TurnRequest = {
         kind: "chat",
@@ -333,8 +336,10 @@ export async function sendChat(text: string): Promise<void> {
     try {
         await streamTurn(request, (ev) => dispatch(ev, aid), abort.signal);
     } catch (e) {
-        if (!abort?.signal.aborted)
+        if (!abort?.signal.aborted) {
             pushText(aid, `\n\n_(${e instanceof Error ? e.message : "The chat failed."})_`);
+            reportError(e, "The chat couldn’t finish");
+        }
     } finally {
         setBusy(false);
         updateMsg(aid, (m) => {
@@ -437,11 +442,13 @@ export async function generateFromBrief(brief: GenBrief): Promise<void> {
     try {
         await streamTurn({ kind: "generate", input }, (ev) => draftDispatch(id, ev), abort.signal);
     } catch (e) {
-        if (!abort?.signal.aborted)
+        if (!abort?.signal.aborted) {
             setDrafts(id, {
                 status: "error",
                 error: e instanceof Error ? e.message : "Generation failed.",
             });
+            reportError(e, "Couldn’t build that artifact");
+        }
     } finally {
         setBusy(false);
         updateMsg(aid, (m) => (m.streaming = false));

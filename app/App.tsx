@@ -25,6 +25,7 @@ import { MediaPicker } from "./components/MediaPicker";
 import { VerifyBanner } from "./components/VerifyBanner";
 import { ShareModal } from "./components/ShareModal";
 import { ModelDebugModal } from "./components/ModelDebug";
+import { ErrorModal } from "./components/ErrorModal";
 import { ThemeEditor } from "./views/ThemeEditor";
 import { TrashView } from "./views/TrashView";
 import { WorkspaceSettingsView } from "./views/WorkspaceSettingsView";
@@ -56,6 +57,7 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => {
             <MediaPicker />
             <ShareModal />
             <ModelDebugModal />
+            <ErrorModal />
             <ChatPanel />
             <CommandPalette />
             <ShortcutsSheet />
@@ -69,6 +71,16 @@ export const App: Component = () => {
         // cookie-gated, so fire in parallel with the session restore (don't wait for /me)
         void bootstrap();
         void loadCustomThemes();
+        void loadFeatures();
+    });
+
+    // That parallel fetch 401s when the cookie is stale or absent, and nothing outside the editor
+    // retried it, leaving every feature-gated affordance hidden for the session. Re-fetch per user.
+    let featuresFor: string | null = null;
+    createEffect(() => {
+        const id = user()?.id ?? null;
+        if (!id || id === featuresFor) return;
+        featuresFor = id;
         void loadFeatures();
     });
 
