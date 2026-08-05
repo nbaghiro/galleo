@@ -471,10 +471,39 @@ Plan tiers (`modelFor(task, tier, overrides)`) resolve identically today: `BASIC
 no task runs a pro-class model. The seam stays wired for the moment one earns it on paid plans.
 
 Google leads because one `GOOGLE_API_KEY` also powers image (and, ahead, video) generation; Anthropic
-(Fable 5 / Opus 5 / Opus 4.8 / Sonnet 5 / Haiku 4.5), OpenAI (GPT-5.5 / 5.4 / 5.4 mini), and xAI (Grok 4)
+(Fable 5 / Opus 5 / Opus 4.8 / Sonnet 5 / Haiku 4.5), OpenAI (GPT-5.5 / 5.4 / 5.4 mini / nano), and xAI (Grok 4.3 / 4.20)
 stay registered for override. Routes reference tasks, never raw ids, so re-tuning is one line.
 `provider.ts` builds one lazy SDK client per provider and `aiReady()` lets a route degrade to 503 instead
 of throwing when no key is set.
+
+**Structured output is not one mechanism.** `providerOpts(id)` (`provider.ts`) carries the per-provider
+knobs every call needs, keyed by provider name so a key another provider does not know is ignored by it.
+Three live entries, two of them load-bearing:
+
+- Google Flash gets `thinkingConfig.thinkingBudget: 0`; Pro rejects it, so only Flash gets it.
+- Anthropic gets `structuredOutputMode: "jsonTool"`. Its default `auto` mode compiles a decoding grammar
+  per schema, and `zOutline` is large enough that it returns "Grammar compilation timed out" after two
+  minutes, so every Claude model failed the outline step while passing a plain prompt and a toy schema.
+- OpenAI gets `strictJsonSchema: false`. Strict mode demands every property appear in `required`, so a
+  single optional field fails the request outright with "'required' is required to be supplied and to be
+  an array". Our schemas are full of genuinely optional fields, so strict is the wrong contract for them.
+
+The shape of both failures is the same and worth remembering: the model is fine, the provider's _default_
+structured-output mechanism is not compatible with our schemas. Neither is visible from a plain prompt or a
+toy schema, which is why `--turn` exists.
+
+Every id must be one the installed provider package declares. Their model-id types end in `| (string & {})`
+for forward compatibility, so a stale id typechecks and fails only at the API: `xai:grok-4` sat in the
+registry after the SDK had moved to the 4.x line, and would have 404'd whenever anyone picked it.
+`pnpm check:models` (pre-commit + CI) reads each provider's declared union out of its `.d.ts` and fails on
+any id that is not in it. That is a static check; only a real call proves the key works and the account has
+access, so `pnpm ai:probe` (`services/ai/probe.ts`) sends one tiny prompt per registered model and reports
+which answered. `--turn` goes further and runs the real outline and chat turns, with the production
+prompts, schema and toolset: a model can answer a one-line prompt and still fail the pipeline. That is not
+hypothetical, it is how the Anthropic grammar timeout below was found. It costs money and needs live keys, so it runs on request rather than in CI:
+`--provider=` / `--model=` narrow it, `--json` also exercises structured output. Providers with no key are
+skipped rather than failed, since a machine holding one key is normal. The other direction happens too: `claude-opus-5` was real while
+`@ai-sdk/anthropic@4.0.8` predated it, so the fix there was updating the package, not the id.
 
 **Sampling knobs are not universal.** Current Claude models (Fable 5, Opus 5, Opus 4.8, Sonnet 5) reject
 `temperature`/`top_p`/`top_k` with a 400, so no call passes a bare `temperature:`. Every site goes through

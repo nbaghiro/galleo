@@ -118,6 +118,7 @@ pnpm db:generate    pnpm db:migrate
 pnpm check:suppressions   # no eslint-disable / @ts-* / prettier-ignore / coverage pragmas
 pnpm check:program        # every tracked .ts(x) is actually in the tsc program
 pnpm check:boundaries     # the layering law still reports, not just "no errors"
+pnpm check:models         # every model id is one the installed @ai-sdk provider still declares
 ```
 
 Galleo owns the **86xx** host-port block (runs alongside the sibling apps). See the ports table in
