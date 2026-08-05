@@ -1,4 +1,6 @@
 import type { ModelTier } from "@model/billing";
+import type { AiTask } from "@model/tasks";
+import { AI_TASKS } from "@model/tasks";
 import { out } from "../log";
 
 export type Provider = "anthropic" | "openai" | "google" | "xai";
@@ -13,28 +15,8 @@ export const PROVIDER_LABEL: Record<Provider, string> = {
 // Google leads: every task defaults there, so the list opens on what is already selected.
 export const PROVIDER_ORDER: readonly Provider[] = ["google", "anthropic", "openai", "xai"];
 
-export type AiTask =
-    | "generate"
-    | "brief"
-    | "outline"
-    | "section"
-    | "edit"
-    | "rewrite"
-    | "translate"
-    | "chat"
-    | "theme";
-
-export const AI_TASKS: readonly AiTask[] = [
-    "generate",
-    "brief",
-    "outline",
-    "section",
-    "edit",
-    "rewrite",
-    "translate",
-    "chat",
-    "theme",
-];
+export type { AiTask } from "@model/tasks";
+export { AI_TASKS } from "@model/tasks";
 
 export interface ModelInfo {
     id: string;
@@ -44,6 +26,7 @@ export interface ModelInfo {
     contextWindow: number;
     json: boolean; // reliable structured / JSON output (generateObject)
     vision: boolean;
+    usd: [inputPer1M: number, outputPer1M: number]; // see PRICED_ON
     // Claude 4.7+ rejects temperature/top_p/top_k with a 400; see samplingFor()
     sampling?: false;
 }
@@ -58,6 +41,7 @@ export const MODELS: readonly ModelInfo[] = [
         json: true,
         vision: true,
         sampling: false,
+        usd: [10, 50],
     },
     {
         id: "anthropic:claude-opus-5",
@@ -68,6 +52,7 @@ export const MODELS: readonly ModelInfo[] = [
         json: true,
         vision: true,
         sampling: false,
+        usd: [5, 25],
     },
     {
         id: "anthropic:claude-opus-4-8",
@@ -78,6 +63,7 @@ export const MODELS: readonly ModelInfo[] = [
         json: true,
         vision: true,
         sampling: false,
+        usd: [5, 25],
     },
     {
         id: "anthropic:claude-sonnet-5",
@@ -88,6 +74,7 @@ export const MODELS: readonly ModelInfo[] = [
         json: true,
         vision: true,
         sampling: false,
+        usd: [3, 15],
     },
     {
         id: "anthropic:claude-haiku-4-5",
@@ -97,6 +84,7 @@ export const MODELS: readonly ModelInfo[] = [
         contextWindow: 200_000,
         json: true,
         vision: true,
+        usd: [1, 5],
     },
     {
         id: "openai:gpt-5.5",
@@ -107,6 +95,7 @@ export const MODELS: readonly ModelInfo[] = [
         json: true,
         vision: true,
         sampling: false,
+        usd: [5, 30],
     },
     {
         id: "openai:gpt-5.4",
@@ -117,6 +106,7 @@ export const MODELS: readonly ModelInfo[] = [
         json: true,
         vision: true,
         sampling: false,
+        usd: [2.5, 15],
     },
     {
         id: "openai:gpt-5.4-mini",
@@ -127,6 +117,7 @@ export const MODELS: readonly ModelInfo[] = [
         json: true,
         vision: true,
         sampling: false,
+        usd: [0.75, 4.5],
     },
     {
         id: "openai:gpt-5.4-nano",
@@ -137,6 +128,7 @@ export const MODELS: readonly ModelInfo[] = [
         json: true,
         vision: true,
         sampling: false,
+        usd: [0.2, 1.25],
     },
     {
         id: "google:gemini-2.5-pro",
@@ -146,6 +138,7 @@ export const MODELS: readonly ModelInfo[] = [
         contextWindow: 1_000_000,
         json: true,
         vision: true,
+        usd: [1.25, 10],
     },
     {
         id: "google:gemini-2.5-flash",
@@ -155,6 +148,7 @@ export const MODELS: readonly ModelInfo[] = [
         contextWindow: 1_000_000,
         json: true,
         vision: true,
+        usd: [0.3, 2.5],
     },
     {
         id: "google:gemini-3.5-flash",
@@ -164,6 +158,7 @@ export const MODELS: readonly ModelInfo[] = [
         contextWindow: 1_000_000,
         json: true,
         vision: true,
+        usd: [1.5, 9],
     },
     {
         id: "google:gemini-3.1-flash-lite-preview",
@@ -173,6 +168,7 @@ export const MODELS: readonly ModelInfo[] = [
         contextWindow: 1_000_000,
         json: true,
         vision: true,
+        usd: [0.25, 1.5],
     },
     {
         id: "google:gemini-3.1-pro-preview",
@@ -182,6 +178,7 @@ export const MODELS: readonly ModelInfo[] = [
         contextWindow: 1_000_000,
         json: true,
         vision: true,
+        usd: [2, 12],
     },
     {
         id: "xai:grok-4.3",
@@ -191,6 +188,7 @@ export const MODELS: readonly ModelInfo[] = [
         contextWindow: 256_000,
         json: true,
         vision: true,
+        usd: [1.25, 2.5],
     },
     {
         id: "xai:grok-4.20-reasoning",
@@ -200,6 +198,7 @@ export const MODELS: readonly ModelInfo[] = [
         contextWindow: 256_000,
         json: true,
         vision: true,
+        usd: [1.25, 2.5],
     },
     {
         id: "xai:grok-4.20-non-reasoning",
@@ -209,6 +208,7 @@ export const MODELS: readonly ModelInfo[] = [
         contextWindow: 256_000,
         json: true,
         vision: true,
+        usd: [1.25, 2.5],
     },
 ] as const;
 
@@ -257,8 +257,8 @@ export function modelFor(
         picked && MODELS_BY_ID[picked]
             ? picked
             : ((tier === "basic" ? BASIC_OVERRIDES[task] : undefined) ?? DEFAULT_MODELS[task]);
-    if (process.env.AI_MODEL_DEBUG === "1")
-        out(`[ai:model] ${task} → ${id}${id === picked ? " (override)" : ""}`);
+    // only the overridden calls: the defaults are known, and a line per call would drown the log
+    if (id === picked) out(`[ai:model] ${task} → ${id} (override)`);
     return id;
 }
 
@@ -291,3 +291,27 @@ export function modelNote(overrides: ModelOverrides | undefined, tasks: readonly
         .map((t) => `${t} → ${getModel(overrides[t]!)?.label ?? overrides[t]!}`);
     return parts.join(" · ");
 }
+
+// The token mix our calls actually run at, measured on the outline step: 1,861 in / 715 out.
+const INPUT_SHARE = 0.7;
+
+const blended = (m: ModelInfo): number => m.usd[0] * INPUT_SHARE + m.usd[1] * (1 - INPUT_SHARE);
+
+// Everything is priced against the model every task defaults to, so an untouched run bills exactly
+// what it billed before this existed.
+const BASELINE = blended(MODELS_BY_ID[DEFAULT_MODELS.outline]!);
+
+/**
+ * What a call on this model costs us relative to the default, as a credit multiplier.
+ * Price only: a heavier model also tends to write more (Opus 5 emitted 1.7x the tokens of Flash on
+ * the same outline), so real spend runs somewhat above this. Unknown ids price at the baseline.
+ */
+export function costMultiplier(id: string): number {
+    const m = MODELS_BY_ID[id];
+    if (!m) return 1;
+    return Math.round((blended(m) / BASELINE) * 100) / 100;
+}
+
+export const COST_MULTIPLIERS: Record<string, number> = Object.fromEntries(
+    MODELS.map((m) => [m.id, costMultiplier(m.id)]),
+);
