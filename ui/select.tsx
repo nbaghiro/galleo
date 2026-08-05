@@ -33,9 +33,16 @@ const check = (): JSX.Element => (
     </svg>
 );
 
+export interface DropdownOption {
+    label: string;
+    value: string;
+    font?: string;
+    group?: string; // options sharing one are headed by it; the list must already be in group order
+}
+
 export const Dropdown: Component<{
     value: string;
-    options: { label: string; value: string; font?: string }[];
+    options: DropdownOption[];
     onChange: (v: string) => void;
     compact?: boolean;
     placeholder?: string;
@@ -117,20 +124,29 @@ export const Dropdown: Component<{
             >
                 <For each={props.options}>
                     {(o, i) => (
-                        <button
-                            type="button"
-                            class={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors ${
-                                o.value === props.value ? "font-semibold text-accent" : "text-ink"
-                            } ${i() === cursor() ? "bg-canvas" : "hover:bg-canvas"}`}
-                            onMouseEnter={() => setCursor(i())}
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => pick(o.value)}
-                        >
-                            <span class="min-w-0 flex-1 truncate" style={fontStyle(o.font)}>
-                                {o.label}
-                            </span>
-                            <Show when={o.value === props.value}>{check()}</Show>
-                        </button>
+                        <>
+                            <Show when={o.group && o.group !== props.options[i() - 1]?.group}>
+                                <div class="px-2.5 pb-0.5 pt-2 font-mono text-[9.5px] uppercase tracking-[0.12em] text-muted first:pt-0.5">
+                                    {o.group}
+                                </div>
+                            </Show>
+                            <button
+                                type="button"
+                                class={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors ${
+                                    o.value === props.value
+                                        ? "font-semibold text-accent"
+                                        : "text-ink"
+                                } ${i() === cursor() ? "bg-canvas" : "hover:bg-canvas"}`}
+                                onMouseEnter={() => setCursor(i())}
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => pick(o.value)}
+                            >
+                                <span class="min-w-0 flex-1 truncate" style={fontStyle(o.font)}>
+                                    {o.label}
+                                </span>
+                                <Show when={o.value === props.value}>{check()}</Show>
+                            </button>
+                        </>
                     )}
                 </For>
             </Popover>

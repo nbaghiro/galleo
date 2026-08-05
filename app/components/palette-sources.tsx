@@ -2,9 +2,11 @@ import type { SearchHit } from "@model/artifact";
 import { registerPaletteSource, type Row } from "@ui/palette-model";
 import { rankItems } from "@ui/fuzzy";
 import { folders } from "../stores/folders";
+import { artifacts, relativeTime } from "../stores/library";
 import { ensureLibrary } from "../stores/library";
 import { openGenerate } from "../stores/generate";
 import { modelDebugAvailable, openModelDebug } from "./ModelDebug";
+import { modelRuns, stepSummary } from "../stores/model-usage";
 import { go } from "../stores/navigate";
 import {
     fetchHits,
@@ -90,15 +92,33 @@ registerPaletteSource({
                 icon: "sparkle",
                 run: () => openGenerate(query),
             });
-        // debug-only, so it stays behind a typed query rather than sitting in the recents landing
-        if (modelDebugAvailable() && /^mod|^model/i.test(query))
-            rows.push({
-                id: "action:models",
-                title: "Models: pick a model per step",
-                subtitle: "Debug: brief, outline, sections, chat",
-                icon: "sparkle",
-                run: openModelDebug,
-            });
         return rows;
+    },
+});
+
+const MODELS = { id: "models", label: "Model runs", order: 40 };
+
+// Each past run as an artifact row: same thumb and shape as a search hit, with the per-step models
+// where the snippet would be. Debug-only, so it waits for the query rather than sitting in recents.
+registerPaletteSource({
+    id: "models",
+    section: MODELS,
+    when: () => modelDebugAvailable(),
+    local: (query) => {
+        if (!/^\/?mod/i.test(query)) return [];
+        void ensureLibrary(); // opened from the editor, the titles and covers are not loaded yet
+        return modelRuns().map((run) => {
+            const art = run.artifactId
+                ? artifacts().find((a) => a.id === run.artifactId)
+                : undefined;
+            return {
+                id: `models:${run.id}`,
+                title: art?.title || run.label || "Untitled run",
+                subtitle: stepSummary(run) || "no steps recorded",
+                meta: relativeTime(new Date(run.at).toISOString()),
+                thumb: () => <ArtifactThumb cover={art?.cover} />,
+                run: () => (art ? go(`/edit/${art.id}`) : openModelDebug()),
+            };
+        });
     },
 });

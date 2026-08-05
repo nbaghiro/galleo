@@ -13,6 +13,7 @@ import type { Folder, Template, User } from "@model/workspace";
 import type { ThemeSummary as Theme, ThemeInput, Tokens } from "@themes";
 import type { CreditPack, CreditPackId, Interval, Plan, PlanId } from "@model/billing";
 import type { FeatureKey, FeatureStatus, Features } from "@model/features";
+import type { GenMeta } from "@model/genmeta";
 import type { BriefDraft, TurnEvent, TurnRequest } from "@model/ai";
 import type { ToolId, MeterParams } from "@model/tools";
 import type { Usage } from "@model/credits";
@@ -92,7 +93,8 @@ export interface FeaturesState {
 // present only when the server honours x-galleo-models; null otherwise (production default)
 export interface ModelDebugInfo {
     tasks: string[];
-    models: { id: string; label: string }[];
+    models: { id: string; label: string; provider: string }[];
+    defaults: Record<string, string>; // already resolved for this workspace's tier
 }
 
 type ApiCoverShape = { eyebrow?: string; title?: string; sub?: string; image?: string };
@@ -303,6 +305,8 @@ export const api = {
         }),
     createArtifact: (patch: ArtifactInput) =>
         req<{ id: string }>("/artifacts", { method: "POST", body: JSON.stringify(patch) }),
+    getAiMeta: (id: string) =>
+        req<{ meta: GenMeta | null }>(`/artifacts/${id}/ai-meta`).then((r) => r.meta),
     suggestSections: (content: ArtifactContent) =>
         req<{ suggestions: string[] }>("/ai/suggest", {
             method: "POST",

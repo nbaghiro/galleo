@@ -51,3 +51,23 @@ export function modelHeaders(): Record<string, string> {
     const picked = overrides();
     return Object.keys(picked).length ? { [MODEL_HEADER]: JSON.stringify(picked) } : {};
 }
+
+// Mirrors the server's modelFor(): a pick the registry does not serve falls back to the tier
+// default, so a stale localStorage entry degrades instead of routing a call to nothing.
+export function pickModel(
+    task: string,
+    overrides: ModelOverrides,
+    served: readonly string[],
+    defaults: Record<string, string>,
+): string {
+    const picked = overrides[task];
+    return picked && served.includes(picked) ? picked : (defaults[task] ?? "");
+}
+
+export const summarizeSteps = (
+    steps: Record<string, string>,
+    labelFor: (id: string) => string,
+): string =>
+    Object.entries(steps)
+        .map(([task, id]) => `${task} · ${labelFor(id)}`)
+        .join("   ");

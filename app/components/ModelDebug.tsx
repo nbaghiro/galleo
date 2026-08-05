@@ -1,21 +1,25 @@
 import type { Component } from "solid-js";
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { Button, Eyebrow, IconButton } from "@ui/button";
+import { Button, Chip, Eyebrow, IconButton } from "@ui/button";
 import { CloseIcon } from "@ui/icons";
 import { Modal } from "@ui/overlay";
-import { Dropdown } from "@ui/select";
+import { Dropdown, type DropdownOption } from "@ui/select";
 import { featuresState } from "../stores/features";
-import { overlayThemeVars } from "../stores/theme";
+import { artifacts, relativeTime } from "../stores/library";
+import { ArtifactThumb } from "./previews";
 import {
-    clearModelOverrides,
-    modelOverrides,
-    overrideCount,
-    setModelOverride,
-} from "../stores/models";
+    chooseModel,
+    clearRuns,
+    effectiveModel,
+    isOverridden,
+    modelLabel,
+    modelRuns,
+    type RunRecord,
+} from "../stores/model-usage";
+import { overlayThemeVars } from "../stores/theme";
+import { clearModelOverrides, overrideCount } from "../stores/models";
 
 // only reachable when the server says it will honour the header
-
-const DEFAULT = "";
 
 // in the order a generation walks through them
 const STEPS: { task: string; label: string; note: string }[] = [
@@ -38,35 +42,76 @@ export const modelDebugAvailable = (): boolean => !!featuresState()?.modelDebug;
 
 const Row: Component<{
     step: { task: string; label: string; note: string };
-    options: { label: string; value: string }[];
+    options: DropdownOption[];
 }> = (props) => (
-    <div class="flex items-center gap-3 border-b border-line/60 py-2.5 last:border-b-0">
+    <div class="flex items-center justify-between gap-4 border-b border-line/60 py-2.5 last:border-b-0">
         <div class="min-w-0 flex-1">
             <div class="flex items-center gap-1.5">
                 <span class="text-[13px] font-medium text-ink">{props.step.label}</span>
                 <span class="font-mono text-[10px] text-muted">{props.step.task}</span>
             </div>
-            <p class="truncate text-[11.5px] text-soft">{props.step.note}</p>
+            <p class="truncate text-[11.5px] text-soft">
+                <Show when={isOverridden(props.step.task)}>
+                    <span class="text-accent">Overridden · </span>
+                </Show>
+                {props.step.note}
+            </p>
         </div>
         <div class="w-56 flex-none">
             <Dropdown
-                compact
-                value={modelOverrides()[props.step.task] ?? DEFAULT}
+                value={effectiveModel(props.step.task)}
                 options={props.options}
-                onChange={(v) => setModelOverride(props.step.task, v)}
+                onChange={(v) => chooseModel(props.step.task, v)}
             />
         </div>
     </div>
 );
 
+const RunRow: Component<{ run: RunRecord }> = (props) => {
+    const art = () =>
+        props.run.artifactId ? artifacts().find((a) => a.id === props.run.artifactId) : undefined;
+    return (
+        <div class="flex items-start gap-2.5 border-b border-line/60 py-2.5 last:border-b-0">
+            <div class="h-9 w-12 flex-none overflow-hidden rounded-md border border-line">
+                <ArtifactThumb cover={art()?.cover} />
+            </div>
+            <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2">
+                    <span class="min-w-0 flex-1 truncate text-[12.5px] text-ink">
+                        {art()?.title || props.run.label}
+                    </span>
+                    {/* saved runs carry the same record on the artifact, so it outlives this browser */}
+                    <Show when={props.run.artifactId}>
+                        <span class="flex-none font-mono text-[9px] uppercase tracking-wide text-accent">
+                            stored
+                        </span>
+                    </Show>
+                    <span class="flex-none font-mono text-[10px] text-muted">
+                        {relativeTime(new Date(props.run.at).toISOString())}
+                    </span>
+                </div>
+                <div class="mt-1 flex flex-wrap gap-1">
+                    <For each={Object.entries(props.run.steps)}>
+                        {([task, id]) => (
+                            <Chip variant="outline" size="sm" rounded="md">
+                                <span class="font-mono text-[9.5px] text-muted">{task}</span>
+                                <span class="ml-1">{modelLabel(id)}</span>
+                            </Chip>
+                        )}
+                    </For>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const ModelDebugModal: Component = () => {
     const info = () => featuresState()?.modelDebug ?? null;
 
-    // the catalogue plus a "server default" entry, which is what clearing an override means
-    const options = createMemo(() => [
-        { label: "Server default", value: DEFAULT },
-        ...(info()?.models ?? []).map((m) => ({ label: m.label, value: m.id })),
-    ]);
+    // no "server default" entry: the server's own choice is preselected, so the list is only models
+    const options = createMemo(() =>
+        (info()?.models ?? []).map((m) => ({ label: m.label, value: m.id, group: m.provider })),
+    );
     const steps = createMemo(() => {
         const tasks = info()?.tasks ?? [];
         return STEPS.filter((s) => tasks.includes(s.task));
@@ -85,8 +130,9 @@ export const ModelDebugModal: Component = () => {
                     <div>
                         <h2 class="text-[16px] font-semibold text-ink">Models</h2>
                         <p class="mt-0.5 text-[12px] text-soft">
-                            Pick the model each step runs on. Local to this browser, and only
-                            honoured while the server has the debug flag on.
+                            Pick the model each step runs on, and see what recent runs used. Local
+                            to this browser, and only honoured while the server has the debug flag
+                            on.
                         </p>
                     </div>
                     <IconButton onClick={() => setOpen(false)}>
@@ -94,8 +140,26 @@ export const ModelDebugModal: Component = () => {
                     </IconButton>
                 </div>
 
-                <div class="max-h-[60vh] overflow-y-auto">
+                <div class="max-h-[58vh] overflow-y-auto">
                     <For each={steps()}>{(step) => <Row step={step} options={options()} />}</For>
+
+                    {/* the client-side answer to "what did that run use", so a comparison does not
+                        need the server log */}
+                    <Show when={modelRuns().length}>
+                        <div class="mt-5 flex items-center gap-2">
+                            <Eyebrow weight="normal" tracking="wide">
+                                Recent runs
+                            </Eyebrow>
+                            <span class="h-px flex-1 bg-line" />
+                            <button
+                                class="text-[11px] text-muted transition-colors hover:text-ink"
+                                onClick={clearRuns}
+                            >
+                                Clear
+                            </button>
+                        </div>
+                        <For each={modelRuns()}>{(run) => <RunRow run={run} />}</For>
+                    </Show>
                 </div>
 
                 <div class="mt-4 flex items-center gap-3">

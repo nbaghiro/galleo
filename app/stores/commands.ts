@@ -1,6 +1,7 @@
 import { registerCommands } from "@ui/keys";
 import { openGenerate } from "./generate";
 import { openThemeEditor } from "./theme";
+import { modelDebugAvailable, openModelDebug } from "../components/ModelDebug";
 import { toggleChat } from "./chat";
 import { logout } from "./auth";
 import { go } from "./navigate";
@@ -44,6 +45,16 @@ registerCommands([
         keywords: ["create", "new", "generate"],
         slash: "/generate",
         run: () => openGenerate(),
+    },
+    {
+        id: "debug.models",
+        title: "Models: pick one per step",
+        group: "file",
+        icon: "sparkle",
+        keywords: ["model", "debug", "gpt", "claude", "gemini", "override"],
+        slash: "/models",
+        when: () => modelDebugAvailable(),
+        run: () => openModelDebug(),
     },
     {
         id: "theme.open",
