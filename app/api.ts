@@ -87,14 +87,14 @@ export interface WorkspaceState {
 export interface FeaturesState {
     features: Features;
     status: Record<FeatureKey, FeatureStatus>;
-    modelDebug: ModelDebugInfo | null;
+    models: ModelCatalogue;
 }
 
-// present only when the server honours x-galleo-models; null otherwise (production default)
-export interface ModelDebugInfo {
+export interface ModelCatalogue {
     tasks: string[];
     models: { id: string; label: string; provider: string }[];
     defaults: Record<string, string>; // already resolved for this workspace's tier
+    rates: Record<string, number>; // credit multiplier per model, baseline 1.0
 }
 
 type ApiCoverShape = { eyebrow?: string; title?: string; sub?: string; image?: string };

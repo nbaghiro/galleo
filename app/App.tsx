@@ -24,7 +24,7 @@ import { TemplatesView } from "./views/TemplatesView";
 import { MediaPicker } from "./components/MediaPicker";
 import { VerifyBanner } from "./components/VerifyBanner";
 import { ShareModal } from "./components/ShareModal";
-import { ModelDebugModal } from "./components/ModelDebug";
+import { ModelPickerModal } from "./components/ModelPicker";
 import { ErrorModal } from "./components/ErrorModal";
 import { ThemeEditor } from "./views/ThemeEditor";
 import { TrashView } from "./views/TrashView";
@@ -56,7 +56,7 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => {
             <ThemeEditor />
             <MediaPicker />
             <ShareModal />
-            <ModelDebugModal />
+            <ModelPickerModal />
             <ErrorModal />
             <ChatPanel />
             <CommandPalette />

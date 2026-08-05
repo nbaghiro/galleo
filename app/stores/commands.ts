@@ -1,7 +1,7 @@
 import { registerCommands } from "@ui/keys";
 import { openGenerate } from "./generate";
 import { openThemeEditor } from "./theme";
-import { modelDebugAvailable, openModelDebug } from "../components/ModelDebug";
+import { modelPickerReady, openModelPicker } from "../components/ModelPicker";
 import { toggleChat } from "./chat";
 import { logout } from "./auth";
 import { go } from "./navigate";
@@ -53,8 +53,8 @@ registerCommands([
         icon: "sparkle",
         keywords: ["model", "debug", "gpt", "claude", "gemini", "override"],
         slash: "/models",
-        when: () => modelDebugAvailable(),
-        run: () => openModelDebug(),
+        when: () => modelPickerReady(),
+        run: () => openModelPicker(),
     },
     {
         id: "theme.open",

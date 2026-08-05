@@ -19,8 +19,6 @@ import {
 import { overlayThemeVars } from "../stores/theme";
 import { clearModelOverrides, overrideCount } from "../stores/models";
 
-// only reachable when the server says it will honour the header
-
 // in the order a generation walks through them
 const STEPS: { task: string; label: string; note: string }[] = [
     { task: "brief", label: "Brief", note: "Expands a one-line prompt into goal, audience, tone" },
@@ -35,10 +33,10 @@ const STEPS: { task: string; label: string; note: string }[] = [
 ];
 
 const [open, setOpen] = createSignal(false);
-export const openModelDebug = (): void => {
+export const openModelPicker = (): void => {
     setOpen(true);
 };
-export const modelDebugAvailable = (): boolean => !!featuresState()?.modelDebug;
+export const modelPickerReady = (): boolean => !!featuresState()?.models;
 
 const Row: Component<{
     step: { task: string; label: string; note: string };
@@ -105,8 +103,8 @@ const RunRow: Component<{ run: RunRecord }> = (props) => {
     );
 };
 
-export const ModelDebugModal: Component = () => {
-    const info = () => featuresState()?.modelDebug ?? null;
+export const ModelPickerModal: Component = () => {
+    const info = () => featuresState()?.models ?? null;
 
     // no "server default" entry: the server's own choice is preselected, so the list is only models
     const options = createMemo(() =>
@@ -130,9 +128,8 @@ export const ModelDebugModal: Component = () => {
                     <div>
                         <h2 class="text-[16px] font-semibold text-ink">Models</h2>
                         <p class="mt-0.5 text-[12px] text-soft">
-                            Pick the model each step runs on, and see what recent runs used. Local
-                            to this browser, and only honoured while the server has the debug flag
-                            on.
+                            Pick the model each step runs on, and see what recent runs used. Kept in
+                            this browser, so it follows you rather than the workspace.
                         </p>
                     </div>
                     <IconButton onClick={() => setOpen(false)}>

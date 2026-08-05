@@ -5,7 +5,7 @@ import { folders } from "../stores/folders";
 import { artifacts, relativeTime } from "../stores/library";
 import { ensureLibrary } from "../stores/library";
 import { openGenerate } from "../stores/generate";
-import { modelDebugAvailable, openModelDebug } from "./ModelDebug";
+import { modelPickerReady, openModelPicker } from "./ModelPicker";
 import { modelRuns, stepSummary } from "../stores/model-usage";
 import { go } from "../stores/navigate";
 import {
@@ -103,7 +103,7 @@ const MODELS = { id: "models", label: "Model runs", order: 40 };
 registerPaletteSource({
     id: "models",
     section: MODELS,
-    when: () => modelDebugAvailable(),
+    when: () => modelPickerReady(),
     local: (query) => {
         if (!/^\/?mod/i.test(query)) return [];
         void ensureLibrary(); // opened from the editor, the titles and covers are not loaded yet
@@ -117,7 +117,7 @@ registerPaletteSource({
                 subtitle: stepSummary(run) || "no steps recorded",
                 meta: relativeTime(new Date(run.at).toISOString()),
                 thumb: () => <ArtifactThumb cover={art?.cover} />,
-                run: () => (art ? go(`/edit/${art.id}`) : openModelDebug()),
+                run: () => (art ? go(`/edit/${art.id}`) : openModelPicker()),
             };
         });
     },
