@@ -360,8 +360,8 @@ a capability's progress events up to its shell, where a `narration` becomes the 
   (edit a named library artifact by id), and the management set — `rename-` / `move-` / `duplicate-` /
   `trash-` / `restore-artifact`, `create-folder`, `share-artifact`, `export-artifact`. All of it stands down
   mid-run: inside a generation there is nothing to create and nothing else to reorganize.
-- **Generating only** (`context.generation` present), both local `tool()`s in `chat.ts` rather than registry
-  capabilities, because neither makes a sub-model call and both resolve on the client:
+- **Generating only** (`context.generation` present), all three local `tool()`s in `chat.ts` rather than
+  registry capabilities, because none makes a sub-model call and all resolve on the client:
     - `revise-outline` — add / update / remove / move beats in one call, changing the PLAN. The agent writes
       the beat content itself, so there is nothing to meter; ids it invents for new beats are re-assigned by
       the studio.
@@ -372,6 +372,13 @@ a capability's progress events up to its shell, where a `narration` becomes the 
       ones already written, telling the model which. Without it the agent's nearest match was `add-section`,
       which mints a _new_ section beside the plan and leaves the planned beat unwritten — the outline and the
       piece drift apart. The prompt says so explicitly.
+    - `steer-sections` — set the standing note every section still to be written must follow, which the
+      studio threads into each `build` turn as `input.steer`. It is the one generate-surface tool applied on
+      arrival rather than proposed: it writes nothing, costs nothing, and asking the user to confirm their own
+      instruction reads as a stall. The card it leaves in the thread is the record, and carries a Clear. One
+      note is in force at a time, an empty note clears it, and `ChatGeneration.steer` reports the current one
+      back so a follow-up amends rather than repeats. This replaced a text field in the studio rail: a
+      standing instruction is a thing you say, not a control you fill in.
 - **`rewrite-passage`** (content-scoped) — reword ONE passage inside a written section rather than the
   whole thing: `sectionId` + `find` (copied verbatim) + `instruction`. `services/ai/passage.ts` locates the
   text node (normalized exact match, else the _shortest_ containing node, so a common word lands on the
@@ -460,13 +467,40 @@ still be moved to a heavier model in isolation.
 thinkless — except **chat**, which passes its own `thinkingConfig.includeThoughts: true` and streams
 Gemini's summarized thoughts as `chat.reasoning`.
 
-Plan tiers (`modelFor(task, tier)`) resolve identically today: `BASIC_OVERRIDES` is empty because no task
-runs a pro-class model. The seam stays wired for the moment one earns it on paid plans.
+Plan tiers (`modelFor(task, tier, overrides)`) resolve identically today: `BASIC_OVERRIDES` is empty because
+no task runs a pro-class model. The seam stays wired for the moment one earns it on paid plans.
 
 Google leads because one `GOOGLE_API_KEY` also powers image (and, ahead, video) generation; Anthropic
-(Opus 4.8 / Sonnet 5 / Haiku 4.5), OpenAI (GPT-5 / GPT-5 mini), and xAI (Grok 4) stay registered for override.
-Routes reference tasks, never raw ids, so re-tuning is one line. `provider.ts` builds one lazy SDK client per
-provider and `aiReady()` lets a route degrade to 503 instead of throwing when no key is set.
+(Fable 5 / Opus 5 / Opus 4.8 / Sonnet 5 / Haiku 4.5), OpenAI (GPT-5.5 / 5.4 / 5.4 mini), and xAI (Grok 4)
+stay registered for override. Routes reference tasks, never raw ids, so re-tuning is one line.
+`provider.ts` builds one lazy SDK client per provider and `aiReady()` lets a route degrade to 503 instead
+of throwing when no key is set.
+
+**Sampling knobs are not universal.** Current Claude models (Fable 5, Opus 5, Opus 4.8, Sonnet 5) reject
+`temperature`/`top_p`/`top_k` with a 400, so no call passes a bare `temperature:`. Every site goes through
+`samplingFor(id, t)`, which returns `{}` for those models and `{ temperature: t }` for the rest. A model
+added to the registry declares this with `sampling: false`.
+
+### 9.1 Per-step model override (debug)
+
+Any AI call may be pointed at a different model per task, so a run can be compared step by step without a
+deploy. It is a debugging affordance rather than a product feature: model choice changes what a call costs
+us while the user is still charged the same flat per-tool price, so it is gated at both ends.
+
+```
+client  app/stores/models.ts        localStorage {task: "provider:model"}, sent as one header
+        ↓  x-galleo-models          on /features-authenticated fetches, /ai/turn, and the SSE posts
+server  services/api/model-debug.ts overridesFrom(c) → {} unless AI_MODEL_DEBUG=1
+        ↓  RunOpts.models           threaded to modelFor() at every resolution point,
+        ↓  ToolContext.models       including tools the agent invokes mid-turn
+readout narration "Model override"  emitted by plan / generate / build turns when one applied
+```
+
+`parseOverrides` keeps only known task ids and only model ids the registry actually serves, so a stale or
+hand-edited header can never route a call to nothing. `GET /features` returns `modelDebug: { tasks, models }`
+when the flag is on and `null` otherwise, and the client renders the picker (⌘K → "models") only in the
+first case: offering a choice the server will ignore is worse than offering none. Set `AI_MODEL_DEBUG=1`
+locally; leave it unset everywhere else.
 
 ## 10. The prompt system (`services/ai/prompts/`) — the playbook
 

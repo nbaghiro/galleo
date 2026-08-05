@@ -57,6 +57,15 @@ with high-fidelity export. Net-new, TypeScript.
   `var(--radius)`… — zero hardcoded colors, so it recolors with the theme), forward native attrs + `class`
   via `splitProps`, and import nothing above `@ui` (`model` + `canvas` + `@themes` only). Catalog + build
   spec: `.docs/frontend.md`.
+- **Responsive — three tiers, not one sweep.** `@ui/viewport` owns the policy (`tierFor`, `surfaceAllowed`,
+  `isPhone`/`isCoarsePointer`/`canEditHere`): **consume** (publish, present) works everywhere, **manage**
+  (library, templates, shared, trash, settings, pricing) is responsive down to phone via the sidebar drawer,
+  **manipulate** (the editor's canvas) is tablet + desktop; on phones `/edit/:id` redirects to the
+  read-only preview instead of a crammed canvas. What decides a tier is how you author, not whether you create: instructed authoring (the
+  generation studio, theme prompts) is a form plus a result and runs on a phone. Breakpoints mirror Tailwind's scale, so `md:` and `isPhone()` must
+  agree. Use `h-dvh` never `h-screen`; `IconButton size="touch"` is the 44px hit target; content reflow
+  belongs to the engine (`splitMinWidth` + `stacksAtWidth`), not to per-view CSS. Full rules:
+  `.docs/frontend.md`.
 - **Path aliases** (directory aliases): `@model`, `@themes`, `@engine`, `@elements`, `@canvas`, `@ui`,
   `@editor` (e.g. `@model/artifact`, `@ui/button`). Backend + frontend both import the shared wire shapes
   from `@model` + `@themes`; `services` otherwise use relative imports.

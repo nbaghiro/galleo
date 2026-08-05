@@ -12,3 +12,6 @@ coverage/
 
 # transient probe dir from scripts/check-boundaries.mjs
 canvas/boundary-check-*/
+
+# local PDF exports of the .docs markdown (generated, never the source of truth)
+.docs/*.pdf

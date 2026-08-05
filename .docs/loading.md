@@ -67,10 +67,21 @@ client would otherwise do with sections nobody is looking at.
 ### Placeholders
 
 `loadArtifactWindow` (in `editor/core/store.ts`) builds the section array from the index: real sections
-where they arrived, and a stub `{ id, root: emptyRegion() }` everywhere else, with the byte size the
-digest recorded kept in a `pending` map. The canvas reserves each placeholder's estimated height and
-requests it as the window approaches (`requestSections`). Resolution replaces the stub in place without
-bumping `editSeq`, so a load is never mistaken for an edit and never triggers a save.
+where they arrived, and a stub `{ id, root: emptyRegion() }` everywhere else, with the digest's summary
+for each one kept in a `pending` map. Resolution replaces the stub in place without bumping `editSeq`,
+so a load is never mistaken for an edit and never triggers a save. A response that arrives after the
+user has switched artifacts is dropped: section ids are per-artifact and collide readily, so applying
+one by id into whatever is loaded now would splice a section from one document into another.
+
+A placeholder is not a blank box. The digest knows each section's `kind` and `title`, so
+`layoutPlaceholder` (`canvas/render/placeholder.ts`) paints a stand-in of the right shape with the real
+heading in it: a chart panel with bars, a media block, a run of prose lines, three stat panels. It is
+built from engine nodes and laid out through the normal path, at exactly the height the stack reserves,
+so resolving the real content moves nothing above it. Scrolling through an unloaded stretch reads as a
+document rather than a grey void, which is what makes fast scrolling survivable.
+
+Once a section has been painted, its measured height is remembered per width bucket
+(`rememberHeight`/`knownHeight`) and beats the byte estimate the next time that section is reserved.
 
 A history snapshot taken while a section was still a placeholder would un-load it on undo, so undo and
 redo pass their content through `hydrate`, which swaps a stub for its resolved section **by object
@@ -137,6 +148,30 @@ for materialized sections, so the hit-test array is bounded by the viewport rath
 placeholder resolves at a height different from its estimate and it sat above the viewport, the canvas
 absorbs the difference into `scrollTop` so the reader's place holds.
 
+### Painting follows the finger, fetching follows the eye
+
+They are different clocks. Every scroll repaints, which is cheap and never touches the network.
+Requests run on a settle timer instead: about 100ms after the window stops moving,
+`planSectionRequests` picks one batch, and only then. A fling across eighty sections therefore costs
+one request for the few the viewer lands on, rather than a batch per repaint for sections they have
+already passed.
+
+The policy itself is pure (`planSectionRequests`, `viewIsCold`): everything on screen, ordered by
+distance from the middle of the view, then a lead of one viewport **in the direction of travel only**.
+The cap bounds the lead, not the view, so a tall monitor showing a dozen short sections requests all
+twelve; nothing visible is ever left as a stand-in because a limit ran out. One exception skips the
+settle: when the visible band holds nothing but placeholders, the batch goes out immediately, because
+that is the case the viewer would actually feel waiting for.
+
+The library's filmstrip is the same idea on a horizontal axis, with the browser answering the
+visibility question rather than arithmetic. A card renders one tile per section in the digest, so the
+strip is its true length from the first frame; a tile paints the stand-in until its section arrives;
+and each tile is observed individually, so what loads is what the viewer can see. A wide monitor
+showing twelve tiles loads twelve, a phone showing two loads two. An `IntersectionObserver` against the
+viewport already accounts for the strip's horizontal clipping, so one observer covers both axes and
+neither needs tile geometry. Requests split into batches of 8 rather than truncating, and sections are
+held per artifact in an LRU of 30 cards, so scrolling a long library does not accumulate it.
+
 The same window drives the continuous Present surface (and therefore the public viewer) and the preview
 canvas in the templates and share modals. Present's paged mode no longer lays out every section just to
 compute the slide total: it counts up to one section ahead of the viewer and treats the rest as one
@@ -152,9 +187,9 @@ editor has this. The model-level search built in `search.md` is the answer, as a
 
 ## What this leaves for later
 
-- **Server-rendered thumbnails.** Superseded for now: a card fetches 6 sections rather than a whole
-  artifact, so a raster pipeline would buy little and needs a rasterizer decision (services cannot
-  import `canvas`, so it would mean a node-side renderer or a client-side upload path).
+- **Server-rendered thumbnails.** Superseded for now: a card fetches the tiles it can see rather than a
+  whole artifact, so a raster pipeline would buy little and needs a rasterizer decision (services
+  cannot import `canvas`, so it would mean a node-side renderer or a client-side upload path).
 - **Progressive first layout.** At 500-plus sections the single layout pass (a few hundred milliseconds
   with real text metrics) becomes the cost. The fix is to lay out the first window synchronously and
   continue in idle chunks, growing the stage below the scroll position. The `window` parameter is the
@@ -169,8 +204,9 @@ editor has this. The model-level search built in `search.md` is the answer, as a
 | Section ops                      | `model/__tests__/content.test.ts`              | apply (set/insert/remove/order/shell), whole-batch rejection, diff by identity, round-trip                                                                                       |
 | Digest index                     | `model/__tests__/digest.test.ts`               | per-section id + serialized size                                                                                                                                                 |
 | Paging, windowed read, ops route | `services/api/__tests__/paging.itest.ts`       | cursor walk with no repeats or gaps, A–Z keyset, folder/format/trash scoping, malformed cursor and window, section slices by id and range, op application and 409, folder counts |
-| Paint windowing                  | `canvas/render/__tests__/backends.dom.test.ts` | identical geometry windowed vs not, only intersecting layers, regions filtered, layer released on exit, placeholder heights                                                      |
-| Window math                      | `canvas/render/__tests__/window.test.ts`       | overscan band, repaint threshold, height estimates per format                                                                                                                    |
-| Windowed store                   | `editor/core/__tests__/windowed.test.ts`       | placeholder placement, resolution without an edit, request dedupe, `ensureAllSections`, undo across a resolution                                                                 |
+| Paint windowing                  | `canvas/render/__tests__/backends.dom.test.ts` | identical geometry windowed vs not, only intersecting layers, regions filtered, layer released on exit, stand-in painted and excluded from hit-testing, repaint on resolve       |
+| Window math and policy           | `canvas/render/__tests__/window.test.ts`       | overscan band, repaint threshold, height estimates, nearest-first batching, directional lead, cap, cold-view detection                                                           |
+| Stand-ins                        | `canvas/render/__tests__/placeholder.test.ts`  | real title painted, shape per kind, reserved height matches the stack's, stays inside its box                                                                                    |
+| Windowed store                   | `editor/core/__tests__/windowed.test.ts`       | placeholder placement, resolution without an edit, request dedupe, `ensureAllSections`, undo across a resolution, late responses dropped after a switch, remembered heights      |
 | Autosave                         | `app/stores/__tests__/save.test.ts`            | one-section diffs, baseline advance, structural ops, whole-document fallback, no fallback when windowed, retry                                                                   |
-| Library paging                   | `app/stores/__tests__/library-paging.test.ts`  | filters on the wire, append and dedupe, exhaustion, failure keeps the cursor, per-card fetch and dedupe                                                                          |
+| Library paging                   | `app/stores/__tests__/library-paging.test.ts`  | filters on the wire, append and dedupe, exhaustion, failure keeps the cursor, per-tile batching, merge, batch cap, LRU eviction                                                  |

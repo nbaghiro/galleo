@@ -74,14 +74,14 @@ gained `at`/`align` — additive and backward-compatible.)
 
 ### `button.tsx`
 
-| Component    | Lvl | Props                                                                                                                                          |
-| ------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Button`     | B   | `variant: primary\|outline\|tool\|ghost\|danger` · `size: sm\|md\|lg` · `rounded?: md\|lg\|xl\|full` · `loading?` · `disabled?` · native attrs |
-| `IconButton` | B   | `size: xs\|sm\|md\|lg\|xl` (h-5/6/7/8/9) · `rounded?` · `tone: muted\|soft\|onDark` · `active?` · `bordered?` · `title`                        |
-| `Chip`       | B   | `variant: outline\|solid` · `selected?` · `onClick?`                                                                                           |
-| `Badge`      | B   | `tone: accentSoft\|accentSolid\|muted`                                                                                                         |
-| `Spinner`    | B   | `size?` · `tone: accent\|current\|line`                                                                                                        |
-| `Eyebrow`    | B   | `tracking?: wide\|wider\|widest` · `size?` · `as?`                                                                                             |
+| Component    | Lvl | Props                                                                                                                                                                                 |
+| ------------ | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Button`     | B   | `variant: primary\|outline\|tool\|ghost\|danger` · `size: sm\|md\|lg` · `rounded?: md\|lg\|xl\|full` · `loading?` · `disabled?` · native attrs                                        |
+| `IconButton` | B   | `size: 2xs\|xs\|sm\|md\|lg\|xl\|touch` (h-3.5/5/6/7/8/9/11; `touch` is the 44px coarse-pointer target) · `rounded?` · `tone: muted\|soft\|onDark` · `active?` · `bordered?` · `title` |
+| `Chip`       | B   | `variant: outline\|solid` · `selected?` · `onClick?`                                                                                                                                  |
+| `Badge`      | B   | `tone: accentSoft\|accentSolid\|muted`                                                                                                                                                |
+| `Spinner`    | B   | `size?` · `tone: accent\|current\|line`                                                                                                                                               |
+| `Eyebrow`    | B   | `tracking?: wide\|wider\|widest` · `size?` · `as?`                                                                                                                                    |
 
 ### `inputs.tsx`
 
@@ -179,6 +179,86 @@ construction, not approximation. Three specifics:
 - **Non-color values** that vary by theme — corner radius, border width, shadow, heading weight — use
   `var(--radius)` etc. so shape tracks the theme too (a brutalist theme's square corners, a refined theme's
   round ones).
+
+## Viewport tiers and the responsive policy
+
+Galleo runs three kinds of surface, and they get different treatment on small screens rather than one
+uniform responsive sweep. `ui/viewport.ts` holds the whole policy: the breakpoints, the tier a width maps
+to, and which surfaces a tier admits.
+
+| Tier      | Width      | Admits                      |
+| --------- | ---------- | --------------------------- |
+| `phone`   | `< 768`    | consume, manage             |
+| `tablet`  | `768–1023` | consume, manage, manipulate |
+| `desktop` | `>= 1024`  | everything                  |
+
+`Surface` names only what can be withheld. Instructed authoring has no entry because it is never gated.
+
+- **Consume** (published links `/p/*`, `/present/:id`, `PresentSurface`) works on every tier. This is where
+  mobile traffic actually arrives, since someone shares a link and the recipient opens it on a phone, so it
+  is the tier with no exceptions.
+- **Manage** (library, templates, shared, trash, settings, pricing) is responsive down to phone: the
+  sidebar becomes an overlay drawer below `md`, driven by `openSidebar`/`closeSidebar` with a
+  `SidebarToggle` app bar that each view renders as the first child of its `<main>`.
+- **Manipulate** (the editor studio) is direct manipulation on a canvas, with drag-drop, resize handles, and
+  an inspector docked beside the work. It needs pointer precision and panel room, so on a phone `EditorView`
+  redirects to `/present/:id`, the read-only preview. Every route into the editor (library, templates, chat
+  proposals, a finished generation) funnels through `/edit/:id`, so that one redirect covers them all.
+  Withholding it is deliberate: a version of it crammed onto a phone would be worse than not offering it.
+- **Instructed authoring** (the generation studio, the theme editor's prompt tabs) is a form plus a result,
+  so it runs on every tier. The distinction that predicts whether a surface survives a small screen is how
+  you author, not whether you create. An earlier version of this policy split on create-vs-not and was wrong
+  twice, hiding both AI generation and the theme editor's Customize and Generate tabs from phones. On a
+  phone the generation studio switches its console rail from a column beside the board to an alternate pane
+  toggled from the transport bar, reorders the outline through the card's own move controls rather than
+  drag-drop, and lets the engine reflow section content at phone width (`app/views/generate/layout.ts` holds
+  the tier decisions, unit-tested). "New artifact" opens it directly on a phone, skipping the create modal,
+  whose blank-format options would land in an editor the phone redirects away from.
+
+```ts
+import { canEditHere, isCoarsePointer, isPhone, tierFor } from "@ui/viewport";
+```
+
+`tierFor` and `surfaceAllowed` are pure and unit-tested (`ui/__tests__/viewport.test.ts`). The signals
+behind `isPhone` / `isCoarsePointer` listen on the tier boundaries through `matchMedia`, so they fire once
+per crossing rather than once per frame of a drag-resize. Breakpoints mirror Tailwind's default scale, so
+`md:` in a class list and `isPhone()` in Solid agree on where a tier starts; changing one without the other
+splits the layout.
+
+**The rules for every `@ui` component:**
+
+- **CSS first, signals second.** Use `md:` utilities for layout that only changes shape. Reach for the
+  signals when a component should not mount at all, because the engine paints imperatively into refs and
+  `hidden md:block` still costs a full paint.
+- **Touch targets.** `IconButton size="touch"` is the 44px minimum. The other sizes run 14px to 36px, which
+  is fine under a mouse and too small under a thumb, so anything a coarse pointer drives switches on
+  `isCoarsePointer()`.
+- **Safe areas.** All three HTML entries set `viewport-fit=cover`, so `env(safe-area-inset-*)` resolves to
+  real values. `FloatingBar`'s `bottomCenter` anchor already clears the home indicator, and the insets
+  collapse to zero everywhere else, so this costs desktop nothing.
+- **Viewport height.** Use `h-dvh`, never `h-screen`. `100vh` on mobile resolves against the large viewport
+  and hides content under the browser toolbar. The body never scrolls, so `dvh` settles instead of
+  thrashing.
+- **Gestures.** `ui/gesture.ts` holds the pure classification (`classifySwipe`, `tapZone`) with the
+  thresholds as named constants; `PresentSurface` and the editor's `Present` feed it raw pointer deltas.
+  Both keep the presenter convention on a fine pointer (click anywhere advances) and add swipe plus a
+  leading-edge back zone on a coarse one.
+
+**Engine reflow.** The tiers above are chrome. Content reflows in the paint layer instead, so every surface
+(editor, present, publish, export) agrees without each one re-deciding. Each format profile carries a
+`splitMinWidth`, and `stacksAtWidth` in `@engine/profile` turns a `row` group into a column below it,
+dropping the column fractions so each block takes the full width.
+
+| Format | `splitMinWidth` | Behavior on a phone                                                    |
+| ------ | --------------- | ---------------------------------------------------------------------- |
+| `deck` | 520             | never stacks: a slide lays out at its fixed page width and letterboxes |
+| `doc`  | 560             | stacks (a 390px viewport leaves ~226px of content column)              |
+| `web`  | 720             | stacks, and already stacks at tablet portrait                          |
+
+The decision reads `ctx.availWidth`, which `composeSection` sets to the real content column (section width
+minus padding and gutter). It is exact for the section's top-level row, the one that carries the split. A
+nested row inherits that figure and so stacks a step late, which self-corrects: once the outer row stacks,
+its children really do get the full width.
 
 ## Framework-free geometry helpers (`canvas/render/backends.ts`)
 

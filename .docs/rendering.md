@@ -345,7 +345,8 @@ whole interaction:
 per-section layer cache, §9) and gets back `{tops, regions, height}`. The draw is **windowed**: every
 section is laid out, so `tops`/`height` (and therefore the scrollbar) stay exact, but only the sections
 intersecting the viewport band are materialized, and only those contribute regions — nothing off-screen
-can be hovered anyway. See `loading.md`. It publishes `regions` _and_
+can be hovered anyway. A section whose content hasn't loaded paints a kind-aware stand-in with its real
+title (`canvas/render/placeholder.ts`) instead of a blank box. See `loading.md`. It publishes `regions` _and_
 pre-parses them once into a flat `liveHits` array of `{target, specificity, box}`, so a hover test is a
 numeric box-scan, not id-parsing per pointer move:
 
