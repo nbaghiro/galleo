@@ -138,6 +138,13 @@ export function mix(a: string, b: string, t: number): string {
 
 // hex → rgba() with alpha a; non-6-digit → unchanged
 export function hexA(hex: string, a: number): string {
+    // an rgba input keeps its channels and scales the alpha it already carries
+    const rgba = hex.match(/^rgba?\(([^)]+)\)/i);
+    if (rgba) {
+        const p = rgba[1]!.split(",").map((x) => parseFloat(x.trim()));
+        if (p.length < 3 || p.some((n) => Number.isNaN(n))) return hex;
+        return `rgba(${p[0]}, ${p[1]}, ${p[2]}, ${(p[3] ?? 1) * a})`;
+    }
     const h = hex.replace("#", "");
     if (h.length < 6) return hex;
     const r = parseInt(h.slice(0, 2), 16);
