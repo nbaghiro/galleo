@@ -57,6 +57,13 @@
       "when": 1785863488652,
       "tag": "0007_magical_ser_duncan",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785950528158,
+      "tag": "0008_nice_vermin",
+      "breakpoints": true
     }
   ]
 }

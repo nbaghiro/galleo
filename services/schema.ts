@@ -15,6 +15,7 @@ import {
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import type { GenMeta } from "@model/genmeta";
 import type { ArtifactDigest } from "@model/artifact";
 import type { FeatureOverrides } from "@model/features";
 
@@ -153,6 +154,8 @@ export const artifacts = pgTable(
         // derived from draft_content on every write (@model/digest), so lists never read the trees back
         digest: jsonb("digest").$type<ArtifactDigest>(),
         searchText: text("search_text"),
+        // provenance for AI-generated artifacts: the brief and the model behind each step
+        aiMeta: jsonb("ai_meta").$type<GenMeta>(),
         searchTsv: tsvector("search_tsv").generatedAlwaysAs(
             sql`setweight(to_tsvector('english', coalesce(title, '')), 'A') || setweight(to_tsvector('english', coalesce(search_text, '')), 'B')`,
         ),

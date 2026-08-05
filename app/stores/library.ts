@@ -1,4 +1,5 @@
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
+import type { GenMeta } from "@model/genmeta";
 import { emptyRegion } from "@model/section";
 import { createSignal } from "solid-js";
 import { api, type ArtifactSummary } from "../api";
@@ -287,6 +288,7 @@ export async function persistArtifact(
     content: ArtifactContent,
     title = artifactTitle(content),
     folderId: string | null = null,
+    aiMeta?: GenMeta,
 ): Promise<string | null> {
     try {
         const { id } = await api.createArtifact({
@@ -295,6 +297,7 @@ export async function persistArtifact(
             themeId: content.theme,
             draftContent: content,
             folderId,
+            ...(aiMeta ? { aiMeta } : {}),
         });
         const summary: ArtifactSummary = {
             id,
@@ -317,6 +320,7 @@ export async function updateArtifactContent(
     id: string,
     content: ArtifactContent,
     title?: string,
+    aiMeta?: GenMeta,
 ): Promise<boolean> {
     try {
         await api.saveArtifact(id, {
@@ -324,6 +328,7 @@ export async function updateArtifactContent(
             formatId: content.format,
             themeId: content.theme,
             draftContent: content,
+            ...(aiMeta ? { aiMeta } : {}),
         });
         setArtifacts(
             artifacts().map((d) =>

@@ -132,6 +132,7 @@ artifacts.post("/artifacts", async (c) => {
             digest: artifactDigest(body.draftContent),
             searchText: artifactSearchText(body.draftContent),
             folderId: body.folderId ?? null,
+            aiMeta: body.aiMeta ?? null,
             createdBy: u.id,
         })
         .returning({ id: schema.artifacts.id });
@@ -207,6 +208,21 @@ artifacts.get("/artifacts/:id", async (c) => {
             updatedAt: a.updatedAt,
         },
     });
+});
+
+artifacts.get("/artifacts/:id/ai-meta", async (c) => {
+    const u = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!u) return c.json({ error: "unauthorized" }, 401);
+    const ws = await firstWorkspaceId(u.id);
+    if (!ws) return c.json({ error: "no workspace" }, 400);
+    const [a] = await db
+        .select({ aiMeta: schema.artifacts.aiMeta })
+        .from(schema.artifacts)
+        .where(
+            and(eq(schema.artifacts.id, c.req.param("id")), eq(schema.artifacts.workspaceId, ws)),
+        );
+    if (!a) return c.json({ error: "not found" }, 404);
+    return c.json({ meta: a.aiMeta ?? null });
 });
 
 artifacts.get("/artifacts/:id/sections", async (c) => {
@@ -382,6 +398,8 @@ artifacts.patch("/artifacts/:id", async (c) => {
         patch.searchText = artifactSearchText(body.draftContent);
     }
     if (body.folderId !== undefined) patch.folderId = body.folderId;
+    // a run saves its content first and its provenance with the same call, so this arrives on PATCH too
+    if (body.aiMeta !== undefined) patch.aiMeta = body.aiMeta;
     // a folder-only move shouldn't reorder the library; bump updatedAt only for real edits
     if (
         body.title !== undefined ||

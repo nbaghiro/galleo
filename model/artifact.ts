@@ -1,3 +1,4 @@
+import type { GenMeta } from "./genmeta";
 import type { ElementLayout } from "@model/geometry";
 
 export type Id = string;
@@ -142,4 +143,5 @@ export interface ArtifactInput {
     formatId?: string;
     draftContent?: ArtifactContent;
     folderId?: string | null;
+    aiMeta?: GenMeta;
 }
