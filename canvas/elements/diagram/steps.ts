@@ -3,7 +3,6 @@ import {
     PAD,
     captionText,
     clamp,
-    inkOn,
     nodeText,
     registerDiagram,
     stackedLabel,
@@ -32,7 +31,7 @@ const steps: Renderer = (diagram, ctx) => {
         const fill = hexA(cols[i]!, 0.14);
         g.rect(x, y, stepW, h, { fill, stroke: cols[i]!, width: 1.5, radius: 10 });
         // the label rides the tread, so captions line up with the climb
-        const ink = inkOn(theme.surface, theme);
+        const ink = theme.ink;
         stackedLabel(
             g,
             item,

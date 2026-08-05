@@ -7,7 +7,6 @@ import {
     diagramColors,
     formatItems,
     getDiagram,
-    inkOn,
     labelsOf,
     layoutTree,
     normalizeDiagram,
@@ -15,7 +14,6 @@ import {
 import { num, str } from "@elements/coerce";
 import { DIAGRAM_TYPES } from "@model/elements";
 import "@elements/register";
-import { contrastRatio } from "@themes";
 import { recordingDrawContext, tokens } from "@canvas/testkit";
 
 // DrawCall fields are `unknown` (any op, any shape), so a recorded text style narrows before use.
@@ -129,13 +127,6 @@ describe("diagramColors", () => {
     it("returns opaque hex for both palettes, so fills can be measured and blended", () => {
         for (const mode of ["ramp", "categorical"] as const)
             for (const c of diagramColors(tokens, 5, mode)) expect(c).toMatch(/^#[0-9a-f]{6}$/i);
-    });
-});
-
-describe("inkOn", () => {
-    it("picks a label color that clears AA against the fill it sits on", () => {
-        for (const bg of ["#ffffff", "#101010", tokens.accent, "#7f7f7f"])
-            expect(contrastRatio(inkOn(bg, tokens), bg)).toBeGreaterThanOrEqual(4.5);
     });
 });
 

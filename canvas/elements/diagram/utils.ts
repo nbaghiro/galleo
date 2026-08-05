@@ -1,7 +1,7 @@
 import type { DrawContext, DrawStyle, DrawTextStyle, PathSink, Rect } from "@engine/node";
 import type { Tokens } from "@themes";
 import type { DiagramFlow } from "@model/elements";
-import { contrastRatio, fontStack, hexA, luminance, mix } from "@themes";
+import { fontStack, hexA, luminance, mix } from "@themes";
 import { PALETTE_MODES, seriesColors, type PaletteMode } from "@elements/chart/utils";
 import { num, oneOf, str } from "@elements/coerce";
 import { DIAGRAM_FLOWS } from "@model/elements";
@@ -163,14 +163,6 @@ export function diagramColors(theme: Tokens, n: number, mode: PaletteMode): stri
     );
 }
 
-// by measured contrast; black/white always clears AA where the theme inks don't
-export function inkOn(bg: string, theme: Tokens): string {
-    const onInk = contrastRatio(theme.ink, bg);
-    const onAccent = contrastRatio(theme.onAccent, bg);
-    if (Math.max(onInk, onAccent) >= 4.5) return onInk >= onAccent ? theme.ink : theme.onAccent;
-    return contrastRatio("#ffffff", bg) >= contrastRatio("#000000", bg) ? "#ffffff" : "#000000";
-}
-
 export const nodeFont = (t: Tokens): string => fontStack("ui", t);
 
 export const nodeText = (theme: Tokens, extra?: Partial<DrawTextStyle>): DrawTextStyle => ({
@@ -302,7 +294,7 @@ export interface NodePaint {
 // solid fill, no outline: the way charts draw a mark
 export function nodePaint(color: string, theme: Tokens, over?: Partial<NodePaint>): NodePaint {
     const fill = over?.fill ?? color;
-    const ink = over?.ink ?? inkOn(fill.startsWith("#") ? fill : paper(theme), theme);
+    const ink = over?.ink ?? (luminance(fill) < 0.5 ? theme.onAccent : theme.ink);
     return { fill, stroke: over?.stroke, width: over?.width, ink, dim: hexA(ink, 0.7) };
 }
 
@@ -531,14 +523,13 @@ export function bandStack(narrowTop: boolean): Renderer {
             );
             const my = (y0 + y1) / 2;
             const mw = Math.max(24, Math.min(h0, h1) * 2 - 12);
-            // measured against the band it sits on, rather than assuming onAccent reads on every colour
             centerLabel(
                 g,
                 item.label,
                 cx,
                 my,
                 mw,
-                nodeText(theme, { fill: inkOn(cols[i]!, theme) }),
+                nodeText(theme, { fill: luminance(cols[i]!) < 0.5 ? theme.onAccent : theme.ink }),
             );
         });
     };

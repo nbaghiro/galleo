@@ -3,7 +3,6 @@ import {
     PAD,
     captionText,
     clamp,
-    inkOn,
     linkColor,
     nodeText,
     registerDiagram,
@@ -44,7 +43,7 @@ const roadmap: Renderer = (diagram, ctx) => {
             });
     });
 
-    const ink = inkOn(theme.surface, theme);
+    const ink = theme.ink;
     items.forEach((item, i) => {
         const y = track.y + i * (laneH + laneGap);
         // each lane starts a column later than the one above, wrapping before it runs off the track

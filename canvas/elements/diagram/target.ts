@@ -1,7 +1,6 @@
 import { hexA } from "@themes";
 import {
     captionText,
-    inkOn,
     linkColor,
     nodeText,
     paper,
@@ -38,7 +37,7 @@ const target: Renderer = (diagram, ctx) => {
             sx + (sideW - 16) / 2,
             ly,
             sideW - 16,
-            nodeText(theme, { fill: inkOn(paper(theme), theme), size: 12 }),
+            nodeText(theme, { fill: theme.ink, size: 12 }),
             captionText(theme, { fill: theme.soft }),
         );
     });
