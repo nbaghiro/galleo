@@ -1,8 +1,8 @@
 import type { DrawContext, DrawStyle, DrawTextStyle, PathSink, Rect } from "@engine/node";
 import type { Tokens } from "@themes";
 import type { DiagramFlow } from "@model/elements";
-import { fontStack, hexA, luminance, mix } from "@themes";
-import { PALETTE_MODES, seriesColors, type PaletteMode } from "@elements/chart/utils";
+import { fontStack, luminance } from "@themes";
+import { PALETTE_MODES, type PaletteMode } from "@elements/chart/utils";
 import { num, oneOf, str } from "@elements/coerce";
 import { DIAGRAM_FLOWS } from "@model/elements";
 import { hierarchy, tree, type HierarchyPointNode } from "d3-hierarchy";
@@ -145,24 +145,6 @@ export function formatItems(items: DiagItem[]): string {
     return items.map(one).join(rich ? "\n" : ", ");
 }
 
-// the on-dark tokens use rgba surfaces, so mixing needs an opaque stand-in
-export const isDarkTheme = (t: Tokens): boolean => luminance(t.ink) > 0.6;
-
-export function paper(theme: Tokens): string {
-    const s = theme.surface;
-    return s.startsWith("#") && s.length >= 7 ? s : isDarkTheme(theme) ? "#1e1e1e" : "#ffffff";
-}
-
-// opaque: the accent ramp's alpha steps can't be contrast-tested
-export function diagramColors(theme: Tokens, n: number, mode: PaletteMode): string[] {
-    if (mode === "categorical") return seriesColors(theme, n, "categorical");
-    const base = paper(theme);
-    const count = Math.max(1, n);
-    return Array.from({ length: count }, (_, i) =>
-        mix(theme.accent, base, Math.min(0.62, i * (count > 4 ? 0.13 : 0.16))),
-    );
-}
-
 export const nodeFont = (t: Tokens): string => fontStack("ui", t);
 
 export const nodeText = (theme: Tokens, extra?: Partial<DrawTextStyle>): DrawTextStyle => ({
@@ -294,8 +276,10 @@ export interface NodePaint {
 // solid fill, no outline: the way charts draw a mark
 export function nodePaint(color: string, theme: Tokens, over?: Partial<NodePaint>): NodePaint {
     const fill = over?.fill ?? color;
-    const ink = over?.ink ?? (luminance(fill) < 0.5 ? theme.onAccent : theme.ink);
-    return { fill, stroke: over?.stroke, width: over?.width, ink, dim: hexA(ink, 0.7) };
+    const dark = luminance(fill) < 0.5;
+    const ink = over?.ink ?? (dark ? theme.onAccent : theme.ink);
+    // no softer on-accent token exists, so a dark fill differentiates by size/weight (as treemap does)
+    return { fill, stroke: over?.stroke, width: over?.width, ink, dim: dark ? ink : theme.muted };
 }
 
 export const PAD = 14; // one inset for every type; charts get theirs from cartesianFrame
@@ -378,7 +362,7 @@ export function drawNode(
     stackedLabel(g, item, b.x + b.w / 2, b.y + b.h / 2, maxW, title, body);
 }
 
-export const linkColor = (theme: Tokens): string => mix(theme.line, theme.ink, 0.25);
+export const linkColor = (theme: Tokens): string => theme.muted;
 
 const HEAD_SPREAD = 0.42; // half-angle of the arrowhead barbs, radians
 const HEAD_SIZE = 6;
@@ -472,8 +456,8 @@ export function drawEdgeLabel(
     const w = g.measureText(text, style).width + 12;
     const h = 17;
     g.rect(x - w / 2, y - h / 2, w, h, {
-        fill: paper(theme),
-        stroke: mix(theme.line, paper(theme), 0.3),
+        fill: theme.surface,
+        stroke: theme.line,
         width: 1,
         radius: h / 2,
     });
@@ -500,8 +484,12 @@ export function bandStack(narrowTop: boolean): Renderer {
         const vals = items.map((i) => i.value);
         const scaled = !narrowTop && vals.every((v) => v !== undefined && v >= 0);
         const max = scaled ? Math.max(...(vals as number[])) || 1 : 1;
-        const halfFor = (i: number): number =>
-            Math.max(narrow * 0.5, ((vals[i] as number) / max) * wide);
+        // proportional, but never narrower than the band's own label needs
+        const halfFor = (i: number): number => {
+            const byValue = ((vals[i] as number) / max) * wide;
+            const byLabel = (g.measureText(items[i]!.label, nodeText(theme)).width + 24) / 2;
+            return clamp(Math.max(byValue, byLabel), narrow, wide);
+        };
         const halfAt = (y: number): number => {
             const t = (y - top) / (box.h || 1);
             return narrowTop ? narrow + (wide - narrow) * t : wide - (wide - narrow) * t;

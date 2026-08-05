@@ -2,7 +2,9 @@ import { hexA } from "@themes";
 import {
     PAD,
     captionText,
+    NODE_RADIUS,
     clamp,
+    nodePaint,
     linkColor,
     nodeText,
     registerDiagram,
@@ -43,8 +45,8 @@ const roadmap: Renderer = (diagram, ctx) => {
             });
     });
 
-    const ink = theme.ink;
     items.forEach((item, i) => {
+        const paint = nodePaint(cols[i]!, theme);
         const y = track.y + i * (laneH + laneGap);
         // each lane starts a column later than the one above, wrapping before it runs off the track
         const startCol = columns > 1 ? i % Math.max(1, columns - 1) : 0;
@@ -52,10 +54,8 @@ const roadmap: Renderer = (diagram, ctx) => {
         const x = track.x + startCol * colW;
         const w = Math.max(48, span * colW - 6);
         g.rect(x, y, w, laneH, {
-            fill: hexA(cols[i]!, 0.14),
-            stroke: cols[i]!,
-            width: 1.5,
-            radius: Math.min(10, laneH / 2),
+            fill: paint.fill,
+            radius: Math.min(NODE_RADIUS, laneH / 2),
         });
         const tx = x + 12;
         const maxW = Math.max(24, x + w - 10 - tx);
@@ -65,8 +65,8 @@ const roadmap: Renderer = (diagram, ctx) => {
             tx + maxW / 2,
             y + laneH / 2,
             maxW,
-            nodeText(theme, { fill: ink, size: 12.5 }),
-            laneH >= 46 ? captionText(theme, { fill: hexA(ink, 0.66) }) : undefined,
+            nodeText(theme, { fill: paint.ink, size: 12.5 }),
+            laneH >= 46 ? captionText(theme, { fill: paint.dim }) : undefined,
         );
     });
 };

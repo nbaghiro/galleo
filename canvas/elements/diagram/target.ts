@@ -3,7 +3,6 @@ import {
     captionText,
     linkColor,
     nodeText,
-    paper,
     registerDiagram,
     stackedLabel,
     type Renderer,
@@ -24,7 +23,7 @@ const target: Renderer = (diagram, ctx) => {
 
     // outermost first, so each inner ring paints over the one containing it
     items.forEach((item, i) => {
-        g.circle(cx, cy, rAt(i), { fill: cols[i]!, stroke: paper(theme), width: 1.5 });
+        g.circle(cx, cy, rAt(i), { fill: cols[i]!, stroke: theme.surface, width: 1.5 });
         const inner = i < n - 1 ? rAt(i + 1) : 0;
         const band = (rAt(i) - inner) / 2;
         const ly = cy - inner - band;
@@ -38,7 +37,7 @@ const target: Renderer = (diagram, ctx) => {
             ly,
             sideW - 16,
             nodeText(theme, { fill: theme.ink, size: 12 }),
-            captionText(theme, { fill: theme.soft }),
+            captionText(theme, { fill: theme.muted }),
         );
     });
 };

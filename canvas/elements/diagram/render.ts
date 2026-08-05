@@ -20,7 +20,8 @@ import "./flow";
 import type { DrawContext, Rect } from "@engine/node";
 import type { Tokens } from "@themes";
 import type { DiagramData } from "./utils";
-import { diagramColors, getDiagram, normalizeDiagram } from "./utils";
+import { getDiagram, normalizeDiagram } from "./utils";
+import { seriesColors } from "@elements/chart/utils";
 
 export function renderDiagram(g: DrawContext, box: Rect, data: DiagramData, theme: Tokens): void {
     const diagram = normalizeDiagram(data);
@@ -34,7 +35,7 @@ export function renderDiagram(g: DrawContext, box: Rect, data: DiagramData, them
         H: box.h,
         theme,
         opts: diagram.options,
-        colors: (n) => diagramColors(theme, n, palette),
+        colors: (n) => seriesColors(theme, n, palette),
     });
 }
 

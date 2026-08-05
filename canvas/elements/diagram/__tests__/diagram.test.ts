@@ -4,7 +4,6 @@ import {
     boxWidth,
     buildTree,
     clamp,
-    diagramColors,
     formatItems,
     getDiagram,
     labelsOf,
@@ -120,13 +119,6 @@ describe("formatItems", () => {
     });
     it("switches to newlines once any entry carries a detail", () => {
         expect(formatItems([{ label: "A", body: "x" }, { label: "B" }])).toBe("A | x\nB");
-    });
-});
-
-describe("diagramColors", () => {
-    it("returns opaque hex for both palettes, so fills can be measured and blended", () => {
-        for (const mode of ["ramp", "categorical"] as const)
-            for (const c of diagramColors(tokens, 5, mode)) expect(c).toMatch(/^#[0-9a-f]{6}$/i);
     });
 });
 

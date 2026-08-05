@@ -1,8 +1,9 @@
-import { hexA } from "@themes";
 import {
+    NODE_RADIUS,
     PAD,
     captionText,
     clamp,
+    nodePaint,
     nodeText,
     registerDiagram,
     stackedLabel,
@@ -28,18 +29,17 @@ const steps: Renderer = (diagram, ctx) => {
         const x = pad + i * (stepW + gap);
         const h = Math.max(34, span * ((i + 1) / n));
         const y = base - h;
-        const fill = hexA(cols[i]!, 0.14);
-        g.rect(x, y, stepW, h, { fill, stroke: cols[i]!, width: 1.5, radius: 10 });
+        const paint = nodePaint(cols[i]!, theme);
+        g.rect(x, y, stepW, h, { fill: paint.fill, radius: NODE_RADIUS });
         // the label rides the tread, so captions line up with the climb
-        const ink = theme.ink;
         stackedLabel(
             g,
             item,
             x + stepW / 2,
             clamp(y + 24, y + 14, y + h - 14),
             Math.max(24, stepW - 16),
-            nodeText(theme, { fill: ink }),
-            h >= BODY_ROOM ? captionText(theme, { fill: hexA(ink, 0.66) }) : undefined,
+            nodeText(theme, { fill: paint.ink }),
+            h >= BODY_ROOM ? captionText(theme, { fill: paint.dim }) : undefined,
         );
     });
 };

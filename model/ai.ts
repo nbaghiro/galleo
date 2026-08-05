@@ -654,7 +654,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 key: "items",
                 type: "text",
                 required: true,
-                desc: "the node labels, comma-separated — or one per line, which is required if any label contains a comma. An entry may add a short supporting phrase after a pipe ('Label | why it matters'), rendered smaller under the label by `process`, `matrix`, `steps`, `roadmap`, `hub`, `target` and `honeycomb` ONLY; every other type draws the label alone and silently drops it, so don't write one for them. A number after a second pipe ('Label | detail | 2') is read only by `roadmap`, where it sets how many columns the lane spans.",
+                desc: "the node labels, comma-separated — or one per line, which is required if any label contains a comma. An entry may add a short supporting phrase after a pipe ('Label | why it matters'), rendered smaller under the label by `process`, `matrix`, `steps`, `roadmap`, `hub`, `target` and `honeycomb` ONLY; every other type draws the label alone and silently drops it, so don't write one for them. A number after a second pipe ('Label | detail | 2') is read by `funnel`, where it sizes each band so the stages are proportional (give every stage one, or none), and by `roadmap`, where it sets how many columns the lane spans. Other types ignore it.",
             },
             {
                 key: "links",
