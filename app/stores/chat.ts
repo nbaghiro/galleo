@@ -1,5 +1,4 @@
 import type {
-    ChatBlock,
     ChatContext,
     ChatFocus,
     ChatGeneration,
@@ -42,27 +41,7 @@ import {
     restoreFromTrash,
 } from "./library";
 import { addFolder, folders } from "./folders";
-
-export type UIBlock =
-    | { k: "thinking"; steps: string[]; done: boolean }
-    | { k: "text"; text: string }
-    | { k: "tool"; blockId: string; tool: string; title: string; done: boolean; detail?: string }
-    | { k: "brief"; brief: GenBrief }
-    | { k: "draft"; draftId: string }
-    | {
-          k: "action";
-          blockId: string;
-          action: WorkspaceAction;
-          state: "pending" | "done" | "dismissed";
-      }
-    | { k: "widget"; blockId: string; block: ChatBlock; applied?: "applied" | "discarded" };
-
-export interface ChatMsg {
-    id: number;
-    role: "user" | "assistant";
-    blocks: UIBlock[];
-    streaming: boolean;
-}
+import { textInsertAt, type ChatMsg, type UIBlock } from "./chat-blocks";
 
 const [thread, setThread] = createStore<{ messages: ChatMsg[] }>({ messages: [] });
 export { thread };
@@ -73,8 +52,7 @@ export { busy };
 const [chatOpen, setChatOpen] = createSignal(false);
 export { chatOpen };
 
-// currentArtifactId lingers after navigating back to the library; gate on the real route so the agent
-// can't silently edit the last-opened artifact.
+// currentArtifactId lingers after leaving the editor; gating on the route stops silent edits
 const [editorActive, setEditorActive] = createSignal(false);
 export { editorActive, setEditorActive };
 
@@ -99,20 +77,18 @@ export function activeDraft(): Draft | null {
     return d && d.state === "live" ? d : null;
 }
 
-// The agent's subject, injected by whoever owns it. The editor is the implicit default; the
-// generation studio binds its live draft while it's open, so freeform edits mid-build run the
-// SAME agent, tools, and proposal path as editing a finished artifact.
+// the agent's subject: the editor by default, or the studio's live draft while it's open
 export interface ChatTarget {
     content: () => ArtifactContent;
     apply: (patch: Patch) => void;
     focus?: () => ChatFocus | undefined;
     artifactId?: () => string | undefined;
     label?: string; // what the composer calls it ("this draft")
-    // a live generation run: its presence switches the agent onto the generate surface, where the
-    // outline is the subject and starting a separate artifact isn't offered at all
+    // its presence switches the agent onto the generate surface, where the outline is the subject
     generation?: () => ChatGeneration | undefined;
     applyBeats?: (ops: OutlinePatch) => void;
     writeBeats?: (beatIds: string[]) => void;
+    setSteer?: (note: string) => void;
     imageSource?: () => "stock" | "ai" | undefined;
 }
 const [chatTarget, setChatTarget] = createSignal<ChatTarget | null>(null);
@@ -195,7 +171,7 @@ function meta(): Pick<ChatContext, "plan" | "credits"> {
 }
 
 function buildContext(): ChatContext {
-    // a bound target (the studio's live draft) outranks the editor — it's what's on screen
+    // a bound target outranks the editor: it's what's on screen
     const t = chatTarget();
     if (t) {
         const generation = t.generation?.();
@@ -237,8 +213,7 @@ function closeThinking(m: ChatMsg): void {
     for (const b of m.blocks) if (b.k === "thinking" && !b.done) b.done = true;
 }
 
-// steps land one line at a time into the open thinking block; a new one opens per reasoning run,
-// so a turn that thinks, calls a tool, then thinks again reads as two passes rather than one blob
+// a new thinking block opens per reasoning run, so think → tool → think reads as two passes
 function pushThinking(id: number, label?: string): void {
     updateMsg(id, (m) => {
         const last = m.blocks[m.blocks.length - 1];
@@ -251,9 +226,10 @@ function pushThinking(id: number, label?: string): void {
 function pushText(id: number, delta: string): void {
     updateMsg(id, (m) => {
         closeThinking(m);
-        const last = m.blocks[m.blocks.length - 1];
-        if (last && last.k === "text") last.text += delta;
-        else m.blocks.push({ k: "text", text: delta });
+        const at = textInsertAt(m.blocks);
+        const prev = m.blocks[at - 1];
+        if (prev && prev.k === "text") prev.text += delta;
+        else m.blocks.splice(at, 0, { k: "text", text: delta });
     });
 }
 
@@ -266,8 +242,7 @@ function dispatch(ev: TurnEvent, aid: number): void {
             pushText(aid, ev.delta);
             break;
         case "chat.tool":
-            // sent twice: once to open the shell, once with done — so a tool with nothing to show
-            // still closes instead of spinning for the rest of the session
+            // sent twice (open the shell, then done), so a tool with nothing to show still closes
             updateMsg(aid, (m) => {
                 const shell = m.blocks.find(
                     (b): b is Extract<UIBlock, { k: "tool" }> =>
@@ -285,7 +260,7 @@ function dispatch(ev: TurnEvent, aid: number): void {
             });
             break;
         case "chat.nested": {
-            // a capability's own progress line, shown under its shell rather than dropped
+            // a capability's own progress line, shown under its shell
             const inner = ev.event;
             if (inner.type !== "narration") break;
             updateMsg(aid, (m) => {
@@ -303,6 +278,7 @@ function dispatch(ev: TurnEvent, aid: number): void {
                 handleActionBlock(aid, ev.blockId, ev.block.action);
                 break;
             }
+            if (ev.block.type === "steer") chatTarget()?.setSteer?.(ev.block.note);
             updateMsg(aid, (m) => {
                 const shell = m.blocks.find(
                     (b): b is Extract<UIBlock, { k: "tool" }> =>
@@ -380,7 +356,6 @@ export function resetThread(): void {
     setThread("messages", []);
 }
 
-// mirrors the generate modal's accumulation, folded into drafts[id]
 function draftDispatch(id: string, ev: TurnEvent): void {
     if (!drafts[id]) return;
     switch (ev.type) {
@@ -505,7 +480,7 @@ export async function startDraftFromTemplate(templateId: string): Promise<void> 
     ]);
 }
 
-// the ONE point an in-chat draft becomes a real library artifact
+// the one point an in-chat draft becomes a library artifact
 export async function persistDraft(id: string): Promise<string | null> {
     const d = drafts[id];
     if (!d) return null;
@@ -638,8 +613,7 @@ function markApplied(msgId: number, blockId: string, state: "applied" | "discard
     });
 }
 
-// an outline revision goes to the studio's plan, not to the artifact tree — only the bound target
-// holds the beats, so there is nothing to fall back to
+// only the bound target holds the beats, so an outline revision has nowhere else to go
 export function applyOutline(msgId: number, blockId: string): void {
     const w = findWidget(msgId, blockId);
     if (!w || w.block.type !== "outline" || w.applied) return;
@@ -647,8 +621,7 @@ export function applyOutline(msgId: number, blockId: string): void {
     markApplied(msgId, blockId, "applied");
 }
 
-// A designed theme has to exist in the workspace before an artifact can point at it, so applying is
-// save-then-patch rather than a plain patch.
+// a designed theme must exist in the workspace before an artifact can point at it: save, then patch
 export async function applyTheme(msgId: number, blockId: string): Promise<void> {
     const w = findWidget(msgId, blockId);
     if (!w || w.block.type !== "theme" || w.applied) return;
@@ -659,7 +632,7 @@ export async function applyTheme(msgId: number, blockId: string): Promise<void> 
         tag: b.mood,
         dark: b.isDark,
     });
-    if (!saved) return; // the save failed — leave it applyable rather than marking it done
+    if (!saved) return; // leave it applyable rather than marking it done
     const patch: Patch = [{ op: "setMeta", theme: saved.id }];
     const t = chatTarget();
     if (t) t.apply(patch);
@@ -683,7 +656,6 @@ export function applyProposal(msgId: number, blockId: string): void {
     const w = findWidget(msgId, blockId);
     if (!w || w.block.type !== "proposal" || w.applied) return;
     const p = w.block;
-    // four targets: named artifact (API), a bound target (the studio), live draft, else the open editor
     const t = chatTarget();
     if (p.targetArtifactId) {
         void saveProposalToArtifact(p.targetArtifactId, p.patch);
@@ -695,6 +667,11 @@ export function applyProposal(msgId: number, blockId: string): void {
         else commit(applyPatch(editor.artifact, p.patch));
     }
     markApplied(msgId, blockId, "applied");
+}
+
+export function clearSteer(msgId: number, blockId: string): void {
+    chatTarget()?.setSteer?.("");
+    markApplied(msgId, blockId, "discarded");
 }
 
 export function discardProposal(msgId: number, blockId: string): void {

@@ -25,12 +25,12 @@ export interface GenerateInput {
     audience?: string;
     tone?: string;
     length?: string;
-    mustInclude?: string[]; // points the piece must cover; the outline tags beats with them
-    clarifications?: string[]; // answered "Q — A" lines from the brief stage; the planner reads them
+    mustInclude?: string[]; // the outline tags beats with these
+    clarifications?: string[]; // answered "Q — A" lines from the brief stage
     contextRefs?: string[]; // ids into the artifact's ContextPack
     source?: string;
     sourceArtifactId?: string;
-    imageSource?: "stock" | "ai"; // stock (default, free) or AI-generated
+    imageSource?: "stock" | "ai"; // stock is the free default
 }
 
 // a structured expansion of a raw prompt the user edits before anything is planned
@@ -59,7 +59,7 @@ export interface BuildInput {
     beat: Beat;
     content: ArtifactContent; // the artifact as built so far
     afterId: string | null; // insert after this id; null ⇒ front
-    steer?: string; // session-wide steering note, applies from here on
+    steer?: string; // session-wide, applies from here on
     note?: string; // per-attempt instruction (regenerate-with-note)
     anchor?: "cover" | "closer"; // force a full-bleed background on the piece's bookends
     replace?: boolean; // true ⇒ emit replaceSection (a regeneration), else addSection
@@ -100,7 +100,7 @@ export type WorkspaceAction =
     | { kind: "trash"; id: string } // destructive → confirmed
     | { kind: "restore"; id: string }
     | { kind: "create-folder"; name: string }
-    // client ROUTES to the guarded UI (Share modal / export) — never publishes/downloads directly
+    // client ROUTES to the guarded UI (Share modal / export), never publishes/downloads directly
     | { kind: "share"; id: string }
     | { kind: "export"; id: string };
 
@@ -111,7 +111,6 @@ export interface ArtifactRef {
     updatedAt?: string;
 }
 
-// A beat as the chat agent sees it mid-generation: what it's meant to say, and whether it's written.
 // what the planner understood the prompt to be asking for
 export interface BriefRead {
     goal?: string;
@@ -130,8 +129,7 @@ export interface ChatBeat {
     written: boolean;
 }
 
-// The live generation session. Its presence is what tells the agent it is INSIDE a run — the piece
-// is half-planned rather than absent, so proposing a separate new artifact is always wrong.
+// its presence tells the agent it is INSIDE a run, so proposing a separate new artifact is wrong
 export interface ChatGeneration {
     stage: string; // planning · outline · building · review · done
     surface: Surface;
@@ -140,6 +138,7 @@ export interface ChatGeneration {
     audience?: string;
     tone?: string;
     mustInclude?: string[];
+    steer?: string; // the standing note already in force, so the agent can amend rather than repeat
     beats: ChatBeat[];
 }
 
@@ -209,12 +208,14 @@ export type ChatBlock =
     | { type: "preview"; section?: Section; format?: string }
     | { type: "sections"; sections: Section[]; format?: string } // a carousel of existing sections
     | { type: "brief"; brief: GenBrief } // a proposed generation the user confirms
-    | { type: "artifacts"; items: ArtifactRef[] } // library search results — a pick-list
-    | { type: "templates"; items: TemplateRef[] } // starter templates — a pick-list
+    | { type: "artifacts"; items: ArtifactRef[] } // library search results, a pick-list
+    | { type: "templates"; items: TemplateRef[] } // starter templates, a pick-list
     | { type: "outline"; summary: string; ops: OutlinePatch } // a proposed edit to the live outline
     // a designed theme: the client saves it to the workspace, then points the artifact at the new id
     | { type: "theme"; name: string; mood: string; isDark: boolean; tokens: Tokens }
     | { type: "write"; summary: string; beatIds: string[] } // write these already-planned beats
+    // a standing note for every section still to be written; "" clears it
+    | { type: "steer"; note: string }
     | { type: "action"; action: WorkspaceAction }; // a workspace action the client runs (or confirms)
 
 export type TurnRequest =
@@ -237,7 +238,7 @@ export const isKind = (k: string): k is TurnKind =>
 
 export type PatchOp =
     | { op: "setMeta"; theme?: string; format?: string; background?: SectionBackground | null }
-    | { op: "addSection"; afterId?: string | null; section: Section } // afterId null/absent ⇒ append
+    | { op: "addSection"; afterId?: string | null; section: Section } // null ⇒ front, absent ⇒ append
     | { op: "replaceSection"; id: string; section: Section }
     | { op: "removeSection"; id: string }
     | { op: "moveSection"; id: string; afterId: string | null } // null ⇒ move to front
@@ -246,7 +247,7 @@ export type PatchOp =
 
 export type Patch = PatchOp[];
 
-// shallow-copy; applyOp swaps immutably, so originals are never mutated
+// shallow copy is enough: applyOp swaps immutably, so originals are never mutated
 const cloneSections = (sections: Section[]): Section[] => sections.map((s) => ({ ...s }));
 
 function insertAfter(
@@ -309,7 +310,7 @@ function applyOp(content: ArtifactContent, op: PatchOp): ArtifactContent {
     }
 }
 
-// immutable — never mutates the input
+// never mutates the input
 export function applyPatch(content: ArtifactContent, patch: Patch): ArtifactContent {
     let next: ArtifactContent = { ...content, sections: cloneSections(content.sections) };
     for (const op of patch) next = applyOp(next, op);
@@ -337,7 +338,7 @@ export interface Beat {
     image?: boolean; // carries a prominent image (drives sourcing + ghost)
     blocks?: string[]; // the block kind leading each column, in order
     brief?: string; // one line telling the section writer what this section must say
-    takeaway?: string; // the one thing the reader should leave this section with
+    takeaway?: string;
     points?: string[]; // the 2–4 concrete moves/claims the section makes, in order
     covers?: string[]; // which of the brief's mustInclude points this beat covers (verbatim)
 }
@@ -346,8 +347,7 @@ export type TurnEvent =
     | { type: "turn.start"; kind: TurnKind }
     | { type: "phase"; name: Phase }
     | { type: "narration"; text: string; mono?: string; sub?: string } // Console terminal lines
-    // `brief` is the planner's own reading of the prompt (goal / audience / tone / must-cover),
-    // folded into this call rather than a separate one — no extra latency, no extra credit
+    // `brief` is the planner's own reading of the prompt, folded in here to save a second call
     | {
           type: "plan";
           beats: Beat[];
@@ -358,15 +358,13 @@ export type TurnEvent =
     | { type: "section.status"; id: string; status: SectionStatus }
     | { type: "patch"; ops: Patch } // apply to the canvas as it streams
     | { type: "reply"; text: string } // chat/research answer
-    // one short headline per move in the agent's reasoning loop; no label = it just started thinking.
-    // The full thought prose is distilled server-side and never crosses the wire.
+    // one headline per move in the agent's reasoning loop; no label = it just started thinking
     | { type: "chat.thinking"; label?: string }
     | { type: "chat.text"; delta: string } // streamed assistant prose
-    // a tool started → a widget shell appears; sent again with done:true so a tool that produces no
-    // block (a read, an empty search) still closes its shell instead of spinning forever
+    // sent again with done:true so a tool that produces no block still closes its widget shell
     | { type: "chat.tool"; blockId: string; tool: string; title: string; done?: boolean }
     | { type: "chat.nested"; blockId: string; event: TurnEvent } // a capability event routed to a block's widget
-    | { type: "chat.block"; blockId: string; block: ChatBlock } // a finished widget block
+    | { type: "chat.block"; blockId: string; block: ChatBlock }
     | { type: "turn.done"; summary?: string }
     | { type: "error"; message: string };
 
@@ -376,7 +374,7 @@ export interface LoggedEvent {
     event: TurnEvent;
 }
 
-// guidance only — the model can author custom widths
+// guidance only: the model can author custom widths
 export interface LayoutPreset {
     id: string;
     columns: number;

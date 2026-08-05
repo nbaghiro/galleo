@@ -15,7 +15,7 @@ import { Button, IconButton, Chip, Eyebrow, Spinner } from "@ui/button";
 import { editor } from "@editor/core/store";
 import { appTheme, appThemeOverride, appThemeVars, customThemes } from "../stores/theme";
 import { formatLabel } from "../stores/library";
-import type { ChatMsg, UIBlock } from "../stores/chat";
+import { OUTPUT_BLOCKS, type ChatMsg, type UIBlock } from "../stores/chat-blocks";
 
 type Proposal = Extract<ChatBlock, { type: "proposal" }>;
 type Suggestions = Extract<ChatBlock, { type: "suggestions" }>;
@@ -30,6 +30,7 @@ import {
     applyTheme,
     busy,
     chatOpen,
+    clearSteer,
     closeChat,
     confirmAction,
     discardDraft,
@@ -66,7 +67,7 @@ const ProposalCard: Component<{
         setW(box.clientWidth);
         onCleanup(() => ro.disconnect());
     });
-    // named library artifact carries its own theme/format; else use previewSource()
+    // a named library artifact carries its own theme/format
     const src = (): { theme: string; format: string } =>
         props.proposal.targetArtifactId && props.proposal.theme && props.proposal.format
             ? { theme: props.proposal.theme, format: props.proposal.format }
@@ -123,7 +124,6 @@ const ProposalCard: Component<{
 
 type DesignedTheme = Extract<ChatBlock, { type: "theme" }>;
 
-// A theme is judged by looking at it, so the card IS the swatch.
 const ThemeCard: Component<{
     msgId: number;
     blockId: string;
@@ -189,10 +189,38 @@ const ThemeCard: Component<{
     );
 };
 
+type Steer = Extract<ChatBlock, { type: "steer" }>;
+
+// the standing note is already in force by the time this renders; the card is the record of it
+const SteerCard: Component<{
+    msgId: number;
+    blockId: string;
+    applied?: "applied" | "discarded";
+    steer: Steer;
+}> = (props) => (
+    <div class="mt-1 flex items-center gap-2 rounded-xl border border-accent/40 bg-accent/5 px-3 py-2">
+        <Icon name="sparkle" size={12} />
+        <span class="min-w-0 flex-1 text-[12px] leading-snug text-ink">
+            <Show when={props.steer.note} fallback="Steering note cleared.">
+                Steering the rest: {props.steer.note}
+            </Show>
+        </span>
+        <Show when={props.steer.note && props.applied !== "discarded"}>
+            <Button
+                variant="ghost"
+                size="sm"
+                class="flex-none"
+                onClick={() => clearSteer(props.msgId, props.blockId)}
+            >
+                Clear
+            </Button>
+        </Show>
+    </div>
+);
+
 type WriteRequest = Extract<ChatBlock, { type: "write" }>;
 
-// Writing planned beats is real spend, so the card prices it and waits — the studio runs the same
-// build turns the board does once the user says go.
+// writing beats is metered, so the card prices it and waits for a go
 const WriteCard: Component<{
     msgId: number;
     blockId: string;
@@ -254,8 +282,7 @@ const OP_VERB: Record<string, string> = {
     moveBeat: "Move",
 };
 
-// An outline revision has nothing to preview — the change IS the plan, so it reads as a list of
-// what would happen to which beat.
+// an outline revision has nothing to preview, so the ops list is the card
 const OutlineCardProposal: Component<{
     msgId: number;
     blockId: string;
@@ -316,7 +343,6 @@ const OutlineCardProposal: Component<{
     </div>
 );
 
-// Typewriter reveal — decouples display from the provider's bursty (sentence-sized) chunks; reveals arrived text at a steady, backlog-aware pace. `done` fast-forwards to the full text.
 // bumped each reveal frame so the scroll container can track the newest text
 const [revealPulse, setRevealPulse] = createSignal(0);
 
@@ -352,7 +378,7 @@ const SmoothText: Component<{
         if (props.done) {
             cancelAnimationFrame(raf);
             running = false;
-            setShown(len); // show all, don't animate
+            setShown(len);
             return;
         }
         if (shown() > len) setShown(len); // guard a reset (target shrank)
@@ -362,8 +388,7 @@ const SmoothText: Component<{
     return <>{props.render(props.text.slice(0, shown()))}</>;
 };
 
-// One line, not an essay. While the agent reasons this shows only the step it's on; afterwards it
-// shrinks to a count you can open to see the short list. The full thought prose never reaches here.
+// only step headlines reach here, never the full thought prose
 const ThinkingBlock: Component<{ steps: string[]; done: boolean }> = (props) => {
     const [open, setOpen] = createSignal(false);
     const latest = (): string => props.steps[props.steps.length - 1] ?? "Thinking";
@@ -752,6 +777,16 @@ const BlockView: Component<{ msgId: number; b: UIBlock }> = (props) => (
                 />
             )}
         </Show>
+        <Show when={props.b.k === "widget" && props.b.block.type === "steer" ? props.b : null}>
+            {(b) => (
+                <SteerCard
+                    msgId={props.msgId}
+                    blockId={b().blockId}
+                    applied={b().applied}
+                    steer={b().block as Steer}
+                />
+            )}
+        </Show>
         <Show when={props.b.k === "widget" && props.b.block.type === "write" ? props.b : null}>
             {(b) => (
                 <WriteCard
@@ -843,7 +878,25 @@ export const MessageView: Component<{ m: ChatMsg }> = (props) => (
         }
     >
         <div class="flex flex-col gap-1">
-            <For each={props.m.blocks}>{(b) => <BlockView msgId={props.m.id} b={b} />}</For>
+            {/* cards stay inert until the turn stops streaming: clicking one mid-turn hit the
+                busy() guard and did nothing. A block's kind never changes, so this Show never
+                re-branches. */}
+            <For each={props.m.blocks}>
+                {(b) => (
+                    <Show
+                        when={OUTPUT_BLOCKS.includes(b.k)}
+                        fallback={<BlockView msgId={props.m.id} b={b} />}
+                    >
+                        <div
+                            inert={props.m.streaming}
+                            classList={{ "opacity-45": props.m.streaming }}
+                            class="transition-opacity duration-200 motion-reduce:transition-none"
+                        >
+                            <BlockView msgId={props.m.id} b={b} />
+                        </div>
+                    </Show>
+                )}
+            </For>
             <Show when={props.m.streaming && props.m.blocks.length === 0}>
                 <Spinner size={12} />
             </Show>
@@ -870,12 +923,12 @@ const emptyExamples = (): string[] => (inEditor() ? EDITOR_EXAMPLES : LIBRARY_EX
 
 export const ChatPanel: Component = () => {
     const [input, setInput] = createSignal("");
-    // The studio hosts the same thread in its console, so the dock stands down while it's open.
+    // the studio hosts the same thread in its console, so the dock stands down while it is open
     const hidden = (): boolean => generateOpen();
     let list!: HTMLDivElement;
     let field!: HTMLTextAreaElement;
 
-    // collapse to 0 first so an empty box measures one line; re-measure on open (first measure is off-screen)
+    // collapse to 0 first so an empty box measures one line; re-measure on open (first is off-screen)
     const autosize = (): void => {
         if (!field) return;
         field.style.height = "0px";
@@ -912,7 +965,7 @@ export const ChatPanel: Component = () => {
         void sendChat(t);
     };
 
-    // dock is a sibling of the editor, so follow the open artifact's theme when it's active; touch customThemes() to re-resolve a custom theme once loaded
+    // follows the artifact theme in the editor; customThemes() re-resolves a custom one after load
     const chatTokens = createMemo((): Tokens => {
         customThemes();
         if (editorActive()) return resolveTheme(editor.artifact.theme).tokens;
@@ -928,7 +981,7 @@ export const ChatPanel: Component = () => {
             <div style={chatVars()} classList={{ hidden: hidden() }}>
                 <Show when={!chatOpen()}>
                     <button
-                        class="fixed bottom-6 right-6 z-drawer flex h-12 w-12 items-center justify-center rounded-full bg-accent text-onaccent shadow-xl transition-transform hover:scale-105"
+                        class="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-drawer flex h-12 w-12 items-center justify-center rounded-full bg-accent text-onaccent shadow-xl transition-transform hover:scale-105"
                         title="Chat with Galleo Agent"
                         onClick={openChat}
                     >
@@ -937,7 +990,7 @@ export const ChatPanel: Component = () => {
                 </Show>
 
                 <div
-                    class="fixed right-0 top-0 z-drawer flex h-full w-100 max-w-[92vw] flex-col border-l border-line bg-panel shadow-2xl transition-transform duration-200"
+                    class="fixed right-0 top-0 z-drawer flex h-dvh w-full flex-col border-l border-line bg-panel shadow-2xl transition-transform duration-200 md:w-100 md:max-w-[92vw]"
                     style={{ transform: chatOpen() ? "translateX(0)" : "translateX(105%)" }}
                 >
                     <header class="flex flex-none items-center justify-between border-b border-line px-4 py-3">
@@ -990,7 +1043,7 @@ export const ChatPanel: Component = () => {
                         </Show>
                     </div>
 
-                    <div class="flex-none border-t border-line p-3">
+                    <div class="flex-none border-t border-line p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
                         <div class="flex items-center gap-2 rounded-xl border border-line bg-canvas px-2.5 py-2 focus-within:border-accent">
                             <textarea
                                 ref={field}
