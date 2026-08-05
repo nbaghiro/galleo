@@ -406,12 +406,7 @@ const Frame: Component<{
                 </Show>
             </div>
             <Show when={planned() && editable() && beat()}>
-                <OutlineChrome
-                    beat={beat()!}
-                    index={props.index}
-                    total={props.total}
-                    selected={selected()}
-                />
+                <OutlineChrome beat={beat()!} index={props.index} total={props.total} />
             </Show>
             <Show when={active()}>
                 <div class="absolute bottom-3 left-4 z-[2] flex items-center gap-2 rounded-md bg-panel/80 px-2 py-1 font-mono text-[10.5px] uppercase tracking-[0.12em] text-accent backdrop-blur-sm">

@@ -128,7 +128,6 @@ export const OutlineChrome: Component<{
     beat: Beat;
     index: number;
     total: number;
-    selected: boolean;
 }> = (props) => {
     const [details, setDetails] = createSignal(false);
     let anchor: HTMLButtonElement | undefined;
@@ -137,14 +136,8 @@ export const OutlineChrome: Component<{
     const covers = (): string[] => props.beat.covers ?? [];
     const busy = (): boolean => !!gen.activeSection;
     const touch = isCoarsePointer;
-    // the editor shows one pill at a time (hovered, else selected); touch has no hover, so there
-    // selection is the only trigger
-    const shown = (): string =>
-        props.selected
-            ? "opacity-100"
-            : touch()
-              ? "opacity-0"
-              : "opacity-0 group-hover:opacity-100";
+    // hover alone, so only one pill is ever up; touch has no hover, so there they all stand
+    const shown = (): string => (touch() ? "opacity-100" : "opacity-0 group-hover:opacity-100");
 
     return (
         <>
