@@ -37,8 +37,9 @@ export default defineConfig({
                 "canvas/render/export.ts",
                 // IO shell dominates; pure sections tested in pptx.test.ts
                 "canvas/render/pptx.ts",
-                // offline eval harness, never imported by the product
+                // offline eval harness + the on-demand key/model prober, never imported by the product
                 "services/ai/eval/**",
+                "services/ai/probe.ts",
                 // seed data, exercised end-to-end by the integration suite
                 "services/demos/**",
                 "services/templates/**",

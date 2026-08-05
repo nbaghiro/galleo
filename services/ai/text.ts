@@ -1,6 +1,6 @@
 import { generateText } from "ai";
 import type { ModelTier } from "@model/billing";
-import { resolveModel, thinklessOpts } from "./provider";
+import { resolveModel, providerOpts } from "./provider";
 import { modelFor, type ModelOverrides } from "./models";
 import { rewriteTextParts, translateTextParts } from "./prompts/text";
 
@@ -37,7 +37,7 @@ export async function rewriteText(
         model: resolveModel(modelId),
         system: parts.system,
         prompt: parts.prompt,
-        providerOptions: thinklessOpts(modelId),
+        providerOptions: providerOpts(modelId),
         abortSignal: opts.signal,
     });
     return clean(out, text);
@@ -54,7 +54,7 @@ export async function translateText(
         model: resolveModel(modelId),
         system: parts.system,
         prompt: parts.prompt,
-        providerOptions: thinklessOpts(modelId),
+        providerOptions: providerOpts(modelId),
         abortSignal: opts.signal,
     });
     return clean(out, text);

@@ -3,6 +3,10 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createXai } from "@ai-sdk/xai";
 import type { LanguageModel } from "ai";
+
+// what `providerOptions` accepts: one JSON bag per provider name (the SDK's SharedV4ProviderOptions)
+type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
+type ProviderOpts = Record<string, { [k: string]: Json }>;
 import type { Provider } from "./models";
 import { getModel } from "./models";
 
@@ -55,11 +59,24 @@ export function resolveModel(id: string): LanguageModel {
     }
 }
 
-// Pro models reject thinkingBudget:0 ("only works in thinking mode"), so only Flash gets it
-export function thinklessOpts(id: string) {
+// Per-provider knobs every call needs. Keyed by provider name, so a key another provider does not
+// know is simply ignored by it.
+export function providerOpts(id: string): ProviderOpts | undefined {
     const info = getModel(id);
+    // Pro models reject thinkingBudget:0 ("only works in thinking mode"), so only Flash gets it
     if (info?.provider === "google" && !/pro/i.test(info.model)) {
         return { google: { thinkingConfig: { thinkingBudget: 0 } } };
+    }
+    // Anthropic's native constrained decoding compiles a grammar per schema and gives up on ours
+    // with "Grammar compilation timed out"; the tool-shaped path has no such limit.
+    if (info?.provider === "anthropic") {
+        return { anthropic: { structuredOutputMode: "jsonTool" } };
+    }
+    // OpenAI's strict mode demands every property in `required`, so any optional field is rejected
+    // outright ("'required' is required to be supplied and to be an array"). Our schemas are full of
+    // genuinely optional fields, so strict is the wrong contract for them.
+    if (info?.provider === "openai") {
+        return { openai: { strictJsonSchema: false } };
     }
     return undefined;
 }

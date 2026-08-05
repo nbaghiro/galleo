@@ -39,6 +39,10 @@ jobs:
             - name: Boundary self-check
               run: pnpm check:boundaries
 
+            # A provider's id union ends in `| (string & {})`, so a retired id only fails at the API.
+            - name: Model-id guard
+              run: pnpm check:models
+
             - name: Format check
               run: pnpm format:check
 

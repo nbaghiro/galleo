@@ -1,7 +1,7 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 import type { ArtifactContent } from "@model/artifact";
-import { resolveModel, thinklessOpts } from "./provider";
+import { resolveModel, providerOpts } from "./provider";
 import { modelFor, samplingFor, type ModelOverrides } from "./models";
 import type { ModelTier } from "@model/billing";
 import { PERSONA } from "./prompts/persona";
@@ -36,7 +36,7 @@ export async function suggestSections(
         schema: zSuggest,
         system: SUGGEST_SYSTEM,
         prompt: `${artifactSpine(content)}\n\n${artifactDigest(content)}\n\nPropose 6 section ideas that fit this artifact.`,
-        providerOptions: thinklessOpts(modelId),
+        providerOptions: providerOpts(modelId),
         ...samplingFor(modelId, 0.8),
     });
     return object.suggestions

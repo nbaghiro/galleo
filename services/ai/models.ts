@@ -3,6 +3,16 @@ import { out } from "../log";
 
 export type Provider = "anthropic" | "openai" | "google" | "xai";
 
+export const PROVIDER_LABEL: Record<Provider, string> = {
+    google: "Google",
+    anthropic: "Anthropic",
+    openai: "OpenAI",
+    xai: "xAI",
+};
+
+// Google leads: every task defaults there, so the list opens on what is already selected.
+export const PROVIDER_ORDER: readonly Provider[] = ["google", "anthropic", "openai", "xai"];
+
 export type AiTask =
     | "generate"
     | "brief"
@@ -96,6 +106,7 @@ export const MODELS: readonly ModelInfo[] = [
         contextWindow: 400_000,
         json: true,
         vision: true,
+        sampling: false,
     },
     {
         id: "openai:gpt-5.4",
@@ -105,6 +116,7 @@ export const MODELS: readonly ModelInfo[] = [
         contextWindow: 400_000,
         json: true,
         vision: true,
+        sampling: false,
     },
     {
         id: "openai:gpt-5.4-mini",
@@ -114,6 +126,17 @@ export const MODELS: readonly ModelInfo[] = [
         contextWindow: 400_000,
         json: true,
         vision: true,
+        sampling: false,
+    },
+    {
+        id: "openai:gpt-5.4-nano",
+        provider: "openai",
+        model: "gpt-5.4-nano",
+        label: "GPT-5.4 nano",
+        contextWindow: 400_000,
+        json: true,
+        vision: true,
+        sampling: false,
     },
     {
         id: "google:gemini-2.5-pro",
@@ -143,6 +166,15 @@ export const MODELS: readonly ModelInfo[] = [
         vision: true,
     },
     {
+        id: "google:gemini-3.1-flash-lite-preview",
+        provider: "google",
+        model: "gemini-3.1-flash-lite-preview",
+        label: "Gemini 3.1 Flash Lite (preview)",
+        contextWindow: 1_000_000,
+        json: true,
+        vision: true,
+    },
+    {
         id: "google:gemini-3.1-pro-preview",
         provider: "google",
         model: "gemini-3.1-pro-preview",
@@ -152,10 +184,28 @@ export const MODELS: readonly ModelInfo[] = [
         vision: true,
     },
     {
-        id: "xai:grok-4",
+        id: "xai:grok-4.3",
         provider: "xai",
-        model: "grok-4",
-        label: "Grok 4",
+        model: "grok-4.3",
+        label: "Grok 4.3",
+        contextWindow: 256_000,
+        json: true,
+        vision: true,
+    },
+    {
+        id: "xai:grok-4.20-reasoning",
+        provider: "xai",
+        model: "grok-4.20-reasoning",
+        label: "Grok 4.20 (reasoning)",
+        contextWindow: 256_000,
+        json: true,
+        vision: true,
+    },
+    {
+        id: "xai:grok-4.20-non-reasoning",
+        provider: "xai",
+        model: "grok-4.20-non-reasoning",
+        label: "Grok 4.20 (fast)",
         contextWindow: 256_000,
         json: true,
         vision: true,

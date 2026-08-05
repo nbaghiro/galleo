@@ -1,7 +1,7 @@
 import { writeFileSync } from "fs";
 import { generateObject } from "ai";
 import type { ZodType } from "zod";
-import { resolveModel, thinklessOpts } from "../provider";
+import { resolveModel, providerOpts } from "../provider";
 import { out as log } from "../../log";
 
 export { log };
@@ -52,7 +52,7 @@ export async function judge<T>(
         schema: spec.schema,
         system: spec.system,
         prompt: spec.prompt,
-        providerOptions: thinklessOpts(model),
+        providerOptions: providerOpts(model),
     });
     return object as T;
 }

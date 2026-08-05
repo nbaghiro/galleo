@@ -1,7 +1,7 @@
 import type { BriefDraft, Surface } from "@model/ai";
 import type { ModelTier } from "@model/billing";
 import { generateObject } from "ai";
-import { resolveModel, thinklessOpts } from "./provider";
+import { resolveModel, providerOpts } from "./provider";
 import { modelFor, samplingFor, type ModelOverrides } from "./models";
 import { briefParts, type BriefRead } from "./prompts/brief";
 import { zBriefDraft, type BriefDraftGen } from "./schema";
@@ -27,7 +27,7 @@ export async function expandBrief(
         system: parts.system,
         prompt: parts.prompt,
         abortSignal: opts.signal,
-        providerOptions: thinklessOpts(modelId),
+        providerOptions: providerOpts(modelId),
         // a re-read runs hot: the point is to land somewhere else
         ...samplingFor(modelId, opts.previous ? 1 : 0.7),
     });

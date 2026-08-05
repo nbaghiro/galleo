@@ -14,7 +14,7 @@ import type { MediaProvider } from "@model/media";
 import type { Usage } from "@model/credits";
 import { generateObject, generateText } from "ai";
 import type { ModelTier } from "@model/billing";
-import { resolveModel, thinklessOpts } from "./provider";
+import { resolveModel, providerOpts } from "./provider";
 import { warn } from "../log";
 import {
     defaultModelFor,
@@ -257,24 +257,42 @@ function briefRead(outline: Outline): BriefRead {
     };
 }
 
-async function planOutline(input: GenerateInput, opts: RunOpts): Promise<Outline> {
+// exported for the model prober, which runs the real outline call rather than a synthetic one
+export async function planOutline(input: GenerateInput, opts: RunOpts): Promise<Outline> {
     const op = outlineParts(input, opts.maxSections);
     const outlineModel = modelFor("outline", opts.tier, opts.models);
-    const { object } = await generateObject({
-        model: resolveModel(outlineModel),
-        schema: zOutline,
-        system: op.system,
-        prompt: op.prompt,
-        abortSignal: opts.signal,
-        providerOptions: thinklessOpts(outlineModel),
-        // warm so section count + arc vary brief-to-brief; section writing stays cooler
-        ...samplingFor(outlineModel, 0.9),
-    });
-    const outline: Outline = object;
+    const outline = await withSchemaRetry(() =>
+        generateObject({
+            model: resolveModel(outlineModel),
+            schema: zOutline,
+            system: op.system,
+            prompt: op.prompt,
+            abortSignal: opts.signal,
+            providerOptions: providerOpts(outlineModel),
+            // warm so section count + arc vary brief-to-brief; section writing stays cooler
+            ...samplingFor(outlineModel, 0.9),
+        }).then((r) => r.object as Outline),
+    );
     // the prompt asks for the cap; the slice guarantees it
     if (opts.maxSections) outline.beats = outline.beats.slice(0, opts.maxSections);
     return outline;
 }
+
+// A schema miss is a sampling accident, not a broken model, and the SDK's own retries do not cover
+// it: they only fire on transport errors. Losing the plan ends the whole run, so it gets one more go.
+async function withSchemaRetry<T>(call: () => Promise<T>): Promise<T> {
+    try {
+        return await call();
+    } catch (e) {
+        if (isAbortError(e) || !/did not match schema|No object generated/i.test(String(e)))
+            throw e;
+        warn("[ai:outline] schema miss, retrying once");
+        return await call();
+    }
+}
+
+const isAbortError = (e: unknown): boolean =>
+    e instanceof DOMException ? e.name === "AbortError" : false;
 
 export async function* runGenerate(
     input: GenerateInput,
@@ -486,7 +504,7 @@ async function* runSection(input: SectionInput, opts: RunOpts = {}): AsyncGenera
         system: pp.system,
         prompt: pp.prompt,
         abortSignal: signal,
-        providerOptions: thinklessOpts(planModel),
+        providerOptions: providerOpts(planModel),
         ...samplingFor(planModel, 0.9),
     });
     const beat: Beat = { ...(plan as SectionPlan), id };
@@ -535,7 +553,7 @@ async function writeSectionFrom(
             system: parts.system,
             prompt: parts.prompt + note,
             abortSignal: signal,
-            providerOptions: thinklessOpts(modelId),
+            providerOptions: providerOpts(modelId),
         });
         const parsed = zSection.safeParse(extractJson(text));
         if (!parsed.success) {
@@ -606,7 +624,7 @@ export async function chatAddSection(
         system: pp.system,
         prompt: pp.prompt,
         abortSignal: opts.signal,
-        providerOptions: thinklessOpts(planModel),
+        providerOptions: providerOpts(planModel),
         ...samplingFor(planModel, 0.9),
     });
     const beat: Beat = { ...(object as SectionPlan), id };
@@ -640,7 +658,7 @@ export async function reviseElement(
             system: parts.system,
             prompt: parts.prompt + note,
             abortSignal: opts.signal,
-            providerOptions: thinklessOpts(modelId),
+            providerOptions: providerOpts(modelId),
         });
         const parsed = zElement.safeParse(extractJson(text));
         if (!parsed.success) {

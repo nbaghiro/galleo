@@ -16,6 +16,9 @@ pnpm lint
 echo "▸ boundary self-check"
 pnpm check:boundaries
 
+echo "▸ model-id guard"
+pnpm check:models
+
 echo "▸ typecheck"
 pnpm typecheck
 
