@@ -19,7 +19,6 @@ import {
     pauseBuild,
     runLocked,
     regenerateSection,
-    reorderBeats,
     sectionCost,
     selectBeat,
     setActiveVersion,
@@ -28,19 +27,15 @@ import {
     type SlotStatus,
 } from "../../stores/generate";
 import { Credits } from "../../components/credits";
+import { isCoarsePointer } from "@ui/viewport";
 import { DWELL_MS, frameWidth, previewFormat, reduced, REVEAL_MS } from "./shared";
 import { OutlineCard } from "./OutlineCard";
 
-// one row per beat, for the whole run: the outline card while it's planned, the painted section once
-// it's written. Beats are the spine at every stage, so a section never changes place when it lands.
-//
-// The list is BEAT IDS, not view objects. Solid's <For> is reference-keyed, and a fresh object per
-// read meant every store write disposed and rebuilt every row — so one section landing re-mounted
-// and repainted the whole board (images and all). Strings compare by value, so untouched rows now
-// survive and each Frame derives its own state from the store.
+// rows are keyed by beat id, not view objects: <For> is reference-keyed, so fresh objects per read
+// remount and repaint every row
 const slotOf = (id: string): SectionSlot | undefined => gen.slots.find((s) => s.id === id);
 
-// planning with an arc already on screen: the old one is being replaced, not built for the first time
+// planning while an arc is already on screen: a replacement, not a first build
 const replanning = (): boolean => gen.planning && gen.beats.length > 0;
 
 export const Board: Component = () => {
@@ -50,22 +45,22 @@ export const Board: Component = () => {
     );
     const [avail, setAvail] = createSignal(1000);
     onMount(() => {
-        // Coalesced: the console rail animates its width, so a raw observer would relayout and
-        // repaint every section on every frame of that transition. One repaint after it settles.
+        // the console rail animates its width, so coalesce: a raw observer repaints every frame
         let settle: ReturnType<typeof setTimeout> | undefined;
         const ro = new ResizeObserver(() => {
             clearTimeout(settle);
-            settle = setTimeout(() => setAvail(board.clientWidth), 90);
+            settle = setTimeout(() => {
+                if (board.clientWidth > 0) setAvail(board.clientWidth);
+            }, 90);
         });
         ro.observe(board);
-        setAvail(board.clientWidth);
+        if (board.clientWidth > 0) setAvail(board.clientWidth);
         onCleanup(() => {
             clearTimeout(settle);
             ro.disconnect();
         });
     });
-    // center the active section's skeleton — but only after the previous section's land animation
-    // has finished playing, so reveals are watched in place, not mid-scroll (never gates generation)
+    // centers the active skeleton, delayed so the previous reveal plays out in place
     const centerOn = (id: string | null): void => {
         const el = id ? board?.querySelector<HTMLElement>(`[data-sid="${id}"]`) : null;
         if (!el) return;
@@ -81,8 +76,7 @@ export const Board: Component = () => {
         clearTimeout(scrollTimer);
         scrollTimer = setTimeout(() => centerOn(id), reduced() ? 0 : REVEAL_MS + DWELL_MS);
     });
-    // on finish activeSection is null, so settle at the end instead of freezing mid-scroll —
-    // after the last section's reveal has played out
+    // activeSection is null at finish, so settle at the end instead of freezing mid-scroll
     createEffect(() => {
         if (gen.stage !== "done") return;
         clearTimeout(scrollTimer);
@@ -96,16 +90,16 @@ export const Board: Component = () => {
         );
     });
     onCleanup(() => clearTimeout(scrollTimer));
-    // continuous formats (doc/web) merge seamlessly like the engine; only paged decks float apart
+    // continuous formats merge seamlessly like the engine; only paged decks float apart
     const gap = (): string =>
         resolveProfile(previewFormat()).kind === "continuous" ? "0px" : "22px";
-    // the artifact-level backdrop lands via a setMeta patch — paint it behind the stack like the editor does
+    // painted behind the stack, as the editor does
     const backdrop = (): string =>
         backdropCss(gen.content.background, resolveTheme(gen.content.theme).tokens);
     return (
         <div class="relative h-full">
-            {/* backdrop on a non-scrolling layer: on a scroll container, Chromium resolves cover
-                against the scrollable CONTENT box, so a short stack tiles the image */}
+            {/* non-scrolling layer: on a scroll container Chromium resolves `cover` against the
+                scrollable content box, so a short stack tiles the image */}
             <div
                 class="absolute inset-0"
                 style={{
@@ -117,7 +111,7 @@ export const Board: Component = () => {
             />
             <div
                 ref={board}
-                class="absolute inset-0 flex flex-col items-center px-7 py-6 transition-opacity"
+                class="absolute inset-0 flex flex-col items-center px-3 py-4 transition-opacity md:px-7 md:py-6"
                 classList={{
                     "opacity-30": replanning(),
                     // hidden still allows scrollTo, so the board follows the write while the user can't
@@ -129,9 +123,8 @@ export const Board: Component = () => {
                 <Show
                     when={gen.beats.length}
                     fallback={
-                        <div class="grid h-full place-items-center">
-                            {/* only animate when something is genuinely in flight — a gate waiting
-                                on the user must never look like work in progress */}
+                        <div class="grid h-full w-full place-items-center">
+                            {/* a gate waiting on the user must not look like work in progress */}
                             <Show
                                 when={gen.planning || gen.briefLoading}
                                 fallback={
@@ -140,7 +133,7 @@ export const Board: Component = () => {
                                     </p>
                                 }
                             >
-                                <ReadingLoader />
+                                <ReadingLoader width={frameWidth(avail())} />
                             </Show>
                         </div>
                     }
@@ -150,7 +143,6 @@ export const Board: Component = () => {
                             <Frame id={id} index={i()} total={visible().length} avail={avail} />
                         )}
                     </For>
-                    {/* the arc is editable, so adding to its end has to be possible from the board */}
                     <Show when={gen.stage === "outline"}>
                         <button
                             class="flex items-center justify-center gap-1.5 rounded-[var(--radius)] border border-dashed border-line py-3 text-[12px] text-muted transition-colors hover:border-accent hover:text-ink"
@@ -165,7 +157,7 @@ export const Board: Component = () => {
                 </Show>
             </div>
             <Show when={runLocked()}>
-                <div class="pointer-events-none absolute inset-x-0 bottom-5 flex justify-center">
+                <div class="pointer-events-none absolute inset-x-0 bottom-[calc(1.25rem+env(safe-area-inset-bottom))] flex justify-center">
                     <div class="pointer-events-auto flex items-center gap-3 rounded-full border border-line bg-panel/90 py-1.5 pl-4 pr-1.5 shadow-lg backdrop-blur-sm">
                         <span class="flex items-center gap-2 text-[12px] text-soft">
                             <Spinner size={12} />
@@ -183,8 +175,6 @@ export const Board: Component = () => {
                     </div>
                 </div>
             </Show>
-            {/* replanning: the outgoing arc fades behind a plain statement of what's happening,
-                rather than sitting there looking interactive while it's replaced */}
             <Show when={replanning()}>
                 <div class="pointer-events-none absolute inset-0 grid place-items-center">
                     <div class="flex items-center gap-2.5 rounded-full border border-line bg-panel/90 px-4 py-2 shadow-lg backdrop-blur-sm">
@@ -199,21 +189,14 @@ export const Board: Component = () => {
     );
 };
 
-// outline-stage drag state (module-level: one drag at a time). A card is only `draggable` once its
-// grip is held — otherwise the browser hands every drag to the row and you can't select card text.
-const [draggingBeat, setDraggingBeat] = createSignal<string | null>(null);
-const [armedBeat, setArmedBeat] = createSignal<string | null>(null);
-
-// One row per beat: the editable outline card until it's written, the engine skeleton while it is,
-// the painted section once it lands.
 const Frame: Component<{
     id: string;
     index: number;
     total: number;
     avail: () => number;
 }> = (props) => {
-    // a SIGNAL, not a ref variable: this host only mounts once the beat leaves the outline stage, so
-    // the paint effect has to re-run when the element actually arrives
+    // a signal, not a ref: the host mounts only after the outline stage, so the paint effect has to
+    // re-run when the element arrives
     const [box, setBox] = createSignal<HTMLDivElement>();
     let frame!: HTMLElement;
     const [dim, setDim] = createSignal({ w: 0, h: 0 });
@@ -239,15 +222,13 @@ const Frame: Component<{
     const themeBg = (): string => resolveTheme(gen.content.theme).tokens.bg;
     const paged = (): boolean => resolveProfile(previewFormat()).kind !== "continuous";
     const editable = (): boolean => gen.stage === "outline";
-    // an unwritten beat stays an outline card, at every stage — the plan is the thing you edit
+    // an unwritten beat stays an outline card at every stage
     const planned = (): boolean => !doneReady() && !active();
     const reviewable = (): boolean =>
         doneReady() && !working() && (gen.stage === "building" || gen.stage === "done");
     const selected = (): boolean => editable() && gen.selectedBeat === props.id;
 
-    // Repaint only when the picture actually changes, and animate only when a NEW section arrives.
-    // Unguarded, every store write repainted this row and replayed its reveal, so each landing made
-    // the whole board flash as if it were reloading.
+    // repaint only when the picture changes: unguarded, every store write replayed the reveal
     let painted: {
         el: HTMLDivElement;
         sec: Section | null;
@@ -267,7 +248,7 @@ const Frame: Component<{
         const ghost = sec ? "" : `${layout()}|${image()}|${blocks().join(",")}`;
         if (
             painted &&
-            painted.el === el && // a remounted host is a blank node — always repaint into it
+            painted.el === el && // a remounted host is a blank node, so always repaint into it
             painted.sec === sec &&
             painted.ghost === ghost &&
             painted.w === w &&
@@ -280,8 +261,8 @@ const Frame: Component<{
 
         const tk = resolveTheme(theme).tokens;
         const profile = resolveProfile(fmt);
-        // one width for skeleton AND landed paint — a skeleton can't know its bleed flag yet, so
-        // the editor's inset-vs-bleed width rule would make sections jump width when they land
+        // one width for skeleton and landed paint: a skeleton has no bleed flag yet, so the
+        // inset-vs-bleed rule would make sections jump width when they land
         const out = sec
             ? layoutSection(sec, w, measureText, tk, profile)
             : layoutSectionSkeleton(
@@ -327,42 +308,17 @@ const Frame: Component<{
         if (text) void regenerateSection(props.id, text);
     };
 
-    // drag-to-reorder ghosts while the outline is editable
-    const onDragStart = (e: DragEvent): void => {
-        if (!editable()) return;
-        setDraggingBeat(props.id);
-        e.dataTransfer?.setData("text/plain", props.id);
-        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
-    };
-    const onDragOver = (e: DragEvent): void => {
-        if (!editable() || !draggingBeat() || draggingBeat() === props.id) return;
-        e.preventDefault();
-    };
-    const onDrop = (e: DragEvent): void => {
-        const dragged = draggingBeat();
-        if (!editable() || !dragged || dragged === props.id) return;
-        e.preventDefault();
-        const r = frame.getBoundingClientRect();
-        const before = e.clientY < r.top + r.height / 2;
-        reorderBeats(dragged, props.index + (before ? 0 : 1));
-        setDraggingBeat(null);
-    };
-
     return (
         <article
             ref={frame}
             data-sid={props.id}
             class="group relative"
-            classList={{ "opacity-40": draggingBeat() === props.id }}
-            style={{ width: `${frameWidth(props.avail())}px` }}
-            draggable={editable() && armedBeat() === props.id}
-            onDragStart={onDragStart}
-            onDragEnd={() => {
-                setDraggingBeat(null);
-                setArmedBeat(null);
+            classList={{
+                // ring and glow are box-shadows outside the box; with no gap between continuous
+                // sections the next sibling would paint over them
+                "z-[1]": active() || selected(),
             }}
-            onDragOver={onDragOver}
-            onDrop={onDrop}
+            style={{ width: `${frameWidth(props.avail())}px` }}
             onClick={() => editable() && selectBeat(props.id)}
         >
             <Show when={!planned()}>
@@ -374,9 +330,8 @@ const Frame: Component<{
                     {image() ? " · IMG" : ""}
                 </span>
             </Show>
-            {/* The engine paints the finished card (surface, radius, bleed) — chrome only wraps the
-                skeleton, where the dashed ghost frame is the point. A wrapper card around landed
-                sections double-bordered them and let its background peek around the painted corners. */}
+            {/* the engine paints the finished card, so chrome wraps only the skeleton: a wrapper
+                around landed sections double-borders them */}
             <Show
                 when={!planned()}
                 fallback={
@@ -391,8 +346,6 @@ const Frame: Component<{
                                 index={props.index}
                                 total={props.total}
                                 open={detail()}
-                                draggable={editable()}
-                                onGrip={() => setArmedBeat(props.id)}
                                 onToggle={() => setDetail((v) => !v)}
                             />
                         </div>
@@ -410,8 +363,8 @@ const Frame: Component<{
                     }}
                     style={{
                         background: doneReady() ? "transparent" : themeBg(),
-                        // the wrapper hugs the painted card (bleed = full frame, content cards inset),
-                        // so the shadow and radius trace the engine's surface, not the outer frame
+                        // hugs the painted card so shadow and radius trace the engine's surface,
+                        // not the outer frame
                         width: `${dim().w}px`,
                         margin: "0 auto",
                         "border-radius":
@@ -440,11 +393,13 @@ const Frame: Component<{
                           : "Writing…"}
                 </div>
             </Show>
-            {/* landed-section verdict bar: silence = keep; objection is one tap */}
             <Show when={reviewable()}>
                 <div
-                    class="absolute bottom-3 right-4 z-[2] flex items-center gap-1 rounded-lg border border-line bg-panel/85 p-1 opacity-0 shadow-lg backdrop-blur-sm transition-opacity focus-within:opacity-100 group-hover:opacity-100"
-                    classList={{ "opacity-100": noteOpen() }}
+                    class="absolute bottom-3 right-4 z-[2] flex items-center gap-1 rounded-lg border border-line bg-panel/85 p-1 shadow-lg backdrop-blur-sm transition-opacity focus-within:opacity-100 group-hover:opacity-100"
+                    classList={{
+                        "opacity-0": !noteOpen() && !isCoarsePointer(),
+                        "opacity-100": noteOpen() || isCoarsePointer(),
+                    }}
                 >
                     <Show when={versions() > 1}>
                         <div class="mr-1 flex items-center gap-0.5">
@@ -513,7 +468,6 @@ const Frame: Component<{
         </article>
     );
 };
-// build loader while the outline is written — three skeletons light in sequence
 const cascadeVars = (): JSX.CSSProperties => {
     const tk = resolveTheme(gen.content.theme).tokens;
     return {
@@ -526,12 +480,15 @@ const cascadeVars = (): JSX.CSSProperties => {
     } as JSX.CSSProperties;
 };
 
-export const ReadingLoader: Component = () => {
+export const ReadingLoader: Component<{ width: number }> = (props) => {
     const line = (): string => gen.narration[gen.narration.length - 1]?.text ?? "Reading the brief";
     // --d staggers the three rows so they light in sequence
     const bar = (cls: string): JSX.Element => <div class={`gc-bar rounded ${cls}`} />;
     return (
-        <div class="flex flex-col items-center gap-6" style={cascadeVars()}>
+        <div
+            class="flex max-w-full flex-col items-center gap-6"
+            style={{ ...cascadeVars(), width: `${props.width}px` }}
+        >
             <style>{`
               @keyframes gc-frame { 0%{opacity:.34} 7%{opacity:1} 30%{opacity:.5} 100%{opacity:.34} }
               @keyframes gc-glow {

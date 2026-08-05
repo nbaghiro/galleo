@@ -8,8 +8,10 @@ import { CloseIcon } from "@ui/icons";
 import { Button, Eyebrow, IconButton } from "@ui/button";
 import { Segmented } from "@ui/inputs";
 import { Modal } from "@ui/overlay";
+import { PresentSurface } from "@ui/present";
+import { canEditHere } from "@ui/viewport";
 import { PreviewCanvas, SectionThumb } from "../components/previews";
-import { Sidebar } from "../components/Sidebar";
+import { Sidebar, SidebarToggle } from "../components/Sidebar";
 import { appTheme } from "../stores/theme";
 
 export const TemplatesView: Component = () => {
@@ -105,8 +107,9 @@ export const TemplatesView: Component = () => {
     return (
         <div class="flex h-full">
             <Sidebar />
-            <main class="flex-1 overflow-y-auto bg-canvas">
-                <div class="border-b border-line px-9 py-7">
+            <main class="min-w-0 flex-1 overflow-y-auto bg-canvas">
+                <SidebarToggle />
+                <div class="border-b border-line px-5 py-7 md:px-9">
                     <Eyebrow tracking="widest" as="div">
                         Start from a template
                     </Eyebrow>
@@ -126,13 +129,13 @@ export const TemplatesView: Component = () => {
                     <For each={categories()}>
                         {(cat) => (
                             <section class="border-b border-line py-6">
-                                <div class="mb-4 flex items-baseline gap-3 px-9">
+                                <div class="mb-4 flex items-baseline gap-3 px-5 md:px-9">
                                     <h2 class="text-[15px] font-semibold text-ink">{cat}</h2>
                                     <span class="font-mono text-[11px] text-muted">
                                         {inCategory(cat).length}
                                     </span>
                                 </div>
-                                <div class="no-scrollbar flex gap-5 overflow-x-auto px-9 pb-2">
+                                <div class="no-scrollbar flex gap-5 overflow-x-auto overscroll-x-contain px-5 pb-2 md:px-9">
                                     <For each={inCategory(cat)}>{(t) => <Card t={t} />}</For>
                                 </div>
                             </section>
@@ -143,54 +146,98 @@ export const TemplatesView: Component = () => {
 
             <Show when={preview()}>
                 {(t) => (
-                    <Modal
-                        size="full"
-                        surface="canvas"
-                        scrim="dim"
-                        class="flex h-[94vh] w-[97vw] flex-col overflow-hidden"
-                        onClose={() => setPreview(null)}
+                    <Show
+                        when={canEditHere()}
+                        fallback={
+                            <PresentSurface
+                                artifact={{
+                                    ...t().content,
+                                    format: previewFmt(),
+                                    theme: appTheme(),
+                                }}
+                                viewOnly
+                                onExit={() => setPreview(null)}
+                            >
+                                <div class="absolute inset-x-0 top-0 flex flex-col gap-2 bg-black/55 px-3 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] backdrop-blur-md">
+                                    <div class="flex items-center gap-2">
+                                        <span class="min-w-0 flex-1 truncate text-[13px] font-semibold text-white">
+                                            {t().name}
+                                        </span>
+                                        <Button
+                                            variant="primary"
+                                            size="sm"
+                                            rounded="lg"
+                                            disabled={using() !== null}
+                                            onClick={() => use(t())}
+                                        >
+                                            {using() === t().id ? "Creating…" : "Use →"}
+                                        </Button>
+                                    </div>
+                                    <Segmented
+                                        variant="accent"
+                                        value={previewFmt()}
+                                        options={FORMATS.map((f) => ({
+                                            label: f.label,
+                                            value: f.id,
+                                        }))}
+                                        onChange={setPreviewFmt}
+                                    />
+                                </div>
+                            </PresentSurface>
+                        }
                     >
-                        <header class="flex flex-none items-center gap-3 border-b border-line px-5 py-3">
-                            <div class="min-w-0">
-                                <div class="truncate text-[14px] font-semibold text-ink">
-                                    {t().name}
+                        <Modal
+                            size="full"
+                            surface="canvas"
+                            scrim="dim"
+                            class="flex h-[94vh] w-[97vw] flex-col overflow-hidden"
+                            onClose={() => setPreview(null)}
+                        >
+                            <header class="flex flex-none items-center gap-3 border-b border-line px-5 py-3">
+                                <div class="min-w-0">
+                                    <div class="truncate text-[14px] font-semibold text-ink">
+                                        {t().name}
+                                    </div>
+                                    <div class="text-[11px] text-muted">
+                                        {t().category} · {t().content.sections.length} sections
+                                    </div>
                                 </div>
-                                <div class="text-[11px] text-muted">
-                                    {t().category} · {t().content.sections.length} sections
+                                <div class="ml-4">
+                                    <Segmented
+                                        variant="accent"
+                                        value={previewFmt()}
+                                        options={FORMATS.map((f) => ({
+                                            label: f.label,
+                                            value: f.id,
+                                        }))}
+                                        onChange={setPreviewFmt}
+                                    />
                                 </div>
-                            </div>
-                            <div class="ml-4">
-                                <Segmented
-                                    variant="accent"
-                                    value={previewFmt()}
-                                    options={FORMATS.map((f) => ({ label: f.label, value: f.id }))}
-                                    onChange={setPreviewFmt}
+                                <div class="ml-auto flex items-center gap-2">
+                                    <Button
+                                        variant="primary"
+                                        disabled={using() !== null}
+                                        onClick={() => use(t())}
+                                    >
+                                        {using() === t().id ? "Creating…" : "Use template →"}
+                                    </Button>
+                                    <IconButton
+                                        size="xl"
+                                        title="Close"
+                                        onClick={() => setPreview(null)}
+                                    >
+                                        <CloseIcon size={16} />
+                                    </IconButton>
+                                </div>
+                            </header>
+                            <div class="min-h-0 flex-1">
+                                <PreviewCanvas
+                                    content={{ ...t().content, theme: appTheme() }}
+                                    format={previewFmt}
                                 />
                             </div>
-                            <div class="ml-auto flex items-center gap-2">
-                                <Button
-                                    variant="primary"
-                                    disabled={using() !== null}
-                                    onClick={() => use(t())}
-                                >
-                                    {using() === t().id ? "Creating…" : "Use template →"}
-                                </Button>
-                                <IconButton
-                                    size="xl"
-                                    title="Close"
-                                    onClick={() => setPreview(null)}
-                                >
-                                    <CloseIcon size={16} />
-                                </IconButton>
-                            </div>
-                        </header>
-                        <div class="min-h-0 flex-1">
-                            <PreviewCanvas
-                                content={{ ...t().content, theme: appTheme() }}
-                                format={previewFmt}
-                            />
-                        </div>
-                    </Modal>
+                        </Modal>
+                    </Show>
                 )}
             </Show>
         </div>

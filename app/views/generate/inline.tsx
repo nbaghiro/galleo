@@ -1,9 +1,6 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect } from "solid-js";
 
-// Editing the outline should feel like editing text, not filling a form: the field IS the text
-// until you reach for it, and grows with what you write.
-
 export const Inline: Component<{
     value: string;
     placeholder?: string;

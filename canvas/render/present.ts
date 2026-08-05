@@ -26,7 +26,8 @@ export function slideElement(
     const pages = sectionSlides(section, tokens, profile);
     const p = pages[Math.min(Math.max(0, page), pages.length - 1)]!;
     const slide = document.createElement("div");
-    slide.style.cssText = `position:relative;width:${p.w}px;height:${p.h}px;overflow:hidden;background:${tokens.bg}`;
+    // flex-shrink:0 — a shrunk slide would then be scaled again by the transform
+    slide.style.cssText = `position:relative;flex-shrink:0;width:${p.w}px;height:${p.h}px;overflow:hidden;background:${tokens.bg}`;
     slide.appendChild(fitSlideContent(p.commands, p.contentH, p.w, p.h));
     return slide;
 }

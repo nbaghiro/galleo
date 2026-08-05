@@ -1,7 +1,5 @@
 import type { Surface } from "../../stores/generate";
 
-// the idea bank behind the intake modal's example chips
-
 export const PLACEHOLDER =
     "A launch deck for a calm operating system that helps solo studios handle projects, invoices, and cashflow in one place…";
 
@@ -41,8 +39,7 @@ const EXAMPLE_PROMPTS: { text: string; format: Surface }[] = [
     { text: "A landing page for a neighborhood yoga and breathwork studio", format: "web" },
 ];
 
-// the composer's three settings. Labels carry their own noun so a bare pill still reads as a
-// setting ("Standard length", not "Standard") once it's out of a labelled row.
+// labels carry their own noun so a bare pill still reads as a setting ("Standard length")
 export const SURFACES = [
     { value: "deck", label: "Deck" },
     { value: "doc", label: "Document" },
@@ -58,7 +55,6 @@ export const IMAGE_SOURCES = [
     { value: "ai", label: "AI images" },
 ];
 
-// Fisher–Yates shuffle of the idea bank
 export function shuffledPrompts(): { text: string; format: Surface }[] {
     const a = [...EXAMPLE_PROMPTS];
     for (let i = a.length - 1; i > 0; i--) {

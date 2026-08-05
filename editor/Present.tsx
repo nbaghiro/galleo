@@ -6,6 +6,8 @@ import { slideElement, SLIDE_W, SLIDE_H } from "@canvas/render/present";
 import { SlideProgress, backdropHostStyle } from "@ui/section";
 import { FloatingBar } from "@ui/overlay";
 import { IconButton } from "@ui/button";
+import { classifySwipe, tapZone } from "@ui/gesture";
+import { isCoarsePointer, isPhone } from "@ui/viewport";
 import {
     editor,
     editorTokens,
@@ -70,7 +72,7 @@ export const Present: Component = () => {
         if (!host) return;
         const fullW = host.clientWidth || window.innerWidth;
         // preview lets a doc widen with the viewport (not the editor's fixed reading-column width)
-        const prof = previewContentProfile(profile(), fullW);
+        const prof = previewContentProfile(profile(), fullW, isPhone());
         const stage = document.createElement("div");
         stage.style.cssText = `position:relative;width:${fullW}px`;
         const { height } = paintSectionStack(stage, editor.artifact.sections, prof, theme(), {
@@ -93,7 +95,7 @@ export const Present: Component = () => {
         render();
     });
 
-    // Enter fullscreen on start — the present() click is the user gesture browsers require.
+    // the present() click is the user gesture browsers require for fullscreen
     createEffect(() => {
         if (presenting() && !document.fullscreenElement)
             overlay?.requestFullscreen?.()?.catch(() => {});
@@ -144,8 +146,7 @@ export const Present: Component = () => {
         const onResize = (): void => {
             if (presenting()) render();
         };
-        // Esc exits fullscreen natively (its keydown never reaches us) — treat leaving fullscreen while
-        // presenting as a full close, so one Esc dismisses the player instead of just un-fullscreening it.
+        // Esc exits fullscreen natively without a keydown, so treat leaving fullscreen as a full close
         const onFsChange = (): void => {
             if (!document.fullscreenElement && presenting()) exitPresent();
         };
@@ -159,7 +160,32 @@ export const Present: Component = () => {
         });
     });
 
+    // mirrors @ui/present: fine pointer advances on any click, coarse gets swipe plus a back zone
+    let down: { x: number; y: number; t: number } | null = null;
+    const onPointerDown = (e: PointerEvent): void => {
+        if (!paged() || overview()) return;
+        down = { x: e.clientX, y: e.clientY, t: e.timeStamp };
+    };
+    const onPointerUp = (e: PointerEvent): void => {
+        if (!paged() || overview()) return;
+        const start = down;
+        down = null;
+        if (!start) return;
+        if (!isCoarsePointer()) {
+            nextSlide();
+            return;
+        }
+        const swipe = classifySwipe({
+            dx: e.clientX - start.x,
+            dy: e.clientY - start.y,
+            dt: e.timeStamp - start.t,
+        });
+        if ((swipe ?? tapZone(e.clientX, host?.clientWidth ?? 0)) === "prev") prevSlide();
+        else nextSlide();
+    };
+
     const total = (): number => editor.artifact.sections.length;
+    const ctrl = (): "md" | "touch" => (isCoarsePointer() ? "touch" : "md");
     const hostStyle = createMemo(
         (): JSX.CSSProperties => backdropHostStyle(paged(), editor.artifact.background, theme()),
     );
@@ -171,11 +197,12 @@ export const Present: Component = () => {
                     ref={host}
                     class={
                         paged()
-                            ? "flex h-full w-full items-center justify-center overflow-auto"
+                            ? "flex h-full w-full touch-pan-y select-none items-center justify-center overflow-auto overscroll-x-contain"
                             : "h-full w-full overflow-y-auto"
                     }
                     style={hostStyle()}
-                    onClick={() => paged() && !overview() && nextSlide()}
+                    onPointerDown={onPointerDown}
+                    onPointerUp={onPointerUp}
                 />
 
                 <Show when={paged()}>
@@ -187,7 +214,7 @@ export const Present: Component = () => {
                         onClick={(e) => e.stopPropagation()}
                     >
                         <IconButton
-                            size="md"
+                            size={ctrl()}
                             rounded="lg"
                             tone="onDark"
                             title="Previous (←)"
@@ -195,11 +222,11 @@ export const Present: Component = () => {
                         >
                             <Icon name="chevronLeft" size={16} />
                         </IconButton>
-                        <span class="px-1.5 font-mono text-[12px] tabular-nums">
+                        <span class="whitespace-nowrap px-1.5 font-mono text-[12px] tabular-nums">
                             {slideIndex() + 1} / {total()}
                         </span>
                         <IconButton
-                            size="md"
+                            size={ctrl()}
                             rounded="lg"
                             tone="onDark"
                             title="Next (→)"
@@ -209,7 +236,7 @@ export const Present: Component = () => {
                         </IconButton>
                         <span class="mx-1 h-4 w-px bg-white/15" />
                         <IconButton
-                            size="md"
+                            size={ctrl()}
                             rounded="lg"
                             tone="onDark"
                             active={overview()}
@@ -219,7 +246,7 @@ export const Present: Component = () => {
                             <Icon name="grid" size={15} />
                         </IconButton>
                         <IconButton
-                            size="md"
+                            size={ctrl()}
                             rounded="lg"
                             tone="onDark"
                             title="Exit (Esc)"
@@ -237,7 +264,7 @@ export const Present: Component = () => {
                         </span>
                         <span class="mx-1 h-4 w-px bg-white/15" />
                         <IconButton
-                            size="md"
+                            size={ctrl()}
                             rounded="lg"
                             tone="onDark"
                             title="Exit (Esc)"

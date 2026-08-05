@@ -4,6 +4,7 @@ import type { Beat } from "@model/ai";
 import { Button, IconButton } from "@ui/button";
 import { Icon } from "@ui/icons";
 import { Dropdown } from "@ui/select";
+import { isCoarsePointer } from "@ui/viewport";
 import { Credits } from "../../components/credits";
 import { blocksForLayout, LAYOUT_IDS } from "../../stores/generate-plan";
 import {
@@ -19,22 +20,18 @@ import { BEAT_ROLES, LAYOUT_LABELS, previewFormat } from "./shared";
 import { BlueprintThumb } from "../../components/previews";
 import { Field, Inline, Tag } from "./inline";
 
-// A planned beat, in the canvas at the width of the section it becomes: everything the writer will
-// work from, editable in place. Writing it swaps this card for the painted section.
-
 export const OutlineCard: Component<{
     beat: Beat;
     index: number;
     total: number;
     open: boolean;
-    draggable: boolean;
-    onGrip: () => void;
     onToggle: () => void;
 }> = (props) => {
     const patch = (p: Partial<Beat>): void => patchBeat(props.beat.id, p);
     const points = (): string[] => props.beat.points ?? [];
     const covers = (): string[] => props.beat.covers ?? [];
     const busy = (): boolean => !!gen.activeSection;
+    const touch = isCoarsePointer;
 
     const setPoint = (i: number, v: string): void => {
         const next = [...points()];
@@ -52,9 +49,12 @@ export const OutlineCard: Component<{
                 <Show when={props.beat.image}>
                     <Tag tone="accent">image</Tag>
                 </Show>
-                <div class="ml-auto flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                <div
+                    class="ml-auto flex items-center gap-0.5 transition-opacity focus-within:opacity-100 group-hover:opacity-100"
+                    classList={{ "opacity-0": !touch() }}
+                >
                     <IconButton
-                        size="sm"
+                        size={touch() ? "touch" : "sm"}
                         tone="muted"
                         title="Move up"
                         disabled={props.index === 0}
@@ -63,7 +63,7 @@ export const OutlineCard: Component<{
                         <Icon name="chevronUp" size={12} />
                     </IconButton>
                     <IconButton
-                        size="sm"
+                        size={touch() ? "touch" : "sm"}
                         tone="muted"
                         title="Move down"
                         disabled={props.index === props.total - 1}
@@ -72,7 +72,7 @@ export const OutlineCard: Component<{
                         <Icon name="chevronDown" size={12} />
                     </IconButton>
                     <IconButton
-                        size="sm"
+                        size={touch() ? "touch" : "sm"}
                         tone="muted"
                         title="Add a section after this one"
                         onClick={() => addBeatAfter(props.beat.id)}
@@ -80,7 +80,7 @@ export const OutlineCard: Component<{
                         <Icon name="plus" size={12} />
                     </IconButton>
                     <IconButton
-                        size="sm"
+                        size={touch() ? "touch" : "sm"}
                         tone="muted"
                         title="Remove this section"
                         onClick={() => removeBeatById(props.beat.id)}
@@ -109,8 +109,6 @@ export const OutlineCard: Component<{
                     />
                 </div>
 
-                {/* the engine's own skeleton, so changing the layout or the image flag is something
-                    you SEE rather than read off a dropdown */}
                 <BlueprintThumb
                     class="mt-0.5 flex-none"
                     id={props.beat.id}
@@ -137,7 +135,8 @@ export const OutlineCard: Component<{
                             <IconButton
                                 size="2xs"
                                 tone="muted"
-                                class="mt-1 opacity-0 transition-opacity group-hover/pt:opacity-100"
+                                class="mt-1 transition-opacity group-hover/pt:opacity-100"
+                                classList={{ "opacity-0": !touch() }}
                                 title="Remove this point"
                                 onClick={() =>
                                     patch({ points: points().filter((_, j) => j !== i()) })
@@ -181,7 +180,6 @@ export const OutlineCard: Component<{
                 </button>
             </div>
 
-            {/* the structural knobs: real, but not what you read an outline for */}
             <Show when={props.open}>
                 <div class="flex flex-col gap-2.5 border-t border-line pt-2.5">
                     <Field label="What it must say">

@@ -113,7 +113,7 @@ const FORMATS: [string, string][] = [
 
 const CARD_W = 150; // two cards per row in the 360px rail
 
-// theme-brief catalog — the shuffle cycles these, no LLM call
+// static catalog: the shuffle cycles these, no LLM call
 const THEME_PROMPTS = [
     "Developer tools startup — near-black UI, electric-lime accent, monospaced headings",
     "AI research lab — clean white, cobalt accent, precise geometric sans",
@@ -164,7 +164,6 @@ const THEME_PROMPTS = [
     "Minimal art gallery — pure white, single black, refined minimal serif",
 ];
 
-// Fisher–Yates shuffle of the idea catalog
 function shuffledPrompts(): string[] {
     const a = [...THEME_PROMPTS];
     for (let i = a.length - 1; i > 0; i--) {
@@ -192,8 +191,8 @@ export const ThemeEditor: Component = () => (
 
 const ThemeEditorPanel: Component = () => {
     const location = useLocation();
-    void loadCustomThemes(); // idempotent — self-heal a failed boot-time fetch
-    // snapshot context at open — the modal never outlives a navigation
+    void loadCustomThemes(); // idempotent; self-heals a failed boot-time fetch
+    // snapshot context at open: the modal never outlives a navigation
     const editing = location.pathname.includes("/edit/");
     const currentId = editing ? editor.artifact.theme : appTheme();
 
@@ -220,10 +219,8 @@ const ThemeEditorPanel: Component = () => {
     const [genError, setGenError] = createSignal("");
     const [genStep, setGenStep] = createSignal(0);
     const [genDone, setGenDone] = createSignal(false); // generation finished → reveal the shared editor
-    // shown in Customize and after a generation
     const editorActive = (): boolean => mode() === "custom" || (mode() === "generate" && genDone());
 
-    // shown a page at a time; the shuffle advances the window
     const EX_PER_PAGE = 5;
     const [exPage, setExPage] = createSignal(0);
     const deck = shuffledPrompts();
@@ -239,7 +236,6 @@ const ThemeEditorPanel: Component = () => {
     // artifact's own format over the editor, else the demo toggle
     const previewFormat = (): string => (editing ? editor.artifact.format : format());
 
-    // wear the live draft while editing, else the selected theme
     const panelVars = createMemo(
         (): JSX.CSSProperties =>
             themeCssVars(
@@ -247,21 +243,18 @@ const ThemeEditorPanel: Component = () => {
             ) as JSX.CSSProperties,
     );
 
-    // load tokens into the working store + sync the shadow preset
     const loadTokens = (id: string): void => {
         const t = resolveTheme(id).tokens;
         setTk({ ...t, border: t.border ?? 1, scrim: t.scrim ?? 0.45 });
         setShadowPreset(inferShadow(t.shadow));
     };
 
-    // abandon an unsaved generated theme — revert to the pre-generation theme
     const discardGenerated = (): void => {
         if (!genDone()) return;
         setGenDone(false);
         loadTokens(selectedId());
     };
 
-    // apply live + mirror into the working store; in the editor it's an undoable commit
     const pick = (id: string): void => {
         setSelectedId(id);
         setGenDone(false); // a picked theme supersedes any generated draft
@@ -274,10 +267,10 @@ const ThemeEditorPanel: Component = () => {
         }
     };
 
-    // edit the selected theme — update if custom, else fork a new one
+    // updates in place if the selection is custom, else forks a new one
     const enterCustom = (): void => {
         if (mode() === "custom") return;
-        discardGenerated(); // switching to Customize abandons any unsaved generated theme
+        discardGenerated();
         const sel = selectedId();
         const editable = isCustom(sel);
         setEditTargetId(editable ? sel : null);
@@ -286,7 +279,6 @@ const ThemeEditorPanel: Component = () => {
         setMode("custom");
     };
 
-    // edit a custom theme directly — Save updates in place
     const editCustom = (t: Theme): void => {
         setSelectedId(t.id);
         loadTokens(t.id);
@@ -296,7 +288,6 @@ const ThemeEditorPanel: Component = () => {
         setMode("custom");
     };
 
-    // generate from a prompt, load into the working store, reveal the editor in place
     const runGenerate = async (): Promise<void> => {
         const p = genPrompt().trim();
         if (!p || genBusy()) return;
@@ -311,7 +302,7 @@ const ThemeEditorPanel: Component = () => {
             setName(theme.name);
             setTag(theme.mood ?? "custom");
             setEditTargetId(null); // Save creates a new custom theme
-            setGenDone(true); // stay on Generate; the shared editor takes over from the loader
+            setGenDone(true); // the shared editor takes over from the loader
         } catch (e) {
             setGenError(e instanceof Error ? e.message : "Generation failed.");
         } finally {
@@ -319,19 +310,18 @@ const ThemeEditorPanel: Component = () => {
         }
     };
 
-    // shadow follows the preset + live accent while editing; untouched in list mode
+    // shadow follows the preset and live accent, but only while editing
     createEffect(() => {
         if (editorActive()) setTk("shadow", shadowCss(shadowPreset(), tk.accent));
     });
 
-    // draft recolors the app behind the modal while editing; cleared on close
+    // the draft recolors the app behind the modal
     createEffect(() => {
         if (editorActive()) setAppThemePreview({ ...tk });
         else setAppThemePreview(null);
     });
     onCleanup(() => setAppThemePreview(null));
 
-    // rotate the loader status line while generating
     createEffect(() => {
         if (!genBusy()) return;
         setGenStep(0);
@@ -359,7 +349,7 @@ const ThemeEditorPanel: Component = () => {
         const ro = new ResizeObserver(() => setWidth(scroll.clientWidth));
         ro.observe(scroll);
         setWidth(scroll.clientWidth);
-        // web fonts arrive after first paint — re-measure so type reflows
+        // web fonts arrive after first paint, so re-measure and reflow type
         const onFonts = (): void => draw();
         document.fonts.ready.then(onFonts);
         document.fonts.addEventListener("loadingdone", onFonts);
@@ -383,7 +373,6 @@ const ThemeEditorPanel: Component = () => {
         });
     });
 
-    // save, then apply to the artifact (editing) or app theme; update or create
     const save = async (): Promise<void> => {
         setBusy(true);
         const draft: ThemeDraft = {
@@ -522,10 +511,10 @@ const ThemeEditorPanel: Component = () => {
             size="full"
             scrim="light"
             vars={panelVars()}
-            class="flex h-[90vh] max-h-250 overflow-hidden"
+            class="flex h-[90dvh] max-h-250 overflow-hidden"
             onClose={() => closeThemeEditor()}
         >
-            <aside class="flex w-90 flex-none flex-col border-r border-line bg-panel">
+            <aside class="flex w-full flex-1 flex-col border-r border-line bg-panel md:w-90 md:flex-none">
                 <header class="flex flex-none items-center gap-2 border-b border-line px-3 py-3">
                     <div class="flex-1">
                         <Segmented
@@ -559,7 +548,6 @@ const ThemeEditorPanel: Component = () => {
                 <div class="min-h-0 flex-1 overflow-y-auto">
                     <Show when={mode() === "list"}>
                         <div class="px-4 py-3">
-                            {/* Quick match to the app theme — only in the editor, only when they differ */}
                             <Show
                                 when={
                                     editing &&
@@ -839,7 +827,8 @@ const ThemeEditorPanel: Component = () => {
                 </div>
             </aside>
 
-            <div class="flex min-w-0 flex-1 flex-col">
+            {/* the live preview needs room beside the controls; below md the swatch list carries it */}
+            <div class="hidden min-w-0 flex-1 flex-col md:flex">
                 <div class="flex flex-none items-center justify-between border-b border-line bg-panel px-4 py-2">
                     <Eyebrow weight="normal">
                         {editing ? "Live preview · this artifact" : "Live preview · demo"}

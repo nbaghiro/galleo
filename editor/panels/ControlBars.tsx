@@ -91,7 +91,7 @@ export const ContextBar: Component = () => {
     const setData = (key: string, value: unknown): void => {
         const a = addr();
         if (!a) return;
-        // Slider/color are dragged continuously — coalesce their stream into one undo step.
+        // slider/color drag continuously; coalesce the stream into one undo step
         const control = barFields().find((c) => c.key === key)?.control;
         const coalesce =
             control === "slider" || control === "color"
@@ -100,9 +100,8 @@ export const ContextBar: Component = () => {
         commit(updateDataAt(editor.artifact, a, { ...data(), [key]: value }), { coalesce });
     };
     const align = createMemo((): string => inst()?.layout?.align ?? "start");
-    // `layout.align` is alignSelf — it only moves an element with horizontal slack, stacked in a
-    // column (in a row it would act on the cross axis, i.e. vertically, contradicting the icons).
-    // Rich text aligns via its own data control instead.
+    // `layout.align` is alignSelf: it only moves a column child with horizontal slack (in a row it
+    // would act vertically). Rich text aligns through its own data control.
     const canAlign = createMemo((): boolean => {
         const a = addr();
         const i = inst();
@@ -118,7 +117,7 @@ export const ContextBar: Component = () => {
         if (w === "fill") return false;
         if (w === "fit") return true;
         if (w && typeof w === "object") return w.pct < 100;
-        // No explicit width → the spec's natural width: fit/fixed nodes (button, badge, icon…) have slack.
+        // no explicit width: fit/fixed nodes (button, badge, icon) have slack, growing ones don't
         const probe = s.layout(i.data, {
             box: { x: 0, y: 0, w: 800, h: 600 },
             availWidth: 800,
@@ -208,7 +207,7 @@ export const ContextBar: Component = () => {
                         </For>
                         <Separator vertical class="mx-0.5" />
                     </Show>
-                    {/* One AI ✨: text-edit intake while inline-editing rich text, whole-element regenerate otherwise. */}
+                    {/* one ✨: text intake while editing rich text, else whole-element regenerate */}
                     <Show when={editing() && spec()?.richText && canAssistText()}>
                         <TextAiMenu />
                         <Separator vertical class="mx-0.5" />
@@ -265,7 +264,7 @@ export const MarkControls: Component = () => {
     const [pop, setPop] = createSignal<null | "color" | "hl" | "link">(null);
     const [linkUrl, setLinkUrl] = createSignal("");
     let linkRange: { from: number; to: number } | null = null;
-    // Captured when a color/highlight popover opens — reused so the native color well (which steals focus) still targets the right range.
+    // captured at popover open, since the native color well steals focus and loses the selection
     let markRange: { from: number; to: number } | null = null;
 
     const is = (type: MarkType): boolean => activeMarks().includes(type);
@@ -436,13 +435,12 @@ export const MarkControls: Component = () => {
     );
 };
 
-// AI text menu (rendered inside the mark controls bar).
 type Range = { from: number; to: number };
 
 const TextAiMenu: Component = () => {
     const [open, setOpen] = createSignal(false);
     const [prompt, setPrompt] = createSignal("");
-    // selection snapshot at open — a plain ref, read at action time, not reactive
+    // selection snapshot at open; a plain ref, read at action time, not reactive
     let captured: Range | null = null;
     let field: HTMLInputElement | undefined;
 
@@ -563,7 +561,7 @@ const TextAiMenu: Component = () => {
                         </For>
                     </div>
 
-                    {/* block wrapper so the top margin + divider apply (Separator is inline, drops vertical margins) */}
+                    {/* block wrapper: Separator is inline and drops vertical margins */}
                     <div class="mt-4 border-t border-line pt-3.5">
                         <Eyebrow as="div" mono={false} class="px-0.5 pb-1.5">
                             Translate to

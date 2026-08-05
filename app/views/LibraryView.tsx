@@ -1,4 +1,5 @@
-import type { ArtifactContent } from "@model/artifact";
+import type { Section, SectionSummary } from "@model/artifact";
+import { emptyRegion } from "@model/section";
 import type { Component } from "solid-js";
 import {
     createEffect,
@@ -16,16 +17,15 @@ import { useNavigate, useParams, useSearchParams } from "@solidjs/router";
 import { resolveTheme, fontStack } from "@themes";
 import { type ArtifactSummary, type SearchHit } from "../api";
 import {
-    CARD_SECTIONS,
+    cardSection,
     FORMAT_IDS,
     formatLabel,
     formatLabelPlural,
     relativeTime,
-    contents,
     artifacts,
     artifactsLoaded,
     duplicateArtifact,
-    ensureCardContent,
+    ensureCardSections,
     loadLibrary,
     loadMoreArtifacts,
     moveArtifact,
@@ -57,9 +57,13 @@ import {
     TrashIcon,
 } from "@ui/icons";
 import { SectionThumb } from "../components/previews";
-import { Sidebar } from "../components/Sidebar";
+import { Sidebar, SidebarToggle } from "../components/Sidebar";
 
-// fills use soft/accent tints — legible on light and dark, unlike line
+// fills use soft/accent tints, legible on light and dark unlike line
+const TILE_W = 176;
+const TILE_LEAD = "0px 400px"; // how far beyond the viewport a tile counts as worth loading
+const TILE_SETTLE = 90; // ms of quiet before the visible tiles are asked for
+
 const GhostCard: Component<{ variant: number }> = (p) => (
     <div class="flex min-h-37.5 flex-col gap-2.5 rounded-xl border border-soft/15 bg-panel p-3">
         <Switch>
@@ -156,8 +160,7 @@ export const LibraryView: Component = () => {
     const folderId = (): string | undefined => params.id;
     const folder = createMemo(() => folders().find((f) => f.id === folderId()));
 
-    // Filters are server-side now: a page is only coherent if both ends agree on what the list holds.
-    // Any change to them refetches page one.
+    // filters are server-side, so any change refetches page one
     createEffect(() => {
         const q: LibraryQuery = { folderId: folderId() ?? null, format: fmt(), sort: sort() };
         void loadLibrary(q).then(() => setLoading(false));
@@ -168,8 +171,7 @@ export const LibraryView: Component = () => {
         setSearchParams({ q: v || null }, { replace: true });
     };
 
-    // A query switches the list over to ranked results, which is its own paged source. The local pass
-    // over the loaded page fills the gap until the first response lands.
+    // a query switches the list to ranked results, its own paged source
     const [hits, setHits] = createSignal<SearchHit[] | null>(null);
     const [hitsDone, setHitsDone] = createSignal(false);
     const [searching, setSearching] = createSignal(false);
@@ -224,7 +226,7 @@ export const LibraryView: Component = () => {
         }
     };
 
-    // the instant local pass: titles and covers already in hand, until the server answers
+    // instant pass over what is already loaded, until the server answers
     const localMatches = createMemo(() => {
         const q = query().trim().toLowerCase();
         if (!q) return [];
@@ -261,7 +263,7 @@ export const LibraryView: Component = () => {
     };
     onCleanup(() => sentinelObserver?.disconnect());
 
-    // how many of the visible rows are here only because their body text matched
+    // visible rows that matched only on body text
     const contentOnly = createMemo(() => {
         const q = query().trim().toLowerCase();
         if (!q) return 0;
@@ -276,10 +278,9 @@ export const LibraryView: Component = () => {
         ...FORMAT_IDS.map((id): [string, string] => [id, formatLabelPlural(id)]),
     ];
 
-    // multi-select: shift-click toggles; batch actions are move-to-folder and delete
     const [selected, setSelected] = createSignal<Set<string>>(new Set());
     const isSelected = (id: string): boolean => selected().has(id);
-    // reflect only on-screen cards — a filter/folder change narrows the selection
+    // a filter or folder change narrows the selection to what is on screen
     const selectedVisible = createMemo((): string[] => {
         const vis = new Set(shown().map((d) => d.id));
         return [...selected()].filter((id) => vis.has(id));
@@ -306,7 +307,6 @@ export const LibraryView: Component = () => {
     onMount(() => window.addEventListener("keydown", onKey));
     onCleanup(() => window.removeEventListener("keydown", onKey));
 
-    // confirm modal for delete/duplicate + batch delete
     const [confirm, setConfirm] = createSignal<
         | { kind: "delete" | "duplicate"; doc: ArtifactSummary }
         | { kind: "delete-batch"; ids: string[] }
@@ -337,31 +337,43 @@ export const LibraryView: Component = () => {
             resolveTheme(appTheme()).tokens;
         const cv = (): NonNullable<ArtifactSummary["cover"]> => p.d.cover ?? {};
         const img = (): string | undefined => cv().image;
-        const secs = () => p.d.sections ?? [];
-        const content = (): ArtifactContent | undefined => contents()[p.d.id];
-        // the digest knows the real section count, so the card can size itself before content lands
-        const skeletonCount = (): number => Math.min(secs().length || CARD_SECTIONS, CARD_SECTIONS);
-        const rest = (): number => Math.max(0, secs().length - CARD_SECTIONS);
-        // Always open in the artifact's saved theme; the editor's theme picker offers a "switch to app theme" shortcut.
+        // the digest names every section, so the strip is its full length from the first frame
+        const secs = (): SectionSummary[] => p.d.sections ?? [];
+        const tileId = (s: SectionSummary, i: number): string => s.id ?? `s${i}`;
+        // opens in the artifact's saved theme; the editor offers "switch to app theme"
         const open = (): void => navigate(`/edit/${p.d.id}`);
         const [hovered, setHovered] = createSignal(false);
 
-        // The card asks for its own sections, and only on its way into view. Nothing below the fold
-        // costs a request.
-        let cardEl!: HTMLElement;
-        onMount(() => {
-            const io = new IntersectionObserver(
-                (entries) => {
-                    if (!entries.some((e) => e.isIntersecting)) return;
-                    io.disconnect();
-                    void ensureCardContent(p.d.id);
-                },
-                { rootMargin: "400px" },
-            );
-            io.observe(cardEl);
-            onCleanup(() => io.disconnect());
+        // Each tile reports its own visibility, so what loads is what the viewer can actually see:
+        // a wide monitor showing twelve tiles loads twelve, a phone showing two loads two. An
+        // observer against the viewport already accounts for the strip's horizontal clipping, so one
+        // observer covers both axes and neither needs tile geometry.
+        const onScreen = new Set<string>();
+        let settle = 0;
+        const flush = (): void => {
+            if (onScreen.size) void ensureCardSections(p.d.id, [...onScreen]);
+        };
+        const observer = new IntersectionObserver(
+            (entries) => {
+                for (const e of entries) {
+                    const id = (e.target as HTMLElement).dataset.tile;
+                    if (!id) continue;
+                    if (e.isIntersecting) onScreen.add(id);
+                    else onScreen.delete(id);
+                }
+                window.clearTimeout(settle);
+                settle = window.setTimeout(flush, TILE_SETTLE);
+            },
+            { rootMargin: TILE_LEAD },
+        );
+        const watchTile = (el: HTMLElement, id: string): void => {
+            el.dataset.tile = id;
+            observer.observe(el);
+        };
+        onCleanup(() => {
+            observer.disconnect();
+            window.clearTimeout(settle);
         });
-        // shift-click, or any click while selecting, toggles instead of opening
         const onCardClick = (e: MouseEvent): void => {
             if (e.shiftKey || selectMode()) {
                 e.preventDefault();
@@ -370,18 +382,18 @@ export const LibraryView: Component = () => {
             }
             open();
         };
+        // stacked: children stretch, else the text column sizes to the strip's max-content
         return (
             <section
-                ref={(el) => (cardEl = el)}
-                class={`flex items-center gap-7 border-b border-line px-9 py-7 ${isSelected(p.d.id) ? "bg-accent/5" : ""}`}
+                class={`flex flex-col gap-4 border-b border-line px-5 py-5 sm:flex-row sm:items-center sm:gap-7 md:px-9 md:py-7 ${isSelected(p.d.id) ? "bg-accent/5" : ""}`}
             >
                 <div
-                    class="relative flex-none"
+                    class="relative w-full flex-none sm:w-auto"
                     onMouseEnter={() => setHovered(true)}
                     onMouseLeave={() => setHovered(false)}
                 >
                     <button
-                        class="relative block h-47.5 w-75 overflow-hidden"
+                        class="relative block aspect-[300/190] h-auto w-full overflow-hidden sm:h-47.5 sm:w-75"
                         style={{
                             background: appTk().bg,
                             "box-shadow": "var(--shadow)",
@@ -392,9 +404,8 @@ export const LibraryView: Component = () => {
                             setDraggingArtifact(p.d.id);
                             if (!e.dataTransfer) return;
                             e.dataTransfer.effectAllowed = "move";
-                            // compact preview ABOVE the cursor (the transparent spacer below the
-                            // card keeps the hotspot in-bounds), so the folder row being targeted
-                            // stays visible instead of hiding under a full-size card snapshot
+                            // preview sits above the cursor (the spacer keeps the hotspot
+                            // in-bounds) so the targeted folder row stays visible
                             const W = 200;
                             const H = 126;
                             const GAP = 18;
@@ -467,7 +478,7 @@ export const LibraryView: Component = () => {
 
                 <div class="flex min-w-0 flex-1 flex-col gap-3.5">
                     <div class="flex items-center gap-3">
-                        {/* "Aa" specimen in the artifact's saved theme — font, palette, radius */}
+                        {/* "Aa" specimen in the artifact's saved theme, not the app theme */}
                         <span
                             class="grid h-9 w-9 flex-none place-items-center"
                             style={{
@@ -563,39 +574,26 @@ export const LibraryView: Component = () => {
                             Open →
                         </Button>
                     </div>
-                    <div class="flex items-center gap-3 overflow-x-auto pb-2 pt-0.5">
-                        <Show
-                            when={content()}
-                            fallback={
-                                <Index each={Array.from({ length: skeletonCount() })}>
-                                    {() => (
-                                        <div class="h-24.75 w-44 flex-none animate-pulse rounded-lg border border-line bg-line/40" />
-                                    )}
-                                </Index>
-                            }
-                        >
-                            <For each={content()!.sections}>
-                                {(sec, i) => (
-                                    <SectionThumb
-                                        section={sec}
-                                        themeId={appTheme()}
-                                        formatId={p.d.formatId}
-                                        label={`Section ${i() + 1}`}
-                                        onOpen={onCardClick}
-                                    />
-                                )}
-                            </For>
-                        </Show>
-                        <Show when={rest()}>
-                            {(n) => (
-                                <button
-                                    class="h-24.75 w-20 flex-none rounded-lg border border-dashed border-line text-[12px] font-medium text-muted hover:border-accent hover:text-accent"
-                                    onClick={onCardClick}
-                                >
-                                    +{n()}
-                                </button>
-                            )}
-                        </Show>
+                    <div class="flex items-center gap-3 overflow-x-auto overscroll-x-contain pb-2 pt-0.5">
+                        <For each={secs()}>
+                            {(summary, i) => {
+                                const id = (): string => tileId(summary, i());
+                                const loaded = (): Section | undefined => cardSection(p.d.id, id());
+                                return (
+                                    <span ref={(el) => watchTile(el, id())} class="flex-none">
+                                        <SectionThumb
+                                            section={loaded() ?? { id: id(), root: emptyRegion() }}
+                                            ghost={loaded() ? undefined : summary}
+                                            themeId={appTheme()}
+                                            formatId={p.d.formatId}
+                                            label={summary.title ?? `Section ${i() + 1}`}
+                                            width={TILE_W}
+                                            onOpen={onCardClick}
+                                        />
+                                    </span>
+                                );
+                            }}
+                        </For>
                     </div>
                 </div>
             </section>
@@ -605,8 +603,9 @@ export const LibraryView: Component = () => {
     return (
         <div class="flex h-full">
             <Sidebar />
-            <main class="flex-1 overflow-y-auto bg-canvas">
-                <div class="border-b border-line px-9 py-6">
+            <main class="min-w-0 flex-1 overflow-y-auto bg-canvas">
+                <SidebarToggle />
+                <div class="border-b border-line px-5 py-6 md:px-9">
                     <div class="flex flex-wrap items-end justify-between gap-4">
                         <div class="flex items-center gap-3">
                             <Show when={folder()}>
@@ -733,7 +732,7 @@ export const LibraryView: Component = () => {
                         }
                     >
                         <For each={shown()}>{(d) => <Band d={d} />}</For>
-                        {/* the page-turn: crossing this asks for the next page, until there is none */}
+                        {/* sentinel: crossing it requests the next page */}
                         <Show when={!exhausted()}>
                             <div
                                 ref={(el) => observeSentinel(el)}

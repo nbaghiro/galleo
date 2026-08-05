@@ -8,7 +8,7 @@ import { Route, Router } from "@solidjs/router";
 import { PublicView } from "./PublicView";
 
 const NotAvailable: Component = () => (
-    <div class="grid min-h-screen place-items-center bg-[#0a0a0c] px-6 text-center text-white">
+    <div class="grid min-h-dvh place-items-center bg-[#0a0a0c] px-6 text-center text-white">
         <div>
             <div class="mb-1.5 text-[16px] font-semibold">This link isn’t available</div>
             <p class="text-[13px] text-white/60">The address may be incorrect.</p>

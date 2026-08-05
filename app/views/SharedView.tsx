@@ -35,10 +35,10 @@ import { Badge, Button, Chip, Eyebrow, IconButton } from "@ui/button";
 import { EmptyState } from "@ui/status";
 import { Modal } from "@ui/overlay";
 import { TextField } from "@ui/inputs";
-import { Sidebar } from "../components/Sidebar";
+import { Sidebar, SidebarToggle } from "../components/Sidebar";
 import { PreviewCanvas } from "../components/previews";
 
-// an artifact with every link published for it — the Shared page's unit
+// an artifact with every link published for it: the Shared page's unit
 interface Item {
     art: LinkSummary["artifact"];
     links: LinkSummary[];
@@ -70,7 +70,7 @@ const fmtSeconds = (s: number): string =>
     s >= 60 ? `${Math.floor(s / 60)}m ${Math.round(s % 60)}s` : `${Math.round(s)}s`;
 const linkTitle = (l: LinkSummary): string => l.name ?? `${AUDIENCE[l.visibility].badge} link`;
 
-// last 30 days, zero-filled; single series in the theme accent, per-day hover via title
+// last 30 days, zero-filled
 const DayBars: Component<{ days: { day: string; views: number }[] }> = (p) => {
     const bars = createMemo((): { day: string; views: number }[] => {
         const byDay = new Map(p.days.map((d) => [d.day, d.views]));
@@ -112,7 +112,6 @@ const DayBars: Component<{ days: { day: string; views: number }[] }> = (p) => {
     );
 };
 
-// labeled horizontal bars — identity lives in the text label, magnitude in the bar
 const SourceBars: Component<{ rows: { label: string; views: number }[] }> = (p) => {
     const max = (): number => Math.max(1, ...p.rows.map((r) => r.views));
     return (
@@ -150,7 +149,7 @@ export const SharedView: Component = () => {
     const [copied, setCopied] = createSignal<string | null>(null);
 
     const refresh = async (): Promise<void> => {
-        // entitlements gate the insights pane — re-pull so a boot-time /features failure self-heals
+        // entitlements gate the insights pane, so re-pull to self-heal a boot-time failure
         await Promise.all([loadLinks(), loadLibrary(), loadFeatures()]);
     };
     onMount(async () => {
@@ -413,8 +412,9 @@ export const SharedView: Component = () => {
     return (
         <div class="flex h-full">
             <Sidebar />
-            <main class="flex-1 overflow-y-auto bg-canvas">
-                <div class="border-b border-line px-9 py-7">
+            <main class="min-w-0 flex-1 overflow-y-auto bg-canvas">
+                <SidebarToggle />
+                <div class="border-b border-line px-5 py-7 md:px-9">
                     <div class="flex flex-wrap items-end justify-between gap-4">
                         <div>
                             <Eyebrow tracking="widest" as="div">
@@ -548,7 +548,7 @@ const InsightsModal: Component<{
     onClose: () => void;
 }> = (p) => {
     const navigate = useNavigate();
-    // null = entitlements not loaded yet — show loading, never a premature upsell
+    // null = entitlements not loaded yet; never show a premature upsell
     const entitled = (): boolean | null => featuresState()?.features.analytics ?? null;
     const [sel, setSel] = createSignal<string>(p.focus ?? "all");
     const selLink = (): LinkSummary | null => p.it.links.find((l) => l.id === sel()) ?? null;

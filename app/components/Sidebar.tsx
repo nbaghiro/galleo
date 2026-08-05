@@ -1,5 +1,5 @@
 import type { Component, JSX } from "solid-js";
-import { createSignal, For, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, onMount, Show } from "solid-js";
 import { useLocation, useNavigate } from "@solidjs/router";
 import { api, type ApiFolder } from "../api";
 import { logout, user } from "../stores/auth";
@@ -26,6 +26,7 @@ import {
     EditIcon,
     FolderFillIcon,
     LibraryIcon,
+    MenuIcon,
     PlusIcon,
     SharedIcon,
     SignOutIcon,
@@ -35,11 +36,31 @@ import {
 } from "@ui/icons";
 import { CreateModal } from "../components/modals";
 import { openThemeEditor } from "../stores/theme";
+import { isPhone } from "@ui/viewport";
 import { openGenerate } from "../stores/generate";
 import { Button, Eyebrow, IconButton } from "@ui/button";
 import { TextField } from "@ui/inputs";
 import { Meter } from "@ui/status";
 import { Mark } from "@ui/brand";
+
+// Below `md` the sidebar is an overlay drawer; at md+ it is a static column and this stays false.
+const [drawerOpen, setDrawerOpen] = createSignal(false);
+export const openSidebar = (): void => {
+    setDrawerOpen(true);
+};
+export const closeSidebar = (): void => {
+    setDrawerOpen(false);
+};
+
+// phone app bar; each management view renders it first inside its <main>
+export const SidebarToggle: Component = () => (
+    <div class="sticky top-0 z-panel flex items-center gap-2 border-b border-line bg-panel/95 px-3 py-2 backdrop-blur-md md:hidden">
+        <IconButton size="touch" tone="muted" title="Menu" onClick={openSidebar}>
+            <MenuIcon />
+        </IconButton>
+        <span class="font-mono text-[13px] font-bold tracking-[0.06em] text-accent">GALLEO</span>
+    </div>
+);
 
 export const Sidebar: Component = () => {
     const navigate = useNavigate();
@@ -111,29 +132,30 @@ export const Sidebar: Component = () => {
 
     const [createOpen, setCreateOpen] = createSignal(false);
     const NewButton: Component = () => (
-        <>
-            <Button
-                variant="primary"
-                rounded="xl"
-                class="w-full"
-                onClick={() => setCreateOpen(true)}
-            >
-                <PlusIcon size={15} /> New artifact
-            </Button>
-            <Show when={createOpen()}>
-                <CreateModal
-                    onClose={() => setCreateOpen(false)}
-                    onGenerate={() => {
-                        setCreateOpen(false);
-                        openGenerate();
-                    }}
-                    onBlank={(fmt) => {
-                        setCreateOpen(false);
-                        create(fmt);
-                    }}
-                />
-            </Show>
-        </>
+        <Button
+            variant="primary"
+            rounded="xl"
+            class="w-full"
+            onClick={() => (isPhone() ? openGenerate() : setCreateOpen(true))}
+        >
+            <PlusIcon size={15} /> New artifact
+        </Button>
+    );
+    // sibling of the drawer, never inside — a translated ancestor traps a fixed modal
+    const NewArtifactModal: Component = () => (
+        <Show when={createOpen()}>
+            <CreateModal
+                onClose={() => setCreateOpen(false)}
+                onGenerate={() => {
+                    setCreateOpen(false);
+                    openGenerate();
+                }}
+                onBlank={(fmt) => {
+                    setCreateOpen(false);
+                    create(fmt);
+                }}
+            />
+        </Show>
     );
 
     const navItem = (
@@ -145,7 +167,7 @@ export const Sidebar: Component = () => {
         key?: string,
     ) => (
         <a
-            class={`flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] ${active ? "bg-accent/10 font-semibold text-accent" : "text-soft hover:bg-canvas"} ${onDrop && dragOver() === key ? "ring-2 ring-accent ring-inset" : ""}`}
+            class={`flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-3 text-[13.5px] md:py-2 ${active ? "bg-accent/10 font-semibold text-accent" : "text-soft hover:bg-canvas"} ${onDrop && dragOver() === key ? "ring-2 ring-accent ring-inset" : ""}`}
             onClick={() => to && navigate(to)}
             onDragOver={onDrop && key ? allowDrop(key) : undefined}
             onDragLeave={onDrop ? () => setDragOver(null) : undefined}
@@ -197,7 +219,7 @@ export const Sidebar: Component = () => {
                     }
                 >
                     <div
-                        class={`group flex cursor-pointer items-center gap-1.5 rounded-lg py-2 pr-2 text-[13.5px] ${active() ? "bg-accent/10 font-semibold text-accent" : "text-soft hover:bg-canvas"} ${dragOver() === np.f.id ? "ring-2 ring-accent ring-inset" : ""}`}
+                        class={`group flex cursor-pointer items-center gap-1.5 rounded-lg py-3 pr-2 text-[13.5px] md:py-2 ${active() ? "bg-accent/10 font-semibold text-accent" : "text-soft hover:bg-canvas"} ${dragOver() === np.f.id ? "ring-2 ring-accent ring-inset" : ""}`}
                         style={{ "padding-left": pad(np.depth) }}
                         onClick={() => navigate(`/folder/${np.f.id}`)}
                         onDragOver={allowDrop(np.f.id)}
@@ -282,137 +304,169 @@ export const Sidebar: Component = () => {
         );
     };
 
+    // navigating from inside the drawer dismisses it
+    createEffect(() => {
+        route();
+        closeSidebar();
+    });
+
     return (
-        <aside class="flex w-57.5 flex-none flex-col gap-1 border-r border-line bg-panel px-3 py-4 text-ink">
-            {/* marketing site (a separate build) — rel="external" so Solid Router does a real navigation
-                to /home instead of intercepting it into a client route (which the base="/" router now would) */}
-            <a
-                href="/home"
-                rel="external"
-                title="Galleo — marketing site"
-                class="flex items-center gap-2.5 px-1.5 pb-3 font-mono text-[14px] font-bold tracking-[0.06em] text-accent transition-opacity hover:opacity-70"
-            >
-                <Mark size={24} rounded="md" />
-                GALLEO
-            </a>
-            <button
-                class={`mb-2 flex w-full items-center gap-2.5 rounded-xl border bg-canvas px-2.5 py-2 text-left transition-colors ${route() === "/settings" ? "border-accent" : "border-line hover:border-accent/50"}`}
-                title="Workspace settings"
-                onClick={() => navigate("/settings")}
-            >
-                <Mark size={28} />
-                <span class="min-w-0 flex-1">
-                    <span class="block truncate text-[12.5px] font-bold text-ink">
-                        {workspaceState()?.workspace.name ?? "Workspace"}
-                    </span>
-                    <span class="block text-[10.5px] text-muted">
-                        {(workspaceState()?.members.length ?? 1) > 1
-                            ? `${workspaceState()!.members.length} members`
-                            : "Personal workspace"}
-                    </span>
-                </span>
-            </button>
-            <Show when={(workspaceState()?.memberships.length ?? 0) > 1}>
-                <select
-                    class="mb-2 w-full rounded-lg border border-line bg-canvas px-2 py-1.5 text-[12px] font-semibold text-ink"
-                    onChange={(e) => void switchWorkspace(e.currentTarget.value)}
-                >
-                    <For each={workspaceState()!.memberships}>
-                        {(m) => (
-                            <option value={m.id} selected={m.active}>
-                                {m.name}
-                            </option>
-                        )}
-                    </For>
-                </select>
+        <>
+            <Show when={drawerOpen()}>
+                <div class="fixed inset-0 z-drawer bg-black/40 md:hidden" onClick={closeSidebar} />
             </Show>
-            <NewButton />
-            <nav class="mt-3 flex flex-col gap-0.5">
-                {navItem(
-                    <LibraryIcon />,
-                    "Library",
-                    "/",
-                    route() === "/",
-                    () => drop(null),
-                    "root",
-                )}
-                {navItem(<TemplatesIcon />, "Templates", "/templates", route() === "/templates")}
-                {navItem(<SharedIcon />, "Shared", "/shared", route() === "/shared")}
-                {navItem(<TrashIcon />, "Trash", "/trash", route() === "/trash")}
-            </nav>
-
-            <div class="mt-4 flex items-center justify-between px-2.5 pb-1">
-                <Eyebrow tracking="wider">Folders</Eyebrow>
-                <IconButton
-                    size="xs"
-                    tone="muted"
-                    title="New folder"
-                    onClick={() => startCreate(null)}
-                >
-                    <PlusIcon size={13} />
-                </IconButton>
-            </div>
-            <div class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
-                <For each={folders().filter((f) => !f.parentId)}>
-                    {(f) => <FolderNode f={f} depth={0} />}
-                </For>
-                <Show when={creatingParent() === null}>{newInput(0, "Folder name…")}</Show>
-                <Show when={!folders().length && creatingParent() === undefined}>
-                    <p class="px-2.5 py-1 text-[11.5px] text-muted">
-                        Drag artifacts here to organize.
-                    </p>
-                </Show>
-            </div>
-
-            <Show when={billing()}>
-                {(b) => (
-                    <div class="mt-3 flex-none rounded-xl border border-line bg-canvas p-3">
-                        <div class="flex items-center justify-between text-[11.5px] font-semibold text-soft">
-                            <span class="capitalize">{b().plan} plan</span>
-                            <span class="font-mono text-muted">
-                                {b().usage.artifacts}
-                                {b().usage.maxArtifacts < 0 ? "" : ` / ${b().usage.maxArtifacts}`}
-                            </span>
-                        </div>
-                        <Show when={b().usage.maxArtifacts > 0}>
-                            <Meter
-                                value={b().usage.artifacts}
-                                max={b().usage.maxArtifacts}
-                                trackTone="line"
-                                class="my-2"
-                            />
-                        </Show>
-                        <a
-                            class="mt-1 block cursor-pointer text-[11.5px] font-semibold text-accent"
-                            onClick={() => navigate("/pricing")}
-                        >
-                            {b().plan === "free" ? "Upgrade for unlimited →" : "Manage plan →"}
-                        </a>
-                    </div>
-                )}
-            </Show>
-            <div class="mt-3 flex items-center gap-2.5 border-t border-line pt-3">
-                <span class="grid h-8 w-8 flex-none place-items-center rounded-lg bg-accent text-[12px] font-bold text-onaccent">
-                    {(user()?.name ?? user()?.email ?? "U").charAt(0).toUpperCase()}
-                </span>
-                <div class="min-w-0 flex-1">
-                    <div class="truncate text-[12.5px] font-semibold text-ink">
-                        {user()?.name ?? "Signed in"}
-                    </div>
-                    <div class="truncate text-[10.5px] text-muted">{user()?.email}</div>
+            <aside
+                class="fixed inset-y-0 left-0 z-drawer flex w-72 max-w-[85vw] flex-none flex-col gap-1 border-r border-line bg-panel px-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 text-ink transition-transform duration-200 md:static md:w-57.5 md:max-w-none md:transition-none"
+                classList={{ "max-md:-translate-x-full": !drawerOpen() }}
+            >
+                <div class="flex items-center justify-between pb-3">
+                    {/* rel="external": a real navigation to the marketing build, not a client route */}
+                    <a
+                        href="/home"
+                        rel="external"
+                        title="Galleo — marketing site"
+                        class="flex items-center gap-2.5 px-1.5 font-mono text-[14px] font-bold tracking-[0.06em] text-accent transition-opacity hover:opacity-70"
+                    >
+                        <Mark size={24} rounded="md" />
+                        GALLEO
+                    </a>
+                    <IconButton
+                        size="touch"
+                        tone="muted"
+                        class="md:hidden"
+                        title="Close menu"
+                        onClick={closeSidebar}
+                    >
+                        <CloseIcon />
+                    </IconButton>
                 </div>
-                <ThemePicker />
-                <IconButton
-                    size="lg"
-                    tone="muted"
-                    class="flex-none"
-                    title="Sign out"
-                    onClick={() => void logout()}
+                <button
+                    class={`mb-2 flex w-full items-center gap-2.5 rounded-xl border bg-canvas px-2.5 py-2 text-left transition-colors ${route() === "/settings" ? "border-accent" : "border-line hover:border-accent/50"}`}
+                    title="Workspace settings"
+                    onClick={() => navigate("/settings")}
                 >
-                    <SignOutIcon />
-                </IconButton>
-            </div>
-        </aside>
+                    <Mark size={28} />
+                    <span class="min-w-0 flex-1">
+                        <span class="block truncate text-[12.5px] font-bold text-ink">
+                            {workspaceState()?.workspace.name ?? "Workspace"}
+                        </span>
+                        <span class="block text-[10.5px] text-muted">
+                            {(workspaceState()?.members.length ?? 1) > 1
+                                ? `${workspaceState()!.members.length} members`
+                                : "Personal workspace"}
+                        </span>
+                    </span>
+                </button>
+                <Show when={(workspaceState()?.memberships.length ?? 0) > 1}>
+                    <select
+                        class="mb-2 w-full rounded-lg border border-line bg-canvas px-2 py-1.5 text-[12px] font-semibold text-ink"
+                        onChange={(e) => void switchWorkspace(e.currentTarget.value)}
+                    >
+                        <For each={workspaceState()!.memberships}>
+                            {(m) => (
+                                <option value={m.id} selected={m.active}>
+                                    {m.name}
+                                </option>
+                            )}
+                        </For>
+                    </select>
+                </Show>
+                <NewButton />
+                <nav class="mt-3 flex flex-col gap-0.5">
+                    {navItem(
+                        <LibraryIcon />,
+                        "Library",
+                        "/",
+                        route() === "/",
+                        () => drop(null),
+                        "root",
+                    )}
+                    {navItem(
+                        <TemplatesIcon />,
+                        "Templates",
+                        "/templates",
+                        route() === "/templates",
+                    )}
+                    {navItem(<SharedIcon />, "Shared", "/shared", route() === "/shared")}
+                    {navItem(<TrashIcon />, "Trash", "/trash", route() === "/trash")}
+                </nav>
+
+                <div class="mt-4 flex items-center justify-between px-2.5 pb-1">
+                    <Eyebrow tracking="wider">Folders</Eyebrow>
+                    <IconButton
+                        size="xs"
+                        tone="muted"
+                        title="New folder"
+                        onClick={() => startCreate(null)}
+                    >
+                        <PlusIcon size={13} />
+                    </IconButton>
+                </div>
+                <div class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
+                    <For each={folders().filter((f) => !f.parentId)}>
+                        {(f) => <FolderNode f={f} depth={0} />}
+                    </For>
+                    <Show when={creatingParent() === null}>{newInput(0, "Folder name…")}</Show>
+                    <Show when={!folders().length && creatingParent() === undefined}>
+                        <p class="px-2.5 py-1 text-[11.5px] text-muted">
+                            Drag artifacts here to organize.
+                        </p>
+                    </Show>
+                </div>
+
+                <Show when={billing()}>
+                    {(b) => (
+                        <div class="mt-3 flex-none rounded-xl border border-line bg-canvas p-3">
+                            <div class="flex items-center justify-between text-[11.5px] font-semibold text-soft">
+                                <span class="capitalize">{b().plan} plan</span>
+                                <span class="font-mono text-muted">
+                                    {b().usage.artifacts}
+                                    {b().usage.maxArtifacts < 0
+                                        ? ""
+                                        : ` / ${b().usage.maxArtifacts}`}
+                                </span>
+                            </div>
+                            <Show when={b().usage.maxArtifacts > 0}>
+                                <Meter
+                                    value={b().usage.artifacts}
+                                    max={b().usage.maxArtifacts}
+                                    trackTone="line"
+                                    class="my-2"
+                                />
+                            </Show>
+                            <a
+                                class="mt-1 block cursor-pointer text-[11.5px] font-semibold text-accent"
+                                onClick={() => navigate("/pricing")}
+                            >
+                                {b().plan === "free" ? "Upgrade for unlimited →" : "Manage plan →"}
+                            </a>
+                        </div>
+                    )}
+                </Show>
+                <div class="mt-3 flex items-center gap-2.5 border-t border-line pt-3">
+                    <span class="grid h-8 w-8 flex-none place-items-center rounded-lg bg-accent text-[12px] font-bold text-onaccent">
+                        {(user()?.name ?? user()?.email ?? "U").charAt(0).toUpperCase()}
+                    </span>
+                    <div class="min-w-0 flex-1">
+                        <div class="truncate text-[12.5px] font-semibold text-ink">
+                            {user()?.name ?? "Signed in"}
+                        </div>
+                        <div class="truncate text-[10.5px] text-muted">{user()?.email}</div>
+                    </div>
+                    <ThemePicker />
+                    <IconButton
+                        size="lg"
+                        tone="muted"
+                        class="flex-none"
+                        title="Sign out"
+                        onClick={() => void logout()}
+                    >
+                        <SignOutIcon />
+                    </IconButton>
+                </div>
+            </aside>
+            <NewArtifactModal />
+        </>
     );
 };
 

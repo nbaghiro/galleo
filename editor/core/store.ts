@@ -15,16 +15,16 @@ import type { Theme, Tokens } from "@themes";
 import { duplicateSection, insertSection, moveSection, removeSection } from "@elements/ops";
 import { emptyRegion } from "@model/section";
 import { targetsEqual } from "@model/target";
+import { isDesktop } from "@ui/viewport";
 import { resolveTheme } from "@themes";
 
-// blank starting artifact; the app replaces it via loadArtifactContent
 const EMPTY_ARTIFACT: ArtifactContent = {
     format: "deck",
     theme: "studio",
     sections: [{ id: "s-1", root: emptyRegion() }],
 };
 
-// immutable value: every write REPLACES the whole tree (never mutated in place), so undo just keeps past values
+// immutable: every write replaces the whole tree, so undo just keeps past values
 const [content, setContent] = createSignal<ArtifactContent>(EMPTY_ARTIFACT);
 export { content };
 
@@ -32,7 +32,7 @@ export { content };
 const [sectionTops, setSectionTops] = createSignal<number[]>([]);
 export { sectionTops, setSectionTops };
 
-// read facade — getters call their signal, so a read stays reactive
+// getters call their signal, so a read stays reactive
 export const editor = {
     get artifact(): ArtifactContent {
         return content();
@@ -49,12 +49,11 @@ export const editorAccent = (): string => editorTokens().accent;
 const [canvasEl, setCanvasEl] = createSignal<HTMLElement | null>(null);
 export { canvasEl, setCanvasEl };
 
-// width the canvas lays the section stack out at (panel gutters removed); the minimap reads it so a
-// thumbnail is a true scaled-down copy (matching text wraps), not a re-wrap in a narrower box
+// the width the stack is laid out at; the minimap reads it so a thumb wraps text identically
 const [canvasContentWidth, setCanvasContentWidth] = createSignal(1120);
 export { canvasContentWidth, setCanvasContentWidth };
 
-// painted stage element (content coords); positions the floating inspector beside its element
+// painted stage element, in content coords
 const [stageEl, setStageEl] = createSignal<HTMLElement | null>(null);
 export { stageEl, setStageEl };
 
@@ -64,7 +63,7 @@ export const [selection, setSelection] = createSignal<Target | null>(null, {
 });
 export const [hover, setHover] = createSignal<Target | null>(null, { equals: targetsEqual });
 
-// app pushes plan limits in; defaults are the most-restrictive Free set, so a studio with no host never leaks paid exports
+// defaults are the most-restrictive Free set, so a studio with no host never leaks paid exports
 export type ExportFeatures = Pick<PlanLimits, "exportFormats" | "removeBranding" | "publicLinks">;
 const [features, setFeatures] = createSignal<ExportFeatures>({
     exportFormats: ["png"],
@@ -73,7 +72,7 @@ const [features, setFeatures] = createSignal<ExportFeatures>({
 });
 export { features, setFeatures };
 
-// pairs the content tree with the title, so one undo stack covers content edits + renames
+// the title rides in the snapshot, so one undo stack covers content edits and renames
 interface DocSnapshot {
     content: ArtifactContent;
     title: string;
@@ -96,7 +95,7 @@ export const canRedo = (): boolean => {
     return future.length > 0;
 };
 
-// monotonic counter the canvas reads to force a redraw on every edit, in any format
+// bumped on every edit; the canvas reads it to force a redraw
 const [editSeq, setEditSeq] = createSignal(0);
 export { editSeq };
 const bumpSeq = (): void => {
@@ -105,7 +104,7 @@ const bumpSeq = (): void => {
 
 const snapshot = (): DocSnapshot => ({ content: content(), title: currentTitle() });
 
-// coalescing: consecutive commits with the same key (within a short idle window) fold into ONE undo step
+// consecutive commits with the same key (within the idle window) fold into one undo step
 let coalesceKey: string | null = null;
 let coalesceTimer = 0;
 const armCoalesce = (key: string): void => {
@@ -127,7 +126,7 @@ function pushPast(s: DocSnapshot): void {
 export function commit(next: ArtifactContent, opts?: { coalesce?: string }): void {
     const key = opts?.coalesce;
     if (key && key === coalesceKey) {
-        // same interaction — update content, keep the single history entry
+        // same interaction: keep the single history entry
         setContent(next);
         bumpSeq();
         armCoalesce(key);
@@ -139,16 +138,14 @@ export function commit(next: ArtifactContent, opts?: { coalesce?: string }): voi
     if (key) armCoalesce(key);
 }
 
-// commit `next` as one undo step baselined on `base`, not the live tree — used when the live tree holds a
-// transient value (e.g. a placeholder skeleton) that must not become the undo target
+// baselines the undo step on `base`, for when the live tree holds a transient value (a skeleton)
 export function commitOver(base: ArtifactContent, next: ArtifactContent): void {
     pushPast({ content: base, title: currentTitle() });
     setContent(next);
     bumpSeq();
 }
 
-// swap the rendered theme but remember the saved theme so autosave keeps persisting THAT; the swap doesn't
-// bump editSeq, so previewing on its own never triggers a save
+// previewing swaps the rendered theme but not the saved one, and skips editSeq, so it never autosaves
 const [previewingTheme, setPreviewingTheme] = createSignal(false);
 export { previewingTheme };
 let savedThemeUnderPreview: string | null = null;
@@ -160,7 +157,7 @@ export function startThemePreview(themeId: string): void {
     setPreviewingTheme(true);
 }
 
-// promote the previewed theme to saved; recorded as a history step (against the pre-preview theme) so it's undoable
+// recorded against the pre-preview theme, so promoting is undoable
 export function keepPreviewedTheme(): void {
     if (!previewingTheme()) return;
     const prevTheme = savedThemeUnderPreview;
@@ -208,11 +205,11 @@ export function redo(): void {
     bumpHistory();
 }
 
-// inline text editing: live keystrokes update the artifact without touching history; one entry is recorded when it ends
+// live keystrokes update the artifact without touching history; one entry is recorded when it ends
 const [editing, setEditing] = createSignal<ElementAddress | null>(null);
 export { editing };
 
-// viewport point where editing started — the caret is placed there
+// viewport point where editing started; the caret goes there
 const [editCaret, setEditCaret] = createSignal<{ x: number; y: number } | null>(null);
 export { editCaret };
 
@@ -221,8 +218,7 @@ let editBefore: ArtifactContent | null = null;
 export function startEditing(addr: ElementAddress, caret?: { x: number; y: number }): void {
     editBefore = editor.artifact;
     setEditCaret(caret ?? null);
-    // clear stale hover — hover updates are suppressed during editing, so a lingering value would strand
-    // hover chrome (drag handle, hover ring) on the previously-hovered element
+    // hover updates are suppressed while editing, so a stale value would strand the hover chrome
     setHover(null);
     setEditing(addr);
 }
@@ -234,8 +230,7 @@ export function stopEditing(): void {
     setEditing(null);
 }
 
-// re-key the editing <Show> to rebuild the contenteditable — after an AI text edit the browser won't
-// reliably repaint an in-place change to a focused contenteditable, but a fresh mount always paints
+// a focused contenteditable won't reliably repaint an in-place change; a fresh mount always paints
 export function remountEditing(): void {
     setEditing((a) => (a ? { ...a } : a));
 }
@@ -253,7 +248,7 @@ export interface ArtifactSummary {
 export const [artifacts, setArtifacts] = createSignal<ArtifactSummary[]>([]);
 export const [currentArtifactId, setCurrentArtifactId] = createSignal<string | null>(null);
 
-// title mirror the app populates; part of every history snapshot, so a rename undoes/redoes with content edits
+// part of every history snapshot, so a rename undoes and redoes with content edits
 export const currentTitle = (): string =>
     artifacts().find((d) => d.id === currentArtifactId())?.title ?? "Untitled";
 
@@ -262,7 +257,7 @@ function setTitleLocal(title: string): void {
     setArtifacts((list) => list.map((d) => (d.id === id ? { ...d, title } : d)));
 }
 
-// app registers title persistence (API write + library sync); studio-alone → no-op
+// app registers title persistence; studio-alone → no-op
 let persistTitleHandler: ((id: string, title: string) => void) | null = null;
 export function onPersistTitle(fn: (id: string, title: string) => void): void {
     persistTitleHandler = fn;
@@ -274,7 +269,6 @@ function restoreTitle(title: string): void {
     if (id) persistTitleHandler?.(id, title);
 }
 
-// rename as one undoable step; content untouched
 export function renameArtifact(title: string): void {
     const t = title.trim();
     if (!t || t === currentTitle()) return;
@@ -399,7 +393,7 @@ export function getTextAssist(): TextAssistant | null {
     return textAssistant;
 }
 
-// resets transient state and does NOT bump editSeq (no autosave — the canvas redraws off currentArtifactId)
+// no editSeq bump, so loading never autosaves; the canvas redraws off currentArtifactId
 export function loadArtifactContent(id: string, art: ArtifactContent): void {
     past.length = 0;
     future.length = 0;
@@ -414,18 +408,16 @@ export function loadArtifactContent(id: string, art: ArtifactContent): void {
     setPending(new Map());
     stubs.clear();
     resolved.clear();
+    requesting.clear();
+    measured.clear();
     setContent(art);
     bumpHistory();
 }
 
-// ── windowed content ─────────────────────────────────────────────────────────
-// A long artifact arrives as a shell plus the sections around the viewport; the rest are placeholders
-// that reserve their recorded byte size until the canvas asks for them. A placeholder is never edited
-// (there is nothing on screen to select), so it can be swapped in without touching history.
+// a placeholder is never edited (nothing on screen to select), so swapping in real content skips history
 
-const [pending, setPending] = createSignal<Map<string, number>>(new Map());
+const [pending, setPending] = createSignal<Map<string, SectionSummary>>(new Map());
 export { pending };
-export const pendingSize = (id: string): number | undefined => pending().get(id);
 export const isWindowed = (): boolean => pending().size > 0;
 
 const stubs = new Map<string, Section>(); // the exact placeholder objects, for identity checks
@@ -444,14 +436,14 @@ export function loadArtifactWindow(
     have: Section[],
 ): void {
     const bySid = new Map(have.map((s) => [s.id, s]));
-    const missing = new Map<string, number>();
+    const missing = new Map<string, SectionSummary>();
     const nextStubs = new Map<string, Section>();
     const sections = index.map((entry, i) => {
         const sid = entry.id ?? `s-${i}`;
         const real = bySid.get(sid);
         if (real) return real;
         const stub: Section = { id: sid, root: emptyRegion() };
-        missing.set(sid, entry.size ?? 0);
+        missing.set(sid, { ...entry, id: sid });
         nextStubs.set(sid, stub);
         return stub;
     });
@@ -467,10 +459,12 @@ const requesting = new Set<string>();
 export async function requestSections(ids: string[]): Promise<void> {
     const want = ids.filter((id) => pending().has(id) && !requesting.has(id));
     if (!want.length || !loadSections) return;
+    // section ids collide across artifacts, so a response landing after a switch must be dropped
+    const forArtifact = currentArtifactId();
     for (const id of want) requesting.add(id);
     try {
         const got = await loadSections(want);
-        if (!got.length) return;
+        if (!got.length || currentArtifactId() !== forArtifact) return;
         const by = new Map(got.map((s) => [s.id, s]));
         for (const s of got) resolved.set(s.id, s);
         setContent((c) => ({ ...c, sections: c.sections.map((s) => by.get(s.id) ?? s) }));
@@ -495,8 +489,18 @@ export async function ensureAllSections(): Promise<void> {
     }
 }
 
-// A history snapshot taken while a section was still a placeholder must not un-load it on undo. Swap
-// by object identity, so a section that was genuinely edited keeps its edited value.
+// a painted height beats the byte estimate on re-reserve; bucketed by width, since height follows it
+const measured = new Map<string, number>();
+const heightKey = (id: string, width: number): string => `${id}@${Math.round(width / 40)}`;
+
+export function rememberHeight(id: string, width: number, height: number): void {
+    measured.set(heightKey(id, width), height);
+}
+export function knownHeight(id: string, width: number): number | undefined {
+    return measured.get(heightKey(id, width));
+}
+
+// undo must not restore a placeholder over loaded content; the identity swap keeps edited sections
 const hydrate = (art: ArtifactContent): ArtifactContent => {
     if (!resolved.size) return art;
     let changed = false;
@@ -541,7 +545,7 @@ export function moveSectionBy(id: string, delta: number): void {
     if (j !== i) commit(moveSection(editor.artifact, id, delta));
 }
 
-// move to an absolute drop position (0..n in the pre-move ordering) — for drag-to-reorder
+// index is 0..n in the pre-move ordering (drag-to-reorder)
 export function moveSectionTo(id: string, index: number): void {
     const i = editor.artifact.sections.findIndex((s) => s.id === id);
     if (i < 0) return;
@@ -566,8 +570,9 @@ export function prevSlide(): void {
     setSlideIndex((i) => Math.max(0, i - 1));
 }
 
-export const [leftOpen, setLeftOpen] = createSignal(true);
-// rightTab is the open flyout: a category, "search", "inspector", or null
+// collapsed by default below desktop, where the minimap costs too much canvas
+export const [leftOpen, setLeftOpen] = createSignal(isDesktop());
+// the open flyout: a category, "search", "inspector", or null
 export const [rightTab, setRightTab] = createSignal<string | null>(null);
 
 export function jumpToSection(index: number): void {

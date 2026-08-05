@@ -24,4 +24,11 @@ describe("slideElement", () => {
         const el = slideElement(sectionOf(inst("text", { text: "Title" })), tokens, deck);
         expect(el).toBeInstanceOf(HTMLElement);
     });
+
+    it("lays out at the full page width and refuses to flex-shrink", () => {
+        // Without flex-shrink:0 the flex host squeezes the slide, then the transform scales it again.
+        const el = slideElement(sectionOf(inst("text", { text: "Title" })), tokens, deck);
+        expect(el.style.width).toBe("1280px");
+        expect(el.style.flexShrink).toBe("0");
+    });
 });

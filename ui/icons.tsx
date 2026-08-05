@@ -247,6 +247,7 @@ const PATHS: Record<string, () => JSX.Element> = {
     fullscreen: () => <path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" />,
     flag: () => <path d="M5 21V4.5M5 5h13l-2.8 4 2.8 4H5" />,
     close: () => <path d="M6 6l12 12M18 6 6 18" />,
+    menu: () => <path d="M4 7h16M4 12h16M4 17h16" />,
     sparkle: () => <path d="M12 4.5 13.5 10l5.5 1.5-5.5 1.5L12 18.5 10.5 13 5 11.5 10.5 10z" />,
     credit: () => (
         <>
@@ -441,7 +442,7 @@ PATHS.table = PATHS.data!;
 PATHS.composite = PATHS.container!;
 PATHS.basic = PATHS.interactive!;
 
-// carries the token values that can't be a class — icon stroke weight/cap (from heading weight + radius)
+// carries token values that can't be a class: icon stroke weight/cap (from heading weight + radius)
 const UiThemeContext = createContext<() => Tokens>();
 
 export const UiThemeProvider: Component<{ tokens: () => Tokens; children: JSX.Element }> = (
@@ -503,6 +504,7 @@ export const ChevronLeftIcon = named("chevronLeft");
 export const ChevronDownIcon = named("chevronDown");
 export const ChevronUpIcon = named("chevronUp");
 export const CloseIcon = named("close");
+export const MenuIcon = named("menu");
 export const EditIcon = named("edit");
 export const MoreIcon = named("more");
 export const CheckIcon = named("check");

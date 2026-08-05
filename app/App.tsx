@@ -24,6 +24,7 @@ import { TemplatesView } from "./views/TemplatesView";
 import { MediaPicker } from "./components/MediaPicker";
 import { VerifyBanner } from "./components/VerifyBanner";
 import { ShareModal } from "./components/ShareModal";
+import { ModelDebugModal } from "./components/ModelDebug";
 import { ThemeEditor } from "./views/ThemeEditor";
 import { TrashView } from "./views/TrashView";
 import { WorkspaceSettingsView } from "./views/WorkspaceSettingsView";
@@ -39,7 +40,7 @@ import "./components/palette-sources"; // side-effect: register the ⌘K artifac
 import { publishRoute } from "./stores/route-context";
 import "@editor/core/commands"; // side-effect: register studio commands + editor context keys
 
-// root layout: singular overlays mount once here (under Router); also wires the key/command system
+// singular overlays mount once here, under the Router
 const AppShell: Component<{ children?: JSX.Element }> = (props) => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -50,9 +51,11 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => {
         <>
             {props.children}
             <GenerateStudio />
+            {/* picking an app theme is a preference, so it mounts everywhere; authoring modes gate inside */}
             <ThemeEditor />
             <MediaPicker />
             <ShareModal />
+            <ModelDebugModal />
             <ChatPanel />
             <CommandPalette />
             <ShortcutsSheet />
@@ -61,7 +64,6 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => {
     );
 };
 
-// product SPA served at the domain root; auth gate then the routed app (Router base="/")
 export const App: Component = () => {
     onMount(() => {
         // cookie-gated, so fire in parallel with the session restore (don't wait for /me)
@@ -70,31 +72,29 @@ export const App: Component = () => {
         void loadFeatures();
     });
 
-    // sync favicon to the active theme; touch customThemes() so it re-resolves when they load
+    // customThemes() is read so the favicon re-resolves once they load
     createEffect(() => {
         customThemes();
         // live theme-editor draft wins, so the tab badge previews it too
         setFavicon(appThemeOverride() ?? resolveTheme(faviconOverride() ?? appTheme()).tokens);
     });
-    // recompute when app theme or custom themes change
     const themeVars = createMemo((): JSX.CSSProperties => {
         customThemes();
         return appThemeVars();
     });
-    // app-chrome tokens for @ui icon context (draft override when the theme editor is open)
+    // app-chrome tokens for the @ui icon context; the theme-editor draft overrides
     const appTokens = createMemo(() => {
         customThemes();
         return appThemeOverride() ?? resolveTheme(appTheme()).tokens;
     });
 
-    // A password-reset deep link (?reset=…) must show the auth screen even with a stale session, so the
-    // user can set a new password without logging out first. AuthPage reloads to / after reset to clear it.
+    // ?reset=… must reach the auth screen even with a live session, to set a password without logging out
     const isResetDeepLink = new URLSearchParams(window.location.search).has("reset");
 
     return (
         <UiThemeProvider tokens={appTokens}>
             <div
-                class="h-screen w-screen overflow-hidden bg-canvas font-body text-ink"
+                class="h-dvh w-full overflow-hidden bg-canvas font-body text-ink"
                 style={themeVars()}
             >
                 <Show
@@ -117,7 +117,7 @@ export const App: Component = () => {
                             <Route path="/invite/:token" component={InviteView} />
                             <Route path="/edit/:id" component={EditorView} />
                             <Route path="/present/:id" component={PresentView} />
-                            {/* /login (marketing sign-in) + unknowns: when already authed, land on the library */}
+                            {/* /login and unknowns: when already authed, land on the library */}
                             <Route path="*" component={() => <Navigate href="/" />} />
                         </Router>
                     </Show>

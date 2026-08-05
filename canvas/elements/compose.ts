@@ -47,10 +47,12 @@ export const PRESETS: Preset[] = [
 ];
 
 export const GUTTER = 14; // inset around a section column's top-level element (content width = colW - 2*GUTTER)
+const SECTION_PAD = 36;
+const BLEED_PAD_X = 72;
 const pad = (n: number) => ({ top: n, right: n, bottom: n, left: n });
 
 function emptyRegionNode(ctx: LayoutCtx): EngineNode {
-    // read-only render: reserve the same slot geometry but drop the "+ drop element" editor affordance
+    // read-only render: same slot geometry, without the editor affordance
     if (ctx.plain) return { w: grow(), h: fit(90) };
     return {
         w: grow(),
@@ -112,7 +114,6 @@ function composeElement(inst: ElementInstance, ctx: LayoutCtx, addr: ElementAddr
     if (spec.container) {
         const childInstances = spec.container.children(inst.data);
         if (childInstances.length === 0) {
-            // empty container (empty column / drag-emptied group) → drop region
             node = emptyRegionNode(ctx);
         } else {
             const kids = childInstances.map((child, i) =>
@@ -146,7 +147,7 @@ function bgIsDark(bg: SectionBackground | undefined): boolean {
     return false;
 }
 
-// light-on-dark tokens; lift a too-dark accent, then re-pair onAccent dark so solid fills keep contrast
+// once the accent is lifted, onAccent must re-pair dark so solid fills keep contrast
 function onDark(t: Tokens): Tokens {
     const accent = readableAccentOnDark(t.accent);
     return {
@@ -174,7 +175,11 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
     const webBand = ctx.format.id === "web"; // full-bleed band, content stays in a centered column
     const innerMax = ctx.format.maxContentWidth ?? 1180;
     const contentTheme = bgIsDark(bg) ? onDark(ctx.theme) : ctx.theme;
-    const cctx: LayoutCtx = { ...ctx, theme: contentTheme };
+    const sidePad = bleed ? BLEED_PAD_X : SECTION_PAD;
+    const outerW = ctx.availWidth - sidePad * 2;
+    // exact for the top-level row; a nested row inherits it and stacks a step late, self-correcting
+    const contentW = Math.max(0, (webBand ? Math.min(outerW, innerMax) : outerW) - GUTTER * 2);
+    const cctx: LayoutCtx = { ...ctx, theme: contentTheme, availWidth: contentW };
 
     const content = composeElement(section.root, cctx, { section: section.id, path: [] });
     const inner: EngineNode = {
@@ -191,15 +196,15 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
         w: grow(),
         h: fit(),
         alignX: webBand ? "center" : undefined,
-        padding: bleed ? { top: 64, bottom: 64, left: 72, right: 72 } : pad(36),
-        // clip X so an over-wide element is cropped at the section edge, not spilling past the card;
-        // height stays unclipped for fit-growth + deck slide-fitting
+        padding: bleed
+            ? { top: 64, bottom: 64, left: BLEED_PAD_X, right: BLEED_PAD_X }
+            : pad(SECTION_PAD),
+        // crop over-wide elements at the edge; height stays free for fit-growth + slide-fitting
         clip: { x: true },
         children: [inner],
     };
 
-    // framed sections wear card decoration: shadow always, but the border only on a light bg (over dark a
-    // hairline reads as an awkward frame); bleed/continuous merge into the page → undecorated
+    // border only on a light bg: over dark a hairline reads as an awkward frame
     const framed = !bleed && !continuous;
     const shadow = framed ? ctx.theme.shadow : undefined;
     const border =
@@ -208,7 +213,6 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
             : undefined;
 
     if (bg?.kind === "image" && bg.image) {
-        // scrim: per-section override → theme default → fallback
         node.image = {
             src: bg.image,
             fit: "cover",

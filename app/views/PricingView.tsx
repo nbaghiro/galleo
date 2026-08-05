@@ -7,7 +7,7 @@ import { CheckIcon } from "@ui/icons";
 import { Badge, Eyebrow, Spinner } from "@ui/button";
 import { TextField } from "@ui/inputs";
 import { Meter } from "@ui/status";
-import { Sidebar } from "../components/Sidebar";
+import { Sidebar, SidebarToggle } from "../components/Sidebar";
 import { api } from "../api";
 import {
     billing,
@@ -36,7 +36,7 @@ export const PricingView: Component = () => {
     const b = billing;
     const current = (): PlanId => b()?.plan ?? "free";
     const ready = (): boolean => b()?.stripeReady ?? false;
-    // A paid plan set to lapse to Free at period end — kept running until then; can be resumed.
+    // a paid plan set to lapse to Free at period end; it keeps running until then
     const pendingCancel = (): boolean => !!b()?.cancelAtPeriodEnd && current() !== "free";
 
     const usagePct = createMemo(() => {
@@ -63,8 +63,8 @@ export const PricingView: Component = () => {
         return !!u && u.maxArtifacts >= 0 && u.artifacts > u.maxArtifacts;
     };
 
-    // Which action is mid-flight, keyed by plan id / "resume" / "portal". Drives per-button spinners and
-    // blocks concurrent submits. Checkout + portal redirect away, so pending simply persists until navigation.
+    // keyed by plan id / "resume" / "portal"; checkout and portal redirect away, so pending simply
+    // persists until navigation
     const [pending, setPending] = createSignal<string | null>(null);
     const busy = (key: string): boolean => pending() === key;
     const anyBusy = (): boolean => pending() !== null;
@@ -105,10 +105,11 @@ export const PricingView: Component = () => {
     };
 
     return (
-        <div class="flex h-screen bg-canvas text-ink">
+        <div class="flex h-dvh bg-canvas text-ink">
             <Sidebar />
             <main class="min-w-0 flex-1 overflow-y-auto">
-                <div class="mx-auto max-w-260 px-8 py-10">
+                <SidebarToggle />
+                <div class="mx-auto max-w-260 px-5 py-6 md:px-8 md:py-10">
                     <header class="mb-6">
                         <h1 class="text-[26px] font-bold tracking-[-0.02em]">Plans</h1>
                         <p class="mt-1 text-[14px] text-muted">

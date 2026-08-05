@@ -14,14 +14,18 @@ import { backdropHostStyle, SlideProgress } from "./section";
 import { FloatingBar } from "./overlay";
 import { Z } from "./z";
 import { IconButton } from "./button";
+import { classifySwipe, tapZone } from "./gesture";
+import { isCoarsePointer, isPhone } from "./viewport";
 import { Icon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "./icons";
 
 export const PresentSurface: Component<{
     artifact: ArtifactContent;
     z?: number;
     autoFullscreen?: boolean;
+    // read-only viewing rather than presenting: drops the fullscreen control and its key
+    viewOnly?: boolean;
     onExit?: () => void;
-    // engagement hook: furthest slide (paged) or section (continuous) reached, 0-based, + total
+    // furthest slide (paged) or section (continuous) reached, 0-based, + total
     onProgress?: (reached: number, total: number) => void;
     children?: JSX.Element;
 }> = (props) => {
@@ -33,8 +37,7 @@ export const PresentSurface: Component<{
     const profile = createMemo(() => resolveProfile(props.artifact.format));
     const paged = createMemo(() => profile().kind === "paged");
     // A tall paged section spans several 16:9 slides; map a flat slide index ↔ (section, page).
-    // Counting slides lays out every section, which is the whole deck's work before slide one. Count the
-    // sections up to and including the one on screen, and treat the rest as one slide each until reached.
+    // Counting lays out a section, so count only up to the one on screen; assume 1 slide for the rest.
     const [counted, setCounted] = createSignal(0);
     const slideCounts = createMemo(() => {
         if (!paged()) return [];
@@ -89,8 +92,8 @@ export const PresentSurface: Component<{
     const renderContinuous = (): void => {
         if (!host) return;
         const fullW = host.clientWidth || window.innerWidth;
-        // preview isn't bound to the editor's fixed reading-column width — let a doc widen with the viewport
-        const prof = previewContentProfile(profile(), fullW);
+        // preview isn't bound to the editor's fixed reading-column width, so a doc widens with the viewport
+        const prof = previewContentProfile(profile(), fullW, isPhone());
         if (!stage) {
             stage = document.createElement("div");
             host.replaceChildren(stage);
@@ -110,7 +113,6 @@ export const PresentSurface: Component<{
     };
     const render = (): void => (paged() ? renderPaged() : renderContinuous());
 
-    // continuous: scrolling repaints once the materialized band has really moved
     const onScrollWindow = (): void => {
         if (paged() || !host) return;
         const viewH = host.clientHeight || window.innerHeight;
@@ -143,13 +145,38 @@ export const PresentSurface: Component<{
         else void overlay?.requestFullscreen?.()?.catch(() => {});
     };
 
+    // Fine pointer: click anywhere advances. Coarse: swipe, plus a back zone on the leading edge.
+    let down: { x: number; y: number; t: number } | null = null;
+    const onPointerDown = (e: PointerEvent): void => {
+        if (!paged()) return;
+        down = { x: e.clientX, y: e.clientY, t: e.timeStamp };
+    };
+    const onPointerUp = (e: PointerEvent): void => {
+        if (!paged()) return;
+        const start = down;
+        down = null;
+        if (!start) return;
+        if (!isCoarsePointer()) {
+            next();
+            return;
+        }
+        const swipe = classifySwipe({
+            dx: e.clientX - start.x,
+            dy: e.clientY - start.y,
+            dt: e.timeStamp - start.t,
+        });
+        const intent = swipe ?? tapZone(e.clientX, host?.clientWidth ?? 0);
+        if (intent === "prev") prev();
+        else next();
+    };
+
     onMount(() => {
         if (props.autoFullscreen) void overlay?.requestFullscreen?.()?.catch(() => {});
         const onKey = (e: KeyboardEvent): void => {
             if (paged()) {
                 if (e.key === "ArrowRight" || e.key === " " || e.key === "ArrowDown") next();
                 else if (e.key === "ArrowLeft" || e.key === "ArrowUp") prev();
-                else if (e.key === "f" || e.key === "F") toggleFs();
+                else if ((e.key === "f" || e.key === "F") && !props.viewOnly) toggleFs();
                 else if (e.key === "Escape") props.onExit?.();
                 return;
             }
@@ -159,7 +186,7 @@ export const PresentSurface: Component<{
             } else if (e.key === "ArrowUp" || e.key === "PageUp") {
                 e.preventDefault();
                 host?.scrollBy({ top: -host.clientHeight * 0.9, behavior: "smooth" });
-            } else if (e.key === "f" || e.key === "F") toggleFs();
+            } else if ((e.key === "f" || e.key === "F") && !props.viewOnly) toggleFs();
             else if (e.key === "Escape") props.onExit?.();
         };
         const onResize = (): void => render();
@@ -174,6 +201,7 @@ export const PresentSurface: Component<{
     const hostStyle = createMemo(
         (): JSX.CSSProperties => backdropHostStyle(paged(), props.artifact.background, tokens()),
     );
+    const ctrl = (): "md" | "touch" => (isCoarsePointer() ? "touch" : "md");
 
     return (
         <div
@@ -185,11 +213,13 @@ export const PresentSurface: Component<{
                 ref={host}
                 class={
                     paged()
-                        ? "flex h-full w-full items-center justify-center overflow-auto"
+                        ? // pan-y claims horizontal, so a swipe never triggers browser back-navigation
+                          "flex h-full w-full touch-pan-y select-none items-center justify-center overflow-auto overscroll-x-contain"
                         : "h-full w-full overflow-y-auto"
                 }
                 style={hostStyle()}
-                onClick={() => paged() && next()}
+                onPointerDown={onPointerDown}
+                onPointerUp={onPointerUp}
                 onScroll={() => {
                     if (paged()) return;
                     reportScrollProgress();
@@ -207,7 +237,7 @@ export const PresentSurface: Component<{
             >
                 <Show when={paged()}>
                     <IconButton
-                        size="md"
+                        size={ctrl()}
                         rounded="lg"
                         tone="onDark"
                         title="Previous (←)"
@@ -215,11 +245,11 @@ export const PresentSurface: Component<{
                     >
                         <ChevronLeftIcon size={16} />
                     </IconButton>
-                    <span class="px-1.5 font-mono text-[12px] tabular-nums text-white/80">
+                    <span class="whitespace-nowrap px-1.5 font-mono text-[12px] tabular-nums text-white/80">
                         {index() + 1} / {total()}
                     </span>
                     <IconButton
-                        size="md"
+                        size={ctrl()}
                         rounded="lg"
                         tone="onDark"
                         title="Next (→)"
@@ -229,18 +259,20 @@ export const PresentSurface: Component<{
                     </IconButton>
                     <span class="mx-1 h-4 w-px bg-white/15" />
                 </Show>
-                <IconButton
-                    size="md"
-                    rounded="lg"
-                    tone="onDark"
-                    title="Fullscreen (F)"
-                    onClick={toggleFs}
-                >
-                    <Icon name="fullscreen" size={16} />
-                </IconButton>
+                <Show when={!props.viewOnly}>
+                    <IconButton
+                        size={ctrl()}
+                        rounded="lg"
+                        tone="onDark"
+                        title="Fullscreen (F)"
+                        onClick={toggleFs}
+                    >
+                        <Icon name="fullscreen" size={16} />
+                    </IconButton>
+                </Show>
                 <Show when={props.onExit}>
                     <IconButton
-                        size="md"
+                        size={ctrl()}
                         rounded="lg"
                         tone="onDark"
                         title="Exit (Esc)"

@@ -1,6 +1,3 @@
-// Material the piece is built FROM: pasted text and dropped files, merged into one source blob.
-// Pure — the file reading itself lives in `readAttachment` at the bottom.
-
 export interface Attachment {
     id: string;
     name: string;
@@ -33,8 +30,7 @@ const TEXT_EXTENSIONS = [
 export const extensionOf = (name: string): string =>
     name.includes(".") ? name.slice(name.lastIndexOf(".") + 1).toLowerCase() : "";
 
-// We read files in the browser, so anything that isn't text arrives as mojibake. Refusing it with a
-// reason beats silently feeding the planner binary noise.
+// read in the browser, so anything that isn't text arrives as mojibake
 export function isReadableFile(name: string, type: string): boolean {
     if (type.startsWith("text/")) return true;
     if (type === "application/json" || type === "application/xml") return true;

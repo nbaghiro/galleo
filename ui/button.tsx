@@ -84,7 +84,8 @@ export const Button: Component<
     );
 };
 
-type IconButtonSize = "2xs" | "xs" | "sm" | "md" | "lg" | "xl";
+// `touch` is the 44px minimum hit target; use it on surfaces a coarse pointer drives.
+type IconButtonSize = "2xs" | "xs" | "sm" | "md" | "lg" | "xl" | "touch";
 type IconButtonTone = "muted" | "soft" | "ink" | "accent" | "tool" | "danger" | "onDark";
 const IB_SIZE: Record<IconButtonSize, string> = {
     "2xs": "h-3.5 w-3.5",
@@ -93,6 +94,7 @@ const IB_SIZE: Record<IconButtonSize, string> = {
     md: "h-7 w-7",
     lg: "h-8 w-8",
     xl: "h-9 w-9",
+    touch: "h-11 w-11",
 };
 const IB_AUTO: Record<IconButtonSize, string> = {
     "2xs": "h-3.5 min-w-3.5 px-1",
@@ -101,6 +103,7 @@ const IB_AUTO: Record<IconButtonSize, string> = {
     md: "h-7 min-w-7 px-1",
     lg: "h-8 min-w-8 px-1",
     xl: "h-9 min-w-9 px-1",
+    touch: "h-11 min-w-11 px-1",
 };
 const IB_TONE: Record<IconButtonTone, string> = {
     muted: "text-muted hover:bg-canvas hover:text-ink",

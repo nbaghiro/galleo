@@ -4,8 +4,7 @@ import { useParams } from "@solidjs/router";
 import { Spinner } from "@ui/button";
 import { api, ApiError } from "../api";
 
-// Lands from the emailed invite link (behind the app's sign-in gate). Possession of the token is
-// the credential; accepting joins the workspace and switches into it.
+// reached from the emailed invite link; possession of the token is the credential
 export const InviteView: Component = () => {
     const params = useParams<{ token: string }>();
     const [info] = createResource(
@@ -21,7 +20,7 @@ export const InviteView: Component = () => {
         setError(null);
         try {
             await api.acceptInvite(params.token);
-            window.location.href = "/"; // full reload — every store re-fetches under the new workspace
+            window.location.href = "/"; // full reload so every store re-fetches under the new workspace
         } catch (e) {
             setError(e instanceof ApiError ? e.message : "joining failed — try again");
             setBusy(false);
@@ -29,7 +28,7 @@ export const InviteView: Component = () => {
     };
 
     return (
-        <div class="flex h-screen items-center justify-center bg-canvas text-ink">
+        <div class="flex h-dvh items-center justify-center bg-canvas text-ink">
             <div class="w-full max-w-100 rounded-2xl border border-line bg-panel px-8 py-9 text-center">
                 <Show
                     when={!info.error}

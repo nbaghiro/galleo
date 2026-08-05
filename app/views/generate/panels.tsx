@@ -15,17 +15,12 @@ import {
 } from "../../stores/generate";
 import { Credits } from "../../components/credits";
 
-// Reading the brief is optional enrichment, not a gate: the fields start empty and the arc is
-// planned from the prompt, but pulling a read fills them in and sharpens every later section.
-
 const FIELDS = [
     ["Goal", "goal", "what it has to achieve"],
     ["Audience", "audience", "who it's aimed at"],
     ["Tone", "tone", "how it should sound"],
 ] as const;
 
-// The read, as a sentence rather than four inputs — it's meant to be checked at a glance, and it's
-// the one part of the brief the model wrote rather than the user.
 const ReadLine: Component = () => (
     <p class="text-[13px] leading-relaxed text-soft">
         A <Val v={gen.brief.tone} fallback="clear" /> {gen.brief.surface} for{" "}
@@ -53,16 +48,16 @@ const BriefFields: Component = () => {
     const covered = (): Map<string, string[]> => coverage();
 
     return (
-        <div class="flex flex-col gap-3 pb-3 pt-2">
+        <div class="flex flex-col gap-3 pb-3 pt-1">
             <Show when={gen.clarify}>
                 <ClarifyBox />
             </Show>
 
-            <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <div class="flex flex-col items-start gap-2">
                 <Show
                     when={read()}
                     fallback={
-                        <p class="text-[13px] leading-relaxed text-muted">
+                        <p class="text-[12.5px] leading-relaxed text-muted">
                             Planning straight from your prompt. Read it to pull out the goal,
                             audience and tone, so every section aims at the same thing.
                         </p>
@@ -73,7 +68,7 @@ const BriefFields: Component = () => {
                 <Button
                     variant="outline"
                     size="sm"
-                    class="ml-auto flex-none whitespace-nowrap"
+                    class="flex-none whitespace-nowrap"
                     disabled={gen.briefLoading}
                     onClick={() => void redraftBrief()}
                 >
@@ -84,10 +79,10 @@ const BriefFields: Component = () => {
                 </Button>
             </div>
 
-            {/* laid across the width rather than stacked in a column — the band sits under a
-                full-width header, and a narrow form pinned left reads as an orphan */}
-            <div class="flex flex-wrap gap-x-5 gap-y-3">
-                <div class="min-w-72 flex-[2]">
+            {/* one field per row: the rail is too narrow to pair them, and wrapping them would put
+                the break somewhere different for every label */}
+            <div class="flex flex-col gap-2.5">
+                <div>
                     <Eyebrow as="div" weight="normal" tracking="widest" class="mb-1">
                         The prompt
                     </Eyebrow>
@@ -100,7 +95,7 @@ const BriefFields: Component = () => {
                 </div>
                 <For each={FIELDS}>
                     {([label, key, hint]) => (
-                        <div class="min-w-44 flex-1">
+                        <div>
                             <Eyebrow as="div" weight="normal" tracking="widest" class="mb-1">
                                 {label}
                             </Eyebrow>
@@ -143,9 +138,9 @@ const BriefFields: Component = () => {
                     </For>
                     <TextField
                         compact
-                        class="min-w-52 flex-1"
+                        class="min-w-40 flex-1"
                         value={point()}
-                        placeholder="Add a point the piece has to cover — Enter"
+                        placeholder="Add a point to cover — Enter"
                         onChange={setPoint}
                         onKeyDown={(e: KeyboardEvent) => e.key === "Enter" && addPoint()}
                     />
@@ -177,8 +172,6 @@ const BriefFields: Component = () => {
     );
 };
 
-// The one clarifying question, with a way to actually answer it. Yes/No cover the common shape;
-// anything subtler goes in the field. Either way the answer lands in the brief.
 const ClarifyBox: Component = () => {
     const [reply, setReply] = createSignal("");
     const send = (text: string): void => {
@@ -215,8 +208,6 @@ const ClarifyBox: Component = () => {
     );
 };
 
-// The brief is what the plan is judged against, so it stays reachable for the whole run — one line
-// across the top, opening into the editable fields.
 export const BriefBar: Component = () => {
     const [open, setOpen] = createSignal(false);
     const read = (): string | null => {
@@ -227,36 +218,45 @@ export const BriefBar: Component = () => {
     const points = (): string[] => gen.brief.mustInclude ?? [];
 
     return (
-        <div class="flex-none border-b border-line bg-panel px-4 py-1.5">
+        <div class="flex max-h-[42%] flex-none flex-col border-b border-line">
             <button
-                class="flex w-full items-center gap-2 text-left"
+                class="flex w-full flex-none flex-col gap-0.5 px-3 py-2 text-left"
+                aria-expanded={open()}
                 onClick={() => setOpen((v) => !v)}
             >
-                <Eyebrow weight="normal" tracking="widest">
-                    Brief
-                </Eyebrow>
-                <span class="min-w-0 flex-1 truncate text-[11.5px] text-soft">
-                    {read() ?? gen.brief.prompt}
-                </span>
-                <Show when={points().length}>
-                    <span class="flex-none font-mono text-[9.5px] uppercase tracking-wide text-muted">
-                        {points().length} must-cover
-                    </span>
-                </Show>
-                <Show when={gen.briefDirty}>
-                    <span class="flex-none font-mono text-[9.5px] uppercase tracking-wide text-accent">
-                        edited
-                    </span>
-                </Show>
-                <span class="flex flex-none items-center gap-1 text-muted">
-                    <Show when={gen.briefLoading}>
-                        <Spinner size={10} />
+                <span class="flex w-full items-center gap-2">
+                    <Eyebrow weight="normal" tracking="widest">
+                        Brief
+                    </Eyebrow>
+                    <span class="flex-1" />
+                    <Show when={points().length}>
+                        <span class="flex-none font-mono text-[9.5px] uppercase tracking-wide text-muted">
+                            {points().length} must-cover
+                        </span>
                     </Show>
-                    <Icon name={open() ? "chevronUp" : "chevronDown"} size={12} />
+                    <Show when={gen.briefDirty}>
+                        <span class="flex-none font-mono text-[9.5px] uppercase tracking-wide text-accent">
+                            edited
+                        </span>
+                    </Show>
+                    <span class="flex flex-none items-center gap-1 text-muted">
+                        <Show when={gen.briefLoading}>
+                            <Spinner size={10} />
+                        </Show>
+                        <Icon name={open() ? "chevronUp" : "chevronDown"} size={12} />
+                    </span>
                 </span>
+                {/* the read line inside says this better, so the summary only stands in when closed */}
+                <Show when={!open()}>
+                    <span class="w-full truncate text-[11.5px] text-soft">
+                        {read() ?? gen.brief.prompt}
+                    </span>
+                </Show>
             </button>
             <Show when={open()}>
-                <BriefFields />
+                <div class="min-h-0 flex-1 overflow-y-auto px-3">
+                    <BriefFields />
+                </div>
             </Show>
         </div>
     );

@@ -3,6 +3,7 @@ import type { Component } from "solid-js";
 import { createResource, Show } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
 import { PresentSurface } from "@ui/present";
+import { canEditHere } from "@ui/viewport";
 import { api } from "../api";
 
 export const PresentView: Component = () => {
@@ -16,14 +17,17 @@ export const PresentView: Component = () => {
         <Show
             when={data()?.artifact}
             fallback={
-                <div class="grid h-screen place-items-center text-[13px] text-muted">Loading…</div>
+                <div class="grid h-dvh place-items-center text-[13px] text-muted">Loading…</div>
             }
         >
             {(a) => (
                 <PresentSurface
                     artifact={a().draftContent as ArtifactContent}
-                    autoFullscreen
-                    onExit={() => navigate(`/edit/${params.id}`)}
+                    autoFullscreen={canEditHere()}
+                    viewOnly={!canEditHere()}
+                    // exiting to /edit would bounce straight back here, since that route redirects
+                    // to preview on a phone
+                    onExit={() => navigate(canEditHere() ? `/edit/${params.id}` : "/")}
                 />
             )}
         </Show>

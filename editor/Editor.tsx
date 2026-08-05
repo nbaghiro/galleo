@@ -54,7 +54,7 @@ import {
 } from "./core/store";
 
 export const Editor: Component = () => {
-    // ensure the key dispatcher runs even without the app shell (idempotent)
+    // idempotent, so it is safe when the app shell already installed it
     onMount(() => installKeyDispatcher());
 
     const vars = createMemo(
@@ -68,7 +68,7 @@ export const Editor: Component = () => {
     return (
         <UiThemeProvider tokens={editorTokens}>
             <div
-                class="grid h-screen grid-rows-[52px_1fr] overflow-hidden bg-canvas text-ink"
+                class="grid h-dvh grid-rows-[52px_1fr] overflow-hidden bg-canvas text-ink"
                 style={vars()}
             >
                 <Topbar />
@@ -127,8 +127,6 @@ function panelShadow(t: Tokens): string {
     return echo ? `${BASE_PANEL_SHADOW}, ${echo}` : BASE_PANEL_SHADOW;
 }
 
-// --- Topbar ---
-
 const ArtifactName: Component = () => {
     const [renaming, setRenaming] = createSignal(false);
     const [draft, setDraft] = createSignal("");
@@ -155,7 +153,7 @@ const ArtifactName: Component = () => {
             when={renaming()}
             fallback={
                 <button
-                    class="cursor-text rounded px-1 text-[13px] text-muted hover:text-ink"
+                    class="min-w-0 max-w-40 cursor-text truncate rounded px-1 text-[13px] text-muted hover:text-ink lg:max-w-none"
                     title="Rename"
                     onClick={startRename}
                 >
@@ -185,7 +183,6 @@ const ArtifactName: Component = () => {
     );
 };
 
-// Undo/redo — one shared stack covers content, theme, format, and rename (see editor.ts).
 const HistoryButtons: Component = () => (
     <div class="flex items-center gap-0.5">
         <IconButton size="lg" tone="soft" disabled={!canUndo()} title="Undo (⌘Z)" onClick={undo}>
@@ -205,7 +202,6 @@ const Swatch: Component<{ surface: string; ink: string; accent: string }> = (pro
     </span>
 );
 
-// Opens the app-level theme drawer (wired by the host via onThemePicker); the button shows the current theme.
 const ThemeMenu: Component = () => {
     const current = createMemo(() => editorTheme());
     return (
@@ -215,13 +211,12 @@ const ThemeMenu: Component = () => {
                 ink={current().tokens.ink}
                 accent={current().tokens.accent}
             />
-            {current().name}
+            <span class="hidden lg:inline">{current().name}</span>
         </Button>
     );
 };
 
-// No-image case only: a subtle corner affordance to set the document backdrop. When an image is set,
-// there's no button — you replace it by double-clicking the visible backdrop (see Canvas).
+// only when no image is set; with one, you replace it by double-clicking the backdrop (see Canvas)
 const BackdropCornerButton: Component = () => {
     const noImage = (): boolean => {
         const bg = editor.artifact.background;
@@ -246,7 +241,7 @@ const BackdropCornerButton: Component = () => {
 
 const ExportButton: Component = () => (
     <Button variant="tool" size="sm" onClick={() => openExportModal()}>
-        <Icon name="export" size={14} /> Export
+        <Icon name="export" size={14} /> <span class="hidden lg:inline">Export</span>
     </Button>
 );
 
@@ -274,7 +269,7 @@ const Topbar: Component = () => (
             onClick={() => (features().publicLinks ? requestShare() : requestUpgrade())}
         >
             <Icon name={features().publicLinks ? "link" : "lock"} size={14} />
-            Share
+            <span class="hidden lg:inline">Share</span>
         </Button>
         <ExportButton />
         <Button
@@ -286,19 +281,19 @@ const Topbar: Component = () => (
             }}
         >
             <Icon name="present" size={14} />
-            {editor.artifact.format === "deck" ? "Present" : "Preview"}
+            <span class="hidden lg:inline">
+                {editor.artifact.format === "deck" ? "Present" : "Preview"}
+            </span>
         </Button>
     </header>
 );
-
-// --- Minimap ---
 
 const Minimap: Component = () => {
     const [dragIx, setDragIx] = createSignal<number | null>(null);
     const [overIx, setOverIx] = createSignal<number | null>(null);
     const rowEls: (HTMLElement | undefined)[] = [];
     let asideEl: HTMLElement | undefined; // IO root for thumbnail visibility
-    // Key rows by section id, not object ref — else a content edit remounts (re-observes) the thumb every keystroke.
+    // key by section id, not object ref, or a content edit remounts the thumb every keystroke
     const sectionIds = createMemo(() => editor.artifact.sections.map((s) => s.id));
 
     const startReorder = (ix: number, e: PointerEvent): void => {
@@ -393,9 +388,7 @@ const Minimap: Component = () => {
     );
 };
 
-// --- Panel (right dock) ---
-
-// hidden from the palette: internals with no standalone meaning (containers, the drop preview, the composite avatar)
+// hidden from the palette: internals with no standalone meaning
 const HIDDEN = new Set(["group", "__dropghost", "avatar"]);
 const CAT_ORDER = ["text", "media", "table", "composite", "chart", "diagram", "basic"];
 const CAT_LABEL: Record<string, string> = {
@@ -417,9 +410,7 @@ const Panel: Component = () => {
         const s = selection();
         return s?.kind === "element" ? s.address : null;
     });
-    // Elements fully editable on-canvas skip the panel: rich-text (format bar), and any whose `bar`
-    // already surfaces every control (vacuously true for zero-control containers). A frame forces
-    // the panel — its corner-radius slider lives only there.
+    // fully on-canvas-editable elements skip the panel; a frame forces it, for the radius slider
     const elementInline = createMemo((): boolean => {
         const a = elementAddr();
         if (!a) return false;
@@ -437,7 +428,7 @@ const Panel: Component = () => {
         return (type && getElement(type)?.label) || "Element";
     });
 
-    // A non-inline selection opens the inspector; inline elements + sections are handled elsewhere.
+    // a non-inline selection opens the inspector; inline elements and sections are handled elsewhere
     createEffect(() => {
         const s = selection();
         const showInspector = s?.kind === "element" && !elementInline();
@@ -477,7 +468,7 @@ const Panel: Component = () => {
                         as="aside"
                         pad="lg"
                         shadow="panel"
-                        class="flex max-h-[calc(100vh-120px)] w-71 flex-col overflow-y-auto"
+                        class="flex max-h-[calc(100dvh-120px)] w-60 flex-col overflow-y-auto lg:w-71"
                     >
                         <Show
                             when={tab() === "inspector"}

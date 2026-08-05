@@ -5,6 +5,7 @@ import { TextArea } from "@ui/inputs";
 import { Icon } from "@ui/icons";
 import { Dropdown } from "@ui/select";
 import { appTheme } from "../../stores/theme";
+import { isCoarsePointer } from "@ui/viewport";
 import { Credits } from "../../components/credits";
 import { planCost, startSession, type Surface } from "../../stores/generate";
 import { IMAGE_SOURCES, LENGTHS, PLACEHOLDER, SURFACES, shuffledPrompts } from "./prompts";
@@ -18,9 +19,6 @@ import {
     sourceLength,
     type Attachment,
 } from "./context";
-
-// One prompt, the material it's built from, and three quiet settings that live in the composer
-// rather than floating beneath it. Everything else is a decision for the outline, not for here.
 
 export const Intake: Component = () => {
     const [prompt, setPrompt] = createSignal("");
@@ -69,9 +67,11 @@ export const Intake: Component = () => {
     // which suggestion is in the box, so switching reads as picking rather than overwriting
     const picked = (): string => prompt().trim();
 
+    const touch = isCoarsePointer;
+
     const launch = (): void => {
         if (!ready()) return;
-        setPreviewFormat(fmt()); // the studio previews what the brief asked for
+        setPreviewFormat(fmt());
         void startSession({
             prompt: prompt().trim() || PLACEHOLDER,
             surface: fmt(),
@@ -84,7 +84,7 @@ export const Intake: Component = () => {
 
     return (
         <div
-            class="grid h-full place-items-center overflow-y-auto px-6 py-10"
+            class="grid h-full place-items-center overflow-y-auto px-4 py-6 md:px-6 md:py-10"
             onDragOver={(e) => {
                 e.preventDefault();
                 setDropping(true);
@@ -98,7 +98,7 @@ export const Intake: Component = () => {
         >
             <div class="w-full max-w-150">
                 <h1
-                    class="text-center font-serif text-[30px] leading-tight"
+                    class="text-center font-serif text-[25px] leading-tight md:text-[30px]"
                     style={{ "font-family": "var(--font-display)" }}
                 >
                     What are we making?
@@ -178,7 +178,6 @@ export const Intake: Component = () => {
                         </div>
                     </Show>
 
-                    {/* the composer owns its settings — they're about this prompt, not the page */}
                     <div class="flex flex-wrap items-center gap-x-1 gap-y-1.5 border-t border-line px-2 py-1.5">
                         <input
                             ref={fileInput}
@@ -191,39 +190,49 @@ export const Intake: Component = () => {
                                 e.currentTarget.value = "";
                             }}
                         />
-                        <IconButton
-                            size="lg"
-                            tone="muted"
-                            title="Attach text files (.txt, .md, .csv, .json)"
-                            onClick={() => fileInput.click()}
-                        >
-                            <Icon name="plus" size={14} />
-                        </IconButton>
-                        <IconButton
-                            size="lg"
-                            tone="muted"
-                            title="Paste material to build from"
-                            disabled={pasting()}
-                            onClick={() => setPasting(true)}
-                        >
-                            <Icon name="text" size={14} />
-                        </IconButton>
+                        <div class="flex flex-none items-center gap-x-1">
+                            <IconButton
+                                size={touch() ? "touch" : "lg"}
+                                tone="muted"
+                                title="Attach text files (.txt, .md, .csv, .json)"
+                                onClick={() => fileInput.click()}
+                            >
+                                <Icon name="plus" size={14} />
+                            </IconButton>
+                            <IconButton
+                                size={touch() ? "touch" : "lg"}
+                                tone="muted"
+                                title="Paste material to build from"
+                                disabled={pasting()}
+                                onClick={() => setPasting(true)}
+                            >
+                                <Icon name="text" size={14} />
+                            </IconButton>
+                            <span class="mx-1 hidden h-4 w-px flex-none bg-line md:block" />
+                        </div>
 
-                        <span class="mx-1 h-4 w-px flex-none bg-line" />
-
-                        <Dropdown
-                            compact
-                            value={fmt()}
-                            options={SURFACES}
-                            onChange={(v) => setFmt(v as Surface)}
-                        />
-                        <Dropdown compact value={length()} options={LENGTHS} onChange={setLength} />
-                        <Dropdown
-                            compact
-                            value={imageSource()}
-                            options={IMAGE_SOURCES}
-                            onChange={setImageSource}
-                        />
+                        {/* the three settings are one control: they wrap as a unit rather than
+                            splitting a row, and lead on a phone where the row does break */}
+                        <div class="order-first flex flex-none items-center gap-x-1 md:order-none">
+                            <Dropdown
+                                compact
+                                value={fmt()}
+                                options={SURFACES}
+                                onChange={(v) => setFmt(v as Surface)}
+                            />
+                            <Dropdown
+                                compact
+                                value={length()}
+                                options={LENGTHS}
+                                onChange={setLength}
+                            />
+                            <Dropdown
+                                compact
+                                value={imageSource()}
+                                options={IMAGE_SOURCES}
+                                onChange={setImageSource}
+                            />
+                        </div>
 
                         <Button
                             variant="primary"
@@ -249,8 +258,7 @@ export const Intake: Component = () => {
                     </p>
                 </Show>
 
-                {/* Always here, so picking a different one is a click rather than a clear-and-retype.
-                    Only the prompt and format change — attached context survives every switch. */}
+                {/* picking a suggestion changes only the prompt and format; attachments survive */}
                 <div class="mt-8">
                     <div class="mb-1 flex items-center gap-2 px-1">
                         <span class="flex-none font-mono text-[9px] uppercase tracking-[0.14em] text-muted">
@@ -292,8 +300,8 @@ export const Intake: Component = () => {
                                     class="flex-none transition-opacity"
                                     classList={{
                                         "text-accent opacity-100": picked() === ex.text,
-                                        "text-muted opacity-0 group-hover:opacity-100":
-                                            picked() !== ex.text,
+                                        "text-muted group-hover:opacity-100": picked() !== ex.text,
+                                        "opacity-0": picked() !== ex.text && !touch(),
                                     }}
                                 >
                                     <Icon

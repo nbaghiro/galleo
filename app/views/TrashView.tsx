@@ -15,13 +15,13 @@ import { RestoreIcon, TrashIcon } from "@ui/icons";
 import { ConfirmModal } from "@ui/overlay";
 import { Button, Eyebrow, IconButton } from "@ui/button";
 import { EmptyState } from "@ui/status";
-import { Sidebar } from "../components/Sidebar";
+import { Sidebar, SidebarToggle } from "../components/Sidebar";
 
 const DANGER = "#C0392B";
 
 export const TrashView: Component = () => {
     const [loading, setLoading] = createSignal(true);
-    // confirm only for permanent actions — restore is safe
+    // confirm only for permanent actions; restore is safe
     const [confirm, setConfirm] = createSignal<{
         kind: "purge" | "empty";
         doc?: ArtifactSummary;
@@ -53,7 +53,6 @@ export const TrashView: Component = () => {
             resolveTheme(p.d.themeId).tokens;
         return (
             <div class="group flex items-center gap-4 rounded-xl border border-line bg-panel/50 px-3.5 py-3 opacity-75 transition hover:opacity-100">
-                {/* dimmed, desaturated cover — reads as "removed" */}
                 <div
                     class="h-12 w-21 flex-none overflow-hidden rounded-lg border border-line"
                     style={{ background: tk().bg, filter: "grayscale(0.6)" }}
@@ -112,8 +111,9 @@ export const TrashView: Component = () => {
     return (
         <div class="flex h-full">
             <Sidebar />
-            <main class="flex-1 overflow-y-auto bg-canvas">
-                <div class="border-b border-line px-9 py-6">
+            <main class="min-w-0 flex-1 overflow-y-auto bg-canvas">
+                <SidebarToggle />
+                <div class="border-b border-line px-5 py-6 md:px-9">
                     <div class="flex flex-wrap items-end justify-between gap-4">
                         <div>
                             <Eyebrow tracking="widest">Removed</Eyebrow>

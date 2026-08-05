@@ -6,10 +6,6 @@ import { busy, sendChat, stopChat, thread } from "../../stores/chat";
 import { builtCount, gen } from "../../stores/generate";
 import { MessageView } from "../ChatPanel";
 
-// The studio's freeform channel. Not a second chat implementation — it renders the SAME thread the
-// dock does, over the same agent, whose subject is this session's draft (bound in the store). So a
-// mid-build "make section 3 a chart" runs the identical tools as editing a finished artifact.
-
 const PLAN_HINTS = [
     "Add a pricing section after the traction one",
     "The middle drags — cut a beat",

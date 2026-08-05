@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { PROFILES, previewContentProfile, resolveProfile, slideFrame } from "@engine/profile";
+import {
+    PROFILES,
+    previewContentProfile,
+    resolveProfile,
+    slideFrame,
+    stacksAtWidth,
+} from "@engine/profile";
 import type { Section } from "@model/artifact";
 
 const section = (aspect?: number): Section => ({
@@ -83,5 +89,37 @@ describe("previewContentProfile", () => {
     });
     it("caps the doc width at the readability ceiling", () => {
         expect(previewContentProfile(PROFILES.doc!, 3000).maxContentWidth).toBe(1440);
+    });
+
+    it("bleeds a doc edge-to-edge when asked, leaving desktop untouched", () => {
+        expect(previewContentProfile(PROFILES.doc!, 430, true).bleedSections).toBe(true);
+        expect(previewContentProfile(PROFILES.doc!, 1500, false).bleedSections).toBeUndefined();
+    });
+
+    it("is a no-op for formats that already bleed or never do", () => {
+        expect(previewContentProfile(PROFILES.web!, 430, true)).toBe(PROFILES.web);
+        expect(previewContentProfile(PROFILES.deck!, 430, true)).toBe(PROFILES.deck);
+    });
+});
+
+describe("stacksAtWidth", () => {
+    it("switches exactly at each format's threshold", () => {
+        for (const p of [PROFILES.deck!, PROFILES.doc!, PROFILES.web!]) {
+            expect(stacksAtWidth(p, p.splitMinWidth - 1)).toBe(true);
+            expect(stacksAtWidth(p, p.splitMinWidth)).toBe(false);
+        }
+    });
+
+    it("orders the thresholds web > doc > deck", () => {
+        // web bleeds full width so it needs the most room; a deck page is narrowest and splits soonest
+        expect(PROFILES.web!.splitMinWidth).toBeGreaterThan(PROFILES.doc!.splitMinWidth);
+        expect(PROFILES.doc!.splitMinWidth).toBeGreaterThan(PROFILES.deck!.splitMinWidth);
+    });
+
+    it("stacks every format at phone content widths and none at desktop", () => {
+        for (const p of [PROFILES.deck!, PROFILES.doc!, PROFILES.web!]) {
+            expect(stacksAtWidth(p, 226)).toBe(true);
+            expect(stacksAtWidth(p, 1180)).toBe(false);
+        }
     });
 });

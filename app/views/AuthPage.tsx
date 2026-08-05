@@ -5,6 +5,7 @@ import { api } from "../api";
 import { Visual } from "../components/previews";
 import { TextField } from "@ui/inputs";
 import { Button, Eyebrow } from "@ui/button";
+import { Mark } from "@ui/brand";
 
 const authField = "rounded-lg bg-panel px-3.5 py-2.5 text-[14px] placeholder:text-muted";
 const oauth =
@@ -13,7 +14,7 @@ const oauthEnabled =
     "flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-line bg-panel py-2.5 text-[13px] font-medium text-soft transition-colors hover:border-accent hover:bg-accent/10 hover:text-ink";
 const serif = "var(--font-display, 'Fraunces', serif)";
 
-// Failure codes the OAuth callback + verify link hand back via ?authError=… (see services/api/*).
+// codes the OAuth callback and verify link hand back via ?authError= (see services/api/*)
 const AUTH_ERRORS: Record<string, string> = {
     oauth_state: "Sign-in was interrupted or expired. Please try again.",
     oauth_exchange: "Could not complete sign-in with that provider. Please try again.",
@@ -52,20 +53,18 @@ export const AuthPage: Component = () => {
     const [googleReady, setGoogleReady] = createSignal(false);
 
     onMount(() => {
-        // enable the Google button only when the backend has it configured
         api.authProviders()
             .then((p) => setGoogleReady(p.google))
             .catch(() => {});
-        // /signup opens the create-account form; /login (and anything else) opens sign-in
         if (window.location.pathname === "/signup") setMode("signup");
         const params = new URLSearchParams(window.location.search);
-        // a password-reset email links to /login?reset=<token> — open straight into the reset form
+        // a password-reset email links to /login?reset=<token>
         const token = params.get("reset");
         if (token) {
             setResetToken(token);
             setMode("reset");
         }
-        // a verify link lands (logged out) with ?verified=1 — confirm it, then send them to sign in
+        // a verify link lands logged out with ?verified=1
         if (params.get("verified") === "1")
             setNotice("Your email is verified — sign in to continue.");
         // an OAuth / verify failure redirects here with ?authError=<code>
@@ -189,8 +188,22 @@ export const AuthPage: Component = () => {
                 </div>
             </div>
 
-            <div class="flex flex-1 items-center justify-center p-8">
-                <div class="w-90">
+            <div class="flex flex-1 items-center justify-center p-6 sm:p-8">
+                <div class="w-full max-w-90">
+                    {/* the branded panel is hidden below md, so the lockup moves in here */}
+                    <a
+                        href="/home"
+                        rel="external"
+                        class="mb-7 flex w-fit items-center gap-2.5 transition-opacity hover:opacity-70 md:hidden"
+                    >
+                        <Mark size={30} rounded="lg" />
+                        <span
+                            class="text-[17px] font-bold tracking-wide text-ink"
+                            style={{ "font-family": serif }}
+                        >
+                            GALLEO
+                        </span>
+                    </a>
                     <h1
                         class="text-[26px] font-semibold tracking-tight"
                         style={{ "font-family": serif }}
@@ -199,7 +212,7 @@ export const AuthPage: Component = () => {
                     </h1>
                     <p class="mb-6 mt-1 text-[14px] text-muted">{SUBCOPY[mode()]}</p>
 
-                    {/* forgot mode, after submit — a success note instead of the form (no enumeration) */}
+                    {/* the same note either way: never reveal whether the account exists */}
                     <Show when={mode() === "forgot" && sent()}>
                         <div class="rounded-lg border border-line bg-panel p-4 text-[13px] leading-relaxed text-soft">
                             If an account exists for <span class="text-ink">{email().trim()}</span>,

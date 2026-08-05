@@ -6,7 +6,7 @@ import { installKeyDispatcher, pushScope } from "./keys";
 import { trapFocus } from "./focus";
 import { Z } from "./z";
 
-// A portaled panel escapes the themed subtree, so copy the theme's CSS vars off the anchor and stamp them on the panel.
+// A portaled panel escapes the themed subtree, so copy the theme vars off the anchor onto it.
 type Rect = { left: number; top: number; width: number; up: boolean };
 
 const THEME_VARS = [
@@ -44,8 +44,8 @@ function readThemeVars(el: HTMLElement): Record<string, string> {
     return out;
 }
 
-// Portaled + fixed-positioned off the anchor so it never clips in a scrolling panel or is mis-placed by transformed ancestors; flips up near the viewport bottom.
-// `toolbar` tags portaled nodes with `data-galleo-toolbar` so an inline text editor stays alive mid-edit.
+// Portaled + fixed off the anchor, so it never clips in a scroller or shifts under a transform.
+// `toolbar` tags nodes with `data-galleo-toolbar` so an inline text editor stays alive mid-edit.
 export const Popover: Component<{
     anchor?: () => HTMLElement | undefined; // element anchor (menus/dropdowns)
     at?: () => { x: number; y: number } | undefined; // cursor/point anchor (context menus)
@@ -71,8 +71,7 @@ export const Popover: Component<{
             const w = props.fixedWidth ?? props.minWidth ?? 180;
             const left = Math.max(8, Math.min(pt.x, window.innerWidth - w - 8));
             setRect({ left, top: pt.y, width: 0, up });
-            // Read theme vars from the element under the point — it's inside the themed tree, whereas
-            // <html> carries no theme (the app/editor stamp their vars on a nested root div).
+            // The element under the point is inside the themed tree; <html> carries no theme vars.
             const under = document.elementFromPoint(pt.x, pt.y) as HTMLElement | null;
             setVars(readThemeVars(props.anchor?.() ?? under ?? document.documentElement));
             return;
@@ -85,7 +84,7 @@ export const Popover: Component<{
         setVars(readThemeVars(el));
     });
 
-    // Esc-dismiss via the shared scope stack (not a per-popover listener). Exclusive so the menu's own arrow/enter keys aren't shadowed by shortcuts underneath.
+    // Exclusive so the menu's own arrow/enter keys aren't shadowed by shortcuts underneath.
     createEffect(() => {
         if (!props.open) return;
         installKeyDispatcher();
@@ -109,7 +108,7 @@ export const Popover: Component<{
                         class={`fixed z-popover overflow-y-auto rounded-lg border border-line bg-panel font-body text-ink shadow-2xl ${props.panelClass ?? ""}`}
                         style={{
                             ...vars(),
-                            // end = right-edge aligned; center (needs fixedWidth) = anchor midpoint; else left. All clamped into the viewport.
+                            // end = right-edge aligned; center (needs fixedWidth) = anchor midpoint; else left, all clamped.
                             ...(props.align === "end"
                                 ? {
                                       right: `${Math.max(8, window.innerWidth - (r().left + r().width))}px`,
@@ -156,7 +155,7 @@ export const Popover: Component<{
     );
 };
 
-// Rendered inline (not portaled) so it inherits the theme from its DOM ancestor; pass `vars` to stamp a snapshot when mounted outside a themed tree.
+// Inline (not portaled) so it inherits the theme; `vars` stamps a snapshot outside a themed tree.
 type ModalSize = "sm" | "md" | "lg" | "xl" | "full" | "screen";
 const MODAL_W: Record<ModalSize, string> = {
     sm: "max-w-100",
@@ -199,7 +198,6 @@ export const Modal: Component<{
                 ],
                 { duration: 190, easing: "cubic-bezier(.2,.7,.2,1)", fill: "both" },
             );
-        // Exclusive scope: Esc dismisses, lower-level shortcuts are blocked while open, and focus is trapped + restored.
         installKeyDispatcher();
         const disposeScope = pushScope("modal", {
             exclusive: true,
@@ -310,7 +308,8 @@ export const FloatingBar: Component<
             ? ""
             : local.anchor === "center"
               ? "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-              : "absolute bottom-5 left-1/2 -translate-x-1/2";
+              : // auto-margin centring, not left-1/2: that shrink-to-fits against half the viewport
+                "absolute inset-x-3 bottom-[calc(1.25rem+env(safe-area-inset-bottom))] mx-auto w-fit";
     const shadow = (): string =>
         BAR_SHADOW[local.shadow ?? (local.tone === "panel" ? "2xl" : "none")];
     const pad = (): string =>
@@ -325,7 +324,7 @@ export const FloatingBar: Component<
     );
 };
 
-// The inline (non-portaled) surface shell — panel counterpart to FloatingBar. Positioning is the consumer's; this owns only the surface.
+// Inline surface shell, the panel counterpart to FloatingBar; positioning is the consumer's.
 type PanelPad = "none" | "sm" | "md" | "lg";
 const PANEL_PAD: Record<PanelPad, string> = {
     none: "",

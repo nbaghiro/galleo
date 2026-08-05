@@ -35,6 +35,7 @@ export interface FormatDescriptor {
     width: number | "fill";
     height: number | "auto";
     maxContentWidth?: number;
+    bleedSections?: boolean; // sections span the host width instead of sitting in a gutter
     tokenScale: number;
     splitMinWidth: number;
     paginate: "always" | "export" | "never";

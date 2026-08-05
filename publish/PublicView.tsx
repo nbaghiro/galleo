@@ -34,8 +34,7 @@ const Surface: Component<{
 
 const PING_EVERY_MS = 15_000;
 
-// Engagement heartbeat: session duration + furthest slide/section, sent while the tab is
-// visible and flushed on hide/leave. The server only updates this session's existing row.
+// Sent only while the tab is visible, and flushed on hide/leave.
 function startHeartbeat(slug: string): {
     onProgress: (reached: number, total: number) => void;
     stop: () => void;
@@ -74,7 +73,7 @@ function startHeartbeat(slug: string): {
 }
 
 const Panel: Component<{ children: JSX.Element }> = (props) => (
-    <div class="grid min-h-screen place-items-center bg-[#0a0a0c] px-6 text-center text-white">
+    <div class="grid min-h-dvh place-items-center bg-[#0a0a0c] px-6 text-center text-white">
         <div class="w-full max-w-[360px]">{props.children}</div>
     </div>
 );
@@ -198,7 +197,7 @@ export const PublicView: Component = () => {
                 >
                     <div
                         style={themeCssVars(resolveTheme(pwTheme()).tokens)}
-                        class="grid min-h-screen place-items-center bg-canvas px-6 text-center font-body text-ink"
+                        class="grid min-h-dvh place-items-center bg-canvas px-6 text-center font-body text-ink"
                     >
                         <div class="w-full max-w-[360px]">
                             <div class="mb-1.5 font-display text-[18px] font-semibold text-ink">

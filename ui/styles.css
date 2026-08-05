@@ -1,13 +1,7 @@
-/* The shared frontend stylesheet — the Tailwind v4 entry + the theme token→utility mapping every module
-   (app · editor · website · publish) and every @ui component styles through. The active theme recolors
-   chrome by setting these `--color-*` / `--font-*` vars on a root element via `themeCssVars()` (@themes).
-   Imported once by each frontend entry; Tailwind v4 auto-detects source files across the repo, so no
-   explicit @source list is needed. */
+/* Tailwind v4 auto-detects source files repo-wide, so no explicit @source list. */
 @import "tailwindcss";
 
-/* Overlay stacking scale — one named tier per layer so modules reference intent, not a magic number
-   (this is what prevents mis-stacking like a drawer under a rail). Mirrors the `Z` constants in ui/z.ts
-   used for inline z-index; keep the two in lockstep. See ui/z.ts for the rationale + ordering. */
+/* Must stay in lockstep with the `Z` constants in ui/z.ts, which cover the inline-z-index cases. */
 @utility z-raised {
     z-index: 10;
 }
@@ -45,8 +39,7 @@
     --color-muted: #8c8273;
     --color-accent: #9a4f24;
     --color-onaccent: #ffffff;
-    /* font roles — overridden per app-theme via themeCssVars() so the chrome re-typesets like the editor.
-       font-display = headings, font-body = UI/text, font-mono = labels. */
+    /* Roles, not families: display = headings, body = UI/text, mono = labels. */
     --font-display: "Fraunces", serif;
     --font-body: "Hanken Grotesk", system-ui, sans-serif;
     --font-mono: "DM Mono", ui-monospace, monospace;
@@ -56,8 +49,10 @@ html,
 body,
 #root {
     height: 100%;
+    /* dvh tracks the mobile toolbar; safe here only because the body never scrolls. */
+    height: 100dvh;
     margin: 0;
-    overflow: hidden; /* only the canvas scrolls; the viewport itself never does */
+    overflow: hidden;
 }
 
 body {
@@ -68,15 +63,11 @@ body {
     color: var(--color-ink);
 }
 
-/* Thin, inset, reveal-on-hover scrollbars. `--sb` / `--sb-strong` are set per scroll region (the
-   canvas sets them from the active theme); chrome panels fall back to the neutral line token. */
+/* `--sb` / `--sb-strong` are set per scroll region; unset falls back to the neutral line token. */
 * {
     scrollbar-width: thin;
     scrollbar-color: var(--sb, var(--color-line)) transparent;
 }
-/* In-place AI-generation overlay (shared by @ui/gen-overlay's GenOverlay — used by SectionGenStage +
-   ElementGenStage): an accent light sweeping down through the forming block, with the frame glowing. Per
-   instance speed via --gen-speed. */
 @keyframes gen-lightsweep {
     0% {
         transform: translateY(-120%);
@@ -111,16 +102,14 @@ body {
     }
 }
 
-/* PDF export: show only the print container, one section per page. Color-adjust keeps
-   section backgrounds (images, fills, scrims) in print — browsers strip them by default. */
+/* Color-adjust keeps section backgrounds in print; browsers strip them by default. */
 #galleo-print {
     display: none;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
 }
 @media print {
-    /* the SPA clamps html/body to height:100%;overflow:hidden so only the canvas scrolls — that
-       same clamp clips the print flow to a single page, so release it while printing. */
+    /* The SPA's html/body clamp would clip the print flow to a single page; release it. */
     html,
     body {
         height: auto !important;
@@ -159,7 +148,6 @@ body {
     background-clip: content-box;
 }
 
-/* AI theme-generation loader: a row of swatches cycling a palette (staggered per swatch → "forming") */
 @keyframes theme-gen-swatch {
     0%,
     100% {
@@ -194,8 +182,7 @@ body {
     }
 }
 
-/* Markdown (assistant / AI prose) — see @ui/markdown. Sized for the chat panel; every color is a theme var,
-   so it recolors with the active theme. Applied to the sanitized HTML marked emits. */
+/* Applied to the sanitized HTML `marked` emits; see @ui/markdown. */
 .md {
     color: var(--color-ink);
     font-size: 13px;
@@ -298,9 +285,7 @@ body {
     text-align: left;
 }
 
-/* Markdown, muted variant — for secondary prose like the agent's thinking trace. Children inherit the
-   container color, so recoloring the container recolors the block; links stay accent, headings a touch
-   brighter than body so the trace's structure still reads. */
+/* Children inherit the container color, so recoloring the container recolors the whole block. */
 .md-muted {
     color: var(--color-muted);
     font-size: 12px;

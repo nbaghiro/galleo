@@ -2,6 +2,7 @@ import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
 import { getElement, register } from "@elements/spec";
+import { stacksAtWidth } from "@engine/profile";
 import { fit, grow } from "@model/geometry";
 import type { FlexDirection } from "@model/elements";
 import { DIRECTION_OPTIONS } from "@elements/composite/shared";
@@ -14,9 +15,8 @@ interface GroupData {
     align?: Align; // cross-axis
 }
 
-// infer container cross-align from all-centered/all-end text children; explicit wins
-function crossAlign(d: GroupData): Align | undefined {
-    if (d.align) return d.align;
+// infer container cross-align from all-centered/all-end text children
+function inferredAlign(d: GroupData): Align | undefined {
     const aligns = d.children
         .filter((c) => c.type === "text")
         .map((c) => (c.data as { align?: string }).align)
@@ -26,10 +26,17 @@ function crossAlign(d: GroupData): Align | undefined {
     return undefined;
 }
 
-const arrangeGroup = (d: GroupData, _ctx: LayoutCtx, kids: EngineNode[]): EngineNode => {
-    const dir = d.direction ?? "col";
-    // col mirrors centered text; row keeps explicit align
-    const cross = dir === "col" ? crossAlign(d) : d.align;
+const crossAlign = (d: GroupData): Align | undefined => d.align ?? inferredAlign(d);
+
+// column fractions describe a row; once stacked each block owns the full width
+const unfraction = (n: EngineNode): EngineNode =>
+    n.w.mode === "percent" ? { ...n, w: grow() } : n;
+
+const arrangeGroup = (d: GroupData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode => {
+    const stacked = d.direction === "row" && stacksAtWidth(ctx.format, ctx.availWidth);
+    const dir: FlexDirection = stacked ? "col" : (d.direction ?? "col");
+    // a stacked row's explicit `align` was a row-axis instruction, so only the text inference survives
+    const cross = stacked ? inferredAlign(d) : dir === "col" ? crossAlign(d) : d.align;
     return {
         w: grow(),
         h: fit(),
@@ -37,7 +44,7 @@ const arrangeGroup = (d: GroupData, _ctx: LayoutCtx, kids: EngineNode[]): Engine
         gap: 14,
         alignX: dir === "row" ? undefined : cross,
         alignY: dir === "row" ? cross : undefined,
-        children: kids,
+        children: stacked ? kids.map(unfraction) : kids,
     };
 };
 

@@ -37,8 +37,7 @@ import {
 
 export type Surface = "deck" | "doc" | "web";
 
-// prompt → planning → outline → building → review → done. Two ways to run, both reached from the
-// outline: write everything, or write one section at a time. "idle" means no session.
+// "idle" means no session.
 export type Stage = "idle" | "intake" | "planning" | "outline" | "building" | "done" | "error";
 
 export type SlotStatus = SectionStatus | "skipped";
@@ -50,7 +49,7 @@ export interface SectionSlot {
     layout: string;
     image: boolean;
     blocks: string[]; // the block leading each column, in order
-    versions: Section[]; // every take kept; nothing destroyed
+    versions: Section[]; // every take kept
     active: number; // index into versions
     working: boolean; // a regeneration in flight for this slot
 }
@@ -67,24 +66,20 @@ interface SessionState {
     stage: Stage;
     errorStage: Stage; // where the error hit, so retry re-enters the right step
     error: string;
-    // the brief (protocol shape; mustInclude edited in place)
     brief: GenerateInput;
     briefLoading: boolean;
-    briefFailed: boolean; // the read didn't come back — offer a retry rather than blank fields
-    briefDirty: boolean; // edited after planning — the arc no longer matches it
+    briefFailed: boolean; // the read didn't come back; offer a retry rather than blank fields
+    briefDirty: boolean; // edited after planning: the arc no longer matches it
     clarify: string | null; // the expansion's one optional question
-    // the outline
     title: string;
     backdrop: string | null;
     beats: Beat[];
     selectedBeat: string | null;
     planning: boolean;
-    // the build
     slots: SectionSlot[];
     activeSection: string | null;
     paused: boolean; // the loop is parked between sections
     steer: string; // applies to every section written from here on
-    // shared
     content: ArtifactContent;
     draftId: string | null;
     spent: number; // credits actually committed this session
@@ -138,8 +133,6 @@ const initial = (): SessionState => ({
 
 export const [gen, setGen] = createStore<SessionState>(initial());
 
-// ── derived helpers ──────────────────────────────────────────────────────────
-
 export const slotSection = (slot: SectionSlot): Section | null =>
     slot.versions[slot.active] ?? null;
 
@@ -153,16 +146,13 @@ export const builtCount = (): number => gen.slots.filter((s) => s.versions.lengt
 
 export const queuedCount = (): number => gen.slots.filter((s) => s.status === "queued").length;
 
-// A run in flight owns the canvas: the board follows the section being written, so letting the user
-// scroll or edit underneath it fights the animation and can change a beat mid-write. Pausing hands
-// it straight back — every intervention path (chat, per-section rework, outline edits) is live again.
+// a run in flight owns the canvas: editing underneath it can change a beat mid-write
 export const runLocked = (): boolean =>
     gen.stage === "building" && !gen.paused && (!!gen.activeSection || queuedCount() > 0);
 
 export const coverage = (): Map<string, string[]> =>
     coverageMap(gen.brief.mustInclude ?? [], gen.beats);
 
-// the price on the Build CTA / remaining work
 export const remainingBuildCost = (): number => {
     const unbuilt = gen.beats.filter((b) => {
         const slot = gen.slots.find((s) => s.id === b.id);
@@ -172,21 +162,17 @@ export const remainingBuildCost = (): number => {
 };
 export { briefCost, planCost, sectionCost };
 
-// ── session lifecycle ────────────────────────────────────────────────────────
-
 const controllers = new Set<AbortController>();
 let narrId = 0;
 let buildRunning = false;
 
-// one full-screen surface for the whole run; the intake is its first body, not a separate modal
 const [generateOpen, setGenerateOpen] = createSignal(false);
 export { generateOpen };
 
 // `prompt` seeds the intake, for entry points that already carry an intent (the ⌘K query)
 export function openGenerate(prompt?: string): void {
     resetSession();
-    // the studio is stamped with the session's theme, so the intake has to start in the user's
-    // rather than the empty session's default
+    // the studio is stamped with the session's theme, so the intake starts in the user's, not the default
     setGen({ stage: "intake", content: { format: "deck", theme: appTheme(), sections: [] } });
     if (prompt) setGen("brief", "prompt", prompt);
     setGenerateOpen(true);
@@ -231,8 +217,6 @@ export function retry(): void {
     }
 }
 
-// ── narration + event folding ────────────────────────────────────────────────
-
 const pushNarration = (text: string, mono?: string, sub?: string): void => {
     narrId += 1;
     setGen("narration", (arr) =>
@@ -261,8 +245,6 @@ function applyOps(ev: Extract<TurnEvent, { type: "patch" }>): void {
     }
 }
 
-// ── the chat seam: the agent edits this session the same way it edits an open artifact ──
-
 const beatFor = (section: Section): Beat => ({
     id: section.id,
     label: clip(firstTextOf(section) || "New section", 30),
@@ -282,8 +264,7 @@ const landedSlot = (section: Section): SectionSlot => ({
     working: false,
 });
 
-// A patch from outside the build loop (a chat proposal). Content is the source of truth, but the
-// rail and the canvas are driven by beats + slots, so they have to move with it.
+// content is the source of truth, but the rail and canvas are driven by beats + slots, so they move with it
 export function applyExternalPatch(patch: Patch): void {
     setGen("content", applyPatch(gen.content, patch));
     for (const op of patch) {
@@ -331,7 +312,6 @@ export function applyExternalPatch(patch: Patch): void {
 const isWritten = (id: string): boolean =>
     (gen.slots.find((s) => s.id === id)?.versions.length ?? 0) > 0;
 
-// what the agent is looking at: the run, its brief, and every beat with its status
 function chatGeneration(): ChatGeneration {
     return {
         stage: gen.stage,
@@ -341,6 +321,7 @@ function chatGeneration(): ChatGeneration {
         audience: gen.brief.audience,
         tone: gen.brief.tone,
         mustInclude: gen.brief.mustInclude,
+        steer: gen.steer.trim() || undefined,
         beats: gen.beats.map((b) => ({
             id: b.id,
             label: b.label,
@@ -353,15 +334,15 @@ function chatGeneration(): ChatGeneration {
     };
 }
 
-// An outline revision from the console. Ids the agent invented for new beats are replaced here —
-// the studio owns the "s<N>" scheme, and a slot may already exist under a colliding name.
+// ids the agent invents for new beats are replaced: the studio owns the "s<N>" scheme, and a slot
+// may already exist under a colliding name
 export function applyBeatOps(ops: OutlinePatch): void {
     for (const op of ops) {
         if (op.op === "addBeat") {
             const beat = { ...op.beat, id: newBeatId(gen.beats) };
             setGen("beats", insertBeatAfter(gen.beats, op.afterId, beat));
         } else if (op.op === "updateBeat") {
-            // a written section's prose is not the plan's to change — the beat is, the words aren't
+            // the beat changes; a written section's prose doesn't
             setGen("beats", updateBeat(gen.beats, op.id, op.patch));
         } else if (op.op === "removeBeat") {
             if (isWritten(op.id)) continue; // written work is only removed deliberately, by hand
@@ -388,6 +369,7 @@ function bindStudioToChat(): void {
         generation: () => (gen.stage === "idle" ? undefined : chatGeneration()),
         applyBeats: (ops) => applyBeatOps(ops),
         writeBeats: (ids) => void buildSections(ids),
+        setSteer: (note) => setSteer(note),
         imageSource: () => gen.brief.imageSource,
         focus: () => {
             const id = gen.selectedBeat;
@@ -402,8 +384,7 @@ function bindStudioToChat(): void {
     });
 }
 
-// The planner reports what it took the prompt to mean. It only fills what the user hasn't stated —
-// a reroll must not overwrite a goal or a must-cover point someone typed on purpose.
+// only fills what the user hasn't stated: a reroll must not overwrite something typed on purpose
 function absorbRead(read: BriefRead): void {
     const brief = { ...gen.brief };
     if (!brief.goal?.trim() && read.goal) brief.goal = read.goal;
@@ -414,7 +395,6 @@ function absorbRead(read: BriefRead): void {
     setGen("brief", brief);
 }
 
-// one handler for plan + build turns; patches fold into content, statuses into slots
 function handleEvent(ev: TurnEvent): void {
     switch (ev.type) {
         case "phase":
@@ -463,8 +443,6 @@ async function runTurnStream(
     }
 }
 
-// ── stage 0: the brief ───────────────────────────────────────────────────────
-
 export interface SessionStart {
     prompt: string;
     surface: Surface;
@@ -490,9 +468,7 @@ export async function startSession(input: SessionStart): Promise<void> {
         },
         content: { format: input.surface, theme: input.theme, sections: [] },
     });
-    // the agent edits this session from here on (console + dock share one thread)
     bindStudioToChat();
-    // the prompt goes straight to an arc; reading the brief is an optional enrichment from the bar
     await startPlan();
 }
 
@@ -514,8 +490,7 @@ function markBriefDirty(): void {
     if (gen.beats.length) setGen("briefDirty", true);
 }
 
-// The clarify question is only asked when the answer changes the outline, so answering has to
-// change the brief: it's recorded for the planner, and a "yes" also becomes a visible must-cover.
+// answering has to change the brief: recorded for the planner, and a "yes" also becomes a must-cover point
 export function answerClarify(answer: string): void {
     const question = gen.clarify;
     const text = answer.trim();
@@ -533,12 +508,12 @@ export function answerClarify(answer: string): void {
     markBriefDirty();
 }
 
-// a free re-read of the same prompt (POST /ai/brief), any time in the session
+// a re-read of the same prompt (POST /ai/brief), any time in the session
 export async function redraftBrief(): Promise<void> {
     if (gen.briefLoading) return;
     setGen({ briefLoading: true, briefFailed: false });
     try {
-        // hand back the current reading so the model lands somewhere genuinely different
+        // hand back the current reading so the model lands somewhere different
         const previous =
             gen.brief.goal && gen.brief.audience && gen.brief.tone
                 ? {
@@ -567,8 +542,6 @@ export async function redraftBrief(): Promise<void> {
         setGen("briefLoading", false);
     }
 }
-
-// ── stage 1: the outline ─────────────────────────────────────────────────────
 
 export async function startPlan(): Promise<void> {
     setGen({ stage: "planning", planning: true, clarify: null });
@@ -602,15 +575,12 @@ export function removeBeatById(id: string): void {
     setGen("beats", removeBeat(gen.beats, id));
     if (gen.selectedBeat === id) setGen("selectedBeat", null);
 }
-// a hand-added beat: sensible defaults, the user shapes it in the editor
 export function addBeatAfter(afterId: string | null): string {
     const beat = makeBeat(newBeatId(gen.beats));
     setGen("beats", insertBeatAfter(gen.beats, afterId, beat));
     setGen("selectedBeat", beat.id);
     return beat.id;
 }
-
-// ── stage 2: the build ───────────────────────────────────────────────────────
 
 const slotFromBeat = (b: Beat): SectionSlot => ({
     id: b.id,
@@ -638,7 +608,7 @@ const afterIdFor = (index: number): string | null => {
     return null;
 };
 
-// slots mirror the beats; a beat added after the build started gets one on demand
+// slots mirror the beats; one added after the build starts gets a slot on demand
 function ensureSlots(): void {
     const known = new Set(gen.slots.map((s) => s.id));
     const added = gen.beats.filter((b) => !known.has(b.id)).map(slotFromBeat);
@@ -656,8 +626,7 @@ export function startBuild(): void {
     void buildLoop();
 }
 
-// Write ONE section now, wherever it sits in the arc. Anchoring keys off the nearest built beat
-// before it, so a section written out of order still lands in the right place.
+// anchors off the nearest built beat before it, so an out-of-order write still lands in place
 export async function buildSectionNow(id: string): Promise<void> {
     const index = gen.beats.findIndex((b) => b.id === id);
     if (index < 0 || gen.activeSection) return;
@@ -676,14 +645,12 @@ export async function buildSectionNow(id: string): Promise<void> {
             fail("building", e instanceof Error ? e.message : "That section didn’t land.");
         }
     } finally {
-        // nothing is active between one-off writes; leaving the last id set disabled every other
-        // card's Write button (and would stop a batch after its first section)
+        // nothing is active between one-off writes; a stale id disables every other card's Write button
         setGen("activeSection", null);
     }
 }
 
-// Write several planned beats in order — what the console's write-section proposal runs. Sequential
-// on purpose: each section is written with the ones before it already in the content.
+// sequential on purpose: each section is written with the ones before it already in the content
 export async function buildSections(ids: string[]): Promise<void> {
     for (const id of ids) {
         if (gen.stage === "error" || !generateOpen()) return;
@@ -714,7 +681,7 @@ async function buildOne(index: number): Promise<boolean> {
     return !!slot && slot.versions.length > 0;
 }
 
-// a slot caught mid-write by an error goes back to queued, so retry rebuilds it instead of skipping it
+// a slot caught mid-write goes back to queued, so retry rebuilds it instead of skipping it
 function requeueInFlight(): void {
     setGen(
         "slots",
@@ -744,7 +711,6 @@ async function buildLoop(): Promise<void> {
             void saveDraft();
             if (gen.stage !== "building") return; // canceled / errored mid-flight
         }
-        setGen("activeSection", null);
         finishSession();
     } catch (e) {
         if (!isAbort(e) && gen.stage === "building") {
@@ -753,11 +719,14 @@ async function buildLoop(): Promise<void> {
         }
     } finally {
         buildRunning = false;
+        // every exit, not just the finished one: pausing returns from the top of the loop, and a
+        // stale id here disables resume and every card's Write button
+        setGen("activeSection", null);
     }
 }
 
 export function pauseBuild(): void {
-    // takes effect at the next section boundary — writes are atomic
+    // takes effect at the next section boundary; writes are atomic
     if (gen.stage === "building") setGen("paused", true);
 }
 export function resumeBuild(): void {
@@ -786,7 +755,7 @@ export function setActiveVersion(id: string, version: number): void {
     void saveDraft();
 }
 
-// a fresh take on one landed section; runs alongside the loop (review in the latency shadow)
+// runs alongside the loop, so review happens in the latency shadow
 export async function regenerateSection(id: string, note?: string): Promise<boolean> {
     const beat = gen.beats.find((b) => b.id === id);
     const i = slotIndex(id);
@@ -827,22 +796,18 @@ export async function regenerateSection(id: string, note?: string): Promise<bool
     }
 }
 
-// the run is over: this is where the draft earns its place in the library
 export function finishSession(): void {
     setGen({ stage: "done", activeSection: null, paused: false });
     void saveGenerated();
 }
-
-// ── persistence ──────────────────────────────────────────────────────────────
 
 async function saveDraft(): Promise<void> {
     if (!gen.draftId) return;
     await updateArtifactContent(gen.draftId, gen.content, gen.title || undefined);
 }
 
-// save (or re-save) in the surface the preview shows; returns the artifact id to open
-// The ONE point a generated draft becomes a library artifact. Until this runs the session lives in
-// memory, so a cancelled or half-finished generation never leaves a stub behind.
+// the one point a draft becomes a library artifact; until it runs the session lives in memory, so a
+// cancelled generation leaves no stub behind
 export async function saveGenerated(formatId?: string): Promise<string | null> {
     const content = formatId ? { ...gen.content, format: formatId } : gen.content;
     if (!content.sections.length) return null;
@@ -855,5 +820,5 @@ export async function saveGenerated(formatId?: string): Promise<string | null> {
     return id;
 }
 
-// true once there's real work worth keeping — gates the discard warning on close
+// gates the discard warning on close
 export const hasUnsavedWork = (): boolean => !gen.draftId && gen.content.sections.length > 0;

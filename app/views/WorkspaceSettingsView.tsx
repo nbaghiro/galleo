@@ -4,7 +4,7 @@ import { useNavigate } from "@solidjs/router";
 import { Eyebrow, Spinner } from "@ui/button";
 import { TextField } from "@ui/inputs";
 import { Meter } from "@ui/status";
-import { Sidebar } from "../components/Sidebar";
+import { Sidebar, SidebarToggle } from "../components/Sidebar";
 import { ApiError } from "../api";
 import { billing, loadBilling } from "../stores/billing";
 import {
@@ -29,7 +29,7 @@ export const WorkspaceSettingsView: Component = () => {
     const [email, setEmail] = createSignal("");
     const [busy, setBusy] = createSignal(false);
     const [error, setError] = createSignal<string | null>(null);
-    // the accept URL is only known at creation — offered once for copy (covers mail-less dev too)
+    // the accept URL is only known at creation, so offer it once for copy
     const [lastInvite, setLastInvite] = createSignal<{ url: string; sent: boolean } | null>(null);
 
     const submit = async (e: Event): Promise<void> => {
@@ -53,10 +53,11 @@ export const WorkspaceSettingsView: Component = () => {
         (name?.trim()[0] ?? mail[0] ?? "?").toUpperCase();
 
     return (
-        <div class="flex h-screen bg-canvas text-ink">
+        <div class="flex h-dvh bg-canvas text-ink">
             <Sidebar />
             <main class="min-w-0 flex-1 overflow-y-auto">
-                <div class="mx-auto max-w-160 px-8 py-10">
+                <SidebarToggle />
+                <div class="mx-auto max-w-160 px-5 py-6 md:px-8 md:py-10">
                     <header class="mb-6">
                         <h1 class="text-[26px] font-bold tracking-[-0.02em]">Workspace settings</h1>
                         <p class="mt-1 text-[14px] text-muted">
