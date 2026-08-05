@@ -16,7 +16,14 @@ import { generateObject, generateText } from "ai";
 import type { ModelTier } from "@model/billing";
 import { resolveModel, thinklessOpts } from "./provider";
 import { warn } from "../log";
-import { defaultModelFor, modelFor } from "./models";
+import {
+    defaultModelFor,
+    modelFor,
+    modelNote,
+    samplingFor,
+    type AiTask,
+    type ModelOverrides,
+} from "./models";
 import {
     editSectionParts,
     insertSectionParts,
@@ -193,10 +200,16 @@ export interface RunOpts {
     signal?: AbortSignal;
     image?: ImageOptions;
     workspace?: WorkspaceReader;
-    model?: string; // override the task's default model (registry id)
-    tier?: ModelTier; // the workspace's plan tier — picks flash- vs pro-class models
-    maxSections?: number; // plan cap on one generation's section count
+    models?: ModelOverrides; // debug: per-task model choice (see models.ts)
+    tier?: ModelTier; // picks flash- vs pro-class models
+    maxSections?: number;
     onUsage?: (usage: Usage) => void;
+}
+
+// an overridden turn says so up front, so odd output reads as the model choice, not a regression
+function* noteModels(opts: RunOpts, tasks: readonly AiTask[]): Generator<TurnEvent> {
+    const note = modelNote(opts.models, tasks);
+    if (note) yield { type: "narration", text: "Model override", mono: ` · ${note}` };
 }
 
 export async function* runTurn(req: TurnRequest, opts: RunOpts = {}): AsyncGenerator<TurnEvent> {
@@ -209,6 +222,7 @@ export async function* runTurn(req: TurnRequest, opts: RunOpts = {}): AsyncGener
                     workspace: opts.workspace,
                     signal: opts.signal,
                     tier: opts.tier,
+                    models: opts.models,
                     maxSections: opts.maxSections,
                 }),
             );
@@ -231,8 +245,7 @@ export async function* runTurn(req: TurnRequest, opts: RunOpts = {}): AsyncGener
     }
 }
 
-// the one outline call — shared by the one-shot generate and the studio's plan turn
-// the planner's reading, normalized — nullish fields come back as null from Google's schema
+// nullish fields come back as null from Google's schema
 function briefRead(outline: Outline): BriefRead {
     const text = (v: string | null | undefined): string | undefined => v?.trim() || undefined;
     const points = (outline.mustInclude ?? []).map((p) => p.trim()).filter(Boolean);
@@ -246,7 +259,7 @@ function briefRead(outline: Outline): BriefRead {
 
 async function planOutline(input: GenerateInput, opts: RunOpts): Promise<Outline> {
     const op = outlineParts(input, opts.maxSections);
-    const outlineModel = opts.model ?? modelFor("outline", opts.tier);
+    const outlineModel = modelFor("outline", opts.tier, opts.models);
     const { object } = await generateObject({
         model: resolveModel(outlineModel),
         schema: zOutline,
@@ -255,10 +268,10 @@ async function planOutline(input: GenerateInput, opts: RunOpts): Promise<Outline
         abortSignal: opts.signal,
         providerOptions: thinklessOpts(outlineModel),
         // warm so section count + arc vary brief-to-brief; section writing stays cooler
-        temperature: 0.9,
+        ...samplingFor(outlineModel, 0.9),
     });
     const outline: Outline = object;
-    // hard enforcement — the prompt asks for the cap, the slice guarantees it
+    // the prompt asks for the cap; the slice guarantees it
     if (opts.maxSections) outline.beats = outline.beats.slice(0, opts.maxSections);
     return outline;
 }
@@ -270,6 +283,7 @@ export async function* runGenerate(
     const { signal } = opts;
     yield { type: "turn.start", kind: "generate" };
     yield { type: "phase", name: "intake" };
+    yield* noteModels(opts, ["outline", "section"]);
     yield { type: "narration", text: "Reading the brief", sub: clip(input.prompt, 90) };
 
     yield { type: "phase", name: "outline" };
@@ -298,7 +312,7 @@ export async function* runGenerate(
             beat,
             outline,
             signal,
-            opts.model ?? modelFor("section", opts.tier),
+            modelFor("section", opts.tier, opts.models),
         );
         // force a full-bleed bg on cover + closing so those anchor moments never render flat
         if ((i === 0 || i === n - 1) && section.background?.kind !== "image") {
@@ -341,13 +355,14 @@ export async function* runGenerate(
     yield { type: "turn.done", summary: `Composed ${n} sections — “${clip(outline.title, 48)}”` };
 }
 
-// the studio's plan turn: outline only — beats stream to the client for editing, nothing is written
+// outline only: beats stream to the client for editing, nothing is written
 export async function* runPlan(
     input: GenerateInput,
     opts: RunOpts = {},
 ): AsyncGenerator<TurnEvent> {
     yield { type: "turn.start", kind: "plan" };
     yield { type: "phase", name: "intake" };
+    yield* noteModels(opts, ["brief", "outline"]);
     yield { type: "narration", text: "Reading the brief", sub: clip(input.prompt, 90) };
 
     yield { type: "phase", name: "outline" };
@@ -383,7 +398,6 @@ export async function* runPlan(
     };
 }
 
-// the studio's build turn: write ONE pre-planned, user-approved beat
 export async function* runBuild(input: BuildInput, opts: RunOpts = {}): AsyncGenerator<TurnEvent> {
     const beat: Beat = input.beat;
     // sectionParts wants the full Outline shape; the approved plan carries it minus a required backdrop
@@ -393,6 +407,7 @@ export async function* runBuild(input: BuildInput, opts: RunOpts = {}): AsyncGen
         beats: input.outline.beats,
     };
     yield { type: "turn.start", kind: "build" };
+    yield* noteModels(opts, ["section"]);
     yield { type: "phase", name: "build" };
     yield { type: "section.status", id: beat.id, status: "active" };
     yield {
@@ -408,7 +423,7 @@ export async function* runBuild(input: BuildInput, opts: RunOpts = {}): AsyncGen
         beat.label,
         input.brief.surface,
         opts.signal,
-        opts.model ?? modelFor("section", opts.tier),
+        modelFor("section", opts.tier, opts.models),
     );
     // the piece's bookends never render flat — same rule as the one-shot flow
     if (input.anchor && section.background?.kind !== "image") {
@@ -454,6 +469,7 @@ async function* runSection(input: SectionInput, opts: RunOpts = {}): AsyncGenera
     const surface = surfaceOf(input.content.format);
     const id = newSectionId(input.content);
     yield { type: "turn.start", kind: "section" };
+    yield* noteModels(opts, ["outline", "section"]);
     yield { type: "phase", name: "intake" };
     yield {
         type: "narration",
@@ -463,7 +479,7 @@ async function* runSection(input: SectionInput, opts: RunOpts = {}): AsyncGenera
 
     yield { type: "phase", name: "outline" };
     const pp = sectionPlanParts(input);
-    const planModel = modelFor("outline", opts.tier);
+    const planModel = modelFor("outline", opts.tier, opts.models);
     const { object: plan } = await generateObject({
         model: resolveModel(planModel),
         schema: zSectionPlan,
@@ -471,7 +487,7 @@ async function* runSection(input: SectionInput, opts: RunOpts = {}): AsyncGenera
         prompt: pp.prompt,
         abortSignal: signal,
         providerOptions: thinklessOpts(planModel),
-        temperature: 0.9,
+        ...samplingFor(planModel, 0.9),
     });
     const beat: Beat = { ...(plan as SectionPlan), id };
     yield { type: "plan", beats: [toPlanBeat(beat)] };
@@ -487,7 +503,7 @@ async function* runSection(input: SectionInput, opts: RunOpts = {}): AsyncGenera
         beat.label,
         surface,
         signal,
-        modelFor("section", opts.tier),
+        modelFor("section", opts.tier, opts.models),
     );
     if (beat.image || section.background?.kind === "image") {
         yield { type: "section.status", id, status: "image" };
@@ -583,7 +599,7 @@ export async function chatAddSection(
     const input: SectionInput = { instruction, afterId, content };
     const id = newSectionId(content);
     const pp = sectionPlanParts(input);
-    const planModel = modelFor("outline", opts.tier);
+    const planModel = modelFor("outline", opts.tier, opts.models);
     const { object } = await generateObject({
         model: resolveModel(planModel),
         schema: zSectionPlan,
@@ -591,7 +607,7 @@ export async function chatAddSection(
         prompt: pp.prompt,
         abortSignal: opts.signal,
         providerOptions: thinklessOpts(planModel),
-        temperature: 0.9,
+        ...samplingFor(planModel, 0.9),
     });
     const beat: Beat = { ...(object as SectionPlan), id };
     const section = await writeSectionFrom(
@@ -600,7 +616,7 @@ export async function chatAddSection(
         beat.label,
         surfaceOf(content.format),
         opts.signal,
-        modelFor("section", opts.tier),
+        modelFor("section", opts.tier, opts.models),
     );
     return resolveImages(section, opts.image ?? {});
 }
@@ -615,7 +631,7 @@ export async function reviseElement(
     const section = content.sections.find((s) => s.id === sectionId);
     if (!section) throw new Error("that section is not in the artifact");
     const parts = reviseElementParts(content, section, element, instruction);
-    const modelId = modelFor("section", opts.tier);
+    const modelId = modelFor("section", opts.tier, opts.models);
     const model = resolveModel(modelId);
     let note = "";
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -657,7 +673,7 @@ export async function chatEditSection(
         sectionId,
         surfaceOf(content.format),
         opts.signal,
-        modelFor("section", opts.tier),
+        modelFor("section", opts.tier, opts.models),
     );
     return resolveImages(section, opts.image ?? {});
 }

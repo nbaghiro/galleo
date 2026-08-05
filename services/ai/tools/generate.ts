@@ -37,6 +37,7 @@ export const generateArtifactTool = register({
                 image: ctx.image,
                 signal: ctx.signal,
                 tier: ctx.tier,
+                models: ctx.models,
                 maxSections: ctx.maxSections,
             },
         );

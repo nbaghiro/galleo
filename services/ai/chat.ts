@@ -5,7 +5,7 @@ import type { ChatBlock, ChatInput, OutlinePatch, TurnEvent } from "@model/ai";
 import { estimateUsage } from "@model/tools";
 import type { ElementInstance, Section } from "@model/artifact";
 import { resolveModel } from "./provider";
-import { modelFor } from "./models";
+import { modelFor, modelNote } from "./models";
 import { chatSystem } from "./prompts/chat";
 import { thinkingSteps } from "./thinking";
 import type { RunOpts } from "./run";
@@ -79,6 +79,8 @@ const clip = (s: string, n: number): string =>
 
 export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGenerator<TurnEvent> {
     yield { type: "turn.start", kind: "chat" };
+    const override = modelNote(opts.models, ["chat"]);
+    if (override) yield { type: "narration", text: "Model override", mono: ` · ${override}` };
     const ch = createChannel<TurnEvent>();
     const format = input.context.content?.format;
     const ctx = makeContext({
@@ -87,6 +89,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         workspace: opts.workspace,
         signal: opts.signal,
         tier: opts.tier,
+        models: opts.models,
         maxSections: opts.maxSections,
     });
 
@@ -177,8 +180,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         },
     });
 
-    // The outline only exists in the studio, so this proposes ops rather than a content patch. The
-    // agent writes the beat content itself — no sub-model call, nothing to meter.
+    // the outline lives only in the studio, so this proposes ops rather than a content patch
     const reviseOutline = tool({
         description:
             "Revise the OUTLINE of the piece being generated right now: add a beat, remove one, move one, or rewrite what a beat must say. Use this for anything structural or about intent — it is the main way you change a run in progress. Beats not yet written are free to change. Write real substance (claims, numbers, comparisons), never topic labels.",
@@ -286,11 +288,34 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         },
     });
 
+    // The steering note the board used to hold in a text field: one standing instruction applied to
+    // every section still to be written. Applied on arrival rather than proposed — it writes nothing
+    // and costs nothing, and asking the user to confirm their own instruction reads as a stall.
+    const steerSections = tool({
+        description:
+            "Set the standing note that every section STILL TO BE WRITTEN must follow — tone, angle, emphasis, a constraint to respect. Use it when the user asks for something to hold across the rest of the run ('keep the rest short', 'more concrete numbers from here'), rather than a change to one beat. It does not touch sections already written; rewrite those instead. Pass an empty note to drop the current one.",
+        inputSchema: z.object({
+            note: z
+                .string()
+                .describe(
+                    "the instruction to hold for the rest of the run; empty string clears it",
+                ),
+        }),
+        execute: async (req: { note: string }, { toolCallId }: { toolCallId: string }) => {
+            const note = req.note.trim();
+            const had = input.context.generation?.steer?.trim();
+            if (!note && !had) return "There was no steering note to clear.";
+            ch.push({ type: "chat.block", blockId: toolCallId, block: { type: "steer", note } });
+            return note
+                ? `Steering every section still to come: “${note}”. It is in force now; sections already written are untouched.`
+                : "Cleared the steering note. Sections still to come go back to following the brief alone.";
+        },
+    });
+
     const generating = !!input.context.generation;
     const written = !!input.context.content?.sections.length;
-    // Writing is the client's job — it owns the brief, the outline, and the anchor rules — so this
-    // proposes which beats to build and the studio runs the same `build` turns the board does.
-    // One code path for writing a section, whoever asked for it.
+    // the client owns the brief, outline, and anchor rules, so this only proposes which beats to
+    // build; the studio then runs the same `build` turns the board does
     const writeSections = tool({
         description:
             "Write sections that are ALREADY PLANNED in the outline — the beats listed below that are not yet written. This is how you turn the plan into real content: pass the beat ids (s2, s3, …). Use this whenever the user asks to write, build, generate, or draft sections that exist in the outline. Do NOT use add-section for those — add-section creates a brand-new section beside the plan instead of writing the planned one.",
@@ -326,8 +351,8 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         },
     });
 
-    // artifact-scoped tools only when there's content to act on. Mid-run that means sections that
-    // have actually been WRITTEN — an empty draft would otherwise invite add-section for a beat.
+    // mid-run, "content to act on" means sections actually written: an empty draft would otherwise
+    // invite add-section for a beat that is only planned
     const artifactTools: ToolSet = (generating ? written : !!input.context.content)
         ? {
               "suggest-sections": wrap(
@@ -433,8 +458,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
               ),
           }
         : {};
-    // Inside a run there is nothing to create and nothing else to reorganise: the piece on the
-    // canvas is the whole subject, so the library-management half of the catalog stands down.
+    // inside a run the piece on the canvas is the whole subject, so library management stands down
     const libraryTools: ToolSet = generating
         ? {}
         : {
@@ -514,7 +538,13 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
           };
 
     const tools: ToolSet = {
-        ...(generating ? { "revise-outline": reviseOutline, "write-section": writeSections } : {}),
+        ...(generating
+            ? {
+                  "revise-outline": reviseOutline,
+                  "write-section": writeSections,
+                  "steer-sections": steerSections,
+              }
+            : {}),
         "find-artifacts": wrap(
             findArtifactsTool,
             "Searching your library",
@@ -561,11 +591,11 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
     };
 
     const agent = new ToolLoopAgent({
-        model: resolveModel(opts.model ?? modelFor("chat", opts.tier)),
+        model: resolveModel(modelFor("chat", opts.tier, opts.models)),
         instructions: chatSystem(input.context),
         tools,
         stopWhen: stepCountIs(6),
-        // return Gemini's thinking summaries in the stream (thinking stays on); client shows them as a progress bubble
+        // thinking summaries come back in the stream; the client shows them as a progress bubble
         providerOptions: { google: { thinkingConfig: { includeThoughts: true } } },
     });
 
@@ -574,7 +604,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         { role: "user", content: input.message },
     ];
 
-    // draining fullStream is what DRIVES the loop (executes the tools) — consuming it fully runs the whole turn
+    // draining fullStream is what drives the loop: the tools only run as it is consumed
     let thoughts = "";
     let sent = 0;
     const pump = (async () => {

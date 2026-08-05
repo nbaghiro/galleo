@@ -4,9 +4,7 @@ import { register } from "./registry";
 import { elementTypes, findElement, replaceElement } from "../locate";
 import { reviseElement } from "../run";
 
-// Targeted by section + element type rather than by value: the agent has no selection to point with,
-// so it names what it wants and we resolve the path — then hand back the whole section, which the
-// chat layer proposes as an ordinary replaceSection.
+// the agent has no selection to point with, so it names section + element type and we resolve the path
 export const reviseElementTool = register({
     id: "revise-element",
     describe:
@@ -39,7 +37,7 @@ export const reviseElementTool = register({
             input.sectionId,
             hit.element,
             input.instruction,
-            { image: ctx.image, signal: ctx.signal, tier: ctx.tier },
+            { image: ctx.image, signal: ctx.signal, tier: ctx.tier, models: ctx.models },
         );
         return replaceElement(section, hit.path, revised);
     },

@@ -4,6 +4,7 @@ import { rankItems } from "@ui/fuzzy";
 import { folders } from "../stores/folders";
 import { ensureLibrary } from "../stores/library";
 import { openGenerate } from "../stores/generate";
+import { modelDebugAvailable, openModelDebug } from "./ModelDebug";
 import { go } from "../stores/navigate";
 import {
     fetchHits,
@@ -15,8 +16,7 @@ import {
 } from "../stores/search";
 import { ArtifactThumb } from "./previews";
 
-// The product half of ⌘K: what a result row looks like and what opening one does. Registered as
-// palette sources so @ui keeps knowing nothing about artifacts.
+// registered as palette sources, so @ui keeps knowing nothing about artifacts
 
 const ARTIFACTS = { id: "artifacts", label: "Artifacts", order: 10 };
 const FOLDERS = { id: "folders", label: "Folders", order: 20 };
@@ -77,19 +77,28 @@ registerPaletteSource({
             : [],
 });
 
-// A query with no match is still a starting point: hand it to the generator rather than dead-ending.
+// a query with no match is still a starting point: hand it to the generator
 registerPaletteSource({
     id: "actions",
     section: ACTIONS,
-    local: (query) =>
-        query.length >= 3
-            ? [
-                  {
-                      id: "action:generate",
-                      title: `Generate an artifact about “${query}”`,
-                      icon: "sparkle",
-                      run: () => openGenerate(query),
-                  },
-              ]
-            : [],
+    local: (query) => {
+        const rows: Row[] = [];
+        if (query.length >= 3)
+            rows.push({
+                id: "action:generate",
+                title: `Generate an artifact about “${query}”`,
+                icon: "sparkle",
+                run: () => openGenerate(query),
+            });
+        // debug-only, so it stays behind a typed query rather than sitting in the recents landing
+        if (modelDebugAvailable() && /^mod|^model/i.test(query))
+            rows.push({
+                id: "action:models",
+                title: "Models: pick a model per step",
+                subtitle: "Debug: brief, outline, sections, chat",
+                icon: "sparkle",
+                run: openModelDebug,
+            });
+        return rows;
+    },
 });

@@ -1,9 +1,11 @@
 import type { ModelTier } from "@model/billing";
+import { out } from "../log";
 
 export type Provider = "anthropic" | "openai" | "google" | "xai";
 
 export type AiTask =
     | "generate"
+    | "brief"
     | "outline"
     | "section"
     | "edit"
@@ -11,6 +13,18 @@ export type AiTask =
     | "translate"
     | "chat"
     | "theme";
+
+export const AI_TASKS: readonly AiTask[] = [
+    "generate",
+    "brief",
+    "outline",
+    "section",
+    "edit",
+    "rewrite",
+    "translate",
+    "chat",
+    "theme",
+];
 
 export interface ModelInfo {
     id: string;
@@ -20,50 +34,83 @@ export interface ModelInfo {
     contextWindow: number;
     json: boolean; // reliable structured / JSON output (generateObject)
     vision: boolean;
+    // Claude 4.7+ rejects temperature/top_p/top_k with a 400; see samplingFor()
+    sampling?: false;
 }
 
 export const MODELS: readonly ModelInfo[] = [
+    {
+        id: "anthropic:claude-fable-5",
+        provider: "anthropic",
+        model: "claude-fable-5",
+        label: "Claude Fable 5",
+        contextWindow: 1_000_000,
+        json: true,
+        vision: true,
+        sampling: false,
+    },
+    {
+        id: "anthropic:claude-opus-5",
+        provider: "anthropic",
+        model: "claude-opus-5",
+        label: "Claude Opus 5",
+        contextWindow: 1_000_000,
+        json: true,
+        vision: true,
+        sampling: false,
+    },
     {
         id: "anthropic:claude-opus-4-8",
         provider: "anthropic",
         model: "claude-opus-4-8",
         label: "Claude Opus 4.8",
-        contextWindow: 200_000,
+        contextWindow: 1_000_000,
         json: true,
         vision: true,
+        sampling: false,
     },
     {
         id: "anthropic:claude-sonnet-5",
         provider: "anthropic",
         model: "claude-sonnet-5",
         label: "Claude Sonnet 5",
-        contextWindow: 200_000,
+        contextWindow: 1_000_000,
         json: true,
         vision: true,
+        sampling: false,
     },
     {
         id: "anthropic:claude-haiku-4-5",
         provider: "anthropic",
-        model: "claude-haiku-4-5-20251001",
+        model: "claude-haiku-4-5",
         label: "Claude Haiku 4.5",
         contextWindow: 200_000,
         json: true,
         vision: true,
     },
     {
-        id: "openai:gpt-5",
+        id: "openai:gpt-5.5",
         provider: "openai",
-        model: "gpt-5",
-        label: "GPT-5",
+        model: "gpt-5.5",
+        label: "GPT-5.5",
         contextWindow: 400_000,
         json: true,
         vision: true,
     },
     {
-        id: "openai:gpt-5-mini",
+        id: "openai:gpt-5.4",
         provider: "openai",
-        model: "gpt-5-mini",
-        label: "GPT-5 mini",
+        model: "gpt-5.4",
+        label: "GPT-5.4",
+        contextWindow: 400_000,
+        json: true,
+        vision: true,
+    },
+    {
+        id: "openai:gpt-5.4-mini",
+        provider: "openai",
+        model: "gpt-5.4-mini",
+        label: "GPT-5.4 mini",
         contextWindow: 400_000,
         json: true,
         vision: true,
@@ -123,13 +170,13 @@ export function getModel(id: string): ModelInfo | undefined {
     return MODELS_BY_ID[id];
 }
 
-// One model for every task: Gemini 3.5 Flash. It won the chat tool-routing eval outright
-// (100% vs 2.5-pro's 80%) at lower latency, and running one model everywhere means a single thing
-// to re-evaluate rather than six. Per-task entries stay so any one job can be retuned in isolation.
+// one model for every task: 3.5-flash won the chat tool-routing eval (100% vs 2.5-pro's 80%) at
+// lower latency; the per-task entries stay so one job can be retuned in isolation
 const FLASH = "google:gemini-3.5-flash";
 
 export const DEFAULT_MODELS: Record<AiTask, string> = {
     generate: FLASH,
+    brief: FLASH,
     outline: FLASH,
     section: FLASH,
     edit: FLASH,
@@ -143,10 +190,54 @@ export function defaultModelFor(task: AiTask): string {
     return DEFAULT_MODELS[task];
 }
 
-// Plan-tier model selection. Nothing runs a pro-class model today, so basic and premium resolve
-// alike; the seam stays wired for the moment a task earns a heavier model on paid plans.
+// empty today: basic and premium resolve alike until a task earns a heavier model on paid plans
 const BASIC_OVERRIDES: Partial<Record<AiTask, string>> = {};
 
-export function modelFor(task: AiTask, tier: ModelTier = "premium"): string {
-    return (tier === "basic" ? BASIC_OVERRIDES[task] : undefined) ?? DEFAULT_MODELS[task];
+// debug-only: the route honours it behind an env flag, since model choice moves our cost, not the
+// user's charge
+export type ModelOverrides = Partial<Record<AiTask, string>>;
+
+export function modelFor(
+    task: AiTask,
+    tier: ModelTier = "premium",
+    overrides?: ModelOverrides,
+): string {
+    const picked = overrides?.[task];
+    const id =
+        picked && MODELS_BY_ID[picked]
+            ? picked
+            : ((tier === "basic" ? BASIC_OVERRIDES[task] : undefined) ?? DEFAULT_MODELS[task]);
+    if (process.env.AI_MODEL_DEBUG === "1")
+        out(`[ai:model] ${task} → ${id}${id === picked ? " (override)" : ""}`);
+    return id;
+}
+
+// only ids we actually serve, so a bad header can't route a call to nothing
+export function parseOverrides(raw: string | undefined | null): ModelOverrides {
+    if (!raw) return {};
+    try {
+        const parsed: unknown = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return {};
+        const out: ModelOverrides = {};
+        for (const [task, id] of Object.entries(parsed as Record<string, unknown>)) {
+            if (!AI_TASKS.includes(task as AiTask)) continue;
+            if (typeof id === "string" && MODELS_BY_ID[id]) out[task as AiTask] = id;
+        }
+        return out;
+    } catch {
+        return {};
+    }
+}
+
+// Sampling knobs are a 400 on current Claude models — omit rather than pass a default.
+export const samplingFor = (id: string, temperature: number): { temperature?: number } =>
+    getModel(id)?.sampling === false ? {} : { temperature };
+
+// empty unless something was overridden, so an odd turn reads as the model choice, not a regression
+export function modelNote(overrides: ModelOverrides | undefined, tasks: readonly AiTask[]): string {
+    if (!overrides) return "";
+    const parts = tasks
+        .filter((t) => overrides[t])
+        .map((t) => `${t} → ${getModel(overrides[t]!)?.label ?? overrides[t]!}`);
+    return parts.join(" · ");
 }

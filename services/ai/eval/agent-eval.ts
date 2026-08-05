@@ -108,7 +108,7 @@ async function runTurn(
     try {
         for await (const ev of runChat(input, {
             workspace: env.workspace,
-            model,
+            models: { chat: model },
             signal: ctrl.signal,
         })) {
             if (ev.type === "chat.tool") tools.push(ev.tool);

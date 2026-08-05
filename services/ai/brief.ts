@@ -2,11 +2,12 @@ import type { BriefDraft, Surface } from "@model/ai";
 import type { ModelTier } from "@model/billing";
 import { generateObject } from "ai";
 import { resolveModel, thinklessOpts } from "./provider";
-import { modelFor } from "./models";
+import { modelFor, samplingFor, type ModelOverrides } from "./models";
 import { briefParts, type BriefRead } from "./prompts/brief";
 import { zBriefDraft, type BriefDraftGen } from "./schema";
 
 export interface BriefOpts {
+    models?: ModelOverrides;
     tier?: ModelTier;
     signal?: AbortSignal;
     previous?: BriefRead; // a re-read: rule this one out and come back with a different angle
@@ -19,7 +20,7 @@ export async function expandBrief(
     opts: BriefOpts = {},
 ): Promise<BriefDraft> {
     const parts = briefParts(prompt, surface, opts.previous);
-    const modelId = modelFor("outline", opts.tier);
+    const modelId = modelFor("brief", opts.tier, opts.models);
     const { object } = await generateObject({
         model: resolveModel(modelId),
         schema: zBriefDraft,
@@ -28,13 +29,12 @@ export async function expandBrief(
         abortSignal: opts.signal,
         providerOptions: thinklessOpts(modelId),
         // a re-read runs hot: the point is to land somewhere else
-        temperature: opts.previous ? 1 : 0.7,
+        ...samplingFor(modelId, opts.previous ? 1 : 0.7),
     });
     return normalizeBrief(prompt, object, surface);
 }
 
-// The count/emptiness rules live here rather than in the schema, so a read that's merely untidy
-// still lands instead of failing validation and looking like an outage.
+// the count/emptiness rules live here, not in the schema, so a merely untidy read still lands
 export function normalizeBrief(prompt: string, read: BriefDraftGen, surface?: Surface): BriefDraft {
     const clean = (s: string | null | undefined): string | undefined => s?.trim() || undefined;
     const points = (read.mustInclude ?? [])

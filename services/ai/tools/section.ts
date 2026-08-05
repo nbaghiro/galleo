@@ -20,6 +20,7 @@ export const addSectionTool = register({
             image: ctx.image,
             signal: ctx.signal,
             tier: ctx.tier,
+            models: ctx.models,
         });
     },
 });
@@ -38,6 +39,7 @@ export const rewriteSectionTool = register({
             image: ctx.image,
             signal: ctx.signal,
             tier: ctx.tier,
+            models: ctx.models,
         });
         if (!section) throw new Error(`there is no section "${input.sectionId}"`);
         return section;
@@ -67,6 +69,7 @@ export const editArtifactTool = register({
             image: ctx.image,
             signal: ctx.signal,
             tier: ctx.tier,
+            models: ctx.models,
         });
         if (!section) throw new Error(`there is no section "${input.sectionId}"`);
         return {

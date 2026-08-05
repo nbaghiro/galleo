@@ -34,8 +34,7 @@ describe("which prompt a context gets", () => {
         expect(out).toContain("Galleo's editor");
         expect(out).not.toContain("generation studio");
     });
-    // presence of `generation` decides, not the surface string — the client sets both, but a stale
-    // surface must never route a live run to the editor prompt
+    // `generation` decides, not the surface string: a stale surface must not route a live run
     it("uses the generate prompt whenever a run is present, whatever the surface says", () => {
         for (const surface of ["editor", "library", "generate"] as const) {
             const out = chatSystem({ surface, content: content(1), generation: generation() });
@@ -75,6 +74,17 @@ describe("the generate prompt", () => {
     });
     it("says so plainly when nothing is planned yet", () => {
         expect(out({ beats: [] })).toContain("No beats planned yet.");
+    });
+    it("offers steer-sections for an instruction meant to hold across the run", () => {
+        expect(out()).toContain("steer-sections");
+    });
+    it("carries a steering note already in force, so the agent amends rather than repeats it", () => {
+        expect(out({ steer: "keep every section under four lines" })).toContain(
+            "keep every section under four lines",
+        );
+    });
+    it("says nothing about steering when no note is set", () => {
+        expect(out()).not.toContain("Standing note on every section");
     });
 });
 

@@ -32,8 +32,7 @@ export const findStockImageTool = register({
     },
 });
 
-// Re-source a picture from a new description. resolveImage honours the turn's image strategy, so this
-// finds stock or generates depending on how the run was started — the tool doesn't decide.
+// resolveImage honours the turn's image strategy: stock or generated, the tool doesn't decide
 export const reimageTool = register({
     id: "reimage",
     describe:

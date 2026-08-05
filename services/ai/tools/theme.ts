@@ -13,7 +13,11 @@ export const generateThemeTool = register({
             .optional()
             .describe("force a dark theme (else inferred from the prompt)"),
     }),
-    async *run(input) {
-        return await generateThemeFromPrompt(input.prompt, { isDark: input.isDark });
+    async *run(input, ctx) {
+        return await generateThemeFromPrompt(input.prompt, {
+            isDark: input.isDark,
+            tier: ctx.tier,
+            models: ctx.models,
+        });
     },
 });

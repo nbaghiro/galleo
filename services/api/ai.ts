@@ -24,6 +24,7 @@ import { generateThemeFromPrompt } from "../ai/theme";
 import { expandBrief } from "../ai/brief";
 import type { BriefRead } from "../ai/prompts/brief";
 import { warn } from "../log";
+import { overridesFrom } from "./model-debug";
 
 export const ai = new Hono();
 
@@ -37,8 +38,8 @@ const ACTION_FOR: Record<TurnKind, ToolId> = {
     build: "add-section",
 };
 
-// Pre-flight meter knobs — only generate scales (length + AI-image source). The plan's section cap
-// clamps the metered size, so a Free brief asking for "In-depth" is billed for (and gets) 10 sections.
+// Only generate scales; the plan's section cap clamps the metered size, so a Free "In-depth" brief
+// is billed for (and gets) 10 sections.
 const meterFor = (req: TurnRequest, maxSections?: number): MeterParams =>
     req.kind === "generate"
         ? {
@@ -92,13 +93,13 @@ ai.post("/ai/turn", async (c) => {
             402,
         );
 
-    // Chat is agentic: chained sub-tools report usage via onUsage, billed on top of the reserve; non-chat leaves extra empty.
+    // Chat is agentic: chained sub-tools bill on top of the reserve; non-chat leaves this empty.
     let extra: Usage = {};
     const onUsage = (u: Usage): void => {
         extra = mergeUsage(extra, u);
     };
 
-    // Stock by default (free). AI images are counted so the turn can reconcile the estimate to the real count (stock fallback unbilled).
+    // AI images are counted so the settle can reconcile the estimate to the real count; stock is free.
     const imageSource =
         req.kind === "generate"
             ? req.input.imageSource
@@ -151,6 +152,7 @@ ai.post("/ai/turn", async (c) => {
         try {
             const workspace = makeWorkspaceReader(ws.id);
             for await (const ev of runTurn(req, {
+                models: overridesFrom(c),
                 signal: ctrl.signal,
                 workspace,
                 onUsage,
@@ -170,8 +172,8 @@ ai.post("/ai/turn", async (c) => {
             let owed = cost;
             if (Object.keys(extra).length) owed += costOf(extra);
             if (wantsAiImages)
-                // A generation RESERVED for images, so its bill is recomputed from the real count.
-                // A chat turn reserved none, so any it made are added to what its tools already owe.
+                // A generation reserved for images (recompute from the real count); chat reserved
+                // none (add on top of what its tools owe).
                 owed =
                     req.kind === "chat"
                         ? owed + costOf({ image: aiImages })
@@ -184,8 +186,8 @@ ai.post("/ai/turn", async (c) => {
     });
 });
 
-// One small structured call — cheap, but a model call, so it's metered like any other.
-// `previous` marks a re-read: the runtime rules that reading out and comes back with another angle.
+// Metered like any other model call; `previous` marks a re-read, so the model rules that out and
+// comes back with another angle.
 ai.post("/ai/brief", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -204,6 +206,7 @@ ai.post("/ai/brief", async (c) => {
 
     try {
         const brief = await expandBrief(body.prompt.trim(), body.surface, {
+            models: overridesFrom(c),
             tier: featuresFor(ws).textModelTier,
             previous: body.previous,
         });
@@ -216,8 +219,7 @@ ai.post("/ai/brief", async (c) => {
     }
 });
 
-// Unmetered: the deterministic audit always answers, the LLM critique rides on top when it can.
-// Unmetered: one tiny call, client-cached per artifact; empty on failure (client has a deterministic fallback).
+// Unmetered: one tiny call, client-cached per artifact; empty on failure (the client falls back).
 ai.post("/ai/suggest", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
@@ -225,7 +227,9 @@ ai.post("/ai/suggest", async (c) => {
     const body = await readJson<{ content?: ArtifactContent }>(c);
     if (!body?.content?.sections?.length) return c.json({ suggestions: [] });
     try {
-        return c.json({ suggestions: await suggestSections(body.content) });
+        return c.json({
+            suggestions: await suggestSections(body.content, { models: overridesFrom(c) }),
+        });
     } catch {
         return c.json({ suggestions: [] });
     }
@@ -260,7 +264,7 @@ ai.post("/ai/element", async (c) => {
             body.sectionId,
             body.element,
             body.instruction,
-            { tier: featuresFor(ws).textModelTier },
+            { tier: featuresFor(ws).textModelTier, models: overridesFrom(c) },
         );
         return c.json({ element });
     } catch (e) {
@@ -301,10 +305,12 @@ ai.post("/ai/text", async (c) => {
         const text =
             body.op === "translate"
                 ? await translateText(body.text, body.language!.trim(), {
+                      models: overridesFrom(c),
                       context: body.context,
                       tier,
                   })
                 : await rewriteText(body.text, body.instruction!.trim(), {
+                      models: overridesFrom(c),
                       context: body.context,
                       tier,
                   });
@@ -332,6 +338,7 @@ ai.post("/ai/theme", async (c) => {
 
     try {
         const theme = await generateThemeFromPrompt(body.prompt.trim(), {
+            models: overridesFrom(c),
             isDark: body.isDark,
             tier: featuresFor(ws).textModelTier,
         });

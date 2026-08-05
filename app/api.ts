@@ -34,7 +34,6 @@ export interface MediaProvidersState {
     generateVideo: boolean;
 }
 
-// POST /ai/review — a whole-piece audit finding + the coverage verdict
 // GET /billing — plan + live usage + plan catalog
 export interface BillingState {
     plan: PlanId;
@@ -87,6 +86,13 @@ export interface WorkspaceState {
 export interface FeaturesState {
     features: Features;
     status: Record<FeatureKey, FeatureStatus>;
+    modelDebug: ModelDebugInfo | null;
+}
+
+// present only when the server honours x-galleo-models; null otherwise (production default)
+export interface ModelDebugInfo {
+    tasks: string[];
+    models: { id: string; label: string }[];
 }
 
 type ApiCoverShape = { eyebrow?: string; title?: string; sub?: string; image?: string };
@@ -102,7 +108,7 @@ export interface ShareRecipient {
     lastViewedAt: string | null;
 }
 
-// GET /links row; artifact metadata is joined client-side from the library store, keyed by artifactId
+// GET /links row
 export interface LinkSummary {
     id: string;
     artifactId: string;
@@ -177,8 +183,8 @@ export interface PublicContent {
     branded: boolean;
     customTheme: CustomThemeRecord | null;
 }
-// The public viewer is unauthenticated and reads a raw body, so the shape is checked here rather
-// than assumed. `content` stays a single assertion: ArtifactContent is validated by the renderer.
+// an unauthenticated raw body, so the shape is checked here; `content` stays one assertion, since
+// the renderer validates it
 function readPublicContent(d: Record<string, unknown>): PublicContent | null {
     if (typeof d.title !== "string" || typeof d.content !== "object" || d.content === null) {
         return null;
@@ -221,6 +227,8 @@ export type {
 } from "@model/workspace";
 export type { ThemeSummary as ApiTheme } from "@themes";
 
+import { modelHeaders } from "./stores/models";
+
 export class ApiError extends Error {
     constructor(
         public status: number,
@@ -233,8 +241,8 @@ export class ApiError extends Error {
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(`/api${path}`, {
         credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
         ...init,
+        headers: { "Content-Type": "application/json", ...modelHeaders(), ...init?.headers },
     });
     const text = await res.text();
     let data: unknown = {};
@@ -278,7 +286,7 @@ export const api = {
     listArtifacts: (qs = "") => req<ArtifactPage>(`/artifacts${qs ? `?${qs}` : ""}`),
     listTemplates: () => req<{ templates: Template[] }>("/templates"),
     getArtifact: (id: string) => req<{ artifact: Artifact }>(`/artifacts/${id}`),
-    // the windowed read: the shell + the full section index + only the sections asked for
+    // the shell + the full section index + only the sections asked for
     getArtifactWindow: (id: string, from: number, count: number) =>
         req<{ artifact: ArtifactWindow }>(`/artifacts/${id}?window=${from}:${count}`),
     getSections: (id: string, at: { ids: string[] } | { from: number; count: number }) =>
@@ -287,7 +295,7 @@ export const api = {
                 ? `/artifacts/${id}/sections?ids=${at.ids.map(encodeURIComponent).join(",")}`
                 : `/artifacts/${id}/sections?window=${at.from}:${at.count}`,
         ),
-    // the write half of windowed loading: send what changed, not the whole tree
+    // send what changed, not the whole tree
     patchContent: (id: string, patch: ContentPatch) =>
         req<{ ok: true; updatedAt: string; total: number }>(`/artifacts/${id}/content`, {
             method: "PATCH",
@@ -300,7 +308,7 @@ export const api = {
             method: "POST",
             body: JSON.stringify({ content }),
         }).then((r) => r.suggestions),
-    // `previous` asks for a different reading of the same prompt rather than the same one again
+    // `previous` asks for a different reading of the same prompt
     draftBrief: (
         prompt: string,
         surface?: string,
@@ -532,7 +540,7 @@ export async function streamTurn(
     const res = await fetch("/api/ai/turn", {
         method: "POST",
         credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...modelHeaders() },
         body: JSON.stringify(request),
         signal,
     });
@@ -587,7 +595,7 @@ export interface MediaVideoGenEvent {
     produced?: number; // present on "done"
 }
 
-// POST an SSE endpoint and deliver each data frame; throws ApiError pre-stream (e.g. 402)
+// throws ApiError pre-stream (e.g. 402)
 async function streamPost<T>(
     path: string,
     body: unknown,
@@ -597,7 +605,7 @@ async function streamPost<T>(
     const res = await fetch(`/api${path}`, {
         method: "POST",
         credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...modelHeaders() },
         body: JSON.stringify(body),
         signal,
     });
@@ -636,7 +644,6 @@ async function streamPost<T>(
     }
 }
 
-// stream generated images over SSE (each as it's ready)
 export function streamGenerateMedia(
     body: MediaGenerateRequest,
     onEvent: (event: MediaGenEvent) => void,

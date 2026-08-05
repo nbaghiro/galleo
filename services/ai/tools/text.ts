@@ -13,7 +13,11 @@ export const rewriteTextTool = register({
         instruction: z.string().describe("how to change it, e.g. 'make it more concise'"),
     }),
     async *run(input, ctx) {
-        return await rewriteText(input.text, input.instruction, { signal: ctx.signal });
+        return await rewriteText(input.text, input.instruction, {
+            signal: ctx.signal,
+            tier: ctx.tier,
+            models: ctx.models,
+        });
     },
 });
 
@@ -26,13 +30,15 @@ export const translateTextTool = register({
         language: z.string().describe("the target language, e.g. 'Spanish' or 'Japanese'"),
     }),
     async *run(input, ctx) {
-        return await translateText(input.text, input.language, { signal: ctx.signal });
+        return await translateText(input.text, input.language, {
+            signal: ctx.signal,
+            tier: ctx.tier,
+            models: ctx.models,
+        });
     },
 });
 
-// The agent-facing half of rewrite-text: `rewrite-text` returns a bare string with nowhere to put it,
-// so this one targets a passage inside a real section and returns the section with it replaced —
-// which the chat layer presents as an ordinary proposal.
+// unlike rewrite-text's bare string, this returns the section with the passage already replaced
 export const rewritePassageTool = register({
     id: "rewrite-passage",
     describe:
@@ -58,7 +64,11 @@ export const rewritePassageTool = register({
                 `No passage matching that text in ${input.sectionId}. Its passages are: ${available || "none"}.`,
             );
         }
-        const rewritten = await rewriteText(hit.text, input.instruction, { signal: ctx.signal });
+        const rewritten = await rewriteText(hit.text, input.instruction, {
+            signal: ctx.signal,
+            tier: ctx.tier,
+            models: ctx.models,
+        });
         return replacePassage(section, hit.path, rewritten.trim() || hit.text);
     },
 });

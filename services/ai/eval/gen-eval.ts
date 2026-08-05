@@ -48,7 +48,10 @@ async function generate(
     const timer = setTimeout(() => ctrl.abort(), 300_000);
     const t0 = Date.now();
     try {
-        for await (const ev of runGenerate(input, { model, signal: ctrl.signal })) {
+        for await (const ev of runGenerate(input, {
+            models: { generate: model, outline: model, section: model },
+            signal: ctrl.signal,
+        })) {
             if (ev.type === "patch") content = applyPatch(content, ev.ops);
             else if (ev.type === "error") throw new Error(ev.message);
         }

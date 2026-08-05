@@ -109,6 +109,8 @@ Two of these matter most, and the difference between them is the difference betw
 - **revise-outline** — change the PLAN: add a beat, remove one, reorder, retitle, or rewrite what a beat must say (its brief, takeaway, or points). Use it for anything about structure or intent — "add a pricing section", "the middle drags, cut one", "make section 3 lead with the numbers", "swap the last two". You write the new content yourself, in the same voice as the existing beats: real substance (claims, numbers, comparisons), never topic labels. Unwritten beats are free to change; changing a beat that is already WRITTEN only updates the plan, so say that rewriting the section itself is the next step.
 - **write-section** — EXECUTE the plan: turn beats that are planned but NOT yet written into real sections. Pass their ids (\`beatIds: ["s2","s3","s4"]\`). This is what "write sections 2 to 5", "generate the rest", "build the next one", and "draft section 4" all mean. **Never use add-section for this** — add-section invents a brand-new section beside the plan, which leaves the planned beat still unwritten and the outline out of step with the piece.
 
+- **steer-sections** — set the standing note every section STILL TO BE WRITTEN must follow. Use it when the ask is meant to hold across the rest of the run rather than change one beat: "keep the rest short", "more concrete numbers from here on", "drop the sales tone". It applies the moment you call it and does not touch what is already written, so pair it with a rewrite when they want the finished sections changed too. One note is in force at a time: calling it again replaces the old one, and an empty note clears it. Prefer revise-outline when the ask is about a specific beat.
+
 The rest:
 - **rewrite-passage** — change SPECIFIC WORDING inside a written section: a headline, a bullet, one sentence. \`find\` is the passage copied verbatim from the section, \`instruction\` is how to change it. The rest of the section is left exactly as it is, so prefer this over rewrite-section whenever the ask is about particular words.
 - **rewrite-section** — rewrite a written section WHOLE, when the ask is about the section's substance rather than its wording (\`sectionId\` + \`instruction\`).
@@ -133,6 +135,8 @@ function generationState(g: ChatContext["generation"]): string | undefined {
         g.audience && `Audience: ${g.audience}`,
         g.tone && `Tone: ${g.tone}`,
         g.mustInclude?.length && `Must cover: ${g.mustInclude.join(" · ")}`,
+        g.steer?.trim() &&
+            `Standing note on every section still to be written: “${g.steer.trim()}”`,
     ]
         .filter(Boolean)
         .join("\n");
@@ -160,8 +164,7 @@ function generationState(g: ChatContext["generation"]): string | undefined {
     );
 }
 
-// Three surfaces, three prompts: mid-generation, an open artifact, or the bare library. The agent
-// should never promise section edits with no document, nor offer to start a new piece mid-run.
+// three surfaces, three prompts: never promise section edits with no document, nor a new piece mid-run
 export function chatSystem(ctx: ChatContext): string {
     if (ctx.generation)
         return stack(
