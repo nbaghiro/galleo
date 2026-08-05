@@ -510,26 +510,35 @@ skipped rather than failed, since a machine holding one key is normal. The other
 `samplingFor(id, t)`, which returns `{}` for those models and `{ temperature: t }` for the rest. A model
 added to the registry declares this with `sampling: false`.
 
-### 9.1 Per-step model override (debug)
+### 9.1 Per-step model override
 
-Any AI call may be pointed at a different model per task, so a run can be compared step by step without a
-deploy. It is a debugging affordance rather than a product feature: model choice changes what a call costs
-us while the user is still charged the same flat per-tool price, so it is gated at both ends.
+Any AI call may be pointed at a different model per task, so a run can be compared step by step. The picker
+is a product surface, reachable by every user at ⌘K → `/models`.
 
 ```
-client  app/stores/models.ts        localStorage {task: "provider:model"}, sent as one header
-        ↓  x-galleo-models          on /features-authenticated fetches, /ai/turn, and the SSE posts
-server  services/api/model-debug.ts overridesFrom(c) → {} unless AI_MODEL_DEBUG=1
-        ↓  RunOpts.models           threaded to modelFor() at every resolution point,
-        ↓  ToolContext.models       including tools the agent invokes mid-turn
-readout narration "Model override"  emitted by plan / generate / build turns when one applied
+client  app/stores/models.ts           localStorage {task: "provider:model"}, sent as one header
+        ↓  x-galleo-models             on authenticated fetches, /ai/turn, and the SSE posts
+server  services/api/model-override.ts overridesFrom(c) → parseOverrides(header)
+        ↓  RunOpts.models              threaded to modelFor() at every resolution point,
+        ↓  ToolContext.models          including tools the agent invokes mid-turn
+readout narration "Model override"     emitted by plan / generate / build turns when one applied
+        [ai:model] task → id           one server log line per overridden call
 ```
 
 `parseOverrides` keeps only known task ids and only model ids the registry actually serves, so a stale or
-hand-edited header can never route a call to nothing. `GET /features` returns `modelDebug: { tasks, models }`
-when the flag is on and `null` otherwise, and the client renders the picker (⌘K → "models") only in the
-first case: offering a choice the server will ignore is worse than offering none. Set `AI_MODEL_DEBUG=1`
-locally; leave it unset everywhere else.
+hand-edited header degrades to the default rather than routing a call to nothing. `GET /features` carries
+the catalogue as `models: { tasks, models, defaults }`, with each task's default already resolved for the
+workspace's tier, so `effectiveModel` is `override ?? default` by construction and cannot drift from
+`modelFor`. Choosing the model that is already the default clears the override instead of storing it, which
+keeps the "all default" readout honest and the header free of redundant tasks.
+
+**This costs us, not the user.** A heavier model changes what the provider bills us while the user is
+charged the same flat per-tool price from `@model/credits`. That asymmetry is the reason the picker was
+originally gated behind an env flag; the gate was removed deliberately, so the exposure is now a pricing
+question rather than a technical one.
+
+Each run's per-step choices are recorded in `app/stores/model-usage.ts` and, once the run saves, written to
+the artifact's `ai_meta` column alongside the brief, so provenance outlives the browser that made it.
 
 ## 10. The prompt system (`services/ai/prompts/`) — the playbook
 
