@@ -94,7 +94,8 @@ function parseSeries(values: string, names: string[]): Series[] {
         .map((points, i) => ({ name: names[i] ?? `Series ${i + 1}`, points }));
 }
 
-export function toChartData(d: Record<string, unknown>): ChartData {
+export function toChartData(raw: unknown): ChartData {
+    const d = (raw ?? {}) as Record<string, unknown>;
     return {
         type: str(d.type),
         values: str(d.values) ?? "",

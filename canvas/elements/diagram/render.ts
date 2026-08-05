@@ -19,16 +19,17 @@ import "./flow";
 
 import type { DrawContext, Rect } from "@engine/node";
 import type { Tokens } from "@themes";
-import type { DiagramData } from "./utils";
-import { getDiagram, normalizeDiagram } from "./utils";
+import { getDiagram, normalizeDiagram, toDiagramData } from "./utils";
 import { seriesColors } from "@elements/chart/utils";
 
-export function renderDiagram(g: DrawContext, box: Rect, data: DiagramData, theme: Tokens): void {
-    const diagram = normalizeDiagram(data);
+// element data is untyped at runtime (hand-edited JSON, a half-streamed AI element), so narrow it here
+export function renderDiagram(g: DrawContext, box: Rect, data: unknown, theme: Tokens): void {
+    const d = toDiagramData(data);
+    const diagram = normalizeDiagram(d);
     if (diagram.items.length === 0) return;
     const type = getDiagram(diagram.type) ?? getDiagram("process");
     if (!type) return;
-    const palette = data.palette === "categorical" ? "categorical" : "ramp";
+    const palette = d.palette === "categorical" ? "categorical" : "ramp";
     type.render(diagram, {
         g,
         W: box.w,

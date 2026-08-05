@@ -15,11 +15,11 @@ import "./treemap";
 
 import type { DrawContext, Rect } from "@engine/node";
 import type { Tokens } from "@themes";
-import type { ChartData } from "./utils";
-import { normalize, getChart, seriesColors } from "./utils";
+import { normalize, getChart, seriesColors, toChartData } from "./utils";
 
-export function renderChart(g: DrawContext, box: Rect, data: ChartData, theme: Tokens): void {
-    const chart = normalize(data);
+// element data is untyped at runtime (hand-edited JSON, a half-streamed AI element), so narrow it here
+export function renderChart(g: DrawContext, box: Rect, data: unknown, theme: Tokens): void {
+    const chart = normalize(toChartData(data));
     if (!chart.series.some((s) => s.points.length > 0)) return;
     const type = getChart(chart.type) ?? getChart("bar");
     if (!type) return;

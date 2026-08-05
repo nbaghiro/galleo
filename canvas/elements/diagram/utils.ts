@@ -107,7 +107,8 @@ function parseEdges(links: string | undefined): DiagEdge[] {
         .filter((e): e is DiagEdge => e !== null);
 }
 
-export function toDiagramData(d: Record<string, unknown>): DiagramData {
+export function toDiagramData(raw: unknown): DiagramData {
+    const d = (raw ?? {}) as Record<string, unknown>;
     return {
         type: str(d.type),
         items: str(d.items) ?? "",
