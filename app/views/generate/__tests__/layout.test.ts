@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { frameWidthFor, hitRegion, railMode } from "../layout";
+import { frameWidthFor, hitRegion, outlineEditable, railMode } from "../layout";
 
 describe("frameWidthFor", () => {
     it("caps a deck at its reading width on a wide board", () => {
@@ -66,5 +66,28 @@ describe("hitRegion", () => {
     it("counts the edges as inside, so a tap on a boundary still lands", () => {
         expect(hitRegion([inner], 10, 10)?.id).toBe("inner");
         expect(hitRegion([inner], 110, 30)?.id).toBe("inner");
+    });
+});
+
+describe("outlineEditable", () => {
+    it("stays true after the first write parks the run at 'building'", () => {
+        // buildSectionNow sets { stage: "building", paused: true }, so runLocked stays false;
+        // gating on stage === "outline" is what hid the controls on every unwritten beat
+        expect(outlineEditable("outline", false)).toBe(true);
+        expect(outlineEditable("building", false)).toBe(true);
+    });
+
+    it("freezes while the queue is actually running", () => {
+        expect(outlineEditable("building", true)).toBe(false);
+    });
+
+    it("still allows writing a beat left unwritten at the end of a run", () => {
+        expect(outlineEditable("done", false)).toBe(true);
+    });
+
+    it("is closed before an outline exists", () => {
+        for (const s of ["idle", "intake", "planning", "error"]) {
+            expect(outlineEditable(s, false)).toBe(false);
+        }
     });
 });

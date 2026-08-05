@@ -21,6 +21,14 @@ export type RailMode = "beside" | "switched";
 
 export const railMode = (tier: Tier): RailMode => (tier === "phone" ? "switched" : "beside");
 
+// Whether a still-unwritten beat accepts edits. Writing one section parks the run at stage
+// "building" (paused), so gating on stage === "outline" silently stripped the controls and inline
+// editing from every beat that had not been written yet. Only a locked run freezes the board.
+const EDITABLE_STAGES = new Set(["outline", "building", "done"]);
+
+export const outlineEditable = (stage: string, runLocked: boolean): boolean =>
+    !runLocked && EDITABLE_STAGES.has(stage);
+
 // Which painted region a tap lands in. Regions nest (a point sits inside its bullet list), so the
 // smallest hit wins, else every tap would resolve to the outermost box.
 export function hitRegion<T extends { box: { x: number; y: number; w: number; h: number } }>(

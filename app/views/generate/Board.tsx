@@ -29,7 +29,7 @@ import {
 import { Credits } from "../../components/credits";
 import { isCoarsePointer } from "@ui/viewport";
 import { outlineSection } from "@elements/blueprint";
-import { hitRegion } from "./layout";
+import { hitRegion, outlineEditable } from "./layout";
 import { DWELL_MS, frameWidth, previewFormat, reduced, REVEAL_MS } from "./shared";
 import { OutlineChrome, OutlineEditor, type OutlineEdit } from "./OutlineCard";
 
@@ -159,13 +159,14 @@ export const Board: Component = () => {
                 </Show>
             </div>
             <Show when={runLocked()}>
-                <div class="pointer-events-none absolute inset-x-0 bottom-[calc(1.25rem+env(safe-area-inset-bottom))] flex justify-center">
-                    <div class="pointer-events-auto flex items-center gap-3 rounded-full border border-line bg-panel/90 py-1.5 pl-4 pr-1.5 shadow-lg backdrop-blur-sm">
-                        <span class="flex items-center gap-2 text-[12px] text-soft">
+                <div class="pointer-events-none absolute inset-x-0 bottom-[calc(1.25rem+env(safe-area-inset-bottom))] z-chrome flex justify-center px-4">
+                    <div class="pointer-events-auto flex max-w-full items-center gap-3 rounded-full border border-line bg-panel/90 py-1.5 pl-4 pr-3 shadow-lg backdrop-blur-sm">
+                        <span class="flex flex-none items-center gap-2 whitespace-nowrap text-[12px] text-soft">
                             <Spinner size={12} />
                             Writing {builtCount() + 1} of {gen.beats.length}
                         </span>
                         <Button
+                            class="flex-none"
                             variant="outline"
                             size="sm"
                             rounded="xl"
@@ -178,7 +179,7 @@ export const Board: Component = () => {
                 </div>
             </Show>
             <Show when={replanning()}>
-                <div class="pointer-events-none absolute inset-0 grid place-items-center">
+                <div class="pointer-events-none absolute inset-0 z-chrome grid place-items-center">
                     <div class="flex items-center gap-2.5 rounded-full border border-line bg-panel/90 px-4 py-2 shadow-lg backdrop-blur-sm">
                         <Spinner size={14} />
                         <span class="font-mono text-[11px] uppercase tracking-[0.14em] text-soft">
@@ -224,7 +225,7 @@ const Frame: Component<{
     const active = (): boolean => ["active", "writing", "image"].includes(status()) || working();
     const themeBg = (): string => resolveTheme(gen.content.theme).tokens.bg;
     const paged = (): boolean => resolveProfile(previewFormat()).kind !== "continuous";
-    const editable = (): boolean => gen.stage === "outline";
+    const editable = (): boolean => outlineEditable(gen.stage, runLocked());
     // an unwritten beat stays an outline card at every stage
     const planned = (): boolean => !doneReady() && !active();
     const reviewable = (): boolean =>
