@@ -19,7 +19,6 @@ import {
 } from "@canvas/render/backends";
 import { stackWindow, windowMoved } from "@canvas/render/window";
 import { SECTION_GAP } from "@canvas/render/commands";
-import { placeholderSection } from "@canvas/elements/blueprint";
 import { ScaledSectionCanvas } from "@ui/section";
 
 // abstract motion, styled in visuals.css; pass `viz` to pin one (else cycles)
@@ -218,34 +217,6 @@ export const MiniCanvas: Component<{
         frame="slide"
         lazy={props.lazy}
         radius={0}
-        class={props.class}
-    />
-);
-
-// drawn by the engine from a blueprint, so a planned beat's layout and image flag are shown, not described
-export const BlueprintThumb: Component<{
-    id: string;
-    layout: string;
-    blocks: string[];
-    image: boolean;
-    themeId: string;
-    formatId: string;
-    width?: number;
-    class?: string;
-}> = (props) => (
-    <ScaledSectionCanvas
-        section={placeholderSection({
-            id: props.id,
-            layout: props.layout,
-            blocks: props.blocks,
-            image: props.image,
-        })}
-        theme={resolveTheme(props.themeId).tokens}
-        profile={resolveProfile(props.formatId)}
-        width={props.width ?? 148}
-        frame="slide"
-        skeleton
-        bordered
         class={props.class}
     />
 );

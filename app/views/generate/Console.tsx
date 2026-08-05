@@ -3,7 +3,7 @@ import { createEffect, createSignal, For, Show } from "solid-js";
 import { Button, Eyebrow, Spinner } from "@ui/button";
 import { TextArea } from "@ui/inputs";
 import { busy, sendChat, stopChat, thread } from "../../stores/chat";
-import { builtCount, gen } from "../../stores/generate";
+import { builtCount, gen, pauseBuild, runLocked } from "../../stores/generate";
 import { MessageView } from "../ChatPanel";
 
 const PLAN_HINTS = [
@@ -19,7 +19,19 @@ const WRITTEN_HINTS = [
     "What's this piece still missing?",
 ];
 
-export const Console: Component = () => {
+const StopToChat: Component = () => (
+    <Button
+        variant="outline"
+        size="sm"
+        class="flex-none whitespace-nowrap"
+        title="Stop after this section, then ask for anything"
+        onClick={pauseBuild}
+    >
+        Stop to chat
+    </Button>
+);
+
+export const Console: Component<{ active?: boolean }> = (props) => {
     const [draft, setDraft] = createSignal("");
     let feed!: HTMLDivElement;
 
@@ -30,12 +42,17 @@ export const Console: Component = () => {
         );
         void tick;
         void busy();
+        void props.active; // hidden while the brief holds the rail: re-pin on the way back
         queueMicrotask(() => feed?.scrollTo({ top: feed.scrollHeight }));
     });
 
+    // a run in flight owns the outline and the sections; a change asked for mid-write would land
+    // against a document that is still moving, so the console waits for the boundary
+    const locked = runLocked;
+
     const send = (): void => {
         const t = draft().trim();
-        if (!t || busy()) return;
+        if (!t || busy() || locked()) return;
         setDraft("");
         void sendChat(t);
     };
@@ -71,8 +88,9 @@ export const Console: Component = () => {
                             <For each={hints()}>
                                 {(h) => (
                                     <button
-                                        class="rounded-md border border-line px-2 py-1 text-left text-[11.5px] text-soft transition-colors hover:border-accent hover:text-ink"
-                                        onClick={() => setDraft(h)}
+                                        class="rounded-md border border-line px-2 py-1 text-left text-[11.5px] text-soft transition-colors hover:border-accent hover:text-ink disabled:opacity-45 disabled:hover:border-line disabled:hover:text-soft"
+                                        disabled={busy() || locked()}
+                                        onClick={() => void sendChat(h)}
                                     >
                                         {h}
                                     </button>
@@ -88,7 +106,8 @@ export const Console: Component = () => {
                 <TextArea
                     rows={2}
                     rounded="md"
-                    placeholder="Ask for a change…"
+                    disabled={locked()}
+                    placeholder={locked() ? "Writing sections…" : "Ask for a change…"}
                     value={draft()}
                     onChange={setDraft}
                     onKeyDown={(e: KeyboardEvent) => {
@@ -99,29 +118,32 @@ export const Console: Component = () => {
                     }}
                 />
                 <div class="mt-1.5 flex items-center justify-between gap-2">
-                    <span class="font-mono text-[9.5px] uppercase tracking-wide text-muted">
-                        <Show when={busy()} fallback="↵ to send">
+                    <span class="min-w-0 flex-1 truncate font-mono text-[9.5px] uppercase tracking-wide text-muted">
+                        <Show when={busy() || locked()} fallback="↵ to send">
                             <span class="flex items-center gap-1.5 text-accent">
-                                <Spinner size={10} /> working
+                                <Spinner size={10} />
+                                {locked() ? "writing sections" : "working"}
                             </span>
                         </Show>
                     </span>
-                    <Show
-                        when={!busy()}
-                        fallback={
-                            <Button variant="ghost" size="sm" onClick={stopChat}>
-                                Stop
-                            </Button>
-                        }
-                    >
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={!draft().trim()}
-                            onClick={send}
+                    <Show when={!locked()} fallback={<StopToChat />}>
+                        <Show
+                            when={!busy()}
+                            fallback={
+                                <Button variant="ghost" size="sm" onClick={stopChat}>
+                                    Stop
+                                </Button>
+                            }
                         >
-                            Send
-                        </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={!draft().trim()}
+                                onClick={send}
+                            >
+                                Send
+                            </Button>
+                        </Show>
                     </Show>
                 </div>
             </div>

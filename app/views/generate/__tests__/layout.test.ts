@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { frameWidthFor, railMode } from "../layout";
+import { frameWidthFor, hitRegion, railMode } from "../layout";
 
 describe("frameWidthFor", () => {
     it("caps a deck at its reading width on a wide board", () => {
@@ -41,5 +41,30 @@ describe("railMode", () => {
         expect(railMode("phone")).toBe("switched");
         expect(railMode("tablet")).toBe("beside");
         expect(railMode("desktop")).toBe("beside");
+    });
+});
+
+describe("hitRegion", () => {
+    const box = (x: number, y: number, w: number, h: number) => ({ box: { x, y, w, h } });
+    const outer = { ...box(0, 0, 400, 200), id: "outer" };
+    const inner = { ...box(10, 10, 100, 20), id: "inner" };
+
+    it("returns the smallest region containing the point", () => {
+        expect(hitRegion([outer, inner], 20, 15)?.id).toBe("inner");
+        expect(hitRegion([inner, outer], 20, 15)?.id).toBe("inner");
+    });
+
+    it("falls back to the containing region when no nested one matches", () => {
+        expect(hitRegion([outer, inner], 300, 150)?.id).toBe("outer");
+    });
+
+    it("returns null outside every region", () => {
+        expect(hitRegion([outer, inner], 500, 500)).toBeNull();
+        expect(hitRegion([], 1, 1)).toBeNull();
+    });
+
+    it("counts the edges as inside, so a tap on a boundary still lands", () => {
+        expect(hitRegion([inner], 10, 10)?.id).toBe("inner");
+        expect(hitRegion([inner], 110, 30)?.id).toBe("inner");
     });
 });

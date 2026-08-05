@@ -28,8 +28,10 @@ import {
 } from "../../stores/generate";
 import { Credits } from "../../components/credits";
 import { isCoarsePointer } from "@ui/viewport";
+import { outlineSection } from "@elements/blueprint";
+import { hitRegion } from "./layout";
 import { DWELL_MS, frameWidth, previewFormat, reduced, REVEAL_MS } from "./shared";
-import { OutlineCard } from "./OutlineCard";
+import { OutlineChrome, OutlineEditor, type OutlineEdit } from "./OutlineCard";
 
 // rows are keyed by beat id, not view objects: <For> is reference-keyed, so fresh objects per read
 // remount and repaint every row
@@ -202,7 +204,8 @@ const Frame: Component<{
     const [dim, setDim] = createSignal({ w: 0, h: 0 });
     const [noteOpen, setNoteOpen] = createSignal(false);
     const [note, setNote] = createSignal("");
-    const [detail, setDetail] = createSignal(false);
+    const [hits, setHits] = createSignal<OutlineEdit[]>([]);
+    const [edit, setEdit] = createSignal<OutlineEdit | null>(null);
     // everything this row shows is derived from the store by id, so a sibling landing touches nothing
     const beat = (): Beat | undefined => gen.beats.find((b) => b.id === props.id);
     const slot = (): SectionSlot | undefined => slotOf(props.id);
@@ -239,13 +242,32 @@ const Frame: Component<{
     } | null = null;
     createEffect(() => {
         const el = box();
-        if (!el || planned()) return;
+        if (!el) return;
         const sec = section();
+        const b = beat();
         const w = frameWidth(props.avail());
         const theme = gen.content.theme;
         const fmt = previewFormat();
+        // A planned beat paints as a real section carrying the outline's own words, so the engine
+        // owns its type scale and splits and the card never re-decides them.
+        const outline =
+            !sec && planned() && b
+                ? outlineSection({
+                      id: props.id,
+                      layout: layout(),
+                      blocks: blocks(),
+                      image: image(),
+                      heading: b.label,
+                      lead: b.takeaway ?? "",
+                      points: b.points ?? [],
+                  })
+                : null;
         // a ghost's shape is its own inputs; a landed section's is the section object itself
-        const ghost = sec ? "" : `${layout()}|${image()}|${blocks().join(",")}`;
+        const ghost = sec
+            ? ""
+            : outline
+              ? JSON.stringify([b?.label, b?.takeaway, b?.points, layout(), image(), blocks()])
+              : `${layout()}|${image()}|${blocks().join(",")}`;
         if (
             painted &&
             painted.el === el && // a remounted host is a blank node, so always repaint into it
@@ -263,22 +285,36 @@ const Frame: Component<{
         const profile = resolveProfile(fmt);
         // one width for skeleton and landed paint: a skeleton has no bleed flag yet, so the
         // inset-vs-bleed rule would make sections jump width when they land
-        const out = sec
+        // only a real section carries regions; the skeleton has none, so keep it off the union
+        const rendered = sec
             ? layoutSection(sec, w, measureText, tk, profile)
-            : layoutSectionSkeleton(
-                  placeholderSection({
-                      id: props.id,
-                      layout: layout(),
-                      blocks: blocks(),
-                      image: image(),
-                  }),
-                  w,
-                  measureText,
-                  tk,
-                  profile,
-              );
+            : outline
+              ? layoutSection(outline.section, w, measureText, tk, profile)
+              : null;
+        const out =
+            rendered ??
+            layoutSectionSkeleton(
+                placeholderSection({
+                    id: props.id,
+                    layout: layout(),
+                    blocks: blocks(),
+                    image: image(),
+                }),
+                w,
+                measureText,
+                tk,
+                profile,
+            );
         paint(out.commands, el);
         setDim({ w, h: out.height });
+        setHits(
+            outline && rendered
+                ? rendered.regions.flatMap((r) => {
+                      const field = outline.fields[r.id];
+                      return field ? [{ field, box: r.box }] : [];
+                  })
+                : [],
+        );
         if (!landed || reduced()) return;
         el.animate([{ opacity: 0 }, { opacity: 1 }], {
             duration: 420,
@@ -312,7 +348,8 @@ const Frame: Component<{
         <article
             ref={frame}
             data-sid={props.id}
-            class="group relative"
+            // hover lifts too, else with no gap the next section paints over this one's chrome
+            class="group relative hover:z-[1]"
             classList={{
                 // ring and glow are box-shadows outside the box; with no gap between continuous
                 // sections the next sibling would paint over them
@@ -330,58 +367,51 @@ const Frame: Component<{
                     {image() ? " · IMG" : ""}
                 </span>
             </Show>
-            {/* the engine paints the finished card, so chrome wraps only the skeleton: a wrapper
-                around landed sections double-borders them */}
-            <Show
-                when={!planned()}
-                fallback={
-                    <Show when={beat()}>
-                        <div
-                            classList={{
-                                "ring-1 ring-accent rounded-[var(--radius)]": selected(),
-                            }}
-                        >
-                            <OutlineCard
-                                beat={beat()!}
-                                index={props.index}
-                                total={props.total}
-                                open={detail()}
-                                onToggle={() => setDetail((v) => !v)}
-                            />
-                        </div>
-                    </Show>
-                }
+            {/* one container for every state — planned, writing, landed — so a continuous format
+                merges section to section exactly as the editor does */}
+            <div
+                class="transition-colors"
+                classList={{
+                    "overflow-hidden rounded-xl border border-dashed border-accent/25":
+                        !doneReady() && paged(),
+                    "ring-1 ring-accent shadow-[0_0_30px_-6px_var(--color-accent)]":
+                        active() || selected(),
+                    "shadow-[0_30px_60px_-40px_rgba(0,0,0,0.5)]": doneReady() && paged(),
+                }}
+                style={{
+                    background: doneReady() ? "transparent" : themeBg(),
+                    // hugs the painted card so shadow and radius trace the engine's surface,
+                    // not the outer frame
+                    width: `${dim().w}px`,
+                    margin: "0 auto",
+                    "border-radius":
+                        doneReady() && paged() && !section()!.bleed
+                            ? `${resolveTheme(gen.content.theme).tokens.radius}px`
+                            : undefined,
+                }}
             >
                 <div
-                    class="transition-colors"
-                    classList={{
-                        "overflow-hidden rounded-xl border border-dashed border-accent/25":
-                            !doneReady() && paged(),
-                        "ring-1 ring-accent shadow-[0_0_30px_-6px_var(--color-accent)]":
-                            active() || selected(),
-                        "shadow-[0_30px_60px_-40px_rgba(0,0,0,0.5)]": doneReady() && paged(),
+                    ref={setBox}
+                    class="relative"
+                    classList={{ "cursor-text": editable() && planned() }}
+                    style={{ width: `${dim().w}px`, height: `${dim().h}px` }}
+                    onClick={(e) => {
+                        if (!editable() || !planned()) return;
+                        const r = e.currentTarget.getBoundingClientRect();
+                        setEdit(hitRegion(hits(), e.clientX - r.left, e.clientY - r.top));
                     }}
-                    style={{
-                        background: doneReady() ? "transparent" : themeBg(),
-                        // hugs the painted card so shadow and radius trace the engine's surface,
-                        // not the outer frame
-                        width: `${dim().w}px`,
-                        margin: "0 auto",
-                        "border-radius":
-                            doneReady() && paged() && !section()!.bleed
-                                ? `${resolveTheme(gen.content.theme).tokens.radius}px`
-                                : undefined,
-                    }}
-                >
-                    <div
-                        ref={setBox}
-                        style={{
-                            position: "relative",
-                            width: `${dim().w}px`,
-                            height: `${dim().h}px`,
-                        }}
-                    />
-                </div>
+                />
+                <Show when={planned() && editable() && edit() && beat()}>
+                    <OutlineEditor beat={beat()!} edit={edit()!} onClose={() => setEdit(null)} />
+                </Show>
+            </div>
+            <Show when={planned() && editable() && beat()}>
+                <OutlineChrome
+                    beat={beat()!}
+                    index={props.index}
+                    total={props.total}
+                    selected={selected()}
+                />
             </Show>
             <Show when={active()}>
                 <div class="absolute bottom-3 left-4 z-[2] flex items-center gap-2 rounded-md bg-panel/80 px-2 py-1 font-mono text-[10.5px] uppercase tracking-[0.12em] text-accent backdrop-blur-sm">

@@ -208,8 +208,8 @@ const ClarifyBox: Component = () => {
     );
 };
 
-export const BriefBar: Component = () => {
-    const [open, setOpen] = createSignal(false);
+export const BriefBar: Component<{ open: boolean; onToggle: () => void }> = (props) => {
+    const open = (): boolean => props.open;
     const read = (): string | null => {
         const { tone, audience, goal, surface } = gen.brief;
         if (!tone && !audience && !goal) return null;
@@ -218,11 +218,14 @@ export const BriefBar: Component = () => {
     const points = (): string[] => gen.brief.mustInclude ?? [];
 
     return (
-        <div class="flex max-h-[42%] flex-none flex-col border-b border-line">
+        <div
+            class="flex flex-col border-b border-line"
+            classList={{ "min-h-0 flex-1": open(), "flex-none": !open() }}
+        >
             <button
                 class="flex w-full flex-none flex-col gap-0.5 px-3 py-2 text-left"
                 aria-expanded={open()}
-                onClick={() => setOpen((v) => !v)}
+                onClick={() => props.onToggle()}
             >
                 <span class="flex w-full items-center gap-2">
                     <Eyebrow weight="normal" tracking="widest">

@@ -20,3 +20,19 @@ export function frameWidthFor(avail: number, formatId: string, tier: Tier): numb
 export type RailMode = "beside" | "switched";
 
 export const railMode = (tier: Tier): RailMode => (tier === "phone" ? "switched" : "beside");
+
+// Which painted region a tap lands in. Regions nest (a point sits inside its bullet list), so the
+// smallest hit wins, else every tap would resolve to the outermost box.
+export function hitRegion<T extends { box: { x: number; y: number; w: number; h: number } }>(
+    hits: T[],
+    x: number,
+    y: number,
+): T | null {
+    let best: T | null = null;
+    for (const h of hits) {
+        const b = h.box;
+        if (x < b.x || y < b.y || x > b.x + b.w || y > b.y + b.h) continue;
+        if (!best || b.w * b.h < best.box.w * best.box.h) best = h;
+    }
+    return best;
+}

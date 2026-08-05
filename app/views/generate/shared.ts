@@ -37,6 +37,10 @@ export const frameWidth = (avail: number): number =>
 const [phonePane, setPhonePane] = createSignal<"board" | "chat">("board");
 export { phonePane };
 
+// exactly one rail pane is expanded; the other collapses to its header line
+const [railPane, setRailPane] = createSignal<"brief" | "chat">("chat");
+export { railPane, setRailPane };
+
 export function togglePhonePane(): void {
     setPhonePane((p) => (p === "board" ? "chat" : "board"));
 }

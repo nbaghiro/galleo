@@ -35,7 +35,14 @@ import { openSectionPrompt } from "../core/ai";
 import { pickMedia } from "../core/media";
 import { SectionLayoutPopup } from "./SectionLayoutPopup";
 import { Icon } from "@ui/icons";
-import { FloatingBar, Popover } from "@ui/overlay";
+import {
+    barAction,
+    barDangerAction,
+    barIconAction,
+    barStepAction,
+    FloatingBar,
+    Popover,
+} from "@ui/overlay";
 import { Separator } from "@ui/inputs";
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
@@ -461,13 +468,10 @@ function sectionOf(t: Target | null): string | null {
     return t.section;
 }
 
-const action =
-    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-canvas";
-const iconAction = "inline-flex items-center rounded-full p-1.5 text-ink hover:bg-canvas";
-const stepAction =
-    "flex items-center justify-center rounded px-1 leading-none text-muted hover:bg-canvas hover:text-ink disabled:pointer-events-none disabled:opacity-30";
-const dangerAction =
-    "inline-flex items-center rounded-full p-1.5 text-ink hover:bg-red-500/12 hover:text-red-500";
+const action = barAction;
+const iconAction = barIconAction;
+const stepAction = barStepAction;
+const dangerAction = barDangerAction;
 
 // pinned to the open-popup section, so the anchor stays mounted if the cursor drifts away
 const [layoutOpen, setLayoutOpen] = createSignal<string | null>(null);

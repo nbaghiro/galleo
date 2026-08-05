@@ -283,6 +283,20 @@ const BAR_ROUNDED: Record<BarRounded, string> = {
 };
 type BarShadow = "none" | "lg" | "2xl";
 const BAR_SHADOW: Record<BarShadow, string> = { none: "", lg: "shadow-lg", "2xl": "shadow-2xl" };
+// Content tokens for a FloatingBar's own row: shared by the editor's section pill and the generation
+// studio's outline pill, so the two read as one control surface.
+export const barAction =
+    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-canvas disabled:pointer-events-none disabled:opacity-40";
+// the bar's one call to action; same metrics as barAction so it sits level with its neighbours
+export const barPrimaryAction =
+    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-accent px-2.5 py-1 text-[11px] font-semibold text-onaccent hover:opacity-90 disabled:pointer-events-none disabled:opacity-40";
+export const barIconAction = "inline-flex items-center rounded-full p-1.5 text-ink hover:bg-canvas";
+// stacked chevrons share one slot, so this stays tight rather than a full icon button
+export const barStepAction =
+    "flex items-center justify-center rounded px-1 leading-none text-muted hover:bg-canvas hover:text-ink disabled:pointer-events-none disabled:opacity-30";
+export const barDangerAction =
+    "inline-flex items-center rounded-full p-1.5 text-ink hover:bg-red-500/12 hover:text-red-500";
+
 export const FloatingBar: Component<
     JSX.HTMLAttributes<HTMLDivElement> & {
         tone?: BarTone;

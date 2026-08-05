@@ -1,5 +1,5 @@
 import type { Component, JSX } from "solid-js";
-import { createMemo, createSignal, Show } from "solid-js";
+import { createMemo, createSignal, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { resolveProfile } from "@engine/profile";
 import { resolveTheme, themeCssVars } from "@themes";
@@ -10,6 +10,7 @@ import { CloseIcon, Icon } from "@ui/icons";
 import { Modal } from "@ui/overlay";
 import { isCoarsePointer, viewportTier } from "@ui/viewport";
 import { Credits } from "../../components/credits";
+import { thread } from "../../stores/chat";
 import {
     builtCount,
     closeGenerate,
@@ -35,6 +36,8 @@ import { Intake } from "./Intake";
 import {
     phonePane,
     previewFormat,
+    railPane,
+    setRailPane,
     RAIL_WIDTH,
     railOpen,
     setPreviewFormat,
@@ -58,6 +61,18 @@ export const Studio: Component = () => {
     const boardHidden = (): boolean => switched() && !intake() && phonePane() === "chat";
     const railHidden = (): boolean => switched() && phonePane() === "board";
     const touch = isCoarsePointer;
+    // the console keeps the rail on a fresh run; the brief is a step you go and open
+    onMount(() => setRailPane("chat"));
+
+    const lastChatLine = (): string => {
+        for (let i = thread.messages.length - 1; i >= 0; i--) {
+            const text = thread.messages[i]!.blocks.map((b) => (b.k === "text" ? b.text : "")).join(
+                "",
+            );
+            if (text.trim()) return text.trim();
+        }
+        return "Ask for a change…";
+    };
     const building = (): boolean => gen.stage === "building";
     const planned = (): boolean => gen.beats.length > 0;
 
@@ -191,10 +206,37 @@ export const Studio: Component = () => {
                                         </span>
                                     </div>
                                 </Show>
-                                {/* configuration sits above the conversation and is capped, so the
-                                    console keeps most of the column even with the brief open */}
-                                <BriefBar />
-                                <Console />
+                                {/* an accordion: whichever pane is open takes the height and the
+                                    other keeps only its header line */}
+                                <BriefBar
+                                    open={railPane() === "brief"}
+                                    onToggle={() =>
+                                        setRailPane(railPane() === "brief" ? "chat" : "brief")
+                                    }
+                                />
+                                <div
+                                    class="min-h-0 flex-1 flex-col"
+                                    classList={{
+                                        flex: railPane() === "chat",
+                                        hidden: railPane() !== "chat",
+                                    }}
+                                >
+                                    <Console active={railPane() === "chat"} />
+                                </div>
+                                <Show when={railPane() !== "chat"}>
+                                    <button
+                                        class="flex flex-none items-center gap-2 border-t border-line px-3 py-2 text-left transition-colors hover:bg-canvas"
+                                        onClick={() => setRailPane("chat")}
+                                    >
+                                        <Eyebrow weight="normal" tracking="widest">
+                                            Console
+                                        </Eyebrow>
+                                        <span class="min-w-0 flex-1 truncate text-[11.5px] text-soft">
+                                            {lastChatLine()}
+                                        </span>
+                                        <Icon name="chevronUp" size={12} />
+                                    </button>
+                                </Show>
                             </div>
                         </div>
                     </div>
