@@ -20,7 +20,14 @@ import { api, streamTurn } from "../api";
 import { bindChatTarget } from "./chat";
 import { appTheme } from "./theme";
 import { reportError } from "./errors";
-import { attachArtifact, beginRun, currentRunSteps, nameRun, noteStep } from "./model-usage";
+import {
+    attachArtifact,
+    beginRun,
+    currentRunSteps,
+    nameRun,
+    noteStep,
+    unitRates,
+} from "./model-usage";
 import { persistArtifact, updateArtifactContent } from "./library";
 import {
     buildCost,
@@ -30,11 +37,11 @@ import {
     moveBeat,
     newBeatId,
     pointFromQuestion,
-    briefCost,
-    planCost,
+    briefCost as rawBriefCost,
+    planCost as rawPlanCost,
     removeBeat,
     reorderBeat,
-    sectionCost,
+    sectionCost as rawSectionCost,
     updateBeat,
 } from "./generate-plan";
 
@@ -161,9 +168,12 @@ export const remainingBuildCost = (): number => {
         const slot = gen.slots.find((s) => s.id === b.id);
         return !slot || slot.versions.length === 0;
     });
-    return buildCost(unbuilt, gen.brief.imageSource);
+    return buildCost(unbuilt, gen.brief.imageSource, unitRates());
 };
-export { briefCost, planCost, sectionCost };
+// the preview must quote what the run will actually cost, so it prices the picked models
+export const briefCost = (): number => rawBriefCost(unitRates());
+export const planCost = (): number => rawPlanCost(unitRates());
+export const sectionCost = (): number => rawSectionCost(unitRates());
 
 const controllers = new Set<AbortController>();
 let narrId = 0;

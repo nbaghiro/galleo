@@ -1,4 +1,4 @@
-import type { Usage } from "./credits";
+import type { UnitRates, Usage } from "./credits";
 import { costOf } from "./credits";
 
 // a tool IS the priced unit (usage + optional meter, no usage = free); the run half lives in services/ai/tools
@@ -463,8 +463,8 @@ export function estimateUsage(id: ToolId, m: MeterParams = {}): Usage {
 }
 
 // what the pre-flight gate reserves + the UI previews
-export function estimateCost(id: ToolId, m?: MeterParams): number {
-    return costOf(estimateUsage(id, m));
+export function estimateCost(id: ToolId, m?: MeterParams, rates?: UnitRates): number {
+    return costOf(estimateUsage(id, m), rates);
 }
 
 // headline cost, ignoring job size

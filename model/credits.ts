@@ -16,10 +16,15 @@ export type CostUnit = keyof typeof COST_UNITS;
 // what an action estimates, or what a run actually did
 export type Usage = Partial<Record<CostUnit, number>>;
 
-// Σ unit price × count, floored at 1 so nothing is free
-export function costOf(usage: Usage): number {
+// A unit's price scales with what the model behind it costs us: the same section is ~6x the provider
+// spend on Fable 5 as on the default Flash. Absent multipliers price everything at the baseline.
+export type UnitRates = Partial<Record<CostUnit, number>>;
+
+// Σ unit price × count × model rate, floored at 1 so nothing is free
+export function costOf(usage: Usage, rates: UnitRates = {}): number {
     let sum = 0;
-    for (const u of Object.keys(COST_UNITS) as CostUnit[]) sum += COST_UNITS[u] * (usage[u] ?? 0);
+    for (const u of Object.keys(COST_UNITS) as CostUnit[])
+        sum += COST_UNITS[u] * (usage[u] ?? 0) * (rates[u] ?? 1);
     return Math.max(1, Math.round(sum));
 }
 

@@ -1,5 +1,6 @@
 import type { Beat } from "@model/ai";
 import { LAYOUT_PRESETS } from "@model/section";
+import type { UnitRates } from "@model/credits";
 import { COST_UNITS } from "@model/credits";
 import { estimateCost } from "@model/tools";
 
@@ -88,14 +89,14 @@ export function coverageMap(mustInclude: string[], beats: Beat[]): Map<string, s
     return map;
 }
 
-export const briefCost = (): number => estimateCost("draft-brief");
-export const planCost = (): number => estimateCost("plan-outline");
-export const sectionCost = (): number => estimateCost("add-section");
+export const briefCost = (rates?: UnitRates): number => estimateCost("draft-brief", {}, rates);
+export const planCost = (rates?: UnitRates): number => estimateCost("plan-outline", {}, rates);
+export const sectionCost = (rates?: UnitRates): number => estimateCost("add-section", {}, rates);
 
-// AI images are priced per image-leading beat
-export function buildCost(beats: Beat[], imageSource?: "stock" | "ai"): number {
+// AI images are priced per image-leading beat, and images run on their own model, so they don't scale
+export function buildCost(beats: Beat[], imageSource?: "stock" | "ai", rates?: UnitRates): number {
     const images = imageSource === "ai" ? beats.filter((b) => b.image).length : 0;
-    return beats.length * sectionCost() + images * COST_UNITS.image;
+    return beats.length * sectionCost(rates) + images * COST_UNITS.image;
 }
 
 // a choice question ("A or B?") must yield null, not invent a requirement the user never stated

@@ -1,11 +1,14 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { streamSSE } from "hono/streaming";
 import { getCookie } from "hono/cookie";
 import type { Surface, TurnEvent, TurnRequest, TurnKind } from "@model/ai";
 import { isKind } from "@model/ai";
 import type { ToolId, MeterParams } from "@model/tools";
 import { estimateCost, estimateUsage, sectionsForLength } from "@model/tools";
-import type { Usage } from "@model/credits";
+import { unitMultipliers } from "@model/tasks";
+import { COST_MULTIPLIERS, modelFor } from "../ai/models";
+import type { UnitRates, Usage } from "@model/credits";
 import { costOf, mergeUsage } from "@model/credits";
 import { db, schema } from "../schema";
 import { chargeCredits, settleCredits } from "../credits";
@@ -24,7 +27,7 @@ import { generateThemeFromPrompt } from "../ai/theme";
 import { expandBrief } from "../ai/brief";
 import type { BriefRead } from "../ai/prompts/brief";
 import { warn } from "../log";
-import { overridesFrom } from "./model-debug";
+import { overridesFrom } from "./model-override";
 
 export const ai = new Hono();
 
@@ -53,6 +56,13 @@ const meterFor = (req: TurnRequest, maxSections?: number): MeterParams =>
 
 // Others 501 before any charge (blocking here avoids reserving credits for an unbuildable kind).
 const IMPLEMENTED: readonly TurnKind[] = ["generate", "section", "chat", "plan", "build"];
+
+// the unit prices for this caller's picks; every metered route reserves and settles through it
+const ratesFor = (c: Context, ws: Parameters<typeof featuresFor>[0]): UnitRates =>
+    unitMultipliers(
+        (task) => modelFor(task, featuresFor(ws).textModelTier, overridesFrom(c)),
+        (id) => COST_MULTIPLIERS[id],
+    );
 
 ai.post("/ai/turn", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
@@ -85,7 +95,11 @@ ai.post("/ai/turn", async (c) => {
     // Reserve before the billable model calls; 402 when spent.
     const feats = featuresFor(ws);
     const meter = meterFor(req, feats.maxSectionsPerGeneration);
-    const cost = estimateCost(ACTION_FOR[req.kind], meter);
+    // a step pinned to a heavier model costs us more, so the reserve and the settle both price the
+    // models this turn will actually run on
+    const overrides = overridesFrom(c);
+    const rates = ratesFor(c, ws);
+    const cost = estimateCost(ACTION_FOR[req.kind], meter, rates);
     const spend = await chargeCredits(ws, cost, ACTION_FOR[req.kind]);
     if (!spend.ok)
         return c.json(
@@ -152,7 +166,7 @@ ai.post("/ai/turn", async (c) => {
         try {
             const workspace = makeWorkspaceReader(ws.id);
             for await (const ev of runTurn(req, {
-                models: overridesFrom(c),
+                models: overrides,
                 signal: ctrl.signal,
                 workspace,
                 onUsage,
@@ -170,17 +184,20 @@ ai.post("/ai/turn", async (c) => {
         } finally {
             // Reconcile the reserve to what actually ran (runs even on a mid-turn error, so real spend is still billed).
             let owed = cost;
-            if (Object.keys(extra).length) owed += costOf(extra);
+            if (Object.keys(extra).length) owed += costOf(extra, rates);
             if (wantsAiImages)
                 // A generation reserved for images (recompute from the real count); chat reserved
                 // none (add on top of what its tools owe).
                 owed =
                     req.kind === "chat"
                         ? owed + costOf({ image: aiImages })
-                        : costOf({
-                              ...estimateUsage(ACTION_FOR[req.kind], meter),
-                              image: aiImages,
-                          });
+                        : costOf(
+                              {
+                                  ...estimateUsage(ACTION_FOR[req.kind], meter),
+                                  image: aiImages,
+                              },
+                              rates,
+                          );
             await settleCredits(ws, owed - cost, `${ACTION_FOR[req.kind]}:settle`);
         }
     });
@@ -197,7 +214,11 @@ ai.post("/ai/brief", async (c) => {
     const body = await readJson<{ prompt?: string; surface?: Surface; previous?: BriefRead }>(c);
     if (!body?.prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
 
-    const spend = await chargeCredits(ws, estimateCost("draft-brief"), "draft-brief");
+    const spend = await chargeCredits(
+        ws,
+        estimateCost("draft-brief", {}, ratesFor(c, ws)),
+        "draft-brief",
+    );
     if (!spend.ok)
         return c.json(
             { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
@@ -213,7 +234,11 @@ ai.post("/ai/brief", async (c) => {
         return c.json({ brief });
     } catch (e) {
         // refund a read that produced nothing — the user got no value from it
-        await settleCredits(ws, -estimateCost("draft-brief"), "draft-brief:refund");
+        await settleCredits(
+            ws,
+            -estimateCost("draft-brief", {}, ratesFor(c, ws)),
+            "draft-brief:refund",
+        );
         warn(`[ai:brief] ${e instanceof Error ? e.message : "failed"}`.slice(0, 400));
         return c.json({ brief: null });
     }
@@ -251,7 +276,11 @@ ai.post("/ai/element", async (c) => {
     if (!body?.content?.sections?.length || !body.sectionId || !body.element?.type)
         return c.json({ error: "content, sectionId, and element are required" }, 400);
 
-    const spend = await chargeCredits(ws, estimateCost("revise-element"), "revise-element");
+    const spend = await chargeCredits(
+        ws,
+        estimateCost("revise-element", {}, ratesFor(c, ws)),
+        "revise-element",
+    );
     if (!spend.ok)
         return c.json(
             { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
@@ -329,7 +358,11 @@ ai.post("/ai/theme", async (c) => {
     const body = await readJson<{ prompt?: string; isDark?: boolean }>(c);
     if (!body?.prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
 
-    const spend = await chargeCredits(ws, estimateCost("generate-theme"), "generate-theme");
+    const spend = await chargeCredits(
+        ws,
+        estimateCost("generate-theme", {}, ratesFor(c, ws)),
+        "generate-theme",
+    );
     if (!spend.ok)
         return c.json(
             { error: "out of AI credits", upgrade: true, remaining: spend.remaining },

@@ -1,4 +1,6 @@
 import { createSignal } from "solid-js";
+import type { UnitRates } from "@model/credits";
+import { unitMultipliers } from "@model/tasks";
 import { featuresState } from "./features";
 import { modelOverrides, pickModel, setModelOverride, summarizeSteps } from "./models";
 
@@ -17,14 +19,11 @@ export interface RunRecord {
     steps: Record<string, string>; // task → model id, as resolved when the step ran
 }
 
-const catalogue = (): {
-    models: { id: string; label: string }[];
-    defaults: Record<string, string>;
-} | null => featuresState()?.modelDebug ?? null;
+const catalogue = () => featuresState()?.models ?? null;
 
-export const modelDebugOn = (): boolean => !!catalogue();
+export const catalogueReady = (): boolean => !!catalogue();
 
-export const modelTasks = (): string[] => featuresState()?.modelDebug?.tasks ?? [];
+export const modelTasks = (): string[] => featuresState()?.models?.tasks ?? [];
 
 export function modelLabel(id: string): string {
     return catalogue()?.models.find((m) => m.id === id)?.label ?? id;
@@ -71,7 +70,7 @@ const persist = (next: RunRecord[]): void => {
 let currentId: string | null = null;
 
 export function beginRun(label: string): void {
-    if (!modelDebugOn()) return;
+    if (!catalogueReady()) return;
     currentId = `r-${Date.now()}`;
     persist([{ id: currentId, label, at: Date.now(), steps: {} }, ...runs()].slice(0, KEEP));
 }
@@ -79,7 +78,7 @@ export function beginRun(label: string): void {
 // last write wins: a step re-run after the picker changed reports what it actually used
 export function noteStep(task: string): void {
     const id = currentId;
-    if (!id || !modelDebugOn()) return;
+    if (!id || !catalogueReady()) return;
     const model = effectiveModel(task);
     if (!model) return;
     persist(runs().map((r) => (r.id === id ? { ...r, steps: { ...r.steps, [task]: model } } : r)));
@@ -111,3 +110,7 @@ export const stepSummary = (r: RunRecord): string => summarizeSteps(r.steps, mod
 export function currentRunSteps(): Record<string, string> {
     return runs().find((r) => r.id === currentId)?.steps ?? {};
 }
+
+// what the studio's cost previews scale by, so the number on the board is the number charged
+export const unitRates = (): UnitRates =>
+    unitMultipliers(effectiveModel, (id) => catalogue()?.rates[id]);
