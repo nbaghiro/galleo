@@ -1,4 +1,3 @@
-import { hexA } from "@themes";
 import { clamp, drawLink, drawNode, registerDiagram, type Renderer } from "./utils";
 
 // First item is the hub, the rest ring it as spokes.
@@ -55,8 +54,7 @@ const hub: Renderer = (diagram, ctx) => {
         const x = cx + Math.cos(a) * rx - nodeW / 2;
         const y = cy + Math.sin(a) * ry - nodeH / 2;
         drawNode(g, { x, y, w: nodeW, h: nodeH }, item, theme, {
-            fill: hexA(cols[i]!, 0.14),
-            stroke: cols[i]!,
+            color: cols[i]!,
             pad: 9,
             titleSize: 12,
             showBody: !!item.body && nodeH >= 56,
@@ -64,9 +62,7 @@ const hub: Renderer = (diagram, ctx) => {
     });
 
     drawNode(g, { x: cx - hubW / 2, y: cy - hubH / 2, w: hubW, h: hubH }, centre, theme, {
-        fill: theme.accent,
-        stroke: theme.accent,
-        ink: theme.onAccent,
+        color: theme.accent,
         shape: "pill",
         pad: 10,
     });

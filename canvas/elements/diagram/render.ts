@@ -27,7 +27,7 @@ export function renderDiagram(g: DrawContext, box: Rect, data: DiagramData, them
     if (diagram.items.length === 0) return;
     const type = getDiagram(diagram.type) ?? getDiagram("process");
     if (!type) return;
-    const palette = data.palette === "ramp" ? "ramp" : "categorical";
+    const palette = data.palette === "categorical" ? "categorical" : "ramp";
     type.render(diagram, {
         g,
         W: box.w,

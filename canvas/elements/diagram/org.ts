@@ -30,6 +30,8 @@ function renderOrg(diagram: ResolvedDiagram, ctx: DiagramCtx): void {
     const nodeH = fitNodeHeight(needed, 42, H - 24, treeDepth(data), 16);
     const { root, placed } = layoutTree(data, W, H, nodeW, nodeH, false);
     const pos = new Map(placed.map((p) => [p.node, p] as const));
+    const depth = Math.max(1, ...placed.map((x) => x.node.depth));
+    const cols = ctx.colors(depth + 1);
 
     for (const l of root.links()) {
         const s = pos.get(l.source);
@@ -52,19 +54,12 @@ function renderOrg(diagram: ResolvedDiagram, ctx: DiagramCtx): void {
     }
 
     for (const p of placed) {
-        const isRoot = p.node.depth === 0;
         drawNode(
             g,
             { x: p.cx - nodeW / 2, y: p.cy - nodeH / 2, w: nodeW, h: nodeH },
             itemOf(p.node.data),
             theme,
-            {
-                radius: 6,
-                pad: PAD,
-                fill: isRoot ? theme.accent : theme.surface,
-                stroke: theme.accent,
-                ink: isRoot ? theme.onAccent : theme.ink,
-            },
+            { color: cols[p.node.depth % cols.length]!, pad: PAD },
         );
     }
 }

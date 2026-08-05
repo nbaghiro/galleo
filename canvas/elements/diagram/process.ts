@@ -1,7 +1,5 @@
-import { hexA } from "@themes";
-import { drawLink, drawNode, registerDiagram, type Renderer } from "./utils";
+import { PAD, drawLink, drawNode, registerDiagram, type Renderer } from "./utils";
 
-const PAD = 16;
 const GAP = 40;
 const ROW_GAP = 26;
 const NODE_H = 56;
@@ -28,8 +26,7 @@ const process: Renderer = (diagram, ctx) => {
         const x = PAD + c * (nodeW + GAP);
         const y = top + Math.floor(i / perRow) * (nodeH + rowGap);
         drawNode(g, { x, y, w: nodeW, h: nodeH }, item, theme, {
-            fill: hexA(cols[i]!, 0.14),
-            stroke: cols[i]!,
+            color: cols[i]!,
             showBody: !!item.body && nodeH >= 54,
         });
         if (c < perRow - 1 && i < items.length - 1) {

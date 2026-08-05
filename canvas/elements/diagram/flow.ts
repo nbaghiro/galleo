@@ -3,6 +3,7 @@ import dagre from "@dagrejs/dagre";
 import type { EdgeLabel, GraphLabel, NodeLabel } from "@dagrejs/dagre";
 import type { NodeShape } from "./utils";
 import {
+    PAD,
     clamp,
     drawEdgeLabel,
     drawLink,
@@ -31,6 +32,7 @@ function renderFlow(diagram: ResolvedDiagram, ctx: DiagramCtx): void {
     const { g, W, H, theme, opts } = ctx;
     const { nodes } = diagram;
     if (nodes.length === 0) return;
+    const cols = ctx.colors(nodes.length);
 
     const graph = new dagre.graphlib.Graph<GraphLabel, NodeLabel, EdgeLabel>();
     graph.setGraph({
@@ -61,7 +63,7 @@ function renderFlow(diagram: ResolvedDiagram, ctx: DiagramCtx): void {
     const gl = graph.graph();
     const gw = isNum(gl.width) && gl.width > 0 ? gl.width : W;
     const gh = isNum(gl.height) && gl.height > 0 ? gl.height : H;
-    const pad = 16;
+    const pad = PAD;
     const s = Math.min((W - 2 * pad) / gw, (H - 2 * pad) / gh);
     const ox = (W - gw * s) / 2;
     const oy = (H - gh * s) / 2;
@@ -83,9 +85,9 @@ function renderFlow(diagram: ResolvedDiagram, ctx: DiagramCtx): void {
         }
     }
 
-    for (const n of nodes) {
+    nodes.forEach((n, i) => {
         const nd = graph.node(n.id);
-        if (!nd || !isNum(nd.x) || !isNum(nd.y)) continue;
+        if (!nd || !isNum(nd.x) || !isNum(nd.y)) return;
         const w = (isNum(nd.width) ? nd.width : 96) * s;
         const h = (isNum(nd.height) ? nd.height : nodeH) * s;
         drawNode(
@@ -93,9 +95,9 @@ function renderFlow(diagram: ResolvedDiagram, ctx: DiagramCtx): void {
             { x: mapX(nd.x) - w / 2, y: mapY(nd.y) - h / 2, w, h },
             { label: n.label },
             theme,
-            { shape: shapes.get(n.id) ?? "rounded", radius: 8 },
+            { color: cols[i]!, shape: shapes.get(n.id) ?? "rounded" },
         );
-    }
+    });
 }
 
 registerDiagram({ id: "flow", label: "Flowchart", render: renderFlow });

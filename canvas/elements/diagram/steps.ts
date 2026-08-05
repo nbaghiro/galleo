@@ -1,5 +1,6 @@
 import { hexA } from "@themes";
 import {
+    PAD,
     captionText,
     clamp,
     inkOn,
@@ -11,14 +12,14 @@ import {
 
 const BODY_ROOM = 72; // block height below which the detail line is dropped
 
-// Ascending staircase: every block rises a level and drops to the baseline, so the climb reads as progress.
+// every block rises a level and drops to the baseline, so the climb reads as progress
 const steps: Renderer = (diagram, ctx) => {
     const { g, W, H, theme } = ctx;
     const items = diagram.items;
     if (items.length === 0) return;
     const cols = ctx.colors(items.length);
     const n = items.length;
-    const pad = 14;
+    const pad = PAD;
     const gap = 8;
     const stepW = (W - pad * 2 - gap * (n - 1)) / n;
     const base = H - pad;

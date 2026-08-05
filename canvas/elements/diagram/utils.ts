@@ -9,7 +9,7 @@ import { hierarchy, tree, type HierarchyPointNode } from "d3-hierarchy";
 
 // Authored/persisted diagram data (artifact JSONB).
 export interface DiagramData {
-    type?: string; // process | steps | cycle | pyramid | funnel | timeline | roadmap | venn | quadrant | matrix | hub | target | honeycomb | tree | org | mindmap | flow
+    type?: string; // registered diagram id; one of the renderers in @elements/diagram/
     items: string; // one entry per line (or comma-separated): "Label | detail | value"
     links?: string; // edges: "A->B, B->C" (flow) or "Parent>Child" (tree/org/mindmap)
     axes?: string; // quadrant/matrix axis captions: "x low, x high, y low, y high"
@@ -232,7 +232,6 @@ export function centerLabel(
     lines.forEach((ln, i) => g.text(ln, cx, top + i * lineHeight, style));
 }
 
-// title over an optional detail line; returns the height occupied
 const BODY_GAP = 3;
 
 // height stackedLabel will occupy, for sizing a box before painting into it
@@ -300,20 +299,26 @@ export interface NodePaint {
     dim: string; // supporting-text color on the same fill
 }
 
-// ink is measured against the resolved fill, so a light band can't get light-on-light text
+// solid fill, no outline: the way charts draw a mark
 export function nodePaint(color: string, theme: Tokens, over?: Partial<NodePaint>): NodePaint {
-    const fill = over?.fill ?? theme.surface;
+    const fill = over?.fill ?? color;
     const ink = over?.ink ?? inkOn(fill.startsWith("#") ? fill : paper(theme), theme);
-    return {
-        fill,
-        stroke: over?.stroke ?? color,
-        width: over?.width ?? 1.5,
-        ink,
-        dim: hexA(ink, 0.66),
-    };
+    return { fill, stroke: over?.stroke, width: over?.width, ink, dim: hexA(ink, 0.7) };
 }
 
+export const PAD = 14; // one inset for every type; charts get theirs from cartesianFrame
+
+export const frame = (W: number, H: number, pad = PAD): Rect => ({
+    x: pad,
+    y: pad,
+    w: Math.max(1, W - pad * 2),
+    h: Math.max(1, H - pad * 2),
+});
+
 // diamond/hexagon are assigned by the renderer, not authored
+export const NODE_RADIUS = 6; // charts round marks 2-3px; nodes are bigger, so a touch more
+export const NODE_TEXT = 12;
+
 export type NodeShape = "rounded" | "pill" | "hexagon" | "diamond";
 
 const NOTCH = 0.34; // hexagon/diamond point depth, as a fraction of the node height
@@ -368,7 +373,7 @@ export function drawNode(
     if (angled) {
         g.path((p) => shapeInto(p, shape, b), ds);
     } else {
-        const radius = shape === "pill" ? b.h / 2 : (o.radius ?? 10);
+        const radius = shape === "pill" ? b.h / 2 : (o.radius ?? NODE_RADIUS);
         g.rect(b.x, b.y, b.w, b.h, { ...ds, radius });
     }
 
@@ -376,7 +381,7 @@ export function drawNode(
     const notch = shape === "diamond" ? b.w / 4 : angled ? b.h * NOTCH : 0;
     const pad = (o.pad ?? 7) + notch;
     const maxW = Math.max(24, b.w - pad * 2);
-    const title = nodeText(theme, { fill: paint.ink, size: o.titleSize ?? 13 });
+    const title = nodeText(theme, { fill: paint.ink, size: o.titleSize ?? NODE_TEXT });
     const body = o.showBody ? captionText(theme, { fill: paint.dim, size: 11 }) : undefined;
     stackedLabel(g, item, b.x + b.w / 2, b.y + b.h / 2, maxW, title, body);
 }
@@ -414,7 +419,6 @@ export interface LinkOpts {
     corner?: number; // elbow rounding for orthogonal runs
 }
 
-// rounded-elbow polyline with an optional arrowhead
 export function drawLink(
     g: DrawContext,
     points: [number, number][],
@@ -424,7 +428,7 @@ export function drawLink(
     if (points.length < 2) return;
     const color = o.color ?? linkColor(theme);
     const width = o.width ?? 1.8;
-    const corner = o.corner ?? 0; // straight by default; callers opt into rounded elbows
+    const corner = o.corner ?? 0; // 0 = straight elbows
     const style: DrawStyle = {
         stroke: color,
         width,
@@ -487,7 +491,6 @@ export function drawEdgeLabel(
 export const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
 // narrowTop → pyramid (triangle); else funnel (wide top).
-// narrowTop → pyramid (triangle); else funnel (wide top).
 export function bandStack(narrowTop: boolean): Renderer {
     return (diagram, ctx) => {
         const { g, W, H, theme } = ctx;
@@ -495,22 +498,27 @@ export function bandStack(narrowTop: boolean): Renderer {
         if (items.length === 0) return;
         const cols = ctx.colors(items.length);
         const n = items.length;
-        const pad = 16;
-        const top = pad;
-        const bottom = H - pad;
-        const bandH = (bottom - top) / n;
+        const box = frame(W, H, 16);
+        const top = box.y;
+        const bandH = box.h / n;
         const cx = W / 2;
-        const wide = W / 2 - pad;
+        const wide = box.w / 2;
         const narrow = wide * 0.14;
+        // with values the widths encode them; without, it tapers evenly
+        const vals = items.map((i) => i.value);
+        const scaled = !narrowTop && vals.every((v) => v !== undefined && v >= 0);
+        const max = scaled ? Math.max(...(vals as number[])) || 1 : 1;
+        const halfFor = (i: number): number =>
+            Math.max(narrow * 0.5, ((vals[i] as number) / max) * wide);
         const halfAt = (y: number): number => {
-            const t = (y - top) / (bottom - top || 1);
+            const t = (y - top) / (box.h || 1);
             return narrowTop ? narrow + (wide - narrow) * t : wide - (wide - narrow) * t;
         };
         items.forEach((item, i) => {
             const y0 = top + i * bandH;
             const y1 = y0 + bandH - 3;
-            const h0 = halfAt(y0);
-            const h1 = halfAt(y1);
+            const h0 = scaled ? halfFor(i) : halfAt(y0);
+            const h1 = scaled ? halfFor(Math.min(i + 1, n - 1)) : halfAt(y1);
             g.path(
                 (p) => {
                     p.moveTo(cx - h0, y0);
@@ -522,7 +530,7 @@ export function bandStack(narrowTop: boolean): Renderer {
                 { fill: cols[i]! },
             );
             const my = (y0 + y1) / 2;
-            const mw = Math.max(24, halfAt(my) * 2 - 12);
+            const mw = Math.max(24, Math.min(h0, h1) * 2 - 12);
             // measured against the band it sits on, rather than assuming onAccent reads on every colour
             centerLabel(
                 g,
@@ -542,8 +550,8 @@ export interface TreeDatum {
     children: TreeDatum[];
 }
 
-// Root = the node never used as an edge `to`; with no edges the first node roots a star.
-// Cycles/diamonds cut by visiting each node once.
+// Root = the node never used as an edge `to` (no edges → first node roots a star); cycles cut by
+// visiting each node once.
 export function buildTree(diagram: ResolvedDiagram): TreeDatum | null {
     const { items, edges } = diagram;
     if (items.length === 0) return null;
@@ -622,7 +630,6 @@ export interface Placed {
 }
 
 // d3 tree() at natural spacing, uniformly scaled to fit (W,H); never upscales past natural gaps.
-// `horizontal` swaps axes for a left→right mind-map.
 export function layoutTree(
     data: TreeDatum,
     W: number,

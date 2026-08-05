@@ -1,5 +1,4 @@
-import { hexA } from "@themes";
-import { captionText, drawNode, registerDiagram, stackedLabel, type Renderer } from "./utils";
+import { PAD, captionText, drawNode, registerDiagram, stackedLabel, type Renderer } from "./utils";
 
 // `axes` = column headers then row headers; absent, it stays a plain tiled grid
 const matrix: Renderer = (diagram, ctx) => {
@@ -14,7 +13,7 @@ const matrix: Renderer = (diagram, ctx) => {
     const rowHeads = diagram.axes.slice(ncol, ncol + nrow);
     const headT = colHeads.length ? 20 : 0;
     const headL = rowHeads.length ? 58 : 0;
-    const pad = 16;
+    const pad = PAD;
     const gap = 12;
     const gridX = pad + headL;
     const gridY = pad + headT;
@@ -40,8 +39,7 @@ const matrix: Renderer = (diagram, ctx) => {
         const x = gridX + (i % ncol) * (cw + gap);
         const y = gridY + Math.floor(i / ncol) * (ch + gap);
         drawNode(g, { x, y, w: cw, h: ch }, item, theme, {
-            fill: hexA(cols[i]!, 0.14),
-            stroke: cols[i]!,
+            color: cols[i]!,
             showBody: !!item.body,
         });
     });

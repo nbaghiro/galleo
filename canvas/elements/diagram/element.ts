@@ -17,7 +17,7 @@ const axisField = (type: string, label: string, placeholder: string): ControlFie
 });
 
 export const DIAGRAM_CONTROLS: ControlField[] = [
-    // getter so `options` reads the live type registry each render (see charts/elements.ts).
+    // getter: reads the live type registry each render (mirrors chart/element.ts)
     {
         key: "type",
         label: "Type",
@@ -53,8 +53,8 @@ export const DIAGRAM_CONTROLS: ControlField[] = [
         label: "Palette",
         control: "segmented",
         options: [
-            { label: "Multi-hue", value: "categorical" },
             { label: "Accent", value: "ramp" },
+            { label: "Multi-hue", value: "categorical" },
         ],
     },
     {
@@ -85,7 +85,7 @@ function diagramSpec(
             items: "Discover, Design, Build, Ship",
             links: "",
             axes: "",
-            palette: "categorical",
+            palette: "ramp",
             flow: "down",
             height: 260,
             ...preset,
@@ -164,7 +164,8 @@ const VARIANTS: {
         key: "vennDiagram",
         label: "Venn",
         type: "venn",
-        preset: { items: "Desirable, Feasible, Viable, Innovation" },
+        // hue earns its place here: overlapping washes of one hue are indistinguishable
+        preset: { items: "Desirable, Feasible, Viable, Innovation", palette: "categorical" },
     },
     {
         key: "quadrantDiagram",

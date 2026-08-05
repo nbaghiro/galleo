@@ -1,4 +1,3 @@
-import { hexA } from "@themes";
 import { drawLink, drawNode, registerDiagram, type Renderer } from "./utils";
 
 const cycle: Renderer = (diagram, ctx) => {
@@ -25,8 +24,7 @@ const cycle: Renderer = (diagram, ctx) => {
     items.forEach((item, i) => {
         const [x, y] = at(-Math.PI / 2 + i * gapA);
         drawNode(g, { x: x - nodeW / 2, y: y - nodeH / 2, w: nodeW, h: nodeH }, item, theme, {
-            fill: hexA(cols[i]!, 0.14),
-            stroke: cols[i]!,
+            color: cols[i]!,
         });
     });
 };

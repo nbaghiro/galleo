@@ -1,5 +1,5 @@
 import { hexA } from "@themes";
-import { captionText, centerLabel, nodeText, registerDiagram, type Renderer } from "./utils";
+import { PAD, captionText, centerLabel, nodeText, registerDiagram, type Renderer } from "./utils";
 
 // `axes` = x low, x high, y low, y high. On the axis ends: no text rotation, so a side gutter would clip
 const quadrant: Renderer = (diagram, ctx) => {
@@ -8,7 +8,7 @@ const quadrant: Renderer = (diagram, ctx) => {
     if (items.length === 0) return;
     const cols = ctx.colors(4);
     const [xLow, xHigh, yLow, yHigh] = diagram.axes;
-    const pad = 16;
+    const pad = PAD;
     const x0 = pad;
     const y0 = pad;
     const x1 = W - pad;

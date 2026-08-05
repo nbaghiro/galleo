@@ -1,5 +1,6 @@
 import { hexA } from "@themes";
 import {
+    PAD,
     captionText,
     clamp,
     inkOn,
@@ -10,15 +11,14 @@ import {
     type Renderer,
 } from "./utils";
 
-// One lane per item, staggered along a shared time axis: `value` sets a bar's span in axis columns
-// (default one column), and `axes` names the columns (quarters, phases, …).
+// `value` spans a bar in axis columns (default 1); `axes` names the columns (quarters, phases, …).
 const roadmap: Renderer = (diagram, ctx) => {
     const { g, W, H, theme } = ctx;
     const items = diagram.items;
     if (items.length === 0) return;
     const cols = ctx.colors(items.length);
     const n = items.length;
-    const pad = 12;
+    const pad = PAD;
     const ticks = diagram.axes.length ? diagram.axes : [];
     const headH = ticks.length ? 22 : 0;
     const track = { x: pad, y: pad + headH, w: W - pad * 2, h: H - pad * 2 - headH };

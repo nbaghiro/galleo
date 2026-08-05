@@ -29,6 +29,8 @@ function renderTree(diagram: ResolvedDiagram, ctx: DiagramCtx): void {
     const needed = maxLabelHeight(g, diagram.items, nodeW - PAD * 2, title) + 18;
     const nodeH = fitNodeHeight(needed, 34, H - 24, treeDepth(data), 16);
     const { root, placed } = layoutTree(data, W, H, nodeW, nodeH, false);
+    const depth = Math.max(1, ...placed.map((x) => x.node.depth));
+    const cols = ctx.colors(depth + 1);
     const pos = new Map(placed.map((p) => [p.node, p] as const));
     const link = mix(theme.line, theme.surface, 0.2);
 
@@ -54,7 +56,7 @@ function renderTree(diagram: ResolvedDiagram, ctx: DiagramCtx): void {
             { x: p.cx - nodeW / 2, y: p.cy - nodeH / 2, w: nodeW, h: nodeH },
             itemOf(p.node.data),
             theme,
-            { radius: 10, pad: PAD },
+            { color: cols[p.node.depth % cols.length]!, pad: PAD },
         );
     }
 }

@@ -64,11 +64,9 @@ function renderMindmap(diagram: ResolvedDiagram, ctx: DiagramCtx): void {
             itemOf(p.node.data),
             theme,
             {
-                radius: 16,
+                color: isRoot ? theme.accent : branchColor(p.node),
+                shape: "pill",
                 pad: PAD,
-                fill: isRoot ? theme.accent : theme.surface,
-                stroke: isRoot ? theme.accent : branchColor(p.node),
-                ink: isRoot ? theme.onAccent : theme.ink,
             },
         );
     }

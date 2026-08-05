@@ -236,7 +236,7 @@ describe("renderDiagram", () => {
         }
     });
 
-    // inside the surface isn't enough — a label must stay inside its own node box
+    // inside the surface isn't enough: a label must stay inside its own node box
     describe("keeps each label inside its own node box", () => {
         const longDetails = [
             "01 Site Prep & Species | Deep soil analysis and native selection",

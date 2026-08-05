@@ -1,5 +1,4 @@
-import { hexA } from "@themes";
-import { drawNode, registerDiagram, type Renderer } from "./utils";
+import { PAD, drawNode, registerDiagram, type Renderer } from "./utils";
 
 // Offset hex rows: every other row shifts half a cell, so the tiles interlock.
 const honeycomb: Renderer = (diagram, ctx) => {
@@ -8,7 +7,7 @@ const honeycomb: Renderer = (diagram, ctx) => {
     if (items.length === 0) return;
     const cols = ctx.colors(items.length);
     const n = items.length;
-    const pad = 10;
+    const pad = PAD;
     const gap = 6;
     const perRow = Math.max(2, Math.round(Math.sqrt(n * 1.4)));
     const rows = Math.ceil(n / perRow);
@@ -34,8 +33,7 @@ const honeycomb: Renderer = (diagram, ctx) => {
             item,
             theme,
             {
-                fill: hexA(cols[i]!, 0.14),
-                stroke: cols[i]!,
+                color: cols[i]!,
                 shape: "hexagon",
                 pad: 6,
                 titleSize: 12,
