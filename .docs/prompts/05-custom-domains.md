@@ -24,12 +24,12 @@ context.ts`); auth is the signed cookie `galleo_session` (`services/auth.ts`).
 signal + getter + async loader. **View/route**: `<Router base="/app">` in `app/App.tsx`.
 
 **⚠️ Entitlement gating — a parallel session owns billing; do NOT touch billing internals.** `model/
-features.ts` has `FEATURES` (`status: "live"|"beta"|"planned"`; `planned` = off for everyone). This flag is
+billing.ts` has `FEATURES` (`status: "live"|"beta"|"planned"`; `planned` = off for everyone). This flag is
 **numeric** (`customDomains`) — gate on the count vs the limit:
 
 ```ts
 import { featuresFor } from "../features";
-import { limit } from "@model/features";
+import { limit } from "@model/billing";
 const cap = limit(featuresFor(ws), "customDomains");
 if (currentDomainCount >= cap)
     return c.json({ error: "Custom domain limit reached — upgrade for more.", upgrade: true }, 402);
@@ -41,7 +41,7 @@ if (currentDomainCount >= cap)
 `FEATURES.customDomains.status` `"planned"` → `"live"`.
 
 **Do NOT touch (billing session owns):** `model/billing.ts`, `services/api/billing.ts`,
-`services/billing/stripe.ts`, `services/features.ts`, the resolver in `model/features.ts` (only your
+`services/billing/stripe.ts`, `services/features.ts`, the resolver in `model/billing.ts` (only your
 `status` line), `.env`. `services/schema.ts` is co-edited — additive; coordinate `pnpm db:push`.
 
 **Dependency:** builds on **01-public-links** — a custom domain resolves to a workspace's published

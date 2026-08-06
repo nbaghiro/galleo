@@ -21,10 +21,17 @@ with high-fidelity export. Net-new, TypeScript.
 ## Structure (model · canvas · ui · editor · app)
 
 - **`model/`** (`@model`, `@themes`) — the pure, edge-safe contract. Imports **nothing** outside `model`.
-  Per-entity: each type sits with its own wire DTOs — `artifact` (the content tree + its REST shapes),
-  `ai` (the streamed turn protocol) + `tools`/`credits`/`billing`/`features` (the AI tool catalog + metered
-  credits + entitlements), `workspace` (user/folder/template + their DTOs), `text`
-  (rich-text core + the render-facing `Run`), plus `target`/`geometry` (sizing + format profiles)/`authoring`, `elements` (the element value-sets), and `theme` (the whole theme contract + curated library, one file).
+  **One file per concept**, each holding its types, its wire DTOs, and the functions that operate on them,
+  so a new field is one file's diff: `artifact` (the content tree + tree/path ops + node addressing + REST
+  shapes + section-op semantics + the derived digest/search text), `ai` (the streamed turn protocol; the
+  LLM-facing catalog lives with its prompt in `services/core/ai/prompts/catalog.ts`), `credits` (metered credits +
+  AI tasks + the tool catalog), `billing` (plans + the entitlement resolver), `workspace`
+  (user/folder + the auth DTOs), `text` (rich-text core + the render-facing `Run`), plus `geometry`
+  (sizing + format profiles), `authoring` (fixture DSL), `elements` (element value-sets + the vector IR), and
+  the two curated catalogs that carry their own contract: `theme` (the whole theme contract + library) and
+  `templates` (the `Template` DTO + `TEMPLATE_INDEX`, ids/labels/grouping only — the bodies are served from
+  `services/core/templates.ts`, so this stays edge-safe). Twelve files; resist adding a thirteenth for a
+  handful of types that belong to a concept already here.
 - **`canvas/`** (`@canvas`, `@engine`, `@elements`) — the paint layer: the layout engine + element
   library + DOM / 2D-canvas / PDF backends + present-slide geometry + export. **Pure TS** — framework-
   and editor-free; imports only `model`.
@@ -38,7 +45,13 @@ with high-fidelity export. Net-new, TypeScript.
   primitive recolors with the active theme). See `.docs/frontend.md`.
 - **`editor/`** (`@editor`) — the SolidJS studio: selection, inspectors, inline text, drag-drop over
   `model` + `canvas` + `ui`. `register.ts` side-effect-registers the elements.
-- **`services/`** — backend (Hono + Postgres/Drizzle), depends only on `model`: `schema.ts` + `auth.ts` + a thin `server.ts` mounting per-resource routers in `api/`; `seed.ts` + `demos/` + `templates/` are seed content.
+- **`services/`** — backend (Hono + Postgres/Drizzle), depends only on `model`. A thin `server.ts` at the
+  root mounts the routers; everything else sits in a layer, `api → core → db → utils`:
+  **`api/`** one file per resource, HTTP only (parse · gate · shape a response) plus the shared
+  `middleware.ts`; **`core/`** one file per functionality, owning every decision and every query, and
+  forbidden from importing hono (`core/ai/`, the LLM runtime, is the one entry that is a folder rather than
+  a file); **`db/`** schema · the lazy client · derived columns · migrations · the `seed.ts` entry;
+  **`utils/`** http helpers · auth crypto · env, database-free by rule so it stays unit-testable.
 - **`app/`** — the product SPA (served at `/app`): library, templates, AI generation + chat, theme editor, sharing, wrapping the editor.
 - **Frontend = SolidJS + Vite + Tailwind v4.** `model` + `canvas` stay framework-free; the engine paints
   render commands imperatively into refs (`@canvas/render/backends`) — Solid only owns shell + state.
@@ -101,7 +114,16 @@ with high-fidelity export. Net-new, TypeScript.
   Enforced twice, since the resolved form (`import/no-restricted-paths`) checks nothing when a specifier
   fails to resolve: `no-restricted-imports`/`no-restricted-syntax` re-state each zone against the raw
   specifier, covering static, type-only, and dynamic `import()`.
-- **Backend output** goes through `services/log.ts` (`out`/`warn`), never `console` or a bare
+- **Services layer law** (ESLint, the same shape one level down): `api → core → db → utils`.
+  **`core/` may not import hono** — a core file reaching for it is a route in disguise — and
+  **`utils/` may not import `db/`**, which is what keeps it unit-testable. Shared code moves _down_,
+  never up: that is why the entitlement resolver (`featuresFor`/`creditLimitFor`) sits in `@model/billing`
+  rather than in services, and why `db/client.ts` builds an inert handle instead of throwing at import,
+  so a unit test can import a core module with no database. Entry points compose across layers and are
+  exempt: exactly two, `services/server.ts` and `services/db/seed.ts`, both named in `package.json`.
+  `pnpm check:boundaries` plants a `core → api`, a `core → hono`, and a `utils → db` import, and
+  fails if any rule stays quiet.
+- **Backend output** goes through `services/utils/env.ts` (`out`/`warn`), never `console` or a bare
   `process.stdout.write`.
 
 ## Commands
@@ -144,7 +166,7 @@ editor views, a backend (`services/` Hono + Postgres/Drizzle; artifact content l
 ⌘K and the library search field query over — see `.docs/search.md`), a singular theme editor
 (`app/views/ThemeEditor.tsx`), and a **real** streamed
 AI pipeline — generation, chat, section/element/text edits over the `@model/ai` turn protocol (SSE),
-served by `services/ai` (see `.docs/ai.md`). Whole-artifact generation runs through the staged
+served by `services/core/ai` (see `.docs/ai.md`). Whole-artifact generation runs through the staged
 **generation studio** (`app/views/generate/` over `app/stores/generate.ts`): one full-screen surface
 whose first body is a centred prompt with attachable context (pasted text + text files), then an
 outline the canvas renders as editable section cards, then a per-beat build (write all, or one at a

@@ -14,30 +14,33 @@ tree + element system the AI writes), `frontend.md` (the client shell that speak
 
 ```
 model/                         the PURE contract (edge-safe; imports nothing above model)
-  ai.ts        the turn PROTOCOL (turns · patches · events · applyPatch) + the authoring CATALOG (elements,
-               layouts, text styles the LLM writes against)
-  tools.ts     the ONE tool catalog: every capability's identity, tier, surfaces, AND its pricing
-               (usage + meter + live) — plus estimateCost / costRange / typicalCost / PRICED_TOOLS
-  credits.ts   the metered-credit engine (Usage bag + costOf); tools.ts prices against it
+  ai.ts        the turn PROTOCOL only: turns · patches · events · applyPatch
+  credits.ts   what a capability is and what it costs: the metered-credit engine (Usage bag + costOf) ·
+               the AiTask steps + their per-model rate multipliers · the ONE tool catalog (identity, tier,
+               surfaces, pricing) — plus estimateCost / costRange / typicalCost / PRICED_TOOLS
 
-services/ai/                   the runtime (depends only on model; may NOT import canvas)
+services/core/ai/                   the runtime (depends only on model; may NOT import canvas)
   models.ts    the model registry — `provider:model` ids + DEFAULT_MODELS per task
   provider.ts  resolveModel(id) → a Vercel AI SDK LanguageModel; aiReady()/providerReady(); thinklessOpts
   schema.ts    the Zod output schemas — zOutline · zSectionPlan · zSection · zElement · zTheme · …
   run.ts       the turn runtime — runTurn dispatch + runGenerate/runSection/reviseElement + image sourcing
   text.ts      the fast text runtime — rewriteText / translateText
   chat.ts      the chat/workspace agent — an AI-SDK ToolLoopAgent whose toolset is built from the registry
-  suggest.ts · theme.ts · quality.ts    focused capabilities (suggestions · theme gen · section audit)
-  brief.ts     expandBrief — prompt → an editable brief, pulled on demand from the studio's brief bar
+  tasks.ts     the one-shot calls: rewriteText · translateText · generateTheme* · expandBrief ·
+               suggestSections (a single request in, a finished value out — nothing streams here)
+  quality.ts   the section audit
   tools/       the executable registry: registry.ts (Tool<I,R> + ctx.use + register + WorkspaceReader) +
                one file per capability (generate · section · element · text · suggest · inspect · library ·
                manage · structure · media · theme) + register.ts (side-effect: registers the whole catalog)
   prompts/     the pure prompt-string builders (see §10)
 
+  routes.ts    POST /ai/{turn,brief,suggest,theme,element,text} — auth + credit gate + SSE framing
+  reader.ts    makeWorkspaceReader(wsId) — the DB-backed WorkspaceReader the agent's find/read tools use
+  corpus/      the seven gold-standard artifacts; prompts/exemplars.ts injects sections from three of
+               them (deck=galleo · doc=helios · web=terra) into every generate turn
+
 services/api/
-  ai.ts               the routes: POST /ai/{turn,suggest,theme,element,text} — auth + credit gate + SSE framing
-  workspace-reader.ts makeWorkspaceReader(wsId) — the DB-backed WorkspaceReader the agent's find/read tools use
-  billing.ts          the credit ledger the gate charges against (POST /billing/spend, GET /billing)
+  routes.ts    the credit ledger the gate charges against (POST /billing/spend, GET /billing)
 
 editor/ + app/                 the client (thin — speaks the protocol, never the model)
   editor/editor.ts             injected seams: onSectionStream · onSuggestSections · onReviseElement · onTextAssist
@@ -53,7 +56,9 @@ editor/ + app/                 the client (thin — speaks the protocol, never t
 
 1. **`services` may not import `canvas`** (ESLint: `model ← canvas ← editor ← app`; `services → model`
    only). The live element registry lives in `canvas`, so the backend can't introspect it — the AI's whole
-   content contract therefore lives in **`model/`** (`ai.ts` catalog + `tools.ts` + the Zod schemas).
+   content contract is therefore declared by hand rather than introspected: the turn protocol and tool
+   catalog in **`model/`** (`ai.ts` + `credits.ts`), the element vocabulary and Zod schemas next to the
+   prompts that use them (`services/core/ai/prompts/catalog.ts` + `services/core/ai/schema.ts`).
 2. **The AI writes content, never layout.** It emits the element tree (`{ type, data }` per element, a
    `layout.width` per column child); the engine renders that identically to deck / doc / web and to PDF. The
    AI never touches pixels — see `rendering.md`.
@@ -147,14 +152,14 @@ Two deliberate simplifications keep LLM output reliable:
 - **Images take a description, not a URL.** The model writes `src:"aerial view of a wind farm at dusk"`; the
   runtime resolves it to a real image URL (§6). A genuine `http…` src passes through untouched.
 
-**Structured output + validation** (`services/ai/schema.ts`): Zod keeps the _shape_ honest — an outline is
+**Structured output + validation** (`services/core/ai/schema.ts`): Zod keeps the _shape_ honest — an outline is
 titled beats (`zOutline`/`zBeat`), a section is `{ id, root }` (`zSection`), an element is `{ type, data,
 layout? }` (`zElement`) — while leaving each element's `data` **open** (the prompt, not a rigid schema,
 teaches the per-element fields; the element specs tolerate extra/missing keys). The outline runs as
 `generateObject`; a section is free-form JSON validated on parse, because Gecko-style response schemas can't
 populate arbitrary-keyed `data` maps (§6).
 
-## 5. The tool catalog + pricing (`@model/tools`)
+## 5. The tool catalog + pricing (`@model/credits`)
 
 **One catalog** names every capability the AI has and carries its pricing — there is no separate "AI actions"
 catalog (that split was removed; a tool _is_ the priced unit). `ToolId` is a verb-object union; each
@@ -218,7 +223,7 @@ Metered but **not yet `live`** (priced in the catalog, no route surfaced): `revi
 (whole-artifact edit, 12–40), `translate-artifact` (5–40, fan-out), `suggest-title`, `write-summary` /
 `write-alt-text` / `write-speaker-notes`. All workspace reads + management tools are **free** (no `usage`).
 
-## 6. The tools registry (`services/ai/tools/`)
+## 6. The tools registry (`services/core/ai/tools/`)
 
 The executable half. A `Tool<Input, Result>` binds a `ToolId` to a Zod `input` schema and a `run` that
 **yields progress and returns a typed result**:
@@ -250,7 +255,7 @@ One file per capability:
   `PatchOp`, so it works on the open artifact, a draft, or a target identically).
 - `media.ts` — `source-image` / `find-stock-image`; `theme.ts` — `generate-theme`.
 
-## 7. The turn runtime (`services/ai/run.ts`)
+## 7. The turn runtime (`services/core/ai/run.ts`)
 
 `runTurn(req, opts)` is the dispatch table for the **direct** surface (a route consumes its generator and
 frames it as SSE):
@@ -315,13 +320,13 @@ hand-set `layout`, rewrites only `data`, then resolves any new images.
 
 **Image resolution.** The model writes an art-director phrase; `resolveImage(phrase, orientation, opts)` turns
 it into a real URL: **AI generation** when the build asks for it (`GenerateInput.imageSource:"ai"` and the
-image model is wired) via the Gemini image model (`services/media/generate.ts`), else stock search across
+image model is wired) via the Gemini image model (`services/core/media.ts`), else stock search across
 providers (`unsplash → pexels → pixabay → openverse`, the last keyless so there's always a fallback), else a
 deterministic `picsum` placeholder. `resolveImages` walks a section's tree (images at any depth) + its
 background in parallel. Stock stays a provider CDN URL — no storage, no credits; an AI image is stored as a
 workspace asset and metered per variation.
 
-## 8. The chat / workspace agent (`services/ai/chat.ts`)
+## 8. The chat / workspace agent (`services/core/ai/chat.ts`)
 
 A real multi-step **tool-calling loop** — the AI SDK's `ToolLoopAgent`. The model answers in prose and calls
 tools; the loop chains up to 6 steps (`stepCountIs(6)`). It is a full **workspace agent**, not a
@@ -340,7 +345,7 @@ confirms).
 **Thinking is distilled, not streamed.** Chat is the only capability that keeps thinking on (every other
 call site passes `thinklessOpts()`, which zeroes the budget on Flash). The provider's thought summaries are
 markdown essays, so `runChat` accumulates them server-side and forwards only the step HEADLINES through
-`chat.thinking` — `services/ai/thinking.ts` pulls the model's own bold step names, falling back to the
+`chat.thinking` — `services/core/ai/thinking.ts` pulls the model's own bold step names, falling back to the
 opening sentence of each finished paragraph, clipped to one line and de-duplicated. A half-written heading
 never ships, so a step can't change under the user. The full prose never crosses the wire. The client shows
 one line at a time while the agent reasons, then collapses to "Thought in N steps" you can open. Answer
@@ -380,7 +385,7 @@ a capability's progress events up to its shell, where a `narration` becomes the 
       back so a follow-up amends rather than repeats. This replaced a text field in the studio rail: a
       standing instruction is a thing you say, not a control you fill in.
 - **`rewrite-passage`** (content-scoped) — reword ONE passage inside a written section rather than the
-  whole thing: `sectionId` + `find` (copied verbatim) + `instruction`. `services/ai/passage.ts` locates the
+  whole thing: `sectionId` + `find` (copied verbatim) + `instruction`. `services/core/ai/locate.ts` locates the
   text node (normalized exact match, else the _shortest_ containing node, so a common word lands on the
   heading rather than swallowing the paragraph) and returns the section with just that node replaced, which
   chat presents as an ordinary proposal. It exists because `rewrite-text` returns a bare string with no
@@ -390,7 +395,7 @@ a capability's progress events up to its shell, where a `narration` becomes the 
   targeted the same way, since the agent has no selection to point with. `revise-element` takes
   `sectionId` + `elementType` (+ `nth`) and re-rolls that one chart / stat / table in place; `reimage`
   takes `sectionId` + `phrase` and re-sources the section's image, or its full-bleed backdrop with
-  `target:"backdrop"`. Both resolve a path via `services/ai/locate.ts` and return the whole section, so
+  `target:"backdrop"`. Both resolve a path via `services/core/ai/locate.ts` and return the whole section, so
   they ride the ordinary proposal path. A miss lists the section's real element types back to the model.
   `reimage` itself is free: `resolveImage` honours the turn's image strategy, so it finds stock unless the
   run was started with AI images, and the route meters the variations it actually generated.
@@ -408,7 +413,7 @@ registry.
 
 - **Seam A — read spine (server-side, DB-backed).** The turn is authenticated, so `find-artifacts` /
   `read-artifact` run against Postgres through the injected `WorkspaceReader` (`makeWorkspaceReader(wsId)` in
-  `services/api/workspace-reader.ts`) — no content shipped from the client, `model` stays pure. `read` returns
+  `services/core/ai/reader.ts`) — no content shipped from the client, `model` stays pure. `read` returns
   a compact digest (`artifactSpine` + `artifactDigest`), never the raw tree.
 - **Seam B — edit a target.** A `proposal` carries an optional `targetArtifactId` (absent = open artifact /
   active draft). `edit-artifact` loads a library artifact, rewrites a section, and returns a proposal tagged
@@ -446,7 +451,7 @@ Discards; every destructive/outward `action` waits for a click.
 
 ## 9. Models + provider
 
-`services/ai/models.ts` names every model `provider:model` and maps each **task** to a default. The whole
+`services/core/models.ts` names every model `provider:model` and maps each **task** to a default. The whole
 stack above provider is provider-agnostic — it asks for a task's model and calls the SDK against whatever
 `resolveModel` returns:
 
@@ -457,7 +462,7 @@ chat                              google:gemini-3.5-flash     (thinking ON — t
 ```
 
 **One model, every task: Gemini 3.5 Flash.** It won the chat tool-routing eval outright
-(`services/ai/eval`, `pnpm ai:eval`: 100% vs 2.5-pro's 80%) at lower latency, and a deck is ~12 sequential
+(`services/core/ai/eval`, `pnpm ai:eval`: 100% vs 2.5-pro's 80%) at lower latency, and a deck is ~12 sequential
 section calls, so a reasoning-heavy model's latency stacks up badly for little gain on bounded creative
 writing. Running one model everywhere also means one thing to re-evaluate when a newer model lands, rather
 than six independent judgement calls. The per-task entries in `DEFAULT_MODELS` stay, so any single job can
@@ -497,7 +502,7 @@ for forward compatibility, so a stale id typechecks and fails only at the API: `
 registry after the SDK had moved to the 4.x line, and would have 404'd whenever anyone picked it.
 `pnpm check:models` (pre-commit + CI) reads each provider's declared union out of its `.d.ts` and fails on
 any id that is not in it. That is a static check; only a real call proves the key works and the account has
-access, so `pnpm ai:probe` (`services/ai/probe.ts`) sends one tiny prompt per registered model and reports
+access, so `pnpm ai:probe` (`services/core/ai/eval/probe.ts`) sends one tiny prompt per registered model and reports
 which answered. `--turn` goes further and runs the real outline and chat turns, with the production
 prompts, schema and toolset: a model can answer a one-line prompt and still fail the pipeline. That is not
 hypothetical, it is how the Anthropic grammar timeout below was found. It costs money and needs live keys, so it runs on request rather than in CI:
@@ -518,7 +523,7 @@ is a product surface, reachable by every user at ⌘K → `/models`.
 ```
 client  app/stores/models.ts           localStorage {task: "provider:model"}, sent as one header
         ↓  x-galleo-models             on authenticated fetches, /ai/turn, and the SSE posts
-server  services/api/model-override.ts overridesFrom(c) → parseOverrides(header)
+server  services/core/models.ts overridesFrom(c) → parseOverrides(header)
         ↓  RunOpts.models              threaded to modelFor() at every resolution point,
         ↓  ToolContext.models          including tools the agent invokes mid-turn
 readout narration "Model override"     emitted by plan / generate / build turns when one applied
@@ -540,19 +545,21 @@ question rather than a technical one.
 Each run's per-step choices are recorded in `app/stores/model-usage.ts` and, once the run saves, written to
 the artifact's `ai_meta` column alongside the brief, so provenance outlives the browser that made it.
 
-## 10. The prompt system (`services/ai/prompts/`) — the playbook
+## 10. The prompt system (`services/core/ai/prompts/`) — the playbook
 
 Pure, layered string builders — each capability stacks fragments into a `PromptParts = { system, prompt }`;
 the composer imports no capability, so there's no cycle. The **system** teaches identity + contract + taste
 (stable, cacheable); the **prompt** carries the specific ask + pulled context. Cheap high-volume ops
 (rewrite/translate) deliberately drop the catalog for a lean persona. `persona.ts` (identity + surface
 voice), `system.ts` (composers + `SECTION_RULES` + context helpers + output envelopes), `catalog.ts`
-(`elementCatalog` / `layoutCatalog` / `describeTheme`, generated from `@model` so the prompt and the
-validator can't drift), `rubric.ts` + `arcs.ts` + `exemplars.ts` (the quality bar, reverse-engineered from
+(the `ELEMENTS` / `LAYOUTS` vocabulary the LLM writes against, plus the `elementCatalog` / `layoutCatalog` /
+`describeTheme` renderers over it — data and renderer in one file so a new element can't be described in the
+prompt without being declared, and so this server-only guidance never reaches the client bundle),
+`rubric.ts` + `arcs.ts` + `exemplars.ts` (the quality bar, reverse-engineered from
 the demos), and the capability builders (`generate.ts` · `chat.ts` · `text.ts` · `theme.ts` · `image.ts`).
 The rest of this section is the prompt-level detail — every builder, the context each pulls, the composition.
-The quality bar is reverse-engineered from the hand-built demos (`services/demos/*`) and the starter templates
-(`services/templates/*`); those patterns are encoded in `prompts/rubric.ts` + `prompts/arcs.ts` and injected
+The quality bar is reverse-engineered from the hand-built demos (`services/core/ai/corpus/*`) and the starter templates
+(`services/core/templates.ts`); those patterns are encoded in `prompts/rubric.ts` + `prompts/arcs.ts` and injected
 into the generation prompts.
 
 ### 10.0 The shape of every prompt
@@ -633,11 +640,11 @@ ask + context. Cheap high-volume ops (rewrite/translate) deliberately drop the c
 
 ### 10.2 theme + image + suggest
 
-- **Theme** (`prompts/theme.ts`, `services/ai/theme.ts`): a coherent `ThemeInput` (name + mood + isDark + 8
+- **Theme** (`prompts/theme.ts`, `services/core/ai/tasks.ts`): a coherent `ThemeInput` (name + mood + isDark + 8
   colors + font trio + radius/weight/border) from a prompt; the bundled font lists constrain the choice, and a
   deterministic contrast/OKLCH finalize pass guarantees legibility regardless of model.
 - **Image** (`prompts/image.ts`): expand a terse subject into one vivid, on-theme image prompt.
-- **Suggest** (`services/ai/suggest.ts`): a cheap, unmetered call for "what to add next" ideas (the insert
+- **Suggest** (`services/core/ai/tasks.ts`): a cheap, unmetered call for "what to add next" ideas (the insert
   popup); the client caches per artifact.
 
 ### 10.3 The quality bar, baked in (`prompts/rubric.ts` + `prompts/arcs.ts`)
@@ -685,7 +692,7 @@ demand.
 ## 11. Routes + the credit gate (`services/api/ai.ts`)
 
 Every route does auth → `aiReady()` gate → **reserve credits** → run. The gate reserves a size-aware estimate
-up front (`estimateCost(toolId, meter)` from `@model/tools`), 402s when the workspace allowance is spent, then
+up front (`estimateCost(toolId, meter)` from `@model/credits`), 402s when the workspace allowance is spent, then
 deducts against `workspaces.aiCreditsUsed`.
 
 ```

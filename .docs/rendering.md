@@ -74,10 +74,19 @@ The three "modes" are three **format profiles** fed to the same engine:
 
 A profile carries `kind`, width/height, `maxContentWidth`, `tokenScale` (a type/space multiplier so a
 deck reads big and a doc reads dense — _styling_, never content), `splitMinWidth`, and pagination policy
-(`paginate: always | export | never`). `resolveProfile(id)` returns the descriptor; `DEFAULT_PROFILE` is
-deck; `previewContentProfile` widens a doc's content column toward the viewport for read-only previews
-(deck + web pass through). Because dimensions are data, a custom size or a draggable/resizable canvas is a
-data change, not new layout code.
+(`paginate: always | export | never`). `DEFAULT_PROFILE` is deck; `previewContentProfile` widens a doc's
+content column toward the viewport for read-only previews (deck + web pass through). Because dimensions
+are data, a custom size or a draggable/resizable canvas is a data change, not new layout code.
+
+**Two resolvers, and which to call.** `resolveProfile(id)` returns a named format's descriptor; use it
+only where the code deliberately renders at a named format regardless of the artifact (the "compose as
+doc / as slides" export overrides, the theme-editor demo, the generation preview's format signal).
+Everywhere the artifact's own format decides the geometry, call **`profileFor(content)`** instead — it
+resolves the base profile and overlays `ArtifactContent.page` (§3.2). It takes a structural
+`{format?, page?}`, so a library summary fits it too, and it returns the base profile _by identity_ when
+there is nothing to overlay, which is what keeps unsized artifacts byte-identical and keeps the paint
+caches' reference comparison working. `pagedSize(profile)` is the numeric accessor the paged renderers
+use, since `width`/`height` are typed `number | "fill" | "auto"`.
 
 ### 3.1 Per-section framing — what shipped (`slideFrame`)
 
@@ -88,8 +97,30 @@ renders into: width stays the profile's page width (1280 for deck); height is th
 `round(width / aspect)` when the section sets one. The deck path (`sectionSlides`, §8) reads `slideFrame`
 per section, so a deck can mix a 16:9 slide with a square or tall one without any new profile.
 
-The broader **artifact-level custom page sizes** (a `flex` format whose W×H lives on the artifact, with a
-presets table) was designed but **not built** — see §10. Only `section.frame.aspect` is live today.
+### 3.2 Artifact-level page geometry (`ArtifactContent.page`)
+
+`ArtifactContent.page?: {width, height}` is the artifact-wide page size, plain JSONB inside
+`draft_content` (no migration, absent by default). `profileFor` overlays it onto **any** `kind: "paged"`
+profile — today that is deck, so a deck can render at 1080×1080 — and ignores it on a continuous format,
+where a fixed page means nothing. It also caps `maxContentWidth` at the page width so content cannot
+exceed its own page.
+
+`slideFrame(section, profile)` is where the two levels compose: the page fixes the width and the base
+height, then a section's `frame.aspect` overrides the height on top of it. Everything paged flows from
+there — `sectionSlides`, Present, PDF page size, PPTX (`defineLayout` off `pagedSize`), the windowed
+loader's height estimate, and the thumbnail aspect in `ScaledSectionCanvas`.
+
+Two invariants worth knowing when touching this:
+
+- **`ArtifactContent extends ArtifactShell`.** The shell is "everything except the sections", and the
+  section-ops route rewrites stored content through it (`applySectionOps` spreads the non-section rest).
+  A content field declared outside the shell is silently dropped on the next section edit.
+- **The section paint cache keys on the resolved page dimensions**, not `profile.id` — two page sizes
+  share the id `deck`, so an id-only key would serve a stale layer.
+
+There is **no UI for setting a page size yet**, and no format that defaults to one; the field is the
+resolution path only. The presets table and dimension editor land with the first format that needs them
+(§10).
 
 ## 4. Compose — Section → EngineNode (`canvas/elements/compose.ts`)
 
@@ -98,7 +129,7 @@ for columns / `col` to stack) nesting to any depth, or a bare leaf for a full-wi
 turns it into an engine tree:
 
 - **Root tree.** `composeElement` recurses `root`. Columns are just the root row's children, each carrying
-  a `layout.width` fraction (`@model/section` builds these; the migration from the old `grid`/`cells` shape
+  a `layout.width` fraction (`@model/artifact` builds these; the migration from the old `grid`/`cells` shape
   is gone). An empty container composes to the dashed "drop element" placeholder, so an empty column and an
   emptied group are the same thing.
 - **Per-instance layout.** `applyLayout` maps each element's optional `ElementLayout` (width
@@ -623,28 +654,33 @@ vector at any zoom, selectable text, and far smaller files. `fill-rule: evenodd`
 
 ### Planned / deferred
 
-**Artifact-level custom page sizes (`flex` format) — designed, NOT built.** The shipped per-section
-`section.frame.aspect` (§3.1) already covers "make _this_ slide square/tall." The larger plan adds a
-first-class paged format whose W×H lives on the **artifact**, for posters / social cards / carousels:
+**New formats (social / print / custom sizes) — the resolution path is built, the formats are not.**
+`ArtifactContent.page` + `profileFor` + `pagedSize` (§3.2) shipped, so a paged artifact already renders,
+presents, and exports at an arbitrary W×H. What is still missing before a Gamma-style format matrix
+(Square 1:1, Portrait 4:5, Story 9:16, Poster, A4, Letter) is real work, in rough dependency order:
 
-- **Data.** `ArtifactContent.page?: { width, height }` (plain JSONB in `draft_content` — no migration, inert
-  for existing/non-flex artifacts) + the same on `ArtifactSummary` so library thumbnails render at the true
-  aspect. `FormatDescriptor` gains `group`/`icon`/`fullBleed`/`frame` flags.
-- **One `flex` profile** (`kind: "paged"`, default 1080×1350) + a `FLEX_PRESETS` table the UI reads (Square
-  1080², Portrait 4:5, Story 9:16, Poster, A4, Letter, Postcard, Business card). A `profileFor(content)`
-  resolver overlays the artifact's `page` (honored only for `flex`) and a `pagedSize(profile)` numeric
-  accessor un-hardcodes the 1280×720 the paged renderers/exporters currently assume.
-- **Section = page** — N=1 is a single poster, N>1 is a carousel / multi-frame story; same page-per-section
-  machinery as deck, only the "section" copy becomes "page"/"card".
-- **Editor.** A grouped format dropdown + a dimension editor (two number inputs, lock-ratio, swap, preset
-  chips) in `Topbar`, all writes coalescing into one undo step. **Fixed-frame editing (approach 1):** paint
-  each flex page at its true frame 1:1 (no scale factor, so every overlay keeps working in unscaled coords) —
-  needs `layoutSlide` to also return `regions`. **Approach 2** (scale a fixed W×H layer to fit, true WYSIWYG
-  for tall content, and letting deck opt into framed editing) is deferred because it rewrites every overlay's
-  coordinate model.
-- Two declared-but-unread profile fields would finally be wired: **`splitMinWidth`** (collapse a `row → col`
-  when composed width is below it, so a `split-6040` on a narrow Story stacks) and **`tokenScale`** (type/space
-  multiplier threaded through `LayoutCtx`). Both also fix latent gaps for the existing three formats.
+- **Framed editing.** `paintSectionStack` lays out every section at its natural content height, whatever
+  the format; a deck only becomes 16:9 in Present/Export. That drift is tolerable for a deck and wrong for
+  a square or 9:16 card, where the shape _is_ the point. Two approaches: **(1)** lay each section out at
+  frame dims and paint 1:1 (needs `layoutSlide` to return `regions`; no scale factor, so every overlay
+  keeps working in unscaled coords), or **(2)** scale a fixed W×H layer to fit — true WYSIWYG for short and
+  tall content, and it would let deck opt in, but it rewrites the coordinate model of every overlay
+  (`panels/Selection.tsx`, `ControlBars.tsx`, `TextEditor.tsx`, `Canvas.tsx`'s `hitTest`, `core/dnd.ts`).
+  Approach 1 is throwaway work if we later want (2), so pick before writing code.
+- **The two dead profile fields.** `tokenScale` is read nowhere; `splitMinWidth` is read only by
+  `composite/group.ts`, not by compose's root column row. Wiring both is what makes a `split-6040` usable
+  on anything narrower than ~700px, and both also fix latent gaps for doc/web today.
+- **Registry-derived format lists.** Format ids are hand-maintained in `ui/formats.ts`,
+  `app/stores/library.ts` (label/icon ternaries), `ThemeEditor`, `TemplatesView`, `generate/prompts.ts`,
+  and the closed `Surface` unions in `@model/ai` + `app/stores/generate.ts`. Adding a format should be one
+  `PROFILES` entry, not a dozen edits.
+- **Presets + a dimension editor** (two number inputs, lock-ratio, swap, preset chips) and a grouped format
+  picker; **"sections" → "pages"** copy for a card format; **doc page sizes** (Letter/A4 — today's doc PDF
+  emits one variable-height page per section at A4 width, not real paper pages); generation vocabulary per
+  surface (arcs/rubric are written for deck/doc/web).
+
+**A free-form design canvas** (Gamma's "Graphic") is a different thing again: absolute placement rather
+than flow. The engine's model is deliberately flow-based, so that is a second layout mode, not a size.
 
 **Charts & diagrams breadth** — more chart types (sankey via d3-sankey · sunburst via d3-hierarchy · waterfall
 · histogram · streamgraph · rose · network/ER) and denser graph layouts (**elkjs** where dagre's layered

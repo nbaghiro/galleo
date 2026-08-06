@@ -2,7 +2,7 @@
 
 A walkthrough of one whole run: what the user does, what Galleo sends to the model at each step, and
 what comes back. Everything quoted here is the real text, produced by running the prompt builders in
-`services/ai/prompts/` rather than transcribed by hand, so it can be trusted as what the model actually
+`services/core/ai/prompts/` rather than transcribed by hand, so it can be trusted as what the model actually
 receives. Where a block is generated at runtime and runs to several thousand characters, it is
 excerpted and its real length noted.
 

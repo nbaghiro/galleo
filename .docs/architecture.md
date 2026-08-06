@@ -51,7 +51,7 @@ present + publish surfaces) live in `editor/`, `app/`, and `publish/`.
 model/      the pure contract — content model, themes, the AI turn/tool/credit protocols, authoring DSL (edge-safe, no DOM, no framework)
 canvas/     the paint layer — layout engine + element library + DOM/2D/PDF/PPTX backends + present geometry + export (pure TS, no framework)
 editor/     the editing UI — the SolidJS studio (selection, inspectors, inline text, drag-drop, in-canvas AI) over model + canvas
-services/   the backend (Hono + Postgres/Drizzle) — schema · auth · a thin server + per-resource routers in api/ + the LLM runtime (ai/) + billing/mail/media + seed/demos/templates content; depends only on model
+services/   the backend (Hono + Postgres/Drizzle) — a thin server.ts over four tiers: core (db · http · auth · mail) ← plan (entitlements · credits · models · Stripe) ← media ← the verticals accounts · artifacts · ai; depends only on model
 app/        the product SPA (served at /app) — library, templates, AI generation + chat, theming, sharing, wrapping the editor
 publish/    a standalone public read-only viewer (served at /p/:slug) — the engine + theme registry, no app SPA
 website/    a separate public marketing build (served at /)
@@ -73,24 +73,21 @@ The single source of truth every other layer agrees on: the content shapes, the 
 the streamed AI protocol + tool/credit catalog, the authoring DSL. Pure TS — no DOM, no framework — so it
 is safe to import from the backend as well as the frontend.
 
-**per-entity content model** (each type sits with its own wire DTOs, so the JSON shapes shared with the
-backend can't drift from the type they describe)
+**one file per concept** (each type sits with its own wire DTOs and the functions that operate on it, so
+the JSON shapes shared with the backend can't drift from the type they describe, and adding a field to a
+concept is one file's diff rather than three)
 
 ```
-artifact.ts    ArtifactContent → Section → ElementInstance (the recursive section.root tree; draft_content jsonb IS this) + its REST DTOs (ArtifactSummary · Cover · ArtifactInput)
-section.ts     the section shape — row/col container builders, layout presets, emptyRegion (the recursive root replaced the old { grid, cells })
-elements.ts    the element value-sets (the enumerable option sets elements + the AI catalog share)
-ai.ts          the AI turn PROTOCOL (turns · patches · events · applyPatch) + the authoring CATALOG (elements/layouts/text styles the LLM writes against) — a real backend, no longer a simulator
-tools.ts       the ONE AI tool catalog: every capability's identity/tier/surfaces + its pricing (usage · meter · live)
-credits.ts     the metered-credit engine (Usage bag + costOf) tools.ts prices against
-billing.ts     plans + PlanLimits (export formats · branding · public links · seats) — the entitlement contract the app + export menu gate on
-features.ts    feature flags / coming-soon gating shared by client + backend
+artifact.ts    the whole artifact concept: ArtifactContent → Section → ElementInstance (the recursive section.root tree; draft_content jsonb IS this) · the tree builders + path ops (rowGroup/colGroup/emptyRegion, updateAtPath/removeAtPath, layout presets) · the REST DTOs (ArtifactSummary · Cover · ArtifactWindow · ArtifactInput · GenMeta) · the addressing of selectable nodes (ElementAddress · Target · region ids) · the SectionOp semantics both sides apply (applySectionOps/diffSections) · the derived digest + search text written on every content write
+elements.ts    the element value-sets (the enumerable option sets elements + the AI catalog share) + the Vector IR that vector/icon element data stores
+ai.ts          the AI turn PROTOCOL only: turns · patches · events · applyPatch. The LLM-facing element/layout CATALOG lives with the prompt that renders it (services/core/ai/prompts/catalog.ts) — it is server-only, and keeping it here shipped it to the browser
+credits.ts     what an AI capability is and what it costs: the metered-credit engine (Usage bag + costOf) · the AiTask steps a run is made of + their per-model rate multipliers · the ONE tool catalog (every capability's identity/tier/surfaces + its pricing: usage · meter · live)
+billing.ts     the plan catalog (plans · packs · PlanLimits) AND the entitlement resolver over it (FEATURES launch registry · resolveFeatures · can/limit/withinLimit) — read together at every call site
 workspace.ts   User · Folder · Template + their create/update DTOs (LoginBody · FolderInput)
 text.ts        rich-text core — marks/runs + selection math + the render-facing Run type (canvas re-exports Run for its backends)
 media.ts       MediaKind + IconPick + the media descriptors the picker and image elements exchange
-target.ts      stable addressing of selectable entities (section/element paths) → Target + Region ids
 geometry.ts    the dimensional contract: Size (+ fit/grow/percent/fixed constructors), box insets, per-instance ElementLayout, and the deck/doc/web format profiles
-authoring.ts   concise content-authoring DSL (t/img/section/group/deck/doc/web) — used by demos/templates + the AI
+authoring.ts   concise content-authoring DSL (t/img/section/group/deck/doc/web) — fixture material for demos/templates, not a wire contract
 ```
 
 **`theme.ts` — themes as data** (`@themes`, one file; the token/Theme types + resolvers + color math + the
@@ -167,34 +164,54 @@ Solid UI it shares with `app` lives in `@ui` (see `frontend.md`).
 
 ### services/ — the backend (depends only on `model`)
 
-The programs live at the root; `api/` holds the routers; `ai/` is the LLM runtime; the rest is seed +
-template **content**.
+`server.ts` is the only file at the root. Everything else sits in a layer, and the layers are linear:
+`api → core → db → utils`. ESLint enforces it (the layer law in AGENTS.md), and
+`pnpm check:boundaries` plants a `core → api`, a `core → hono`, and a `utils → db` import to prove each
+rule still fires.
+
+The split that matters: **api holds no decisions and core holds no HTTP**. An api file parses the
+request, applies the gate, and shapes the response; every query and every rule lives in core, which
+may not import hono. Both are one file per thing: per resource in api, per functionality in core.
 
 ```
-schema.ts      the Drizzle/Postgres schema (see Data model below) + the lazy DB handle (db)
-auth.ts        scrypt password hashing + signed-cookie session
-server.ts      the entrypoint — a thin Hono app: /health + mounts every api/ router, then listens
-features.ts    the plan/entitlement resolver (@model/billing limits) the api gates on
-seed.ts        idempotent demo seed (a script, run via `pnpm seed`); owns the demo registry inline
-demos/         fully-authored demo artifacts (deck/doc/web), one file each — seed content, not test fixtures
-templates.ts   the starter-template registry (TEMPLATES) — served by the /templates route + used by seed
-templates/     the template content, one file per category: creative · marketing · pitch · proposals · reports
-api/           the routers, one per resource, each a Hono sub-app carrying its own full paths:
-               context.ts (readJson · currentUser · firstWorkspaceId) · session.ts (/auth · /me) ·
-               artifacts.ts (/artifacts + /trash + library cover/filmstrip) · folders.ts · themes.ts ·
-               templates.ts · billing.ts · features.ts · media.ts · links.ts (public share links) ·
-               ai.ts (POST /ai/{turn,suggest,theme,element,text} — auth + credit gate + SSE) · workspace-reader.ts
-ai/            the LLM runtime (depends only on model; may NOT import canvas — see ai.md):
-               models.ts · provider.ts (Vercel AI SDK) · schema.ts (Zod outputs) · run.ts (runTurn / runGenerate /
-               runSection / reviseElement) · text.ts · chat.ts (the ToolLoopAgent) · suggest · theme · quality ·
-               tools/ (the executable tool registry) · prompts/ (pure prompt builders) · eval/ (the gen/agent eval harness)
-billing/       stripe.ts — Stripe checkout/portal/webhooks behind the billing router
-media/         generate.ts · icons.ts · providers.ts — AI image generation + stock/icon provider proxies
-mail/          send.ts — transactional email (share invites)
+server.ts      the entrypoint — a thin Hono app: /health + mounts every router, then listens
+
+api/           HTTP only; `requireUser`/`requireWorkspace` in middleware.ts replace what used to be
+               a four-line auth preamble repeated in 60 handlers
+               artifacts · folders · themes · templates · search · links (incl. the unauthenticated
+               /p/:slug reader) · session · oauth · workspace · billing · features · media · ai ·
+               middleware.ts (the layer's only non-resource file)
+
+core/          one file per functionality; no hono, no Response, no Context
+               accounts.ts   users · sessions · provisioning · the emailed verify/reset tokens · OAuth
+               workspaces.ts members · seats · invites
+               artifacts.ts  the library: keyset paging · windowed reads · the section-op transaction
+               folders · themes · search (the FTS query)
+               links.ts      share links · recipients · analytics · the public read + view recording
+               billing.ts    plans · subscriptions · credit packs · the Stripe webhook
+               credits.ts    the row-locked spend engine
+               models.ts     the model registry: tier defaults, cost multipliers, override parsing
+               media.ts      stock + icon proxies · AI image/video generation · the asset library
+               mail.ts       transactional email
+               templates.ts  the 30 hand-authored bodies, grouped by the category the index uses,
+                             plus the id → body resolution (5.7k lines: coverage-excluded, guarded by
+                             the index↔body test in core/__tests__/templates.test.ts)
+               ai/           the LLM runtime (may NOT import canvas — see ai.md): run · chat · tasks ·
+                             provider · schema · locate · quality · meter · thinking · reader ·
+                             tools/ · prompts/ · eval/ · corpus/ (the seven gold-standard artifacts,
+                             injected as few-shot exemplars into every generate turn by
+                             prompts/exemplars.ts, and reused as eval references and demo content)
+
+db/            schema.ts (the tables — see Data model below) · client.ts (the lazy handle; inert
+               without DATABASE_URL so unit tests can import through it) · derived.ts · migrations/ ·
+               seed.ts (an entry point: `pnpm seed`)
+
+utils/         http.ts (readJson · cookies · rateLimit · the 402 feature guards) · auth.ts (scrypt +
+               signed-cookie session) · env.ts (out/warn/appUrl). Database-free by rule.
 ```
 
 Generation is a **real backend** now: the client speaks the `@model/ai` turn protocol over SSE and the
-`services/ai` runtime answers with structured, credit-metered generation and editing (the old client-side
+`services/core/ai` runtime answers with structured, credit-metered generation and editing (the old client-side
 simulator is gone — see `ai.md`). The seed demos + the template library are plain content built with
 `@model/authoring`; `services` depends only on `model`, never on canvas, editor, or app.
 
@@ -243,12 +260,12 @@ only the engine.
 
 ```
 edit:      app/EditorView → @editor (store) → @canvas compose+engine → render commands → @canvas/render/backends
-load/save: app/EditorView + app/stores/save → services/server (api routers) → services/schema (artifacts.draft_content jsonb)
+load/save: app/EditorView + app/stores/save → services/server (api routers) → services/db/schema (artifacts.draft_content jsonb)
 present:   editor Topbar (in-editor overlay) OR /present/:id (app PresentView) → @canvas (slide geometry)
 publish:   /p/:slug (publish PublicView) → services links/artifacts → @canvas (read-only paint)
 export:    editor Topbar → @canvas/render/export(artifact, tokens) → PDF / PNG / PPTX / print
 themes:    app ThemeEditor → setAppTheme / setArtifactTheme → @themes resolveTheme → the same engine re-paints
-generate:  app GenerateModal / chat → POST /ai/turn (SSE) → services/ai runtime → patches applied live → save → open in the editor
+generate:  app GenerateModal / chat → POST /ai/turn (SSE) → services/core/ai runtime → patches applied live → save → open in the editor
 ```
 
 `canvas` is the hub: every view is the **same engine output aimed at a different backend** — which is
@@ -262,7 +279,7 @@ why the editor, present mode, publish, thumbnails, and export are pixel-identica
 > Engine = **PostgreSQL + JSONB**: everything relational (auth, sharing, billing) gets foreign keys +
 > transactions; the one schema-flexible thing — the artifact **content tree** — lives in a `jsonb`
 > column. Binaries (images/video/fonts) live in object storage or a base64 `assets.data`; tables hold
-> metadata + URLs. The schema is `services/schema.ts` (Drizzle); the content shape is `rendering.md`.
+> metadata + URLs. The schema is `services/db/schema.ts` (Drizzle); the content shape is `rendering.md`.
 
 ### Why PG + JSONB
 
@@ -277,7 +294,7 @@ embedded in the artifact's `draft_content` JSON.
 - Standard columns: `id uuid pk`, `created_at`; edited entities also have `updated_at`.
 - Content is JSON in `artifacts.draft_content` — the single place an `ArtifactContent` is stored.
 
-### The tables (as implemented in `services/schema.ts`)
+### The tables (as implemented in `services/db/schema.ts`)
 
 **Identity & tenancy**
 
@@ -325,10 +342,16 @@ each `Section` has one **recursive `root`** (`ElementInstance`) rather than the 
 container is an `ElementInstance` of `type:"group"` whose `data.direction` (`row`|`col`) + `data.children`
 hold the tree; a column's share is `layout.width.pct` (see `rendering.md`).
 
+`ArtifactContent` **extends `ArtifactShell`** (everything except the sections: `format`, `theme`,
+`background?`, `page?`). That inheritance is load-bearing, not tidiness — the section-ops route rewrites
+stored content through the shell, so a content field declared outside it is dropped on the next section
+edit. Add new artifact-wide fields to `ArtifactShell`.
+
 ```jsonc
 {
     "format": "deck", // deck | doc | web  (→ engine profile)
     "theme": "studio", // → a built-in id, or a custom themes.id (uuid)
+    // "page": { "width": 1080, "height": 1350 },  // optional; paged formats only (profileFor)
     "sections": [
         {
             "id": "s-1",
@@ -368,7 +391,7 @@ hold the tree; a column's share is `layout.width.pct` (see `rendering.md`).
 ### Indexing & search (as the data grows)
 
 - **FTS, built.** `artifacts.search_text` holds the prose extracted from the content tree on every
-  write (`model/digest.ts`); `search_tsv` is a generated column over `title` (weight A) + that text
+  write (`model/artifact.ts`); `search_tsv` is a generated column over `title` (weight A) + that text
   (weight B) with a GIN index, so the index can never drift from the row. Read path, ranking, snippets,
   and the ⌘K palette that consumes them: `search.md`.
 - **Paging, built.** `artifacts(workspace_id, updated_at DESC)` also serves the library's keyset
@@ -398,8 +421,8 @@ users ─< artifacts.created_by
 ## Billing & credits
 
 The pricing model, the feature layer that gates every paid capability, the Stripe integration, and the
-upgrade/downgrade/cancel flows. `model/billing.ts` is the data-driven plan catalog; `model/features.ts` is
-the resolver everything enforces against; `services/features.ts` + `services/billing/stripe.ts` +
+upgrade/downgrade/cancel flows. `model/billing.ts` holds both the data-driven plan catalog and
+the resolver everything enforces against; `@model/billing` + `services/core/billing.ts` +
 `services/api/billing.ts` are the runtime.
 
 ### Scope & the billing ↔ credit boundary
@@ -409,7 +432,7 @@ Two workstreams touch plans, decoupled by the `Plan` object:
 - **Billing owns:** the `Plan` shape + catalog, the **feature resolver** (source of truth for what a
   workspace can do), all non-AI feature/account limits, Stripe wiring, and the up/down/cancel/dunning flows.
 - **AI/credit owns:** the _values_ under `plan.ai.*` (monthly credits, sections-per-generation, model
-  tiers) and the **spend / ledger / refund mechanics** (`services/credits.ts`, `POST /billing/spend`,
+  tiers) and the **spend / ledger / refund mechanics** (`services/core/credits.ts`, `POST /billing/spend`,
   the `credits` table).
 - The contract is the `Plan` object. `ai.maxSectionsPerGeneration` is the one field the generation route
   enforces; neither side edits the other's cells.
@@ -497,7 +520,7 @@ Moving a limit across tiers = change one number. New gate = one key in `features
 everywhere). New tier = one object + `PLAN_ORDER` entry + env ids. Flat↔per-seat = `billing.model`.
 `limitsFor()` still exposes a legacy flat `PlanLimits` for the routes not yet migrated to the resolver.
 
-### Features — the source of truth (`model/features.ts`)
+### Features — the source of truth (`model/billing.ts`)
 
 Enforcement never reads the plan directly. It reads **resolved features**, which combine three inputs so
 billing is just one of them:
@@ -526,11 +549,12 @@ featureStatus("publicLinks"): "live" | "beta" | "planned"
 
 ### Enforcement
 
-- **`services/features.ts`** — `featuresFor(ws)` reads `ws.plan` + `ws.feature_overrides` and calls the
+- **`@model/billing`** (`featuresFor` · `creditLimitFor`, beside the resolver they wrap; the Hono
+  402 guards `requireFeature`/`checkLimit` are in `services/utils/http.ts`) — `featuresFor(ws)` reads `ws.plan` + `ws.feature_overrides` and calls the
   pure resolver; `creditLimitFor(ws)` scales the per-seat credit base by `ws.seats`. Guards:
   `requireFeature(c, ws, key, message)` → 402 `{ error, upgrade:true }`;
   `checkLimit(c, ws, key, current, message?)` → 402 (both return the Response to send, or null).
-- **`services/credits.ts`** — the spend engine: `chargeCredits` (row-locked conditional charge, pool then
+- **`services/core/credits.ts`** — the spend engine: `chargeCredits` (row-locked conditional charge, pool then
   bonus) and `settleCredits` (live-row reconciliation) — every AI route charges through it, and each call
   writes a `credits` ledger row. The monthly window rolls lazily in `currentWorkspace()` and re-anchors on
   renewal invoices.
@@ -590,10 +614,10 @@ reconciliation never deletes data** — when new limits are tighter than current
 ### What's built
 
 The full data model is live: the data-driven 3-tier `Plan` catalog (Free flat · Pro/Premium per-seat) + the
-`FEATURES` registry + `resolveFeatures` (`model/`), the `services/features.ts` resolver
+`FEATURES` registry + `resolveFeatures` (`model/`), the `@model/billing` resolver
 (`featuresFor` / `creditLimitFor` / `requireFeature` / `checkLimit`) behind every gate, and `GET /billing`
 surfacing plan + usage + the purchasable top-up packs. **Credits run through one engine**
-(`services/credits.ts`): `chargeCredits`/`settleCredits` lock the workspace row so concurrent spends
+(`services/core/credits.ts`): `chargeCredits`/`settleCredits` lock the workspace row so concurrent spends
 serialize, the pool is **seats × credits/seat** (`creditLimitFor`), spend drains the monthly pool then the
 purchased bonus balance, and every charge/settle/grant/reset writes a `credits` ledger row (surfaced at
 `GET /billing/ledger` and on the pricing page). The plan's AI fields are enforced end-to-end:
@@ -615,14 +639,14 @@ top-up buttons, and the recent-activity ledger. Remaining work is in **Planned /
 Galleo claims the **86xx** host-port block so it runs alongside the other `~/Documents/code` projects.
 Container-internal ports stay conventional (5432/6379/…); only host mappings use 86xx.
 
-| Port          | Service                             | Set in                             | Status   |
-| ------------- | ----------------------------------- | ---------------------------------- | -------- |
-| **8600**      | Studio (Vite dev/preview)           | `vite.config.ts` (strictPort)      | active   |
-| **8601**      | Backend API (Hono)                  | `services/server`                  | active   |
-| **8602**      | Postgres (→ container 5432)         | `services/schema` · `DATABASE_URL` | active   |
-| **8603**      | Redis / job queue (→ 6379)          | (reserved)                         | reserved |
-| **8604–8605** | Object storage (MinIO S3 + console) | asset storage                      | reserved |
-| **8606**      | Preview / SSR (publish viewer)      | `publish` build                    | reserved |
+| Port          | Service                             | Set in                                | Status   |
+| ------------- | ----------------------------------- | ------------------------------------- | -------- |
+| **8600**      | Studio (Vite dev/preview)           | `vite.config.ts` (strictPort)         | active   |
+| **8601**      | Backend API (Hono)                  | `services/server`                     | active   |
+| **8602**      | Postgres (→ container 5432)         | `services/db/schema` · `DATABASE_URL` | active   |
+| **8603**      | Redis / job queue (→ 6379)          | (reserved)                            | reserved |
+| **8604–8605** | Object storage (MinIO S3 + console) | asset storage                         | reserved |
+| **8606**      | Preview / SSR (publish viewer)      | `publish` build                       | reserved |
 
 The cross-project registry of every sibling project's host ports lives at `clientbridge/.docs/ports.md`.
 

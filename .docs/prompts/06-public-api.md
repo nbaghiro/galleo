@@ -25,12 +25,12 @@ context.ts`); the app uses a signed cookie `galleo_session` (`services/auth.ts`,
 signal + getter + async loader. **View/route**: `<Router base="/app">` in `app/App.tsx`.
 
 **⚠️ Entitlement gating — a parallel session owns billing; do NOT touch billing internals.** `model/
-features.ts` has `FEATURES` (`status: "live"|"beta"|"planned"`; `planned` = off for everyone). Gate on the
+billing.ts` has `FEATURES` (`status: "live"|"beta"|"planned"`; `planned` = off for everyone). Gate on the
 backend:
 
 ```ts
 import { featuresFor } from "../features";
-import { can } from "@model/features";
+import { can } from "@model/billing";
 if (!can(featuresFor(ws), "apiAccess"))
     return c.json({ error: "API access is a paid feature — upgrade.", upgrade: true }, 402);
 ```
@@ -42,7 +42,7 @@ billing-session tunable — gate purely on `can(features, "apiAccess")`). When b
 **only** `FEATURES.apiAccess.status` `"planned"` → `"live"`.
 
 **Do NOT touch (billing session owns):** `model/billing.ts`, `services/api/billing.ts`,
-`services/billing/stripe.ts`, `services/features.ts`, the resolver in `model/features.ts` (only your
+`services/billing/stripe.ts`, `services/features.ts`, the resolver in `model/billing.ts` (only your
 `status` line), `.env`. `services/schema.ts` is co-edited — additive; coordinate `pnpm db:push`.
 **Credit metering is billing-owned:** API-driven generation must spend via `POST /billing/spend` — do NOT
 reimplement metering.

@@ -51,7 +51,8 @@ link row, which the links query now joins.
 
 ## Artifacts: windowed reads
 
-`GET /artifacts/:id?window=from:count` returns the artifact's shell (format, theme, background), the
+`GET /artifacts/:id?window=from:count` returns the artifact's shell (`ArtifactShell` — format, theme,
+background, page: everything an `ArtifactContent` holds except the sections), the
 full section index from the stored digest (id, kind, title, serialized size, per section), and only the
 requested slice of sections. `GET /artifacts/:id/sections?ids=…` or `?window=from:count` fetches the
 rest. Without a `window` parameter the route returns the whole artifact exactly as before, which is

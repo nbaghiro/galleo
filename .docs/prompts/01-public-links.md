@@ -42,7 +42,7 @@ setFoo(await api.getFoo()); } catch {} }`. **View/route**: add `<Route path="/fo
 inside `<Router base="/app">` in `app/App.tsx:66-76`.
 
 **⚠️ Entitlement gating — the key integration. A parallel session owns billing; do NOT touch billing
-internals.** Capabilities are gated by `model/features.ts`:
+internals.** Capabilities are gated by `model/billing.ts`:
 
 - `FEATURES` registry: every capability has `status: "live" | "beta" | "planned"`. **A `planned` feature is
   OFF for everyone regardless of plan.** `resolveFeatures(planId)` → resolved `Features`; accessors
@@ -50,7 +50,7 @@ internals.** Capabilities are gated by `model/features.ts`:
 - **Backend gate** via `services/features.ts`:
     ```ts
     import { featuresFor } from "../features";
-    import { can } from "@model/features";
+    import { can } from "@model/billing";
     if (!can(featuresFor(ws), "publicLinks"))
         return c.json({ error: "Public links are a paid feature — upgrade.", upgrade: true }, 402);
     ```
@@ -62,8 +62,8 @@ internals.** Capabilities are gated by `model/features.ts`:
   `"live"` (one line).
 
 **Do NOT touch (billing session owns):** `model/billing.ts`, `services/api/billing.ts`,
-`services/billing/stripe.ts`, `services/features.ts`, the resolver logic in `model/features.ts` (only your
-one `status` line), `.env` Stripe vars. `model/features.ts` + `services/schema.ts` are co-edited — keep
+`services/billing/stripe.ts`, `services/features.ts`, the resolver logic in `model/billing.ts` (only your
+one `status` line), `.env` Stripe vars. `model/billing.ts` + `services/schema.ts` are co-edited — keep
 changes additive; run `pnpm db:push` and mention it if you add tables/columns.
 
 **Canonical gated-UI example to copy:** `editor/editor.ts:70-75` (`features` signal + `onUpgrade`/

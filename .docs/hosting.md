@@ -106,7 +106,7 @@ turn on paid plans.
 
 ### Neon connection string — the pooler gotcha
 
-`services/schema.ts` uses `drizzle(postgres(url))` with postgres.js defaults, which means **prepared
+`services/db/schema.ts` uses `drizzle(postgres(url))` with postgres.js defaults, which means **prepared
 statements are on**. Neon's _pooled_ endpoint (`-pooler`, PgBouncer transaction mode) does **not** support
 prepared statements — pointing the app at it without `{ prepare: false }` breaks queries.
 
@@ -132,7 +132,7 @@ services:
       branch: main
       autoDeploy: true
       buildCommand: pnpm install --frozen-lockfile && pnpm build
-      buildCommand: … && pnpm db:migrate && pnpm db:backfill-search # both run at the end of the build, before cutover
+      buildCommand: … && pnpm db:migrate # runs at the end of the build, before cutover
       startCommand: pnpm start # NODE_ENV=production tsx services/server.ts
       healthCheckPath: /health
       envVars:
@@ -153,9 +153,12 @@ services:
 - **Migrations on deploy:** the build command ends with `pnpm db:migrate` against `DATABASE_URL` before the new
   version takes traffic. Requires committed migrations (repo change) + `drizzle-kit`/`tsx` resolvable at
   deploy time (repo change).
-- **Data backfills on deploy:** `pnpm db:backfill-search` follows the migration, because a schema change that
-  adds a derived column leaves existing rows unindexed (their covers render empty and their body text is
-  unsearchable until it runs). It visits only unindexed rows, so it is a no-op on every later deploy.
+- **Data backfills on deploy: none.** `digest` + `search_text` are derived from `draft_content` at write
+  time in `services/db/derived.ts` (ESLint blocks writing the content without them), so no row can fall out of
+  sync and there is nothing for a sweep to repair. A sweep on every deploy would hide a broken write path
+  rather than surface it. The one case that still needs a rewrite is a change to what `@model/artifact`
+  extracts, which leaves stored rows on the old shape: that ships as a one-off re-derive
+  (`set(contentWrite(row.draftContent))` over every row) in the same deploy, like any data migration.
 - **Zero-downtime:** Render health-checks `/health`, keeps the old instance until the new one is healthy.
 - **Rollback:** Render dashboard → Deploys → Rollback to the previous successful deploy (instant; re-run
   `db:migrate` only if the rollback crosses a schema change — prefer forward-only, additive migrations).
@@ -178,7 +181,7 @@ router)`; in `vite.config.ts` drop the proxy `rewrite` (keep the `^/api/` proxy 
    then route identically. Verify the Stripe webhook path becomes `/api/billing/webhook`.
 4. **`secure` cookie in prod.** `services/api/session.ts` sets `httpOnly`+`sameSite:"Lax"` but no `secure`.
    Add `secure: process.env.NODE_ENV === "production"`.
-5. **Commit migrations.** `services/migrations/` is empty (dev uses `db:push`). Run `pnpm db:generate` to
+5. **Commit migrations.** `services/db/migrations/` is empty (dev uses `db:push`). Run `pnpm db:generate` to
    emit SQL, commit it, and let the build step run `db:migrate`. From here, schema changes ship as
    generated migrations, not `push`.
 6. **Make `tsx` + `drizzle-kit` available at deploy/runtime.** The start command runs via `tsx` and
@@ -208,7 +211,7 @@ Ordered, because the Blueprint must exist in the repo before Render can read it:
    the service's `https://galleo.onrender.com`), `ANTHROPIC_API_KEY`, plus any optional media/mail keys.
    `SESSION_SECRET` is generated automatically.
 4. **First deploy runs**: `pnpm build` → `pnpm db:migrate` (applies `0000_*` to the empty Neon DB) →
-   `pnpm db:backfill-search` (a no-op on an empty DB) → `pnpm start` → health check `/health`. Watch the
+   `pnpm start` → health check `/health`. Watch the
    deploy log.
 5. **Seed (optional)** — to get the demo login in prod, run `pnpm seed` once from a Render **Shell** (or a
    one-off job) with prod `DATABASE_URL`. Skip if you want an empty prod DB.
@@ -273,7 +276,7 @@ first real bottleneck is media storage, not compute (below).
 
 ## Operational notes
 
-- **Deploy:** push to `main` → Render builds → `db:migrate` → `db:backfill-search` → health check → cutover.
+- **Deploy:** push to `main` → Render builds → `db:migrate` → health check → cutover.
   Watch the deploy log in the Render dashboard.
 - **Logs / metrics:** Render dashboard per service (stdout + CPU/mem). The app obeys the repo's no-`console`
   rule, so app logging is intentionally quiet — add a structured logger when we need request traces.
@@ -288,7 +291,7 @@ first real bottleneck is media storage, not compute (below).
 - The session token is an **unexpiring `HMAC(userId)`** with no rotation/revocation and no per-session
   entropy — acceptable for launch, but track hardening (expiry claim + rotation) as a follow-up issue.
 - `SESSION_SECRET` must be a real random value in prod (Render `generateValue`), never the dev default.
-- Stripe webhook signature is verified (`services/billing/stripe.ts`); ensure `STRIPE_WEBHOOK_SECRET`
+- Stripe webhook signature is verified (`services/core/billing.ts`); ensure `STRIPE_WEBHOOK_SECRET`
   matches the prod endpoint.
 
 ## What we need from the accounts

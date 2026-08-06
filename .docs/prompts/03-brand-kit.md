@@ -24,12 +24,12 @@ context.ts`); auth is the signed cookie `galleo_session` (`services/auth.ts`).
 signal + getter + async loader. **View/route**: `<Router base="/app">` in `app/App.tsx`.
 
 **⚠️ Entitlement gating — a parallel session owns billing; do NOT touch billing internals.** `model/
-features.ts` has the `FEATURES` registry (`status: "live"|"beta"|"planned"`; a `planned` feature is OFF for
+billing.ts` has the `FEATURES` registry (`status: "live"|"beta"|"planned"`; a `planned` feature is OFF for
 everyone). Gate on the backend:
 
 ```ts
 import { featuresFor } from "../features";
-import { can } from "@model/features";
+import { can } from "@model/billing";
 if (!can(featuresFor(ws), "workspaceThemes"))
     return c.json(
         { error: "Shared brand kit is a Premium feature — upgrade.", upgrade: true },
@@ -43,7 +43,7 @@ already set** (Premium) in `model/billing.ts` — **do NOT edit it**. When built
 `FEATURES.workspaceThemes.status` from `"planned"` → `"live"`.
 
 **Do NOT touch (billing session owns):** `model/billing.ts`, `services/api/billing.ts`,
-`services/billing/stripe.ts`, `services/features.ts`, the resolver in `model/features.ts` (only your one
+`services/billing/stripe.ts`, `services/features.ts`, the resolver in `model/billing.ts` (only your one
 `status` line), `.env`. `services/schema.ts` is co-edited (billing is adding `seats`/`feature_overrides`)
 — keep additions additive and coordinate the `pnpm db:push`.
 

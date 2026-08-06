@@ -22,24 +22,23 @@ boundary.
 
 ## The pieces
 
-| Concern                                                      | File                                 |
-| ------------------------------------------------------------ | ------------------------------------ |
-| Text/cover/section-summary extraction                        | `model/digest.ts`                    |
-| Wire shapes (`SearchHit`, `SearchSnippet`, `ArtifactDigest`) | `model/artifact.ts`                  |
-| Columns, indexes, visit table                                | `services/schema.ts`                 |
-| Query construction, ranking, snippets                        | `services/search/query.ts`           |
-| Route                                                        | `services/api/search.ts`             |
-| Write path (index maintenance)                               | `services/api/artifacts.ts`          |
-| Backfill                                                     | `scripts/backfill-search.ts`         |
-| Palette source registry + list model                         | `ui/palette-model.ts`                |
-| Palette overlay                                              | `ui/CommandPalette.tsx`              |
-| Fetch, cache, local pass                                     | `app/stores/search.ts`               |
-| Row assembly (what a result looks like)                      | `app/components/palette-sources.tsx` |
-| Library integration                                          | `app/views/LibraryView.tsx`          |
+| Concern                                                                   | File                                 |
+| ------------------------------------------------------------------------- | ------------------------------------ |
+| Extraction + wire shapes (`SearchHit`, `SearchSnippet`, `ArtifactDigest`) | `model/artifact.ts`                  |
+| Columns, indexes, visit table                                             | `services/db/schema.ts`              |
+| Query construction, ranking, snippets                                     | `services/core/search.ts`            |
+| Route                                                                     | `services/core/search.ts`            |
+| Write path (index maintenance)                                            | `services/api/artifacts.ts`          |
+| Derived-column write (digest + search_text)                               | `services/db/derived.ts`             |
+| Palette source registry + list model                                      | `ui/palette-model.ts`                |
+| Palette overlay                                                           | `ui/CommandPalette.tsx`              |
+| Fetch, cache, local pass                                                  | `app/stores/search.ts`               |
+| Row assembly (what a result looks like)                                   | `app/components/palette-sources.tsx` |
+| Library integration                                                       | `app/views/LibraryView.tsx`          |
 
 ## Write path: what gets stored
 
-Two derived columns are written on every content write, both from `model/digest.ts`:
+Two derived columns are written on every content write, both from `model/artifact.ts`:
 
 - `artifacts.digest` (jsonb): the cover snippet and the section filmstrip. `GET /artifacts` and search
   both read this instead of pulling `draft_content` back out and walking it per request.
@@ -49,7 +48,7 @@ Two derived columns are written on every content write, both from `model/digest.
 Extraction walks the raw jsonb rather than the element registry, because `services` cannot import
 `canvas` and because an allowlist of known element types would silently stop indexing each new one. It
 collects string leaves, skipping keys that only ever hold ids, enums, or paints (`src`, `href`, `color`,
-`type`, `style`, `palette`, and the rest of the list in `digest.ts`), values that look like URLs, data
+`type`, `style`, `palette`, and the rest of the list in `artifact.ts`), values that look like URLs, data
 URIs, or hex colors, and long unbroken runs that are tokens rather than sentences. Repeats within a
 section are dropped.
 
@@ -77,7 +76,7 @@ Write cost: extraction is a few milliseconds on a large tree, against an autosav
 the update HOT and skip the GIN insert.
 
 Every insert or content update goes through the same two derivations: `POST /artifacts`,
-`PATCH /artifacts/:id` (content only, not a folder move), and `services/seed.ts`.
+`PATCH /artifacts/:id` (content only, not a folder move), and `services/db/seed.ts`.
 
 ## Read path
 
@@ -182,20 +181,20 @@ should). The next scaling step, if a workspace filter over a large table becomes
 ## Operating it
 
 ```
-pnpm db:migrate           # adds the columns, the generated vector, the indexes, artifact_visits
-pnpm db:backfill-search   # fills digest + search_text for rows written before the index existed
+pnpm db:migrate   # adds the columns, the generated vector, the indexes, artifact_visits
 ```
 
-The backfill is idempotent and visits only unindexed rows; `--all` recomputes everything, which is what
-to run after changing the extractor. Until a row is backfilled its cover renders empty and its body text
-is unsearchable, so the backfill belongs in the same deploy as the migration.
+There is no backfill step: `search_text` + `digest` are derived from `draft_content` on every write via
+`contentWrite` (`services/db/derived.ts`), which ESLint requires, so a row cannot be written unindexed. The
+exception is changing what the extractors in `/digest` produce: stored rows keep the old shape, so
+that change ships with a one-off re-derive (`set(contentWrite(row.draftContent))` over every row).
 
 ## Not built, and why
 
 - **An external search engine** (Meilisearch, Typesense, Algolia). Better typo tolerance and relevance,
   but it adds a service, an index-sync pipeline with its own drift and failure modes, per-tenant filter
   configuration, and cost, to solve a problem Postgres solves at this scale. All query construction is
-  confined to `services/search/query.ts` so swapping the engine stays a one-file change. Revisit for
+  confined to `services/core/search.ts` so swapping the engine stays a one-file change. Revisit for
   cross-workspace search, real typo tolerance, or past roughly 100k artifacts.
 - **A pure client-side index.** It is only viable because the library currently downloads every
   artifact's content for thumbnails, which is the thing we want to stop doing. It survives as the local
@@ -211,10 +210,10 @@ is unsearchable, so the backfill belongs in the same deploy as the migration.
 
 ## Tests
 
-| Area                     | File                                        | Covers                                                                                                                                                                               |
-| ------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Extraction               | `model/__tests__/digest.test.ts`            | cover/filmstrip derivation, nested and table/diagram text, url + color + blob exclusion, the size cap                                                                                |
-| Query, route, index      | `services/api/__tests__/search.itest.ts`    | real Postgres and the real generated vector: sanitizer, ranking, tenancy isolation, trash exclusion, prefix narrowing, snippet offsets, wildcards, stop words, recents, visit upsert |
-| Write path               | `services/api/__tests__/artifacts.itest.ts` | digest + search text derived on create, re-derived on a content edit, untouched by a metadata patch                                                                                  |
-| Palette list model       | `ui/__tests__/palette.test.ts`              | section ordering, source registration and gating, command grouping, snippet run splitting                                                                                            |
-| Fetch, cache, local pass | `app/stores/__tests__/search.test.ts`       | local ranking, request shape, abort passthrough, cache TTL and eviction, reconciliation against the store                                                                            |
+| Area                     | File                                      | Covers                                                                                                                                                                               |
+| ------------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Extraction               | `model/__tests__/digest.test.ts`          | cover/filmstrip derivation, nested and table/diagram text, url + color + blob exclusion, the size cap                                                                                |
+| Query, route, index      | `services/api/__tests__/search.itest.ts`  | real Postgres and the real generated vector: sanitizer, ranking, tenancy isolation, trash exclusion, prefix narrowing, snippet offsets, wildcards, stop words, recents, visit upsert |
+| Write path               | `services/api/__tests__/library.itest.ts` | digest + search text derived on create, re-derived on a content edit, untouched by a metadata patch                                                                                  |
+| Palette list model       | `ui/__tests__/palette.test.ts`            | section ordering, source registration and gating, command grouping, snippet run splitting                                                                                            |
+| Fetch, cache, local pass | `app/stores/__tests__/search.test.ts`     | local ranking, request shape, abort passthrough, cache TTL and eviction, reconciliation against the store                                                                            |

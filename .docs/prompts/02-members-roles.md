@@ -39,13 +39,13 @@ msg)`. **Store** (`app/stores/foo.ts`): signal + exported getter + async `loadFo
 to `<Router base="/app">` in `app/App.tsx:66-76`.
 
 **⚠️ Entitlement gating — a parallel session owns billing; do NOT touch billing internals.** Capabilities
-are gated by `model/features.ts` (`FEATURES` registry with `status: "live"|"beta"|"planned"`;
+are gated by `model/billing.ts` (`FEATURES` registry with `status: "live"|"beta"|"planned"`;
 `resolveFeatures(planId)` → `Features`; `can(f,key)` / `limit(f,key)` / `withinLimit(f,key,current)`). This
 feature's flag `maxMembers` is a **numeric** feature and is already `status: "live"` — enforce with:
 
 ```ts
 import { featuresFor } from "../features";
-import { withinLimit } from "@model/features";
+import { withinLimit } from "@model/billing";
 if (!withinLimit(featuresFor(ws), "maxMembers", currentMemberCount))
     return c.json({ error: "Seat limit reached — add a seat to invite more.", upgrade: true }, 402);
 ```
@@ -54,7 +54,7 @@ if (!withinLimit(featuresFor(ws), "maxMembers", currentMemberCount))
 `app/stores/features.ts` (`useFeatures()`) + `api.getFeatures()` if you need frontend gating.
 
 **Do NOT touch (billing session owns):** `model/billing.ts`, `services/api/billing.ts`,
-`services/billing/stripe.ts`, `services/features.ts`, the resolver in `model/features.ts`, `.env`. Schema
+`services/billing/stripe.ts`, `services/features.ts`, the resolver in `model/billing.ts`, `.env`. Schema
 (`services/schema.ts`) is co-edited — keep additions additive; run `pnpm db:push` and mention it.
 
 **Canonical gated-UI example:** the export gate — `editor/editor.ts:70-75`, `app/views/EditorView.tsx:47-

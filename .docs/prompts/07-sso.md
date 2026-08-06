@@ -26,12 +26,12 @@ schema `services/schema.ts`, pushed with `pnpm db:push`. Seed login: `demo@galle
 `app/App.tsx`; the sign-in surface is `app/views/AuthPage.tsx`.
 
 **⚠️ Entitlement gating — a parallel session owns billing; do NOT touch billing internals.** `model/
-features.ts` has `FEATURES` (`status: "live"|"beta"|"planned"`; `planned` = off for everyone). Gate SSO
+billing.ts` has `FEATURES` (`status: "live"|"beta"|"planned"`; `planned` = off for everyone). Gate SSO
 _configuration_ on the backend:
 
 ```ts
 import { featuresFor } from "../features";
-import { can } from "@model/features";
+import { can } from "@model/billing";
 if (!can(featuresFor(ws), "sso"))
     return c.json({ error: "SSO is a Premium feature — upgrade.", upgrade: true }, 402);
 ```
@@ -41,7 +41,7 @@ if (!can(featuresFor(ws), "sso"))
 **do NOT edit it**. When built + verified, flip **only** `FEATURES.sso.status` `"planned"` → `"live"`.
 
 **Do NOT touch (billing session owns):** `model/billing.ts`, `services/api/billing.ts`,
-`services/billing/stripe.ts`, `services/features.ts`, the resolver in `model/features.ts` (only your
+`services/billing/stripe.ts`, `services/features.ts`, the resolver in `model/billing.ts` (only your
 `status` line), `.env` billing vars. `services/schema.ts` is co-edited — additive; coordinate `pnpm
 db:push`.
 
