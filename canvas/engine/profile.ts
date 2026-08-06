@@ -81,7 +81,10 @@ export const stacksAtWidth = (profile: FormatDescriptor, availWidth: number): bo
 
 // The paged frame in logical px; the artifact's page size arrives via the profile, and a section's
 // `frame.aspect` overrides the height on top of it.
-export function slideFrame(section: Section, profile: FormatDescriptor): { w: number; h: number } {
+export function sectionFrame(
+    section: Section,
+    profile: FormatDescriptor,
+): { w: number; h: number } {
     const { w, h } = pagedSize(profile);
     const aspect = section.frame?.aspect;
     return { w, h: aspect && aspect > 0 ? Math.round(w / aspect) : h };

@@ -1,6 +1,6 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
-import { previewContentProfile, profileFor, slideFrame } from "@engine/profile";
+import { previewContentProfile, profileFor, sectionFrame } from "@engine/profile";
 import { paintSectionStack } from "@canvas/render/backends";
 import { slideElement } from "@canvas/render/present";
 import { SlideProgress, backdropHostStyle } from "@ui/section";
@@ -35,7 +35,7 @@ export const Present: Component = () => {
         const section = editor.artifact.sections[slideIndex()];
         if (!section) return;
         const slide = slideElement(section, theme(), profile());
-        const { w, h } = slideFrame(section, profile());
+        const { w, h } = sectionFrame(section, profile());
         const k = Math.min((window.innerWidth - 24) / w, (window.innerHeight - 24) / h);
         slide.style.transform = `scale(${k})`;
         slide.style.transformOrigin = "center center";
@@ -49,7 +49,7 @@ export const Present: Component = () => {
         const grid = document.createElement("div");
         grid.style.cssText = `display:grid;grid-template-columns:repeat(auto-fill,minmax(${MINI_W}px,1fr));gap:18px;padding:48px;width:100%;max-width:1280px;margin:0 auto;align-content:start`;
         editor.artifact.sections.forEach((section, i) => {
-            const fr = slideFrame(section, profile()); // per-section: a slide may set its own aspect
+            const fr = sectionFrame(section, profile()); // per-section: a section may set its own aspect
             const s = MINI_W / fr.w;
             const slide = slideElement(section, theme(), profile());
             slide.style.transform = `scale(${s})`;

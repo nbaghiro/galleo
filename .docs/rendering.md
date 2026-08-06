@@ -88,13 +88,13 @@ there is nothing to overlay, which is what keeps unsized artifacts byte-identica
 caches' reference comparison working. `pagedSize(profile)` is the numeric accessor the paged renderers
 use, since `width`/`height` are typed `number | "fill" | "auto"`.
 
-### 3.1 Per-section framing — what shipped (`slideFrame`)
+### 3.1 Per-section framing (`sectionFrame`)
 
 The one custom-size hook that actually landed is **per-section**, not per-artifact. `Section.frame?.aspect`
 (`@model/artifact` — `SectionFrame { aspect?: number }`, honored only for paged rendering) lets a single
-slide override its shape. `slideFrame(section, profile)` (`profile.ts`) resolves the paged frame a section
+slide override its shape. `sectionFrame(section, profile)` (`profile.ts`) resolves the paged frame a section
 renders into: width stays the profile's page width (1280 for deck); height is the profile height (720) — or
-`round(width / aspect)` when the section sets one. The deck path (`sectionSlides`, §8) reads `slideFrame`
+`round(width / aspect)` when the section sets one. The deck path (`sectionSlides`, §8) reads `sectionFrame`
 per section, so a deck can mix a 16:9 slide with a square or tall one without any new profile.
 
 ### 3.2 Artifact-level page geometry (`ArtifactContent.page`)
@@ -105,7 +105,7 @@ profile — today that is deck, so a deck can render at 1080×1080 — and ignor
 where a fixed page means nothing. It also caps `maxContentWidth` at the page width so content cannot
 exceed its own page.
 
-`slideFrame(section, profile)` is where the two levels compose: the page fixes the width and the base
+`sectionFrame(section, profile)` is where the two levels compose: the page fixes the width and the base
 height, then a section's `frame.aspect` overrides the height on top of it. Everything paged flows from
 there — `sectionSlides`, Present, PDF page size, PPTX (`defineLayout` off `pagedSize`), the windowed
 loader's height estimate, and the thumbnail aspect in `ScaledSectionCanvas`.
@@ -588,7 +588,7 @@ entry points:
 - **`layoutSection`** — the default (doc / web / thumbnails). `composeSection` → `layout` at the profile
   width and an unbounded height → `{ commands, regions, height }` where `height` is the natural bottom of
   the content. Sections stack with a fixed `SECTION_GAP`.
-- **`layoutSlide` / `sectionSlides`** — the deck path. Each section is fit to its `slideFrame` (§3.1 —
+- **`layoutSlide` / `sectionSlides`** — the deck path. Each section is fit to its `sectionFrame` (§3.1 —
   1280 wide, 720 tall unless `section.frame.aspect` overrides): short sections stretch to fill and center
   (`prepareSlideNode`); a text+image split whose image would overflow cover-fits the dominant media
   (`coverFitMedia`) so it fills the frame instead of scaling the whole section down. `sectionSlides` is what

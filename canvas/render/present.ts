@@ -4,7 +4,7 @@ import type { Tokens } from "@themes";
 import { fitSlideContent } from "./backends";
 import { sectionSlides } from "./commands";
 
-// fallback frame; per-section sizing flows through slideFrame / sectionSlides
+// fallback frame; per-section sizing flows through sectionFrame / sectionSlides
 export const SLIDE_W = 1280;
 export const SLIDE_H = 720;
 

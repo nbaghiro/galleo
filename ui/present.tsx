@@ -1,7 +1,7 @@
 import type { ArtifactContent } from "@model/artifact";
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
-import { previewContentProfile, profileFor, slideFrame } from "@engine/profile";
+import { previewContentProfile, profileFor, sectionFrame } from "@engine/profile";
 import { resolveTheme } from "@themes";
 import {
     createSectionStackCache,
@@ -76,7 +76,7 @@ export const PresentSurface: Component<{
         const { si, page } = locate(index());
         const section = props.artifact.sections[si];
         if (!section) return;
-        const { w, h } = slideFrame(section, profile());
+        const { w, h } = sectionFrame(section, profile());
         const slide = slideElement(section, tokens(), profile(), page);
         const k = Math.min((window.innerWidth - 24) / w, (window.innerHeight - 24) / h);
         slide.style.transform = `scale(${k})`;

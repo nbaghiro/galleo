@@ -2,7 +2,7 @@
 import "@elements/register";
 import { beforeAll, describe, expect, it } from "vitest";
 import { sectionSlides } from "@canvas/render/commands";
-import { resolveProfile, slideFrame } from "@engine/profile";
+import { resolveProfile, sectionFrame } from "@engine/profile";
 import { inst, installCanvas2D, sectionOf, tokens } from "@canvas/testkit";
 import { colGroup } from "@model/artifact";
 
@@ -25,7 +25,7 @@ const short = sectionOf(colGroup([inst("text", { style: "h1", text: "Just a titl
 // What ScaledSectionCanvas(frame="slide") renders: page 0 of sectionSlides, content-fit into the
 // frame, then the frame scaled to the thumb width. Mirrors slideElement (present).
 const thumb = (section: typeof tall): { rendered: number; box: number } => {
-    const fr = slideFrame(section, deck);
+    const fr = sectionFrame(section, deck);
     const page = sectionSlides(section, tokens, deck, true)[0]!;
     const contentFit = Math.min(1, page.h / page.contentH);
     const scale = THUMB_W / fr.w;

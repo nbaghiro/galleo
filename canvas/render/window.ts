@@ -1,6 +1,6 @@
 import type { Section } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
-import { slideFrame } from "@engine/profile";
+import { sectionFrame } from "@engine/profile";
 import { sectionLayoutWidth } from "./backends";
 import type { StackWindow } from "./backends";
 
@@ -93,7 +93,7 @@ export function estimateSectionHeight(
     size?: number,
 ): number {
     if (profile.kind === "paged") {
-        const frame = slideFrame(section, profile);
+        const frame = sectionFrame(section, profile);
         const w = sectionLayoutWidth(section, profile, fullW);
         return Math.round((w * frame.h) / frame.w);
     }

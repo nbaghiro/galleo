@@ -5,7 +5,7 @@ import {
     previewContentProfile,
     profileFor,
     resolveProfile,
-    slideFrame,
+    sectionFrame,
     stacksAtWidth,
 } from "@engine/profile";
 import type { ArtifactContent, Section } from "@model/artifact";
@@ -114,34 +114,34 @@ describe("profileFor", () => {
     });
 });
 
-describe("slideFrame", () => {
+describe("sectionFrame", () => {
     const deck = resolveProfile("deck");
 
     it("deck default is 1280×720", () => {
-        expect(slideFrame(section(), deck)).toEqual({ w: 1280, h: 720 });
+        expect(sectionFrame(section(), deck)).toEqual({ w: 1280, h: 720 });
     });
     it("aspect 1 → square frame (h = w)", () => {
-        expect(slideFrame(section(1), deck).h).toBe(1280);
+        expect(sectionFrame(section(1), deck).h).toBe(1280);
     });
     it("aspect 21/9 → shorter frame", () => {
-        expect(slideFrame(section(21 / 9), deck).h).toBe(549);
+        expect(sectionFrame(section(21 / 9), deck).h).toBe(549);
     });
     it("a non-positive aspect falls back to the profile height", () => {
-        expect(slideFrame(section(0), deck).h).toBe(720);
-        expect(slideFrame(section(-2), deck).h).toBe(720);
+        expect(sectionFrame(section(0), deck).h).toBe(720);
+        expect(sectionFrame(section(-2), deck).h).toBe(720);
     });
     it("a continuous (auto-height) profile derives 16:9 from its width", () => {
-        expect(slideFrame(section(), resolveProfile("doc"))).toEqual({ w: 816, h: 459 });
+        expect(sectionFrame(section(), resolveProfile("doc"))).toEqual({ w: 816, h: 459 });
     });
 
     it("takes the artifact's page size when the profile carries one", () => {
         const story = profileFor(content("deck", { width: 1080, height: 1920 }));
-        expect(slideFrame(section(), story)).toEqual({ w: 1080, h: 1920 });
+        expect(sectionFrame(section(), story)).toEqual({ w: 1080, h: 1920 });
     });
 
     it("a section aspect still overrides the height on a custom page", () => {
         const square = profileFor(content("deck", { width: 1080, height: 1080 }));
-        expect(slideFrame(section(2), square)).toEqual({ w: 1080, h: 540 });
+        expect(sectionFrame(section(2), square)).toEqual({ w: 1080, h: 540 });
     });
 });
 

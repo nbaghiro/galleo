@@ -12,7 +12,7 @@ import {
     layoutSectionSkeleton,
     sectionSlides,
 } from "@canvas/render/commands";
-import { slideFrame } from "@engine/profile";
+import { sectionFrame } from "@engine/profile";
 
 // CSS-scaled to `width`, so it is a true zoomed-out copy (identical wraps), not a re-wrap in a narrow box.
 
@@ -46,7 +46,7 @@ export const ScaledSectionCanvas: Component<{
     const w = (): number => props.width ?? 176;
     const plain = (): boolean => props.plain ?? true;
     const frame = (): "slide" | "natural" => props.frame ?? "slide";
-    const slideBox = (): { w: number; h: number } => slideFrame(props.section, props.profile);
+    const slideBox = (): { w: number; h: number } => sectionFrame(props.section, props.profile);
     const boxH = (): number =>
         frame() === "slide" ? Math.round((w() * slideBox().h) / slideBox().w) : naturalH();
 

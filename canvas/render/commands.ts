@@ -14,7 +14,7 @@ import type { Tokens } from "@themes";
 import { composeSection } from "@elements/compose";
 import { skeletonize } from "@elements/spec";
 import { fragment, layout } from "@engine/layout";
-import { DEFAULT_PROFILE, slideFrame } from "@engine/profile";
+import { DEFAULT_PROFILE, sectionFrame } from "@engine/profile";
 import { fixed, grow } from "@model/geometry";
 import { DEFAULT_THEME, mix } from "@themes";
 
@@ -66,7 +66,7 @@ export function layoutSectionSkeleton(
     return { commands, height: bottom(commands) };
 }
 
-// first aspect-ratio media: what makes a section taller than a slide
+// first aspect-ratio media: what makes a section taller than its frame
 function findAspectMedia(n: EngineNode): EngineNode | null {
     if (n.aspect !== undefined) return n;
     for (const c of n.children ?? []) {
@@ -191,7 +191,7 @@ export function sectionSlides(
     format: FormatDescriptor = DEFAULT_PROFILE,
     plain = false,
 ): SlidePage[] {
-    const { w, h } = slideFrame(section, format);
+    const { w, h } = sectionFrame(section, format);
     const { node, targetH } = prepareSlideNode(section, w, h, measureText, theme, format, plain);
     const { commands } = layout(node, { x: 0, y: 0, w, h: targetH }, measureText);
     if (targetH <= h * PAGINATE_ABOVE) return [{ commands, w, h, contentH: targetH }];
