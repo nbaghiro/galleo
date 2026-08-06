@@ -178,7 +178,15 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText):
         return;
     }
 
-    const contentH = Math.max(0, assignedH - padY(node));
+    // A box with a height of its own lays its children out inside THAT, not inside whatever the
+    // parent offered: otherwise a fixed 600px column hands its children the container's assignment.
+    const ownH =
+        node.h.mode === "fixed"
+            ? node.h.value
+            : node.h.mode === "percent"
+              ? assignedH * node.h.value
+              : assignedH;
+    const contentH = Math.max(0, ownH - padY(node));
     if (isRow(node)) {
         // A `fit` row's cross height is its tallest sibling, not the container's unbounded measurement height.
         let maxH = 0;
@@ -216,7 +224,14 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText):
         layoutHeights(c, contentH, measure);
         return { base: c.h, min: c.h, max: c.h, grow: false };
     });
-    const heights = distribute(spans, Math.max(0, contentH - gaps));
+    // A `fit` column's height IS its children, so there is no free space to hand out and a grow child
+    // sits at its own minimum. Without this it swallows the container's assigned height, which for a
+    // section is the 100000 "unbounded" sentinel.
+    const target =
+        node.h.mode === "fit"
+            ? spans.reduce((sum, sp) => sum + sp.base, 0)
+            : Math.max(0, contentH - gaps);
+    const heights = distribute(spans, target);
     flow.forEach((c, i) => {
         if (c.node.h.mode === "grow") layoutHeights(c, heights[i]!, measure);
     });

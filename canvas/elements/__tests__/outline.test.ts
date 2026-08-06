@@ -86,3 +86,19 @@ describe("outlineSection", () => {
         expect(pts).toHaveLength(3);
     });
 });
+
+describe("outline media", () => {
+    // end-to-end: the planned image column paints the element's ghost, not a blank frame
+    it("emits the media glyph for a planned image column", () => {
+        const { section } = outlineSection({
+            id: "s7",
+            layout: "split-6040",
+            blocks: ["text", "image"],
+            heading: "With media",
+            points: ["A point"],
+        });
+        const { commands } = layoutSection(section, 800, measure, tokens, deck);
+        expect(commands.some((c) => c.kind === "surface")).toBe(true);
+        expect(commands.some((c) => c.kind === "image")).toBe(false);
+    });
+});

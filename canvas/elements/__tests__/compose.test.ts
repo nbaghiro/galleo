@@ -2,7 +2,7 @@ import "@elements/register";
 import { describe, expect, it } from "vitest";
 import type { EngineNode } from "@engine/node";
 import { GUTTER, composeSection, sectionContentTokens } from "@elements/compose";
-import { emptyRegion, rowGroup } from "@model/section";
+import { emptyRegion, rowGroup } from "@model/artifact";
 import { layout } from "@engine/layout";
 import { resolveProfile } from "@engine/profile";
 import { commandById, inst, layoutCtx, measure, sectionOf, tokens } from "@canvas/testkit";

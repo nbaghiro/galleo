@@ -1,7 +1,7 @@
 import type { ControlField, ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import { register } from "@elements/spec";
-import { fixed, grow } from "@model/geometry";
+import { grow } from "@model/geometry";
 import { renderChart } from "./render";
 import { chartTypeOptions } from "./utils";
 import type { ChartData } from "./utils";
@@ -100,7 +100,7 @@ function chartSpec(
         }),
         layout: (d: ChartData, ctx: LayoutCtx): EngineNode => ({
             w: grow(),
-            h: fixed(d.height ?? 240),
+            h: grow(d.height ?? 240),
             surface: { paint: (g, box) => renderChart(g, box, d, ctx.theme) },
         }),
         resize: { height: { key: "height", min: 160, max: 460, step: 10 } },

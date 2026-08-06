@@ -1,11 +1,10 @@
 import type { LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
-import type { ElementAddress } from "@model/target";
-import type { ElementInstance, Section, SectionBackground } from "@model/artifact";
+import type { ElementAddress, ElementInstance, Section, SectionBackground } from "@model/artifact";
 import type { ElementLayout } from "@model/geometry";
 import type { Tokens } from "@themes";
 import { getElement } from "@elements/spec";
-import { elementRegionId, sectionRegionId } from "@model/target";
+import { elementRegionId, sectionRegionId } from "@model/artifact";
 import { fit, grow, percent } from "@model/geometry";
 import { fontStack, luminance, mixWhite } from "@themes";
 
@@ -100,6 +99,17 @@ function applyLayout(node: EngineNode, layout: ElementLayout | undefined): Engin
     return node;
 }
 
+// fraction of the parent's width each child of a row occupies; null when the parent isn't a row
+function rowShares(inst: ElementInstance, kids: ElementInstance[]): number[] | null {
+    const row = inst.type === "group" && (inst.data as { direction?: string }).direction === "row";
+    if (!row || kids.length === 0) return null;
+    const pct = kids.map((k) => {
+        const w = k.layout?.width;
+        return w && typeof w === "object" ? w.pct / 100 : null;
+    });
+    return pct.every((p) => p !== null) ? (pct as number[]) : kids.map(() => 1 / kids.length);
+}
+
 function composeElement(inst: ElementInstance, ctx: LayoutCtx, addr: ElementAddress): EngineNode {
     const spec = getElement(inst.type);
     if (!spec) {
@@ -116,8 +126,15 @@ function composeElement(inst: ElementInstance, ctx: LayoutCtx, addr: ElementAddr
         if (childInstances.length === 0) {
             node = emptyRegionNode(ctx);
         } else {
+            // a child of a row only gets its share of the width; elements that must decide layout at
+            // compose time (a diagram's wrap) would otherwise size against the whole section
+            const share = rowShares(inst, childInstances);
             const kids = childInstances.map((child, i) =>
-                composeElement(child, ctx, { section: addr.section, path: [...addr.path, i] }),
+                composeElement(
+                    child,
+                    share ? { ...ctx, availWidth: ctx.availWidth * share[i]! } : ctx,
+                    { section: addr.section, path: [...addr.path, i] },
+                ),
             );
             node = spec.container.arrange(inst.data, ctx, kids);
         }
