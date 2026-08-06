@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RenderCommand, TextLeaf } from "@engine/node";
+import type { ArtifactContent } from "@model/artifact";
+import { pagedSize, profileFor, resolveProfile } from "@engine/profile";
 import type { RunLine } from "@canvas/render/commands";
 import {
     SLIDE_IN_H,
@@ -24,6 +26,7 @@ import {
     pt,
     rectShapeSpec,
     slideTransform,
+    DEFAULT_SLIDE_BOX,
     slotFor,
     textSpec,
     weightFromFont,
@@ -85,6 +88,53 @@ describe("slideTransform", () => {
         const t = slideTransform({ w: 1280, h: 548, contentH: 548 });
         expect(t.fit).toBeCloseTo(1, 6);
         expect(t.offY).toBeCloseTo((720 - 548) / 2, 6);
+    });
+
+    it("defaults to the 16:9 box, so existing callers are unaffected by the slide argument", () => {
+        const page = { w: 1280, h: 548, contentH: 548 };
+        expect(slideTransform(page)).toEqual(slideTransform(page, DEFAULT_SLIDE_BOX));
+    });
+
+    it("fits into a custom slide box when the artifact carries a page size", () => {
+        // a square page in a square slide is identity, where the 16:9 box would letterbox it
+        const t = slideTransform({ w: 1080, h: 1080, contentH: 1080 }, { w: 1080, h: 1080 });
+        expect(t).toEqual({ fit: 1, offX: 0, offY: 0 });
+    });
+});
+
+describe("the exporter's slide box", () => {
+    // only a paged artifact with its own page size moves the box off 1280×720
+    const slideBoxFor = (content: ArtifactContent): { w: number; h: number } => {
+        const own = profileFor(content);
+        return pagedSize(own.kind === "paged" ? own : resolveProfile("deck"));
+    };
+    const artifact = (
+        format: string,
+        page?: { width: number; height: number },
+    ): ArtifactContent => ({
+        format,
+        theme: "studio",
+        sections: [],
+        ...(page ? { page } : {}),
+    });
+
+    it("is 1280×720 for deck, doc, and web alike", () => {
+        for (const format of ["deck", "doc", "web"])
+            expect(slideBoxFor(artifact(format))).toEqual({ w: SLIDE_PX_W, h: SLIDE_PX_H });
+    });
+
+    it("follows a paged artifact's page size", () => {
+        expect(slideBoxFor(artifact("deck", { width: 1080, height: 1350 }))).toEqual({
+            w: 1080,
+            h: 1350,
+        });
+    });
+
+    it("ignores a page size on a continuous format", () => {
+        expect(slideBoxFor(artifact("web", { width: 1080, height: 1350 }))).toEqual({
+            w: SLIDE_PX_W,
+            h: SLIDE_PX_H,
+        });
     });
 });
 

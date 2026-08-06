@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { createMemo, createResource, createSignal, For, Match, Show, Switch } from "solid-js";
 import type { ExportFormat } from "@model/billing";
-import { resolveProfile } from "@engine/profile";
+import { profileFor } from "@engine/profile";
 import { sectionSlides } from "@canvas/render/commands";
 import {
     buildPdfAuto,
@@ -76,7 +76,7 @@ const Body: Component = () => {
     const [dest, setDest] = createSignal<Dest>("pdf");
     const [busy, setBusy] = createSignal(false);
 
-    const profile = createMemo(() => resolveProfile(editor.artifact.format));
+    const profile = createMemo(() => profileFor(editor.artifact));
     const continuous = createMemo(() => profile().kind === "continuous");
     const brand = createMemo(() => !features().removeBranding);
     // one build per destination per artifact state; tab hops and the Export click reuse it

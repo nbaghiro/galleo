@@ -4,7 +4,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show }
 import { createStore } from "solid-js/store";
 import { useLocation } from "@solidjs/router";
 import { luminance, themeCssVars, resolveTheme, THEME_LIST } from "@themes";
-import { resolveProfile } from "@engine/profile";
+import { profileFor, resolveProfile } from "@engine/profile";
 import { paintSectionStack } from "@canvas/render/backends";
 import { setArtifactTheme } from "@elements/ops";
 import { commit, editor, endThemePreview } from "@editor/core/store";
@@ -337,7 +337,7 @@ const ThemeEditorPanel: Component = () => {
         if (!host) return;
         const snap = { ...tk };
         const sections = editing ? editor.artifact.sections : themeDemo(snap);
-        const profile = resolveProfile(editing ? editor.artifact.format : format());
+        const profile = editing ? profileFor(editor.artifact) : resolveProfile(format());
         const fullW = Math.max(360, width());
         host.replaceChildren();
         const { height } = paintSectionStack(host, sections, profile, snap, { fullW });

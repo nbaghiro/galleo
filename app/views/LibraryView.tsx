@@ -1,5 +1,5 @@
 import type { Section, SectionSummary } from "@model/artifact";
-import { emptyRegion } from "@model/section";
+import { emptyRegion } from "@model/artifact";
 import type { Component } from "solid-js";
 import {
     createEffect,
@@ -586,6 +586,7 @@ export const LibraryView: Component = () => {
                                             ghost={loaded() ? undefined : summary}
                                             themeId={appTheme()}
                                             formatId={p.d.formatId}
+                                            page={p.d.page}
                                             label={summary.title ?? `Section ${i() + 1}`}
                                             width={TILE_W}
                                             onOpen={onCardClick}

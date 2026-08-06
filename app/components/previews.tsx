@@ -7,8 +7,8 @@ import {
     type Component,
     createEffect,
 } from "solid-js";
-import type { Section, ArtifactContent, Cover, SectionSummary } from "@model/artifact";
-import { resolveProfile } from "@engine/profile";
+import type { Section, ArtifactContent, Cover, PageSize, SectionSummary } from "@model/artifact";
+import { profileFor } from "@engine/profile";
 import { resolveTheme, type Tokens } from "@themes";
 import { appTheme } from "../stores/theme";
 import {
@@ -205,6 +205,7 @@ export const MiniCanvas: Component<{
     section: Section;
     themeId: string;
     formatId: string;
+    page?: PageSize;
     width: number; // final (scaled) width, px
     lazy?: boolean; // defer paint until near view
     class?: string;
@@ -212,7 +213,7 @@ export const MiniCanvas: Component<{
     <ScaledSectionCanvas
         section={props.section}
         theme={resolveTheme(props.themeId).tokens}
-        profile={resolveProfile(props.formatId)}
+        profile={profileFor({ format: props.formatId, page: props.page })}
         width={props.width}
         frame="slide"
         lazy={props.lazy}
@@ -226,6 +227,7 @@ export const SectionThumb: Component<{
     ghost?: SectionSummary; // the digest's summary, painted until the section itself loads
     themeId: string;
     formatId: string;
+    page?: PageSize;
     label?: string;
     width?: number;
     selected?: boolean;
@@ -235,7 +237,7 @@ export const SectionThumb: Component<{
         section={props.section}
         ghost={props.ghost}
         theme={resolveTheme(props.themeId).tokens}
-        profile={resolveProfile(props.formatId)}
+        profile={profileFor({ format: props.formatId, page: props.page })}
         width={props.width ?? DEFAULT_W}
         frame="slide"
         as="button"
@@ -264,7 +266,8 @@ export const PreviewCanvas: Component<{ content: ArtifactContent; format: () => 
     const render = (): void => {
         if (!host) return;
         const tk = resolveTheme(props.content.theme).tokens;
-        const profile = resolveProfile(props.format());
+        // props.format may preview the content as a different format; its own page size still applies
+        const profile = profileFor({ format: props.format(), page: props.content.page });
         const gap = profile.kind === "continuous" ? 0 : SECTION_GAP;
         const fullW = host.clientWidth || 1100;
         host.style.background = backdropCss(props.content.background, tk);

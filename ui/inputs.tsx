@@ -39,11 +39,16 @@ export const FieldRow: Component<{ label?: string; children: JSX.Element }> = (p
     </div>
 );
 
-export const Separator: Component<{ vertical?: boolean; onDark?: boolean; class?: string }> = (
-    props,
-) => (
+// `size` rather than a height class: same-specificity utilities resolve by stylesheet order, so a
+// `class="h-3.5"` here loses to the built-in `h-5` and silently does nothing.
+export const Separator: Component<{
+    vertical?: boolean;
+    size?: "sm" | "md"; // vertical only; sm suits a pill of 11px actions
+    onDark?: boolean;
+    class?: string;
+}> = (props) => (
     <span
-        class={`${props.vertical ? "h-5 w-px" : "h-px w-full"} ${props.onDark ? "bg-white/15" : "bg-line"} ${props.class ?? ""}`}
+        class={`${props.vertical ? `${props.size === "sm" ? "h-3.5" : "h-5"} w-px` : "h-px w-full"} ${props.onDark ? "bg-white/15" : "bg-line"} ${props.class ?? ""}`}
     />
 );
 

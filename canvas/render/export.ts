@@ -2,7 +2,7 @@ import type { RenderCommand } from "@engine/node";
 import type { ArtifactContent } from "@model/artifact";
 import type { Tokens } from "@themes";
 import { PDFDocument, rgb } from "pdf-lib";
-import { resolveProfile } from "@engine/profile";
+import { profileFor, resolveProfile } from "@engine/profile";
 import { EXPORT_SCALE, loadImages, paint, renderSlidePage, renderToCanvas } from "./backends";
 import { measureText, layoutSection, sectionSlides } from "./commands";
 import { frameCommand, localize, type Transform } from "./pptx";
@@ -80,7 +80,7 @@ async function buildSlidePdfRaster(
     tk: Tokens,
     brand: boolean,
 ): Promise<Uint8Array> {
-    const profile = resolveProfile(artifact.format);
+    const profile = profileFor(artifact);
     const pdf = await PDFDocument.create();
     for (const section of artifact.sections) {
         for (const slide of sectionSlides(section, tk, profile)) {
@@ -212,7 +212,7 @@ async function buildSlidePdfVector(
     tk: Tokens,
     brand: boolean,
 ): Promise<Uint8Array> {
-    const profile = resolveProfile(artifact.format);
+    const profile = profileFor(artifact);
     const pages: FramedPage[] = [];
     for (const section of artifact.sections) {
         for (const slide of sectionSlides(section, tk, profile)) {
@@ -288,7 +288,7 @@ export async function buildPdfAuto(
     opts?: ExportOptions,
 ): Promise<PdfBuild> {
     const brand = opts?.brand ?? false;
-    return resolveProfile(artifact.format).kind === "continuous"
+    return profileFor(artifact).kind === "continuous"
         ? { bytes: await buildDocPdf(artifact, tk, brand), filename: "galleo-doc.pdf" }
         : { bytes: await buildSlidePdf(artifact, tk, brand), filename: "galleo.pdf" };
 }
@@ -316,9 +316,10 @@ export async function buildSectionPngs(
     tk: Tokens,
     opts?: ExportOptions & { compose?: PngCompose },
 ): Promise<SectionPng[]> {
-    const own = resolveProfile(artifact.format);
+    const own = profileFor(artifact);
     const mode = opts?.compose ?? "auto";
     const asDoc = mode === "doc" || (mode === "auto" && own.kind === "continuous");
+    // only `own` carries the artifact's page size; an explicit mode re-renders at that format's
     const profile = asDoc
         ? resolveProfile("doc")
         : mode === "slides"

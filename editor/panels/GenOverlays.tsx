@@ -1,8 +1,8 @@
 import type { Component } from "solid-js";
 import { createEffect, createMemo, Show } from "solid-js";
 import type { Rect } from "@engine/node";
-import { elementRegionId, sectionRegionId } from "@model/target";
-import { resolveProfile } from "@engine/profile";
+import { elementRegionId, sectionRegionId } from "@model/artifact";
+import { profileFor } from "@engine/profile";
 import { paint } from "@canvas/render/backends";
 import { measureText, layoutSectionSkeleton } from "@canvas/render/commands";
 import { placeholderSection } from "@canvas/elements/blueprint";
@@ -61,7 +61,7 @@ const SkeletonBase: Component<{ width: number }> = (props) => {
             props.width,
             measureText,
             editorTokens(),
-            resolveProfile(editor.artifact.format),
+            profileFor(editor.artifact),
         );
         paint(commands, host);
     });

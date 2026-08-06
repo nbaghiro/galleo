@@ -1,5 +1,5 @@
 import type { FormatDescriptor } from "@model/geometry";
-import type { Section } from "@model/artifact";
+import type { Id, PageSize, Section } from "@model/artifact";
 
 // `width`/`height` drive paged framing (Present/Export); `maxContentWidth` drives the editor canvas.
 
@@ -46,19 +46,45 @@ export function resolveProfile(id: string | undefined): FormatDescriptor {
     return (id && PROFILES[id]) || DEFAULT_PROFILE;
 }
 
+// Use resolveProfile instead where the format is named regardless of the artifact. Returns the base
+// profile by identity when there's nothing to overlay — the paint caches compare it by reference.
+export function profileFor(content: { format?: Id; page?: PageSize }): FormatDescriptor {
+    const base = resolveProfile(content.format);
+    const page = content.page;
+    if (base.kind !== "paged" || !page || page.width <= 0 || page.height <= 0) return base;
+    return {
+        ...base,
+        width: page.width,
+        height: page.height,
+        maxContentWidth: Math.min(page.width, base.maxContentWidth ?? page.width),
+    };
+}
+
+// fallbacks when a viewport-sized profile ("fill"/"auto") is asked for a page
+const SLIDE_W = 1280;
+const SLIDE_H = 720;
+
+export function pagedSize(profile: FormatDescriptor): { w: number; h: number } {
+    const w = typeof profile.width === "number" ? profile.width : SLIDE_W;
+    return {
+        w,
+        h:
+            typeof profile.height === "number"
+                ? profile.height
+                : Math.round((w * 9) / 16) || SLIDE_H,
+    };
+}
+
 // Below this a row of columns stacks; a deck sits at its fixed page width, doc/web track the viewport.
 export const stacksAtWidth = (profile: FormatDescriptor, availWidth: number): boolean =>
     availWidth < profile.splitMinWidth;
 
-// The paged frame in logical px; a section's `frame.aspect` flexes the height only.
-const SLIDE_W = 1280;
-const SLIDE_H = 720;
+// The paged frame in logical px; the artifact's page size arrives via the profile, and a section's
+// `frame.aspect` overrides the height on top of it.
 export function slideFrame(section: Section, profile: FormatDescriptor): { w: number; h: number } {
-    const w = typeof profile.width === "number" ? profile.width : SLIDE_W;
-    const base =
-        typeof profile.height === "number" ? profile.height : Math.round((w * 9) / 16) || SLIDE_H;
+    const { w, h } = pagedSize(profile);
     const aspect = section.frame?.aspect;
-    return { w, h: aspect && aspect > 0 ? Math.round(w / aspect) : base };
+    return { w, h: aspect && aspect > 0 ? Math.round(w / aspect) : h };
 }
 
 // A doc's content width grows with the viewport, floored at the editor width, capped for readability.

@@ -20,6 +20,7 @@ import {
 import type { Section, SectionBackground } from "@model/artifact";
 import type { Tokens } from "@themes";
 import type { FormatDescriptor } from "@model/geometry";
+import { pagedSize } from "@engine/profile";
 
 // raster supersampling factor for crisp export
 export const EXPORT_SCALE = 2;
@@ -647,7 +648,7 @@ interface SectionCacheEntry {
     section: Section;
     layoutW: number;
     theme: Tokens;
-    profileId: string;
+    profileKey: string;
     hideKey: string;
     commands: RenderCommand[];
     ghost: boolean; // a stand-in, so resolving the real content is always a cache miss
@@ -660,6 +661,13 @@ export interface SectionStackCache {
 }
 export function createSectionStackCache(): SectionStackCache {
     return { entries: new Map() };
+}
+
+// a custom page size changes paged geometry without changing the id, so the id alone can't key it
+function profileCacheKey(profile: FormatDescriptor): string {
+    if (profile.kind !== "paged") return profile.id;
+    const { w, h } = pagedSize(profile);
+    return `${profile.id}:${w}x${h}`;
 }
 
 // Retention beyond the paint window, so a small scroll oscillation doesn't thrash DOM.
@@ -704,6 +712,7 @@ export function paintSectionStack(
     },
 ): { tops: number[]; heights: number[]; regions: Region[]; height: number; painted: number } {
     const gap = profile.kind === "continuous" ? 0 : SECTION_GAP; // doc/web merge seamlessly
+    const profileKey = profileCacheKey(profile);
     const cache = opts.cache;
     const win = opts.window;
     const tops: number[] = [];
@@ -727,7 +736,7 @@ export function paintSectionStack(
             prev.section === section &&
             prev.layoutW === layoutW &&
             prev.theme === theme &&
-            prev.profileId === profile.id &&
+            prev.profileKey === profileKey &&
             prev.hideKey === hideKey;
 
         let entry: SectionCacheEntry;
@@ -738,7 +747,7 @@ export function paintSectionStack(
                 section,
                 layoutW,
                 theme,
-                profileId: profile.id,
+                profileKey,
                 hideKey,
                 commands: ghost.commands,
                 ghost: true,
@@ -756,7 +765,7 @@ export function paintSectionStack(
                 section,
                 layoutW,
                 theme,
-                profileId: profile.id,
+                profileKey,
                 hideKey,
                 commands,
                 ghost: false,

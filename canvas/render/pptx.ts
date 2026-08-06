@@ -3,7 +3,7 @@ import type { FillLeaf, Rect, RenderCommand, TextLeaf } from "@engine/node";
 import type { RunLine } from "./commands";
 import type { Tokens } from "@themes";
 import type PptxGenJS from "pptxgenjs";
-import { resolveProfile } from "@engine/profile";
+import { pagedSize, profileFor, resolveProfile } from "@engine/profile";
 import { layoutRuns, sectionSlides } from "./commands";
 import { EXPORT_SCALE, renderToCanvas } from "./backends";
 import { svgStringContext } from "./svg-emit";
@@ -30,12 +30,14 @@ export {
 
 // wawoff2 is untyped — ambient types live in wawoff2.d.ts (must be a standalone .d.ts)
 
-// fixed 16:9 slide; every artifact exports as a deck (odd aspects letterboxed)
+// default slide box; a paged artifact exports at its own page size instead (odd aspects letterboxed)
 export const SLIDE_PX_W = 1280;
 export const SLIDE_PX_H = 720;
 export const PX_PER_IN = 96; // 1280×720 → 13.333in × 7.5in at 96 dpi
 export const SLIDE_IN_W = SLIDE_PX_W / PX_PER_IN;
 export const SLIDE_IN_H = SLIDE_PX_H / PX_PER_IN;
+
+export const DEFAULT_SLIDE_BOX = { w: SLIDE_PX_W, h: SLIDE_PX_H };
 
 const PT_PER_PX = 0.75; // 72pt / 96px
 const PPTX_MONO = "Consolas"; // widely-installed mono for inline-code runs
@@ -87,14 +89,17 @@ export interface Transform {
     offY: number;
 }
 
-// composes content→frame and frame→fixed-slide fits; mirrors renderSlidePage
-export function slideTransform(page: { w: number; h: number; contentH: number }): Transform {
+// composes content→frame and frame→slide fits; mirrors renderSlidePage
+export function slideTransform(
+    page: { w: number; h: number; contentH: number },
+    slide: { w: number; h: number } = DEFAULT_SLIDE_BOX,
+): Transform {
     const contentFit = Math.min(1, page.h / page.contentH);
     const offXc = (page.w - page.w * contentFit) / 2;
     const offYc = (page.h - page.contentH * contentFit) / 2;
-    const slideScale = Math.min(SLIDE_PX_W / page.w, SLIDE_PX_H / page.h);
-    const off2X = (SLIDE_PX_W - page.w * slideScale) / 2;
-    const off2Y = (SLIDE_PX_H - page.h * slideScale) / 2;
+    const slideScale = Math.min(slide.w / page.w, slide.h / page.h);
+    const off2X = (slide.w - page.w * slideScale) / 2;
+    const off2Y = (slide.h - page.h * slideScale) / 2;
     return {
         fit: contentFit * slideScale,
         offX: off2X + offXc * slideScale,
@@ -268,12 +273,12 @@ export function textSpec(text: TextLeaf, box: Rect, lines: RunLine[]): TextSpec 
 }
 
 // free-tier mark; must match stampBrand's copy/placement
-export function brandSpec(): TextSpec {
+export function brandSpec(slide: { w: number; h: number } = DEFAULT_SLIDE_BOX): TextSpec {
     return {
         runs: [{ text: "Made with Galleo", options: {} }],
         options: {
-            x: SLIDE_IN_W - 2.2,
-            y: SLIDE_IN_H - 0.42,
+            x: inch(slide.w) - 2.2,
+            y: inch(slide.h) - 0.42,
             w: 2,
             h: 0.28,
             align: "right",
@@ -464,12 +469,20 @@ export async function buildPptx(
     // Fonts must be resolved before we measure line breaks, or the pptx would wrap on fallback metrics.
     if (typeof document !== "undefined" && document.fonts?.ready) await document.fonts.ready;
 
+    // every artifact exports as a deck, but a paged one keeps its own page size
+    const own = profileFor(artifact);
+    const profile = own.kind === "paged" ? own : resolveProfile("deck");
+    const slideBox = pagedSize(profile);
+
     const PptxGenJS = (await import("pptxgenjs")).default;
     const pptx = new PptxGenJS();
-    pptx.defineLayout({ name: "GALLEO_16x9", width: SLIDE_IN_W, height: SLIDE_IN_H });
-    pptx.layout = "GALLEO_16x9";
+    pptx.defineLayout({
+        name: "GALLEO_PAGE",
+        width: inch(slideBox.w),
+        height: inch(slideBox.h),
+    });
+    pptx.layout = "GALLEO_PAGE";
 
-    const profile = resolveProfile("deck");
     const bgHex = cssColorHex(tk.bg) ?? "FFFFFF";
     const cx = measureCtx();
     const usedFonts: UsedFonts = new Map();
@@ -478,7 +491,7 @@ export async function buildPptx(
         for (const page of sectionSlides(section, tk, profile)) {
             const slide = pptx.addSlide();
             slide.background = { color: bgHex };
-            const t = slideTransform(page);
+            const t = slideTransform(page, slideBox);
 
             for (const c of page.commands) {
                 const kind = classify(c);
@@ -513,7 +526,7 @@ export async function buildPptx(
             }
 
             if (brand) {
-                const b = brandSpec();
+                const b = brandSpec(slideBox);
                 slide.addText(b.runs, b.options);
             }
         }

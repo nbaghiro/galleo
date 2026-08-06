@@ -1,10 +1,9 @@
 import type { Component } from "solid-js";
 import { createMemo, createSignal, For, Show } from "solid-js";
 import type { Rect, Region } from "@engine/node";
-import type { ElementAddress, Target } from "@model/target";
-import { elementRegionId, regionId, sectionRegionId } from "@model/target";
+import type { ElementAddress, Target, ArtifactContent } from "@model/artifact";
+import { elementRegionId, regionId, sectionRegionId } from "@model/artifact";
 import type { ElementLayout } from "@model/geometry";
-import type { ArtifactContent } from "@model/artifact";
 import {
     getElementAt,
     setElementLayout,
@@ -13,7 +12,7 @@ import {
     clearBackgroundImage,
 } from "@elements/ops";
 import { getElement } from "@elements/spec";
-import { resolveProfile } from "@engine/profile";
+import { profileFor } from "@engine/profile";
 import {
     commit,
     editor,
@@ -409,8 +408,7 @@ export function applyLiveEdit(art: ArtifactContent, edit: LiveEdit): ArtifactCon
 }
 
 // for nodes that paint no corner (text, groups): square in doc/web, slightly round on decks
-const fallbackRadius = (): number =>
-    resolveProfile(editor.artifact.format).kind === "continuous" ? 0 : 7;
+const fallbackRadius = (): number => (profileFor(editor.artifact).kind === "continuous" ? 0 : 7);
 
 // rings are box-shadow, so they cost no layout; the region's painted radius makes them hug
 
@@ -540,7 +538,7 @@ export const SectionActions: Component = () => {
                                 <Icon name="chevronDown" size={13} />
                             </button>
                         </div>
-                        <Separator vertical class="h-3.5" />
+                        <Separator vertical size="sm" />
                         <button
                             class={action}
                             title="Add a blank section below"
@@ -548,7 +546,7 @@ export const SectionActions: Component = () => {
                         >
                             <Icon name="plus" size={13} /> Section
                         </button>
-                        <Separator vertical class="h-3.5" />
+                        <Separator vertical size="sm" />
                         <button
                             class={action}
                             title="Generate a section here with AI"
@@ -556,7 +554,7 @@ export const SectionActions: Component = () => {
                         >
                             <Icon name="sparkle" size={13} /> Generate
                         </button>
-                        <Separator vertical class="h-3.5" />
+                        <Separator vertical size="sm" />
                         <button
                             class={action}
                             title="Section layout & background"
@@ -564,7 +562,7 @@ export const SectionActions: Component = () => {
                         >
                             <Icon name="layout" size={13} /> Layout
                         </button>
-                        <Separator vertical class="h-3.5" />
+                        <Separator vertical size="sm" />
                         <button
                             class={iconAction}
                             classList={{ "text-accent": !!sectionBg()?.image }}

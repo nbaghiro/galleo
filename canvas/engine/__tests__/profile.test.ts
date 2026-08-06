@@ -1,17 +1,26 @@
 import { describe, expect, it } from "vitest";
 import {
     PROFILES,
+    pagedSize,
     previewContentProfile,
+    profileFor,
     resolveProfile,
     slideFrame,
     stacksAtWidth,
 } from "@engine/profile";
-import type { Section } from "@model/artifact";
+import type { ArtifactContent, Section } from "@model/artifact";
 
 const section = (aspect?: number): Section => ({
     id: "s",
     root: { type: "group", data: { children: [] } },
     ...(aspect !== undefined ? { frame: { aspect } } : {}),
+});
+
+const content = (format: string, page?: { width: number; height: number }): ArtifactContent => ({
+    format,
+    theme: "studio",
+    sections: [],
+    ...(page ? { page } : {}),
 });
 
 describe("resolveProfile", () => {
@@ -55,6 +64,56 @@ describe("PROFILES — pinned page geometry", () => {
     });
 });
 
+describe("pagedSize", () => {
+    it("reads a paged profile's own dimensions", () => {
+        expect(pagedSize(PROFILES.deck!)).toEqual({ w: 1280, h: 720 });
+    });
+    it("derives 16:9 from the width when the height is auto", () => {
+        expect(pagedSize(PROFILES.doc!)).toEqual({ w: 816, h: 459 });
+    });
+    it("falls back to the deck box when the width is viewport-driven", () => {
+        expect(pagedSize(PROFILES.web!)).toEqual({ w: 1280, h: 720 });
+    });
+});
+
+describe("profileFor", () => {
+    // the conversion's regression guarantee: every switched call site gets the same object as before
+    it("is identical to resolveProfile for every format when no page is set", () => {
+        for (const id of Object.keys(PROFILES))
+            expect(profileFor(content(id))).toBe(resolveProfile(id));
+    });
+
+    it("ignores a page on a continuous format", () => {
+        expect(profileFor(content("doc", { width: 1080, height: 1350 }))).toBe(PROFILES.doc);
+        expect(profileFor(content("web", { width: 1080, height: 1350 }))).toBe(PROFILES.web);
+    });
+
+    it("overlays the page size on a paged format", () => {
+        const p = profileFor(content("deck", { width: 1080, height: 1350 }));
+        expect(p).toMatchObject({ id: "deck", kind: "paged", width: 1080, height: 1350 });
+    });
+
+    it("caps maxContentWidth at the page width so content cannot exceed the page", () => {
+        expect(profileFor(content("deck", { width: 600, height: 600 })).maxContentWidth).toBe(600);
+        // a page wider than the format's cap keeps the cap (readability, not page size, decides it)
+        expect(profileFor(content("deck", { width: 2000, height: 2000 })).maxContentWidth).toBe(
+            1120,
+        );
+    });
+
+    it("rejects a non-positive page rather than producing a zero-sized frame", () => {
+        expect(profileFor(content("deck", { width: 0, height: 500 }))).toBe(PROFILES.deck);
+        expect(profileFor(content("deck", { width: 500, height: -1 }))).toBe(PROFILES.deck);
+    });
+
+    it("leaves every other profile field alone", () => {
+        const p = profileFor(content("deck", { width: 1080, height: 1080 }));
+        expect(p.paginate).toBe(PROFILES.deck!.paginate);
+        expect(p.splitMinWidth).toBe(PROFILES.deck!.splitMinWidth);
+        expect(p.tokenScale).toBe(PROFILES.deck!.tokenScale);
+    });
+});
+
 describe("slideFrame", () => {
     const deck = resolveProfile("deck");
 
@@ -73,6 +132,16 @@ describe("slideFrame", () => {
     });
     it("a continuous (auto-height) profile derives 16:9 from its width", () => {
         expect(slideFrame(section(), resolveProfile("doc"))).toEqual({ w: 816, h: 459 });
+    });
+
+    it("takes the artifact's page size when the profile carries one", () => {
+        const story = profileFor(content("deck", { width: 1080, height: 1920 }));
+        expect(slideFrame(section(), story)).toEqual({ w: 1080, h: 1920 });
+    });
+
+    it("a section aspect still overrides the height on a custom page", () => {
+        const square = profileFor(content("deck", { width: 1080, height: 1080 }));
+        expect(slideFrame(section(2), square)).toEqual({ w: 1080, h: 540 });
     });
 });
 

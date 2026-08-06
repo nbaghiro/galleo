@@ -1,7 +1,7 @@
 import type { ArtifactContent } from "@model/artifact";
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
-import { previewContentProfile, resolveProfile, slideFrame } from "@engine/profile";
+import { previewContentProfile, profileFor, slideFrame } from "@engine/profile";
 import { resolveTheme } from "@themes";
 import {
     createSectionStackCache,
@@ -34,7 +34,7 @@ export const PresentSurface: Component<{
     let sectionTops: number[] = []; // continuous mode: y offset of each section, from the last paint
     const [index, setIndex] = createSignal(0);
     const tokens = createMemo(() => resolveTheme(props.artifact.theme).tokens);
-    const profile = createMemo(() => resolveProfile(props.artifact.format));
+    const profile = createMemo(() => profileFor(props.artifact));
     const paged = createMemo(() => profile().kind === "paged");
     // A tall paged section spans several 16:9 slides; map a flat slide index ↔ (section, page).
     // Counting lays out a section, so count only up to the one on screen; assume 1 slide for the rest.

@@ -2,8 +2,8 @@ import type { Rect } from "@engine/node";
 import type { ControlField } from "@elements/spec";
 import type { Component } from "solid-js";
 import { createEffect, createMemo, For, Show, createSignal } from "solid-js";
-import { elementRegionId, parentTarget } from "@model/target";
-import { resolveProfile } from "@engine/profile";
+import { elementRegionId, parentTarget } from "@model/artifact";
+import { profileFor } from "@engine/profile";
 import {
     duplicateAt,
     duplicatedAddr,
@@ -121,7 +121,7 @@ export const ContextBar: Component = () => {
         const probe = s.layout(i.data, {
             box: { x: 0, y: 0, w: 800, h: 600 },
             availWidth: 800,
-            format: resolveProfile(editor.artifact.format),
+            format: profileFor(editor.artifact),
             theme: editorTokens(),
         });
         return probe.w.mode !== "grow";

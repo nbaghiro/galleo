@@ -13,7 +13,7 @@ import {
     renderToCanvas,
 } from "@canvas/render/backends";
 import { SECTION_GAP } from "@canvas/render/commands";
-import { resolveProfile } from "@engine/profile";
+import { profileFor, resolveProfile } from "@engine/profile";
 import { inst, installCanvas2D, sectionOf, textMetricsCtx, tokens } from "@canvas/testkit";
 
 beforeAll(() => installCanvas2D());
@@ -241,5 +241,51 @@ describe("fitSlideContent", () => {
             720,
         );
         expect(div.style.transform).toBe("scale(0.5)"); // 720 / 1440
+    });
+});
+
+describe("paintSectionStack — page-size cache invalidation", () => {
+    const deck = resolveProfile("deck");
+    const page = (width: number, height: number) =>
+        profileFor({ format: "deck", page: { width, height } });
+
+    // layoutW is identical across these profiles, so only the paged dimensions distinguish them
+    const paintWith = (
+        host: HTMLElement,
+        sections: Section[],
+        cache: ReturnType<typeof createSectionStackCache>,
+        profile: Parameters<typeof paintSectionStack>[2],
+    ): void => {
+        paintSectionStack(host, sections, profile, tokens, { fullW: 1000, cache });
+    };
+
+    it("reuses the cached layer when nothing changed", () => {
+        const sections = [sectionOf(inst("text", { text: "A" }), { id: "s1" })];
+        const cache = createSectionStackCache();
+        const host = document.createElement("div");
+        paintWith(host, sections, cache, deck);
+        const first = cache.entries.get("s1")!.commands;
+        paintWith(host, sections, cache, deck);
+        expect(cache.entries.get("s1")!.commands).toBe(first);
+    });
+
+    it("re-lays-out when the artifact's page size changes", () => {
+        const sections = [sectionOf(inst("text", { text: "A" }), { id: "s1" })];
+        const cache = createSectionStackCache();
+        const host = document.createElement("div");
+        paintWith(host, sections, cache, page(1080, 1080));
+        const square = cache.entries.get("s1")!.commands;
+        paintWith(host, sections, cache, page(1080, 1920));
+        expect(cache.entries.get("s1")!.commands).not.toBe(square);
+    });
+
+    it("distinguishes a sized page from the format's own dimensions", () => {
+        const sections = [sectionOf(inst("text", { text: "A" }), { id: "s1" })];
+        const cache = createSectionStackCache();
+        const host = document.createElement("div");
+        paintWith(host, sections, cache, deck);
+        const plain = cache.entries.get("s1")!.commands;
+        paintWith(host, sections, cache, page(1080, 1350));
+        expect(cache.entries.get("s1")!.commands).not.toBe(plain);
     });
 });

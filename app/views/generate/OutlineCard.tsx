@@ -171,7 +171,7 @@ export const OutlineChrome: Component<{
                         <Icon name="chevronDown" size={13} />
                     </button>
                 </div>
-                <Separator vertical class="h-3.5" />
+                <Separator vertical size="sm" />
                 <button
                     class={barPrimaryAction}
                     disabled={busy()}
@@ -179,11 +179,11 @@ export const OutlineChrome: Component<{
                     onClick={() => void buildSectionNow(props.beat.id)}
                 >
                     <Icon name="sparkle" size={13} /> Write
-                    <span class="hidden sm:inline">
+                    <span class="hidden items-center gap-1 sm:inline-flex">
                         · <Credits n={sectionCost()} />
                     </span>
                 </button>
-                <Separator vertical class="h-3.5" />
+                <Separator vertical size="sm" />
                 <button
                     class={barAction}
                     title="Add a point to this section"
@@ -192,7 +192,7 @@ export const OutlineChrome: Component<{
                     <Icon name="plus" size={13} />
                     <span class="hidden sm:inline">Point</span>
                 </button>
-                <Separator vertical class="h-3.5" />
+                <Separator vertical size="sm" />
                 <button
                     ref={anchor}
                     class={barAction}
@@ -202,7 +202,7 @@ export const OutlineChrome: Component<{
                     <Icon name="layout" size={13} />
                     <span class="hidden sm:inline">Details</span>
                 </button>
-                <Separator vertical class="h-3.5" />
+                <Separator vertical size="sm" />
                 <button
                     class={barIconAction}
                     title="Add a section after this one"

@@ -1,13 +1,12 @@
 import type { Region, Rect } from "@engine/node";
 import { embedFor, pickArtifactBackground, type Embed, type PlayerOpts } from "./core/media";
-import type { ElementAddress, Target } from "@model/target";
-import type { ElementInstance, Section } from "@model/artifact";
+import type { ElementAddress, Target, ElementInstance, Section } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { getElementAt, moveSection } from "@elements/ops";
 import { getElement } from "@elements/spec";
-import { resolveProfile } from "@engine/profile";
-import { elementRegionId, parseTarget, specificity } from "@model/target";
+import { profileFor } from "@engine/profile";
+import { elementRegionId, parseTarget, specificity } from "@model/artifact";
 import {
     backdropCss,
     createSectionStackCache,
@@ -86,7 +85,7 @@ export const Canvas: Component = () => {
     // track: regions follow the preview (resize/column); off for DnD, so the drop target holds still
     const draw = (preview?: Section[] | null, track = false, dimId?: string | null): void => {
         if (!paintHost) return;
-        const profile = resolveProfile(editor.artifact.format);
+        const profile = profileFor(editor.artifact);
         const padL = leftOpen() ? PANEL_L : RAIL_GAP;
         const fullW = Math.max(360, (scrollEl.clientWidth || 800) - padL - RAIL_R);
         setCanvasContentWidth(fullW); // so minimap thumbnails match this width
@@ -449,7 +448,7 @@ export const Thumb: Component<{
         if (!seen()) return;
         // lay out at the canvas width, then CSS-scale down, so the thumb is a true zoomed-out copy
         const theme = editorTokens();
-        const profile = resolveProfile(editor.artifact.format);
+        const profile = profileFor(editor.artifact);
         const layoutW = sectionLayoutWidth(props.section, profile, canvasContentWidth());
         const w = wrap.clientWidth || 150;
         const scale = w / layoutW;

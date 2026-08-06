@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { createMemo, For, Show } from "solid-js";
 import type { Section, SectionBackground } from "@model/artifact";
-import { resolveProfile } from "@engine/profile";
+import { profileFor } from "@engine/profile";
 import { SECTION_LAYOUTS, type SectionLayout } from "@elements/layouts";
 import { setSectionBackground, setSectionBleed } from "@elements/ops";
 import { SECTION_CONTROLS } from "@elements/spec";
@@ -11,7 +11,7 @@ import { SchemaFields, Group } from "./SharedControlFields";
 
 export const SectionLayoutPopup: Component<{ section: string }> = (props) => {
     const sec = createMemo(() => editor.artifact.sections.find((s) => s.id === props.section));
-    const profile = createMemo(() => resolveProfile(editor.artifact.format));
+    const profile = createMemo(() => profileFor(editor.artifact));
     const frame = (): "slide" | "natural" =>
         profile().kind === "continuous" ? "natural" : "slide";
     const applicable = (s: Section): SectionLayout[] => SECTION_LAYOUTS.filter((l) => l.applies(s));
