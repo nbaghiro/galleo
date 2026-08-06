@@ -1,7 +1,8 @@
-import type { ElementSpec } from "@elements/spec";
-import type { EngineNode } from "@engine/node";
+import type { ElementSpec, LayoutCtx } from "@elements/spec";
+import type { DrawContext, DrawStyle, EngineNode, Rect } from "@engine/node";
 import type { MediaKind } from "@model/media";
-import { fit, grow } from "@model/geometry";
+import { fit, fixed, grow } from "@model/geometry";
+import { mix } from "@themes";
 import { IMAGE_FIT } from "@model/elements";
 import type { ImageFit } from "@model/elements";
 
@@ -22,6 +23,58 @@ export interface MediaConfig {
     aspect: number;
 }
 
+const GLYPH = 34;
+
+// frame, sun, mountain
+const mediaGlyph =
+    (color: string) =>
+    (g: DrawContext, box: Rect): void => {
+        const s = Math.min(box.w, box.h);
+        const x = box.x + (box.w - s) / 2;
+        const y = box.y + (box.h - s) / 2;
+        const line: DrawStyle = {
+            stroke: color,
+            width: Math.max(1.25, s * 0.07),
+            cap: "round",
+            join: "round",
+        };
+        g.rect(x, y + s * 0.1, s, s * 0.8, { ...line, radius: s * 0.12 });
+        g.circle(x + s * 0.31, y + s * 0.36, s * 0.075, { fill: color });
+        g.polyline(
+            [
+                [x + s * 0.12, y + s * 0.76],
+                [x + s * 0.38, y + s * 0.49],
+                [x + s * 0.59, y + s * 0.66],
+                [x + s * 0.71, y + s * 0.56],
+                [x + s * 0.88, y + s * 0.73],
+            ],
+            line,
+        );
+    };
+
+// A frame with nothing in it yet — a planned section, or a cleared picker. Painting the element's own
+// empty state beats an image leaf with no source, which renders as a blank hole.
+function emptyFrame(data: ImageData, cfg: MediaConfig, ctx: LayoutCtx): EngineNode {
+    return {
+        w: grow(),
+        h: fit(),
+        aspect: data.aspect ?? cfg.aspect,
+        alignX: "center",
+        alignY: "center",
+        fill: {
+            color: mix(ctx.theme.surface, ctx.theme.ink, 0.07),
+            radius: data.radius ?? 14,
+        },
+        children: [
+            {
+                w: fixed(GLYPH),
+                h: fixed(GLYPH),
+                surface: { paint: mediaGlyph(mix(ctx.theme.surface, ctx.theme.ink, 0.3)) },
+            },
+        ],
+    };
+}
+
 export function imageLike(cfg: MediaConfig): ElementSpec<ImageData> {
     return {
         type: cfg.type,
@@ -29,17 +82,20 @@ export function imageLike(cfg: MediaConfig): ElementSpec<ImageData> {
         category: "media",
         tier: "primitive",
         create: () => ({ src: cfg.src, aspect: cfg.aspect, radius: 14, fit: cfg.fit }),
-        layout: (data: ImageData): EngineNode => ({
-            w: grow(),
-            h: fit(),
-            aspect: data.aspect ?? cfg.aspect,
-            image: {
-                src: data.src,
-                fit: data.fit ?? cfg.fit,
-                radius: data.radius ?? 14,
-                zoom: (data.zoom ?? 100) / 100,
-            },
-        }),
+        layout: (data: ImageData, ctx: LayoutCtx): EngineNode =>
+            data.src
+                ? {
+                      w: grow(),
+                      h: fit(),
+                      aspect: data.aspect ?? cfg.aspect,
+                      image: {
+                          src: data.src,
+                          fit: data.fit ?? cfg.fit,
+                          radius: data.radius ?? 14,
+                          zoom: (data.zoom ?? 100) / 100,
+                      },
+                  }
+                : emptyFrame(data, cfg, ctx),
         resize: { aspect: { min: 0.4, max: 2.6 } },
         bar: ["src", "fit"],
         controls: [
