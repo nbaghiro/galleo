@@ -2,7 +2,7 @@ import "@elements/register";
 import { describe, expect, it } from "vitest";
 import type { Region } from "@engine/node";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
-import { colGroup, rowGroup } from "@model/section";
+import { colGroup, rowGroup } from "@model/artifact";
 import { DROP_GHOST } from "@elements/dropghost";
 import { getElementAt } from "@elements/ops";
 import { artifactOf, inst, sectionOf } from "@canvas/testkit";
@@ -276,5 +276,51 @@ describe("previewDrop — a move ghost matches the real landing", () => {
         const preview = previewDrop(moveNested(), target, { kind: "move", from });
         expect(getElementAt(preview, applied.address!)?.type).toBe(DROP_GHOST);
         expect(textOf(getElementAt(applied.content, applied.address!))).toBe("a");
+    });
+});
+
+// A closed container owns its own slots: dropping never targets it or reaches inside it.
+describe("closed containers are leaves for drag-and-drop", () => {
+    const diagramArt = (): ArtifactContent => ({
+        format: "deck",
+        theme: "base",
+        sections: [
+            {
+                id: "s1",
+                root: {
+                    type: "group",
+                    data: {
+                        direction: "row",
+                        children: [
+                            {
+                                type: "diagram",
+                                data: { type: "process", items: "A, B", height: 200 },
+                            },
+                            txt("side"),
+                        ],
+                    },
+                },
+            },
+        ],
+    });
+    const regionsOf = (): Region[] => [
+        { id: "section:s1", box: { x: 0, y: 0, w: 600, h: 300 } },
+        { id: "el:s1", box: { x: 0, y: 0, w: 600, h: 300 } },
+        { id: "el:s1:0", box: { x: 0, y: 0, w: 300, h: 300 } }, // the diagram
+        { id: "el:s1:0.0", box: { x: 20, y: 20, w: 100, h: 40 } }, // a label inside it
+        { id: "el:s1:1", box: { x: 300, y: 0, w: 300, h: 300 } },
+    ];
+
+    it("a drop over the diagram does not insert into it", () => {
+        const t = computeDropTarget(diagramArt(), regionsOf(), 150, 150)!;
+        expect(t.op).not.toBe("replace");
+        // it targets the diagram's parent row, never the diagram itself
+        expect(t.path).toEqual([]);
+    });
+
+    it("a drop over a label inside the diagram targets the diagram's parent, not the label", () => {
+        const t = computeDropTarget(diagramArt(), regionsOf(), 60, 40)!;
+        expect(t.path).toEqual([]);
+        expect(t.op).toBe("insert");
     });
 });

@@ -1,9 +1,9 @@
 import type { Rect } from "@engine/node";
-import type { ElementInstance } from "@model/artifact";
+import type { ElementInstance, Target } from "@model/artifact";
 import type { Component, JSX } from "solid-js";
 import { createMemo, createSignal, Show, For } from "solid-js";
 import { deleteElement, duplicateAt, duplicatedAddr, getElementAt, replaceAt } from "@elements/ops";
-import { elementRegionId } from "@model/target";
+import { elementRegionId } from "@model/artifact";
 import {
     commit,
     editor,
@@ -21,7 +21,6 @@ import { PRESETS } from "@elements/compose";
 import { getElement } from "@elements/spec";
 import { previewSvg } from "@elements/previews";
 import { startDrag, drag } from "../core/dnd";
-import type { Target } from "@model/target";
 
 export const EmptyRegionAdd: Component = () => {
     const [open, setOpen] = createSignal(false);
@@ -31,7 +30,8 @@ export const EmptyRegionAdd: Component = () => {
         const inst = getElementAt(editor.artifact, s.address);
         if (!inst) return null;
         const spec = getElement(inst.type);
-        const isEmpty = !!spec?.container && spec.container.children(inst.data).length === 0;
+        const c = spec?.container;
+        const isEmpty = !!c && !c.closed && c.children(inst.data).length === 0;
         return isEmpty ? s.address : null;
     });
     const box = createMemo((): Rect | null => {

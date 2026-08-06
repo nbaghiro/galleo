@@ -1,6 +1,5 @@
 import type { Rect, Region } from "@engine/node";
-import type { ElementAddress } from "@model/target";
-import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
+import type { ElementAddress, ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import { createSignal } from "solid-js";
 import { DROP_GHOST } from "@elements/dropghost";
 import {
@@ -48,8 +47,23 @@ const inside = (b: Rect, px: number, py: number): boolean =>
 
 const EDGE = 24; // column-boundary drop band
 
-const isContainer = (inst?: ElementInstance): boolean =>
-    !!inst && !!getElement(inst.type)?.container;
+// a closed container owns its own slots, so dropping never reaches into it
+const isContainer = (inst?: ElementInstance): boolean => {
+    const c = inst ? getElement(inst.type)?.container : undefined;
+    return !!c && !c.closed;
+};
+
+// clamp a hit path at the first closed container, so its children are never drop targets either
+function droppablePath(art: ArtifactContent, sid: string, path: number[]): number[] {
+    let inst = getElementAt(art, { section: sid, path: [] });
+    for (let i = 0; i < path.length; i++) {
+        const c = inst ? getElement(inst.type)?.container : undefined;
+        if (!c) return path.slice(0, i);
+        if (c.closed) return path.slice(0, i);
+        inst = c.children(inst!.data)[path[i]!];
+    }
+    return path;
+}
 
 const childCount = (inst?: ElementInstance): number => {
     if (!inst) return 0;
@@ -196,7 +210,10 @@ export function computeDropTarget(
     const colZone = columnDropZone(sid, columns, px, py);
     if (colZone) return colZone;
 
-    const hits = elementsUnder(regions, sid, px, py);
+    const hits = elementsUnder(regions, sid, px, py).map((h) => ({
+        ...h,
+        path: droppablePath(art, sid, h.path),
+    }));
     const hit = hits[0];
     if (!hit) {
         // bare side padding fills only an empty section; a non-empty one is no replace-everything target

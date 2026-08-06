@@ -183,6 +183,7 @@ export const tableElement: ElementSpec<TableData> = {
                 cells,
             };
         },
+        closed: true,
     },
     controls: [
         { key: "rows", label: "Rows", control: "slider", min: 1, max: MAX_ROWS, step: 1 },

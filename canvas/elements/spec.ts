@@ -96,6 +96,9 @@ export interface ElementSpec<Data = unknown> {
         children: (data: Data) => ElementInstance[];
         arrange: (data: Data, ctx: LayoutCtx, children: EngineNode[]) => EngineNode;
         withChildren: (data: Data, children: ElementInstance[]) => Data;
+        // children exist to be selected and edited, not rearranged: the element owns its own slots, so
+        // it is a leaf to drag-and-drop and never shows the empty-cell placeholder
+        closed?: boolean;
     };
 }
 
