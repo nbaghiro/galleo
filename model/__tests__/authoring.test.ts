@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ElementInstance } from "@model/artifact";
-import { childrenRaw } from "@model/section";
+import { childrenRaw } from "@model/artifact";
 import { bgImage, img, split, stat, t } from "@model/authoring";
 
 const imgData = (e: ElementInstance): { src?: string; radius?: number; fit?: string } =>

@@ -179,7 +179,8 @@ export const Chip: Component<
         "children",
     ]);
     const cls = (): string => {
-        const base = `inline-flex items-center gap-1 ${local.rounded === "md" ? "rounded-md" : "rounded-full"} ${CHIP_SIZE[local.size ?? "sm"]} transition-colors disabled:pointer-events-none disabled:opacity-40`;
+        // a <button> centres its text by default, which only shows once a label wraps; nothing chose that
+        const base = `inline-flex items-center gap-1 text-left ${local.rounded === "md" ? "rounded-md" : "rounded-full"} ${CHIP_SIZE[local.size ?? "sm"]} transition-colors disabled:pointer-events-none disabled:opacity-40`;
         const tone =
             local.variant === "solid"
                 ? `font-semibold ${local.selected ? "bg-accent text-onaccent" : "bg-canvas text-soft hover:text-ink"}`

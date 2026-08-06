@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
 import type { UnitRates } from "@model/credits";
-import { unitMultipliers } from "@model/tasks";
+import { unitMultipliers } from "@model/credits";
 import { featuresState } from "./features";
 import { modelOverrides, pickModel, setModelOverride, summarizeSteps } from "./models";
 

@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { costOf, describeUsage, mergeUsage } from "@model/credits";
+import {
+    AI_TASKS,
+    COST_UNITS,
+    TOOL_CATALOG,
+    costOf,
+    costRange,
+    creditsForUsd,
+    describeUsage,
+    estimateCost,
+    isMetered,
+    sectionsForLength,
+    typicalCost,
+    unitMultipliers,
+} from "@model/credits";
+import type { CostUnit } from "@model/credits";
 
 // Unit prices: plan 3 · section 2 · image 5 · text 1.
 
@@ -12,15 +26,6 @@ describe("costOf", () => {
     });
 });
 
-describe("mergeUsage", () => {
-    it("adds bags together key by key", () => {
-        expect(mergeUsage({ section: 1 }, { section: 2, image: 1 })).toEqual({
-            section: 3,
-            image: 1,
-        });
-    });
-});
-
 describe("describeUsage", () => {
     it("renders a human breakdown, pluralizing counts > 1", () => {
         expect(describeUsage({ plan: 1, section: 12, image: 3 })).toBe(
@@ -29,5 +34,163 @@ describe("describeUsage", () => {
     });
     it("renders an em dash for an empty bag", () => {
         expect(describeUsage({})).toBe("—");
+    });
+});
+
+describe("creditsForUsd", () => {
+    it("converts provider spend at the derived credit price", () => {
+        expect(creditsForUsd(0.384)).toBe(27);
+    });
+    it("floors a real call at 1 credit rather than free", () => {
+        expect(creditsForUsd(0.000001)).toBe(1);
+    });
+});
+
+const rate =
+    (map: Record<string, number>) =>
+    (id: string): number | undefined =>
+        map[id];
+
+describe("unitMultipliers", () => {
+    it("prices each unit by the model behind its task", () => {
+        const rates = unitMultipliers(
+            (t) => ({ outline: "big", section: "small" })[t as string],
+            rate({ big: 3, small: 0.5 }),
+        );
+        expect(rates).toEqual({ plan: 3, section: 0.5 });
+    });
+
+    it("omits a unit priced at the baseline, so an untouched run carries no rates at all", () => {
+        expect(unitMultipliers(() => "flash", rate({ flash: 1 }))).toEqual({});
+    });
+
+    it("leaves media units alone: they run on their own models", () => {
+        const rates = unitMultipliers(() => "big", rate({ big: 4 }));
+        expect(rates.image).toBeUndefined();
+        expect(rates.video).toBeUndefined();
+    });
+
+    it("falls back to the baseline for a model with no price", () => {
+        expect(unitMultipliers(() => "unknown", rate({}))).toEqual({});
+    });
+
+    it("backs every non-media unit with a task, and asks for a real one", () => {
+        const asked: string[] = [];
+        const rates = unitMultipliers(
+            (t) => {
+                asked.push(t);
+                return "m";
+            },
+            rate({ m: 2 }),
+        );
+        const priced = (Object.keys(COST_UNITS) as CostUnit[]).filter((u) => rates[u]);
+        expect(priced.sort()).toEqual(["plan", "reply", "section", "text", "theme"]);
+        for (const t of asked) expect(AI_TASKS).toContain(t);
+    });
+});
+
+describe("costOf with rates", () => {
+    it("bills a pinned step at its multiple", () => {
+        expect(costOf({ section: 10 })).toBe(20);
+        expect(costOf({ section: 10 }, { section: 2.93 })).toBe(59);
+    });
+
+    it("charges the old price when nothing is pinned", () => {
+        const usage = { plan: 1, section: 12, image: 3 };
+        expect(costOf(usage, {})).toBe(costOf(usage));
+    });
+
+    it("scales only the pinned unit", () => {
+        expect(costOf({ plan: 1, section: 12 }, { plan: 3 })).toBe(3 * 3 + 12 * 2);
+    });
+
+    it("still floors at 1 so nothing is free", () => {
+        expect(costOf({ text: 1 }, { text: 0.14 })).toBe(1);
+    });
+});
+
+describe("estimateCost", () => {
+    it("scales generate-artifact by the intake length (1 plan + 7 sections = 17)", () => {
+        expect(estimateCost("generate-artifact", { length: "Short" })).toBe(17);
+    });
+    it("uses the default size when nothing is passed (1 plan + 12 sections = 27)", () => {
+        expect(estimateCost("generate-artifact", {})).toBe(27);
+    });
+    it("honors an explicit section count (1 plan + 20 sections = 43)", () => {
+        expect(estimateCost("generate-artifact", { sections: 20 })).toBe(43);
+    });
+    it("meters AI images per image, while stock ones stay free", () => {
+        // Short + AI sources 2 images: 3 + 14 + 2 × 5 = 27, and they scale with the image rate
+        expect(estimateCost("generate-artifact", { length: "Short", imageSource: "ai" })).toBe(27);
+        expect(
+            estimateCost("generate-artifact", { length: "Short", imageSource: "ai" }, { image: 2 }),
+        ).toBe(37);
+        expect(estimateCost("generate-artifact", { length: "Short" }, { image: 2 })).toBe(17);
+    });
+    it("quotes a whole generation at the picked model's rate", () => {
+        const flat = estimateCost("generate-artifact", { sections: 12 });
+        const heavy = estimateCost("generate-artifact", { sections: 12 }, { plan: 3, section: 3 });
+        expect(heavy).toBeGreaterThan(flat * 2.5);
+    });
+});
+
+describe("typicalCost", () => {
+    it("prices a headline generate with its typical AI images", () => {
+        expect(typicalCost("generate-artifact")).toBe(42);
+    });
+    it("prices a single text rewrite at 1 credit", () => {
+        expect(typicalCost("rewrite-text")).toBe(1);
+    });
+});
+
+describe("sectionsForLength", () => {
+    it("maps length chips to section counts (case-insensitive)", () => {
+        expect(sectionsForLength("Short")).toBe(7);
+        expect(sectionsForLength("SHORT")).toBe(7);
+        expect(sectionsForLength("In-depth")).toBe(18);
+        expect(sectionsForLength("deep")).toBe(18);
+        expect(sectionsForLength("Standard")).toBe(12);
+        expect(sectionsForLength(undefined)).toBe(12);
+    });
+});
+
+describe("studio tools", () => {
+    it("plan-outline is a live, direct, plan-priced step (the outline gate charges it)", () => {
+        const t = TOOL_CATALOG["plan-outline"];
+        expect(t.surfaces).toContain("direct");
+        expect(t.live).toBe(true);
+        expect(estimateCost("plan-outline")).toBe(3);
+    });
+    it("keeps the composition primitives off every caller-facing surface", () => {
+        for (const id of [
+            "plan-section",
+            "write-section",
+            "source-image",
+            "check-section",
+            "pick-arc",
+        ] as const)
+            expect(TOOL_CATALOG[id].surfaces).toEqual(["internal"]);
+        expect(TOOL_CATALOG["reorder-section"].surfaces).not.toContain("internal");
+    });
+});
+
+describe("costRange / isMetered", () => {
+    it("collapses to a point for a fixed-cost tool", () => {
+        const range = costRange("add-section");
+        expect(range.min).toBe(range.max);
+        expect(isMetered("add-section")).toBe(false);
+    });
+    it("spans small → large for a metered tool", () => {
+        const range = costRange("generate-artifact");
+        expect(range.min).toBeLessThanOrEqual(range.max);
+        expect(isMetered("generate-artifact")).toBe(true);
+    });
+});
+
+describe("draft-brief pricing", () => {
+    it("is a live, metered call — cheap, but never free", () => {
+        const t = TOOL_CATALOG["draft-brief"];
+        expect(t.live).toBe(true);
+        expect(estimateCost("draft-brief")).toBe(1);
     });
 });

@@ -1,6 +1,6 @@
 import type { ControlField } from "@elements/spec";
 import type { MediaItem, MediaKind } from "@model/media";
-import type { Vector } from "@model/vector";
+import type { Vector } from "@model/elements";
 import type { Component, JSX } from "solid-js";
 import { parseSvg } from "@elements/media/vector";
 import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js";

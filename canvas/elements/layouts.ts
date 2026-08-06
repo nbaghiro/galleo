@@ -1,5 +1,5 @@
 import type { ElementInstance, Section, SectionBackground } from "@model/artifact";
-import { LAYOUT_PRESETS, childrenRaw, colGroup, rowGroup } from "@model/section";
+import { LAYOUT_PRESETS, childrenRaw, colGroup, rowGroup } from "@model/artifact";
 import { getElement } from "@elements/spec";
 import { columnFractions, splitSection, stripWidth } from "@elements/ops";
 

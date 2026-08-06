@@ -1,5 +1,4 @@
-import type { ArtifactContent, Section } from "@model/artifact";
-import type { GenMeta } from "@model/genmeta";
+import type { ArtifactContent, Section, GenMeta, ElementInstance } from "@model/artifact";
 import type {
     Beat,
     BriefRead,
@@ -12,7 +11,6 @@ import type {
     TurnEvent,
     Phase as TurnPhase,
 } from "@model/ai";
-import type { ElementInstance } from "@model/artifact";
 import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { applyPatch } from "@model/ai";

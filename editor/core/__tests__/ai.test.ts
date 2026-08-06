@@ -1,7 +1,7 @@
 import "@elements/register";
 import { describe, expect, it } from "vitest";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
-import { colGroup } from "@model/section";
+import { colGroup } from "@model/artifact";
 import { artifactOf, inst, sectionOf } from "@canvas/testkit";
 import { regenTarget, suggestSections } from "@editor/core/ai";
 

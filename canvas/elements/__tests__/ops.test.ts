@@ -1,7 +1,7 @@
 import "@elements/register";
 import { describe, expect, it } from "vitest";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
-import { childrenRaw, colGroup, rowGroup, withWidth } from "@model/section";
+import { childrenRaw, colGroup, rowGroup, withWidth } from "@model/artifact";
 import {
     addColumn,
     applyLayoutPreset,

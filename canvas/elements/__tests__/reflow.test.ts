@@ -2,7 +2,7 @@ import "@elements/register";
 import { describe, expect, it } from "vitest";
 import type { EngineNode } from "@engine/node";
 import { composeSection } from "@elements/compose";
-import { rowGroup } from "@model/section";
+import { rowGroup } from "@model/artifact";
 import { resolveProfile } from "@engine/profile";
 import { inst, layoutCtx, sectionOf } from "@canvas/testkit";
 

@@ -77,20 +77,29 @@ function findAspectMedia(n: EngineNode): EngineNode | null {
 }
 
 // fill-and-crop the dominant media so it absorbs slide slack instead of forcing a scale-down
-function coverFitMedia(root: EngineNode): { containers: EngineNode[]; media: EngineNode[] } {
+function coverFitMedia(root: EngineNode): {
+    containers: EngineNode[];
+    media: EngineNode[];
+    chain: EngineNode[];
+} {
     // el:… ids mark real content-flow cells (composeElement tags them), not a leaf's internal layout
     const flows: EngineNode[] = [];
+    const parent = new Map<EngineNode, EngineNode>();
     const collect = (n: EngineNode): void => {
         if (
             (n.direction === "row" || n.direction === "col") &&
             (n.children ?? []).some((c) => c.id?.startsWith("el:"))
         )
             flows.push(n);
-        n.children?.forEach(collect);
+        for (const c of n.children ?? []) {
+            parent.set(c, n);
+            collect(c);
+        }
     };
     collect(root);
     const containers: EngineNode[] = [];
     const media: EngineNode[] = [];
+    const chain = new Set<EngineNode>();
     for (const flow of flows) {
         const cells = (flow.children ?? []).filter((c) => c.id?.startsWith("el:"));
         const mediaCells = cells.filter((c) => findAspectMedia(c));
@@ -105,8 +114,13 @@ function coverFitMedia(root: EngineNode): { containers: EngineNode[]; media: Eng
             media.push(m);
         }
         containers.push(flow);
+        // Every wrapper between the slide frame and this container must pass the height down: a `fit`
+        // ancestor (composeSection's gutter box) hands a grow child its minimum, collapsing the media
+        // to nothing. Promoting the whole path is what makes the frame's height reach the image.
+        for (let a = parent.get(flow); a && a !== root; a = parent.get(a))
+            if (a.h.mode === "fit") chain.add(a);
     }
-    return { containers, media };
+    return { containers, media, chain: [...chain] };
 }
 
 // full-bleed slide node; media absorbs slide slack when it can, else the caller scales the natural height down
@@ -124,7 +138,7 @@ function prepareSlideNode(
     if (node.image) node.image = { ...node.image, radius: 0 };
     let natural = bottom(layout(node, { x: 0, y: 0, w, h: 100000 }, measure).commands);
     if (natural > h) {
-        const { containers, media } = coverFitMedia(node);
+        const { containers, media, chain } = coverFitMedia(node);
         if (containers.length) {
             // probe with media collapsed: if the rest fits, media can absorb the overflow
             for (const m of media) m.h = fixed(0);
@@ -132,6 +146,7 @@ function prepareSlideNode(
             for (const m of media) m.h = grow();
             if (minH <= h) {
                 for (const c of containers) c.h = grow();
+                for (const a of chain) a.h = grow();
                 node.h = fixed(h);
                 node.alignY = "center";
                 return { node, targetH: h };
@@ -168,14 +183,16 @@ export interface SlidePage {
 
 const PAGINATE_ABOVE = 1.2; // taller than this × its frame paginates; below, it scales onto one slide
 
-// one scaled slide, or several paginated when too tall; Present and export both render from this
+// one scaled slide, or several paginated when too tall; Present, export, and 16:9 thumbnails render
+// from this, so all three agree on where a tall section breaks
 export function sectionSlides(
     section: Section,
     theme: Tokens = DEFAULT_THEME.tokens,
     format: FormatDescriptor = DEFAULT_PROFILE,
+    plain = false,
 ): SlidePage[] {
     const { w, h } = slideFrame(section, format);
-    const { node, targetH } = prepareSlideNode(section, w, h, measureText, theme, format);
+    const { node, targetH } = prepareSlideNode(section, w, h, measureText, theme, format, plain);
     const { commands } = layout(node, { x: 0, y: 0, w, h: targetH }, measureText);
     if (targetH <= h * PAGINATE_ABOVE) return [{ commands, w, h, contentH: targetH }];
     return fragment(commands, targetH, h).map((cmds) => ({ commands: cmds, w, h, contentH: h }));

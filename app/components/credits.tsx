@@ -5,7 +5,7 @@ import { Icon } from "@ui/icons";
 export const Credits: Component<{ n: number | string; suffix?: string }> = (props) => {
     const one = (): boolean => props.n === 1 || props.n === "1";
     return (
-        <span class="inline-flex items-center gap-1 whitespace-nowrap">
+        <span class="inline-flex items-center gap-1 whitespace-nowrap align-middle">
             <Icon name="credit" size={12} />
             <span class="tabular-nums">
                 {props.n} credit{one() ? "" : "s"}

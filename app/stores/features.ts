@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
-import type { BoolFeature, FeatureKey, FeatureStatus, NumFeature } from "@model/features";
-import { featureStatus } from "@model/features";
+import type { BoolFeature, FeatureKey, FeatureStatus, NumFeature } from "@model/billing";
+import { featureStatus } from "@model/billing";
 import type { FeaturesState } from "../api";
 import { api } from "../api";
 

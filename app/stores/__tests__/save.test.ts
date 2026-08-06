@@ -3,7 +3,7 @@ import "@elements/register";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot } from "solid-js";
 import type { ArtifactShell, Section, SectionSummary } from "@model/artifact";
-import { emptyRegion } from "@model/section";
+import { emptyRegion } from "@model/artifact";
 import { sectionOf } from "@canvas/testkit";
 import {
     commit,

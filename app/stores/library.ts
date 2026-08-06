@@ -1,6 +1,5 @@
-import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
-import type { GenMeta } from "@model/genmeta";
-import { emptyRegion } from "@model/section";
+import type { ArtifactContent, ElementInstance, Section, GenMeta } from "@model/artifact";
+import { emptyRegion } from "@model/artifact";
 import { createSignal } from "solid-js";
 import { api, type ArtifactSummary } from "../api";
 import { PROFILES } from "@engine/profile";

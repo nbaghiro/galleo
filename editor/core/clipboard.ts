@@ -1,5 +1,4 @@
-import type { ArtifactContent, ElementInstance } from "@model/artifact";
-import type { ElementAddress, Target } from "@model/target";
+import type { ArtifactContent, ElementInstance, ElementAddress, Target } from "@model/artifact";
 import { createSignal } from "solid-js";
 import { getElementAt, isContainer, stripWidth } from "@elements/ops";
 import { getElement } from "@elements/spec";

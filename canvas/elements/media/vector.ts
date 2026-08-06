@@ -1,7 +1,7 @@
 import type { ControlField, ElementSpec } from "@elements/spec";
 import type { DrawContext, DrawStyle, PathSink, Rect } from "@engine/node";
 import type { Size } from "@model/geometry";
-import type { Paint, ThemeRole, Vector, VNode, VStyle, VTransform } from "@model/vector";
+import type { Paint, ThemeRole, Vector, VNode, VStyle, VTransform } from "@model/elements";
 import type { Tokens } from "@themes";
 import { register } from "@elements/spec";
 import { fit, fixed, grow } from "@model/geometry";

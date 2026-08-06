@@ -1,6 +1,6 @@
 import type { Component } from "solid-js";
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
-import { sectionRegionId } from "@model/target";
+import { sectionRegionId } from "@model/artifact";
 import { Button, Chip, Eyebrow, Spinner } from "@ui/button";
 import { content, currentArtifactId, regions } from "../core/store";
 import { Icon } from "@ui/icons";

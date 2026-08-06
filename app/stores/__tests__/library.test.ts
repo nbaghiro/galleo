@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
-import { childrenRaw } from "@model/section";
+import { childrenRaw } from "@model/artifact";
 import {
     FORMATS,
     FORMAT_IDS,

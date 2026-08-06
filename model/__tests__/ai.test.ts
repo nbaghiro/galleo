@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
-import { childrenRaw } from "@model/section";
-import { ELEMENT_TYPES, ELEMENTS, LAYOUTS, applyPatch, isEmittableType, isKind } from "@model/ai";
+import { childrenRaw } from "@model/artifact";
+import { applyPatch, isKind } from "@model/ai";
 
 const leaf = (text: string): ElementInstance => ({ type: "text", data: { text } });
 const sect = (id: string): Section => ({ id, root: leaf(id) });
@@ -137,33 +137,8 @@ describe("applyPatch · immutability", () => {
     });
 });
 
-describe("LAYOUTS", () => {
-    const columnsOf = (id: string): number | undefined => LAYOUTS.find((l) => l.id === id)?.columns;
-    it("maps preset column counts", () => {
-        expect(columnsOf("full")).toBe(1);
-        expect(columnsOf("two-col")).toBe(2);
-        expect(columnsOf("three-up")).toBe(3);
-    });
-});
-
-describe("ELEMENTS catalog", () => {
-    it("has unique element types", () => {
-        const types = ELEMENTS.map((e) => e.type);
-        expect(new Set(types).size).toBe(types.length);
-    });
-    it("gives every container element a children field", () => {
-        for (const e of ELEMENTS.filter((e) => e.container))
-            expect(e.fields.some((f) => f.key === "children")).toBe(true);
-    });
-});
-
-describe("ELEMENT_TYPES / isEmittableType / isKind", () => {
-    it("emittable types cover the catalog but not the drop ghost", () => {
-        expect(ELEMENT_TYPES).toContain("text");
-        expect(isEmittableType("text")).toBe(true);
-        expect(isEmittableType("__dropghost")).toBe(false);
-    });
-    it("isKind recognizes every turn kind, including the studio's plan/build", () => {
+describe("isKind", () => {
+    it("recognizes every turn kind, including the studio's plan/build", () => {
         expect(isKind("generate")).toBe(true);
         expect(isKind("chat")).toBe(true);
         expect(isKind("plan")).toBe(true);

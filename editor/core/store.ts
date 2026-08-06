@@ -1,5 +1,5 @@
 import type { Region } from "@engine/node";
-import type { ElementAddress, Target } from "@model/target";
+import type { ElementAddress, Target } from "@model/artifact";
 import type {
     ArtifactContent,
     ArtifactShell,
@@ -13,8 +13,7 @@ import type { IconPick, MediaItem, MediaKind } from "@model/media";
 import { createSignal } from "solid-js";
 import type { Theme, Tokens } from "@themes";
 import { duplicateSection, insertSection, moveSection, removeSection } from "@elements/ops";
-import { emptyRegion } from "@model/section";
-import { targetsEqual } from "@model/target";
+import { emptyRegion, targetsEqual } from "@model/artifact";
 import { isDesktop } from "@ui/viewport";
 import { resolveTheme } from "@themes";
 

@@ -1,5 +1,4 @@
-import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
-import type { ElementAddress } from "@model/target";
+import type { ArtifactContent, ElementInstance, Section, ElementAddress } from "@model/artifact";
 import type { Beat as PlanBeat, TurnEvent, TurnRequest } from "@model/ai";
 import { createStore } from "solid-js/store";
 import { applyPatch } from "@model/ai";

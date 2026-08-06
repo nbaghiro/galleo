@@ -11,9 +11,8 @@ import type {
     TurnRequest,
     WorkspaceAction,
 } from "@model/ai";
-import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
-import type { Target } from "@model/target";
-import type { Template } from "@model/workspace";
+import type { ArtifactContent, ElementInstance, Section, Target } from "@model/artifact";
+import type { Template } from "@model/templates";
 import { applyPatch } from "@model/ai";
 import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";

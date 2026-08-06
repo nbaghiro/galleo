@@ -2,7 +2,7 @@ import type { Component } from "solid-js";
 import { createMemo, createResource, createSignal, For, onMount, Show } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import type { Interval, Plan, PlanId } from "@model/billing";
-import { PRICED_TOOLS, costRange, isMetered, typicalCost } from "@model/tools";
+import { PRICED_TOOLS, costRange, isMetered, typicalCost } from "@model/credits";
 import { CheckIcon } from "@ui/icons";
 import { Badge, Eyebrow, Spinner } from "@ui/button";
 import { TextField } from "@ui/inputs";

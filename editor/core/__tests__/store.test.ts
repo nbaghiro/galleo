@@ -3,7 +3,7 @@ import "@elements/register";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createRoot } from "solid-js";
 import type { ArtifactContent } from "@model/artifact";
-import { emptyRegion } from "@model/section";
+import { emptyRegion } from "@model/artifact";
 import { artifactOf, sectionOf } from "@canvas/testkit";
 import {
     addSectionAfter,

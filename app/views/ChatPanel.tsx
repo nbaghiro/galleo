@@ -3,7 +3,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show }
 import { useNavigate } from "@solidjs/router";
 import type { ChatBlock, GenBrief, WorkspaceAction } from "@model/ai";
 import type { Section } from "@model/artifact";
-import { estimateCost } from "@model/tools";
+import { estimateCost } from "@model/credits";
 import { Credits } from "../components/credits";
 import type { Tokens } from "@themes";
 import { resolveTheme, themeCssVars } from "@themes";
@@ -821,10 +821,16 @@ const BlockView: Component<{ msgId: number; b: UIBlock }> = (props) => (
             when={props.b.k === "widget" && props.b.block.type === "suggestions" ? props.b : null}
         >
             {(b) => (
-                <div class="mt-1.5 flex flex-wrap gap-1.5">
+                <div class="mt-1.5 flex flex-col items-start gap-1">
                     <For each={(b().block as Suggestions).items}>
                         {(s) => (
-                            <Chip variant="outline" onClick={() => void sendChat(s)}>
+                            <Chip
+                                variant="outline"
+                                rounded="md"
+                                class="max-w-full"
+                                disabled={busy()}
+                                onClick={() => void sendChat(s)}
+                            >
                                 {s}
                             </Chip>
                         )}

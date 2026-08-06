@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { placeholderBlock, placeholderSection } from "@elements/blueprint";
-import { childrenRaw } from "@model/section";
+import { childrenRaw } from "@model/artifact";
 
 describe("placeholderBlock", () => {
     it("maps a block kind to its stand-in element", () => {

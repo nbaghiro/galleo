@@ -8,7 +8,7 @@ import {
     getElementAt,
     setArtifactFormat,
 } from "@elements/ops";
-import { parentTarget } from "@model/target";
+import { parentTarget } from "@model/artifact";
 import {
     addSectionAfter,
     canRedo,

@@ -5,18 +5,26 @@ import type {
     ArtifactPage,
     ArtifactWindow,
     ContentPatch,
+    GenMeta,
     ElementInstance,
     SearchResponse,
     Section,
 } from "@model/artifact";
-import type { Folder, Template, User } from "@model/workspace";
+import type { Folder, User } from "@model/workspace";
+import type { Template } from "@model/templates";
 import type { ThemeSummary as Theme, ThemeInput, Tokens } from "@themes";
-import type { CreditPack, CreditPackId, Interval, Plan, PlanId } from "@model/billing";
-import type { FeatureKey, FeatureStatus, Features } from "@model/features";
-import type { GenMeta } from "@model/genmeta";
+import type {
+    CreditPack,
+    CreditPackId,
+    Interval,
+    Plan,
+    PlanId,
+    FeatureKey,
+    FeatureStatus,
+    Features,
+} from "@model/billing";
 import type { BriefDraft, TurnEvent, TurnRequest } from "@model/ai";
-import type { ToolId, MeterParams } from "@model/tools";
-import type { Usage } from "@model/credits";
+import type { ToolId, MeterParams, Usage } from "@model/credits";
 import type {
     IconPick,
     IconSearchResponse,
@@ -219,14 +227,12 @@ export type {
     ArtifactWindow,
     Artifact,
     ContentPatch,
+    GenMeta,
     SearchHit,
     SearchResponse,
 } from "@model/artifact";
-export type {
-    User as ApiUser,
-    Folder as ApiFolder,
-    Template as ApiTemplate,
-} from "@model/workspace";
+export type { User as ApiUser, Folder as ApiFolder } from "@model/workspace";
+export type { Template as ApiTemplate } from "@model/templates";
 export type { ThemeSummary as ApiTheme } from "@themes";
 
 import { modelHeaders } from "./stores/models";

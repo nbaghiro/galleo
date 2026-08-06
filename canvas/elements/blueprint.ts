@@ -1,6 +1,5 @@
 import type { Section, ElementInstance } from "@model/artifact";
-import { LAYOUT_PRESETS, rowGroup } from "@model/section";
-import { elementRegionId } from "@model/target";
+import { LAYOUT_PRESETS, rowGroup, elementRegionId } from "@model/artifact";
 
 // a Beat (@model/ai) or the modal's SectionSlot both satisfy it
 export interface SectionBlueprint {

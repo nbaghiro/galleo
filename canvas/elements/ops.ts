@@ -1,4 +1,4 @@
-import type { ElementAddress } from "@model/target";
+import type { ElementAddress } from "@model/artifact";
 import type {
     ArtifactContent,
     ElementInstance,
@@ -8,7 +8,7 @@ import type {
 } from "@model/artifact";
 import type { ElementLayout } from "@model/geometry";
 import { getElement } from "@elements/spec";
-import { LAYOUT_PRESETS, colGroup, emptyRegion, rowGroup, withWidth } from "@model/section";
+import { LAYOUT_PRESETS, colGroup, emptyRegion, rowGroup, withWidth } from "@model/artifact";
 
 // Elements are addressed by index path into `section.root` (`[]` = the root); every op returns a
 // fresh tree, never mutating the input.
@@ -22,7 +22,7 @@ function mapSection(art: ArtifactContent, id: Id, fn: (s: Section) => Section): 
 const putRoot = (art: ArtifactContent, id: Id, root: ElementInstance): ArtifactContent =>
     mapSection(art, id, (s) => ({ ...s, root }));
 
-// registry-aware mirror of @model/section's raw walk
+// registry-aware mirror of @model/artifact's raw walk
 function childrenOf(inst: ElementInstance): ElementInstance[] | null {
     const spec = getElement(inst.type);
     return spec?.container ? spec.container.children(inst.data) : null;
@@ -380,6 +380,17 @@ export function setArtifactTheme(art: ArtifactContent, theme: Id): ArtifactConte
 
 export function setArtifactFormat(art: ArtifactContent, format: Id): ArtifactContent {
     return { ...art, format };
+}
+
+// whole logical px
+export function setPageSize(art: ArtifactContent, width: number, height: number): ArtifactContent {
+    return { ...art, page: { width: Math.round(width), height: Math.round(height) } };
+}
+
+export function clearPageSize(art: ArtifactContent): ArtifactContent {
+    if (!art.page) return art;
+    const { page: _page, ...rest } = art;
+    return rest;
 }
 
 export { isContainer };

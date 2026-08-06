@@ -1,8 +1,7 @@
 import "@elements/register";
 import { describe, expect, it } from "vitest";
-import type { ElementInstance } from "@model/artifact";
-import type { Target } from "@model/target";
-import { rowGroup } from "@model/section";
+import type { ElementInstance, Target } from "@model/artifact";
+import { rowGroup } from "@model/artifact";
 import { columnFractions, getElementAt } from "@elements/ops";
 import { artifactOf, inst, sectionOf } from "@canvas/testkit";
 import { clipboardEl, copyToClipboard, hasClipboard, pasteElement } from "../clipboard";

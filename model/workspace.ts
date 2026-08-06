@@ -1,5 +1,3 @@
-import type { ArtifactContent } from "@model/artifact";
-
 export interface User {
     id: string;
     email: string;
@@ -14,14 +12,6 @@ export interface Folder {
     parentId?: string | null;
     createdAt: string;
     count?: number; // live artifacts in the folder, counted server-side (the client list is paged)
-}
-
-export interface Template {
-    id: string;
-    name: string;
-    category: string;
-    description: string;
-    content: ArtifactContent;
 }
 
 export interface LoginBody {

@@ -312,7 +312,7 @@ export const Studio: Component = () => {
                                     }
                                 >
                                     <Icon name="refresh" size={12} />
-                                    <span class="hidden md:inline">
+                                    <span class="hidden items-center gap-1 md:inline-flex">
                                         Reroll · <Credits n={planCost()} />
                                     </span>
                                 </Show>

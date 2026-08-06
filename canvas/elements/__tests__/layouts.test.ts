@@ -1,7 +1,7 @@
 import "@elements/register";
 import { describe, expect, it } from "vitest";
 import type { ElementInstance } from "@model/artifact";
-import { colGroup, rowGroup } from "@model/section";
+import { colGroup, rowGroup } from "@model/artifact";
 import { SECTION_LAYOUTS, sectionBlocks } from "@elements/layouts";
 import { inst, sectionOf } from "@canvas/testkit";
 

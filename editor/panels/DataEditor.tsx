@@ -1,8 +1,8 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createSignal, For, Index, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
-import type { ElementAddress } from "@model/target";
-import { elementRegionId } from "@model/target";
+import type { ElementAddress } from "@model/artifact";
+import { elementRegionId } from "@model/artifact";
 import { getElementAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { canvasDrawContext } from "@canvas/render/backends";

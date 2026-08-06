@@ -1,5 +1,5 @@
 import type { ArtifactContent, ElementInstance, Section, SectionBackground } from "@model/artifact";
-import { emptyRegion, rowGroup } from "@model/section";
+import { emptyRegion, rowGroup } from "@model/artifact";
 
 export const t = (text: string, style: string): ElementInstance => ({
     type: "text",

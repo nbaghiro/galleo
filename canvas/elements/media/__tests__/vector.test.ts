@@ -9,7 +9,7 @@ import {
     shapeVector,
     type ShapeKind,
 } from "@elements/media/vector";
-import type { Paint } from "@model/vector";
+import type { Paint } from "@model/elements";
 import { layoutCtx, recordingDrawContext, tokens } from "@canvas/testkit";
 import type { DrawCall } from "@canvas/testkit";
 

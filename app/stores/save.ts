@@ -1,6 +1,6 @@
 import { createEffect, on, onCleanup, untrack } from "solid-js";
 import type { ArtifactContent } from "@model/artifact";
-import { diffSections } from "@model/content";
+import { diffSections } from "@model/artifact";
 import {
     currentArtifactId,
     editor,

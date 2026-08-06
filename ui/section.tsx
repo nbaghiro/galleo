@@ -3,14 +3,14 @@ import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { Section, SectionBackground, SectionSummary } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
-import { paint, backdropCss, scaledHostCss } from "@canvas/render/backends";
+import { paint, backdropCss, fitSlideContent, scaledHostCss } from "@canvas/render/backends";
 import { layoutPlaceholder } from "@canvas/render/placeholder";
 import {
     measureText,
-    layoutSlide,
     layoutSlideSkeleton,
     layoutSection,
     layoutSectionSkeleton,
+    sectionSlides,
 } from "@canvas/render/commands";
 import { slideFrame } from "@engine/profile";
 
@@ -72,7 +72,10 @@ export const ScaledSectionCanvas: Component<{
             const fr = slideBox();
             const scale = w() / fr.w;
             const ghost = props.ghost;
-            const { commands, height } = ghost
+            // Real content goes through sectionSlides, so a tall section shows its FIRST PAGE broken
+            // at the same clean edge Present and export use — not an unbounded overflow of the whole
+            // section. The ghost/skeleton stand-ins can also exceed the frame, so both are fitted below.
+            const page = ghost
                 ? layoutPlaceholder(
                       props.section,
                       ghost,
@@ -91,17 +94,12 @@ export const ScaledSectionCanvas: Component<{
                         props.theme,
                         props.profile,
                     )
-                  : layoutSlide(
-                        props.section,
-                        fr.w,
-                        fr.h,
-                        measureText,
-                        props.theme,
-                        props.profile,
-                        plain(),
-                    );
-            inner.style.cssText = scaledHostCss(fr.w, height, scale);
-            paint(commands, inner);
+                  : sectionSlides(props.section, props.theme, props.profile, plain())[0];
+            const commands = page?.commands ?? [];
+            const contentH = page ? ("contentH" in page ? page.contentH : page.height) : fr.h;
+            // the frame box, scaled to the thumb; content fits inside it exactly as Present does
+            inner.style.cssText = `position:relative;${scaledHostCss(fr.w, fr.h, scale)}`;
+            inner.replaceChildren(fitSlideContent(commands, contentH, fr.w, fr.h));
         }
     });
 
