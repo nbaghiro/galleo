@@ -3,21 +3,24 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
-import { readSession, SESSION_COOKIE } from "./auth";
-import { out } from "./log";
+import { readSession, SESSION_COOKIE } from "./utils/auth";
+import { assertDatabaseUrl } from "./db/client";
+import { out } from "./utils/env";
 import { session } from "./api/session";
 import { oauth } from "./api/oauth";
 import { artifacts } from "./api/artifacts";
 import { folders } from "./api/folders";
 import { themes } from "./api/themes";
 import { templates } from "./api/templates";
-import { billing } from "./api/billing";
-import { workspace } from "./api/workspace";
+import { plan } from "./api/billing";
 import { features } from "./api/features";
+import { workspace } from "./api/workspace";
 import { media } from "./api/media";
 import { ai } from "./api/ai";
 import { links } from "./api/links";
 import { search } from "./api/search";
+
+assertDatabaseUrl();
 
 // without a real SESSION_SECRET, sessions sign with the public dev default: anyone could mint a cookie
 if (process.env.NODE_ENV === "production") {
@@ -29,23 +32,21 @@ if (process.env.NODE_ENV === "production") {
 const app = new Hono();
 app.get("/health", (c) => c.json({ ok: true }));
 // routers carry their own full paths and mount under /api, so dev (Vite proxies /api here, no
-// rewrite) and prod share one route map
-for (const router of [
-    session,
-    oauth,
-    artifacts,
-    folders,
-    themes,
-    templates,
-    billing,
-    workspace,
-    features,
-    media,
-    ai,
-    links,
-    search,
-])
-    app.route("/api", router);
+// rewrite) and prod share one route map. Mounted one by one rather than over an array: each router
+// declares its own context variables, so an array of them has no single element type.
+app.route("/api", session);
+app.route("/api", oauth);
+app.route("/api", artifacts);
+app.route("/api", folders);
+app.route("/api", themes);
+app.route("/api", templates);
+app.route("/api", plan);
+app.route("/api", features);
+app.route("/api", workspace);
+app.route("/api", media);
+app.route("/api", ai);
+app.route("/api", links);
+app.route("/api", search);
 
 // an unknown /api path is a 404, never the SPA fallback below
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));

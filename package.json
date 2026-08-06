@@ -25,13 +25,12 @@
         "preapi": "bash scripts/ensure-db.sh",
         "api": "tsx watch services/server.ts",
         "api:watch": "tsx watch services/server.ts",
-        "seed": "tsx services/seed.ts",
-        "ai:eval": "tsx services/ai/eval/harness.ts",
-        "ai:probe": "tsx services/ai/probe.ts",
+        "seed": "tsx services/db/seed.ts",
+        "ai:eval": "tsx services/core/ai/eval/harness.ts",
+        "ai:probe": "tsx services/core/ai/eval/probe.ts",
         "db:push": "drizzle-kit push",
         "db:generate": "drizzle-kit generate",
-        "db:migrate": "drizzle-kit migrate",
-        "db:backfill-search": "tsx scripts/backfill-search.ts"
+        "db:migrate": "drizzle-kit migrate"
     },
     "dependencies": {
         "@ai-sdk/anthropic": "^4.0.30",

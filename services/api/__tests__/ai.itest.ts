@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
-import { db, schema } from "../../schema";
+import { db } from "../../db/client";
+import { schema } from "../../db/schema";
 
 const PROVIDER_KEYS = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY", "XAI_API_KEY"];
 const saved: Record<string, string | undefined> = {};

@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { ArtifactPage, ArtifactWindow, Section, SectionOp } from "@model/artifact";
-import { artifactDigest, artifactSearchText } from "@model/digest";
+import { artifactDigest, artifactSearchText } from "@model/artifact";
 import { authed, jsonInit, seedUser } from "../../__tests__/harness";
-import { db, schema } from "../../schema";
+import { db } from "../../db/client";
+import { schema } from "../../db/schema";
 
 const section = (id: string, text: string): Section => ({
     id,
@@ -308,6 +309,21 @@ describe("PATCH /artifacts/:id/content — section ops", () => {
             { kind: "set", section: section("s1", "hijacked") },
         ]);
         expect(status).toBe(404);
+    });
+
+    // this route rewrites the whole content through asContent()
+    it("preserves the artifact's page size across a section op", async () => {
+        const { userId, workspaceId } = await seedUser();
+        const id = await seedArtifact(workspaceId, "Sized", {
+            draftContent: { ...content(["a", "b"]), page: { width: 1080, height: 1350 } },
+        });
+        const { status } = await apply(userId, id, [{ kind: "remove", id: "b" }]);
+        expect(status).toBe(200);
+
+        const [row] = await db.select().from(schema.artifacts).where(eq(schema.artifacts.id, id));
+        const draft = row!.draftContent as { page?: { width: number; height: number } };
+        expect(draft.page).toEqual({ width: 1080, height: 1350 });
+        expect(row!.digest?.page).toEqual({ width: 1080, height: 1350 });
     });
 });
 

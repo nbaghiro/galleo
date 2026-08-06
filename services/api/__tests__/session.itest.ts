@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SESSION_COOKIE } from "../../auth";
+import { SESSION_COOKIE } from "../../utils/auth";
 import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
 
 describe("session routes", () => {

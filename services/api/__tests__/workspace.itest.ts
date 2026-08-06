@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { authed, jsonInit, seedUser } from "../../__tests__/harness";
-import { db, schema } from "../../schema";
+import { db } from "../../db/client";
+import { schema } from "../../db/schema";
 
 const setSeats = (wsId: string, seats: number) =>
     db.update(schema.workspaces).set({ seats }).where(eq(schema.workspaces.id, wsId));

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { authed, jsonInit, seedUser } from "../../__tests__/harness";
-import { db, schema } from "../../schema";
+import { db } from "../../db/client";
+import { schema } from "../../db/schema";
 
 // ~1KB of real base64 so byte accounting is meaningful
 const KB_DATA = Buffer.alloc(1024, 7).toString("base64");

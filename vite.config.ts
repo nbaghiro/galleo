@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
-import { readSession, SESSION_COOKIE } from "./services/auth";
+import { readSession, SESSION_COOKIE } from "./services/utils/auth";
 
 const abs = (p: string): string => fileURLToPath(new URL(p, import.meta.url));
 

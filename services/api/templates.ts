@@ -1,21 +1,15 @@
 import { Hono } from "hono";
-import { getCookie } from "hono/cookie";
-import { TEMPLATES } from "../templates";
-import { SESSION_COOKIE } from "../auth";
-import { currentUser } from "./context";
+import type { Template } from "@model/templates";
+import { TEMPLATE_INDEX } from "@model/templates";
+import { template } from "../core/templates";
+import { requireUser, type AuthedEnv } from "./middleware";
 
-export const templates = new Hono();
+export const templates = new Hono<AuthedEnv>();
 
-templates.get("/templates", async (c) => {
-    const u = await currentUser(getCookie(c, SESSION_COOKIE));
-    if (!u) return c.json({ error: "unauthorized" }, 401);
-    return c.json({
-        templates: TEMPLATES.map((t) => ({
-            id: t.id,
-            name: t.name,
-            category: t.category,
-            description: t.description,
-            content: t.artifact,
-        })),
-    });
-});
+templates.get("/templates", requireUser, (c) =>
+    c.json({
+        templates: TEMPLATE_INDEX.map((t) => template(t.id)).filter(
+            (t): t is Template => t !== null,
+        ),
+    }),
+);

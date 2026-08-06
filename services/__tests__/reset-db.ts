@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { db } from "../schema";
+import { db } from "../db/client";
 
 // Standalone so setupFiles can truncate without importing the router graph: pulling the routers in
 // the setup phase would bind the real Stripe SDK before a test file's vi.mock registers.

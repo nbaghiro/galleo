@@ -3,8 +3,9 @@ import { eq } from "drizzle-orm";
 import type Stripe from "stripe";
 import { CREDITS_PER_GENERATION, PLANS, limitsFor, visiblePlans } from "@model/billing";
 import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
-import { db, schema } from "../../schema";
-import { chargeCredits, settleCredits } from "../../credits";
+import { db } from "../../db/client";
+import { schema } from "../../db/schema";
+import { chargeCredits, settleCredits } from "../../core/credits";
 
 // Mocked at the package boundary, so the `new Stripe(key)` in services/billing/stripe.ts hands back
 // this stub; the pure price↔plan helpers still run for real off the stubbed env.

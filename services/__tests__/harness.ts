@@ -1,14 +1,15 @@
 import { Hono } from "hono";
-import { db, schema } from "../schema";
+import { db } from "../db/client";
+import { schema } from "../db/schema";
 export { resetDb } from "./reset-db";
-import { SESSION_COOKIE, hashPassword, makeSession } from "../auth";
+import { SESSION_COOKIE, hashPassword, makeSession } from "../utils/auth";
 import { session } from "../api/session";
 import { workspace } from "../api/workspace";
 import { artifacts } from "../api/artifacts";
 import { folders } from "../api/folders";
 import { themes } from "../api/themes";
 import { templates } from "../api/templates";
-import { billing } from "../api/billing";
+import { plan } from "../api/billing";
 import { features } from "../api/features";
 import { media } from "../api/media";
 import { ai } from "../api/ai";
@@ -17,21 +18,18 @@ import { search } from "../api/search";
 
 // Kept in sync with server.ts's router list by hand.
 export const app = new Hono();
-for (const r of [
-    session,
-    artifacts,
-    folders,
-    themes,
-    templates,
-    billing,
-    workspace,
-    features,
-    media,
-    ai,
-    links,
-    search,
-])
-    app.route("/", r);
+app.route("/", session);
+app.route("/", artifacts);
+app.route("/", folders);
+app.route("/", themes);
+app.route("/", templates);
+app.route("/", plan);
+app.route("/", features);
+app.route("/", workspace);
+app.route("/", media);
+app.route("/", ai);
+app.route("/", links);
+app.route("/", search);
 
 export const request = (path: string, init?: RequestInit): Promise<Response> =>
     Promise.resolve(app.request(path, init));

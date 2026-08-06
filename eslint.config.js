@@ -49,8 +49,99 @@ const zones = Object.entries(LAYERS).map(([target, { dirs, message }]) => ({
     message,
 }));
 
+// Layer law inside services/, the same shape as the outer one one level down:
+//
+//     api  →  core  →  db  →  utils
+//
+// api holds one file per resource and does HTTP only: parse, gate, shape a response. core holds one
+// file per functionality and owns every decision and every query; it may NOT import hono, which is what
+// keeps the split honest. db is the schema, the lazy handle, and the derived-column writer. utils is
+// database-free by rule, so everything in it stays unit-testable.
+//
+// Two consequences worth stating, because both were discovered by trying the alternative: the
+// entitlement resolver lives in @model/billing rather than services, since utils needed it and may not
+// reach up; and db/client.ts builds an inert handle instead of throwing at import, so a unit test can
+// import a core module without a database. The entry points assert a real URL instead.
+//
+// Entry points compose across layers by definition, so the law binds libraries, not entries. There are
+// exactly two, both named in package.json.
+const ENTRY_POINTS = ["services/server.ts", "services/db/seed.ts"];
+const SERVICE_LAYERS = ["utils", "db", "core", "api"];
+const aboveOf = (layer) => SERVICE_LAYERS.slice(SERVICE_LAYERS.indexOf(layer) + 1);
+
+const LAYER_MSG = (layer, above) =>
+    `services layer law: ${layer} may not import ${above.join(", ")} (api \u2192 core \u2192 db \u2192 utils; move shared code down, never up)`;
+
+// Restates the services layer patterns, since a second no-restricted-imports block for the same file
+// replaces the first rather than adding to it.
+const serviceLayerConfigs = SERVICE_LAYERS.map((layer) => {
+    const above = aboveOf(layer);
+    const patterns = [
+        {
+            group: [
+                ...LAYERS.services.aliases.map((a) => `${a}/*`),
+                ...LAYERS.services.dirs.map((d) => `**/${d}/**`),
+            ],
+            message: LAYERS.services.message,
+        },
+    ];
+    // relative form, since a specifier inside services reads `../domain/x`, never `../services/domain/x`
+    if (above.length)
+        patterns.push({ group: above.map((d) => `**/${d}/**`), message: LAYER_MSG(layer, above) });
+    // The whole point of the api/core split: a core file that reaches for hono is a route in disguise.
+    if (layer === "core")
+        patterns.push({
+            group: ["hono", "hono/*"],
+            message:
+                "domain holds business logic, not routes: hono belongs in api/ (see api/middleware.ts)",
+        });
+    return {
+        files: [`services/${layer}/**/*.ts`],
+        ignores: ENTRY_POINTS,
+        rules: { "no-restricted-imports": ["error", { patterns }] },
+    };
+});
+
+// The zone target is a glob so the entry points fall outside it: `**/` matches zero segments, and
+// the extglob drops the entry by name. `except` would not do this — it filters `from`, not `target`.
+const ENTRY_NAMES = ENTRY_POINTS.map((f) => f.split("/").pop().replace(/\.ts$/, ""));
+const serviceLayerZones = SERVICE_LAYERS.filter((l) => aboveOf(l).length).map((layer) => ({
+    target: `./services/${layer}/**/!(${ENTRY_NAMES.join("|")}).ts`,
+    from: aboveOf(layer).map((d) => `./services/${d}/**`),
+    message: LAYER_MSG(layer, aboveOf(layer)),
+}));
+
+// `digest` and `search_text` are derived from `draft_content` in services/core/derived.ts and must be
+// written with it, or they drift silently. Both drizzle write shapes are covered: an inline
+// `.values({…})`/`.set({…})` and a patch object assembled first. Reads (`draftContent: a.draftContent`
+// in a response DTO) and the column declaration in schema.ts are not `.values()`/`.set()` arguments,
+// so they do not match.
+const DERIVED_MSG =
+    "write artifact content with contentWrite() (services/core/derived.ts) so digest + search_text cannot drift";
+const derivedGuard = [
+    {
+        selector:
+            "CallExpression[callee.property.name=/^(values|set)$/] > ObjectExpression > Property[key.name='draftContent']",
+        message: DERIVED_MSG,
+    },
+    { selector: "AssignmentExpression[left.property.name='draftContent']", message: DERIVED_MSG },
+];
+
+// Dynamic import() escapes no-restricted-imports, so the layer law restates it as a selector.
+const importGuard = ({ aliases, dirs, message }) => ({
+    selector: `ImportExpression[source.value=/^(${[
+        ...aliases.map((a) => `${a}\\/`),
+        ...dirs.map((d) => `(\\.\\.\\/)+${d}\\/`),
+    ].join("|")})/]`,
+    message,
+});
+
+// Extra selectors folded into a layer's own no-restricted-syntax, since a second config block for the
+// same rule would replace the layer's entry rather than add to it.
+const EXTRA_SYNTAX = { services: derivedGuard };
+
 // Same law, resolver-free: match the specifier text itself (alias form and relative form).
-const boundaryConfigs = Object.entries(LAYERS).map(([target, { aliases, dirs, message }]) => ({
+const boundaryConfigs = Object.entries(LAYERS).map(([target, layer]) => ({
     files: [`${target}/**/*.{ts,tsx}`],
     rules: {
         "no-restricted-imports": [
@@ -58,23 +149,16 @@ const boundaryConfigs = Object.entries(LAYERS).map(([target, { aliases, dirs, me
             {
                 patterns: [
                     {
-                        group: [...aliases.map((a) => `${a}/*`), ...dirs.map((d) => `**/${d}/**`)],
-                        message,
+                        group: [
+                            ...layer.aliases.map((a) => `${a}/*`),
+                            ...layer.dirs.map((d) => `**/${d}/**`),
+                        ],
+                        message: layer.message,
                     },
                 ],
             },
         ],
-        // no-restricted-imports ignores dynamic import(); this covers it.
-        "no-restricted-syntax": [
-            "error",
-            {
-                selector: `ImportExpression[source.value=/^(${[
-                    ...aliases.map((a) => `${a}\\/`),
-                    ...dirs.map((d) => `(\\.\\.\\/)+${d}\\/`),
-                ].join("|")})/]`,
-                message,
-            },
-        ],
+        "no-restricted-syntax": ["error", importGuard(layer), ...(EXTRA_SYNTAX[target] ?? [])],
     },
 }));
 
@@ -125,8 +209,20 @@ export default tseslint.config(
                     "ts-check": true,
                 },
             ],
-            "import/no-restricted-paths": ["error", { zones }],
+            "import/no-restricted-paths": ["error", { zones: [...zones, ...serviceLayerZones] }],
         },
     },
     ...boundaryConfigs,
+    ...serviceLayerConfigs,
+    // scripts/ sits outside the layer law but writes the same columns.
+    {
+        files: ["scripts/**/*.{ts,mjs}"],
+        rules: { "no-restricted-syntax": ["error", ...derivedGuard] },
+    },
+    // The helper itself, and tests that deliberately seed partial or stale rows to exercise recovery.
+    // Restates the layer's import guard, which this block would otherwise replace.
+    {
+        files: ["services/core/derived.ts", "services/**/__tests__/**", "scripts/**/__tests__/**"],
+        rules: { "no-restricted-syntax": ["error", importGuard(LAYERS.services)] },
+    },
 );

@@ -1,40 +1,20 @@
 import { Hono } from "hono";
-import { and, eq } from "drizzle-orm";
-import { getCookie } from "hono/cookie";
 import type { ThemeInput } from "@themes";
-import { db, schema } from "../schema";
-import { SESSION_COOKIE } from "../auth";
-import { requireFeature } from "../features";
-import { currentUser, currentWorkspace, firstWorkspaceId, readJson } from "./context";
+import { readJson, requireFeature } from "../utils/http";
+import { currentWorkspace } from "../core/accounts";
+import { createTheme, deleteTheme, listThemes, updateTheme } from "../core/themes";
+import { requireUser, requireWorkspace, type WorkspaceEnv } from "./middleware";
 
-// Per-workspace custom themes only (workspaceId null = built-in, never returned here).
-export const themes = new Hono();
+export const themes = new Hono<WorkspaceEnv>();
 
-const themeCols = {
-    id: schema.themes.id,
-    name: schema.themes.name,
-    tokens: schema.themes.tokens,
-    mood: schema.themes.mood,
-    isDark: schema.themes.isDark,
-};
-
-themes.get("/themes", async (c) => {
-    const u = await currentUser(getCookie(c, SESSION_COOKIE));
-    if (!u) return c.json({ error: "unauthorized" }, 401);
-    const ws = await firstWorkspaceId(u.id);
-    if (!ws) return c.json({ themes: [] });
-    const rows = await db
-        .select(themeCols)
-        .from(schema.themes)
-        .where(eq(schema.themes.workspaceId, ws));
-    return c.json({ themes: rows });
+// A user with no workspace yet sees an empty shelf, not an error.
+themes.get("/themes", requireUser, async (c) => {
+    const ws = await currentWorkspace(c.get("user").id);
+    return c.json({ themes: ws ? await listThemes(ws.id) : [] });
 });
 
-themes.post("/themes", async (c) => {
-    const u = await currentUser(getCookie(c, SESSION_COOKIE));
-    if (!u) return c.json({ error: "unauthorized" }, 401);
-    const ws = await currentWorkspace(u.id);
-    if (!ws) return c.json({ error: "no workspace" }, 400);
+themes.post("/themes", requireWorkspace, async (c) => {
+    const ws = c.get("ws");
     const denied = requireFeature(
         c,
         ws,
@@ -44,46 +24,16 @@ themes.post("/themes", async (c) => {
     if (denied) return denied;
     const body = await readJson<Partial<ThemeInput>>(c);
     if (!body.tokens) return c.json({ error: "tokens required" }, 400);
-    const [t] = await db
-        .insert(schema.themes)
-        .values({
-            workspaceId: ws.id,
-            name: (body.name ?? "Custom theme").trim() || "Custom theme",
-            tokens: body.tokens,
-            mood: body.mood ?? null,
-            isDark: body.isDark ?? false,
-        })
-        .returning(themeCols);
-    return c.json({ theme: t });
+    return c.json({ theme: await createTheme(ws.id, body as ThemeInput) });
 });
 
-themes.patch("/themes/:id", async (c) => {
-    const u = await currentUser(getCookie(c, SESSION_COOKIE));
-    if (!u) return c.json({ error: "unauthorized" }, 401);
-    const ws = await firstWorkspaceId(u.id);
-    if (!ws) return c.json({ error: "no workspace" }, 400);
+themes.patch("/themes/:id", requireWorkspace, async (c) => {
     const body = await readJson<Partial<ThemeInput>>(c);
-    const patch: Record<string, unknown> = {};
-    if (body.name !== undefined) patch.name = body.name;
-    if (body.tokens !== undefined) patch.tokens = body.tokens;
-    if (body.mood !== undefined) patch.mood = body.mood;
-    if (body.isDark !== undefined) patch.isDark = body.isDark;
-    const [t] = await db
-        .update(schema.themes)
-        .set(patch)
-        .where(and(eq(schema.themes.id, c.req.param("id")), eq(schema.themes.workspaceId, ws)))
-        .returning(themeCols);
-    if (!t) return c.json({ error: "not found" }, 404);
-    return c.json({ theme: t });
+    const theme = await updateTheme(c.get("ws").id, c.req.param("id"), body);
+    return theme ? c.json({ theme }) : c.json({ error: "not found" }, 404);
 });
 
-themes.delete("/themes/:id", async (c) => {
-    const u = await currentUser(getCookie(c, SESSION_COOKIE));
-    if (!u) return c.json({ error: "unauthorized" }, 401);
-    const ws = await firstWorkspaceId(u.id);
-    if (!ws) return c.json({ error: "no workspace" }, 400);
-    await db
-        .delete(schema.themes)
-        .where(and(eq(schema.themes.id, c.req.param("id")), eq(schema.themes.workspaceId, ws)));
+themes.delete("/themes/:id", requireWorkspace, async (c) => {
+    await deleteTheme(c.get("ws").id, c.req.param("id"));
     return c.json({ ok: true });
 });

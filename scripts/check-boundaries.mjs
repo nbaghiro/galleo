@@ -1,8 +1,9 @@
-// Boundary self-check: proves the layering law still reports, rather than trusting a clean run.
+// Boundary self-check: proves the layering laws still report, rather than trusting a clean run.
 //
 // `import/no-restricted-paths` silently checks nothing when a specifier fails to resolve, which is how
 // the law once sat dead here: ESLint reported success without examining a single import. So this
-// plants a real violation and fails if either enforcement path stays quiet.
+// plants a real violation and fails if either enforcement path stays quiet. Two laws are probed: the
+// outer one (model · canvas · ui · editor · app) and the tier law inside services/.
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -10,40 +11,76 @@ import { join } from "node:path";
 
 const REQUIRED = ["import/no-restricted-paths", "no-restricted-imports"];
 
-// canvas may not reach editor; both the alias and relative forms must be caught.
-const dir = mkdtempSync(join(process.cwd(), "canvas", "boundary-check-"));
-const file = join(dir, "probe.ts");
+const PROBES = [
+    {
+        law: "outer layering",
+        under: "canvas",
+        violation: "canvas → editor",
+        // alias form; the relative form is covered by the same rule pair
+        source: 'import { Editor } from "@editor/Editor";\nexport const probe = Editor;\n',
+    },
+    {
+        law: "services layer",
+        under: join("services", "core"),
+        violation: "core → api",
+        // relative form: a specifier inside services never carries the `services/` prefix
+        source: 'import { requireUser } from "../../api/middleware";\nexport const probe = requireUser;\n',
+    },
+    {
+        law: "core-is-not-routes",
+        under: join("services", "core"),
+        violation: "core → hono",
+        rules: ["no-restricted-imports"], // resolver-free only: hono resolves fine, it is just banned here
+        source: 'import { Hono } from "hono";\nexport const probe = new Hono();\n',
+    },
+    {
+        law: "utils-is-database-free",
+        under: join("services", "utils"),
+        violation: "utils → db",
+        source: 'import { db } from "../../db/client";\nexport const probe = db;\n',
+    },
+];
 
 const w = (s) => process.stdout.write(`${s}\n`);
 
-// process.exit() skips finally, so the probe dir is removed before any exit path is taken.
-let silent = [];
-try {
-    writeFileSync(file, 'import { Editor } from "@editor/Editor";\nexport const probe = Editor;\n');
-
-    let output = "";
+function probe({ under, source, rules: probeRules }) {
+    // process.exit() skips finally, so the probe dir is removed before any exit path is taken.
+    const dir = mkdtempSync(join(process.cwd(), under, "boundary-check-"));
+    const file = join(dir, "probe.ts");
     try {
-        execFileSync("pnpm", ["exec", "eslint", file, "--format", "json"], { encoding: "utf8" });
-    } catch (e) {
-        // a violating file makes eslint exit non-zero; the JSON report is what we want
-        output = e.stdout ?? "";
+        writeFileSync(file, source);
+        let output = "";
+        try {
+            execFileSync("pnpm", ["exec", "eslint", file, "--format", "json"], {
+                encoding: "utf8",
+            });
+        } catch (e) {
+            // a violating file makes eslint exit non-zero; the JSON report is what we want
+            output = e.stdout ?? "";
+        }
+        const reported = new Set(
+            (JSON.parse(output || "[]")[0]?.messages ?? []).map((m) => m.ruleId),
+        );
+        return (probeRules ?? REQUIRED).filter((r) => !reported.has(r));
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
     }
-
-    const reported = new Set((JSON.parse(output || "[]")[0]?.messages ?? []).map((m) => m.ruleId));
-    silent = REQUIRED.filter((r) => !reported.has(r));
-} finally {
-    rmSync(dir, { recursive: true, force: true });
 }
 
-if (silent.length) {
+const dead = PROBES.map((p) => ({ ...p, silent: probe(p) })).filter((p) => p.silent.length);
+
+if (dead.length) {
     w("");
-    w("Boundary self-check failed: a canvas → editor import was NOT reported by:");
-    for (const r of silent) w(`    ${r}`);
+    for (const p of dead) {
+        w(`Boundary self-check failed: a ${p.violation} import was NOT reported by:`);
+        for (const r of p.silent) w(`    ${r}`);
+    }
     w("");
-    w("The layering law is not being enforced. For import/no-restricted-paths this usually means");
+    w("A layering law is not being enforced. For import/no-restricted-paths this usually means");
     w("the TS resolver is missing or broken (settings['import/resolver'] in eslint.config.js), so");
-    w("every specifier fails to resolve and the rule skips silently.");
+    w("every specifier fails to resolve and the rule skips silently. For no-restricted-imports it");
+    w("usually means a later config block replaced the layer's own entry for the same rule.");
     process.exit(1);
 }
 
-w(`✓ boundary law is live (${REQUIRED.join(", ")})`);
+w(`✓ ${PROBES.map((p) => p.law).join(" + ")} laws are live (${REQUIRED.join(", ")})`);

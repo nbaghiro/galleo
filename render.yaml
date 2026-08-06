@@ -10,10 +10,10 @@ services:
       autoDeploy: true
       # Migrations run at the END of the build (&&: a failed build never reaches them; a failed
       # migration fails the build, so the old deploy stays live). The free instance type silently
-      # drops preDeployCommand — on a paid plan, move the two db steps to preDeployCommand instead.
-      # The backfill fills digest + search_text for rows written before the search index existed;
-      # it only visits unindexed rows, so every deploy after the first is a no-op.
-      buildCommand: pnpm install --frozen-lockfile && pnpm build && pnpm db:migrate && pnpm db:backfill-search
+      # drops preDeployCommand — on a paid plan, move the db step to preDeployCommand instead.
+      # No data backfill step: digest + search_text are derived at write time (services/core/derived.ts),
+      # enforced by lint, so no row can fall out of sync and there is nothing for a sweep to repair.
+      buildCommand: pnpm install --frozen-lockfile && pnpm build && pnpm db:migrate
       startCommand: pnpm start # NODE_ENV=production tsx services/server.ts
       healthCheckPath: /health
       envVars:

@@ -1,26 +1,23 @@
-import { randomBytes } from "node:crypto";
 import { Hono } from "hono";
-import { eq } from "drizzle-orm";
-import { getCookie } from "hono/cookie";
 import type { LoginBody, SignupBody, ForgotBody, ResetBody } from "@model/workspace";
-import { db, schema } from "../schema";
-import { verifyPassword, hashPassword, SESSION_COOKIE } from "../auth";
-import { provisionUser } from "../provision";
-import { createAuthToken, consumeAuthToken } from "../tokens";
-import { sendEmail } from "../mail/send";
-import { appUrl } from "../app-url";
-import { currentUser, readJson, setSessionCookie, clearSessionCookie, toUser } from "./context";
-import { rateLimit } from "./ratelimit";
+import { appUrl } from "../utils/env";
+import { readJson, setSessionCookie, clearSessionCookie, rateLimit } from "../utils/http";
+import {
+    authenticate,
+    consumeAuthToken,
+    emailTaken,
+    isEmail,
+    markEmailVerified,
+    overPasswordCap,
+    passwordError,
+    resetPassword,
+    sendResetEmail,
+    sendVerifyEmail,
+    signUp,
+} from "../core/accounts";
+import { requireUser, type AuthedEnv } from "./middleware";
 
-export const session = new Hono();
-
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-const MIN_PASSWORD = 8;
-const MAX_PASSWORD = 200; // cap so an oversized input can't hog the event loop in synchronous scrypt
-
-// Login runs scrypt against this when there's no stored password, so a missing or OAuth-only account
-// takes the same time as a wrong password.
-const DUMMY_HASH = hashPassword(randomBytes(16).toString("hex"));
+export const session = new Hono<AuthedEnv>();
 
 // Per-IP guards: login is the password-guessing target, signup/forgot the account-spam targets.
 const loginLimiter = rateLimit({ name: "login", limit: 10, windowMs: 5 * 60_000 });
@@ -29,48 +26,19 @@ const forgotLimiter = rateLimit({ name: "forgot", limit: 5, windowMs: 15 * 60_00
 const resetLimiter = rateLimit({ name: "reset", limit: 10, windowMs: 15 * 60_000 });
 const resendLimiter = rateLimit({ name: "resend", limit: 5, windowMs: 15 * 60_000 });
 
-function passwordError(pw: string): string | null {
-    if (pw.length < MIN_PASSWORD) return `password must be at least ${MIN_PASSWORD} characters`;
-    if (pw.length > MAX_PASSWORD) return `password must be at most ${MAX_PASSWORD} characters`;
-    return null;
-}
-
-const VERIFY_TTL = 60 * 60 * 24; // 24h
-const RESET_TTL = 60 * 60; // 1h
-
-// Best-effort: callers don't block signup on delivery, and the user can re-request from the banner.
-async function sendVerifyEmail(userId: string, email: string): Promise<void> {
-    const raw = await createAuthToken(userId, "verify", VERIFY_TTL);
-    const url = appUrl(`/api/auth/verify?token=${raw}`);
-    await sendEmail({
-        to: email,
-        subject: "Confirm your email for Galleo",
-        text: `Confirm your email to finish setting up Galleo:\n\n${url}\n\nThis link expires in 24 hours.`,
-        html: `<p>Confirm your email to finish setting up Galleo:</p>\n<p><a href="${url}">Verify email</a></p>\n<p>This link expires in 24 hours.</p>`,
-    });
-}
-
 session.post("/auth/signup", signupLimiter, async (c) => {
     const { email, password, name } = await readJson<SignupBody>(c);
     const cleanEmail = (email ?? "").trim().toLowerCase();
     if (!cleanEmail || !password) return c.json({ error: "email and password are required" }, 400);
-    if (!EMAIL_RE.test(cleanEmail)) return c.json({ error: "enter a valid email address" }, 400);
+    if (!isEmail(cleanEmail)) return c.json({ error: "enter a valid email address" }, 400);
     const pwErr = passwordError(password);
     if (pwErr) return c.json({ error: pwErr }, 400);
-
-    const [existing] = await db
-        .select({ id: schema.users.id })
-        .from(schema.users)
-        .where(eq(schema.users.email, cleanEmail));
-    if (existing) return c.json({ error: "an account with this email already exists" }, 409);
+    if (await emailTaken(cleanEmail))
+        return c.json({ error: "an account with this email already exists" }, 409);
 
     let user;
     try {
-        user = await provisionUser({
-            email: cleanEmail,
-            name: name?.trim() || null,
-            passwordHash: hashPassword(password),
-        });
+        user = await signUp(cleanEmail, password, name?.trim() || null);
     } catch {
         // unique(email) violation from a concurrent signup that raced past the check above
         return c.json({ error: "an account with this email already exists" }, 409);
@@ -84,17 +52,11 @@ session.post("/auth/login", loginLimiter, async (c) => {
     const { email, password } = await readJson<LoginBody>(c);
     if (!email || !password) return c.json({ error: "email and password are required" }, 400);
     // cap before scrypt: an over-cap password can't match any stored hash, so reject without hashing
-    if (password.length > MAX_PASSWORD) return c.json({ error: "invalid email or password" }, 401);
-    const [u] = await db
-        .select()
-        .from(schema.users)
-        .where(eq(schema.users.email, email.trim().toLowerCase()));
-    // Always run one scrypt and return one generic message, so a missing or OAuth-only account can't
-    // be enumerated by wording or by timing.
-    const valid = verifyPassword(password, u?.passwordHash ?? DUMMY_HASH);
-    if (!u || !u.passwordHash || !valid) return c.json({ error: "invalid email or password" }, 401);
-    setSessionCookie(c, u.id);
-    return c.json({ user: toUser(u) });
+    if (overPasswordCap(password)) return c.json({ error: "invalid email or password" }, 401);
+    const user = await authenticate(email, password);
+    if (!user) return c.json({ error: "invalid email or password" }, 401);
+    setSessionCookie(c, user.id);
+    return c.json({ user });
 });
 
 session.post("/auth/logout", (c) => {
@@ -106,26 +68,10 @@ session.post("/auth/logout", (c) => {
 session.post("/auth/forgot", forgotLimiter, async (c) => {
     const { email } = await readJson<ForgotBody>(c);
     const clean = (email ?? "").trim().toLowerCase();
-    if (clean) {
-        const [u] = await db
-            .select({ id: schema.users.id })
-            .from(schema.users)
-            .where(eq(schema.users.email, clean));
-        if (u) {
-            const raw = await createAuthToken(u.id, "reset", RESET_TTL);
-            const url = appUrl(`/login?reset=${raw}`);
-            await sendEmail({
-                to: clean,
-                subject: "Reset your Galleo password",
-                text: `Choose a new password:\n\n${url}\n\nThis link expires in 1 hour. If you didn't request it, ignore this email.`,
-                html: `<p>Choose a new password:</p>\n<p><a href="${url}">Reset password</a></p>\n<p>This link expires in 1 hour. If you didn't request it, ignore this email.</p>`,
-            }).catch(() => {});
-        }
-    }
+    if (clean) await sendResetEmail(clean);
     return c.json({ ok: true });
 });
 
-// Also confirms the email: consuming the token proves inbox control.
 session.post("/auth/reset", resetLimiter, async (c) => {
     const { token, password } = await readJson<ResetBody>(c);
     if (!token || !password) return c.json({ error: "token and password are required" }, 400);
@@ -133,41 +79,24 @@ session.post("/auth/reset", resetLimiter, async (c) => {
     if (pwErr) return c.json({ error: pwErr }, 400);
     const userId = await consumeAuthToken(token, "reset");
     if (!userId) return c.json({ error: "This reset link is invalid or has expired." }, 400);
-    // Bump passwordChangedAt so sessions minted before now are rejected: a stolen cookie dies here.
-    await db
-        .update(schema.users)
-        .set({
-            passwordHash: hashPassword(password),
-            emailVerifiedAt: new Date(),
-            passwordChangedAt: new Date(),
-        })
-        .where(eq(schema.users.id, userId));
+    const user = await resetPassword(userId, password);
+    if (!user) return c.json({ error: "account not found" }, 400);
     setSessionCookie(c, userId);
-    const [u] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
-    if (!u) return c.json({ error: "account not found" }, 400);
-    return c.json({ user: toUser(u) });
+    return c.json({ user });
 });
 
 // No session required: the single-use token in the emailed link is the proof.
 session.get("/auth/verify", async (c) => {
     const userId = await consumeAuthToken(c.req.query("token"), "verify");
     if (!userId) return c.redirect(appUrl("/login?authError=verify_invalid"));
-    await db
-        .update(schema.users)
-        .set({ emailVerifiedAt: new Date() })
-        .where(eq(schema.users.id, userId));
+    await markEmailVerified(userId);
     return c.redirect(appUrl("/login?verified=1"));
 });
 
-session.post("/auth/resend-verification", resendLimiter, async (c) => {
-    const u = await currentUser(getCookie(c, SESSION_COOKIE));
-    if (!u) return c.json({ error: "unauthorized" }, 401);
+session.post("/auth/resend-verification", resendLimiter, requireUser, async (c) => {
+    const u = c.get("user");
     if (!u.emailVerified) await sendVerifyEmail(u.id, u.email).catch(() => {});
     return c.json({ ok: true });
 });
 
-session.get("/me", async (c) => {
-    const u = await currentUser(getCookie(c, SESSION_COOKIE));
-    if (!u) return c.json({ error: "unauthorized" }, 401);
-    return c.json({ user: u });
-});
+session.get("/me", requireUser, (c) => c.json({ user: c.get("user") }));

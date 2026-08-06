@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { SearchResponse } from "@model/artifact";
-import { artifactDigest, artifactSearchText } from "@model/digest";
+import { artifactDigest, artifactSearchText } from "@model/artifact";
 import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
-import { db, schema } from "../../schema";
-import { parseSnippet, toTsQuery } from "../../search/query";
+import { db } from "../../db/client";
+import { schema } from "../../db/schema";
+import { parseSnippet, toTsQuery } from "../../core/search";
 
 const content = (title: string, body: string[]): Record<string, unknown> => ({
     format: "deck",

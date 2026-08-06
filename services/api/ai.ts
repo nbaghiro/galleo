@@ -1,74 +1,36 @@
 import { Hono } from "hono";
-import type { Context } from "hono";
 import { streamSSE } from "hono/streaming";
 import { getCookie } from "hono/cookie";
-import type { Surface, TurnEvent, TurnRequest, TurnKind } from "@model/ai";
+import type { Surface, TurnEvent, TurnRequest } from "@model/ai";
 import { isKind } from "@model/ai";
-import type { ToolId, MeterParams } from "@model/tools";
-import { estimateCost, estimateUsage, sectionsForLength } from "@model/tools";
-import { unitMultipliers } from "@model/tasks";
-import { COST_MULTIPLIERS, modelFor } from "../ai/models";
-import type { UnitRates, Usage } from "@model/credits";
-import { costOf, mergeUsage } from "@model/credits";
-import { db, schema } from "../schema";
-import { chargeCredits, settleCredits } from "../credits";
-import { SESSION_COOKIE } from "../auth";
-import { currentUser, currentWorkspace, readJson } from "./context";
+import { overridesFrom, requireWorkspace, type WorkspaceEnv } from "./middleware";
+import { costOf, creditsForUsd, estimateCost } from "@model/credits";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
-import { aiReady } from "../ai/provider";
-import { reviseElement, runTurn } from "../ai/run";
-import type { ImageOptions } from "../ai/run";
-import { generateImage, imageGenReady } from "../media/generate";
-import { makeWorkspaceReader } from "./workspace-reader";
-import { featuresFor } from "../features";
-import { rewriteText, translateText } from "../ai/text";
-import { suggestSections } from "../ai/suggest";
-import { generateThemeFromPrompt } from "../ai/theme";
-import { expandBrief } from "../ai/brief";
-import type { BriefRead } from "../ai/prompts/brief";
-import { warn } from "../log";
-import { overridesFrom } from "./model-override";
+import { featuresFor } from "@model/billing";
+import { currentUser } from "../core/accounts";
+import { SESSION_COOKIE } from "../utils/auth";
+import { readJson } from "../utils/http";
+import { warn } from "../utils/env";
+import { chargeCredits, settleCredits } from "../core/credits";
+import { generateImage, imageGenReady, storeGenerated } from "../core/media";
+import { ACTION_FOR, IMPLEMENTED, meterFor, ratesFor, usdOf, withMeter } from "../core/ai/meter";
+import { aiReady } from "../core/ai/provider";
+import { reviseElement, runTurn } from "../core/ai/run";
+import type { ImageOptions } from "../core/ai/run";
+import { makeWorkspaceReader } from "../core/ai/reader";
+import {
+    expandBrief,
+    generateThemeFromPrompt,
+    rewriteText,
+    suggestSections,
+    translateText,
+} from "../core/ai/tasks";
+import type { BriefRead } from "../core/ai/prompts/brief";
 
-export const ai = new Hono();
+export const ai = new Hono<WorkspaceEnv>();
 
-// Which priced tool each turn kind bills as.
-const ACTION_FOR: Record<TurnKind, ToolId> = {
-    generate: "generate-artifact",
-    edit: "revise-artifact",
-    section: "add-section",
-    chat: "ask-assistant",
-    plan: "plan-outline",
-    build: "add-section",
-};
-
-// Only generate scales; the plan's section cap clamps the metered size, so a Free "In-depth" brief
-// is billed for (and gets) 10 sections.
-const meterFor = (req: TurnRequest, maxSections?: number): MeterParams =>
-    req.kind === "generate"
-        ? {
-              length: req.input.length,
-              imageSource: req.input.imageSource,
-              ...(maxSections
-                  ? { sections: Math.min(sectionsForLength(req.input.length), maxSections) }
-                  : {}),
-          }
-        : {};
-
-// Others 501 before any charge (blocking here avoids reserving credits for an unbuildable kind).
-const IMPLEMENTED: readonly TurnKind[] = ["generate", "section", "chat", "plan", "build"];
-
-// the unit prices for this caller's picks; every metered route reserves and settles through it
-const ratesFor = (c: Context, ws: Parameters<typeof featuresFor>[0]): UnitRates =>
-    unitMultipliers(
-        (task) => modelFor(task, featuresFor(ws).textModelTier, overridesFrom(c)),
-        (id) => COST_MULTIPLIERS[id],
-    );
-
-ai.post("/ai/turn", async (c) => {
-    const u = await currentUser(getCookie(c, SESSION_COOKIE));
-    if (!u) return c.json({ error: "unauthorized" }, 401);
-    const ws = await currentWorkspace(u.id);
-    if (!ws) return c.json({ error: "no workspace" }, 400);
+ai.post("/ai/turn", requireWorkspace, async (c) => {
+    const ws = c.get("ws");
     if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
     const req = await readJson<TurnRequest>(c);
     if (!req || !isKind(req.kind)) return c.json({ error: "a valid turn kind is required" }, 400);
@@ -98,7 +60,7 @@ ai.post("/ai/turn", async (c) => {
     // a step pinned to a heavier model costs us more, so the reserve and the settle both price the
     // models this turn will actually run on
     const overrides = overridesFrom(c);
-    const rates = ratesFor(c, ws);
+    const rates = ratesFor(ws, overridesFrom(c));
     const cost = estimateCost(ACTION_FOR[req.kind], meter, rates);
     const spend = await chargeCredits(ws, cost, ACTION_FOR[req.kind]);
     if (!spend.ok)
@@ -106,12 +68,6 @@ ai.post("/ai/turn", async (c) => {
             { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
             402,
         );
-
-    // Chat is agentic: chained sub-tools bill on top of the reserve; non-chat leaves this empty.
-    let extra: Usage = {};
-    const onUsage = (u: Usage): void => {
-        extra = mergeUsage(extra, u);
-    };
 
     // AI images are counted so the settle can reconcile the estimate to the real count; stock is free.
     const imageSource =
@@ -136,87 +92,59 @@ ai.post("/ai/turn", async (c) => {
                             : "16:9";
                   const img = await generateImage(phrase, aspect, "photo", feats.imageModelTier);
                   if (!img) return null;
-                  const id = crypto.randomUUID();
-                  await db.insert(schema.assets).values({
-                      id,
-                      workspaceId: ws.id,
-                      kind: "image",
-                      source: "generated",
-                      url: `/api/media/asset/${id}`,
-                      width: img.width,
-                      height: img.height,
-                      bytes: Buffer.from(img.dataBase64, "base64").length,
-                      alt: phrase.slice(0, 160),
-                      meta: { prompt: phrase },
-                      data: img.dataBase64,
-                      mime: img.mime,
-                  });
+                  const item = await storeGenerated(ws.id, "image", img, phrase);
                   aiImages++;
-                  return `/api/media/asset/${id}`;
+                  return item.url;
               },
           }
         : {};
 
     const ctrl = new AbortController();
-    return streamSSE(c, async (stream) => {
-        stream.onAbort(() => ctrl.abort());
-        let seq = 0;
-        const send = (event: TurnEvent): Promise<void> =>
-            stream.writeSSE({ data: JSON.stringify({ seq: seq++, event }) });
-        try {
-            const workspace = makeWorkspaceReader(ws.id);
-            for await (const ev of runTurn(req, {
-                models: overrides,
-                signal: ctrl.signal,
-                workspace,
-                onUsage,
-                image,
-                tier: feats.textModelTier,
-                maxSections: feats.maxSectionsPerGeneration,
-            }))
-                await send(ev);
-        } catch (e) {
-            if (!ctrl.signal.aborted)
-                await send({
-                    type: "error",
-                    message: e instanceof Error ? e.message : "the turn failed",
-                });
-        } finally {
-            // Reconcile the reserve to what actually ran (runs even on a mid-turn error, so real spend is still billed).
-            let owed = cost;
-            if (Object.keys(extra).length) owed += costOf(extra, rates);
-            if (wantsAiImages)
-                // A generation reserved for images (recompute from the real count); chat reserved
-                // none (add on top of what its tools owe).
-                owed =
-                    req.kind === "chat"
-                        ? owed + costOf({ image: aiImages })
-                        : costOf(
-                              {
-                                  ...estimateUsage(ACTION_FOR[req.kind], meter),
-                                  image: aiImages,
-                              },
-                              rates,
-                          );
-            await settleCredits(ws, owed - cost, `${ACTION_FOR[req.kind]}:settle`);
-        }
-    });
+    return streamSSE(c, async (stream) =>
+        // every model call inside this scope reports its tokens, sub-tools included
+        withMeter(async (used) => {
+            stream.onAbort(() => ctrl.abort());
+            let seq = 0;
+            const send = (event: TurnEvent): Promise<void> =>
+                stream.writeSSE({ data: JSON.stringify({ seq: seq++, event }) });
+            try {
+                const workspace = makeWorkspaceReader(ws.id);
+                for await (const ev of runTurn(req, {
+                    models: overrides,
+                    signal: ctrl.signal,
+                    workspace,
+                    image,
+                    tier: feats.textModelTier,
+                    maxSections: feats.maxSectionsPerGeneration,
+                }))
+                    await send(ev);
+            } catch (e) {
+                if (!ctrl.signal.aborted)
+                    await send({
+                        type: "error",
+                        message: e instanceof Error ? e.message : "the turn failed",
+                    });
+            } finally {
+                // Settle on what the turn really cost: tokens at provider list price, plus images at
+                // their flat per-asset rate. Runs even after a mid-turn error, so real spend is billed.
+                const owed = creditsForUsd(usdOf(used.uses)) + costOf({ image: aiImages });
+                await settleCredits(ws, owed - cost, `${ACTION_FOR[req.kind]}:settle`);
+            }
+        }),
+    );
 });
 
 // Metered like any other model call; `previous` marks a re-read, so the model rules that out and
 // comes back with another angle.
-ai.post("/ai/brief", async (c) => {
-    const u = await currentUser(getCookie(c, SESSION_COOKIE));
-    if (!u) return c.json({ error: "unauthorized" }, 401);
-    const ws = await currentWorkspace(u.id);
-    if (!ws) return c.json({ error: "no workspace" }, 400);
+ai.post("/ai/brief", requireWorkspace, async (c) => {
+    const ws = c.get("ws");
     if (!aiReady()) return c.json({ brief: null });
     const body = await readJson<{ prompt?: string; surface?: Surface; previous?: BriefRead }>(c);
     if (!body?.prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
 
     const spend = await chargeCredits(
         ws,
-        estimateCost("draft-brief", {}, ratesFor(c, ws)),
+        estimateCost("draft-brief", {}, ratesFor(ws, overridesFrom(c))),
         "draft-brief",
     );
     if (!spend.ok)
@@ -236,7 +164,7 @@ ai.post("/ai/brief", async (c) => {
         // refund a read that produced nothing — the user got no value from it
         await settleCredits(
             ws,
-            -estimateCost("draft-brief", {}, ratesFor(c, ws)),
+            -estimateCost("draft-brief", {}, ratesFor(ws, overridesFrom(c))),
             "draft-brief:refund",
         );
         warn(`[ai:brief] ${e instanceof Error ? e.message : "failed"}`.slice(0, 400));
@@ -261,11 +189,8 @@ ai.post("/ai/suggest", async (c) => {
 });
 
 // Element rides along in the body — the runtime can't traverse the canvas tree.
-ai.post("/ai/element", async (c) => {
-    const u = await currentUser(getCookie(c, SESSION_COOKIE));
-    if (!u) return c.json({ error: "unauthorized" }, 401);
-    const ws = await currentWorkspace(u.id);
-    if (!ws) return c.json({ error: "no workspace" }, 400);
+ai.post("/ai/element", requireWorkspace, async (c) => {
+    const ws = c.get("ws");
     if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
     const body = await readJson<{
         content?: ArtifactContent;
@@ -278,7 +203,7 @@ ai.post("/ai/element", async (c) => {
 
     const spend = await chargeCredits(
         ws,
-        estimateCost("revise-element", {}, ratesFor(c, ws)),
+        estimateCost("revise-element", {}, ratesFor(ws, overridesFrom(c))),
         "revise-element",
     );
     if (!spend.ok)
@@ -301,11 +226,8 @@ ai.post("/ai/element", async (c) => {
     }
 });
 
-ai.post("/ai/text", async (c) => {
-    const u = await currentUser(getCookie(c, SESSION_COOKIE));
-    if (!u) return c.json({ error: "unauthorized" }, 401);
-    const ws = await currentWorkspace(u.id);
-    if (!ws) return c.json({ error: "no workspace" }, 400);
+ai.post("/ai/text", requireWorkspace, async (c) => {
+    const ws = c.get("ws");
     if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
     const body = await readJson<{
         op?: "rewrite" | "translate";
@@ -349,18 +271,15 @@ ai.post("/ai/text", async (c) => {
     }
 });
 
-ai.post("/ai/theme", async (c) => {
-    const u = await currentUser(getCookie(c, SESSION_COOKIE));
-    if (!u) return c.json({ error: "unauthorized" }, 401);
-    const ws = await currentWorkspace(u.id);
-    if (!ws) return c.json({ error: "no workspace" }, 400);
+ai.post("/ai/theme", requireWorkspace, async (c) => {
+    const ws = c.get("ws");
     if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
     const body = await readJson<{ prompt?: string; isDark?: boolean }>(c);
     if (!body?.prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
 
     const spend = await chargeCredits(
         ws,
-        estimateCost("generate-theme", {}, ratesFor(c, ws)),
+        estimateCost("generate-theme", {}, ratesFor(ws, overridesFrom(c))),
         "generate-theme",
     );
     if (!spend.ok)

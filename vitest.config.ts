@@ -38,14 +38,13 @@ export default defineConfig({
                 // IO shell dominates; pure sections tested in pptx.test.ts
                 "canvas/render/pptx.ts",
                 // offline eval harness + the on-demand key/model prober, never imported by the product
-                "services/ai/eval/**",
-                "services/ai/probe.ts",
+                "services/core/ai/eval/**",
                 // seed data, exercised end-to-end by the integration suite
-                "services/demos/**",
-                "services/templates/**",
-                "services/seed.ts",
+                "services/core/ai/corpus/**",
+                "services/core/templates.ts",
+                "services/db/seed.ts",
                 // drizzle-generated json, not source
-                "services/migrations/**",
+                "services/db/migrations/**",
             ],
             // Floors, not targets: just under today's numbers, so a regression fails but churn does not.
             thresholds: {

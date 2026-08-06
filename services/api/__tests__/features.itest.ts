@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { authed, request, seedUser } from "../../__tests__/harness";
-import { db, schema } from "../../schema";
-import { hashPassword, makeSession, SESSION_COOKIE } from "../../auth";
+import { db } from "../../db/client";
+import { schema } from "../../db/schema";
+import { hashPassword, makeSession, SESSION_COOKIE } from "../../utils/auth";
 
 interface FeaturesBody {
     features: {

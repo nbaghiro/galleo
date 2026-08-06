@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { artifactDigest, artifactSearchText } from "@model/digest";
+import { artifactDigest, artifactSearchText } from "@model/artifact";
 import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
-import { db, schema } from "../../schema";
+import { db } from "../../db/client";
+import { schema } from "../../db/schema";
 
 // A minimal-but-valid content tree the cover/filmstrip derivation can read.
 const draftWithCover = {

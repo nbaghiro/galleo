@@ -34,14 +34,14 @@ const declared = (provider) => {
     return null;
 };
 
-const registry = readFileSync("services/ai/models.ts", "utf8");
+const registry = readFileSync("services/core/models.ts", "utf8");
 const entries = [...registry.matchAll(/provider: "(\w+)",\n\s*model: "([^"]+)"/g)].map((m) => ({
     provider: m[1],
     model: m[2],
 }));
 
 if (entries.length < 2) {
-    fail(`✗ read ${entries.length} models from services/ai/models.ts — the parser has drifted`);
+    fail(`✗ read ${entries.length} models from services/core/models.ts — the parser has drifted`);
 } else {
     const unions = {};
     for (const provider of Object.keys(TYPES)) {

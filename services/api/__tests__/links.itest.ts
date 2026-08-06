@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
-import { db, schema } from "../../schema";
+import { db } from "../../db/client";
+import { schema } from "../../db/schema";
 
 const CONTENT = { format: "deck", theme: "studio", sections: [] };
 
