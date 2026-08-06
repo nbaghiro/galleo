@@ -1,4 +1,12 @@
-import type { DrawContext, DrawStyle, DrawTextStyle, PathSink, Rect } from "@engine/node";
+import type {
+    DrawContext,
+    DrawStyle,
+    DrawTextStyle,
+    EngineNode,
+    PathSink,
+    Rect,
+} from "@engine/node";
+import type { LayoutCtx } from "@elements/spec";
 import type { Tokens } from "@themes";
 import type { DiagramFlow } from "@model/elements";
 import { fontStack, luminance } from "@themes";
@@ -41,6 +49,7 @@ export interface DiagramOptions {
 
 export interface ResolvedDiagram {
     type: string;
+    palette: PaletteMode;
     items: DiagItem[];
     nodes: DiagNode[];
     edges: DiagEdge[];
@@ -61,6 +70,14 @@ export interface DiagramType {
     id: string;
     label: string;
     render: (diagram: ResolvedDiagram, ctx: DiagramCtx) => void;
+    // Types that opt in return an engine tree instead of painting their own labels: `render` then draws
+    // decoration only, and each item's text becomes a real child the editor can select and edit inline.
+    arrange?: (
+        diagram: ResolvedDiagram,
+        ctx: LayoutCtx,
+        kids: EngineNode[],
+        height: number,
+    ) => EngineNode;
 }
 
 export type Renderer = (diagram: ResolvedDiagram, ctx: DiagramCtx) => void;
@@ -125,6 +142,7 @@ export function normalizeDiagram(d: DiagramData): ResolvedDiagram {
     const items = splitLines(d.items).map(parseItem);
     return {
         type,
+        palette: d.palette === "categorical" ? "categorical" : "ramp",
         items,
         nodes: items.map((i) => ({ id: i.label, label: i.label })),
         edges: parseEdges(d.links),

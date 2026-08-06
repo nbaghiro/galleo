@@ -29,14 +29,13 @@ export function renderDiagram(g: DrawContext, box: Rect, data: unknown, theme: T
     if (diagram.items.length === 0) return;
     const type = getDiagram(diagram.type) ?? getDiagram("process");
     if (!type) return;
-    const palette = d.palette === "categorical" ? "categorical" : "ramp";
     type.render(diagram, {
         g,
         W: box.w,
         H: box.h,
         theme,
         opts: diagram.options,
-        colors: (n) => seriesColors(theme, n, palette),
+        colors: (n) => seriesColors(theme, n, diagram.palette),
     });
 }
 

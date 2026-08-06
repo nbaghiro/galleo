@@ -4,7 +4,39 @@ import { register } from "@elements/spec";
 import { fixed, grow } from "@model/geometry";
 import { GRAPH_DIAGRAM_TYPES } from "@model/elements";
 import { renderDiagram, diagramTypeOptions } from "./render";
-import type { DiagramData } from "./utils";
+import type { DiagramData, DiagItem } from "./utils";
+import { formatItems, getDiagram, normalizeDiagram, toDiagramData } from "./utils";
+import type { ElementInstance } from "@model/artifact";
+
+// Ported types expose `arrange`; their items become real text children (label + detail per item, the
+// detail kept even when empty so it stays clickable — the table does the same for empty cells).
+const textChild = (text: string): ElementInstance => ({
+    type: "text",
+    data: { text, style: "body", align: "center" },
+});
+const textOf = (i: ElementInstance | undefined): string =>
+    typeof (i?.data as { text?: unknown })?.text === "string"
+        ? (i!.data as { text: string }).text
+        : "";
+
+const resolved = (d: DiagramData): ReturnType<typeof normalizeDiagram> =>
+    normalizeDiagram(toDiagramData(d));
+const ported = (d: DiagramData): boolean => !!getDiagram(resolved(d).type)?.arrange;
+
+function diagramChildren(d: DiagramData): ElementInstance[] {
+    if (!ported(d)) return [];
+    return resolved(d).items.flatMap((i) => [textChild(i.label), textChild(i.body ?? "")]);
+}
+
+function diagramWithChildren(d: DiagramData, kids: ElementInstance[]): DiagramData {
+    const items = resolved(d).items;
+    const next: DiagItem[] = items.map((it, i) => ({
+        ...it,
+        label: textOf(kids[i * 2]),
+        body: textOf(kids[i * 2 + 1]) || undefined,
+    }));
+    return { ...d, items: formatItems(next) };
+}
 
 const GRAPH_TYPES = new Set<string>(GRAPH_DIAGRAM_TYPES);
 // one field per consumer: a placeholder is static, and `axes` means something different per type
@@ -92,9 +124,26 @@ function diagramSpec(
         }),
         layout: (d: DiagramData, ctx: LayoutCtx): EngineNode => ({
             w: grow(),
-            h: fixed(d.height ?? 260),
+            h: grow(d.height ?? 260),
             surface: { paint: (g, box) => renderDiagram(g, box, d, ctx.theme) },
         }),
+        container: {
+            children: diagramChildren,
+            arrange: (d, ctx, kids) => {
+                const r = resolved(d);
+                const type = getDiagram(r.type);
+                const h = d.height ?? 260;
+                return type?.arrange
+                    ? type.arrange(r, ctx, kids, h)
+                    : {
+                          w: grow(),
+                          h: fixed(h),
+                          surface: { paint: (g, box) => renderDiagram(g, box, d, ctx.theme) },
+                      };
+            },
+            withChildren: diagramWithChildren,
+            closed: true,
+        },
         resize: { height: { key: "height", min: 140, max: 480, step: 10 } },
         bar: ["type", "palette"],
         controls: DIAGRAM_CONTROLS,
