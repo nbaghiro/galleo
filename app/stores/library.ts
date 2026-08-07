@@ -2,7 +2,7 @@ import type { ArtifactContent, ElementInstance, Section, GenMeta } from "@model/
 import { emptyRegion } from "@model/artifact";
 import { createSignal } from "solid-js";
 import { api, type ArtifactSummary } from "../api";
-import { PROFILES } from "@engine/profile";
+import { PROFILES, resolveProfile } from "@engine/profile";
 
 const [artifacts, setArtifacts] = createSignal<ArtifactSummary[]>([]);
 const [trash, setTrash] = createSignal<ArtifactSummary[]>([]);
@@ -358,16 +358,16 @@ export function blankArtifact(format: string, theme = "studio"): ArtifactContent
     };
 }
 
-// labels live here because "Site" (web) is a product term, not the engine's format name
 export const FORMAT_IDS = Object.keys(PROFILES);
 
-export const formatLabel = (id: string): string =>
-    id === "web" ? "Site" : id === "doc" ? "Doc" : "Deck";
+// the profile's `name` IS the product label ("Site", not "Web"); resolveProfile falls back to deck
+export const formatLabel = (id: string): string => resolveProfile(id).name;
 
 export const formatLabelPlural = (id: string): string => `${formatLabel(id)}s`;
 
-export const formatIcon = (id: string): string =>
-    id === "web" ? "site" : id === "doc" ? "doc" : "deck";
+// icons are a UI concern, so they stay out of the descriptor
+const ICONS: Record<string, string> = { deck: "deck", doc: "doc", web: "site" };
+export const formatIcon = (id: string): string => ICONS[id] ?? "deck";
 
 export const FORMATS: { id: string; label: string; icon: string }[] = FORMAT_IDS.map((id) => ({
     id,

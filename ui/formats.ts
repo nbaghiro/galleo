@@ -1,6 +1,8 @@
-// Data only (no JSX), so headless consumers like the command registry can import it.
-export const FORMATS: { value: string; label: string }[] = [
-    { value: "deck", label: "Deck" },
-    { value: "doc", label: "Doc" },
-    { value: "web", label: "Site" },
-];
+import { PROFILES } from "@engine/profile";
+
+// Data only (no JSX), so headless consumers like the command registry can import it. Derived from the
+// profile registry, so a new format is one PROFILES entry rather than an edit here as well.
+export const FORMATS: { value: string; label: string }[] = Object.values(PROFILES).map((p) => ({
+    value: p.id,
+    label: p.name,
+}));

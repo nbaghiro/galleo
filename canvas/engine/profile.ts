@@ -17,7 +17,7 @@ export const PROFILES: Record<string, FormatDescriptor> = {
     },
     doc: {
         id: "doc",
-        name: "Document",
+        name: "Doc",
         kind: "continuous",
         width: 816, // ~8.5in @ 96dpi
         height: "auto",
@@ -28,7 +28,7 @@ export const PROFILES: Record<string, FormatDescriptor> = {
     },
     web: {
         id: "web",
-        name: "Web",
+        name: "Site",
         kind: "continuous",
         width: "fill",
         height: "auto",
