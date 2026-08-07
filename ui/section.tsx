@@ -1,10 +1,12 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { Section, SectionBackground, SectionSummary } from "@model/artifact";
+import type { RenderCommand } from "@engine/node";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
-import { paint, backdropCss, fitSlideContent, scaledHostCss } from "@canvas/render/backends";
+import { paint, backdropCss, scaledHostCss } from "@canvas/render/backends";
 import { layoutPlaceholder } from "@canvas/render/placeholder";
+import { fitSectionToFrame } from "@canvas/render/fit";
 import {
     measureText,
     layoutSlideSkeleton,
@@ -70,36 +72,69 @@ export const ScaledSectionCanvas: Component<{
             setNaturalH(Math.round(height * scale));
         } else {
             const fr = slideBox();
-            const scale = w() / fr.w;
             const ghost = props.ghost;
-            // Real content goes through sectionSlides, so a tall section shows its FIRST PAGE broken
-            // at the same clean edge Present and export use — not an unbounded overflow of the whole
-            // section. The ghost/skeleton stand-ins can also exceed the frame, so both are fitted below.
-            const page = ghost
-                ? layoutPlaceholder(
-                      props.section,
-                      ghost,
-                      fr.w,
-                      props.theme,
-                      props.profile,
-                      fr.w,
-                      fr.h,
-                  )
-                : props.skeleton
-                  ? layoutSlideSkeleton(
-                        props.section,
-                        fr.w,
-                        fr.h,
-                        measureText,
-                        props.theme,
-                        props.profile,
-                    )
-                  : sectionSlides(props.section, props.theme, props.profile, plain())[0];
-            const commands = page?.commands ?? [];
-            const contentH = page ? ("contentH" in page ? page.contentH : page.height) : fr.h;
-            // the frame box, scaled to the thumb; content fits inside it exactly as Present does
-            inner.style.cssText = `position:relative;${scaledHostCss(fr.w, fr.h, scale)}`;
-            inner.replaceChildren(fitSlideContent(commands, contentH, fr.w, fr.h));
+            // Two cases. A PAGED format's card is the section's own frame, so it already has a
+            // canonical shape — render it as its own page (short content centres, tall content fits
+            // rather than paginating, because a thumbnail shows the whole section). A CONTINUOUS format
+            // has no page shape at all, so solve for the width at which the content BECOMES this
+            // card's shape (@canvas/render/fit) instead of scaling its natural layout down into bars.
+            // Stand-ins keep the frame width: there is nothing to reflow in a placeholder or skeleton.
+            let commands: RenderCommand[];
+            let layoutW = fr.w;
+            let contentH = fr.h;
+            if (ghost) {
+                const r = layoutPlaceholder(
+                    props.section,
+                    ghost,
+                    fr.w,
+                    props.theme,
+                    props.profile,
+                    fr.w,
+                    fr.h,
+                );
+                commands = r.commands;
+                contentH = r.height;
+            } else if (props.skeleton) {
+                const r = layoutSlideSkeleton(
+                    props.section,
+                    fr.w,
+                    fr.h,
+                    measureText,
+                    props.theme,
+                    props.profile,
+                );
+                commands = r.commands;
+                contentH = r.height;
+            } else if (props.profile.kind === "paged") {
+                const page = sectionSlides(
+                    props.section,
+                    props.theme,
+                    { ...props.profile, overflow: "fit" },
+                    plain(),
+                )[0];
+                commands = page?.commands ?? [];
+                contentH = page?.contentH ?? fr.h;
+            } else {
+                const r = fitSectionToFrame(
+                    props.section,
+                    fr,
+                    measureText,
+                    props.theme,
+                    props.profile,
+                    plain(),
+                );
+                commands = r.commands;
+                layoutW = r.layoutW;
+                contentH = r.contentH;
+            }
+            // Fits both axes: exactly filling when the solver found the shape, letterboxed when the
+            // content could not take it (a lone photo). Never crops.
+            const s = Math.min(w() / layoutW, boxH() / contentH);
+            paint(commands, inner); // paint first — it forces position:relative
+            inner.style.cssText =
+                `position:absolute;width:${layoutW}px;height:${contentH}px;` +
+                `transform:scale(${s});transform-origin:top left;` +
+                `left:${(w() - layoutW * s) / 2}px;top:${(boxH() - contentH * s) / 2}px`;
         }
     });
 
