@@ -73,8 +73,9 @@ The three "modes" are three **format profiles** fed to the same engine:
 | **Web**  | continuous | full-bleed, fills the width | recomputes on viewport resize            |
 
 A profile carries `kind`, width/height, `maxContentWidth`, `tokenScale` (a type/space multiplier so a
-deck reads big and a doc reads dense — _styling_, never content), `splitMinWidth`, and pagination policy
-(`paginate: always | export | never`). `DEFAULT_PROFILE` is deck; `previewContentProfile` widens a doc's
+deck reads big and a doc reads dense — _styling_, never content), `splitMinWidth` (below it a row of
+columns stacks), and `overflow` (`paginate | fit` — what a paged render does with a section taller than
+its frame). `DEFAULT_PROFILE` is deck; `previewContentProfile` widens a doc's
 content column toward the viewport for read-only previews (deck + web pass through). Because dimensions
 are data, a custom size or a draggable/resizable canvas is a data change, not new layout code.
 
@@ -121,6 +122,38 @@ Two invariants worth knowing when touching this:
 There is **no UI for setting a page size yet**, and no format that defaults to one; the field is the
 resolution path only. The presets table and dimension editor land with the first format that needs them
 (§10).
+
+### 3.3 Type scale and overflow (`tokenScale`, `overflow`)
+
+A page size alone does not make a format readable: type sizes are constants inside each element spec, so
+the same content at 1080×1920 is dimensionally right and visually tiny. Two profile fields carry that,
+and both are no-ops for the shipped three.
+
+**`tokenScale`** multiplies type and space. It lands in `composeSection`, in two parts. The section's own
+gutters (`SECTION_PAD`/`BLEED_PAD_X`/`GUTTER`) scale _before_ `contentW` is computed, because `contentW`
+is what children size against (`stacksAtWidth`, `rowShares`) — scaling padding afterwards would leave them
+measured against a width the section no longer has. The content subtree then goes through
+`scaleTokens(node, k)`, which multiplies `text.size`/`lineHeight`, `gap`, `padding`, `fixed` sizes,
+`fit`/`grow` bounds, radii, and float offsets. `aspect` and `percent` are left alone: a ratio and a
+fraction are already scale-free. `scaleTokens(node, 1)` returns the node by identity.
+
+It scales the composed tree rather than each element because type constants live in ~20 element specs
+with no shared leaf builder — a per-element scale is something every future element has to remember.
+
+A `surface` (chart, diagram, icon, graphic) draws itself and so cannot be reached by a node walk. Those
+scale by **space instead of constants** (`@engine/drawscale`): the renderer is handed `box / k` and a
+`DrawContext` that multiplies every coordinate and length it emits, so it draws its ordinary 1× picture
+into a k× space. That is why no renderer needed changing and why no constant had to be classified — a
+ratio's arithmetic happens in renderer space and only its resulting coordinate crosses the boundary.
+Angles (`wedge`, `arc`) and `measureText` are the deliberate exceptions. The wrapper is typed as
+`DrawContext`, so a new method on that interface fails to compile rather than silently drawing unscaled.
+
+**`overflow`** decides what a paged render does with a section taller than its frame: `paginate` splits it
+past `PAGINATE_ABOVE` (1.2×), `fit` always returns one page and lets the caller scale the content down.
+It replaced a `paginate: always | export | never` field that nothing read and whose values would have
+misled: `web` was marked `never`, yet web artifacts _do_ go through `sectionSlides` on export (everything
+exports as a deck), so honoring it would have turned a tall web section into one enormous scaled page.
+A card format wants `fit` — a card silently becoming two cards changes what the author publishes.
 
 ## 4. Compose — Section → EngineNode (`canvas/elements/compose.ts`)
 
@@ -604,6 +637,43 @@ Fitting a logical layout into a physical viewport (minimap thumbs, present) is o
 CSS-scale the host to fit. Layout math never changes; only the transform does. (The old `render/geometry.ts`
 was folded into `backends.ts`.)
 
+### 8.1 Rendering a section at a shape that isn't its own (`canvas/render/fit.ts`)
+
+Scaling a layout only changes its size, never its proportions, so a section whose natural shape differs
+from the frame can only be cropped or letterboxed. The way out is that **a section has no intrinsic
+aspect ratio**: it is a flow, so its height is a function of width, `H(W)`. "Does this fit 16:9" is the
+wrong question — the right one is "at what width does this _become_ 16:9".
+
+`fitSectionToFrame(section, frame, …)` solves `H(W)/W = frame.h/frame.w` and returns the commands laid
+out at that width. `H(W)` is non-increasing, so `H(W)/W` strictly decreases and there is at most one
+crossing; text-dominated content also roughly conserves area (`H·W ≈ A`), which gives a closed-form
+second probe rather than a blind search. Typical cost is 3–4 layouts (~0.04ms), capped at 6.
+
+Two things it deliberately handles rather than assumes away:
+
+- **Wrapping is a step function.** `H` jumps by a line-height as breaks change, so the crossing often
+  falls _inside_ a jump and no width matches exactly. The tolerance is 5% (≈2% margin per edge,
+  invisible at thumbnail scale) and the best probe is always returned.
+- **Aspect-locked media puts a floor under the ratio.** A photo's height _grows_ with width
+  (`h = colW/aspect`), so once it dominates, `H(W)/W` flattens at a value no width can cross — a lone
+  photo is the degenerate case, detected in two probes by the log-log slope. When reflowing cannot reach
+  the target, the solver falls back to the **paged** path, where `coverFitMedia` lets a dominant photo
+  absorb slack instead of holding its aspect; that makes the section take the frame's aspect exactly.
+  Cover-fit only works once the _rest_ of the section already fits the frame, which is itself a function
+  of width (at a narrow width the text alone can be taller than the frame, leaving nothing to absorb), so
+  the fallback tries it at 1×, 2× and 4× the frame width. Only if that also fails is the canonical width
+  returned with `exact: false` for the caller to letterbox.
+
+**Who uses it.** Only a view at a shape that is not the section's own — today the 16:9 thumbnails of a
+**continuous** artifact, where there is no page shape at all and no canonical width (a doc reflows to the
+viewport; `previewContentProfile` already widens it), so choosing the width that fits the card is no more
+a fiction than choosing 816. A **paged** artifact's thumbnail does _not_ use it: that card already is the
+section's own frame, so it renders through `sectionSlides` as its own page.
+
+**Who must not.** Present and export of an artifact in its own format. A deck slide is canonically 1280
+wide, and reflowing it would change the line breaks the author sees — "what you edit is what ships" is
+not tradeable for fill.
+
 ## 9. Paint backends (`canvas/render/backends.ts`)
 
 One `RenderCommand[]` → multiple serializers:
@@ -667,9 +737,6 @@ presents, and exports at an arbitrary W×H. What is still missing before a Gamma
   tall content, and it would let deck opt in, but it rewrites the coordinate model of every overlay
   (`panels/Selection.tsx`, `ControlBars.tsx`, `TextEditor.tsx`, `Canvas.tsx`'s `hitTest`, `core/dnd.ts`).
   Approach 1 is throwaway work if we later want (2), so pick before writing code.
-- **The two dead profile fields.** `tokenScale` is read nowhere; `splitMinWidth` is read only by
-  `composite/group.ts`, not by compose's root column row. Wiring both is what makes a `split-6040` usable
-  on anything narrower than ~700px, and both also fix latent gaps for doc/web today.
 - **Registry-derived format lists.** Format ids are hand-maintained in `ui/formats.ts`,
   `app/stores/library.ts` (label/icon ternaries), `ThemeEditor`, `TemplatesView`, `generate/prompts.ts`,
   and the closed `Surface` unions in `@model/ai` + `app/stores/generate.ts`. Adding a format should be one
