@@ -43,7 +43,7 @@ describe("PROFILES — pinned page geometry", () => {
             height: 720,
             maxContentWidth: 1120,
             splitMinWidth: 520,
-            paginate: "always",
+            overflow: "paginate",
         });
     });
     it("doc is a continuous 816-wide column, paginated on export", () => {
@@ -52,14 +52,14 @@ describe("PROFILES — pinned page geometry", () => {
             width: 816,
             height: "auto",
             maxContentWidth: 1000,
-            paginate: "export",
+            overflow: "paginate",
         });
     });
     it("web is a full-bleed continuous format", () => {
         expect(PROFILES.web).toMatchObject({
             kind: "continuous",
             width: "fill",
-            paginate: "never",
+            overflow: "paginate",
         });
     });
 });
@@ -108,7 +108,7 @@ describe("profileFor", () => {
 
     it("leaves every other profile field alone", () => {
         const p = profileFor(content("deck", { width: 1080, height: 1080 }));
-        expect(p.paginate).toBe(PROFILES.deck!.paginate);
+        expect(p.overflow).toBe(PROFILES.deck!.overflow);
         expect(p.splitMinWidth).toBe(PROFILES.deck!.splitMinWidth);
         expect(p.tokenScale).toBe(PROFILES.deck!.tokenScale);
     });

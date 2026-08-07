@@ -13,7 +13,7 @@ export const PROFILES: Record<string, FormatDescriptor> = {
         maxContentWidth: 1120,
         tokenScale: 1,
         splitMinWidth: 520,
-        paginate: "always",
+        overflow: "paginate",
     },
     doc: {
         id: "doc",
@@ -24,7 +24,7 @@ export const PROFILES: Record<string, FormatDescriptor> = {
         maxContentWidth: 1000,
         tokenScale: 1,
         splitMinWidth: 560,
-        paginate: "export", // continuous on screen, paginated to paper on export
+        overflow: "paginate",
     },
     web: {
         id: "web",
@@ -36,7 +36,7 @@ export const PROFILES: Record<string, FormatDescriptor> = {
         bleedSections: true,
         tokenScale: 1,
         splitMinWidth: 720,
-        paginate: "never",
+        overflow: "paginate",
     },
 };
 

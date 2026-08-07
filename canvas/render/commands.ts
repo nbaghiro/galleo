@@ -181,7 +181,9 @@ export interface SlidePage {
     contentH: number; // height the commands span; caller scales it to fit h (== h for a paginated page)
 }
 
-const PAGINATE_ABOVE = 1.2; // taller than this × its frame paginates; below, it scales onto one slide
+// Threshold of the "paginate" policy: taller than this × its frame splits; below, it scales onto one
+// page. An "fit" format never splits, however tall — the caller scales it instead.
+const PAGINATE_ABOVE = 1.2;
 
 // one scaled slide, or several paginated when too tall; Present, export, and 16:9 thumbnails render
 // from this, so all three agree on where a tall section breaks
@@ -194,7 +196,8 @@ export function sectionSlides(
     const { w, h } = sectionFrame(section, format);
     const { node, targetH } = prepareSlideNode(section, w, h, measureText, theme, format, plain);
     const { commands } = layout(node, { x: 0, y: 0, w, h: targetH }, measureText);
-    if (targetH <= h * PAGINATE_ABOVE) return [{ commands, w, h, contentH: targetH }];
+    if (format.overflow === "fit" || targetH <= h * PAGINATE_ABOVE)
+        return [{ commands, w, h, contentH: targetH }];
     return fragment(commands, targetH, h).map((cmds) => ({ commands: cmds, w, h, contentH: h }));
 }
 

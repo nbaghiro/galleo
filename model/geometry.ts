@@ -36,7 +36,10 @@ export interface FormatDescriptor {
     height: number | "auto";
     maxContentWidth?: number;
     bleedSections?: boolean; // sections span the host width instead of sitting in a gutter
-    tokenScale: number;
+    tokenScale: number; // type + space multiplier; 1 leaves the composed tree untouched
     splitMinWidth: number;
-    paginate: "always" | "export" | "never";
+    // What a paged render does with a section taller than its frame: split it across pages, or keep
+    // one page and let the caller scale the content down. A card format wants "fit" — silently
+    // becoming two cards changes what the author publishes.
+    overflow: "paginate" | "fit";
 }
