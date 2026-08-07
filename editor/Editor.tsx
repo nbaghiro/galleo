@@ -12,6 +12,7 @@ import {
 import type { Tokens } from "@themes";
 import { themeCssVars } from "@themes";
 import { setArtifactFormat, getElementAt } from "@elements/ops";
+import { profileFor } from "@engine/profile";
 import { getElement, listElements } from "@elements/spec";
 import { installKeyDispatcher } from "@ui/keys";
 import { Button, Eyebrow, IconButton } from "@ui/button";
@@ -53,6 +54,8 @@ import {
     undo,
 } from "./core/store";
 
+const carouselCanvas = (): boolean => profileFor(editor.artifact).canvas === "carousel";
+
 export const Editor: Component = () => {
     // idempotent, so it is safe when the app shell already installed it
     onMount(() => installKeyDispatcher());
@@ -75,23 +78,27 @@ export const Editor: Component = () => {
                 <div class="relative min-h-0 overflow-hidden">
                     <Canvas />
                     <BackdropCornerButton />
-                    <Show
-                        when={leftOpen()}
-                        fallback={
-                            <IconButton
-                                size="xl"
-                                bordered
-                                tone="muted"
-                                rounded="xl"
-                                class="absolute left-3 top-1/2 z-panel -translate-y-1/2 bg-panel/95 shadow-lg backdrop-blur-md"
-                                title="Sections"
-                                onClick={() => setLeftOpen(true)}
-                            >
-                                <Icon name="sections" />
-                            </IconButton>
-                        }
-                    >
-                        <Minimap />
+                    {/* a carousel IS its own navigator — the cards sit side by side, so a thumbnail
+                        rail beside them would be the same thing twice */}
+                    <Show when={!carouselCanvas()}>
+                        <Show
+                            when={leftOpen()}
+                            fallback={
+                                <IconButton
+                                    size="xl"
+                                    bordered
+                                    tone="muted"
+                                    rounded="xl"
+                                    class="absolute left-3 top-1/2 z-panel -translate-y-1/2 bg-panel/95 shadow-lg backdrop-blur-md"
+                                    title="Sections"
+                                    onClick={() => setLeftOpen(true)}
+                                >
+                                    <Icon name="sections" />
+                                </IconButton>
+                            }
+                        >
+                            <Minimap />
+                        </Show>
                     </Show>
                     <Panel />
                 </div>

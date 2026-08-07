@@ -1,6 +1,6 @@
 import type { Component, JSX } from "solid-js";
 import { For } from "solid-js";
-import { CloseIcon, DeckIcon, DocIcon, SiteIcon, SparkleIcon } from "@ui/icons";
+import { CloseIcon, DeckIcon, DocIcon, SiteIcon, SocialIcon, SparkleIcon } from "@ui/icons";
 import { overlayThemeVars } from "../stores/theme";
 import { Modal } from "@ui/overlay";
 import { Eyebrow, IconButton } from "@ui/button";
@@ -11,6 +11,7 @@ const EXTRAS: Record<string, { desc: string; icon: () => JSX.Element }> = {
     deck: { desc: "A presentation", icon: () => <DeckIcon size={20} /> },
     doc: { desc: "A document", icon: () => <DocIcon size={20} /> },
     web: { desc: "A web page", icon: () => <SiteIcon size={20} /> },
+    social: { desc: "A carousel of cards", icon: () => <SocialIcon size={20} /> },
 };
 const FORMATS = FORMAT_LIST.map((f) => ({ id: f.value, label: f.label, ...EXTRAS[f.value]! }));
 

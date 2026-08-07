@@ -24,6 +24,7 @@ export const ScaledSectionCanvas: Component<{
     theme: Tokens;
     profile: FormatDescriptor;
     width?: number;
+    maxHeight?: number; // caps the rendered box height; width shrinks to keep the frame's aspect
     frame?: "slide" | "natural";
     layoutWidth?: number; // logical layout width for frame="natural"
     lazy?: boolean;
@@ -45,10 +46,18 @@ export const ScaledSectionCanvas: Component<{
     const [visible, setVisible] = createSignal(!props.lazy);
     const [naturalH, setNaturalH] = createSignal(0);
 
-    const w = (): number => props.width ?? 176;
     const plain = (): boolean => props.plain ?? true;
     const frame = (): "slide" | "natural" => props.frame ?? "slide";
     const slideBox = (): { w: number; h: number } => sectionFrame(props.section, props.profile);
+    // `width` is the budget, not the answer: a portrait page at a landscape thumb's width is three times
+    // its height, so a strip mixing formats loses its row rhythm. maxHeight trades width back for height.
+    const w = (): number => {
+        const want = props.width ?? 176;
+        const cap = props.maxHeight;
+        if (!cap || frame() !== "slide") return want;
+        const box = slideBox();
+        return Math.min(want, Math.round((cap * box.w) / box.h));
+    };
     const boxH = (): number =>
         frame() === "slide" ? Math.round((w() * slideBox().h) / slideBox().w) : naturalH();
 

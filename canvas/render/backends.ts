@@ -15,12 +15,13 @@ import {
     layoutRuns,
     measureText,
     layoutSection,
+    layoutSlide,
     SECTION_GAP,
 } from "./commands";
 import type { Section, SectionBackground } from "@model/artifact";
 import type { Tokens } from "@themes";
 import type { FormatDescriptor } from "@model/geometry";
-import { pagedSize } from "@engine/profile";
+import { pagedSize, sectionFrame } from "@engine/profile";
 
 // raster supersampling factor for crisp export
 export const EXPORT_SCALE = 2;
@@ -673,6 +674,9 @@ function profileCacheKey(profile: FormatDescriptor): string {
 // Retention beyond the paint window, so a small scroll oscillation doesn't thrash DOM.
 const KEEP_MARGIN = 400;
 
+// breathing room around a framed card, so it never touches the canvas edges
+const FRAME_INSET = 24;
+
 export interface StackWindow {
     top: number;
     bottom: number;
@@ -704,14 +708,23 @@ export function paintSectionStack(
         dimId?: string | null; // the drag-reordered section, painted dimmed
         cache?: SectionStackCache;
         window?: StackWindow;
+        fitHeight?: number; // viewport height a framed card is scaled to fit
         // stand-in for a section whose content hasn't loaded yet
         placeholder?: (
             section: Section,
             layoutW: number,
         ) => { commands: RenderCommand[]; height: number } | undefined;
     },
-): { tops: number[]; heights: number[]; regions: Region[]; height: number; painted: number } {
+): {
+    tops: number[];
+    heights: number[];
+    regions: Region[];
+    height: number;
+    painted: number;
+    scale: number;
+} {
     const gap = profile.kind === "continuous" ? 0 : SECTION_GAP; // doc/web merge seamlessly
+    const framed = profile.canvas === "framed" || profile.canvas === "carousel";
     const profileKey = profileCacheKey(profile);
     const cache = opts.cache;
     const win = opts.window;
@@ -722,10 +735,25 @@ export function paintSectionStack(
     const live = new Set<string>();
     let y = opts.startY ?? 0;
 
+    // A framed card lays out at its true page width — that is what makes its line breaks match what
+    // gets published — and is then CSS-scaled so the whole card is visible. Authoring a 4:5 card whose
+    // bottom is off-screen defeats the point of framing it. Regions are published pre-scaled below, so
+    // every overlay keeps working without knowing this happened.
+    const frameScale = (frameH: number, layoutW: number): number => {
+        if (!framed) return 1;
+        const byWidth = (opts.fullW - FRAME_INSET * 2) / layoutW;
+        const byHeight = opts.fitHeight
+            ? (opts.fitHeight - FRAME_INSET * 2) / frameH
+            : Number.POSITIVE_INFINITY;
+        return Math.max(0.05, Math.min(1, byWidth, byHeight));
+    };
+    let scale = 1;
+
     for (const section of sections) {
         live.add(section.id);
         const layoutW = sectionLayoutWidth(section, profile, opts.fullW);
-        const x = Math.round((opts.fullW - layoutW) / 2); // bleed → layoutW == fullW → centered at 0
+        const frame = sectionFrame(section, profile);
+        scale = frameScale(Math.round((layoutW * frame.h) / frame.w), layoutW);
         // hideKey only in the edited section's cache key → an edit repaints one section, not the stack
         const hideKey = opts.hideId?.startsWith(`el:${section.id}:`) ? opts.hideId : "";
         const prev = cache?.entries.get(section.id);
@@ -757,7 +785,20 @@ export function paintSectionStack(
             };
             cache?.entries.set(section.id, entry);
         } else {
-            const res = layoutSection(section, layoutW, measureText, theme, profile);
+            // A card format edits inside its frame: the shape IS the artifact, so a natural-height
+            // stack would hide the only thing that matters. Laid out at `layoutW` (which for a card
+            // format is its page width, since maxContentWidth caps it there) and painted 1:1 — no
+            // scale factor, so every overlay keeps working in unscaled canvas coords.
+            const res = framed
+                ? layoutSlide(
+                      section,
+                      layoutW,
+                      Math.round((layoutW * frame.h) / frame.w),
+                      measureText,
+                      theme,
+                      profile,
+                  )
+                : layoutSection(section, layoutW, measureText, theme, profile);
             const commands = hideKey
                 ? res.commands.filter((c) => !(c.kind === "text" && c.id === hideKey))
                 : res.commands;
@@ -776,7 +817,10 @@ export function paintSectionStack(
             cache?.entries.set(section.id, entry);
         }
 
-        const inWindow = !win || intersects(y, entry.height, win);
+        // everything below is in canvas coords, so heights and region boxes carry the scale
+        const shownH = entry.height * scale;
+        const shownX = Math.round((opts.fullW - layoutW * scale) / 2);
+        const inWindow = !win || intersects(y, shownH, win);
         if (inWindow && entry.commands.length) {
             if (!entry.layer) {
                 entry.layer = document.createElement("div");
@@ -787,28 +831,36 @@ export function paintSectionStack(
             }
             const layer = entry.layer;
             layer.style.position = "absolute"; // paint() forces relative; keep layers out of flow
-            layer.style.left = `${x}px`;
+            layer.style.left = `${shownX}px`;
             layer.style.top = `${y}px`;
             layer.style.width = `${layoutW}px`;
             layer.style.height = `${entry.height}px`;
+            layer.style.transform = scale === 1 ? "" : `scale(${scale})`;
+            layer.style.transformOrigin = "top left";
             layer.style.opacity = opts.dimId === section.id ? "0.4" : "1"; // reset each paint (layers cache)
             layers.push(layer);
             for (const r of entry.regions)
                 regions.push({
                     id: r.id,
-                    box: { x: r.box.x + x, y: r.box.y + y, w: r.box.w, h: r.box.h },
+                    box: {
+                        x: r.box.x * scale + shownX,
+                        y: r.box.y * scale + y,
+                        w: r.box.w * scale,
+                        h: r.box.h * scale,
+                    },
+                    ...(r.radius !== undefined ? { radius: r.radius * scale } : {}),
                 });
-        } else if (win && entry.layer && !intersects(y, entry.height, keep(win))) {
+        } else if (win && entry.layer && !intersects(y, shownH, keep(win))) {
             entry.layer = null; // out of retention range: drop the DOM, keep the layout
         }
         tops.push(y);
-        heights.push(entry.height);
-        y += entry.height + gap;
+        heights.push(shownH);
+        y += shownH + gap;
     }
     if (cache)
         for (const id of [...cache.entries.keys()]) if (!live.has(id)) cache.entries.delete(id);
     host.replaceChildren(...layers);
-    return { tops, heights, regions, height: y, painted: layers.length };
+    return { tops, heights, regions, height: y, painted: layers.length, scale };
 }
 
 const keep = (w: StackWindow): StackWindow => ({
@@ -841,4 +893,146 @@ export function scaledHostCss(
     const left = (center.frameW - center.frameW * scale) / 2;
     const top = (center.frameH - height * scale) / 2;
     return `position:absolute;${base};left:${left}px;top:${top}px`;
+}
+
+// A carousel is read sideways, so its editor is too: sections run left to right, the focused card at
+// full size and its neighbours stepped down so the eye lands on the one being worked on. Deliberately
+// simpler than paintSectionStack — a carousel is a handful of cards, so there is no windowing, no
+// retention, and no scroll anchoring to get wrong. Regions are published in canvas coords exactly as
+// the stack does, which is what lets every overlay work here unchanged.
+export const CAROUSEL_GAP = 28;
+const NEIGHBOUR_SCALE = 0.82; // stepped down enough to read as context, not so far it looks broken
+const CAROUSEL_INSET = 32;
+// Position AND size ride on one transform so a focus change animates as a single movement: the new
+// card grows into the middle while the others shrink and slide outward.
+const CAROUSEL_EASE = "transform 340ms cubic-bezier(0.22, 0.61, 0.36, 1)";
+
+export function paintSectionCarousel(
+    host: HTMLElement,
+    sections: Section[],
+    profile: FormatDescriptor,
+    theme: Tokens,
+    opts: {
+        fullW: number;
+        fullH: number;
+        focus: number; // index of the card being worked on
+        hideId?: string | null;
+        dimId?: string | null;
+        cache?: SectionStackCache;
+    },
+): { lefts: number[]; widths: number[]; regions: Region[]; scale: number } {
+    const cache = opts.cache;
+    const lefts: number[] = [];
+    const widths: number[] = [];
+    const regions: Region[] = [];
+    const layers: HTMLElement[] = [];
+    const live = new Set<string>();
+
+    // one layout width for every card, so a carousel stays one shape even mid-edit
+    const first = sections[0];
+    const frame = first ? sectionFrame(first, profile) : pagedSize(profile);
+    const layoutW = Math.min(frame.w, profile.maxContentWidth ?? frame.w);
+    const frameH = Math.round((layoutW * frame.h) / frame.w);
+    // the focused card fits the viewport; neighbours are a step smaller than that
+    const scale = Math.max(
+        0.05,
+        Math.min(
+            1,
+            (opts.fullW - CAROUSEL_INSET * 2) / layoutW,
+            (opts.fullH - CAROUSEL_INSET * 2) / frameH,
+        ),
+    );
+    const focusedH = frameH * scale;
+    const focusedW = layoutW * scale;
+    const neighbourW = focusedW * NEIGHBOUR_SCALE;
+
+    // The strip does not scroll: the focused card sits in the middle of the viewport and the rest fan
+    // out either side, so navigating is a transform on every card rather than a scroll position.
+    const originX = (i: number): number => {
+        const mid = (opts.fullW - focusedW) / 2;
+        if (i === opts.focus) return mid;
+        if (i < opts.focus)
+            return mid - (opts.focus - i) * (neighbourW + CAROUSEL_GAP) + neighbourW - neighbourW;
+        return mid + focusedW + CAROUSEL_GAP + (i - opts.focus - 1) * (neighbourW + CAROUSEL_GAP);
+    };
+    for (const [i, section] of sections.entries()) {
+        live.add(section.id);
+        const k = scale * (i === opts.focus ? 1 : NEIGHBOUR_SCALE);
+        const hideKey = opts.hideId?.startsWith(`el:${section.id}:`) ? opts.hideId : "";
+        const prev = cache?.entries.get(section.id);
+        const profileKey = profileCacheKey(profile);
+        const reuse =
+            prev &&
+            !prev.ghost &&
+            prev.section === section &&
+            prev.layoutW === layoutW &&
+            prev.theme === theme &&
+            prev.profileKey === profileKey &&
+            prev.hideKey === hideKey;
+
+        let entry: SectionCacheEntry;
+        if (reuse) entry = prev;
+        else {
+            const res = layoutSlide(section, layoutW, frameH, measureText, theme, profile);
+            const commands = hideKey
+                ? res.commands.filter((c) => !(c.kind === "text" && c.id === hideKey))
+                : res.commands;
+            entry = {
+                section,
+                layoutW,
+                theme,
+                profileKey,
+                hideKey,
+                commands,
+                ghost: false,
+                layer: prev?.layer ?? null,
+                regions: res.regions,
+                height: res.height,
+            };
+            cache?.entries.set(section.id, entry);
+        }
+
+        if (!entry.layer) {
+            entry.layer = document.createElement("div");
+            paint(entry.commands, entry.layer);
+        } else if (!reuse) {
+            if (cache) paintReconcile(entry.layer, entry.commands);
+            else paint(entry.commands, entry.layer);
+        }
+        const shownW = layoutW * k;
+        const shownH = entry.height * k;
+        const x = originX(i);
+        const y = CAROUSEL_INSET + (focusedH - shownH) / 2; // neighbours centre against the focused card
+        const layer = entry.layer;
+        layer.style.position = "absolute";
+        layer.style.left = "0px";
+        layer.style.top = "0px";
+        layer.style.width = `${layoutW}px`;
+        layer.style.height = `${entry.height}px`;
+        // one transform carries both, so a focus change is a single animated movement. Set before the
+        // layer is attached on first paint, so nothing animates in from nowhere.
+        layer.style.transformOrigin = "top left";
+        layer.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) scale(${k})`;
+        layer.style.transition = CAROUSEL_EASE;
+        layer.style.opacity = opts.dimId === section.id ? "0.4" : "1";
+        layers.push(layer);
+        for (const r of entry.regions)
+            regions.push({
+                id: r.id,
+                box: {
+                    x: r.box.x * k + x,
+                    y: r.box.y * k + y,
+                    w: r.box.w * k,
+                    h: r.box.h * k,
+                },
+                ...(r.radius !== undefined ? { radius: r.radius * k } : {}),
+            });
+
+        lefts.push(x);
+        widths.push(shownW);
+    }
+    if (cache)
+        for (const id of [...cache.entries.keys()]) if (!live.has(id)) cache.entries.delete(id);
+    host.replaceChildren(...layers);
+    return { lefts, widths, regions, scale };
 }

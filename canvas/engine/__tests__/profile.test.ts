@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     PROFILES,
+    SOCIAL_PRESETS,
     pagedSize,
     previewContentProfile,
     profileFor,
@@ -55,6 +56,29 @@ describe("PROFILES — pinned page geometry", () => {
             overflow: "paginate",
         });
     });
+    it("social is a paged 1080×1920 card that fits rather than paginates", () => {
+        expect(PROFILES.social).toMatchObject({
+            kind: "paged",
+            width: 1080,
+            height: 1920,
+            overflow: "fit",
+            uniformFrame: true,
+            canvas: "carousel",
+        });
+        // the card IS the page, so it lays out at exactly its width — bleeding would span the canvas
+        expect(PROFILES.social!.bleedSections).toBeUndefined();
+        expect(PROFILES.social!.maxContentWidth).toBe(PROFILES.social!.width);
+        // a card is read at phone width in a feed, so type has to be far larger relative to the frame
+        expect(PROFILES.social!.tokenScale).toBeGreaterThan(1);
+        // 1080px of portrait has no room for columns at that type size
+        expect(PROFILES.social!.splitMinWidth).toBeGreaterThan(1080 - 200);
+    });
+
+    it("every social preset shares the card width, so a carousel stays one shape", () => {
+        expect(SOCIAL_PRESETS.length).toBeGreaterThan(1);
+        for (const p of SOCIAL_PRESETS) expect(p.width).toBe(PROFILES.social!.width);
+    });
+
     it("web is a full-bleed continuous format", () => {
         expect(PROFILES.web).toMatchObject({
             kind: "continuous",
@@ -137,6 +161,19 @@ describe("sectionFrame", () => {
     it("takes the artifact's page size when the profile carries one", () => {
         const story = profileFor(content("deck", { width: 1080, height: 1920 }));
         expect(sectionFrame(section(), story)).toEqual({ w: 1080, h: 1920 });
+    });
+
+    it("a uniform-frame format ignores a section's aspect, so a carousel cannot mix shapes", () => {
+        // converting a deck (where mixing IS a feature) must not carry stale per-section aspects across
+        const social = resolveProfile("social");
+        expect(sectionFrame(section(1), social)).toEqual(sectionFrame(section(), social));
+        expect(sectionFrame(section(2.5), social)).toEqual({ w: 1080, h: 1920 });
+    });
+
+    it("a social preset resizes every card together", () => {
+        const story = profileFor({ format: "social", page: { width: 1080, height: 1920 } });
+        expect(sectionFrame(section(), story)).toEqual({ w: 1080, h: 1920 });
+        expect(sectionFrame(section(1), story)).toEqual({ w: 1080, h: 1920 }); // aspect still ignored
     });
 
     it("a section aspect still overrides the height on a custom page", () => {

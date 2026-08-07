@@ -52,6 +52,12 @@ export { canvasEl, setCanvasEl };
 const [canvasContentWidth, setCanvasContentWidth] = createSignal(1120);
 export { canvasContentWidth, setCanvasContentWidth };
 
+// The factor the canvas paints sections at: 1 for a natural-height stack, <1 for a framed card format
+// scaled to fit the viewport. Regions are published pre-scaled, so only overlays that render their own
+// type (the inline text editor) need this.
+const [canvasScale, setCanvasScale] = createSignal(1);
+export { canvasScale, setCanvasScale };
+
 // painted stage element, in content coords
 const [stageEl, setStageEl] = createSignal<HTMLElement | null>(null);
 export { stageEl, setStageEl };

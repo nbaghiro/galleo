@@ -38,7 +38,41 @@ export const PROFILES: Record<string, FormatDescriptor> = {
         splitMinWidth: 720,
         overflow: "paginate",
     },
+    // A carousel of portrait cards. Story 9:16 by default; the artifact's `page` picks another size
+    // from SOCIAL_PRESETS. Every value here differs from deck for a reason, not just the dimensions:
+    // cards run edge to edge, type reads far larger relative to the frame (a card is viewed at phone
+    // width in a feed), columns stack because 1080px of portrait has no room for them at that type
+    // size, a too-tall card is scaled rather than split, and every card shares one shape.
+    social: {
+        id: "social",
+        name: "Social",
+        kind: "paged",
+        width: 1080,
+        height: 1920,
+        // the card IS the page, so it lays out at exactly 1080 — no `bleedSections`, which spans the
+        // viewport (that is a web band, not a fixed card)
+        maxContentWidth: 1080,
+        tokenScale: 1.75,
+        splitMinWidth: 1000,
+        overflow: "fit",
+        uniformFrame: true,
+        canvas: "carousel",
+    },
 };
+
+// One-click sizes for the `social` format, written to ArtifactContent.page. Pure data — the UI reads
+// it; these are not profiles of their own.
+export interface SocialPreset {
+    label: string;
+    width: number;
+    height: number;
+}
+
+export const SOCIAL_PRESETS: SocialPreset[] = [
+    { label: "Story 9:16", width: 1080, height: 1920 },
+    { label: "Portrait 4:5", width: 1080, height: 1350 },
+    { label: "Square 1:1", width: 1080, height: 1080 },
+];
 
 export const DEFAULT_PROFILE = PROFILES.deck!;
 
@@ -80,13 +114,13 @@ export const stacksAtWidth = (profile: FormatDescriptor, availWidth: number): bo
     availWidth < profile.splitMinWidth;
 
 // The paged frame in logical px; the artifact's page size arrives via the profile, and a section's
-// `frame.aspect` overrides the height on top of it.
+// `frame.aspect` overrides the height on top of it — unless the format keeps every page one shape.
 export function sectionFrame(
     section: Section,
     profile: FormatDescriptor,
 ): { w: number; h: number } {
     const { w, h } = pagedSize(profile);
-    const aspect = section.frame?.aspect;
+    const aspect = profile.uniformFrame ? undefined : section.frame?.aspect;
     return { w, h: aspect && aspect > 0 ? Math.round(w / aspect) : h };
 }
 

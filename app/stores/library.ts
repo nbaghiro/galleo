@@ -366,7 +366,7 @@ export const formatLabel = (id: string): string => resolveProfile(id).name;
 export const formatLabelPlural = (id: string): string => `${formatLabel(id)}s`;
 
 // icons are a UI concern, so they stay out of the descriptor
-const ICONS: Record<string, string> = { deck: "deck", doc: "doc", web: "site" };
+const ICONS: Record<string, string> = { deck: "deck", doc: "doc", web: "site", social: "social" };
 export const formatIcon = (id: string): string => ICONS[id] ?? "deck";
 
 export const FORMATS: { id: string; label: string; icon: string }[] = FORMAT_IDS.map((id) => ({

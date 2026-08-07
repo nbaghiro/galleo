@@ -230,6 +230,7 @@ export const SectionThumb: Component<{
     page?: PageSize;
     label?: string;
     width?: number;
+    maxHeight?: number;
     selected?: boolean;
     onOpen: (e: MouseEvent) => void;
 }> = (props) => (
@@ -239,6 +240,7 @@ export const SectionThumb: Component<{
         theme={resolveTheme(props.themeId).tokens}
         profile={profileFor({ format: props.formatId, page: props.page })}
         width={props.width ?? DEFAULT_W}
+        maxHeight={props.maxHeight}
         frame="slide"
         as="button"
         onOpen={props.onOpen}

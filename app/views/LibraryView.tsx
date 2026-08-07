@@ -61,6 +61,9 @@ import { Sidebar, SidebarToggle } from "../components/Sidebar";
 
 // fills use soft/accent tints, legible on light and dark unlike line
 const TILE_W = 176;
+// the strip's tallest allowed shape is 4:3, so a portrait card shrinks to that height instead of
+// making its row three times taller than every other format's
+const TILE_MAX_H = Math.round((TILE_W * 3) / 4);
 const TILE_LEAD = "0px 400px"; // how far beyond the viewport a tile counts as worth loading
 const TILE_SETTLE = 90; // ms of quiet before the visible tiles are asked for
 
@@ -589,6 +592,7 @@ export const LibraryView: Component = () => {
                                             page={p.d.page}
                                             label={summary.title ?? `Section ${i() + 1}`}
                                             width={TILE_W}
+                                            maxHeight={TILE_MAX_H}
                                             onOpen={onCardClick}
                                         />
                                     </span>

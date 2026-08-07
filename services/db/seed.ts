@@ -10,12 +10,15 @@ import { createWorkspaceForUser } from "../core/accounts";
 import { TEMPLATE_INDEX } from "@model/templates";
 import { templateBody } from "../core/templates";
 import { aria } from "../core/ai/corpus/aria";
+import { cadence } from "../core/ai/corpus/cadence";
 import { fieldnotes } from "../core/ai/corpus/fieldnotes";
 import { galleo } from "../core/ai/corpus/galleo";
 import { helios } from "../core/ai/corpus/helios";
 import { lumen } from "../core/ai/corpus/lumen";
+import { mira } from "../core/ai/corpus/mira";
 import { slowweb } from "../core/ai/corpus/slowweb";
 import { terra } from "../core/ai/corpus/terra";
+import { tern } from "../core/ai/corpus/tern";
 
 interface Demo {
     id: string;
@@ -30,6 +33,9 @@ const DEMOS: Demo[] = [
     { id: "slowweb", title: "The Slow Web — Essay", artifact: slowweb },
     { id: "helios", title: "Helios — Climate report", artifact: helios },
     { id: "fieldnotes", title: "Field Notes — Faroe Islands", artifact: fieldnotes },
+    { id: "mira", title: "Mira — Barrier Serum carousel", artifact: mira },
+    { id: "tern", title: "Tern — Wool Runner carousel", artifact: tern },
+    { id: "cadence", title: "Cadence — Free tier carousel", artifact: cadence },
 ];
 
 const DEMO_EMAIL = "demo@galleo.app";
@@ -57,6 +63,7 @@ const PLAN: { folder: string | null; docs: Doc[] }[] = [
     },
     { folder: "Reports & writing", docs: [demo("helios"), demo("slowweb"), tpl("annual-report")] },
     { folder: "Personal", docs: [demo("fieldnotes"), tpl("photo-essay")] },
+    { folder: "Social", docs: [demo("mira"), demo("tern"), demo("cadence")] },
     { folder: null, docs: [tpl("market-analysis"), tpl("newsletter")] },
 ];
 

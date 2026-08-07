@@ -16,6 +16,7 @@ import {
     toRuns,
 } from "@model/text";
 import {
+    canvasScale,
     editCaret,
     editing,
     editor,
@@ -191,10 +192,15 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         const b = box();
         const l = leaf();
         if (!b || !l) return { display: "none" };
+        // The region box already carries the canvas scale, but this overlay renders its own type, so it
+        // takes the same transform as the painted layer rather than a scaled font size: identical
+        // metrics means identical wrapping, and the caret can't drift from the text underneath.
+        const k = canvasScale();
         return {
             left: `${b.x}px`,
             top: `${b.y}px`,
-            width: `${b.w}px`,
+            width: `${b.w / k}px`,
+            ...(k === 1 ? {} : { transform: `scale(${k})`, "transform-origin": "top left" }),
             font: `${l.weight ?? 400} ${l.size}px ${l.fontId}`,
             "line-height": `${l.lineHeight ?? l.size * 1.35}px`,
             color: l.color ?? "#1a1a1a",

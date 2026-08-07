@@ -11,6 +11,7 @@ import {
     backdropCss,
     createSectionStackCache,
     paint,
+    paintSectionCarousel,
     paintSectionStack,
     scaledHostCss,
     sectionLayoutWidth,
@@ -38,6 +39,9 @@ import {
     regions,
     selection,
     setCanvasContentWidth,
+    setCanvasScale,
+    slideIndex,
+    setSlideIndex,
     jumpToSection,
     leftOpen,
     knownHeight,
@@ -81,6 +85,7 @@ export const Canvas: Component = () => {
 
     // the band of the stage that is materialized
     let lastWindow: StackWindow | null = null;
+    const carousel = (): boolean => profileFor(editor.artifact).canvas === "carousel";
 
     // track: regions follow the preview (resize/column); off for DnD, so the drop target holds still
     const draw = (preview?: Section[] | null, track = false, dimId?: string | null): void => {
@@ -95,15 +100,34 @@ export const Canvas: Component = () => {
         const viewH = scrollEl.clientHeight || 800;
         const win = stackWindow(scrollEl.scrollTop, viewH);
         lastWindow = win;
+        // A carousel is a handful of cards read sideways, so it skips the stack's windowing, retention
+        // and scroll anchoring entirely — none of which mean anything for ten portrait cards.
+        if (carousel()) {
+            const secs = preview ?? editor.artifact.sections;
+            const res = paintSectionCarousel(paintHost, secs, profile, editorTokens(), {
+                fullW,
+                fullH: viewH,
+                focus: Math.min(slideIndex(), Math.max(0, secs.length - 1)),
+                hideId: editId,
+                dimId,
+                cache: stackCache,
+            });
+            stageEl.style.width = "100%";
+            stageEl.style.height = "100%";
+            setCanvasScale(res.scale);
+            if (!preview || track) publishRegions(res.regions);
+            return;
+        }
         const waiting = pendingSections();
         const beforeTops = editor.sectionTops;
-        const { tops, heights, regions, height } = paintSectionStack(
+        const { tops, heights, regions, height, scale } = paintSectionStack(
             paintHost,
             preview ?? editor.artifact.sections,
             profile,
             editorTokens(),
             {
                 fullW,
+                fitHeight: viewH,
                 hideId: editId,
                 dimId,
                 cache: stackCache,
@@ -127,6 +151,7 @@ export const Canvas: Component = () => {
             },
         );
         stageEl.style.height = `${height}px`;
+        setCanvasScale(scale); // the inline text editor renders its own type, so it needs the factor
         const drawn = preview ?? editor.artifact.sections;
         for (const [i, sec] of drawn.entries())
             if (!waiting.has(sec.id)) rememberHeight(sec.id, fullW, heights[i] ?? 0);
@@ -135,16 +160,21 @@ export const Canvas: Component = () => {
         setSectionTops(tops);
         // fetching runs on its own clock (see scheduleFetch): painting must never wait on the network
         if (waiting.size) scheduleFetch(viewH);
-        if (!preview || track) {
-            liveRegions = regions;
-            setRegions(regions);
-            const hits: { target: Target; spec: number; box: Rect }[] = [];
-            for (const r of regions) {
-                const t = parseTarget(r.id);
-                if (t) hits.push({ target: t, spec: specificity(t), box: r.box });
-            }
-            liveHits = hits;
+        if (!preview || track) publishRegions(regions);
+    };
+
+    const sectionOf = (t: Target): string => (t.kind === "section" ? t.section : t.address.section);
+
+    // regions are already in canvas coords, so hit-testing is a numeric box scan either way
+    const publishRegions = (regions: Region[]): void => {
+        liveRegions = regions;
+        setRegions(regions);
+        const hits: { target: Target; spec: number; box: Rect }[] = [];
+        for (const r of regions) {
+            const t = parseTarget(r.id);
+            if (t) hits.push({ target: t, spec: specificity(t), box: r.box });
         }
+        liveHits = hits;
     };
 
     const anchorScroll = (before: number[], after: number[]): void => {
@@ -247,6 +277,17 @@ export const Canvas: Component = () => {
         const t = pending.target;
         const caret = { x: pending.x, y: pending.y };
         pending = null;
+        // In a carousel a neighbour is shown smaller, so a click there means "work on this one" — it
+        // focuses the card rather than selecting into type rendered at the wrong scale.
+        if (carousel() && t) {
+            const i = editor.artifact.sections.findIndex((s) => s.id === sectionOf(t));
+            if (i >= 0 && i !== slideIndex()) {
+                if (editing()) stopEditing();
+                setSlideIndex(i);
+                setSelection(null);
+                return;
+            }
+        }
         // stop editing first (idempotent) so a click on another text element switches straight into it
         if (editing()) stopEditing();
         setSelection(t);
@@ -339,6 +380,7 @@ export const Canvas: Component = () => {
         leftOpen();
         editing();
         editorTokens();
+        slideIndex(); // read here, not in draw(): the rAF defers draw out of this tracking scope
         const p = preview();
         scheduleDraw(p?.sections ?? null, p?.track ?? false, p?.dimId ?? null);
     });
@@ -388,7 +430,11 @@ export const Canvas: Component = () => {
     return (
         <main
             ref={scrollEl}
-            class="h-full overflow-y-auto overscroll-none pt-6 pb-35"
+            class={
+                carousel()
+                    ? "relative h-full overflow-hidden"
+                    : "h-full overflow-y-auto overscroll-none pt-6 pb-35"
+            }
             style={pageStyle()}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}

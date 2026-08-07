@@ -368,6 +368,14 @@ const PATHS: Record<string, () => JSX.Element> = {
             <line x1="9" y1="6.5" x2="9.1" y2="6.5" />
         </>
     ),
+    // a portrait card with the next one peeking out: a carousel
+    social: () => (
+        <>
+            <rect x="6" y="3" width="12" height="18" rx="1.5" />
+            <path d="M3.5 6.5v11" />
+            <path d="M20.5 6.5v11" />
+        </>
+    ),
     signOut: () => (
         <>
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -491,6 +499,7 @@ export const PlusIcon = named("plus");
 export const DeckIcon = named("deck");
 export const DocIcon = named("doc");
 export const SiteIcon = named("site");
+export const SocialIcon = named("social");
 export const SparkleIcon = named("sparkle");
 export const SignOutIcon = named("signOut");
 export const SearchIcon = named("search");

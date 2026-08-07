@@ -8,12 +8,14 @@ import {
     createSectionStackCache,
     fitSlideContent,
     paint,
+    paintSectionCarousel,
     paintSectionStack,
+    sectionLayoutWidth,
     renderSlidePage,
     renderToCanvas,
 } from "@canvas/render/backends";
 import { SECTION_GAP } from "@canvas/render/commands";
-import { profileFor, resolveProfile } from "@engine/profile";
+import { profileFor, resolveProfile, sectionFrame } from "@engine/profile";
 import { inst, installCanvas2D, sectionOf, textMetricsCtx, tokens } from "@canvas/testkit";
 
 beforeAll(() => installCanvas2D());
@@ -287,5 +289,135 @@ describe("paintSectionStack — page-size cache invalidation", () => {
         const plain = cache.entries.get("s1")!.commands;
         paintWith(host, sections, cache, page(1080, 1350));
         expect(cache.entries.get("s1")!.commands).not.toBe(plain);
+    });
+});
+
+describe("paintSectionStack — framed editing", () => {
+    const social = resolveProfile("social");
+    const deck = resolveProfile("deck");
+    const sections = [sectionOf(inst("text", { text: "A card" }), { id: "s1" })];
+
+    // a card format's shape IS the artifact, so the editor canvas must show it, not a natural-height
+    // stack. It works without a scale factor because layoutW already equals the page width.
+    it("renders a card format at its page aspect", () => {
+        const host = document.createElement("div");
+        const { heights } = paintSectionStack(host, sections, social, tokens, { fullW: 1400 });
+        const layoutW = sectionLayoutWidth(sections[0]!, social, 1400);
+        expect(layoutW).toBe(1080); // capped at the page width, not the canvas
+        expect(heights[0]).toBeCloseTo((layoutW * 1920) / 1080, 0);
+    });
+
+    it("leaves a deck on natural heights, which it has always used", () => {
+        const host = document.createElement("div");
+        const { heights } = paintSectionStack(host, sections, deck, tokens, { fullW: 1400 });
+        expect(heights[0]).toBeLessThan(720); // a one-line section, not a full slide
+    });
+
+    it("still reports regions for a framed section, so it stays selectable", () => {
+        const host = document.createElement("div");
+        const { regions } = paintSectionStack(host, sections, social, tokens, { fullW: 1400 });
+        expect(regions.some((r) => r.id === "section:s1")).toBe(true);
+        expect(regions.some((r) => r.id.startsWith("el:s1"))).toBe(true);
+    });
+
+    // a 1350px card does not fit a laptop viewport, so it is scaled down; every overlay reads geometry
+    // from regions(), so publishing them pre-scaled is what keeps the rest of the editor working
+    it("scales a card down to fit the viewport height", () => {
+        const host = document.createElement("div");
+        const r = paintSectionStack(host, sections, social, tokens, {
+            fullW: 1400,
+            fitHeight: 800,
+        });
+        expect(r.scale).toBeLessThan(1);
+        expect(r.heights[0]).toBeLessThanOrEqual(800);
+    });
+
+    it("publishes regions in canvas coords, so overlays need no knowledge of the scale", () => {
+        const host = document.createElement("div");
+        const big = paintSectionStack(host, sections, social, tokens, { fullW: 1400 });
+        const small = paintSectionStack(document.createElement("div"), sections, social, tokens, {
+            fullW: 1400,
+            fitHeight: 800,
+        });
+        const boxOf = (rs: typeof big.regions): number =>
+            rs.find((x) => x.id === "section:s1")!.box.w;
+        expect(boxOf(small.regions)).toBeCloseTo(boxOf(big.regions) * small.scale, 0);
+    });
+
+    it("never scales a natural-height format", () => {
+        const host = document.createElement("div");
+        const r = paintSectionStack(host, sections, deck, tokens, { fullW: 1400, fitHeight: 300 });
+        expect(r.scale).toBe(1);
+    });
+});
+
+describe("paintSectionCarousel", () => {
+    const social = resolveProfile("social");
+    const cards = ["a", "b", "c"].map((id) =>
+        sectionOf(inst("text", { text: `card ${id}` }), { id }),
+    );
+    const run = (focus: number): ReturnType<typeof paintSectionCarousel> =>
+        paintSectionCarousel(document.createElement("div"), cards, social, tokens, {
+            fullW: 1400,
+            fullH: 800,
+            focus,
+        });
+
+    it("lays the cards out left to right", () => {
+        const { lefts } = run(0);
+        expect(lefts).toHaveLength(3);
+        expect(lefts[1]).toBeGreaterThan(lefts[0]!);
+        expect(lefts[2]).toBeGreaterThan(lefts[1]!);
+    });
+
+    it("shows the focused card larger than its neighbours", () => {
+        const { widths } = run(1);
+        expect(widths[1]).toBeGreaterThan(widths[0]!);
+        expect(widths[1]).toBeGreaterThan(widths[2]!);
+        expect(widths[0]).toBeCloseTo(widths[2]!, 5); // both neighbours step down equally
+    });
+
+    it("moves the emphasis when the focus moves", () => {
+        expect(run(0).widths[0]).toBeGreaterThan(run(1).widths[0]!);
+    });
+
+    it("fits the focused card in the viewport", () => {
+        const r = run(0);
+        expect(r.scale).toBeLessThanOrEqual(1);
+        const frame = sectionFrame(cards[0]!, social);
+        expect((frame.h / frame.w) * r.widths[0]!).toBeLessThanOrEqual(800);
+    });
+
+    it("publishes regions in canvas coords, so overlays work unchanged", () => {
+        const r = run(0);
+        expect(r.regions.some((x) => x.id === "section:a")).toBe(true);
+        // the second card's regions sit to the right of the first card's
+        const a = r.regions.find((x) => x.id === "section:a")!.box;
+        const b = r.regions.find((x) => x.id === "section:b")!.box;
+        expect(b.x).toBeGreaterThan(a.x + a.w - 1);
+    });
+
+    // the strip does not scroll: whichever card has focus is placed in the middle of the viewport
+    it("centres whichever card has focus", () => {
+        for (const i of [0, 1, 2]) {
+            const r = run(i);
+            expect(r.lefts[i]! + r.widths[i]! / 2).toBeCloseTo(1400 / 2, 0);
+        }
+    });
+
+    it("fans the rest out either side of it", () => {
+        const r = run(1);
+        expect(r.lefts[0]! + r.widths[0]!).toBeLessThanOrEqual(r.lefts[1]! + 1);
+        expect(r.lefts[2]!).toBeGreaterThanOrEqual(r.lefts[1]! + r.widths[1]! - 1);
+    });
+
+    it("keeps every card the same shape, whatever the focus", () => {
+        const r = run(1);
+        const aspect = (id: string): number => {
+            const box = r.regions.find((x) => x.id === `section:${id}`)!.box;
+            return box.h / box.w;
+        };
+        expect(aspect("a")).toBeCloseTo(aspect("b"), 3);
+        expect(aspect("c")).toBeCloseTo(aspect("b"), 3);
     });
 });

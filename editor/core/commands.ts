@@ -9,6 +9,7 @@ import {
     setArtifactFormat,
 } from "@elements/ops";
 import { parentTarget } from "@model/artifact";
+import { profileFor } from "@engine/profile";
 import {
     addSectionAfter,
     canRedo,
@@ -18,6 +19,7 @@ import {
     editing,
     editor,
     moveSectionBy,
+    setSlideIndex,
     present,
     presenting,
     redo,
@@ -37,6 +39,14 @@ import { toggleTextMark } from "./text";
 // active only when mounted and not presenting (present has its own keymap)
 const inEditor = (c: KeyCtx): boolean => c.has("editor") && !c.has("present");
 const notTyping = (c: KeyCtx): boolean => !c.has("editor.textEditing");
+const isCarousel = (): boolean => profileFor(editor.artifact).canvas === "carousel";
+// focus moves, selection does not follow: the next card is a fresh surface to work on
+const stepCard = (delta: number): void => {
+    const n = editor.artifact.sections.length;
+    if (!n) return;
+    setSlideIndex((i: number) => Math.max(0, Math.min(n - 1, i + delta)));
+    setSelection(null);
+};
 const editing_ = (c: KeyCtx): boolean => c.has("editor.textEditing");
 
 function currentSectionId(): string | null {
@@ -166,6 +176,26 @@ registerCommands([
         icon: "sparkle",
         when: inEditor,
         run: () => openSectionPrompt(currentSectionId()),
+    },
+
+    // A carousel does not scroll: navigating IS changing which card is focused, so it belongs on the
+    // arrow keys rather than a scrollbar. Inert unless the format is a carousel, and (via notTyping)
+    // while the caret is in text, where the arrows mean what they always mean.
+    {
+        id: "carousel.prev",
+        title: "Previous card",
+        group: "arrange",
+        icon: "chevronLeft",
+        when: (c) => inEditor(c) && notTyping(c) && isCarousel(),
+        run: () => stepCard(-1),
+    },
+    {
+        id: "carousel.next",
+        title: "Next card",
+        group: "arrange",
+        icon: "chevronRight",
+        when: (c) => inEditor(c) && notTyping(c) && isCarousel(),
+        run: () => stepCard(1),
     },
 
     {
@@ -300,6 +330,8 @@ registerCommands([
 ]);
 
 registerBindings([
+    { chord: ["arrowleft", "arrowup"], command: "carousel.prev", when: "editor" },
+    { chord: ["arrowright", "arrowdown"], command: "carousel.next", when: "editor" },
     { chord: "mod+z", command: "edit.undo", when: "editor" },
     { chord: ["mod+shift+z", "mod+y"], command: "edit.redo", when: "editor" },
     { chord: ["delete", "backspace"], command: "edit.delete", when: "editor" },

@@ -28,6 +28,7 @@ import {
     duplicateSectionAt,
     moveSectionBy,
     removeSectionAt,
+    slideIndex,
 } from "../core/store";
 import { startDrag, drag } from "../core/dnd";
 import { openSectionPrompt } from "../core/ai";
@@ -475,7 +476,18 @@ const dangerAction = barDangerAction;
 const [layoutOpen, setLayoutOpen] = createSignal<string | null>(null);
 
 export const SectionActions: Component = () => {
-    const sid = createMemo(() => layoutOpen() ?? sectionOf(hover()));
+    // A carousel card is tall and narrow, and the space below it is the next card — so the pill stands
+    // on the right edge as a column of icons. Same actions, same order; only the axis and the labels
+    // change, since a vertical bar has no room for them.
+    const railed = createMemo(() => profileFor(editor.artifact).canvas === "carousel");
+    // A carousel's neighbours are peeks, not workspaces, and their right edges sit off-screen — a rail
+    // anchored to a hovered one is unreachable. It belongs to the focused card, whichever card is under
+    // the pointer.
+    const hovered = createMemo((): string | null => {
+        if (!hover()) return null;
+        return railed() ? (editor.artifact.sections[slideIndex()]?.id ?? null) : sectionOf(hover());
+    });
+    const sid = createMemo(() => layoutOpen() ?? hovered());
     const box = createMemo(() => {
         const id = sid();
         return id ? (regions().find((r) => r.id === sectionRegionId(id))?.box ?? null) : null;
@@ -515,54 +527,64 @@ export const SectionActions: Component = () => {
                         shadow="lg"
                         gap="0.5"
                         anchor="free"
-                        class="absolute z-panel -translate-x-1/2"
-                        style={{ left: `${b().x + b().w / 2}px`, top: `${b().y + b().h - 16}px` }}
+                        class={`absolute z-panel -translate-x-1/2 ${railed() ? "-translate-y-1/2 flex-col" : ""}`}
+                        style={
+                            railed()
+                                ? { left: `${b().x + b().w}px`, top: `${b().y + b().h / 2}px` }
+                                : {
+                                      left: `${b().x + b().w / 2}px`,
+                                      top: `${b().y + b().h - 16}px`,
+                                  }
+                        }
                         onPointerMove={(e) => e.stopPropagation()}
                         onPointerDown={(e) => e.stopPropagation()}
                     >
-                        <div class="-my-1 flex flex-col justify-center">
+                        <div class={`flex justify-center ${railed() ? "-mx-1" : "-my-1 flex-col"}`}>
                             <button
                                 class={stepAction}
                                 disabled={isFirst()}
-                                title="Move section up"
+                                title={railed() ? "Move card left" : "Move section up"}
                                 onClick={() => moveSectionBy(sid()!, -1)}
                             >
-                                <Icon name="chevronUp" size={13} />
+                                <Icon name={railed() ? "chevronLeft" : "chevronUp"} size={13} />
                             </button>
                             <button
                                 class={stepAction}
                                 disabled={isLast()}
-                                title="Move section down"
+                                title={railed() ? "Move card right" : "Move section down"}
                                 onClick={() => moveSectionBy(sid()!, 1)}
                             >
-                                <Icon name="chevronDown" size={13} />
+                                <Icon name={railed() ? "chevronRight" : "chevronDown"} size={13} />
                             </button>
                         </div>
-                        <Separator vertical size="sm" />
+                        <Separator vertical={!railed()} size="sm" />
                         <button
                             class={action}
                             title="Add a blank section below"
                             onClick={() => addSectionAfter(sid()!)}
                         >
-                            <Icon name="plus" size={13} /> Section
+                            <Icon name="plus" size={13} />
+                            <Show when={!railed()}>Section</Show>
                         </button>
-                        <Separator vertical size="sm" />
+                        <Separator vertical={!railed()} size="sm" />
                         <button
                             class={action}
                             title="Generate a section here with AI"
                             onClick={() => openSectionPrompt(sid()!)}
                         >
-                            <Icon name="sparkle" size={13} /> Generate
+                            <Icon name="sparkle" size={13} />
+                            <Show when={!railed()}>Generate</Show>
                         </button>
-                        <Separator vertical size="sm" />
+                        <Separator vertical={!railed()} size="sm" />
                         <button
                             class={action}
                             title="Section layout & background"
                             onClick={() => setLayoutOpen(sid())}
                         >
-                            <Icon name="layout" size={13} /> Layout
+                            <Icon name="layout" size={13} />
+                            <Show when={!railed()}>Layout</Show>
                         </button>
-                        <Separator vertical size="sm" />
+                        <Separator vertical={!railed()} size="sm" />
                         <button
                             class={iconAction}
                             classList={{ "text-accent": !!sectionBg()?.image }}

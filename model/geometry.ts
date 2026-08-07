@@ -42,4 +42,16 @@ export interface FormatDescriptor {
     // one page and let the caller scale the content down. A card format wants "fit" — silently
     // becoming two cards changes what the author publishes.
     overflow: "paginate" | "fit";
+    // Every page is the same shape, so `Section.frame.aspect` is ignored. A carousel is posted as one
+    // set and the host enforces a single aspect across it, so a mixed-shape carousel is rejected or
+    // cropped. Enforced in sectionFrame rather than by hiding the control, since converting a deck
+    // (where mixing shapes is a feature) would otherwise carry stale per-section aspects across.
+    uniformFrame?: boolean;
+    // How the editor canvas arranges sections.
+    //   "stack"    — a vertical run at natural height (default): deck, doc, site
+    //   "framed"   — a vertical run, each section inside its page frame
+    //   "carousel" — a horizontal run of framed pages, the focused one full size
+    // A deck tolerates natural-height editing because it frames only in Present. A card format cannot:
+    // its shape IS the artifact, and a carousel is read sideways, so the editor should be too.
+    canvas?: "stack" | "framed" | "carousel";
 }

@@ -1,4 +1,10 @@
-import type { ArtifactContent, ElementInstance, Section, SectionBackground } from "@model/artifact";
+import type {
+    ArtifactContent,
+    ElementInstance,
+    PageSize,
+    Section,
+    SectionBackground,
+} from "@model/artifact";
 import { emptyRegion, rowGroup } from "@model/artifact";
 
 export const t = (text: string, style: string): ElementInstance => ({
@@ -134,3 +140,13 @@ export const web = (
     sections: Section[],
     background?: SectionBackground,
 ): ArtifactContent => artifact("web", theme, sections, background);
+
+// `page` picks a SOCIAL_PRESETS size; omitted leaves the profile's 9:16 story default
+export const social = (
+    theme: string,
+    sections: Section[],
+    opts?: { page?: PageSize; background?: SectionBackground },
+): ArtifactContent => ({
+    ...artifact("social", theme, sections, opts?.background),
+    ...(opts?.page ? { page: opts.page } : {}),
+});
