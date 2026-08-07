@@ -1,11 +1,12 @@
 import type { LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import type { ElementAddress, ElementInstance, Section, SectionBackground } from "@model/artifact";
-import type { ElementLayout } from "@model/geometry";
 import type { Tokens } from "@themes";
 import { getElement } from "@elements/spec";
 import { elementRegionId, sectionRegionId } from "@model/artifact";
-import { fit, grow, percent } from "@model/geometry";
+import { scaleDrawContext } from "@engine/drawscale";
+import type { ElementLayout, Size } from "@model/geometry";
+import { fit, fixed, grow, percent } from "@model/geometry";
 import { fontStack, luminance, mixWhite } from "@themes";
 
 const card = (title: string, body: string): ElementInstance => ({
@@ -49,6 +50,65 @@ export const GUTTER = 14; // inset around a section column's top-level element (
 const SECTION_PAD = 36;
 const BLEED_PAD_X = 72;
 const pad = (n: number) => ({ top: n, right: n, bottom: n, left: n });
+
+// `tokenScale` in one place. Type sizes live as constants inside each of the ~20 element specs, so
+// scaling them per-element is something every future element would have to remember; scaling the
+// composed tree cannot be forgotten. Multiplies type and space only — ratios (`aspect`) and relative
+// sizes (`percent`) are already scale-free. A `surface` draws itself and so is handled by scaling its
+// coordinate space instead (see @engine/drawscale).
+const scaleSize = (s: Size, k: number): Size =>
+    s.mode === "fixed"
+        ? fixed(s.value * k)
+        : s.mode === "percent"
+          ? s
+          : {
+                ...s,
+                ...(s.min !== undefined ? { min: s.min * k } : {}),
+                ...(s.max !== undefined ? { max: s.max * k } : {}),
+            };
+
+export function scaleTokens(node: EngineNode, k: number): EngineNode {
+    if (k === 1) return node;
+    const out: EngineNode = { ...node, w: scaleSize(node.w, k), h: scaleSize(node.h, k) };
+    if (node.gap !== undefined) out.gap = node.gap * k;
+    if (node.padding)
+        out.padding = {
+            top: node.padding.top * k,
+            right: node.padding.right * k,
+            bottom: node.padding.bottom * k,
+            left: node.padding.left * k,
+        };
+    if (node.float)
+        out.float = {
+            ...node.float,
+            ...(node.float.dx !== undefined ? { dx: node.float.dx * k } : {}),
+            ...(node.float.dy !== undefined ? { dy: node.float.dy * k } : {}),
+        };
+    if (node.text)
+        out.text = {
+            ...node.text,
+            size: node.text.size * k,
+            ...(node.text.lineHeight !== undefined ? { lineHeight: node.text.lineHeight * k } : {}),
+        };
+    if (node.fill?.radius !== undefined) out.fill = { ...node.fill, radius: node.fill.radius * k };
+    if (node.image?.radius !== undefined)
+        out.image = { ...node.image, radius: node.image.radius * k };
+    // A surface draws its own text and geometry, out of reach of this walk, so scale its space instead:
+    // it is handed a k-times-smaller box and a context that multiplies everything it emits.
+    const surface = node.surface;
+    if (surface)
+        out.surface = {
+            paint: (g, box) =>
+                surface.paint(scaleDrawContext(g, k), {
+                    x: 0,
+                    y: 0,
+                    w: box.w / k,
+                    h: box.h / k,
+                }),
+        };
+    if (node.children) out.children = node.children.map((c) => scaleTokens(c, k));
+    return out;
+}
 
 function emptyRegionNode(ctx: LayoutCtx): EngineNode {
     // read-only render: same slot geometry, without the editor affordance
@@ -192,17 +252,25 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
     const webBand = ctx.format.id === "web"; // full-bleed band, content stays in a centered column
     const innerMax = ctx.format.maxContentWidth ?? 1180;
     const contentTheme = bgIsDark(bg) ? onDark(ctx.theme) : ctx.theme;
-    const sidePad = bleed ? BLEED_PAD_X : SECTION_PAD;
+    // The section's own gutters scale here rather than in scaleTokens, because contentW is what
+    // children size against (stacksAtWidth, rowShares): scaling padding afterwards would leave them
+    // measured against a width the section no longer has.
+    const k = ctx.format.tokenScale || 1;
+    const sidePad = (bleed ? BLEED_PAD_X : SECTION_PAD) * k;
+    const gutter = GUTTER * k;
     const outerW = ctx.availWidth - sidePad * 2;
     // exact for the top-level row; a nested row inherits it and stacks a step late, self-correcting
-    const contentW = Math.max(0, (webBand ? Math.min(outerW, innerMax) : outerW) - GUTTER * 2);
+    const contentW = Math.max(0, (webBand ? Math.min(outerW, innerMax) : outerW) - gutter * 2);
     const cctx: LayoutCtx = { ...ctx, theme: contentTheme, availWidth: contentW };
 
-    const content = composeElement(section.root, cctx, { section: section.id, path: [] });
+    const content = scaleTokens(
+        composeElement(section.root, cctx, { section: section.id, path: [] }),
+        k,
+    );
     const inner: EngineNode = {
         w: webBand ? grow(undefined, innerMax) : grow(),
         h: fit(),
-        padding: pad(GUTTER),
+        padding: pad(gutter),
         children: [content],
     };
 
@@ -214,8 +282,8 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
         h: fit(),
         alignX: webBand ? "center" : undefined,
         padding: bleed
-            ? { top: 64, bottom: 64, left: BLEED_PAD_X, right: BLEED_PAD_X }
-            : pad(SECTION_PAD),
+            ? { top: 64 * k, bottom: 64 * k, left: sidePad, right: sidePad }
+            : pad(sidePad),
         // crop over-wide elements at the edge; height stays free for fit-growth + slide-fitting
         clip: { x: true },
         children: [inner],
