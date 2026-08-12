@@ -33,7 +33,6 @@ const [coarse, setCoarse] = createSignal(matches(COARSE));
 
 export const viewportTier = tier;
 export const isPhone = (): boolean => tier() === "phone";
-export const isTablet = (): boolean => tier() === "tablet";
 export const isDesktop = (): boolean => tier() === "desktop";
 // Coarse pointer means touch-sized hit targets, not a narrow viewport: a tablet is both.
 export const isCoarsePointer = coarse;

@@ -295,17 +295,8 @@ export function registerBindings(bs: Binding[]): void {
     for (const b of bs) registerBinding(b);
 }
 
-export function getCommand(id: string): Command | undefined {
-    return commands.get(id);
-}
 export function allCommands(): Command[] {
     return [...commands.values()];
-}
-/** Test/HMR helper: wipe the registries (built-ins re-register on next import evaluation). */
-export function _resetRegistry(): void {
-    commands.clear();
-    bindings.length = 0;
-    bumpRegistry();
 }
 
 const [contextKeys, setContextKeys] = createSignal<Record<string, boolean>>({});
@@ -330,32 +321,23 @@ export function pushScope(name: string, opts: ScopeOpts = {}): () => void {
     setScopeStack((s) => [...s, frame]);
     return () => setScopeStack((s) => s.filter((f) => f !== frame));
 }
-export function activeScopes(): string[] {
-    return scopeStack().map((f) => f.name);
-}
 
 const [paletteOpen, setPaletteOpen] = createSignal(false);
 export { paletteOpen };
-export function openPalette(): void {
-    setPaletteOpen(true);
-}
 export function closePalette(): void {
     setPaletteOpen(false);
 }
-export function togglePalette(): void {
+function togglePalette(): void {
     setPaletteOpen((v) => !v);
 }
 
 const [sheetOpen, setSheetOpen] = createSignal(false);
 export { sheetOpen };
-export function openShortcuts(): void {
+function openShortcuts(): void {
     setSheetOpen(true);
 }
 export function closeShortcuts(): void {
     setSheetOpen(false);
-}
-export function toggleShortcuts(): void {
-    setSheetOpen((v) => !v);
 }
 
 function isInputFocused(): boolean {

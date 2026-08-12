@@ -362,15 +362,6 @@ export async function buildSectionPngZip(files: SectionPng[]): Promise<Uint8Arra
     return zip.generateAsync({ type: "uint8array" });
 }
 
-export async function exportSectionPngs(
-    artifact: ArtifactContent,
-    tk: Tokens,
-    opts?: ExportOptions,
-): Promise<void> {
-    const files = await buildSectionPngs(artifact, tk, opts);
-    downloadBytes(await buildSectionPngZip(files), "galleo-sections.zip", "application/zip");
-}
-
 // A4 portrait width in CSS px at 96dpi, zero @page margins; Letter is wider, so it underfills, not clips
 const A4_PRINT_PX = 794;
 

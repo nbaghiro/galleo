@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import type { BoolFeature, FeatureKey, FeatureStatus, NumFeature } from "@model/billing";
+import type { BoolFeature, FeatureKey, FeatureStatus } from "@model/billing";
 import { featureStatus } from "@model/billing";
 import type { FeaturesState } from "../api";
 import { api } from "../api";
@@ -16,7 +16,6 @@ export async function loadFeatures(): Promise<void> {
 }
 
 export const can = (key: BoolFeature): boolean => featuresState()?.features[key] ?? false;
-export const featureLimit = (key: NumFeature): number => featuresState()?.features[key] ?? 0;
 export const statusOf = (key: FeatureKey): FeatureStatus =>
     featuresState()?.status[key] ?? featureStatus(key);
 export const isComingSoon = (key: FeatureKey): boolean => statusOf(key) === "planned";

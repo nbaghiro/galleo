@@ -382,15 +382,4 @@ export function setArtifactFormat(art: ArtifactContent, format: Id): ArtifactCon
     return { ...art, format };
 }
 
-// whole logical px
-export function setPageSize(art: ArtifactContent, width: number, height: number): ArtifactContent {
-    return { ...art, page: { width: Math.round(width), height: Math.round(height) } };
-}
-
-export function clearPageSize(art: ArtifactContent): ArtifactContent {
-    if (!art.page) return art;
-    const { page: _page, ...rest } = art;
-    return rest;
-}
-
 export { isContainer };

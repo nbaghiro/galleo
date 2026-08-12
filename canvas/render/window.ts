@@ -17,7 +17,6 @@ export function stackWindow(
 }
 
 /** Movement per millisecond above which the viewer is flinging rather than reading. */
-export const FLING_SPEED = 0.3;
 
 export interface Slot {
     id: string;

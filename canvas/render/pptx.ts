@@ -419,16 +419,6 @@ function surfaceSvgUri(framed: RenderCommand): string | undefined {
     return `data:image/svg+xml;base64,${b64}`;
 }
 
-function downloadBytes(bytes: Uint8Array, filename: string): void {
-    const type = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
-    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
-}
-
 // typeface → slot → a representative weight/style; only what the deck paints gets fetched
 type UsedFonts = Map<string, Map<FontSlot, { weight: number; italic: boolean }>>;
 
@@ -542,12 +532,4 @@ export async function buildPptx(
         // fall through to the un-embedded bytes
     }
     return new Uint8Array((await pptx.write({ outputType: "arraybuffer" })) as ArrayBuffer);
-}
-
-export async function exportPptx(
-    artifact: ArtifactContent,
-    tk: Tokens,
-    opts?: ExportOptions,
-): Promise<void> {
-    downloadBytes(await buildPptx(artifact, tk, opts), "galleo.pptx");
 }

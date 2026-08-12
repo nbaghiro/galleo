@@ -175,6 +175,13 @@ const PATHS: Record<string, () => JSX.Element> = {
         </>
     ),
     stack: () => <path d="M5 7h14M5 12h14M5 17h14" />,
+    layers: () => (
+        <>
+            <path d="M12 3.5 4 8l8 4.5L20 8l-8-4.5Z" />
+            <path d="m4 12.5 8 4.5 8-4.5" />
+            <path d="m4 17 8 4.5L20 17" />
+        </>
+    ),
     row: () => <path d="M7 5v14M12 5v14M17 5v14" />,
     distStart: () => (
         <>
@@ -484,16 +491,10 @@ const named = (name: string): Component<{ size?: number }> => {
 export const LibraryIcon = named("library");
 export const TemplatesIcon = named("templates");
 export const SharedIcon = named("shared");
-export const MembersIcon = named("members");
-export const SettingsIcon = named("settings");
 export const TrashIcon = named("trash");
 export const PlusIcon = named("plus");
-export const DeckIcon = named("deck");
-export const DocIcon = named("doc");
-export const SiteIcon = named("site");
 export const SparkleIcon = named("sparkle");
 export const SignOutIcon = named("signOut");
-export const SearchIcon = named("search");
 export const DuplicateIcon = named("duplicate");
 export const RestoreIcon = named("restore");
 export const RefreshIcon = named("refresh");
