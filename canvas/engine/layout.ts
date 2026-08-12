@@ -329,12 +329,15 @@ function emit(
             clip,
         });
     const childClip = ln.clip ? clipRect(clip, box, ln.clip) : clip;
-    // Flow first, then floats (ascending `z`) so overlays paint on top.
-    for (const c of ln.children) if (!c.node.float) emit(c, commands, regions, acc, childClip);
-    ln.children
+    // Negative-z floats are decoration and paint under the flow; the rest are overlays on top.
+    const floats = ln.children
         .filter((c) => c.node.float)
-        .sort((a, b) => (a.node.float?.z ?? 0) - (b.node.float?.z ?? 0))
-        .forEach((c) => emit(c, commands, regions, acc, childClip));
+        .sort((a, b) => (a.node.float?.z ?? 0) - (b.node.float?.z ?? 0));
+    for (const c of floats)
+        if ((c.node.float?.z ?? 0) < 0) emit(c, commands, regions, acc, childClip);
+    for (const c of ln.children) if (!c.node.float) emit(c, commands, regions, acc, childClip);
+    for (const c of floats)
+        if ((c.node.float?.z ?? 0) >= 0) emit(c, commands, regions, acc, childClip);
 }
 
 export function layout(

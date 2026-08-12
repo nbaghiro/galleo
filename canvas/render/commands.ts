@@ -168,10 +168,10 @@ export function layoutSlide(
     theme: Tokens = DEFAULT_THEME.tokens,
     format: FormatDescriptor = DEFAULT_PROFILE,
     plain = false,
-): { commands: RenderCommand[]; height: number } {
+): { commands: RenderCommand[]; regions: Region[]; height: number } {
     const { node, targetH } = prepareSlideNode(section, w, h, measure, theme, format, plain);
-    const { commands } = layout(node, { x: 0, y: 0, w, h: targetH }, measure);
-    return { commands, height: targetH };
+    const { commands, regions } = layout(node, { x: 0, y: 0, w, h: targetH }, measure);
+    return { commands, regions, height: targetH };
 }
 
 export interface SlidePage {

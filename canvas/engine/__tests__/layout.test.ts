@@ -320,6 +320,34 @@ describe("emit — flatten to commands + regions", () => {
 });
 
 describe("floating", () => {
+    it("negative-z floats paint under the flow; non-negative above it", () => {
+        const node: EngineNode = {
+            w: fixed(100),
+            h: fixed(100),
+            children: [
+                {
+                    w: fixed(10),
+                    h: fixed(10),
+                    fill: { color: "#under" },
+                    float: { x: "start", y: "start", z: -1 },
+                },
+                { w: fixed(10), h: fixed(10), fill: { color: "#flow" } },
+                {
+                    w: fixed(10),
+                    h: fixed(10),
+                    fill: { color: "#over" },
+                    float: { x: "end", y: "end", z: 1 },
+                },
+            ],
+        };
+        const { commands } = runLayout(node, 100, 100);
+        const order = commands
+            .filter((c) => c.kind === "rect" && c.fill?.color?.startsWith("#"))
+            .map((c) => (c.kind === "rect" ? c.fill?.color : ""));
+        expect(order.indexOf("#under")).toBeLessThan(order.indexOf("#flow"));
+        expect(order.indexOf("#flow")).toBeLessThan(order.indexOf("#over"));
+    });
+
     const withBadge = (): EngineNode => ({
         w: fixed(200),
         h: fixed(100),

@@ -42,10 +42,23 @@ const capStyle = (c?: DrawStyle["cap"]): LineCapStyle =>
           ? LineCapStyle.Projecting
           : LineCapStyle.Butt;
 
+// drawSvgPath paints one flat color, so a gradient flattens to the midpoint of its stops; shadows drop
+function flatFill(s: DrawStyle): { rgb: RGB; alpha: number } | null {
+    if (!s.gradient) return pdfColor(s.fill);
+    const a = pdfColor(s.gradient.from);
+    const b = pdfColor(s.gradient.to);
+    if (a && b)
+        return {
+            rgb: [(a.rgb[0] + b.rgb[0]) / 2, (a.rgb[1] + b.rgb[1]) / 2, (a.rgb[2] + b.rgb[2]) / 2],
+            alpha: (a.alpha + b.alpha) / 2,
+        };
+    return a ?? b ?? pdfColor(s.fill);
+}
+
 function svgOpts(s: DrawStyle, pageH: number): PDFPageDrawSVGOptions {
     // drawSvgPath flips y, so anchoring at (0, pageH) lands an absolute-coord path at (px, pageH - py)
     const o: PDFPageDrawSVGOptions = { x: 0, y: pageH };
-    const f = pdfColor(s.fill);
+    const f = flatFill(s);
     if (f) {
         o.color = rgb(...f.rgb);
         if (f.alpha < 1) o.opacity = f.alpha;

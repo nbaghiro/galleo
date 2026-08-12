@@ -2,25 +2,28 @@ import type {
     DrawContext,
     DrawStyle,
     DrawTextStyle,
+    PathSink,
     Run,
     TextLeaf,
     RenderCommand,
     Rect,
     Region,
 } from "@engine/node";
-import { arcSegments, buildPathData } from "./svg-emit";
+import { arcSegments, buildPathData, gradientDir, gradientUnitPoints } from "./svg-emit";
 import {
     CODE_BG,
     MONO_FONT_STACK,
     layoutRuns,
     measureText,
     layoutSection,
+    layoutSlide,
     SECTION_GAP,
 } from "./commands";
 import type { Section, SectionBackground } from "@model/artifact";
 import type { Tokens } from "@themes";
+import { hexA } from "@themes";
 import type { FormatDescriptor } from "@model/geometry";
-import { pagedSize } from "@engine/profile";
+import { pagedSize, sectionFrame } from "@engine/profile";
 
 // raster supersampling factor for crisp export
 export const EXPORT_SCALE = 2;
@@ -58,9 +61,75 @@ function paintText(el: HTMLElement, t: TextLeaf): void {
     else el.textContent = t.text;
 }
 
+// conservative bbox of a path build: every coordinate the sink sees, control points included
+function pathBounds(build: (sink: PathSink) => void): Rect {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    const pt = (x: number, y: number): void => {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+    };
+    const sink: PathSink = {
+        moveTo: pt,
+        lineTo: pt,
+        bezierCurveTo: (a, b, c, d, x, y) => {
+            pt(a, b);
+            pt(c, d);
+            pt(x, y);
+        },
+        quadraticCurveTo: (a, b, x, y) => {
+            pt(a, b);
+            pt(x, y);
+        },
+        arc: (cx, cy, r) => {
+            pt(cx - r, cy - r);
+            pt(cx + r, cy + r);
+        },
+        arcTo: (x1, y1, x2, y2) => {
+            pt(x1, y1);
+            pt(x2, y2);
+        },
+        rect: (x, y, w, h) => {
+            pt(x, y);
+            pt(x + w, y + h);
+        },
+        closePath: () => {},
+    };
+    build(sink);
+    if (minX > maxX) return { x: 0, y: 0, w: 0, h: 0 };
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
+// one linear-gradient builder for both fill shapes (FillLeaf and DrawStyle share the same object),
+// on the CSS angle semantics the DOM backend paints — so editor and canvas exports agree
+function canvasGradient(
+    cx: CanvasRenderingContext2D,
+    g: { from: string; to: string; angle?: number },
+    b: Rect,
+): CanvasGradient {
+    const [dx, dy] = gradientDir(g.angle);
+    const half = (Math.abs(dx) * b.w + Math.abs(dy) * b.h) / 2;
+    const cxn = b.x + b.w / 2;
+    const cyn = b.y + b.h / 2;
+    const grad = cx.createLinearGradient(
+        cxn - dx * half,
+        cyn - dy * half,
+        cxn + dx * half,
+        cyn + dy * half,
+    );
+    grad.addColorStop(0, g.from);
+    grad.addColorStop(1, g.to);
+    return grad;
+}
+
 export function canvasDrawContext(cx: CanvasRenderingContext2D): DrawContext {
-    const apply = (s: DrawStyle): void => {
-        if (s.fill) cx.fillStyle = s.fill;
+    const apply = (s: DrawStyle, bounds?: Rect): void => {
+        if (s.gradient && bounds) cx.fillStyle = canvasGradient(cx, s.gradient, bounds);
+        else if (s.fill) cx.fillStyle = s.fill;
         if (s.stroke) cx.strokeStyle = s.stroke;
         cx.lineWidth = s.width ?? 1;
         cx.lineCap = s.cap ?? "butt";
@@ -68,12 +137,22 @@ export function canvasDrawContext(cx: CanvasRenderingContext2D): DrawContext {
         cx.setLineDash(s.dash ?? []);
     };
     const finish = (s: DrawStyle): void => {
-        if (s.fill) cx.fill(s.fillRule ?? "nonzero");
+        const filled = s.fill || s.gradient;
+        if (filled && s.shadow) {
+            cx.save();
+            cx.shadowColor = s.shadow.color;
+            cx.shadowBlur = s.shadow.blur;
+            cx.shadowOffsetY = s.shadow.dy;
+            cx.fill(s.fillRule ?? "nonzero");
+            cx.restore();
+        } else if (filled) {
+            cx.fill(s.fillRule ?? "nonzero");
+        }
         if (s.stroke) cx.stroke();
     };
     return {
         rect(x, y, w, h, s) {
-            apply(s);
+            apply(s, { x, y, w, h });
             cx.beginPath();
             cx.roundRect(x, y, w, h, s.radius ?? 0);
             finish(s);
@@ -86,19 +165,27 @@ export function canvasDrawContext(cx: CanvasRenderingContext2D): DrawContext {
             cx.stroke();
         },
         circle(cxx, cyy, r, s) {
-            apply(s);
+            apply(s, { x: cxx - r, y: cyy - r, w: r * 2, h: r * 2 });
             cx.beginPath();
             cx.arc(cxx, cyy, r, 0, Math.PI * 2);
             finish(s);
         },
         polyline(points, s) {
-            apply(s);
+            let bounds: Rect | undefined;
+            if (s.gradient && points.length) {
+                const xs = points.map((p) => p[0]);
+                const ys = points.map((p) => p[1]);
+                const x = Math.min(...xs);
+                const y = Math.min(...ys);
+                bounds = { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+            }
+            apply(s, bounds);
             cx.beginPath();
             points.forEach((p, i) => (i ? cx.lineTo(p[0], p[1]) : cx.moveTo(p[0], p[1])));
             finish(s);
         },
         wedge(cxx, cyy, r, a0, a1, s) {
-            apply(s);
+            apply(s, { x: cxx - r, y: cyy - r, w: r * 2, h: r * 2 });
             cx.beginPath();
             cx.moveTo(cxx, cyy);
             cx.arc(cxx, cyy, r, a0, a1);
@@ -106,7 +193,7 @@ export function canvasDrawContext(cx: CanvasRenderingContext2D): DrawContext {
             finish(s);
         },
         path(build, s) {
-            apply(s);
+            apply(s, s.gradient ? pathBounds(build) : undefined);
             cx.beginPath();
             build(cx); // the 2D context is itself a PathSink
             finish(s);
@@ -135,12 +222,75 @@ function measureCx(): CanvasRenderingContext2D | null {
     return measureCanvas;
 }
 
+// ids are document-global for url(#...) even across inline <svg>s, so a module counter keeps them unique
+let svgDefId = 0;
+
 // Same contract as canvasDrawContext, so surfaces render as crisp vector on the DOM backend.
 export function svgDrawContext(svg: SVGSVGElement): DrawContext {
     const make = (tag: string): SVGElement => document.createElementNS(SVG_NS, tag);
+    let defs: SVGElement | null = null;
+    // identical styles reuse one def (a card diagram shadows every node the same way)
+    const seen = new Map<string, string>();
+    const def = (el: SVGElement): void => {
+        if (!defs) {
+            defs = make("defs");
+            svg.insertBefore(defs, svg.firstChild);
+        }
+        defs.appendChild(el);
+    };
+    const gradientRef = (g: NonNullable<DrawStyle["gradient"]>): string => {
+        const key = `g:${g.from}:${g.to}:${g.angle ?? ""}`;
+        const hit = seen.get(key);
+        if (hit) return hit;
+        const id = `dsg-${++svgDefId}`;
+        seen.set(key, `url(#${id})`);
+        const el = make("linearGradient");
+        el.setAttribute("id", id);
+        el.setAttribute("gradientUnits", "objectBoundingBox");
+        const p = gradientUnitPoints(g.angle);
+        el.setAttribute("x1", String(p.x1));
+        el.setAttribute("y1", String(p.y1));
+        el.setAttribute("x2", String(p.x2));
+        el.setAttribute("y2", String(p.y2));
+        const s0 = make("stop");
+        s0.setAttribute("offset", "0");
+        s0.setAttribute("stop-color", g.from);
+        const s1 = make("stop");
+        s1.setAttribute("offset", "1");
+        s1.setAttribute("stop-color", g.to);
+        el.appendChild(s0);
+        el.appendChild(s1);
+        def(el);
+        return `url(#${id})`;
+    };
+    const shadowRef = (sh: NonNullable<DrawStyle["shadow"]>): string => {
+        const key = `s:${sh.blur}:${sh.dy}:${sh.color}`;
+        const hit = seen.get(key);
+        if (hit) return hit;
+        const id = `dsf-${++svgDefId}`;
+        seen.set(key, `url(#${id})`);
+        const f = make("filter");
+        f.setAttribute("id", id);
+        // widen the filter region so the blur is not clipped at the shape's own bounds
+        f.setAttribute("x", "-40%");
+        f.setAttribute("y", "-40%");
+        f.setAttribute("width", "180%");
+        f.setAttribute("height", "180%");
+        const d = make("feDropShadow");
+        d.setAttribute("dx", "0");
+        d.setAttribute("dy", String(sh.dy));
+        d.setAttribute("stdDeviation", String(sh.blur / 2));
+        d.setAttribute("flood-color", sh.color);
+        f.appendChild(d);
+        def(f);
+        return `url(#${id})`;
+    };
     const stylize = (el: SVGElement, s: DrawStyle, stroked = false): void => {
-        el.setAttribute("fill", stroked ? "none" : (s.fill ?? "none"));
+        const fill = !stroked && s.gradient ? gradientRef(s.gradient) : (s.fill ?? "none");
+        el.setAttribute("fill", stroked ? "none" : fill);
         if (!stroked && s.fillRule) el.setAttribute("fill-rule", s.fillRule);
+        if (!stroked && (s.fill || s.gradient) && s.shadow)
+            el.setAttribute("filter", shadowRef(s.shadow));
         const stroke = s.stroke ?? (stroked ? s.fill : undefined);
         if (stroke) {
             el.setAttribute("stroke", stroke);
@@ -481,19 +631,7 @@ function drawCommands(
             const f = c.fill;
             roundRectPath(cx, b.x, b.y, b.w, b.h, f?.radius ?? 0);
             if (f?.gradient) {
-                const a = ((f.gradient.angle ?? 135) * Math.PI) / 180;
-                const hx = (Math.abs(Math.cos(a)) * b.w + Math.abs(Math.sin(a)) * b.h) / 2;
-                const cxn = b.x + b.w / 2;
-                const cyn = b.y + b.h / 2;
-                const grad = cx.createLinearGradient(
-                    cxn - Math.cos(a) * hx,
-                    cyn - Math.sin(a) * hx,
-                    cxn + Math.cos(a) * hx,
-                    cyn + Math.sin(a) * hx,
-                );
-                grad.addColorStop(0, f.gradient.from);
-                grad.addColorStop(1, f.gradient.to);
-                cx.fillStyle = grad;
+                cx.fillStyle = canvasGradient(cx, f.gradient, b);
                 cx.fill();
             } else if (f?.color) {
                 cx.fillStyle = f.color;
@@ -681,6 +819,24 @@ export interface StackWindow {
 const intersects = (top: number, height: number, w: StackWindow): boolean =>
     top < w.bottom && top + height > w.top;
 
+// The paged frame's height at the editor's own layout width. A deck reflows narrower in the editor
+// than in Present (maxContentWidth vs width), so slide framing forces the shape, not the pixels.
+export function sectionFrameHeight(
+    section: Section,
+    profile: FormatDescriptor,
+    layoutW: number,
+): number {
+    const fr = sectionFrame(section, profile);
+    return Math.round((layoutW * fr.h) / fr.w);
+}
+
+// Where a slide-framed section spills past its frame, so the author sees what Present will break.
+const overflowMark = (layoutW: number, frameH: number, theme: Tokens): RenderCommand => ({
+    kind: "rect",
+    box: { x: 0, y: frameH, w: layoutW, h: 1 },
+    fill: { color: hexA(theme.accent, 0.5) },
+});
+
 // stack painter + minimap thumb must agree here so text wraps identically
 export function sectionLayoutWidth(
     section: Section,
@@ -704,6 +860,9 @@ export function paintSectionStack(
         dimId?: string | null; // the drag-reordered section, painted dimmed
         cache?: SectionStackCache;
         window?: StackWindow;
+        // paged only: give every section its frame's shape (a deck authored as slides) instead of
+        // its natural height. Short content centres in the frame; taller content keeps growing.
+        slideFrame?: boolean;
         // stand-in for a section whose content hasn't loaded yet
         placeholder?: (
             section: Section,
@@ -712,7 +871,9 @@ export function paintSectionStack(
     },
 ): { tops: number[]; heights: number[]; regions: Region[]; height: number; painted: number } {
     const gap = profile.kind === "continuous" ? 0 : SECTION_GAP; // doc/web merge seamlessly
-    const profileKey = profileCacheKey(profile);
+    const slide = !!opts.slideFrame && profile.kind === "paged";
+    // folded into the profile key so toggling the mode invalidates every cached layer
+    const profileKey = profileCacheKey(profile) + (slide ? ":slide" : "");
     const cache = opts.cache;
     const win = opts.window;
     const tops: number[] = [];
@@ -757,10 +918,15 @@ export function paintSectionStack(
             };
             cache?.entries.set(section.id, entry);
         } else {
-            const res = layoutSection(section, layoutW, measureText, theme, profile);
-            const commands = hideKey
+            const frameH = slide ? sectionFrameHeight(section, profile, layoutW) : 0;
+            const res = slide
+                ? layoutSlide(section, layoutW, frameH, measureText, theme, profile)
+                : layoutSection(section, layoutW, measureText, theme, profile);
+            let commands = hideKey
                 ? res.commands.filter((c) => !(c.kind === "text" && c.id === hideKey))
                 : res.commands;
+            if (slide && res.height > frameH)
+                commands = [...commands, overflowMark(layoutW, frameH, theme)];
             entry = {
                 section,
                 layoutW,
@@ -797,6 +963,7 @@ export function paintSectionStack(
                 regions.push({
                     id: r.id,
                     box: { x: r.box.x + x, y: r.box.y + y, w: r.box.w, h: r.box.h },
+                    radius: r.radius,
                 });
         } else if (win && entry.layer && !intersects(y, entry.height, keep(win))) {
             entry.layer = null; // out of retention range: drop the DOM, keep the layout

@@ -50,11 +50,28 @@ export function buildPathData(build: (sink: PathSink) => void): string {
     return d;
 }
 
+// CSS gradient semantics (clockwise from "to top"): unit direction, and objectBoundingBox
+// endpoints, shared by every backend so the editor and exports agree on a gradient's run
+export const gradientDir = (angle: number | undefined): [number, number] => {
+    const a = (((angle ?? 135) - 90) * Math.PI) / 180;
+    return [Math.cos(a), Math.sin(a)];
+};
+
+export function gradientUnitPoints(angle: number | undefined): {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+} {
+    const [dx, dy] = gradientDir(angle);
+    return { x1: 0.5 - dx / 2, y1: 0.5 - dy / 2, x2: 0.5 + dx / 2, y2: 0.5 + dy / 2 };
+}
+
 const xmlEsc = (s: string): string =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-function strokeAttrs(s: DrawStyle, stroked: boolean): string {
-    let a = ` fill="${stroked ? "none" : (s.fill ?? "none")}"`;
+function strokeAttrs(s: DrawStyle, stroked: boolean, fillOverride?: string): string {
+    let a = ` fill="${stroked ? "none" : (fillOverride ?? s.fill ?? "none")}"`;
     if (!stroked && s.fillRule) a += ` fill-rule="${s.fillRule}"`;
     const stroke = s.stroke ?? (stroked ? s.fill : undefined);
     if (stroke) {
@@ -89,14 +106,28 @@ const baseline = (b: DrawTextStyle["baseline"]): string =>
             ? "central"
             : "alphabetic";
 
-// node-safe (used for PPTX embedding); mirrors svgDrawContext op-for-op
+// node-safe (used for PPTX embedding); mirrors svgDrawContext op-for-op. Gradients emit as defs;
+// shadows are dropped here on purpose (PowerPoint's SVG renderer handles filters unreliably).
 export function svgStringContext(w: number, h: number): { ctx: DrawContext; svg: () => string } {
     const parts: string[] = [];
+    const defs: string[] = [];
+    let defId = 0;
+    const gradientFill = (s: DrawStyle): string | undefined => {
+        const g = s.gradient;
+        if (!g) return undefined;
+        const id = `esg-${++defId}`;
+        const p = gradientUnitPoints(g.angle);
+        defs.push(
+            `<linearGradient id="${id}" gradientUnits="objectBoundingBox" x1="${p.x1}" y1="${p.y1}" x2="${p.x2}" y2="${p.y2}">` +
+                `<stop offset="0" stop-color="${g.from}"/><stop offset="1" stop-color="${g.to}"/></linearGradient>`,
+        );
+        return `url(#${id})`;
+    };
     const ctx: DrawContext = {
         rect(x, y, rw, rh, s) {
             const rx = s.radius ? ` rx="${s.radius}"` : "";
             parts.push(
-                `<rect x="${x}" y="${y}" width="${Math.max(0, rw)}" height="${Math.max(0, rh)}"${rx}${strokeAttrs(s, false)}/>`,
+                `<rect x="${x}" y="${y}" width="${Math.max(0, rw)}" height="${Math.max(0, rh)}"${rx}${strokeAttrs(s, false, gradientFill(s))}/>`,
             );
         },
         line(x1, y1, x2, y2, s) {
@@ -106,21 +137,23 @@ export function svgStringContext(w: number, h: number): { ctx: DrawContext; svg:
         },
         circle(cx, cy, r, s) {
             parts.push(
-                `<circle cx="${cx}" cy="${cy}" r="${Math.max(0, r)}"${strokeAttrs(s, false)}/>`,
+                `<circle cx="${cx}" cy="${cy}" r="${Math.max(0, r)}"${strokeAttrs(s, false, gradientFill(s))}/>`,
             );
         },
         polyline(points, s) {
             const pts = points.map((p) => `${p[0]},${p[1]}`).join(" ");
             parts.push(
-                `<${s.fill ? "polygon" : "polyline"} points="${pts}"${strokeAttrs(s, false)}/>`,
+                `<${s.fill || s.gradient ? "polygon" : "polyline"} points="${pts}"${strokeAttrs(s, false, gradientFill(s))}/>`,
             );
         },
         wedge(cx, cy, r, a0, a1, s) {
             const d = `M${cx} ${cy}L${cx + r * Math.cos(a0)} ${cy + r * Math.sin(a0)}${arcSegments(cx, cy, r, a0, a1, false)}Z`;
-            parts.push(`<path d="${d}"${strokeAttrs(s, false)}/>`);
+            parts.push(`<path d="${d}"${strokeAttrs(s, false, gradientFill(s))}/>`);
         },
         path(build, s) {
-            parts.push(`<path d="${buildPathData(build)}"${strokeAttrs(s, false)}/>`);
+            parts.push(
+                `<path d="${buildPathData(build)}"${strokeAttrs(s, false, gradientFill(s))}/>`,
+            );
         },
         text(text, x, y, s) {
             parts.push(
@@ -132,6 +165,6 @@ export function svgStringContext(w: number, h: number): { ctx: DrawContext; svg:
     return {
         ctx,
         svg: () =>
-            `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">${parts.join("")}</svg>`,
+            `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">${defs.length ? `<defs>${defs.join("")}</defs>` : ""}${parts.join("")}</svg>`,
     };
 }

@@ -11,6 +11,8 @@ import {
     paintSectionStack,
     renderSlidePage,
     renderToCanvas,
+    sectionFrameHeight,
+    sectionLayoutWidth,
 } from "@canvas/render/backends";
 import { SECTION_GAP } from "@canvas/render/commands";
 import { profileFor, resolveProfile } from "@engine/profile";
@@ -126,6 +128,82 @@ describe("paintSectionStack", () => {
         expect(tops[1]).toBeGreaterThan(0);
         expect(height).toBeGreaterThan(tops[1]!);
         expect(regions.some((r) => r.id === "section:s1")).toBe(true);
+    });
+    it("carries the painted radius through to the published regions", () => {
+        const host = document.createElement("div");
+        const sections = [
+            sectionOf(inst("image", { src: "https://x/img.png", radius: 14 }), { id: "s1" }),
+        ];
+        const { regions } = paintSectionStack(host, sections, resolveProfile("deck"), tokens, {
+            fullW: 1000,
+        });
+        const img = regions.find((r) => r.id === "el:s1");
+        expect(img?.radius).toBe(14);
+    });
+});
+
+describe("paintSectionStack — slide framing", () => {
+    const deck = resolveProfile("deck");
+    const short = (): Section[] => [sectionOf(inst("text", { text: "A" }), { id: "s1" })];
+    const tall = (): Section[] => [
+        sectionOf(
+            {
+                type: "group",
+                data: {
+                    direction: "col",
+                    children: Array.from({ length: 40 }, (_, i) =>
+                        inst("text", { text: `Paragraph ${i}` }),
+                    ),
+                },
+            },
+            { id: "s1" },
+        ),
+    ];
+    const draw = (sections: Section[], slide: boolean): ReturnType<typeof paintSectionStack> =>
+        paintSectionStack(document.createElement("div"), sections, deck, tokens, {
+            fullW: 1000,
+            slideFrame: slide,
+        });
+
+    it("pads a short section out to its frame instead of hugging the content", () => {
+        const natural = draw(short(), false).heights[0]!;
+        const framed = draw(short(), true).heights[0]!;
+        const layoutW = sectionLayoutWidth(short()[0]!, deck, 1000);
+        expect(framed).toBeGreaterThan(natural);
+        expect(framed).toBe(sectionFrameHeight(short()[0]!, deck, layoutW));
+    });
+
+    it("lets a section taller than its frame keep growing", () => {
+        const layoutW = sectionLayoutWidth(tall()[0]!, deck, 1000);
+        expect(draw(tall(), true).heights[0]!).toBeGreaterThan(
+            sectionFrameHeight(tall()[0]!, deck, layoutW),
+        );
+    });
+
+    it("keeps selectable regions, so framing does not cost selection", () => {
+        expect(draw(short(), true).regions.some((r) => r.id === "section:s1")).toBe(true);
+    });
+
+    it("is inert for continuous formats", () => {
+        const doc = resolveProfile("doc");
+        const host = (slide: boolean): number =>
+            paintSectionStack(document.createElement("div"), short(), doc, tokens, {
+                fullW: 1000,
+                slideFrame: slide,
+            }).heights[0]!;
+        expect(host(true)).toBe(host(false));
+    });
+
+    it("repaints when the mode flips, rather than serving the cached layer", () => {
+        const cache = createSectionStackCache();
+        const host = document.createElement("div");
+        const same = short(); // one identity across draws, so only the mode can miss the cache
+        const run = (slide: boolean): number =>
+            paintSectionStack(host, same, deck, tokens, { fullW: 1000, cache, slideFrame: slide })
+                .heights[0]!;
+        const natural = run(false);
+        expect(run(true)).toBeGreaterThan(natural);
+        expect(run(false)).toBe(natural);
     });
 });
 

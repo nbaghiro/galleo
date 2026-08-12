@@ -20,6 +20,20 @@ describe("buildPathData", () => {
 });
 
 describe("svgStringContext", () => {
+    it("emits a gradient as a defs linearGradient with a url() fill, dropping shadows", () => {
+        const { ctx, svg } = svgStringContext(100, 50);
+        ctx.rect(0, 0, 10, 10, {
+            gradient: { from: "#111111", to: "#eeeeee", angle: 90 },
+            shadow: { blur: 8, dy: 2, color: "#000" },
+        });
+        const out = svg();
+        expect(out).toContain("<defs><linearGradient");
+        expect(out).toContain('gradientUnits="objectBoundingBox"');
+        expect(out).toContain('stop-color="#111111"');
+        expect(out).toMatch(/fill="url\(#esg-1\)"/);
+        expect(out).not.toContain("feDropShadow");
+    });
+
     it("emits each primitive into a self-contained SVG string", () => {
         const { ctx, svg } = svgStringContext(100, 50);
         ctx.rect(0, 0, 10, 10, { fill: "#f00", radius: 2 });

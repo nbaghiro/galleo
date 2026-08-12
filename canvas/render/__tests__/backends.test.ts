@@ -3,6 +3,7 @@ import {
     backdropCss,
     createSectionStackCache,
     scaledHostCss,
+    sectionFrameHeight,
     sectionLayoutWidth,
 } from "@canvas/render/backends";
 import { previewContentProfile, resolveProfile } from "@engine/profile";
@@ -62,6 +63,19 @@ describe("sectionLayoutWidth", () => {
         const doc = resolveProfile("doc");
         expect(sectionLayoutWidth(s, doc, 430)).toBe(430 - 64);
         expect(sectionLayoutWidth(s, previewContentProfile(doc, 430, true), 430)).toBe(430);
+    });
+});
+
+describe("sectionFrameHeight", () => {
+    const deck = resolveProfile("deck");
+    const s = sectionOf(inst("text", {}));
+    it("gives the profile's aspect at the caller's own layout width", () => {
+        expect(sectionFrameHeight(s, deck, 1280)).toBe(720);
+        expect(sectionFrameHeight(s, deck, 640)).toBe(360); // editor width, same 16:9 shape
+    });
+    it("a section's own frame aspect wins over the profile's", () => {
+        const square = sectionOf(inst("text", {}), { frame: { aspect: 1 } });
+        expect(sectionFrameHeight(square, deck, 800)).toBe(800);
     });
 });
 

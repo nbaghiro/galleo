@@ -41,6 +41,47 @@ describe("svgDrawContext", () => {
         expect(svg.querySelectorAll("path")[1]!.getAttribute("fill-rule")).toBe("evenodd");
     });
 
+    it("resolves a gradient fill to a defs linearGradient and a url() fill", () => {
+        const svg = newSvg();
+        const g = svgDrawContext(svg);
+        g.rect(0, 0, 10, 10, { gradient: { from: "#111111", to: "#eeeeee", angle: 90 } });
+        const grad = svg.querySelector("defs linearGradient")!;
+        expect(grad).toBeTruthy();
+        expect(grad.getAttribute("gradientUnits")).toBe("objectBoundingBox");
+        expect(grad.querySelectorAll("stop")).toHaveLength(2);
+        const rect = svg.querySelector("rect")!;
+        expect(rect.getAttribute("fill")).toBe(`url(#${grad.getAttribute("id")})`);
+    });
+
+    it("attaches a shadow as a widened feDropShadow filter on the filled shape", () => {
+        const svg = newSvg();
+        const g = svgDrawContext(svg);
+        g.rect(0, 0, 10, 10, {
+            fill: "#f00",
+            shadow: { blur: 8, dy: 2, color: "rgba(0,0,0,0.25)" },
+        });
+        const filter = svg.querySelector("defs filter")!;
+        expect(filter).toBeTruthy();
+        const drop = filter.querySelector("feDropShadow")!;
+        expect(drop.getAttribute("dy")).toBe("2");
+        expect(drop.getAttribute("stdDeviation")).toBe("4");
+        expect(svg.querySelector("rect")!.getAttribute("filter")).toBe(
+            `url(#${filter.getAttribute("id")})`,
+        );
+    });
+
+    it("never decorates stroke-only shapes with gradient or shadow", () => {
+        const svg = newSvg();
+        const g = svgDrawContext(svg);
+        g.line(0, 0, 5, 5, {
+            stroke: "#000",
+            gradient: { from: "#000", to: "#fff" },
+            shadow: { blur: 4, dy: 1, color: "#000" },
+        });
+        expect(svg.querySelector("defs")).toBeNull();
+        expect(svg.querySelector("line")!.getAttribute("filter")).toBeNull();
+    });
+
     it("renders every surface element (charts · diagrams · icon · shape · graphic) without throwing", () => {
         const ctx = layoutCtx();
         const specs = listElements().filter(

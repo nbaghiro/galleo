@@ -19,6 +19,12 @@ export interface DrawStyle {
     fillRule?: "nonzero" | "evenodd";
     cap?: "butt" | "round" | "square";
     join?: "miter" | "round" | "bevel";
+    // linear fill across the shape's bbox; wins over `fill`. CSS angle: 180 = top → bottom,
+    // default 135 (the FillLeaf convention). PDF flattens to the stop midpoint.
+    gradient?: { from: string; to: string; angle?: number };
+    // soft drop shadow under the fill (canvas + DOM svg only); surfaces clip at their box, so
+    // renderers must inset enough for the blur to land
+    shadow?: { blur: number; dy: number; color: string };
 }
 
 export interface DrawTextStyle {
@@ -131,7 +137,8 @@ export interface EngineNode {
     alignSelf?: Align; // overrides the parent's cross-axis alignment
     // Clips descendants on the given axes; the resolved rect rides on each command.
     clip?: { x?: boolean; y?: boolean };
-    // Lifted out of the flow (no effect on siblings or fit size), painted on top, higher `z` later.
+    // Lifted out of the flow (no effect on siblings or fit size). Painted by `z`: negative under
+    // the flow (decoration), non-negative above it (overlays), ascending within each side.
     float?: { x?: Align; y?: Align; dx?: number; dy?: number; z?: number };
     opacity?: number; // 0..1, multiplied down the subtree
     text?: TextLeaf;
