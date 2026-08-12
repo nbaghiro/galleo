@@ -123,7 +123,7 @@ text/media/table/composite/chart/diagram/basic/    one file per element (see ren
 ```
 
 The category files side-effect-register the element library — 19 content elements + the internal
-drop-preview, plus the chart/diagram variants — via `editor/register.ts`.
+drop-preview, plus the chart/diagram variants — via `canvas/elements/register.ts`.
 
 **`render/` — the paint backends** (the pipeline + slide/page geometry + export — pure TS, no framework)
 
@@ -180,6 +180,7 @@ api/           HTTP only; `requireUser`/`requireWorkspace` in middleware.ts repl
                a four-line auth preamble repeated in 60 handlers
                artifacts · folders · themes · templates · search · links (incl. the unauthenticated
                /p/:slug reader) · session · oauth · workspace · billing · features · media · ai ·
+               context (the context library CRUD + item ingestion) ·
                middleware.ts (the layer's only non-resource file)
 
 core/          one file per functionality; no hono, no Response, no Context
@@ -190,6 +191,9 @@ core/          one file per functionality; no hono, no Response, no Context
                links.ts      share links · recipients · analytics · the public read + view recording
                billing.ts    plans · subscriptions · credit packs · the Stripe webhook
                credits.ts    the row-locked spend engine
+               context.ts    the context library: item ingestion (extract → chunk → embed) · vector
+                             retrieval · conversation memory (see ai.md §10.5)
+               context-text.ts  the pure text half: the chunker + retrieval-pack assembly
                models.ts     the model registry: tier defaults, cost multipliers, override parsing
                media.ts      stock + icon proxies · AI image/video generation · the asset library
                mail.ts       transactional email
@@ -207,7 +211,8 @@ db/            schema.ts (the tables — see Data model below) · client.ts (the
                seed.ts (an entry point: `pnpm seed`)
 
 utils/         http.ts (readJson · cookies · rateLimit · the 402 feature guards) · auth.ts (scrypt +
-               signed-cookie session) · env.ts (out/warn/appUrl). Database-free by rule.
+               signed-cookie session) · env.ts (out/warn/appUrl) · webpage.ts (the SSRF-vetted
+               link fetcher + HTML→text). Database-free by rule.
 ```
 
 Generation is a **real backend** now: the client speaks the `@model/ai` turn protocol over SSE and the
@@ -233,7 +238,7 @@ stores/      the client stores + app-level controllers, one file each —
              theme.ts (the app + custom theme system: app-chrome theme + favicon + overlay tokens + custom-theme CRUD into the @themes registry) ·
              share.ts (the share bridge: openShare / closeShare) · media.ts (the media-picker bridge: openMediaPicker · pickMedia · pickMediaIcon) ·
              commands.ts (the app command registrations + navigate seam) · route-context.ts (publishRoute — route→context keys, kept router-free for testing)
-components/   general reusable UI — Sidebar.tsx · modals.tsx (CreateModal; the confirm dialog is @ui/overlay's ConfirmModal, used inline) · previews.tsx (Visual · SectionThumb · PreviewCanvas) · ShareModal.tsx (multi-link sharing: create/manage per-audience links + recipients + view stats) · MediaPicker.tsx (stock · AI generate · upload · icons)
+components/   general reusable UI — Sidebar.tsx (the confirm dialog is @ui/overlay's ConfirmModal, used inline) · TemplateGallery.tsx (category rows + preview + use; hosted by the Templates page and the intake's in-place browser) · previews.tsx (Visual · SectionThumb · PreviewCanvas) · ShareModal.tsx (multi-link sharing: create/manage per-audience links + recipients + view stats) · MediaPicker.tsx (stock · AI generate · upload · icons)
 views/       the routed pages + the global modals mounted in the shell —
   AuthPage · LibraryView (/ + /folder/:id) · TemplatesView · SharedView · TrashView · PricingView ·
   EditorView (/edit/:id — the studio bridge) · PresentView (the standalone /present/:id surface, painting through @canvas) ·
@@ -276,10 +281,13 @@ why the editor, present mode, publish, thumbnails, and export are pixel-identica
 
 ## Data model
 
-> Engine = **PostgreSQL + JSONB**: everything relational (auth, sharing, billing) gets foreign keys +
-> transactions; the one schema-flexible thing — the artifact **content tree** — lives in a `jsonb`
-> column. Binaries (images/video/fonts) live in object storage or a base64 `assets.data`; tables hold
-> metadata + URLs. The schema is `services/db/schema.ts` (Drizzle); the content shape is `rendering.md`.
+> Engine = **PostgreSQL + JSONB + pgvector**: everything relational (auth, sharing, billing) gets foreign
+> keys + transactions; the one schema-flexible thing — the artifact **content tree** — lives in a `jsonb`
+> column; embeddings for the context library + conversation memory live in a `vector(768)` column in the
+> same database (the compose file runs the `pgvector/pgvector:pg16` image — plain `postgres:16` lacks the
+> extension, so recreate the container after pulling this change). Binaries (images/video/fonts) live in
+> object storage or a base64 `assets.data`; tables hold metadata + URLs. The schema is
+> `services/db/schema.ts` (Drizzle); the content shape is `rendering.md`.
 
 ### Why PG + JSONB
 
@@ -298,28 +306,38 @@ embedded in the artifact's `draft_content` JSON.
 
 **Identity & tenancy**
 
-| Table          | Purpose                                       | Key columns                                                                                                                                                                                                                                                                                                                           |
-| -------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **users**      | a person / login                              | `email` (unique), `name`, `avatar_url`, `password_hash` (null = OAuth-only), `active_workspace_id` (the membership the app opens)                                                                                                                                                                                                     |
-| **workspaces** | the tenant that owns content + billing entity | `name`, `slug` (unique), `owner_id→users`, `plan` (text, default `free`), `seats` (int, default 1), `stripe_customer_id`, `stripe_subscription_id`, `plan_status`, `plan_period_end`, `cancel_at_period_end`, `ai_credits_used`, `ai_credits_bonus` (purchased top-ups, never reset), `credits_reset_at`, `feature_overrides` (jsonb) |
-| **members**    | user ↔ workspace + role (join, composite pk)  | `workspace_id`, `user_id`, `role`                                                                                                                                                                                                                                                                                                     |
-| **invites**    | pending workspace invitations                 | `workspace_id`, `email` (unique per workspace), `role`, `token_hash` (raw token only in the emailed link), `invited_by`, `expires_at`, `accepted_at`                                                                                                                                                                                  |
+| Table              | Purpose                                       | Key columns                                                                                                                                                                                                                                                                                                                           |
+| ------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **users**          | a person / login                              | `email` (unique), `name`, `avatar_url`, `password_hash` (null = OAuth-only), `active_workspace_id` (the membership the app opens)                                                                                                                                                                                                     |
+| **workspaces**     | the tenant that owns content + billing entity | `name`, `slug` (unique), `owner_id→users`, `plan` (text, default `free`), `seats` (int, default 1), `stripe_customer_id`, `stripe_subscription_id`, `plan_status`, `plan_period_end`, `cancel_at_period_end`, `ai_credits_used`, `ai_credits_bonus` (purchased top-ups, never reset), `credits_reset_at`, `feature_overrides` (jsonb) |
+| **members**        | user ↔ workspace + role (join, composite pk)  | `workspace_id`, `user_id`, `role`                                                                                                                                                                                                                                                                                                     |
+| **invites**        | pending workspace invitations                 | `workspace_id`, `email` (unique per workspace), `role`, `token_hash` (raw token only in the emailed link), `invited_by`, `expires_at`, `accepted_at`                                                                                                                                                                                  |
+| **oauth_accounts** | provider identity links (Google)              | `user_id`, `provider` + `provider_account_id` (unique pair; the provider's stable subject id)                                                                                                                                                                                                                                         |
+| **auth_tokens**    | consumable emailed verify/reset tokens        | `user_id`, `purpose` (`verify`\|`reset`), `token_hash` (SHA-256 only, raw token only in the email), `expires_at`, `consumed_at`                                                                                                                                                                                                       |
 
 **Content**
 
-| Table               | Purpose                                                                  | Key columns                                                                                                                                                                                                                 |
-| ------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **artifacts**       | the deck/doc/site entity — metadata + the working draft                  | `workspace_id`, `folder_id`, `title`, `format_id`, `theme_id`, **`draft_content` (jsonb)**, `status`, `trashed_at` (soft delete), `created_by`, `digest` (jsonb cover + filmstrip), `search_text`, `search_tsv` (generated) |
-| **folders**         | organize artifacts (tree via `parent_id`)                                | `workspace_id`, `parent_id`, `name`                                                                                                                                                                                         |
-| **artifact_visits** | per-user open log (the read clock behind "Recent")                       | `user_id`, `artifact_id` (composite pk), `views`, `viewed_at`                                                                                                                                                               |
-| **themes**          | custom themes (`workspace_id` null = system)                             | `workspace_id`, `name`, **`tokens` (jsonb)**, `mood`, `is_dark`                                                                                                                                                             |
-| **assets**          | uploaded & AI media metadata (binary in object storage or `data` base64) | `workspace_id`, `kind`, `source` (`upload`\|`generated`\|`stock`), `url`, `width`, `height`, `bytes`, `alt`, `meta` (jsonb), `data` (base64, stored media only), `mime`                                                     |
+| Table         | Purpose                                                                                                         | Key columns                                                                                                                                                                                                                 |
+| ------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **artifacts** | the deck/doc/site entity — metadata + the working draft                                                         | `workspace_id`, `folder_id`, `title`, `format_id`, `theme_id`, **`draft_content` (jsonb)**, `status`, `trashed_at` (soft delete), `created_by`, `digest` (jsonb cover + filmstrip), `search_text`, `search_tsv` (generated) |
+| **folders**   | organize artifacts (tree via `parent_id`)                                                                       | `workspace_id`, `parent_id`, `name`                                                                                                                                                                                         |
+| **visits**    | what a user reached for: artifact opens (the read clock behind "Recent") and template uses (catalog popularity) | `user_id` + `kind` (`artifact`\|`template`) + `ref` (composite pk; `ref` is an artifact id or a template id — no FK, core deletes rows with their artifact), `uses`, `seen_at`                                              |
+| **themes**    | custom workspace themes (the built-in library lives in code, `@themes`)                                         | `workspace_id`, `name`, **`tokens` (jsonb)**, `mood`, `is_dark`                                                                                                                                                             |
+| **assets**    | uploaded & AI media metadata (binary in object storage or `data` base64)                                        | `workspace_id`, `kind`, `source` (`upload`\|`generated`\|`stock`), `url`, `width`, `height`, `bytes`, `alt`, `meta` (jsonb), `data` (base64, stored media only), `mime`                                                     |
+
+**Context & memory** (the pgvector substrate — see `ai.md` for the retrieval seams)
+
+| Table             | Purpose                                                               | Key columns                                                                                                                                                                                                               |
+| ----------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **contexts**      | a shareable, workspace-scoped collection of grounding material        | `workspace_id`, `name`, `description`, `created_by`                                                                                                                                                                       |
+| **context_items** | one source inside a context, with its extracted text snapshot         | `context_id` (cascade), `kind` (`file`\|`link`\|`artifact`\|`template`\|`text`), `title`, `ref` (url / artifact / template id), `body` (the full extracted text), `chars`, `added_by`                                     |
+| **chunks**        | the unified vector store: every embedded piece, whatever it came from | `workspace_id`, `scope` (`context`\|`chat`), `ref_id` (context_item or chat_message id — no FK, spans two parents; core deletes chunks with their parent), `seq`, `text`, **`embedding vector(768)`** (HNSW cosine index) |
+| **chat_messages** | the durable conversation record recall retrieves over                 | `workspace_id`, `artifact_id` (null = the library-level thread), `role`, `text`                                                                                                                                           |
 
 **Sharing & publishing**
 
 | Table               | Purpose                                                                                                 | Key columns                                                                                                                                                                                                                                                                                                                                 |
 | ------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **shares**          | who can view/edit an artifact (ACL)                                                                     | `artifact_id`, `subject_type` (user\|link\|workspace), `subject_id`, `role`                                                                                                                                                                                                                                                                 |
 | **links**           | one shared URL; an artifact can have many (one per audience)                                            | `artifact_id`, `slug` (unique), `name` (owner-facing label), `visibility` (public\|protected\|private), `password` (scrypt hash, protected only)                                                                                                                                                                                            |
 | **link_recipients** | per-recipient grants for a `private` link                                                               | `link_id→links`, `email`, `token` (unique, unguessable → possession-based access), `message`, `invited_at`, `last_viewed_at`                                                                                                                                                                                                                |
 | **link_views**      | view log, one row per viewer session (cookieless daily key dedups reloads; owner previews never logged) | `link_id→links`, `recipient_id→link_recipients` (private: who viewed), `session_key` (sha of day\|ip\|ua\|link — raw IP/UA never stored), `referrer` (hostname or `direct`), `device`, `country` (proxy geo headers), `viewed_at`, `last_seen_at` (heartbeat → duration), `max_unit` + `unit_total` (furthest slide/section → completion %) |
@@ -401,19 +419,23 @@ edit. Add new artifact-wide fields to `ArtifactShell`.
   searching a library never reads `draft_content` back.
 - **Still open:** a GIN index on `draft_content` for JSONB containment (find artifacts using an asset or
   element type); `workspace_id` indexed on every scoped table beyond `artifacts(workspace_id,
-updated_at)`; composite indexes on hot paths (`shares(artifact_id, subject_id)`,
-  `credits(workspace_id, created_at)`).
+updated_at)` and `credits(workspace_id, created_at)`.
 
 ### Relationship summary
 
 ```
-workspaces ─┬─< members >─ users
-            ├─< folders ─< artifacts ─┬─< shares            (subject = user | link | workspace)
-            │                         └─< links ─┬─< link_recipients   (private link: per-email token)
-            │                                    └─< link_views        (per-session analytics log)
+workspaces ─┬─< members >─ users ─┬─< oauth_accounts · auth_tokens
+            │                     └─< visits          (kind = artifact | template; ref, no FK)
+            ├─< invites
+            ├─< folders ─< artifacts ─< links ─┬─< link_recipients   (private link: per-email token)
+            │                                  └─< link_views        (per-session analytics log)
             ├─< themes · assets
-            └─< credits
+            ├─< credits
+            ├─< contexts ─< context_items
+            ├─< chunks            (scope = context | chat; ref_id spans both, no FK)
+            └─< chat_messages     (artifact_id nullable, no FK)
 users ─< artifacts.created_by
+stripe_events                     (webhook idempotency, standalone)
 ```
 
 ---
@@ -458,9 +480,49 @@ can form on either paid tier without a separate "Team/Business" plan. All three 
 | Org (planned)          | —            | —                                | SSO · analytics · API · admin · priority |
 
 `🔶` = AI-session-owned value (seed as contract, they tune). Annual ≈ 2 months free (one field). A per-seat
-workspace pool = `seats × credits/seat`. Prices/limits are all tunable. **Teams are live, not staged**:
-both paid tiers bill per seat, so the members/seats data model is required — until an invite UI ships,
-Pro/Premium are fully usable **solo** (1 seat).
+workspace pool = `seats × credits/seat`. Prices/limits are all tunable. **Teams are live**: invites (with
+a role), member management, rename, leave, and ownership transfer all ship in `/settings`.
+
+### Roles
+
+Three roles; **owner derives from `workspaces.owner_id`**, never the role column, and legacy `"editor"`
+rows read as `member` (`asRole`, `model/workspace.ts`). Enforced by `requireRole` in
+`services/api/middleware.ts`:
+
+| Action                                    | member | admin | owner              |
+| ----------------------------------------- | ------ | ----- | ------------------ |
+| Edit content, spend credits               | ✓      | ✓     | ✓                  |
+| Invite / revoke / resend, remove members  | —      | ✓     | ✓                  |
+| Rename workspace                          | —      | ✓     | ✓                  |
+| Remove another **admin**                  | —      | —     | ✓                  |
+| Change roles, billing, transfer ownership | —      | —     | ✓                  |
+| Leave the workspace                       | ✓      | ✓     | — (transfer first) |
+
+### Credit attribution & the window
+
+Every ledger row (`credits`) carries the initiating `user_id` (null = system: resets, webhook grants).
+`GET /billing` returns `credits.mySpend` — the caller's **net** spend this window (refunds subtract) —
+plus `credits.resetAt` and storage/artifact usage; `GET /billing/ledger` is keyset-paginated and names
+the spender.
+
+**The window.** `credits_started_at`/`credits_reset_at` bound the current cycle. A monthly renewal
+(`invoice.paid`, `subscription_cycle`) anchors it to the invoice date; between renewals — and for
+annual subscriptions and Free — it is a rolling ~30-day window rolled **lazily on workspace read**
+(`rollCreditWindow`: one `FOR UPDATE` transaction, re-checked under the lock, so parallel requests roll
+it exactly once). Every reset writes a ledger row (`monthly-reset`, `renewal-reset`, `upgrade-reset`)
+whose balance includes bonus.
+
+**Spend order and refunds.** Charges drain the monthly pool first, then bonus; `chargeCredits` reports
+`fromBonus` and refunds unwind in reverse — bonus (paid money) is made whole before the pool sees a
+credit.
+
+**Plan changes.** Upgrades and interval switches apply immediately (prorated); a tier or seat
+_decrease_ parks at period end via a Stripe subscription schedule, recorded in
+`workspaces.scheduled_change` and cleared when the phase lands (or on resume, which releases the
+schedule). Checkout is refused (409) while a subscription is live; if a duplicate ever slips through,
+the webhook cancels the superseded subscription. `POST /billing/spend` is server-priced only (action +
+meter; a client-supplied amount is rejected). Model overrides (`x-galleo-models`) are filtered by the
+plan's model tier — the catalogue marks locked models.
 
 ### Data-driven plan config (`model/billing.ts`)
 
@@ -668,7 +730,8 @@ live-collab (Yjs) update logs.
 **Billing — remaining flow work.**
 
 - **Member roles** — members are owner-or-editor today; an admin role (invite/billing rights without
-  ownership) is the next slice. Content-level per-member permissions ride on the shares table.
+  ownership) is the next slice. Content-level per-member permissions get their own table (a per-artifact
+  ACL) when that feature lands.
 - **Export gating is client-side by construction** — rendering happens in the browser, so the format
   list + watermark are enforced in the editor (`ExportModal` reads pushed features); public links stay
   the server-enforced surface (`links.ts` gates + brands server-side). Revisit only if export ever moves

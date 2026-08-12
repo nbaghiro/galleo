@@ -10,14 +10,14 @@
 imperatively into refs. **SolidJS owns only the shell + state.** Because the layering makes cross-module
 reuse illegal (`app → @editor` is a boundary violation), **`ui/` is the only shared home** — any Solid
 component used by more than one frontend module lives there, never duplicated per-module or reached across a
-sibling boundary. The platform is **registry-driven**: elements (`editor/register.ts`), themes, and commands
+sibling boundary. The platform is **registry-driven**: elements (`canvas/elements/register.ts`), themes, and commands
 all register a record, so _adding a shortcut / element / theme = adding a record_, and the palette, sheet,
 and tooltips pick it up automatically.
 
 **Layering law (stated once).** `model ← canvas ← ui ← editor ← app`, linear. `ui/` is Solid and sits just
 above `canvas`: it may import `model` + `canvas` + `@themes`, and **nothing higher** (not `editor`,
 `services`, or `app`) — ESLint enforces the zone. Command _definitions_ that close over editor/app state
-register from above via side-effect modules (`editor/commands.ts`, `app/stores/commands.ts`), so the shared
+register from above via side-effect modules (`editor/core/commands.ts`, `app/stores/commands.ts`), so the shared
 registry holds only generic records and no upward import occurs.
 
 ---
@@ -212,8 +212,10 @@ to, and which surfaces a tier admits.
   phone the generation studio switches its console rail from a column beside the board to an alternate pane
   toggled from the transport bar, reorders the outline through the card's own move controls rather than
   drag-drop, and lets the engine reflow section content at phone width (`app/views/generate/layout.ts` holds
-  the tier decisions, unit-tested). "New artifact" opens it directly on a phone, skipping the create modal,
-  whose blank-format options would land in an editor the phone redirects away from.
+  the tier decisions, unit-tested). "New artifact" opens it directly on every device — the create modal is
+  gone, and the intake itself carries the template row and the start-blank line, so phones get all
+  three ways in (a blank or template opened on a phone lands on the read-only preview, per the
+  manipulate tier).
 
 ```ts
 import { canEditHere, isCoarsePointer, isPhone, tierFor } from "@ui/viewport";
@@ -398,7 +400,7 @@ authoring aliases, sequence splitting, and platform-formatted labels.
 ## Architecture — as built
 
 The **mechanism** is generic and lives in `ui/`; the **command definitions** register from above via
-side-effect modules, mirroring `editor/register.ts` for elements:
+side-effect modules, mirroring `canvas/elements/register.ts` for elements:
 
 ```
 ui/keys.ts                 core: Command/Binding registries · context keys + scope stack · one capture-phase
@@ -409,8 +411,8 @@ ui/palette-model.ts        paletteDisplay (grouping/ranking → display rows) �
 ui/CommandPalette.tsx      ⌘K combobox (fuzzy · grouped · recents · sub-list providers · a11y roles)
 ui/ShortcutsSheet.tsx      ⌘, reference, generated from the registry (can't drift)
 ui/focus.ts                focusables + trapFocus (focus trap + restore) for modals
-editor/commands.ts         every studio command + the migrated keymap + editor.* context effect
-editor/clipboard.ts        element copy/cut/paste store + pure pasteElement placement
+editor/core/commands.ts    every studio command + the migrated keymap + editor.* context effect
+editor/core/clipboard.ts   element copy/cut/paste store + pure pasteElement placement
 app/stores/commands.ts     nav / workspace commands (palette-only; router-free via setNavigate injection)
 app/stores/route-context.ts publishRoute — route → context keys (pure, tested)
 ```
@@ -418,7 +420,7 @@ app/stores/route-context.ts publishRoute — route → context keys (pure, teste
 Wired directly in `app/App.tsx`'s shell (no separate `AppCommands` component): it injects the router via
 `setNavigate`, calls `installKeyDispatcher()` on mount, runs a `publishRoute(location.pathname)` effect, and
 mounts `<CommandPalette/> <ShortcutsSheet/>`. Importing `app/stores/commands.ts` also _runs_ the app-command
-registrations. `editor/Studio.tsx` also calls `installKeyDispatcher()` so the studio keymap works standalone.
+registrations. `editor/Editor.tsx` also calls `installKeyDispatcher()` so the studio keymap works standalone.
 
 **The dispatcher** (`installKeyDispatcher`) attaches a **single capture-phase** `keydown` on `window`; per
 event, in order: **(1) Escape** → the topmost scope with an `onEscape` (modals / palette / popovers) claims
@@ -435,7 +437,7 @@ if `allowInInput`; under an `exclusive` scope, only `allowInInput` globals fire.
 | `app`                                                    | in the product SPA shell                         | `publishRoute` (route)               |
 | `library` / `templates` / `shared` / `trash` / `pricing` | on the matching route                            | `publishRoute`                       |
 | `editor`                                                 | the studio is mounted (`/edit/*`)                | `publishRoute`                       |
-| `editor.hasSelection`                                    | an element or section is selected                | `editor/commands.ts` effect          |
+| `editor.hasSelection`                                    | an element or section is selected                | `editor/core/commands.ts` effect     |
 | `editor.element` / `editor.section`                      | selection kind                                   | effect over `selection()`            |
 | `editor.textEditing`                                     | inline contenteditable active                    | effect over `editing()`              |
 | `present`                                                | present/preview mode active                      | effect over `presenting()`           |
@@ -490,7 +492,7 @@ carry a key binding (see the keymap above). "Wires to" makes clear each is a re-
 | `edit.undo` / `edit.redo`      | edit     |   ✚   | `undo()` / `redo()`                                                    |
 | `edit.delete`                  | edit     |   ✚   | delete element/section (dangerous)                                     |
 | `edit.duplicate`               | edit     |   ✚   | element/section duplicate                                              |
-| `edit.copy/cut/paste`          | edit     |   ✚   | element clipboard (`editor/clipboard.ts`)                              |
+| `edit.copy/cut/paste`          | edit     |   ✚   | element clipboard (`editor/core/clipboard.ts`)                         |
 | `select.up`                    | select   |   ✚   | `parentTarget` walk-up                                                 |
 | `insert.sectionBelow`          | insert   |       | `addSectionAfter`                                                      |
 | `insert.sectionViaAi`          | insert   |       | `openSectionPrompt`                                                    |
@@ -554,7 +556,7 @@ The honest not-yet-done, in rough priority order.
   sections → `jumpToSection`), `artifact.moveToFolder →` (folder tree), `export.as →` (gated formats),
   `insert.element →` (element catalog by category), `template.use →`. (Opening an artifact is no longer
   one of them: it is a palette source, not a sub-list.)
-- **`submitCancel()` helper — unbuilt.** The specced `ui/inputs.ts submitCancel({ onSubmit, onCancel,
+- **`submitCancel()` helper — unbuilt.** The specced `ui/inputs.tsx submitCancel({ onSubmit, onCancel,
 allowShiftEnter })` for standardizing input-local Enter-to-submit / Esc-to-cancel (Topbar title, Sidebar
   folder rename, ChatPanel send, link URL, gen prompt, recipient/search fields) was never added — those
   fields still use ad-hoc `onKeyDown`.
@@ -575,7 +577,7 @@ restore/purge`, `trash.empty`), `folder.*`, `template.use`, roving element selec
   chat controls (`ai.chat.send/stop/reset`), `ai.rewriteText`, `ai.generateArtifact`, `share.copyLink`,
   `export.*`, `account.billing`.
 - **Present keymaps stay off the registry — deliberate.** Both present surfaces
-  (`editor/canvas/Present.tsx`, `ui/present.tsx`) keep their own mode-scoped `keydown` handlers (coupled to
+  (`editor/Present.tsx`, `ui/present.tsx`) keep their own mode-scoped `keydown` handlers (coupled to
   local fullscreen/overview state, they only fire in present mode); editor commands are gated off while
   presenting (`inEditor = has("editor") && !has("present")`) so nothing double-fires. Migrating them to a
   `present.*` command set remains optional.

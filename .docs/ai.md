@@ -43,11 +43,11 @@ services/api/
   routes.ts    the credit ledger the gate charges against (POST /billing/spend, GET /billing)
 
 editor/ + app/                 the client (thin — speaks the protocol, never the model)
-  editor/editor.ts             injected seams: onSectionStream · onSuggestSections · onReviseElement · onTextAssist
+  editor/core/store.ts         injected seams: onSectionStream · onSuggestSections · onReviseElement · onTextAssist
   editor/ai/                   the in-canvas flows: section-gen · element-gen · text-assist + TextAiMenu
   app/stores/generate.ts       the generation studio's session state machine (stages · gates · build loop ·
                                versions · steer · draft persistence) over app/stores/generate-plan.ts (pure helpers)
-  app/views/GenerateModal.tsx + app/views/generate/    the studio shell + its stages (§12)
+  app/views/generate/Mission.tsx (GenerateStudio) + app/views/generate/    the studio shell + its stages (§12)
   app/stores/chat.ts + app/views/ChatPanel.tsx    the chat dock: chat.ts (thread + dispatch) + ChatPanel.tsx
   app/api.ts                   streamTurn (SSE reader) + the JSON transports; wired in EditorView.tsx
 ```
@@ -300,11 +300,15 @@ once with the issues fed back. Shared by generate and insert, so both get the sa
 call (`planOutline`, the exact code `runGenerate` uses — one extracted function, not a fork), emits `plan`
 (now carrying `title` + `backdrop`), resolves the artifact backdrop, and ends — 3 credits, and the client
 owns the beats from there. `runBuild` writes ONE beat of a client-supplied (user-edited) outline through
-the same `sectionParts` → `writeSectionFrom` → `resolveImages` path as generate, with three extras:
+the same `sectionParts` → `writeSectionFrom` → `resolveImages` path as generate, with four extras:
 `steer` (a session-wide note injected into the prompt), `note` (a this-attempt-only regeneration
-instruction), and `anchor` (`cover`/`closer` — the client says which beats are the bookends now, since the
-user may have reordered them; the full-bleed background forcing keys off it). `replace: true` emits
-`replaceSection` instead of `addSection`, which is all a regeneration is.
+instruction), `anchor` (`cover`/`closer` — the client says which beats are the bookends now, since the
+user may have reordered them; the full-bleed background forcing keys off it), and `content` (the artifact
+as built so far — `writtenContext` folds every written section's actual words into the prompt, so
+hand-edits are canon and later sections stop repeating earlier ones; the beat being written is excluded,
+so a regeneration is never anchored by its own old take). The one-shot `runGenerate` loop accumulates its
+landed sections and threads the same context, so both paths write with the page in view. `replace: true`
+emits `replaceSection` instead of `addSection`, which is all a regeneration is.
 
 **`runSection`** mirrors generate scoped to one beat: `sectionPlanParts` → `plan` (so the skeleton renders) →
 `insertSectionParts` → the written section → `addSection` at `afterId`.
@@ -365,7 +369,7 @@ a capability's progress events up to its shell, where a `narration` becomes the 
   (edit a named library artifact by id), and the management set — `rename-` / `move-` / `duplicate-` /
   `trash-` / `restore-artifact`, `create-folder`, `share-artifact`, `export-artifact`. All of it stands down
   mid-run: inside a generation there is nothing to create and nothing else to reorganize.
-- **Generating only** (`context.generation` present), all three local `tool()`s in `chat.ts` rather than
+- **Generating only** (`context.generation` present), all four local `tool()`s in `chat.ts` rather than
   registry capabilities, because none makes a sub-model call and all resolve on the client:
     - `revise-outline` — add / update / remove / move beats in one call, changing the PLAN. The agent writes
       the beat content itself, so there is nothing to meter; ids it invents for new beats are re-assigned by
@@ -377,6 +381,11 @@ a capability's progress events up to its shell, where a `narration` becomes the 
       ones already written, telling the model which. Without it the agent's nearest match was `add-section`,
       which mints a _new_ section beside the plan and leaves the planned beat unwritten — the outline and the
       piece drift apart. The prompt says so explicitly.
+    - `request-plan` — REPLAN the arc wholesale before anything is written. A proposal card: applying
+      it runs the studio's own `plan` turn, optional `guidance` rides into the brief's
+      `clarifications`, and `andWrite` rolls straight into the build loop. Both the tool and the client
+      commission refuse once any section is written, since a replan would mint beat ids over existing
+      slots — reshaping a half-written run is `revise-outline`'s territory.
     - `steer-sections` — set the standing note every section still to be written must follow, which the
       studio threads into each `build` turn as `input.steer`. It is the one generate-surface tool applied on
       arrival rather than proposed: it writes nothing, costs nothing, and asking the user to confirm their own
@@ -598,9 +607,11 @@ ask + context. Cheap high-volume ops (rewrite/translate) deliberately drop the c
 - **Job:** write the beat as a real `Section` (`{ id, root }`, a flex element tree). **Output:** `zSection`.
 - **System:** persona + surface + theme + **full element & layout catalog** + `SECTION_RULES` + **VOICE** +
   a gold `sectionExemplars(surface)` + `SECTION_OUTPUT`.
-- **Prompt:** `briefContext` + `placement(beat, outline)` — the beat's brief/role/layout + `blockLine` (fill
-  each column with its planned block, in order) + **the entire arc** so it doesn't repeat neighbors. **Emits:**
-  `addSection`.
+- **Prompt:** `briefContext` + `sourceForSection(source)` (the same clipped material the outline read, with
+  a "quote its real facts" directive, so sections can cite what the planner only distilled) +
+  `writtenContext(content, beat.id)` (every written section's words, clipped per section) +
+  `placement(beat, outline)` — the beat's brief/role/layout + `blockLine` (fill each column with its
+  planned block, in order) + **the entire arc** so it doesn't repeat neighbors. **Emits:** `addSection`.
 
 #### `sectionPlanParts(input)` + `insertSectionParts(input, beat)` — insert one section
 
@@ -640,11 +651,11 @@ ask + context. Cheap high-volume ops (rewrite/translate) deliberately drop the c
 
 ### 10.2 theme + image + suggest
 
-- **Theme** (`prompts/theme.ts`, `services/core/ai/tasks.ts`): a coherent `ThemeInput` (name + mood + isDark + 8
+- **Theme** (`prompts/theme.ts`, `services/core/ai/tools/theme.ts`): a coherent `ThemeInput` (name + mood + isDark + 8
   colors + font trio + radius/weight/border) from a prompt; the bundled font lists constrain the choice, and a
   deterministic contrast/OKLCH finalize pass guarantees legibility regardless of model.
 - **Image** (`prompts/image.ts`): expand a terse subject into one vivid, on-theme image prompt.
-- **Suggest** (`services/core/ai/tasks.ts`): a cheap, unmetered call for "what to add next" ideas (the insert
+- **Suggest** (`services/core/ai/tools/suggest.ts`): a cheap, unmetered call for "what to add next" ideas (the insert
   popup); the client caches per artifact.
 
 ### 10.3 The quality bar, baked in (`prompts/rubric.ts` + `prompts/arcs.ts`)
@@ -669,25 +680,68 @@ section count; `arcGuidance` picks the topic arc. Highlights:
 The rule: **an editing turn carries as much relevant context as it can afford, cheaply.** The helpers
 (`prompts/system.ts`) and where each is used:
 
-| Context helper                       | What it gives                                                 | Used by                              |
-| ------------------------------------ | ------------------------------------------------------------- | ------------------------------------ |
-| `describeTheme(id)`                  | active theme name/mood/dark → the register to write in        | every generate/edit/theme/image turn |
-| `briefContext(input)`                | prompt · goal · audience · tone · length                      | generate (outline + section)         |
-| `arcGuidance(input)`                 | the proven topic arc                                          | outline                              |
-| `placement(beat, outline)`           | the beat + the whole arc (continuity while building)          | section                              |
-| `artifactSpine(content)`             | title + thesis + format + theme (the cheapest "what is this") | insert-plan, element regen, chat     |
-| `artifactDigest(content)`            | every section's id + first line (a whole-tree map)            | chat (editor), read-artifact         |
-| `neighbors(content, id)`             | prev/next section labels (fit between, don't repeat)          | regenerate section                   |
-| `insertionContext(content, afterId)` | the two sections a new one lands between                      | insert plan + write                  |
-| `elementContext(content, section)`   | the spine + the section an element belongs to                 | regenerate element                   |
-| section / element JSON               | the exact current content being changed                       | section/element regen                |
-| surrounding text                     | the run's context (sub-range coherence)                       | rewrite / translate                  |
+| Context helper                        | What it gives                                                 | Used by                              |
+| ------------------------------------- | ------------------------------------------------------------- | ------------------------------------ |
+| `describeTheme(id)`                   | active theme name/mood/dark → the register to write in        | every generate/edit/theme/image turn |
+| `briefContext(input)`                 | prompt · goal · audience · tone · length                      | generate (outline + section)         |
+| `sourceMaterial` / `sourceForSection` | the attached material, clipped 6k (distill vs quote framing)  | outline / every section write        |
+| `writtenContext(content, exclude)`    | every written section's actual words (hand-edits are canon)   | generate + build section writes      |
+| `retrievedContext(pack)`              | chunks retrieved from the attached contexts for THIS query    | outline, every section write, chat   |
+| `arcGuidance(input)`                  | the proven topic arc                                          | outline                              |
+| `placement(beat, outline)`            | the beat + the whole arc (continuity while building)          | section                              |
+| `artifactSpine(content)`              | title + thesis + format + theme (the cheapest "what is this") | insert-plan, element regen, chat     |
+| `artifactDigest(content)`             | every section's id + first line (a whole-tree map)            | chat (editor), read-artifact         |
+| `neighbors(content, id)`              | prev/next section labels (fit between, don't repeat)          | regenerate section                   |
+| `insertionContext(content, afterId)`  | the two sections a new one lands between                      | insert plan + write                  |
+| `elementContext(content, section)`    | the spine + the section an element belongs to                 | regenerate element                   |
+| section / element JSON                | the exact current content being changed                       | section/element regen                |
+| surrounding text                      | the run's context (sub-range coherence)                       | rewrite / translate                  |
 
 So a **regenerate-section** call sees the theme mood, the neighbors it must flow between, the section's own
 JSON, the full element/layout catalog, and the voice/rubric — everything needed to fit the piece, not a
 generic block. A **rewrite** call sees the passage + its surrounding text. A **library chat** turn starts with
 only the workspace summary, then calls `find-artifacts`/`read-artifact` to pull a real artifact's digest on
 demand.
+
+### 10.5 The context library + conversation memory (pgvector)
+
+Reusable, workspace-shared **contexts** ground turns in real material. One ingestion path whatever the
+source (`services/core/context.ts`): extract text → `chunkText` (paragraph-aware, 1200 chars, 200
+overlap; `services/core/context-text.ts`) → embed (`gemini-embedding-001` @ 768 dims,
+`services/core/ai/embed.ts`) → rows in the unified `chunks` table. The five source kinds and how each
+becomes text: **file** and **text** arrive already-extracted from the client (same reader as the intake's
+attachments); **link** is fetched server-side by `services/utils/webpage.ts` (SSRF-vetted per redirect
+hop, 2 MB cap, HTML → text); **artifact** re-extracts a library artifact's words with the same
+`extractArtifactText` the search index uses (artifacts have FTS, not vectors — context items get their
+own chunks); **template** resolves a starter from the curated catalog (`templateBody`) through the same
+extraction. Ingestion is unpriced to the user; retrieval-query embeddings settle into the turn via the
+meter's `extraUsd` (the embedding model is deliberately NOT in the `MODELS` registry — `check:models`
+validates against provider LanguageModelId unions).
+
+Retrieval is one seam used four ways. Routes build a `ContextRetriever` (`makeContextRetriever`) from the
+request's `contextIds` and hand its `pack(query)` to the runtime via `RunOpts.pack` → `ToolContext.pack`:
+
+- **outline** — the plan tool packs against prompt + mustInclude before writing the arc;
+- **section writes** — `run.ts` packs per beat (`label · brief · takeaway · points`), so every section
+  pulls its own relevant chunks (build turns included);
+- **chat** — the turn packs against the user message into `retrievedContext`, and the agent can dig
+  further mid-turn with the `search-context` tool (registered only when contexts are attached);
+- **conversation memory** — every chat turn is recorded (`chat_messages` + `chat`-scoped chunks) after
+  settle, and `recallConversation` retrieves from exchanges OLDER than the client's verbatim history
+  window (newest 16 messages excluded), keyed by workspace + (artifactId ?? null).
+
+Top-k retrieval (12 context / 6 recall) has no distance floor — `assemblePack` labels every chunk with
+its source and the prompts frame recall as "possibly relevant", so ranking, not thresholding, does the
+filtering. All embed calls take an injectable `Embedder`, which is how the integration suite runs
+against real pgvector with fake vectors. Schema: `architecture.md` → "Context & memory"; routes:
+`services/api/context.ts` (ingestion 503s without a Google key via `embeddingReady()`).
+
+Client side there is no contexts page: the intake's **+ menu** is the attach point when generating —
+upload files / paste text for one-off source material, toggle context collections
+(`GenerateInput.contextIds`), and open the in-studio `ContextsPane` to create or manage collections
+(`app/views/generate/ContextsPane.tsx`, hosted like the template gallery so the prompt survives the
+detour). The chat dock's composer carries the same toggle picker (`app/components/ContextPicker.tsx`),
+feeding `ChatContext.contextIds`.
 
 ## 11. Routes + the credit gate (`services/api/ai.ts`)
 
@@ -734,10 +788,10 @@ The editor stays **app-free**: it exposes injected seams, and the app registers 
 
 ```
 editor seam (editor.ts)     app transport (api.ts)      route          the flow
-onSectionStream             streamTurn (SSE)            /ai/turn       editor/ai/section-gen.ts (insert)
+onSectionStream             streamTurn (SSE)            /ai/turn       editor/core/ai.ts (insert)
 onSuggestSections           api.suggestSections         /ai/suggest    the insert popup's idea chips
-onReviseElement             api.reviseElement           /ai/element    editor/ai/element-gen.ts (regenerate)
-onTextAssist                api.assistText              /ai/text       editor/ai/text-assist.ts + TextAiMenu
+onReviseElement             api.reviseElement           /ai/element    editor/core/ai.ts (regenerate)
+onTextAssist                api.assistText              /ai/text       editor/core/ai.ts + TextAiMenu
 (chat uses streamTurn directly)                          /ai/turn       app/stores/chat.ts + app/views/ChatPanel.tsx
 ```
 
@@ -767,8 +821,13 @@ mode would be a second way to do the same thing. The stages:
 - **Intake** — a centred composer that owns its own settings (format / length / image-source as compact
   dropdowns in its footer, beside the attach actions) plus **context to build from**: pasted text and
   dropped text files, merged into `GenerateInput.source` (`app/views/generate/context.ts`; binaries are
-  refused with a reason rather than read as mojibake, and the 6000-char planner clip is surfaced). Example
-  prompts sit below as a quiet list and disappear once anything is typed.
+  refused with a reason rather than read as mojibake, and the 6000-char planner clip is surfaced). The intake is
+  also the app's ONE create entry ("New artifact" on every device — the old create modal is gone):
+  below the composer, a template row live-matches the typed prompt against the edge-safe
+  `TEMPLATE_INDEX` (`model/templates.ts`; curated picks lead when empty, hidden when
+  nothing fits, and the rest of the catalog windows in as the strip scrolls) with bodies fetched
+  once for thumbnails (`app/stores/templates.ts`), and a one-line
+  start-blank row covers the empty-canvas path (`createBlank` in the library store).
 - **Brief** — no longer a stage. The **planner reports its own reading**: `zOutline` carries `goal` /
   `audience` / `tone` / `mustInclude`, and `runPlan` emits them on the `plan` event as `BriefRead`, so the
   fields fill themselves with no extra call, latency, or credit. The client absorbs them only into fields

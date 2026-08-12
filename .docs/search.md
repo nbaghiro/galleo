@@ -101,7 +101,7 @@ collapses during that parse, because a headline fragment can straddle the blank 
 sections and the row renders on one line either way.
 
 An empty query is not an error: it returns the recents list, ordered by
-`GREATEST(visits.viewed_at, artifacts.updated_at)`, which is why the visit table exists. `updated_at` is
+`GREATEST(visits.seen_at, artifacts.updated_at)`, which is why the visits table exists. `updated_at` is
 an edit clock; "recent" in a jump-to list means recently opened. `POST /artifacts/:id/visit` upserts one
 row per (user, artifact) and is called by `EditorView` on load, so every path that opens an artifact
 records it exactly once.
@@ -181,7 +181,7 @@ should). The next scaling step, if a workspace filter over a large table becomes
 ## Operating it
 
 ```
-pnpm db:migrate   # adds the columns, the generated vector, the indexes, artifact_visits
+pnpm db:migrate   # adds the columns, the generated vector, the indexes, visits
 ```
 
 There is no backfill step: `search_text` + `digest` are derived from `draft_content` on every write via
@@ -210,10 +210,10 @@ that change ships with a one-off re-derive (`set(contentWrite(row.draftContent))
 
 ## Tests
 
-| Area                     | File                                      | Covers                                                                                                                                                                               |
-| ------------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Extraction               | `model/__tests__/digest.test.ts`          | cover/filmstrip derivation, nested and table/diagram text, url + color + blob exclusion, the size cap                                                                                |
-| Query, route, index      | `services/api/__tests__/search.itest.ts`  | real Postgres and the real generated vector: sanitizer, ranking, tenancy isolation, trash exclusion, prefix narrowing, snippet offsets, wildcards, stop words, recents, visit upsert |
-| Write path               | `services/api/__tests__/library.itest.ts` | digest + search text derived on create, re-derived on a content edit, untouched by a metadata patch                                                                                  |
-| Palette list model       | `ui/__tests__/palette.test.ts`            | section ordering, source registration and gating, command grouping, snippet run splitting                                                                                            |
-| Fetch, cache, local pass | `app/stores/__tests__/search.test.ts`     | local ranking, request shape, abort passthrough, cache TTL and eviction, reconciliation against the store                                                                            |
+| Area                     | File                                        | Covers                                                                                                                                                                               |
+| ------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Extraction               | `model/__tests__/artifact.test.ts`          | cover/filmstrip derivation, nested and table/diagram text, url + color + blob exclusion, the size cap                                                                                |
+| Query, route, index      | `services/api/__tests__/search.itest.ts`    | real Postgres and the real generated vector: sanitizer, ranking, tenancy isolation, trash exclusion, prefix narrowing, snippet offsets, wildcards, stop words, recents, visit upsert |
+| Write path               | `services/api/__tests__/artifacts.itest.ts` | digest + search text derived on create, re-derived on a content edit, untouched by a metadata patch                                                                                  |
+| Palette list model       | `ui/__tests__/palette.test.ts`              | section ordering, source registration and gating, command grouping, snippet run splitting                                                                                            |
+| Fetch, cache, local pass | `app/stores/__tests__/search.test.ts`       | local ranking, request shape, abort passthrough, cache TTL and eviction, reconciliation against the store                                                                            |
