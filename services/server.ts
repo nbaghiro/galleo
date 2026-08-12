@@ -19,6 +19,7 @@ import { media } from "./api/media";
 import { ai } from "./api/ai";
 import { links } from "./api/links";
 import { search } from "./api/search";
+import { context } from "./api/context";
 
 assertDatabaseUrl();
 
@@ -47,6 +48,7 @@ app.route("/api", media);
 app.route("/api", ai);
 app.route("/api", links);
 app.route("/api", search);
+app.route("/api", context);
 
 // an unknown /api path is a 404, never the SPA fallback below
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));

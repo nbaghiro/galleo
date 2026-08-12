@@ -2,7 +2,7 @@
 # conventional. Bring up with: docker compose up -d
 services:
     postgres:
-        image: postgres:16-alpine
+        image: pgvector/pgvector:pg16 # postgres 16 + the vector extension (context embeddings)
         container_name: galleo-pg
         ports:
             - "8602:5432"

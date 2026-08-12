@@ -57,6 +57,51 @@ function firstText(section: Section): string {
     return found;
 }
 
+// every text run in document order — the section's words, not just its first line
+export function sectionText(section: Section): string {
+    const parts: string[] = [];
+    const visit = (el?: ElementInstance): void => {
+        if (!el) return;
+        const data = el.data as { text?: string; children?: ElementInstance[] };
+        if (typeof data.text === "string" && data.text.trim()) parts.push(data.text.trim());
+        data.children?.forEach(visit);
+    };
+    visit(section.root);
+    return parts.join(" · ");
+}
+
+const WRITTEN_CLIP = 350; // per section, so one long section can't crowd out the rest
+
+// What is already on the page, at reading fidelity: the anti-repetition and continuity context
+// for every later section write. Hand-edits are deliberately canon — this reads the live content,
+// not the plan.
+export function writtenContext(
+    content: ArtifactContent | undefined,
+    excludeId?: string,
+): string | undefined {
+    const sections = (content?.sections ?? []).filter((s) => s.id !== excludeId);
+    if (!sections.length) return undefined;
+    const rows = sections.map((s) => {
+        const text = sectionText(s) || "(a visual section — no text)";
+        const clipped =
+            text.length > WRITTEN_CLIP ? `${text.slice(0, WRITTEN_CLIP - 1).trimEnd()}…` : text;
+        return `[${s.id}] ${clipped}`;
+    });
+    return heading(
+        "The piece so far — already on the page",
+        `These sections are already written, and the author may have hand-edited them — their current wording is canon. Match their voice and facts, build on what they establish, and never repeat a claim, number, or image another section already carries.\n${rows.join("\n")}`,
+    );
+}
+
+// excerpts pulled from the attached context library for THIS call's query
+export function retrievedContext(pack?: string | null): string | undefined {
+    if (!pack?.trim()) return undefined;
+    return heading(
+        "Retrieved from the attached contexts — real material, with its source",
+        `Use these excerpts' real facts, numbers, names, and phrasing where they serve the ask; never contradict them, and never dress your own invention as coming from them.\n\n${pack.trim()}`,
+    );
+}
+
 export function artifactDigest(content: ArtifactContent): string {
     const rows = content.sections
         .map((s, i) => {

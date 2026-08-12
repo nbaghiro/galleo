@@ -17,6 +17,14 @@ export default async function setup(): Promise<void> {
         await admin.end();
     }
 
+    // push can create tables but not extensions, and chunks.embedding needs the vector type
+    const target = postgres(url, { max: 1 });
+    try {
+        await target.unsafe("CREATE EXTENSION IF NOT EXISTS vector");
+    } finally {
+        await target.end();
+    }
+
     // additive on an empty DB → no prompt
     execSync("pnpm exec drizzle-kit push --force", {
         stdio: "inherit",

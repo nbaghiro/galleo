@@ -7,6 +7,9 @@ import { contentWrite } from "./derived";
 import { hashPassword } from "../utils/auth";
 import { out as log, warn } from "../utils/env";
 import { createWorkspaceForUser } from "../core/accounts";
+import { addArtifactItem, addTextItem, createContext } from "../core/context";
+import { embeddingReady } from "../core/ai/provider";
+import { DEMO_CONTEXTS } from "./seed-contexts";
 import { TEMPLATE_INDEX } from "@model/templates";
 import { templateBody } from "../core/templates";
 import { aria } from "../core/ai/corpus/aria";
@@ -98,6 +101,7 @@ async function seed(): Promise<void> {
 
     let folders = 0;
     let docs = 0;
+    const artifactIds = new Map<string, string>();
     for (const group of PLAN) {
         let folderId: string | null = null;
         if (group.folder) {
@@ -109,20 +113,49 @@ async function seed(): Promise<void> {
             folders++;
         }
         for (const d of group.docs) {
-            await db.insert(schema.artifacts).values({
-                workspaceId: wsId,
-                title: d.title,
-                formatId: d.artifact.format,
-                themeId: d.artifact.theme,
-                ...contentWrite(d.artifact),
-                folderId,
-                createdBy: user.id,
-            });
+            const [row] = await db
+                .insert(schema.artifacts)
+                .values({
+                    workspaceId: wsId,
+                    title: d.title,
+                    formatId: d.artifact.format,
+                    themeId: d.artifact.theme,
+                    ...contentWrite(d.artifact),
+                    folderId,
+                    createdBy: user.id,
+                })
+                .returning({ id: schema.artifacts.id });
+            if (row) artifactIds.set(d.title, row.id);
             docs++;
         }
     }
 
     log(`• seeded ${docs} artifacts across ${folders} folders`);
+
+    // context library: reset, then re-ingest through the real path (chunk → embed → pgvector),
+    // so the demo skies and retrieval behave exactly like user-fed material
+    await db.delete(schema.chunks).where(eq(schema.chunks.workspaceId, wsId));
+    await db.delete(schema.chatMessages).where(eq(schema.chatMessages.workspaceId, wsId));
+    await db.delete(schema.contexts).where(eq(schema.contexts.workspaceId, wsId));
+    if (!embeddingReady()) {
+        warn("• skipped context seeding — no Google key, so nothing can be embedded");
+    } else {
+        let sources = 0;
+        for (const plan of DEMO_CONTEXTS) {
+            const { id } = await createContext(wsId, user.id, plan.name, plan.description);
+            for (const item of plan.items) {
+                await addTextItem(wsId, id, user.id, item.kind, item.title, item.body);
+                sources++;
+            }
+            for (const title of plan.artifactTitles) {
+                const artifactId = artifactIds.get(title);
+                if (!artifactId) throw new Error(`no seeded artifact titled "${title}"`);
+                await addArtifactItem(wsId, id, user.id, artifactId);
+                sources++;
+            }
+        }
+        log(`• seeded ${DEMO_CONTEXTS.length} contexts (${sources} embedded sources)`);
+    }
 
     // reset first so re-seeding stays idempotent; picsum gives stable photos without an API key
     await db.delete(schema.assets).where(eq(schema.assets.workspaceId, wsId));
