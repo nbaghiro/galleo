@@ -1,3 +1,3 @@
-import { bandStack, registerDiagram } from "./utils";
+import { bandsArrange, registerDiagram } from "./utils";
 
-registerDiagram({ id: "funnel", label: "Funnel", render: bandStack(false) });
+registerDiagram({ id: "funnel", label: "Funnel", arrange: bandsArrange(false) });

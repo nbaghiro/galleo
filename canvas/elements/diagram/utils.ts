@@ -1,28 +1,33 @@
-import type {
-    DrawContext,
-    DrawStyle,
-    DrawTextStyle,
-    EngineNode,
-    PathSink,
-    Rect,
-} from "@engine/node";
+import type { DrawContext, DrawStyle, EngineNode, PathSink, Rect } from "@engine/node";
 import type { LayoutCtx } from "@elements/spec";
+import type { BoxInsets } from "@model/geometry";
+import { fit, fixed, grow, percent } from "@model/geometry";
 import type { Tokens } from "@themes";
-import type { DiagramFlow } from "@model/elements";
-import { fontStack, luminance } from "@themes";
-import { PALETTE_MODES, type PaletteMode } from "@elements/chart/utils";
-import { num, oneOf, str } from "@elements/coerce";
-import { DIAGRAM_FLOWS } from "@model/elements";
+import type { DiagramNumbers, DiagramShape, DiagramStyle } from "@model/elements";
+import { fontStack, luminance, mix, mixWhite, reachContrast } from "@themes";
+import { bool, num, oneOf, str } from "@elements/coerce";
+import { DIAGRAM_NUMBERS, DIAGRAM_SHAPES, DIAGRAM_STYLES, THEME_ROLES } from "@model/elements";
 import { hierarchy, tree, type HierarchyPointNode } from "d3-hierarchy";
+
+// Per-item presentation, positional beside the text encoding of `items` (index i styles item i).
+// Kept out of the item grammar so styling never leaks into a field users type into; truncated or
+// padded to the item count at normalize, so an AI rewrite of `items` degrades safely.
+export interface DiagItemMeta {
+    color?: string; // hex, or a theme color role name ("accent", "ink", ...)
+    emphasis?: boolean; // promote this item's node to the solid treatment
+    icon?: string; // ICON_LIBRARY key, rendered by types that support node icons
+}
 
 // Authored/persisted diagram data (artifact JSONB).
 export interface DiagramData {
     type?: string; // registered diagram id; one of the renderers in @elements/diagram/
     items: string; // one entry per line (or comma-separated): "Label | detail | value"
+    itemsMeta?: DiagItemMeta[]; // positional per-item styling
     links?: string; // edges: "A->B, B->C" (flow) or "Parent>Child" (tree/org/mindmap)
     axes?: string; // quadrant/matrix axis captions: "x low, x high, y low, y high"
-    palette?: PaletteMode; // node fills: accent ramp (mono) or hue-rotated (multi)
-    flow?: DiagramFlow; // graph rank direction
+    style?: DiagramStyle; // node treatment: solid | tinted | card | outline
+    shape?: DiagramShape; // node silhouette for the node-row types
+    numbers?: DiagramNumbers; // leading-edge ornament badge
     height?: number;
 }
 
@@ -30,6 +35,9 @@ export interface DiagItem {
     label: string;
     body?: string;
     value?: number;
+    color?: string; // resolved per-item override (from itemsMeta)
+    emphasis?: boolean;
+    icon?: string;
 }
 
 export interface DiagNode {
@@ -44,12 +52,13 @@ export interface DiagEdge {
 }
 
 export interface DiagramOptions {
-    flow: DiagramFlow;
+    style: DiagramStyle;
+    shape?: DiagramShape; // unset = each renderer's own default silhouette
+    numbers: DiagramNumbers;
 }
 
 export interface ResolvedDiagram {
     type: string;
-    palette: PaletteMode;
     items: DiagItem[];
     nodes: DiagNode[];
     edges: DiagEdge[];
@@ -57,30 +66,19 @@ export interface ResolvedDiagram {
     options: DiagramOptions;
 }
 
-export interface DiagramCtx {
-    g: DrawContext;
-    W: number;
-    H: number;
-    theme: Tokens;
-    opts: DiagramOptions;
-    colors: (n: number) => string[];
-}
-
+// Every type composes: `arrange` returns real engine children (label + detail text per item) laid
+// out by the engine, plus an optional float `decorate` surface painting only chrome (connectors,
+// bands, silhouettes) behind them. kids[i*2] is item i's label, kids[i*2+1] its detail.
 export interface DiagramType {
     id: string;
     label: string;
-    render: (diagram: ResolvedDiagram, ctx: DiagramCtx) => void;
-    // Types that opt in return an engine tree instead of painting their own labels: `render` then draws
-    // decoration only, and each item's text becomes a real child the editor can select and edit inline.
-    arrange?: (
+    arrange: (
         diagram: ResolvedDiagram,
         ctx: LayoutCtx,
         kids: EngineNode[],
         height: number,
     ) => EngineNode;
 }
-
-export type Renderer = (diagram: ResolvedDiagram, ctx: DiagramCtx) => void;
 
 // Mirrors the chart registry (@elements/chart/utils).
 const registry = new Map<string, DiagramType>();
@@ -124,30 +122,58 @@ function parseEdges(links: string | undefined): DiagEdge[] {
         .filter((e): e is DiagEdge => e !== null);
 }
 
+function toItemMeta(raw: unknown): DiagItemMeta[] | undefined {
+    if (!Array.isArray(raw)) return undefined;
+    return raw.map((entry) => {
+        const m = (entry ?? {}) as Record<string, unknown>;
+        return { color: str(m.color), emphasis: bool(m.emphasis), icon: str(m.icon) };
+    });
+}
+
 export function toDiagramData(raw: unknown): DiagramData {
     const d = (raw ?? {}) as Record<string, unknown>;
     return {
         type: str(d.type),
         items: str(d.items) ?? "",
+        itemsMeta: toItemMeta(d.itemsMeta),
         links: str(d.links),
         axes: str(d.axes),
-        palette: oneOf(d.palette, PALETTE_MODES),
-        flow: oneOf(d.flow, DIAGRAM_FLOWS),
+        style: oneOf(d.style, DIAGRAM_STYLES),
+        shape: oneOf(d.shape, DIAGRAM_SHAPES),
+        numbers: oneOf(d.numbers, DIAGRAM_NUMBERS),
         height: num(d.height),
     };
+}
+
+// hex passes through; a theme role name resolves against the tokens; anything else is dropped
+export function resolveItemColor(c: string | undefined, theme: Tokens): string | undefined {
+    if (!c) return undefined;
+    if (/^#[0-9a-fA-F]{3,8}$/.test(c)) return c;
+    const role = oneOf(c, THEME_ROLES);
+    return role ? theme[role] : undefined;
 }
 
 export function normalizeDiagram(d: DiagramData): ResolvedDiagram {
     const type = d.type ?? "process";
     const items = splitLines(d.items).map(parseItem);
+    // positional: meta[i] styles items[i]; excess meta is ignored, missing meta means unstyled
+    d.itemsMeta?.slice(0, items.length).forEach((m, i) => {
+        const it = items[i]!;
+        if (m.color) it.color = m.color;
+        if (m.emphasis !== undefined) it.emphasis = m.emphasis;
+        if (m.icon) it.icon = m.icon;
+    });
     return {
         type,
-        palette: d.palette === "categorical" ? "categorical" : "ramp",
         items,
         nodes: items.map((i) => ({ id: i.label, label: i.label })),
         edges: parseEdges(d.links),
         axes: splitLines(d.axes),
-        options: { flow: d.flow ?? "down" },
+        options: {
+            style: d.style ?? "solid",
+            shape: d.shape,
+            numbers: d.numbers ?? "none",
+        },
     };
 }
 
@@ -166,140 +192,101 @@ export function formatItems(items: DiagItem[]): string {
 
 export const nodeFont = (t: Tokens): string => fontStack("ui", t);
 
-export const nodeText = (theme: Tokens, extra?: Partial<DrawTextStyle>): DrawTextStyle => ({
-    fill: theme.ink,
-    size: 13,
-    weight: 600,
-    font: nodeFont(theme),
-    align: "center",
-    baseline: "middle",
-    ...extra,
-});
+// Diagram fills, always opaque: alpha steps can't be contrast-tested, can't take a gradient, and
+// show through where shapes touch. Solid tints of the accent toward white.
+const RAMP_TINTS = [0, 0.3, 0.52, 0.68, 0.78];
 
-export const captionText = (theme: Tokens, extra?: Partial<DrawTextStyle>): DrawTextStyle => ({
-    fill: theme.muted,
-    size: 11,
-    weight: 500,
-    font: nodeFont(theme),
-    align: "center",
-    baseline: "middle",
-    ...extra,
-});
-
-export const LINE_H = 15; // shared label line rhythm
-
-export function wrapLabel(
-    g: DrawContext,
-    text: string,
-    maxWidth: number,
-    style: DrawTextStyle,
-): string[] {
-    const words = text.split(/\s+/).filter(Boolean);
-    if (words.length === 0) return [""];
-    const lines: string[] = [];
-    let line = "";
-    for (const w of words) {
-        const cand = line === "" ? w : `${line} ${w}`;
-        if (g.measureText(cand, style).width > maxWidth && line !== "") {
-            lines.push(line);
-            line = w;
-        } else {
-            line = cand;
-        }
-    }
-    lines.push(line);
-    return lines;
-}
-
-export function centerLabel(
-    g: DrawContext,
-    text: string,
-    cx: number,
-    cy: number,
-    maxWidth: number,
-    style: DrawTextStyle,
-    lineHeight = LINE_H,
-): void {
-    const lines = wrapLabel(g, text, maxWidth, style);
-    const top = cy - ((lines.length - 1) * lineHeight) / 2;
-    lines.forEach((ln, i) => g.text(ln, cx, top + i * lineHeight, style));
-}
-
-const BODY_GAP = 3;
-
-// height stackedLabel will occupy, for sizing a box before painting into it
-export function labelHeight(
-    g: DrawContext,
-    item: DiagItem,
-    maxWidth: number,
-    title: DrawTextStyle,
-    body?: DrawTextStyle,
-): number {
-    const titleH = wrapLabel(g, item.label, maxWidth, title).length * (title.size ?? 13) * 1.25;
-    if (!item.body || !body) return titleH;
-    const bodyH = wrapLabel(g, item.body, maxWidth, body).length * (body.size ?? 11) * 1.3;
-    return titleH + BODY_GAP + bodyH;
-}
-
-export function maxLabelHeight(
-    g: DrawContext,
-    items: DiagItem[],
-    maxWidth: number,
-    title: DrawTextStyle,
-    body?: DrawTextStyle,
-): number {
-    return Math.max(0, ...items.map((i) => labelHeight(g, i, maxWidth, title, body)));
-}
-
-export function stackedLabel(
-    g: DrawContext,
-    item: DiagItem,
-    cx: number,
-    cy: number,
-    maxWidth: number,
-    title: DrawTextStyle,
-    body?: DrawTextStyle,
-): number {
-    const titleLh = (title.size ?? 13) * 1.25;
-    const titleLines = wrapLabel(g, item.label, maxWidth, title);
-    // no detail → the plain centred label, on centerLabel's own line rhythm
-    if (!item.body || !body) {
-        centerLabel(g, item.label, cx, cy, maxWidth, title);
-        return titleLines.length * LINE_H;
-    }
-    const bodyLh = (body.size ?? 11) * 1.3;
-    const bodyLines = wrapLabel(g, item.body, maxWidth, body);
-    const gap = BODY_GAP;
-    const total = titleLines.length * titleLh + gap + bodyLines.length * bodyLh;
-    let y = cy - total / 2 + titleLh / 2;
-    titleLines.forEach((ln) => {
-        g.text(ln, cx, y, title);
-        y += titleLh;
-    });
-    y += gap - titleLh / 2 + bodyLh / 2;
-    bodyLines.forEach((ln) => {
-        g.text(ln, cx, y, body);
-        y += bodyLh;
-    });
-    return total;
+export function diagramColors(theme: Tokens, n: number): string[] {
+    const count = Math.max(1, n);
+    return Array.from({ length: count }, (_, i) =>
+        mixWhite(theme.accent, RAMP_TINTS[i] ?? Math.min(0.84, 0.78 + (i - 4) * 0.02)),
+    );
 }
 
 export interface NodePaint {
     fill?: string;
     stroke?: string;
     width?: number;
+    gradient?: DrawStyle["gradient"]; // solid treatment depth
+    shadow?: DrawStyle["shadow"]; // card treatment elevation
     ink: string; // label color that reads on the resolved fill
     dim: string; // supporting-text color on the same fill
 }
 
-// solid fill, no outline: the way charts draw a mark
-export function nodePaint(color: string, theme: Tokens, over?: Partial<NodePaint>): NodePaint {
+export interface NodePaintOpts extends Partial<
+    Pick<NodePaint, "fill" | "stroke" | "ink" | "width">
+> {
+    style?: DiagramStyle; // artifact-wide treatment (ctx.opts.style)
+    emphasis?: boolean; // per-item promotion to solid, whatever the style
+}
+
+// a hex fill takes the depth-gradient / wash math; a non-hex (rgba on a dark section) stays flat
+const isHexColor = (c: string): boolean => /^#[0-9a-fA-F]{6}$/.test(c);
+
+// The four node treatments. `solid` is the chart-mark look with a slight downward gradient for
+// depth; `tinted` is an opaque wash of the node color; `card` is paper + hairline + soft shadow
+// (the item color shows through badges/icons, not the fill); `outline` is stroke-only. Explicit
+// fill/stroke/ink overrides (flow's terminals, the hub centre) always win over the treatment.
+export function nodePaint(color: string, theme: Tokens, over?: NodePaintOpts): NodePaint {
+    const style: DiagramStyle = over?.emphasis ? "solid" : (over?.style ?? "solid");
+    if (!over?.fill && style === "tinted") {
+        const fill = isHexColor(color) ? mixWhite(color, 0.78) : color;
+        const dark = luminance(fill) < 0.5;
+        const ink = over?.ink ?? (dark ? theme.onAccent : theme.ink);
+        return {
+            fill,
+            stroke: over?.stroke,
+            width: over?.width,
+            ink,
+            dim: dark ? ink : dimOn(fill, theme),
+        };
+    }
+    if (!over?.fill && style === "card") {
+        return {
+            fill: theme.surface,
+            stroke: over?.stroke ?? theme.line,
+            width: over?.width ?? 1,
+            shadow: { blur: 10, dy: 2, color: "rgba(15,18,20,0.12)" },
+            ink: over?.ink ?? theme.ink,
+            dim: theme.muted,
+        };
+    }
+    if (!over?.fill && style === "outline") {
+        return {
+            fill: undefined,
+            stroke: over?.stroke ?? color,
+            width: over?.width ?? 1.5,
+            ink: over?.ink ?? theme.ink,
+            dim: theme.muted,
+        };
+    }
     const fill = over?.fill ?? color;
     const dark = luminance(fill) < 0.5;
     const ink = over?.ink ?? (dark ? theme.onAccent : theme.ink);
     // no softer on-accent token exists, so a dark fill differentiates by size/weight (as treemap does)
-    return { fill, stroke: over?.stroke, width: over?.width, ink, dim: dark ? ink : theme.muted };
+    return {
+        fill,
+        stroke: over?.stroke,
+        width: over?.width,
+        // depth: a slight darkening toward the bottom edge; flat when the fill isn't plain hex
+        gradient: isHexColor(fill)
+            ? { from: fill, to: mix(fill, "#000000", 0.1), angle: 180 }
+            : undefined,
+        ink,
+        dim: dark ? ink : dimOn(fill, theme),
+    };
 }
+
+// supporting-text ink for an arbitrary band fill: the theme's muted where it already reads,
+// stepped darker until it clears 3:1 (theme.muted is calibrated against the surface, not a
+// mid-ramp tint — the washed-detail bug the contrast invariant catches)
+function dimOn(fill: string, theme: Tokens): string {
+    if (!isHexColor(fill)) return theme.muted;
+    const toward = luminance(fill) < 0.5 ? "#ffffff" : "#000000";
+    return reachContrast(theme.muted, fill, 3, toward);
+}
+
+export const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
 export const PAD = 14; // one inset for every type; charts get theirs from cartesianFrame
 
@@ -310,75 +297,177 @@ export const frame = (W: number, H: number, pad = PAD): Rect => ({
     h: Math.max(1, H - pad * 2),
 });
 
-// diamond/hexagon are assigned by the renderer, not authored
 export const NODE_RADIUS = 6; // charts round marks 2-3px; nodes are bigger, so a touch more
 export const NODE_TEXT = 12;
 
-export type NodeShape = "rounded" | "pill" | "hexagon" | "diamond";
+// ---- node silhouettes ------------------------------------------------------------------------
+// A silhouette is box-parametric (a chevron's notch derives from the node's height), so shapes are
+// registered as PathSink builders rather than fixed-viewBox vectors — the same sink the Vector IR,
+// d3 generators, and all four render backends already speak. Adding a shape = one registration;
+// every diagram type consumes the registry uniformly:
+//   - `engineRadius` present → the shape is an engine fill (rounded corners), and composed cells
+//     carry it directly, treatments included;
+//   - absent → the cell composes transparent and the type's decorate surface paints the silhouette
+//     with the full DrawStyle (gradient, shadow) via `drawShape`.
+// `insetX` is the horizontal text inset the silhouette eats at a given node height, applied to the
+// cell padding so labels clear the points.
 
-const NOTCH = 0.34; // hexagon/diamond point depth, as a fraction of the node height
+export type NodeShape = "rounded" | "pill" | "chevron" | "hexagon" | "diamond";
 
-function shapeInto(p: PathSink, shape: NodeShape, b: Rect): void {
-    if (shape === "diamond") {
+export interface NodeShapeDef {
+    id: NodeShape;
+    build: (p: PathSink, b: Rect, o?: { first?: boolean }) => void;
+    insetX: (h: number) => number;
+    engineRadius?: (h: number) => number;
+    // proportion limit (h/w): beyond it the silhouette degenerates (a pill becomes an egg, a
+    // chevron a lozenge). Types with taller cells must fall back to rounded or cap the band.
+    maxAspect?: number;
+}
+
+const shapeRegistry = new Map<string, NodeShapeDef>();
+
+export function registerNodeShape(def: NodeShapeDef): void {
+    shapeRegistry.set(def.id, def);
+}
+
+export function getNodeShape(id: string | undefined): NodeShapeDef {
+    return (id && shapeRegistry.get(id)) || shapeRegistry.get("rounded")!;
+}
+
+export function nodeShapeIds(): string[] {
+    return [...shapeRegistry.keys()];
+}
+
+// silhouette + NodePaint in one stroke, for decorate surfaces
+export function drawShape(
+    g: DrawContext,
+    id: string | undefined,
+    b: Rect,
+    paint: NodePaint,
+    o?: { first?: boolean },
+): void {
+    const def = getNodeShape(id);
+    g.path((p) => def.build(p, b, o), {
+        fill: paint.fill,
+        stroke: paint.stroke,
+        width: paint.width,
+        gradient: paint.gradient,
+        shadow: paint.shadow,
+    });
+}
+
+const NOTCH = 0.34; // point depth, as a fraction of the node height
+const notchOf = (b: Rect): number => Math.min(b.h * NOTCH, b.w / 2);
+
+const roundedRect = (p: PathSink, b: Rect, r: number): void => {
+    const rr = Math.max(0, Math.min(r, b.w / 2, b.h / 2));
+    p.moveTo(b.x + rr, b.y);
+    p.lineTo(b.x + b.w - rr, b.y);
+    p.arcTo(b.x + b.w, b.y, b.x + b.w, b.y + rr, rr);
+    p.lineTo(b.x + b.w, b.y + b.h - rr);
+    p.arcTo(b.x + b.w, b.y + b.h, b.x + b.w - rr, b.y + b.h, rr);
+    p.lineTo(b.x + rr, b.y + b.h);
+    p.arcTo(b.x, b.y + b.h, b.x, b.y + b.h - rr, rr);
+    p.lineTo(b.x, b.y + rr);
+    p.arcTo(b.x, b.y, b.x + rr, b.y, rr);
+    p.closePath();
+};
+
+registerNodeShape({
+    id: "rounded",
+    build: (p, b) => roundedRect(p, b, NODE_RADIUS),
+    insetX: () => 0,
+    engineRadius: () => NODE_RADIUS,
+});
+
+registerNodeShape({
+    id: "pill",
+    build: (p, b) => roundedRect(p, b, b.h / 2),
+    insetX: (h) => h / 4,
+    engineRadius: (h) => h / 2,
+    maxAspect: 0.9,
+});
+
+registerNodeShape({
+    id: "chevron",
+    // arrow band: flat top/bottom, right point, matching left indent (flat on the first item)
+    build: (p, b, o) => {
+        const notch = notchOf(b);
+        p.moveTo(b.x, b.y);
+        p.lineTo(b.x + b.w - notch, b.y);
+        p.lineTo(b.x + b.w, b.y + b.h / 2);
+        p.lineTo(b.x + b.w - notch, b.y + b.h);
+        p.lineTo(b.x, b.y + b.h);
+        if (!o?.first) p.lineTo(b.x + notch, b.y + b.h / 2);
+        p.closePath();
+    },
+    insetX: (h) => h * NOTCH,
+    maxAspect: 0.8,
+});
+
+registerNodeShape({
+    id: "hexagon",
+    build: (p, b) => {
+        const notch = notchOf(b);
+        p.moveTo(b.x + notch, b.y);
+        p.lineTo(b.x + b.w - notch, b.y);
+        p.lineTo(b.x + b.w, b.y + b.h / 2);
+        p.lineTo(b.x + b.w - notch, b.y + b.h);
+        p.lineTo(b.x + notch, b.y + b.h);
+        p.lineTo(b.x, b.y + b.h / 2);
+        p.closePath();
+    },
+    insetX: (h) => h * NOTCH,
+    maxAspect: 0.8,
+});
+
+// assigned by renderers (a flowchart decision), not authored
+registerNodeShape({
+    id: "diamond",
+    build: (p, b) => {
         p.moveTo(b.x + b.w / 2, b.y);
         p.lineTo(b.x + b.w, b.y + b.h / 2);
         p.lineTo(b.x + b.w / 2, b.y + b.h);
         p.lineTo(b.x, b.y + b.h / 2);
         p.closePath();
-        return;
-    }
-    const notch = Math.min(b.h * NOTCH, b.w / 2);
-    p.moveTo(b.x + notch, b.y);
-    p.lineTo(b.x + b.w - notch, b.y);
-    p.lineTo(b.x + b.w, b.y + b.h / 2);
-    p.lineTo(b.x + b.w - notch, b.y + b.h);
-    p.lineTo(b.x + notch, b.y + b.h);
-    p.lineTo(b.x, b.y + b.h / 2);
-    p.closePath();
-}
+    },
+    insetX: (h) => h / 2,
+    maxAspect: 1.4,
+});
 
-export interface NodeOpts {
-    color?: string;
-    fill?: string;
-    stroke?: string;
-    ink?: string;
-    shape?: NodeShape;
-    radius?: number;
-    titleSize?: number;
-    pad?: number;
-    showBody?: boolean; // a detail line renders only where the caller has sized the box for it
-}
+export const BADGE_R = 10;
 
-export function drawNode(
+// leading-edge ornament: a solid disc of the item color with a surface ring, so it reads on any
+// treatment (on card/tinted/outline nodes the badge is where the item color shows). Callers place
+// it fully inside their surface — surfaces clip at their box, so an overhanging disc renders cut.
+export const badgeX = (cellX: number, shapeInset: number): number =>
+    cellX + shapeInset + BADGE_R + 2;
+
+export function drawNodeBadge(
     g: DrawContext,
-    b: Rect,
-    item: DiagItem,
+    cx: number,
+    cy: number,
+    text: string,
+    color: string,
     theme: Tokens,
-    o: NodeOpts = {},
 ): void {
-    const shape = o.shape ?? "rounded";
-    const paint = nodePaint(o.color ?? theme.accent, theme, {
-        fill: o.fill,
-        stroke: o.stroke,
-        ink: o.ink,
+    g.circle(cx, cy, BADGE_R, { fill: color, stroke: theme.surface, width: 1.5 });
+    const dark = luminance(color) < 0.5;
+    g.text(text, cx, cy, {
+        fill: dark ? theme.onAccent : theme.ink,
+        size: 10.5,
+        weight: 700,
+        font: nodeFont(theme),
+        align: "center",
+        baseline: "middle",
     });
-    const ds: DrawStyle = { fill: paint.fill, stroke: paint.stroke, width: paint.width };
+}
 
-    const angled = shape === "hexagon" || shape === "diamond";
-    if (angled) {
-        g.path((p) => shapeInto(p, shape, b), ds);
-    } else {
-        const radius = shape === "pill" ? b.h / 2 : (o.radius ?? NODE_RADIUS);
-        g.rect(b.x, b.y, b.w, b.h, { ...ds, radius });
-    }
-
-    // angled silhouettes eat their horizontal extremes, so text insets past the point
-    const notch = shape === "diamond" ? b.w / 4 : angled ? b.h * NOTCH : 0;
-    const pad = (o.pad ?? 7) + notch;
-    const maxW = Math.max(24, b.w - pad * 2);
-    const title = nodeText(theme, { fill: paint.ink, size: o.titleSize ?? NODE_TEXT });
-    const body = o.showBody ? captionText(theme, { fill: paint.dim, size: 11 }) : undefined;
-    stackedLabel(g, item, b.x + b.w / 2, b.y + b.h / 2, maxW, title, body);
+// the badge text for item i under the `numbers` option; undefined = no badge
+export function badgeText(numbers: DiagramNumbers, i: number): string | undefined {
+    if (numbers === "number") return String(i + 1);
+    if (numbers === "letter") return String.fromCharCode(65 + (i % 26));
+    return undefined;
 }
 
 export const linkColor = (theme: Tokens): string => theme.muted;
@@ -462,83 +551,213 @@ export function drawLink(
     headAt(g, x1, y1, x2, y2, color, HEAD_SIZE);
 }
 
-// on a chip, so it reads where it crosses a connector
-export function drawEdgeLabel(
-    g: DrawContext,
-    x: number,
-    y: number,
-    text: string,
-    theme: Tokens,
-): void {
-    if (!text) return;
-    const style = captionText(theme, { fill: theme.soft, size: 10.5 });
-    const w = g.measureText(text, style).width + 12;
-    const h = 17;
-    g.rect(x - w / 2, y - h / 2, w, h, {
-        fill: theme.surface,
-        stroke: theme.line,
-        width: 1,
-        radius: h / 2,
-    });
-    g.text(text, x, y, style);
+// per-item fills: the opaque ramp punctured by itemsMeta color overrides
+export function itemColors(items: DiagItem[], theme: Tokens): string[] {
+    return diagramColors(theme, items.length).map(
+        (c, i) => resolveItemColor(items[i]?.color, theme) ?? c,
+    );
 }
 
-export const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
+// The one cell every type composes: the item's real label/detail children over a treatment fill.
+// The element owns tone, as the table owns its cells' — nodes read uniformly however text is styled.
+// `transparent` skips the fill for cells whose silhouette a decorate surface paints instead.
+export interface CellOpts {
+    radius?: number;
+    transparent?: boolean;
+    pad?: BoxInsets;
+    // silhouette-aware composition: an engine-fillable shape carries its radius on the cell fill;
+    // an angled one composes transparent (the decorate surface paints it) and insets the text
+    shape?: string;
+    cellH?: number; // the fixed node height the shape's inset/radius derive from
+    badged?: boolean; // a numbering disc sits inside the leading edge; keep the label clear of it
+}
 
-// narrowTop → pyramid (triangle); else funnel (wide top).
-export function bandStack(narrowTop: boolean): Renderer {
-    return (diagram, ctx) => {
-        const { g, W, H, theme } = ctx;
+const CELL_PAD: BoxInsets = { top: 8, bottom: 8, left: 10, right: 10 };
+
+export function diagramCell(
+    label: EngineNode | undefined,
+    detail: EngineNode | undefined,
+    paint: NodePaint,
+    o: CellOpts = {},
+): EngineNode {
+    let radius = o.radius;
+    let transparent = o.transparent ?? false;
+    let pad = o.pad;
+    if (o.shape) {
+        const def = getNodeShape(o.shape);
+        const h = o.cellH ?? 46;
+        if (def.engineRadius) {
+            radius = radius ?? def.engineRadius(h);
+        } else {
+            transparent = true;
+        }
+        const inset = def.insetX(h);
+        if (inset > 0) {
+            const base = pad ?? CELL_PAD;
+            pad = { ...base, left: base.left + inset, right: base.right + inset };
+        }
+    }
+    if (o.badged) {
+        const base = pad ?? CELL_PAD;
+        pad = { ...base, left: base.left + BADGE_R * 2 + 2 };
+    }
+    const kids: EngineNode[] = [];
+    if (label?.text) {
+        label.text.size = NODE_TEXT;
+        label.text.weight = 600;
+        label.text.color = paint.ink;
+        label.text.align = "center";
+        label.w = grow();
+        label.h = fit(14);
+        kids.push(label);
+    }
+    // an empty detail slot must not reserve a text row: the label would sit above center
+    if (detail?.text && detail.text.text.trim() !== "") {
+        detail.text.size = 11;
+        detail.text.weight = 500;
+        detail.text.color = paint.dim;
+        detail.text.align = "center";
+        detail.w = grow();
+        detail.h = fit(14);
+        kids.push(detail);
+    }
+    const node: EngineNode = {
+        w: grow(),
+        h: grow(),
+        padding: pad ?? CELL_PAD,
+        alignY: "center",
+        gap: 2,
+        children: kids,
+    };
+    if (!transparent) {
+        // NodePaint mapped onto the engine FillLeaf (the CSS gradient angle convention: 180 = the
+        // same top-to-bottom depth painted nodes get)
+        node.fill = {
+            color: paint.fill,
+            gradient: paint.gradient
+                ? { from: paint.gradient.from, to: paint.gradient.to, angle: 180 }
+                : undefined,
+            border: paint.stroke ? { color: paint.stroke, width: paint.width ?? 1 } : undefined,
+            shadow: paint.shadow
+                ? `0 ${paint.shadow.dy}px ${paint.shadow.blur}px ${paint.shadow.color}`
+                : undefined,
+            radius: radius ?? NODE_RADIUS,
+        };
+    }
+    return node;
+}
+
+// chrome behind the composed cells: a full-size float whose surface paints connectors/bands/badges
+// from the same geometry the cells were arranged with
+export function decorate(paint: (g: DrawContext, box: Rect) => void, z = -1): EngineNode {
+    return { w: grow(), h: grow(), float: { x: "start", y: "start", z }, surface: { paint } };
+}
+
+// pyramid/funnel band geometry, shared by the label rows and the trapezoid decoration.
+// narrowTop → pyramid (even taper); else funnel, where item values scale the widths.
+export interface Band {
+    y0: number;
+    y1: number;
+    half0: number;
+    half1: number;
+}
+
+export function bandGeometry(
+    items: DiagItem[],
+    W: number,
+    H: number,
+    narrowTop: boolean,
+): { bands: Band[]; cx: number } {
+    const n = items.length;
+    const box = { x: 0, y: 0, w: W, h: H };
+    const bandH = box.h / Math.max(1, n);
+    const cx = W / 2;
+    const wide = box.w / 2;
+    const narrow = wide * 0.14;
+    const vals = items.map((i) => i.value);
+    const scaled = !narrowTop && vals.every((v) => v !== undefined && v >= 0);
+    const max = scaled ? Math.max(...(vals as number[])) || 1 : 1;
+    const halfFor = (i: number): number => clamp(((vals[i] as number) / max) * wide, narrow, wide);
+    const halfAt = (y: number): number => {
+        const t = (y - box.y) / (box.h || 1);
+        return narrowTop ? narrow + (wide - narrow) * t : wide - (wide - narrow) * t;
+    };
+    const bands = items.map((_, i) => {
+        const y0 = box.y + i * bandH;
+        const y1 = y0 + bandH - 3;
+        return {
+            y0,
+            y1,
+            half0: scaled ? halfFor(i) : halfAt(y0),
+            half1: scaled ? halfFor(Math.min(i + 1, n - 1)) : halfAt(y1),
+        };
+    });
+    return { bands, cx };
+}
+
+// the shared pyramid/funnel arrange: transparent label rows over decorate-painted trapezoids
+export function bandsArrange(narrowTop: boolean): DiagramType["arrange"] {
+    return (diagram, ctx, kids, height) => {
         const items = diagram.items;
-        if (items.length === 0) return;
-        const cols = ctx.colors(items.length);
         const n = items.length;
-        const box = frame(W, H, 16);
-        const top = box.y;
-        const bandH = box.h / n;
-        const cx = W / 2;
-        const wide = box.w / 2;
-        const narrow = wide * 0.14;
-        // with values the widths encode them; without, it tapers evenly
-        const vals = items.map((i) => i.value);
-        const scaled = !narrowTop && vals.every((v) => v !== undefined && v >= 0);
-        const max = scaled ? Math.max(...(vals as number[])) || 1 : 1;
-        // proportional, but never narrower than the band's own label needs
-        const halfFor = (i: number): number => {
-            const byValue = ((vals[i] as number) / max) * wide;
-            const byLabel = (g.measureText(items[i]!.label, nodeText(theme)).width + 24) / 2;
-            return clamp(Math.max(byValue, byLabel), narrow, wide);
+        const cols = itemColors(items, ctx.theme);
+        const contentW = Math.max(1, ctx.availWidth - 32);
+        const geo = bandGeometry(items, contentW, height - 32, narrowTop);
+        const bandH = (height - 32) / Math.max(1, n);
+        return {
+            w: grow(),
+            h: fixed(height),
+            direction: "col",
+            padding: { top: 16, bottom: 16, left: 16, right: 16 },
+            children: [
+                ...items.map((item, i) => {
+                    const band = geo.bands[i]!;
+                    const paint = nodePaint(cols[i]!, ctx.theme, {
+                        style: diagram.options.style,
+                        emphasis: item.emphasis,
+                    });
+                    const cell = diagramCell(kids[i * 2], kids[i * 2 + 1], paint, {
+                        transparent: true,
+                        pad: { top: 2, bottom: 2, left: 8, right: 8 },
+                    });
+                    cell.w = percent(
+                        clamp((Math.min(band.half0, band.half1) * 2) / contentW, 0.14, 0.9),
+                    );
+                    return {
+                        w: grow(),
+                        h: fixed(bandH),
+                        alignX: "center",
+                        alignY: "center",
+                        children: [cell],
+                    } satisfies EngineNode;
+                }),
+                decorate((g, box) => {
+                    const inner = bandGeometry(items, box.w, box.h, narrowTop);
+                    items.forEach((_, i) => {
+                        const b = inner.bands[i]!;
+                        const paint = nodePaint(cols[i]!, ctx.theme, {
+                            style: diagram.options.style,
+                            emphasis: items[i]?.emphasis,
+                        });
+                        g.path(
+                            (p) => {
+                                p.moveTo(inner.cx - b.half0, b.y0);
+                                p.lineTo(inner.cx + b.half0, b.y0);
+                                p.lineTo(inner.cx + b.half1, b.y1);
+                                p.lineTo(inner.cx - b.half1, b.y1);
+                                p.closePath();
+                            },
+                            {
+                                fill: paint.fill,
+                                stroke: paint.stroke,
+                                width: paint.width,
+                                gradient: paint.gradient,
+                            },
+                        );
+                    });
+                }),
+            ],
         };
-        const halfAt = (y: number): number => {
-            const t = (y - top) / (box.h || 1);
-            return narrowTop ? narrow + (wide - narrow) * t : wide - (wide - narrow) * t;
-        };
-        items.forEach((item, i) => {
-            const y0 = top + i * bandH;
-            const y1 = y0 + bandH - 3;
-            const h0 = scaled ? halfFor(i) : halfAt(y0);
-            const h1 = scaled ? halfFor(Math.min(i + 1, n - 1)) : halfAt(y1);
-            g.path(
-                (p) => {
-                    p.moveTo(cx - h0, y0);
-                    p.lineTo(cx + h0, y0);
-                    p.lineTo(cx + h1, y1);
-                    p.lineTo(cx - h1, y1);
-                    p.closePath();
-                },
-                { fill: cols[i]! },
-            );
-            const my = (y0 + y1) / 2;
-            const mw = Math.max(24, Math.min(h0, h1) * 2 - 12);
-            centerLabel(
-                g,
-                item.label,
-                cx,
-                my,
-                mw,
-                nodeText(theme, { fill: luminance(cols[i]!) < 0.5 ? theme.onAccent : theme.ink }),
-            );
-        });
     };
 }
 
@@ -591,35 +810,8 @@ export function buildTree(diagram: ResolvedDiagram): TreeDatum | null {
     return build(rootId);
 }
 
-// Uniform box width for the whole tree; clamped so long labels wrap rather than overflow.
-export function boxWidth(
-    g: DrawContext,
-    theme: Tokens,
-    labels: string[],
-    base: number,
-    min: number,
-    max: number,
-): number {
-    let longest = 0;
-    for (const l of labels) longest = Math.max(longest, g.measureText(l, nodeText(theme)).width);
-    return clamp(Math.max(base, longest + 24), min, max);
-}
-
-export const treeDepth = (n: TreeDatum): number => 1 + Math.max(0, ...n.children.map(treeDepth));
-
 export const treeLeaves = (n: TreeDatum): number =>
     n.children.length === 0 ? 1 : n.children.reduce((sum, c) => sum + treeLeaves(c), 0);
-
-// fits the tallest label, capped so `slots` rows still fit: positions scale down, boxes don't
-export function fitNodeHeight(
-    needed: number,
-    min: number,
-    space: number,
-    slots: number,
-    gap: number,
-): number {
-    return clamp(needed, min, Math.max(min, space / Math.max(1, slots) - gap));
-}
 
 export interface Placed {
     node: HierarchyPointNode<TreeDatum>;
@@ -678,5 +870,3 @@ export function layoutTree(
     });
     return { root, placed };
 }
-
-export const itemOf = (node: TreeDatum): DiagItem => ({ label: node.label, body: node.body });

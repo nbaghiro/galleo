@@ -1,3 +1,3 @@
-import { bandStack, registerDiagram } from "./utils";
+import { bandsArrange, registerDiagram } from "./utils";
 
-registerDiagram({ id: "pyramid", label: "Pyramid", render: bandStack(true) });
+registerDiagram({ id: "pyramid", label: "Pyramid", arrange: bandsArrange(true) });

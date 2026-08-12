@@ -29,7 +29,7 @@ export function renderChart(g: DrawContext, box: Rect, data: unknown, theme: Tok
         H: box.h,
         theme,
         opts: chart.options,
-        colors: (n) => seriesColors(theme, n, chart.options.palette),
+        colors: (n) => seriesColors(theme, n),
     });
 }
 

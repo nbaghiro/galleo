@@ -1,23 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { renderDiagram, diagramTypeOptions } from "@elements/diagram/render";
+import type { EngineNode, RenderCommand } from "@engine/node";
+import { layout } from "@engine/layout";
+import { fit, grow } from "@model/geometry";
+import { diagramTypeOptions } from "@elements/diagram/render";
+import { DIAGRAM_SHAPES } from "@model/elements";
 import {
-    boxWidth,
+    badgeText,
     buildTree,
+    drawShape,
+    getNodeShape,
+    nodeShapeIds,
     clamp,
+    diagramColors,
+    drawNodeBadge,
     formatItems,
     getDiagram,
     labelsOf,
     layoutTree,
+    nodePaint,
     normalizeDiagram,
+    resolveItemColor,
+    toDiagramData,
+    type ResolvedDiagram,
 } from "@elements/diagram/utils";
-import { num, str } from "@elements/coerce";
 import { DIAGRAM_TYPES } from "@model/elements";
 import "@elements/register";
 import { recordingDrawContext, tokens } from "@canvas/testkit";
-
-// DrawCall fields are `unknown` (any op, any shape), so a recorded text style narrows before use.
-const fontSize = (style: unknown): number =>
-    style !== null && typeof style === "object" && "size" in style ? (num(style.size) ?? 13) : 13;
 
 describe("normalizeDiagram", () => {
     it("splits a plain list on commas", () => {
@@ -40,18 +48,162 @@ describe("normalizeDiagram", () => {
         expect(normalizeDiagram({ items: "A", axes: "lo, hi" }).axes).toEqual(["lo", "hi"]);
     });
     it("defaults the presentation options", () => {
-        expect(normalizeDiagram({ items: "A" }).options).toEqual({ flow: "down" });
+        expect(normalizeDiagram({ items: "A" }).options).toEqual({
+            style: "solid",
+            shape: undefined,
+            numbers: "none",
+        });
     });
-    it("parses edges 'From->To:label', dropping malformed entries", () => {
-        const d = normalizeDiagram({ items: "A,B", links: "A->B:yes, broken, C>D" });
+    it("parses edges 'Parent>Child', dropping malformed entries", () => {
+        const d = normalizeDiagram({ items: "A,B", links: "A>B, broken, C>D" });
         expect(d.edges).toEqual([
-            { from: "A", to: "B", label: "yes" },
+            { from: "A", to: "B", label: undefined },
             { from: "C", to: "D", label: undefined },
         ]);
     });
     it("resolves the type, defaulting to process", () => {
-        expect(normalizeDiagram({ items: "A", type: "tree" }).type).toBe("tree");
+        expect(normalizeDiagram({ items: "A", type: "org" }).type).toBe("org");
         expect(normalizeDiagram({ items: "A" }).type).toBe("process");
+    });
+});
+
+describe("itemsMeta", () => {
+    it("zips positional meta onto items, ignoring excess entries", () => {
+        const d = normalizeDiagram({
+            items: "A, B, C",
+            itemsMeta: [
+                { color: "#ff0000", emphasis: true },
+                {},
+                { icon: "rocket" },
+                { color: "#0f0" },
+            ],
+        });
+        expect(d.items[0]).toMatchObject({ label: "A", color: "#ff0000", emphasis: true });
+        expect(d.items[1]!.color).toBeUndefined();
+        expect(d.items[2]!.icon).toBe("rocket");
+        expect(d.items).toHaveLength(3);
+    });
+    it("coerces malformed meta entries instead of failing", () => {
+        const d = normalizeDiagram(
+            toDiagramData({ items: "A, B", itemsMeta: [{ color: 7, emphasis: "yes" }, null] }),
+        );
+        expect(d.items[0]!.color).toBeUndefined();
+        expect(d.items[0]!.emphasis).toBeUndefined();
+    });
+});
+
+describe("resolveItemColor", () => {
+    it("passes hex through, resolves theme roles, drops junk", () => {
+        expect(resolveItemColor("#a1b2c3", tokens)).toBe("#a1b2c3");
+        expect(resolveItemColor("accent", tokens)).toBe(tokens.accent);
+        expect(resolveItemColor("not-a-color", tokens)).toBeUndefined();
+        expect(resolveItemColor(undefined, tokens)).toBeUndefined();
+    });
+});
+
+describe("diagramColors", () => {
+    it("returns opaque 6-digit hex (never alpha)", () => {
+        const cols = diagramColors(tokens, 8);
+        expect(cols).toHaveLength(8);
+        for (const c of cols) expect(c).toMatch(/^#[0-9a-fA-F]{6}$/);
+    });
+    it("starts at the accent and lightens from there", () => {
+        const cols = diagramColors(tokens, 3);
+        expect(cols[0]!.toLowerCase()).toBe(tokens.accent.toLowerCase());
+        expect(cols[1]).not.toBe(cols[0]);
+    });
+});
+
+describe("nodePaint treatments", () => {
+    it("solid carries a downward depth gradient on a hex fill", () => {
+        const p = nodePaint("#3366aa", tokens, { style: "solid" });
+        expect(p.fill).toBe("#3366aa");
+        expect(p.gradient?.from).toBe("#3366aa");
+        expect(p.gradient?.angle).toBe(180);
+    });
+    it("tinted washes the color opaque and keeps readable ink", () => {
+        const p = nodePaint("#3366aa", tokens, { style: "tinted" });
+        expect(p.fill).toMatch(/^#[0-9a-fA-F]{6}$/);
+        expect(p.fill).not.toBe("#3366aa");
+        expect(p.gradient).toBeUndefined();
+    });
+    it("card is paper + hairline + shadow, ignoring the item color fill", () => {
+        const p = nodePaint("#3366aa", tokens, { style: "card" });
+        expect(p.fill).toBe(tokens.surface);
+        expect(p.stroke).toBe(tokens.line);
+        expect(p.shadow?.blur).toBe(10);
+        expect(p.ink).toBe(tokens.ink);
+    });
+    it("outline strokes the color with no fill", () => {
+        const p = nodePaint("#3366aa", tokens, { style: "outline" });
+        expect(p.fill).toBeUndefined();
+        expect(p.stroke).toBe("#3366aa");
+    });
+    it("emphasis promotes any treatment to solid", () => {
+        const p = nodePaint("#3366aa", tokens, { style: "outline", emphasis: true });
+        expect(p.fill).toBe("#3366aa");
+        expect(p.gradient).toBeTruthy();
+    });
+});
+
+describe("badges", () => {
+    it("badgeText maps the numbering option to per-item badges", () => {
+        expect(badgeText("none", 0)).toBeUndefined();
+        expect(badgeText("number", 2)).toBe("3");
+        expect(badgeText("letter", 1)).toBe("B");
+    });
+    it("drawNodeBadge paints a disc and its text", () => {
+        const rec = recordingDrawContext();
+        drawNodeBadge(rec.ctx, 10, 10, "1", "#3366aa", tokens);
+        expect(rec.calls.some((c) => c.op === "circle")).toBe(true);
+        expect(rec.calls.some((c) => c.op === "text" && c.text === "1")).toBe(true);
+    });
+});
+
+describe("node shapes", () => {
+    it("every authored shape resolves in the registry", () => {
+        for (const id of DIAGRAM_SHAPES) expect(getNodeShape(id).id).toBe(id);
+        expect(nodeShapeIds()).toContain("diamond"); // renderer-assigned, not authored
+    });
+    it("unknown ids fall back to rounded", () => {
+        expect(getNodeShape("blob").id).toBe("rounded");
+        expect(getNodeShape(undefined).id).toBe("rounded");
+    });
+    it("engine-fillable shapes carry a radius; angled ones inset text instead", () => {
+        expect(getNodeShape("rounded").engineRadius?.(46)).toBe(6);
+        expect(getNodeShape("pill").engineRadius?.(46)).toBe(23);
+        expect(getNodeShape("chevron").engineRadius).toBeUndefined();
+        expect(getNodeShape("chevron").insetX(46)).toBeGreaterThan(0);
+        expect(getNodeShape("hexagon").insetX(46)).toBeGreaterThan(0);
+    });
+    it("drawShape paints a silhouette path with the full node paint", () => {
+        const rec = recordingDrawContext();
+        drawShape(
+            rec.ctx,
+            "hexagon",
+            { x: 0, y: 0, w: 120, h: 46 },
+            nodePaint("#3366aa", tokens, { style: "solid" }),
+        );
+        const path = rec.calls.find((c) => c.op === "path");
+        expect(path).toBeTruthy();
+        expect((path!.style as { gradient?: unknown }).gradient).toBeTruthy();
+    });
+    it("an authored chevron flows into a composed process (silhouettes behind, no links)", () => {
+        const commands = composed({ items: "A, B, C", type: "process", shape: "chevron" });
+        const chromeOps = commands
+            .filter((c) => c.kind === "surface")
+            .flatMap((c) => {
+                const rec = recordingDrawContext();
+                (c as { paint: (g: unknown, b: unknown) => void }).paint(rec.ctx, {
+                    x: 0,
+                    y: 0,
+                    w: c.box.w,
+                    h: c.box.h,
+                });
+                return rec.calls.map((call) => call.op);
+            });
+        expect(chromeOps.filter((op) => op === "path").length).toBe(3); // one silhouette per item
+        expect(chromeOps).not.toContain("polyline"); // chevrons are their own arrows
     });
 });
 
@@ -65,11 +217,11 @@ describe("buildTree", () => {
         expect(t.children.map((c) => c.label)).toEqual(["A", "B"]);
     });
     it("roots at the node never used as a target, cutting cycles", () => {
-        const t = buildTree(normalizeDiagram({ items: "A, B, C", links: "A->B, B->C, C->A" }))!;
+        const t = buildTree(normalizeDiagram({ items: "A, B, C", links: "A>B, B>C, C>A" }))!;
         expect(t.label).toBe("A");
         expect(t.children[0]!.label).toBe("B");
         expect(t.children[0]!.children[0]!.label).toBe("C");
-        expect(t.children[0]!.children[0]!.children).toHaveLength(0); // C->A back-edge cut
+        expect(t.children[0]!.children[0]!.children).toHaveLength(0); // C>A back-edge cut
     });
 });
 
@@ -90,14 +242,6 @@ describe("layoutTree", () => {
             expect(p.cy).toBeGreaterThanOrEqual(0);
             expect(p.cy).toBeLessThanOrEqual(300);
         }
-    });
-});
-
-describe("boxWidth", () => {
-    it("clamps a uniform node width around the longest label", () => {
-        const { ctx } = recordingDrawContext(); // measureText → text.length * 8
-        expect(boxWidth(ctx, tokens, ["hi"], 60, 40, 200)).toBe(60); // base wins
-        expect(boxWidth(ctx, tokens, ["x".repeat(30)], 60, 40, 200)).toBe(200); // clamped to max
     });
 });
 
@@ -126,8 +270,8 @@ describe("registry", () => {
     it("registers every diagram type", () => {
         const ids = diagramTypeOptions().map((o) => o.value);
         expect(ids).toContain("process");
-        expect(ids).toContain("flow");
-        expect(getDiagram("tree")?.id).toBe("tree");
+        expect(ids).toContain("org");
+        expect(getDiagram("hub")?.id).toBe("hub");
     });
     // drift guard: the model value-set and the canvas registry must name the same types
     it("matches the DIAGRAM_TYPES value-set exactly", () => {
@@ -136,150 +280,112 @@ describe("registry", () => {
     });
 });
 
-describe("renderDiagram", () => {
-    const box = { x: 0, y: 0, w: 400, h: 300 };
-    const data = {
-        items: "Step one, Step two, Step three",
-        links: "Step one->Step two, Step two->Step three",
-    };
-    const rich = {
-        items: "Step one | first detail | 12\nStep two | second detail | 8\nStep three | third | 4",
-        links: "Step one->Step two:yes, Step two->Step three",
-        axes: "low, high, near, far",
-    };
+// ---- the composed path: arrange → engine layout → commands, the way compose runs it ----
 
+const measure = (
+    leaf: { text: string; size: number },
+    maxWidth: number,
+): { width: number; height: number } => {
+    const w = leaf.text.length * 8;
+    const lines = Math.max(1, Math.ceil(w / Math.max(1, maxWidth)));
+    return { width: Math.min(w, maxWidth), height: lines * leaf.size * 1.35 };
+};
+
+const kidsFor = (diagram: ResolvedDiagram): EngineNode[] =>
+    diagram.items.flatMap((i): EngineNode[] => [
+        { w: grow(), h: fit(), text: { text: i.label, fontId: "t", size: 13, wrap: "words" } },
+        { w: grow(), h: fit(), text: { text: i.body ?? "", fontId: "t", size: 11, wrap: "words" } },
+    ]);
+
+const layoutCtx = (w: number): Record<string, unknown> => ({
+    box: { x: 0, y: 0, w, h: 260 },
+    availWidth: w,
+    format: {
+        id: "deck",
+        name: "Deck",
+        kind: "paged",
+        width: 1280,
+        height: 720,
+        tokenScale: 1,
+        splitMinWidth: 520,
+        overflow: "paginate",
+    },
+    theme: tokens,
+});
+
+function composed(data: Record<string, unknown>, w = 640, h = 260): RenderCommand[] {
+    const diagram = normalizeDiagram(toDiagramData(data));
+    const type = getDiagram(diagram.type)!;
+    const node = type.arrange(diagram, layoutCtx(w) as never, kidsFor(diagram), h);
+    return layout(node, { x: 0, y: 0, w, h }, measure as never).commands;
+}
+
+const DATA = {
+    items: "Step one | first detail | 12\nStep two | second detail | 8\nStep three | third | 4",
+    links: "Step one>Step two, Step two>Step three",
+    axes: "low, high, near, far",
+};
+
+describe("composed diagrams", () => {
     for (const { value: id } of diagramTypeOptions()) {
-        it(`${id} produces draw calls for valid data`, () => {
-            const { ctx, calls } = recordingDrawContext();
-            renderDiagram(ctx, box, { ...data, type: id }, tokens);
-            expect(calls.length).toBeGreaterThan(0);
+        it(`${id} composes to commands inside the box`, () => {
+            for (const [w, h] of [
+                [640, 260],
+                [320, 180],
+            ] as const) {
+                const commands = composed({ ...DATA, type: id }, w, h);
+                expect(commands.length).toBeGreaterThan(0);
+                for (const c of commands) {
+                    expect(c.box.x, `${id} x at ${w}x${h}`).toBeGreaterThanOrEqual(-1);
+                    expect(c.box.y, `${id} y at ${w}x${h}`).toBeGreaterThanOrEqual(-1);
+                    expect(c.box.x + c.box.w, `${id} right at ${w}x${h}`).toBeLessThanOrEqual(
+                        w + 1,
+                    );
+                    expect(c.box.y + c.box.h, `${id} bottom at ${w}x${h}`).toBeLessThanOrEqual(
+                        h + 1,
+                    );
+                }
+            }
         });
 
-        it(`${id} survives a single item in a cramped box`, () => {
-            const { ctx } = recordingDrawContext();
-            expect(() =>
-                renderDiagram(
-                    ctx,
-                    { x: 0, y: 0, w: 60, h: 40 },
-                    { items: "Only", type: id },
-                    tokens,
-                ),
-            ).not.toThrow();
+        it(`${id} survives one item and a crowded ten`, () => {
+            expect(() => composed({ items: "Only", type: id }, 200, 140)).not.toThrow();
+            const many = Array.from({ length: 10 }, (_, i) => `Item ${i + 1}`).join(", ");
+            expect(() => composed({ items: many, type: id })).not.toThrow();
+        });
+
+        it(`${id} keeps a stable command profile`, () => {
+            const commands = composed({ ...DATA, type: id });
+            const profile = commands.map((c) => ({
+                kind: c.kind,
+                box: {
+                    x: Math.round(c.box.x),
+                    y: Math.round(c.box.y),
+                    w: Math.round(c.box.w),
+                    h: Math.round(c.box.h),
+                },
+            }));
+            // decorate chrome exercised through a recorder, since surface paints are closures
+            const chrome = commands
+                .filter((c) => c.kind === "surface")
+                .map((c) => {
+                    const rec = recordingDrawContext();
+                    (c as { paint: (g: unknown, b: unknown) => void }).paint(rec.ctx, {
+                        x: 0,
+                        y: 0,
+                        w: c.box.w,
+                        h: c.box.h,
+                    });
+                    return rec.calls.map((call) => call.op);
+                });
+            expect({ profile, chrome }).toMatchSnapshot();
         });
     }
 
-    // a surface clips to its own <svg>, so anything outside is silently lost
-    describe("stays inside the surface box", () => {
-        const crowded = Array.from(
-            { length: 10 },
-            (_, i) => `Item ${i + 1} | detail ${i + 1}`,
-        ).join("\n");
-        const boxes = [
-            { x: 0, y: 0, w: 420, h: 280 },
-            { x: 0, y: 0, w: 260, h: 220 }, // a narrow column, where crowding bites first
-            { x: 0, y: 0, w: 900, h: 300 },
-        ];
-        const SLACK = 4; // strokes and shadows may bleed a hair
-
-        for (const { value: id } of diagramTypeOptions()) {
-            it(id, () => {
-                for (const b of boxes) {
-                    for (const items of [rich.items, crowded]) {
-                        const { ctx, calls } = recordingDrawContext();
-                        renderDiagram(ctx, b, { ...rich, items, type: id }, tokens);
-                        const within = (x: number, y: number, what: string): void => {
-                            const where = `${id} ${b.w}x${b.h} ${what}`;
-                            expect(x, where).toBeGreaterThanOrEqual(-SLACK);
-                            expect(x, where).toBeLessThanOrEqual(b.w + SLACK);
-                            expect(y, where).toBeGreaterThanOrEqual(-SLACK);
-                            expect(y, where).toBeLessThanOrEqual(b.h + SLACK);
-                        };
-                        for (const c of calls) {
-                            if (c.op === "text" || c.op === "moveTo" || c.op === "lineTo")
-                                within(c.x as number, c.y as number, String(c.op));
-                            if (c.op === "rect") {
-                                within(c.x as number, c.y as number, "rect origin");
-                                within(
-                                    (c.x as number) + (c.w as number),
-                                    (c.y as number) + (c.h as number),
-                                    "rect corner",
-                                );
-                            }
-                            if (c.op === "circle") {
-                                const [cx, cy, r] = [c.cx, c.cy, c.r] as number[];
-                                within(cx! - r!, cy! - r!, "circle");
-                                within(cx! + r!, cy! + r!, "circle");
-                            }
-                            for (const [px, py] of (c.points ?? []) as [number, number][])
-                                within(px, py, "polyline");
-                        }
-                    }
-                }
-            });
-        }
-    });
-
-    // inside the surface isn't enough: a label must stay inside its own node box
-    describe("keeps each label inside its own node box", () => {
-        const longDetails = [
-            "01 Site Prep & Species | Deep soil analysis and native selection",
-            "02 Structural Planting | High-density grids with engineered soils",
-            "03 Canopy Stewardship | Two-year community irrigation contracts",
-        ].join("\n");
-        const links =
-            "01 Site Prep & Species>02 Structural Planting, 01 Site Prep & Species>03 Canopy Stewardship";
-
-        for (const id of ["org", "tree", "mindmap"]) {
-            it(id, () => {
-                const b = { x: 0, y: 0, w: 690, h: 450 };
-                const { ctx, calls } = recordingDrawContext();
-                renderDiagram(ctx, b, { type: id, items: longDetails, links }, tokens);
-                const rects = calls
-                    .filter((c) => c.op === "rect")
-                    .map((c) => ({
-                        x: num(c.x) ?? 0,
-                        y: num(c.y) ?? 0,
-                        w: num(c.w) ?? 0,
-                        h: num(c.h) ?? 0,
-                    }));
-                const texts = calls
-                    .filter((c) => c.op === "text")
-                    .map((c) => ({
-                        text: str(c.text) ?? "",
-                        x: num(c.x) ?? 0,
-                        y: num(c.y) ?? 0,
-                        size: fontSize(c.style),
-                    }));
-                expect(texts.length).toBeGreaterThan(0);
-                let checked = 0;
-                for (const t of texts) {
-                    // slack on purpose: matching only labels already inside would skip the overflow
-                    const mid = (r: { y: number; h: number }): number =>
-                        Math.abs(t.y - (r.y + r.h / 2));
-                    const own = rects
-                        .filter((r) => t.x >= r.x && t.x <= r.x + r.w && mid(r) < r.h / 2 + 40)
-                        .sort((a, b) => mid(a) - mid(b))[0];
-                    if (!own) continue;
-                    checked++;
-                    const half = (t.size * 1.25) / 2;
-                    expect(t.y - half, `${id}: "${t.text}" above its node`).toBeGreaterThanOrEqual(
-                        own.y - 0.5,
-                    );
-                    expect(t.y + half, `${id}: "${t.text}" below its node`).toBeLessThanOrEqual(
-                        own.y + own.h + 0.5,
-                    );
-                }
-                expect(
-                    checked,
-                    `${id}: no label matched a node — the guard would be vacuous`,
-                ).toBeGreaterThan(0);
-            });
-        }
-    });
-
-    it("renders nothing when there are no items", () => {
-        const { ctx, calls } = recordingDrawContext();
-        renderDiagram(ctx, box, { items: "", type: "process" }, tokens);
-        expect(calls).toHaveLength(0);
+    it("labels are real text commands, editable by address", () => {
+        const commands = composed({ items: "Alpha | detail", type: "process" });
+        const texts = commands.filter((c) => c.kind === "text");
+        expect(texts.some((c) => c.kind === "text" && c.text.text === "Alpha")).toBe(true);
+        expect(texts.some((c) => c.kind === "text" && c.text.text === "detail")).toBe(true);
     });
 });

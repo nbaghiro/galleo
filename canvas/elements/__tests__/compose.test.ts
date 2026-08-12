@@ -1,7 +1,7 @@
 import "@elements/register";
 import { describe, expect, it } from "vitest";
 import type { EngineNode } from "@engine/node";
-import { GUTTER, composeSection, sectionContentTokens } from "@elements/compose";
+import { GUTTER, composeSection, composedLeafFor, sectionContentTokens } from "@elements/compose";
 import { emptyRegion, rowGroup } from "@model/artifact";
 import { layout } from "@engine/layout";
 import { resolveProfile } from "@engine/profile";
@@ -22,6 +22,42 @@ describe("sectionContentTokens", () => {
     it("switches to light-on-dark tokens over a dark background", () => {
         const s = sectionOf(textRoot(), { background: { kind: "color", color: "#111111" } });
         expect(sectionContentTokens(s, tokens).ink).toBe("#ffffff");
+    });
+});
+
+describe("composedLeafFor", () => {
+    it("returns a bare text element's own leaf", () => {
+        const s = sectionOf(textRoot(), { id: "s1" });
+        const leaf = composedLeafFor(s, { section: "s1", path: [] }, deckCtx)!;
+        expect(leaf.text).toBe("Hello");
+    });
+    it("returns the container-restyled leaf for a diagram child, not the spec's body size", () => {
+        const s = sectionOf(
+            inst("diagram", { type: "process", items: "Plan | think it through, Build" }),
+            { id: "s1" },
+        );
+        // child 0 = item 0's label, child 1 = its detail (kids[i*2], kids[i*2+1])
+        const label = composedLeafFor(s, { section: "s1", path: [0] }, deckCtx)!;
+        const detail = composedLeafFor(s, { section: "s1", path: [1] }, deckCtx)!;
+        expect(label.text).toBe("Plan");
+        expect(label.size).toBe(12); // NODE_TEXT, the size the cell paints
+        expect(label.weight).toBe(600);
+        expect(detail.size).toBe(11);
+    });
+    it("returns the table-restyled leaf for a cell (header weight/ink, body soft)", () => {
+        const s = sectionOf(inst("table", { cols: 2, rows: 2, header: true, data: "A, B\nc, d" }), {
+            id: "s1",
+        });
+        const header = composedLeafFor(s, { section: "s1", path: [0] }, deckCtx)!;
+        const body = composedLeafFor(s, { section: "s1", path: [2] }, deckCtx)!;
+        expect(header.weight).toBe(700);
+        expect(header.color).toBe(tokens.ink);
+        expect(body.weight).toBe(400);
+        expect(body.color).toBe(tokens.soft);
+    });
+    it("returns null for an address with no text", () => {
+        const s = sectionOf(inst("image", { src: "x" }), { id: "s1" });
+        expect(composedLeafFor(s, { section: "s1", path: [] }, deckCtx)).toBeNull();
     });
 });
 

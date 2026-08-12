@@ -17,8 +17,7 @@ describe("dataShapeFor", () => {
     });
 
     it("maps diagram types, defaulting an unknown diagram to list", () => {
-        expect(dataShapeFor("diagram", "tree")).toBe("hierarchy");
-        expect(dataShapeFor("diagram", "flow")).toBe("graph");
+        expect(dataShapeFor("diagram", "org")).toBe("hierarchy");
         expect(dataShapeFor("diagram", "process")).toBe("list");
         expect(dataShapeFor("diagram", "mystery")).toBe("list");
     });
@@ -102,13 +101,12 @@ describe("invalidNumber", () => {
 });
 
 describe("itemLimit", () => {
-    it("caps venn / quadrant diagrams and leaves other diagrams uncapped", () => {
-        expect(itemLimit("diagram", "venn")).toBe(4); // 3 sets + the overlap caption
+    it("caps quadrant diagrams and leaves other diagrams uncapped", () => {
         expect(itemLimit("diagram", "quadrant")).toBe(4);
         expect(itemLimit("diagram", "process")).toBeUndefined();
     });
 
     it("only applies to diagrams, never charts", () => {
-        expect(itemLimit("chart", "venn")).toBeUndefined();
+        expect(itemLimit("chart", "quadrant")).toBeUndefined();
     });
 });

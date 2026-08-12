@@ -31,17 +31,6 @@ export const CHART_CONTROLS: ControlField[] = [
         placeholder: "This year, Last year",
     },
     {
-        key: "palette",
-        label: "Palette",
-        control: "segmented",
-        options: [
-            { label: "Accent", value: "ramp" },
-            { label: "Multi-hue", value: "categorical" },
-        ],
-        // gauge + heatmap paint from theme.accent, never the palette
-        visibleWhen: (d) => d.type !== "gauge" && d.type !== "heatmap",
-    },
-    {
         key: "stacked",
         label: "Stacked",
         control: "toggle",
@@ -90,7 +79,6 @@ function chartSpec(
             values: "12, 19, 7, 23, 16",
             categories: "",
             seriesNames: "",
-            palette: "ramp",
             stacked: false,
             smooth: false,
             showValues: false,
@@ -104,7 +92,7 @@ function chartSpec(
             surface: { paint: (g, box) => renderChart(g, box, d, ctx.theme) },
         }),
         resize: { height: { key: "height", min: 160, max: 460, step: 10 } },
-        bar: ["type", "palette"],
+        bar: ["type"],
         controls: CHART_CONTROLS,
     };
 }

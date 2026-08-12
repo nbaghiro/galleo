@@ -1,0 +1,1036 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`composed diagrams > cycle keeps a stable command profile 1`] = `
+{
+  "chrome": [
+    [
+      "polyline",
+      "polyline",
+      "polyline",
+      "polyline",
+      "polyline",
+      "polyline",
+    ],
+  ],
+  "profile": [
+    {
+      "box": {
+        "h": 260,
+        "w": 640,
+        "x": 0,
+        "y": 0,
+      },
+      "kind": "surface",
+    },
+    {
+      "box": {
+        "h": 46,
+        "w": 150,
+        "x": 245,
+        "y": 16,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 130,
+        "x": 255,
+        "y": 24,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 130,
+        "x": 255,
+        "y": 42,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 46,
+        "w": 150,
+        "x": 443,
+        "y": 153,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 130,
+        "x": 453,
+        "y": 161,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 130,
+        "x": 453,
+        "y": 179,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 46,
+        "w": 150,
+        "x": 47,
+        "y": 153,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 130,
+        "x": 57,
+        "y": 161,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 130,
+        "x": 57,
+        "y": 179,
+      },
+      "kind": "text",
+    },
+  ],
+}
+`;
+
+exports[`composed diagrams > funnel keeps a stable command profile 1`] = `
+{
+  "chrome": [
+    [
+      "path",
+      "moveTo",
+      "lineTo",
+      "lineTo",
+      "lineTo",
+      "closePath",
+      "path",
+      "moveTo",
+      "lineTo",
+      "lineTo",
+      "lineTo",
+      "closePath",
+      "path",
+      "moveTo",
+      "lineTo",
+      "lineTo",
+      "lineTo",
+      "closePath",
+    ],
+  ],
+  "profile": [
+    {
+      "box": {
+        "h": 228,
+        "w": 608,
+        "x": 16,
+        "y": 16,
+      },
+      "kind": "surface",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 389,
+        "x": 125,
+        "y": 37,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 389,
+        "x": 125,
+        "y": 56,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 187,
+        "x": 227,
+        "y": 113,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 187,
+        "x": 227,
+        "y": 132,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 187,
+        "x": 227,
+        "y": 189,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 187,
+        "x": 227,
+        "y": 208,
+      },
+      "kind": "text",
+    },
+  ],
+}
+`;
+
+exports[`composed diagrams > hub keeps a stable command profile 1`] = `
+{
+  "chrome": [
+    [
+      "line",
+      "line",
+    ],
+  ],
+  "profile": [
+    {
+      "box": {
+        "h": 260,
+        "w": 640,
+        "x": 0,
+        "y": 0,
+      },
+      "kind": "surface",
+    },
+    {
+      "box": {
+        "h": 42,
+        "w": 140,
+        "x": 250,
+        "y": 12,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 120,
+        "x": 260,
+        "y": 20,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 120,
+        "x": 260,
+        "y": 38,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 42,
+        "w": 140,
+        "x": 250,
+        "y": 206,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 120,
+        "x": 260,
+        "y": 214,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 120,
+        "x": 260,
+        "y": 232,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 48,
+        "w": 168,
+        "x": 236,
+        "y": 106,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 148,
+        "x": 246,
+        "y": 114,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 148,
+        "x": 246,
+        "y": 132,
+      },
+      "kind": "text",
+    },
+  ],
+}
+`;
+
+exports[`composed diagrams > matrix keeps a stable command profile 1`] = `
+{
+  "chrome": [
+    [],
+  ],
+  "profile": [
+    {
+      "box": {
+        "h": 20,
+        "w": 301,
+        "x": 14,
+        "y": 19,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 20,
+        "w": 301,
+        "x": 325,
+        "y": 19,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 91,
+        "w": 301,
+        "x": 14,
+        "y": 49,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 281,
+        "x": 24,
+        "y": 78,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 281,
+        "x": 24,
+        "y": 96,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 91,
+        "w": 301,
+        "x": 325,
+        "y": 49,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 281,
+        "x": 335,
+        "y": 78,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 281,
+        "x": 335,
+        "y": 96,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 91,
+        "w": 301,
+        "x": 14,
+        "y": 150,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 281,
+        "x": 24,
+        "y": 179,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 281,
+        "x": 24,
+        "y": 197,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 232,
+        "w": 612,
+        "x": 14,
+        "y": 14,
+      },
+      "kind": "surface",
+    },
+  ],
+}
+`;
+
+exports[`composed diagrams > org keeps a stable command profile 1`] = `
+{
+  "chrome": [
+    [
+      "path",
+      "moveTo",
+      "lineTo",
+      "quadraticCurveTo",
+      "lineTo",
+      "quadraticCurveTo",
+      "lineTo",
+      "path",
+      "moveTo",
+      "lineTo",
+      "quadraticCurveTo",
+      "lineTo",
+      "quadraticCurveTo",
+      "lineTo",
+    ],
+  ],
+  "profile": [
+    {
+      "box": {
+        "h": 260,
+        "w": 640,
+        "x": 0,
+        "y": 0,
+      },
+      "kind": "surface",
+    },
+    {
+      "box": {
+        "h": 40,
+        "w": 170,
+        "x": 235,
+        "y": 34,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 150,
+        "x": 245,
+        "y": 42,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 150,
+        "x": 245,
+        "y": 60,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 40,
+        "w": 170,
+        "x": 235,
+        "y": 110,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 150,
+        "x": 245,
+        "y": 118,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 150,
+        "x": 245,
+        "y": 136,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 40,
+        "w": 170,
+        "x": 235,
+        "y": 186,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 150,
+        "x": 245,
+        "y": 194,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 150,
+        "x": 245,
+        "y": 212,
+      },
+      "kind": "text",
+    },
+  ],
+}
+`;
+
+exports[`composed diagrams > process keeps a stable command profile 1`] = `
+{
+  "chrome": [
+    [
+      "line",
+      "polyline",
+      "line",
+      "polyline",
+    ],
+  ],
+  "profile": [
+    {
+      "box": {
+        "h": 56,
+        "w": 177,
+        "x": 14,
+        "y": 102,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 157,
+        "x": 24,
+        "y": 113,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 157,
+        "x": 24,
+        "y": 132,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 56,
+        "w": 177,
+        "x": 231,
+        "y": 102,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 157,
+        "x": 241,
+        "y": 113,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 157,
+        "x": 241,
+        "y": 132,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 56,
+        "w": 177,
+        "x": 449,
+        "y": 102,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 157,
+        "x": 459,
+        "y": 113,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 157,
+        "x": 459,
+        "y": 132,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 232,
+        "w": 612,
+        "x": 14,
+        "y": 14,
+      },
+      "kind": "surface",
+    },
+  ],
+}
+`;
+
+exports[`composed diagrams > pyramid keeps a stable command profile 1`] = `
+{
+  "chrome": [
+    [
+      "path",
+      "moveTo",
+      "lineTo",
+      "lineTo",
+      "lineTo",
+      "closePath",
+      "path",
+      "moveTo",
+      "lineTo",
+      "lineTo",
+      "lineTo",
+      "closePath",
+      "path",
+      "moveTo",
+      "lineTo",
+      "lineTo",
+      "lineTo",
+      "closePath",
+    ],
+  ],
+  "profile": [
+    {
+      "box": {
+        "h": 228,
+        "w": 608,
+        "x": 16,
+        "y": 16,
+      },
+      "kind": "surface",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 69,
+        "x": 285,
+        "y": 30,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 30,
+        "w": 69,
+        "x": 285,
+        "y": 48,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 243,
+        "x": 198,
+        "y": 113,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 243,
+        "x": 198,
+        "y": 132,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 418,
+        "x": 111,
+        "y": 189,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 418,
+        "x": 111,
+        "y": 208,
+      },
+      "kind": "text",
+    },
+  ],
+}
+`;
+
+exports[`composed diagrams > quadrant keeps a stable command profile 1`] = `
+{
+  "chrome": [],
+  "profile": [
+    {
+      "box": {
+        "h": 18,
+        "w": 612,
+        "x": 14,
+        "y": 14,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 81,
+        "w": 302,
+        "x": 14,
+        "y": 36,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 282,
+        "x": 24,
+        "y": 60,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 282,
+        "x": 24,
+        "y": 78,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 81,
+        "w": 302,
+        "x": 324,
+        "y": 36,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 282,
+        "x": 334,
+        "y": 60,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 282,
+        "x": 334,
+        "y": 78,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 18,
+        "w": 24,
+        "x": 14,
+        "y": 121,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 18,
+        "w": 32,
+        "x": 594,
+        "y": 121,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 81,
+        "w": 612,
+        "x": 14,
+        "y": 143,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 592,
+        "x": 24,
+        "y": 167,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 592,
+        "x": 24,
+        "y": 185,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 18,
+        "w": 612,
+        "x": 14,
+        "y": 228,
+      },
+      "kind": "text",
+    },
+  ],
+}
+`;
+
+exports[`composed diagrams > steps keeps a stable command profile 1`] = `
+{
+  "chrome": [
+    [],
+  ],
+  "profile": [
+    {
+      "box": {
+        "h": 107,
+        "w": 197,
+        "x": 14,
+        "y": 139,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 177,
+        "x": 24,
+        "y": 151,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 177,
+        "x": 24,
+        "y": 170,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 169,
+        "w": 197,
+        "x": 221,
+        "y": 77,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 177,
+        "x": 231,
+        "y": 89,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 177,
+        "x": 231,
+        "y": 107,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 232,
+        "w": 197,
+        "x": 429,
+        "y": 14,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 177,
+        "x": 439,
+        "y": 26,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 177,
+        "x": 439,
+        "y": 44,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 232,
+        "w": 612,
+        "x": 14,
+        "y": 14,
+      },
+      "kind": "surface",
+    },
+  ],
+}
+`;
+
+exports[`composed diagrams > timeline keeps a stable command profile 1`] = `
+{
+  "chrome": [
+    [
+      "line",
+      "circle",
+      "circle",
+      "circle",
+    ],
+  ],
+  "profile": [
+    {
+      "box": {
+        "h": 16,
+        "w": 188,
+        "x": 18,
+        "y": 79,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 188,
+        "x": 18,
+        "y": 97,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 188,
+        "x": 226,
+        "y": 148,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 188,
+        "x": 226,
+        "y": 166,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 188,
+        "x": 434,
+        "y": 79,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 188,
+        "x": 434,
+        "y": 97,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 232,
+        "w": 612,
+        "x": 14,
+        "y": 14,
+      },
+      "kind": "surface",
+    },
+  ],
+}
+`;

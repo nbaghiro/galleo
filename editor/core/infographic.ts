@@ -36,17 +36,10 @@ const DIAGRAM_SHAPE: Record<string, Shape> = {
     pyramid: "list",
     funnel: "list",
     timeline: "list",
-    roadmap: "list",
-    venn: "list",
     quadrant: "list",
     matrix: "list",
     hub: "list",
-    target: "list",
-    honeycomb: "list",
-    tree: "hierarchy",
     org: "hierarchy",
-    mindmap: "hierarchy",
-    flow: "graph",
 };
 
 // `category` disambiguates the funnel collision (funnel chart = label→value, funnel diagram = list).
@@ -235,19 +228,17 @@ export function invalidNumber(v: string): boolean {
     return t !== "" && !Number.isFinite(Number(t));
 }
 
-// venn = 3 sets plus an optional 4th captioning the overlap, quadrant exactly 4; extra rows ignored
-const ITEM_LIMIT: Record<string, number> = { venn: 4, quadrant: 4 };
+// quadrant is exactly 4 cells; extra rows are ignored
+const ITEM_LIMIT: Record<string, number> = { quadrant: 4 };
 export function itemLimit(kind: Kind, type: string): number | undefined {
     return kind === "diagram" ? ITEM_LIMIT[type] : undefined;
 }
 export function limitNote(type: string): string {
-    if (type === "venn")
-        return "A Venn shows 3 sets; a 4th item captions where they overlap. Extra items are ignored.";
     if (type === "quadrant") return "A quadrant uses the first 4 items, one per quadrant.";
     return "";
 }
 
 // list entries here carry a numeric weight (band size, lane span, milestone marker)
-const VALUED = new Set(["funnel", "pyramid", "roadmap", "timeline"]);
+const VALUED = new Set(["funnel", "pyramid"]);
 export const usesItemValue = (kind: Kind, type: string): boolean =>
     kind === "diagram" && VALUED.has(type);

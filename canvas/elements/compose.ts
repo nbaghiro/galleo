@@ -1,6 +1,7 @@
 import type { LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import type { ElementAddress, ElementInstance, Section, SectionBackground } from "@model/artifact";
+import type { TextLeaf } from "@engine/node";
 import type { Tokens } from "@themes";
 import { getElement } from "@elements/spec";
 import { elementRegionId, sectionRegionId } from "@model/artifact";
@@ -243,6 +244,28 @@ function onDark(t: Tokens): Tokens {
 // mirrors composeSection's token swap so callers (e.g. the inline text editor) can match
 export function sectionContentTokens(section: Section, theme: Tokens): Tokens {
     return bgIsDark(section.background) ? onDark(theme) : theme;
+}
+
+// The text leaf for an address exactly as the canvas composes it — containers restyle their text
+// children (a diagram cell shrinks its label to node size), so an editor overlay styled from the
+// child's own spec would render at the wrong scale. Pass the BASE theme; the section's own
+// contrast swap applies here as it does in composeSection.
+export function composedLeafFor(
+    section: Section,
+    address: ElementAddress,
+    ctx: LayoutCtx,
+): TextLeaf | null {
+    const id = elementRegionId(address);
+    const root = composeSection(section, ctx);
+    const find = (n: EngineNode): TextLeaf | null => {
+        if (n.id === id && n.text) return n.text;
+        for (const c of n.children ?? []) {
+            const hit = find(c);
+            if (hit) return hit;
+        }
+        return null;
+    };
+    return find(root);
 }
 
 export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {

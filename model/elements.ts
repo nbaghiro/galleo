@@ -78,24 +78,26 @@ export const DIAGRAM_TYPES = [
     "pyramid",
     "funnel",
     "timeline",
-    "roadmap",
-    "venn",
     "quadrant",
     "matrix",
     "hub",
-    "target",
-    "honeycomb",
-    "tree",
     "org",
-    "mindmap",
-    "flow",
 ] as const;
 export type DiagramType = (typeof DIAGRAM_TYPES)[number];
 
-export const GRAPH_DIAGRAM_TYPES = ["flow", "tree", "org", "mindmap"] as const;
+export const GRAPH_DIAGRAM_TYPES = ["org"] as const;
 
-export const DIAGRAM_FLOWS = ["down", "right"] as const;
-export type DiagramFlow = (typeof DIAGRAM_FLOWS)[number];
+// node treatment, artifact-wide per diagram; per-item emphasis promotes a node to solid
+export const DIAGRAM_STYLES = ["solid", "tinted", "card", "outline"] as const;
+export type DiagramStyle = (typeof DIAGRAM_STYLES)[number];
+
+// authored node silhouette, honored by the node-row types (steps, cycle, hub, matrix)
+export const DIAGRAM_SHAPES = ["rounded", "pill", "chevron", "hexagon"] as const;
+export type DiagramShape = (typeof DIAGRAM_SHAPES)[number];
+
+// ornament badge on each node's leading edge
+export const DIAGRAM_NUMBERS = ["none", "number", "letter"] as const;
+export type DiagramNumbers = (typeof DIAGRAM_NUMBERS)[number];
 
 // outline planning vocabulary; one block leads each column
 export const BLOCK_KINDS = [
@@ -109,20 +111,21 @@ export const BLOCK_KINDS = [
     "quote",
     "cards",
 ] as const;
-export type BlockKind = (typeof BLOCK_KINDS)[number];
 
 // SVG is only an ingest format (parseSvg → Vector); this IR is what gets stored and painted
 
 // the Tokens color fields; must stay in sync with @themes Tokens
-export type ThemeRole =
-    | "bg"
-    | "surface"
-    | "ink"
-    | "soft"
-    | "muted"
-    | "accent"
-    | "onAccent"
-    | "line";
+export const THEME_ROLES = [
+    "bg",
+    "surface",
+    "ink",
+    "soft",
+    "muted",
+    "accent",
+    "onAccent",
+    "line",
+] as const;
+export type ThemeRole = (typeof THEME_ROLES)[number];
 
 // a role recolors with the theme; `currentColor` resolves to the tint
 export type Paint = { role: ThemeRole } | { color: string } | "none" | "currentColor";
@@ -175,5 +178,3 @@ export interface Vector {
     vb: [number, number, number, number];
     nodes: VNode[];
 }
-
-export const EMPTY_VECTOR: Vector = { vb: [0, 0, 24, 24], nodes: [] };

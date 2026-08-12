@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
+import { CHART_TYPES } from "@model/elements";
 import { renderChart, chartTypeOptions } from "@elements/chart/render";
 import { catList, fmt, getChart, normalize, seriesColors, yMax } from "@elements/chart/utils";
 import { recordingDrawContext, tokens } from "@canvas/testkit";
+
+describe("registry", () => {
+    // drift guard: the model value-set and the canvas registry must name the same types
+    it("matches the CHART_TYPES value-set exactly", () => {
+        const ids = chartTypeOptions().map((o) => o.value);
+        expect([...ids].sort()).toEqual([...CHART_TYPES].sort());
+    });
+});
 
 describe("normalize", () => {
     it("parses series (newline) and points (comma), naming unnamed series", () => {
@@ -55,15 +64,10 @@ describe("fmt", () => {
 });
 
 describe("seriesColors", () => {
-    it("ramp steps the accent opacity into n colors", () => {
-        const cols = seriesColors(tokens, 3, "ramp");
+    it("steps the accent opacity into n colors", () => {
+        const cols = seriesColors(tokens, 3);
         expect(cols).toHaveLength(3);
         expect(cols.every((c) => c.startsWith("rgba("))).toBe(true);
-    });
-    it("categorical rotates the hue into n distinct colors", () => {
-        const cols = seriesColors(tokens, 3, "categorical");
-        expect(cols).toHaveLength(3);
-        expect(new Set(cols).size).toBe(3);
     });
 });
 

@@ -19,24 +19,24 @@ describe("primitive coercion", () => {
     });
 
     it("oneOf admits only members of the allowed set", () => {
-        expect(oneOf("ramp", ["ramp", "categorical"] as const)).toBe("ramp");
-        expect(oneOf("rainbow", ["ramp", "categorical"] as const)).toBeUndefined();
-        expect(oneOf(7, ["ramp", "categorical"] as const)).toBeUndefined();
+        expect(oneOf("solid", ["solid", "outline"] as const)).toBe("solid");
+        expect(oneOf("rainbow", ["solid", "outline"] as const)).toBeUndefined();
+        expect(oneOf(7, ["solid", "outline"] as const)).toBeUndefined();
     });
 });
 
 describe("toChartData", () => {
     it("passes through well-typed fields", () => {
         expect(
-            toChartData({ type: "line", values: "1,2", palette: "categorical", stacked: true }),
-        ).toMatchObject({ type: "line", values: "1,2", palette: "categorical", stacked: true });
+            toChartData({ type: "line", values: "1,2", smooth: false, stacked: true }),
+        ).toMatchObject({ type: "line", values: "1,2", smooth: false, stacked: true });
     });
 
     it("drops wrong-typed fields instead of handing them to the parser", () => {
-        const d = toChartData({ values: 42, stacked: "yes", palette: "neon", height: "tall" });
+        const d = toChartData({ values: 42, stacked: "yes", smooth: 1, height: "tall" });
         expect(d.values).toBe("");
         expect(d.stacked).toBeUndefined();
-        expect(d.palette).toBeUndefined();
+        expect(d.smooth).toBeUndefined();
         expect(d.height).toBeUndefined();
     });
 
@@ -48,15 +48,15 @@ describe("toChartData", () => {
 describe("toDiagramData", () => {
     it("passes through well-typed fields", () => {
         expect(
-            toDiagramData({ type: "org", items: "A, B", palette: "ramp", flow: "right" }),
-        ).toMatchObject({ type: "org", items: "A, B", palette: "ramp", flow: "right" });
+            toDiagramData({ type: "org", items: "A, B", style: "card", numbers: "letter" }),
+        ).toMatchObject({ type: "org", items: "A, B", style: "card", numbers: "letter" });
     });
 
     it("drops values outside the declared unions", () => {
-        const d = toDiagramData({ items: 42, palette: "neon", flow: "sideways", height: "tall" });
+        const d = toDiagramData({ items: 42, style: "neon", shape: "blob", height: "tall" });
         expect(d.items).toBe("");
-        expect(d.palette).toBeUndefined();
-        expect(d.flow).toBeUndefined();
+        expect(d.style).toBeUndefined();
+        expect(d.shape).toBeUndefined();
         expect(d.height).toBeUndefined();
     });
 });

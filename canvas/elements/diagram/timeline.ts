@@ -1,23 +1,74 @@
-import { centerLabel, nodeText, registerDiagram, type Renderer } from "./utils";
+import type { EngineNode } from "@engine/node";
+import type { LayoutCtx } from "@elements/spec";
+import { fixed, grow } from "@model/geometry";
+import {
+    PAD,
+    decorate,
+    diagramCell,
+    itemColors,
+    registerDiagram,
+    type ResolvedDiagram,
+} from "./utils";
 
-const timeline: Renderer = (diagram, ctx) => {
-    const { g, W, H, theme } = ctx;
-    const items = diagram.items;
-    if (items.length === 0) return;
-    const n = items.length;
-    const cy = H / 2;
-    const padX = 40;
-    g.line(padX, cy, W - padX, cy, { stroke: theme.line, width: 2 });
-    const step = n > 1 ? (W - padX * 2) / (n - 1) : 0;
-    const lw = Math.max(48, Math.min(n > 1 ? step - 8 : 120, 120));
-    items.forEach((item, i) => {
-        const x = n > 1 ? padX + i * step : W / 2;
-        const up = i % 2 === 0;
-        const ly = up ? cy - 46 : cy + 46;
-        g.line(x, cy, x, up ? ly + 10 : ly - 10, { stroke: theme.line, width: 1 });
-        g.circle(x, cy, 5, { fill: theme.accent, stroke: theme.surface, width: 2 });
-        centerLabel(g, item.label, x, ly, lw, nodeText(theme, { fill: theme.ink, size: 12 }));
-    });
-};
+const GAP = 12;
+const DOT_R = 5;
+const LANE_PAD = 14; // clearance between a label stack and the axis line
 
-registerDiagram({ id: "timeline", label: "Timeline", render: timeline });
+// a horizontal axis with alternating above/below label stacks; the line and dots are decoration
+function arrange(
+    diagram: ResolvedDiagram,
+    ctx: LayoutCtx,
+    kids: EngineNode[],
+    height: number,
+): EngineNode {
+    const n = diagram.items.length;
+    const cols = itemColors(diagram.items, ctx.theme);
+    const column = (i: number): EngineNode => {
+        const above = i % 2 === 0;
+        const cell = diagramCell(
+            kids[i * 2],
+            kids[i * 2 + 1],
+            {
+                ink: ctx.theme.ink,
+                dim: ctx.theme.muted,
+            },
+            { transparent: true, pad: { top: 4, bottom: 4, left: 4, right: 4 } },
+        );
+        cell.h = grow();
+        cell.alignY = above ? "end" : "start";
+        const spacer: EngineNode = { w: grow(), h: grow() };
+        return {
+            w: grow(),
+            h: grow(),
+            direction: "col",
+            children: above
+                ? [cell, { w: grow(), h: fixed(LANE_PAD * 2) }, spacer]
+                : [spacer, { w: grow(), h: fixed(LANE_PAD * 2) }, cell],
+        };
+    };
+    return {
+        w: grow(),
+        h: fixed(height),
+        direction: "row",
+        gap: GAP,
+        padding: { top: PAD, bottom: PAD, left: PAD, right: PAD },
+        children: [
+            ...diagram.items.map((_, i) => column(i)),
+            decorate((g, box) => {
+                const cy = box.h / 2;
+                g.line(0, cy, box.w, cy, { stroke: ctx.theme.line, width: 2 });
+                const colW = (box.w - GAP * (n - 1)) / n;
+                diagram.items.forEach((_, i) => {
+                    const cx = i * (colW + GAP) + colW / 2;
+                    g.circle(cx, cy, DOT_R, {
+                        fill: cols[i]!,
+                        stroke: ctx.theme.surface,
+                        width: 2,
+                    });
+                });
+            }, 1),
+        ],
+    };
+}
+
+registerDiagram({ id: "timeline", label: "Timeline", arrange });

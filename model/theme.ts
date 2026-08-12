@@ -242,7 +242,7 @@ function sanitizeAccent(hex: string, dark: boolean, bg: string): string {
     return out;
 }
 
-function reachContrast(
+export function reachContrast(
     fg: string,
     bg: string,
     ratio: number,

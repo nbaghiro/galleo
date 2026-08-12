@@ -1,15 +1,15 @@
-import type { ControlField, ElementSpec, LayoutCtx } from "@elements/spec";
+import type { ControlField, ElementSpec } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import { register } from "@elements/spec";
-import { fixed, grow } from "@model/geometry";
+import { grow } from "@model/geometry";
 import { GRAPH_DIAGRAM_TYPES } from "@model/elements";
-import { renderDiagram, diagramTypeOptions } from "./render";
+import { diagramTypeOptions } from "./render";
 import type { DiagramData, DiagItem } from "./utils";
 import { formatItems, getDiagram, normalizeDiagram, toDiagramData } from "./utils";
 import type { ElementInstance } from "@model/artifact";
 
-// Ported types expose `arrange`; their items become real text children (label + detail per item, the
-// detail kept even when empty so it stays clickable — the table does the same for empty cells).
+// Every item becomes two real text children (label + detail, the detail kept even when empty so it
+// stays clickable — the table does the same for empty cells); the type's arrange lays them out.
 const textChild = (text: string): ElementInstance => ({
     type: "text",
     data: { text, style: "body", align: "center" },
@@ -21,10 +21,8 @@ const textOf = (i: ElementInstance | undefined): string =>
 
 const resolved = (d: DiagramData): ReturnType<typeof normalizeDiagram> =>
     normalizeDiagram(toDiagramData(d));
-const ported = (d: DiagramData): boolean => !!getDiagram(resolved(d).type)?.arrange;
 
 function diagramChildren(d: DiagramData): ElementInstance[] {
-    if (!ported(d)) return [];
     return resolved(d).items.flatMap((i) => [textChild(i.label), textChild(i.body ?? "")]);
 }
 
@@ -39,6 +37,9 @@ function diagramWithChildren(d: DiagramData, kids: ElementInstance[]): DiagramDa
 }
 
 const GRAPH_TYPES = new Set<string>(GRAPH_DIAGRAM_TYPES);
+// which types honor the authored node shape / the numbering badge
+const SHAPE_TYPES = new Set<string>(["process", "cycle", "hub", "matrix"]);
+const NUMBER_TYPES = new Set<string>(["process", "steps", "cycle", "hub", "matrix"]);
 // one field per consumer: a placeholder is static, and `axes` means something different per type
 const axisField = (type: string, label: string, placeholder: string): ControlField => ({
     key: "axes",
@@ -79,25 +80,39 @@ export const DIAGRAM_CONTROLS: ControlField[] = [
         "Low effort, High effort, Low impact, High impact",
     ),
     axisField("matrix", "Headers (columns, then rows)", "Helpful, Harmful, Internal, External"),
-    axisField("roadmap", "Columns", "Q1, Q2, Q3, Q4"),
     {
-        key: "palette",
-        label: "Palette",
+        key: "style",
+        label: "Node style",
         control: "segmented",
         options: [
-            { label: "Accent", value: "ramp" },
-            { label: "Multi-hue", value: "categorical" },
+            { label: "Solid", value: "solid" },
+            { label: "Tinted", value: "tinted" },
+            { label: "Card", value: "card" },
+            { label: "Outline", value: "outline" },
         ],
     },
     {
-        key: "flow",
-        label: "Direction",
+        key: "shape",
+        label: "Node shape",
         control: "segmented",
         options: [
-            { label: "Down", value: "down" },
-            { label: "Across", value: "right" },
+            { label: "Rounded", value: "rounded" },
+            { label: "Pill", value: "pill" },
+            { label: "Chevron", value: "chevron" },
+            { label: "Hexagon", value: "hexagon" },
         ],
-        visibleWhen: (d) => d.type === "flow",
+        visibleWhen: (d) => SHAPE_TYPES.has(String(d.type)),
+    },
+    {
+        key: "numbers",
+        label: "Numbering",
+        control: "segmented",
+        options: [
+            { label: "None", value: "none" },
+            { label: "1 2 3", value: "number" },
+            { label: "A B C", value: "letter" },
+        ],
+        visibleWhen: (d) => NUMBER_TYPES.has(String(d.type)),
     },
 ];
 
@@ -117,35 +132,23 @@ function diagramSpec(
             items: "Discover, Design, Build, Ship",
             links: "",
             axes: "",
-            palette: "ramp",
-            flow: "down",
             height: 260,
             ...preset,
         }),
-        layout: (d: DiagramData, ctx: LayoutCtx): EngineNode => ({
-            w: grow(),
-            h: grow(d.height ?? 260),
-            surface: { paint: (g, box) => renderDiagram(g, box, d, ctx.theme) },
-        }),
+        // compose always routes through `container`; this is the sized stand-in for anything else
+        layout: (d: DiagramData): EngineNode => ({ w: grow(), h: grow(d.height ?? 260) }),
         container: {
             children: diagramChildren,
             arrange: (d, ctx, kids) => {
                 const r = resolved(d);
-                const type = getDiagram(r.type);
-                const h = d.height ?? 260;
-                return type?.arrange
-                    ? type.arrange(r, ctx, kids, h)
-                    : {
-                          w: grow(),
-                          h: fixed(h),
-                          surface: { paint: (g, box) => renderDiagram(g, box, d, ctx.theme) },
-                      };
+                const type = getDiagram(r.type) ?? getDiagram("process")!;
+                return type.arrange(r, ctx, kids, d.height ?? 260);
             },
             withChildren: diagramWithChildren,
             closed: true,
         },
         resize: { height: { key: "height", min: 140, max: 480, step: 10 } },
-        bar: ["type", "palette"],
+        bar: ["type", "style"],
         controls: DIAGRAM_CONTROLS,
     };
 }
@@ -201,22 +204,6 @@ const VARIANTS: {
         },
     },
     {
-        key: "roadmapDiagram",
-        label: "Roadmap",
-        type: "roadmap",
-        preset: {
-            items: "Discovery | interviews and sizing | 1\nBeta | design partners | 2\nGA | full launch | 1\nScale | expand the surface | 2",
-            axes: "Q1, Q2, Q3, Q4",
-        },
-    },
-    {
-        key: "vennDiagram",
-        label: "Venn",
-        type: "venn",
-        // hue earns its place here: overlapping washes of one hue are indistinguishable
-        preset: { items: "Desirable, Feasible, Viable, Innovation", palette: "categorical" },
-    },
-    {
         key: "quadrantDiagram",
         label: "Quadrant",
         type: "quadrant",
@@ -241,53 +228,12 @@ const VARIANTS: {
         preset: { items: "Platform, Billing, Identity, Insights, Support, Partners" },
     },
     {
-        key: "targetDiagram",
-        label: "Target rings",
-        type: "target",
-        preset: {
-            items: "Market | everyone in the category\nSegment | who we serve\nBeachhead | where we start",
-        },
-    },
-    {
-        key: "honeycombDiagram",
-        label: "Honeycomb",
-        type: "honeycomb",
-        preset: { items: "Speed, Quality, Trust, Scale, Focus, Craft" },
-    },
-    {
-        key: "treeDiagram",
-        label: "Tree",
-        type: "tree",
-        preset: {
-            items: "Company, Product, Platform, Sales, Marketing",
-            links: "Company>Product, Company>Sales, Product>Platform, Sales>Marketing",
-        },
-    },
-    {
         key: "orgDiagram",
         label: "Org chart",
         type: "org",
         preset: {
             items: "CEO, CTO, CFO, VP Eng, VP Sales",
             links: "CEO>CTO, CEO>CFO, CTO>VP Eng, CFO>VP Sales",
-        },
-    },
-    {
-        key: "mindmapDiagram",
-        label: "Mind map",
-        type: "mindmap",
-        preset: {
-            items: "Product Launch, Marketing, Engineering, Sales, Support",
-            links: "Product Launch>Marketing, Product Launch>Engineering, Product Launch>Sales, Product Launch>Support",
-        },
-    },
-    {
-        key: "flowDiagram",
-        label: "Flowchart",
-        type: "flow",
-        preset: {
-            items: "Start, Ready to ship?, Publish, Send back",
-            links: "Start->Ready to ship?, Ready to ship?->Publish:yes, Ready to ship?->Send back:no, Send back->Start",
         },
     },
 ];
