@@ -18,6 +18,7 @@ import { Button, Eyebrow, IconButton } from "@ui/button";
 import { Icon, UiThemeProvider } from "@ui/icons";
 import { TextField, FormatSwitcher } from "@ui/inputs";
 import { FloatingPanel } from "@ui/overlay";
+import { resolveProfile } from "@engine/profile";
 import { Canvas, Thumb } from "./Canvas";
 import { Present } from "./Present";
 import { DataEditor } from "./panels/DataEditor";
@@ -50,6 +51,8 @@ import {
     selection,
     setLeftOpen,
     setRightTab,
+    setSlideFrame,
+    slideFrame,
     undo,
 } from "./core/store";
 
@@ -343,9 +346,32 @@ const Minimap: Component = () => {
         >
             <div class="flex items-center justify-between pl-1">
                 <Eyebrow mono={false}>Sections</Eyebrow>
-                <IconButton size="xs" tone="muted" title="Hide" onClick={() => setLeftOpen(false)}>
-                    <Icon name="close" size={12} />
-                </IconButton>
+                <div class="flex items-center gap-0.5">
+                    {/* paged only: a doc/site has no page shape to hold sections to */}
+                    <Show when={resolveProfile(editor.artifact.format).kind === "paged"}>
+                        <IconButton
+                            size="xs"
+                            tone="muted"
+                            active={slideFrame()}
+                            title={
+                                slideFrame()
+                                    ? "Fit sections to content"
+                                    : "Frame sections as slides"
+                            }
+                            onClick={() => setSlideFrame((v) => !v)}
+                        >
+                            <Icon name="deck" size={12} />
+                        </IconButton>
+                    </Show>
+                    <IconButton
+                        size="xs"
+                        tone="muted"
+                        title="Hide"
+                        onClick={() => setLeftOpen(false)}
+                    >
+                        <Icon name="close" size={12} />
+                    </IconButton>
+                </div>
             </div>
             <For each={sectionIds()}>
                 {(id, i) => {

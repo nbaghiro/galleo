@@ -15,6 +15,7 @@ import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { applyPatch } from "@model/ai";
 import { api, streamTurn } from "../api";
+import { loadBilling } from "./billing";
 import { bindChatTarget } from "./chat";
 import { appTheme } from "./theme";
 import { reportError } from "./errors";
@@ -49,7 +50,6 @@ export type Surface = "deck" | "doc" | "web";
 export type Stage = "idle" | "intake" | "planning" | "outline" | "building" | "done" | "error";
 
 export type SlotStatus = SectionStatus | "skipped";
-export type BeatStatus = "upcoming" | "active" | "done";
 
 export interface SectionSlot {
     id: string;
@@ -143,12 +143,6 @@ export const [gen, setGen] = createStore<SessionState>(initial());
 
 export const slotSection = (slot: SectionSlot): Section | null =>
     slot.versions[slot.active] ?? null;
-
-export const placedSections = (): Section[] =>
-    gen.slots
-        .filter((s) => s.status === "done")
-        .map(slotSection)
-        .filter((s): s is Section => !!s);
 
 export const builtCount = (): number => gen.slots.filter((s) => s.versions.length > 0).length;
 
@@ -382,6 +376,7 @@ function bindStudioToChat(): void {
         generation: () => (gen.stage === "idle" ? undefined : chatGeneration()),
         applyBeats: (ops) => applyBeatOps(ops),
         writeBeats: (ids) => void buildSections(ids),
+        requestPlan: (req) => void planFromChat(req),
         setSteer: (note) => setSteer(note),
         imageSource: () => gen.brief.imageSource,
         focus: () => {
@@ -453,6 +448,7 @@ async function runTurnStream(
         setGen("spent", (n) => n + cost);
     } finally {
         controllers.delete(controller);
+        void loadBilling(); // the sidebar's balance follows every turn, settled or aborted
     }
 }
 
@@ -464,6 +460,7 @@ export interface SessionStart {
     imageSource?: "stock" | "ai";
     source?: string; // pasted material to build FROM
     sourceArtifactId?: string; // repurpose an existing library artifact
+    contextIds?: string[]; // attached context-library collections
 }
 
 export async function startSession(input: SessionStart): Promise<void> {
@@ -478,12 +475,27 @@ export async function startSession(input: SessionStart): Promise<void> {
             imageSource: input.imageSource,
             source: input.source,
             sourceArtifactId: input.sourceArtifactId,
+            contextIds: input.contextIds?.length ? input.contextIds : undefined,
         },
         content: { format: input.surface, theme: input.theme, sections: [] },
     });
     beginRun(clip(input.prompt, 60));
     bindStudioToChat();
     await startPlan();
+}
+
+// the console's plan commission: fold the shaping note into the brief, run the same plan turn
+export async function planFromChat(req: { guidance?: string; andWrite?: boolean }): Promise<void> {
+    // a replan over written sections would mint beat ids that collide with existing slots
+    if (gen.planning || gen.stage === "building" || builtCount() > 0) return;
+    const note = req.guidance?.trim();
+    if (note)
+        setGen("brief", "clarifications", [
+            ...(gen.brief.clarifications ?? []),
+            `Shaping note — ${note}`,
+        ]);
+    await startPlan();
+    if (req.andWrite && gen.stage === "outline" && gen.beats.length) startBuild();
 }
 
 export function setBriefField(
@@ -574,9 +586,6 @@ export async function startPlan(): Promise<void> {
     }
 }
 
-export function setBeats(beats: Beat[]): void {
-    setGen("beats", beats);
-}
 export function selectBeat(id: string | null): void {
     setGen("selectedBeat", id);
 }
@@ -585,9 +594,6 @@ export function patchBeat(id: string, patch: Partial<Beat>): void {
 }
 export function moveBeatDir(id: string, dir: -1 | 1): void {
     setGen("beats", moveBeat(gen.beats, id, dir));
-}
-export function reorderBeats(id: string, toIndex: number): void {
-    setGen("beats", reorderBeat(gen.beats, id, toIndex));
 }
 export function removeBeatById(id: string): void {
     setGen("beats", removeBeat(gen.beats, id));

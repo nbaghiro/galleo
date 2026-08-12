@@ -13,6 +13,7 @@ import {
     paint,
     paintSectionStack,
     scaledHostCss,
+    sectionFrameHeight,
     sectionLayoutWidth,
     type StackWindow,
 } from "@canvas/render/backends";
@@ -24,7 +25,7 @@ import {
     type Slot,
 } from "@canvas/render/window";
 import { layoutPlaceholder } from "@canvas/render/placeholder";
-import { measureText, layoutSection } from "@canvas/render/commands";
+import { measureText, layoutSection, layoutSlide } from "@canvas/render/commands";
 import { applyDrop, computeDropTarget, drag, previewDrop, setDrag } from "./core/dnd";
 import { applyLiveEdit, liveEdit, sectionDrop, sectionDragId } from "./panels/Selection";
 import {
@@ -50,6 +51,7 @@ import {
     setSectionTops,
     setSelection,
     setStageEl,
+    slideFrame,
     startEditing,
     stopEditing,
 } from "./core/store";
@@ -108,6 +110,7 @@ export const Canvas: Component = () => {
                 dimId,
                 cache: stackCache,
                 window: win,
+                slideFrame: slideFrame(),
                 placeholder: waiting.size
                     ? (s, layoutW) => {
                           const summary = waiting.get(s.id);
@@ -339,6 +342,7 @@ export const Canvas: Component = () => {
         leftOpen();
         editing();
         editorTokens();
+        slideFrame();
         const p = preview();
         scheduleDraw(p?.sections ?? null, p?.track ?? false, p?.dimId ?? null);
     });
@@ -452,13 +456,18 @@ export const Thumb: Component<{
         const layoutW = sectionLayoutWidth(props.section, profile, canvasContentWidth());
         const w = wrap.clientWidth || 150;
         const scale = w / layoutW;
-        const { commands, height } = layoutSection(
-            props.section,
-            layoutW,
-            measureText,
-            theme,
-            profile,
-        );
+        // mirrors the stack's mode, so the minimap is a true zoomed-out copy of what's on canvas
+        const slide = slideFrame() && profile.kind === "paged";
+        const { commands, height } = slide
+            ? layoutSlide(
+                  props.section,
+                  layoutW,
+                  sectionFrameHeight(props.section, profile, layoutW),
+                  measureText,
+                  theme,
+                  profile,
+              )
+            : layoutSection(props.section, layoutW, measureText, theme, profile);
         inner.style.cssText = scaledHostCss(layoutW, height, scale);
         paint(commands, inner);
         wrap.style.height = `${Math.round(height * scale) + 2}px`;

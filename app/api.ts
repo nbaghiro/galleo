@@ -10,7 +10,8 @@ import type {
     SearchResponse,
     Section,
 } from "@model/artifact";
-import type { Folder, User } from "@model/workspace";
+import type { Usage } from "@model/credits";
+import type { Folder, User, WorkspaceRole } from "@model/workspace";
 import type { Template } from "@model/templates";
 import type { ThemeSummary as Theme, ThemeInput, Tokens } from "@themes";
 import type {
@@ -22,9 +23,9 @@ import type {
     FeatureKey,
     FeatureStatus,
     Features,
+    ScheduledChange,
 } from "@model/billing";
 import type { BriefDraft, TurnEvent, TurnRequest } from "@model/ai";
-import type { ToolId, MeterParams, Usage } from "@model/credits";
 import type {
     IconPick,
     IconSearchResponse,
@@ -49,8 +50,16 @@ export interface BillingState {
     status: string;
     periodEnd: string | null;
     cancelAtPeriodEnd: boolean;
-    credits: { used: number; limit: number; bonus: number; perGeneration: number };
-    usage: { artifacts: number; maxArtifacts: number };
+    credits: {
+        used: number;
+        limit: number;
+        bonus: number;
+        perGeneration: number;
+        resetAt: string;
+        mySpend: number; // the caller's own spend this cycle
+    };
+    usage: { artifacts: number; maxArtifacts: number; storageMb: number; maxStorageMb: number };
+    scheduledChange: ScheduledChange | null; // a downgrade parked at period end
     seats: number;
     catalog: Plan[];
     topUps: CreditPack[];
@@ -61,14 +70,21 @@ export interface BillingState {
 export interface LedgerEntry {
     delta: number;
     reason: string;
+    usage: Usage | null;
     balanceAfter: number;
     at: string;
+    user: { name: string | null; email: string; avatarUrl: string | null } | null;
+}
+
+export interface LedgerPage {
+    entries: LedgerEntry[];
+    nextCursor: string | null;
 }
 
 // GET /workspace — members, pending invites (owner only), and the user's memberships
 export interface WorkspaceMember {
     userId: string;
-    role: string;
+    role: WorkspaceRole;
     joinedAt: string;
     email: string;
     name: string | null;
@@ -85,7 +101,7 @@ export interface WorkspaceInvite {
 
 export interface WorkspaceState {
     workspace: { id: string; name: string; plan: PlanId; seats: number };
-    role: "owner" | "member";
+    role: WorkspaceRole;
     members: WorkspaceMember[];
     invites: WorkspaceInvite[];
     memberships: { id: string; name: string; active: boolean }[];
@@ -100,7 +116,7 @@ export interface FeaturesState {
 
 export interface ModelCatalogue {
     tasks: string[];
-    models: { id: string; label: string; provider: string }[];
+    models: { id: string; label: string; provider: string; locked: boolean }[];
     defaults: Record<string, string>; // already resolved for this workspace's tier
     rates: Record<string, number>; // credit multiplier per model, baseline 1.0
 }
@@ -220,19 +236,33 @@ export type PublicResult =
       };
 
 // typed client over /api/* (dev proxy → :8601); cookies carry the session
-export type {
-    Cover as ApiCover,
-    SectionSummary as ApiSection,
-    ArtifactSummary,
-    ArtifactWindow,
-    Artifact,
-    ContentPatch,
-    GenMeta,
-    SearchHit,
-    SearchResponse,
-} from "@model/artifact";
+export type { ArtifactSummary, SearchHit } from "@model/artifact";
 export type { User as ApiUser, Folder as ApiFolder } from "@model/workspace";
 export type { Template as ApiTemplate } from "@model/templates";
+
+// the context library's wire shapes (server: services/api/context.ts)
+export interface ContextSummary {
+    id: string;
+    name: string;
+    description: string | null;
+    items: number;
+    clusters: number[]; // chunk count per source, newest first
+    updatedAt: string;
+}
+export interface ContextItemMeta {
+    id: string;
+    kind: "file" | "link" | "artifact" | "template" | "text";
+    title: string;
+    ref: string | null;
+    chars: number;
+    chunks: number;
+    createdAt: string;
+}
+export type NewContextItem =
+    | { kind: "file" | "text"; title: string; body: string }
+    | { kind: "link"; url: string }
+    | { kind: "artifact"; artifactId: string }
+    | { kind: "template"; templateId: string };
 export type { ThemeSummary as ApiTheme } from "@themes";
 
 import { modelHeaders } from "./stores/models";
@@ -292,7 +322,40 @@ export const api = {
     logout: () => req<{ ok: true }>("/auth/logout", { method: "POST" }),
     // `qs` carries the page's filters + cursor; the server owns folder/format/sort so pages stay coherent
     listArtifacts: (qs = "") => req<ArtifactPage>(`/artifacts${qs ? `?${qs}` : ""}`),
-    listTemplates: () => req<{ templates: Template[] }>("/templates"),
+    listTemplates: () => req<{ templates: Template[]; uses: Record<string, number> }>("/templates"),
+
+    // the context library
+    fetchWebpage: (url: string) =>
+        req<{ title: string; text: string; url: string }>("/webpage", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url }),
+        }),
+    listContexts: () => req<{ contexts: ContextSummary[] }>("/contexts"),
+    createContext: (name: string, description?: string) =>
+        req<{ id: string }>("/contexts", {
+            method: "POST",
+            body: JSON.stringify({ name, description }),
+        }),
+    getContextItems: (id: string) => req<{ items: ContextItemMeta[] }>(`/contexts/${id}`),
+    getContextItemSnapshot: (id: string, itemId: string) =>
+        req<{ body: string }>(`/contexts/${id}/items/${itemId}/snapshot`),
+    updateContext: (id: string, patch: { name?: string; description?: string | null }) =>
+        req<{ ok: boolean }>(`/contexts/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(patch),
+        }),
+    deleteContext: (id: string) => req<{ ok: boolean }>(`/contexts/${id}`, { method: "DELETE" }),
+    addContextItem: (id: string, item: NewContextItem) =>
+        req<{ item: ContextItemMeta }>(`/contexts/${id}/items`, {
+            method: "POST",
+            body: JSON.stringify(item),
+        }),
+    removeContextItem: (id: string, itemId: string) =>
+        req<{ ok: boolean }>(`/contexts/${id}/items/${itemId}`, { method: "DELETE" }),
+    resyncContextItem: (id: string, itemId: string) =>
+        req<{ ok: boolean }>(`/contexts/${id}/items/${itemId}/resync`, { method: "POST" }),
     getArtifact: (id: string) => req<{ artifact: Artifact }>(`/artifacts/${id}`),
     // the shell + the full section index + only the sections asked for
     getArtifactWindow: (id: string, from: number, count: number) =>
@@ -430,14 +493,28 @@ export const api = {
             body: JSON.stringify(opts),
         }),
     resumePlan: () => req<{ ok?: boolean }>("/billing/resume", { method: "POST" }),
-    getLedger: () => req<{ entries: LedgerEntry[] }>("/billing/ledger"),
+    getLedger: (cursor?: string | null) =>
+        req<LedgerPage>(`/billing/ledger${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
     topUp: (pack: CreditPackId) =>
         req<{ url: string }>("/billing/topup", { method: "POST", body: JSON.stringify({ pack }) }),
     getWorkspace: () => req<WorkspaceState>("/workspace"),
-    inviteMember: (email: string) =>
+    inviteMember: (email: string, role: "admin" | "member" = "member") =>
         req<{ invite: WorkspaceInvite; url: string; sent: boolean }>("/workspace/invites", {
             method: "POST",
-            body: JSON.stringify({ email }),
+            body: JSON.stringify({ email, role }),
+        }),
+    renameWorkspace: (name: string) =>
+        req<{ ok: true }>("/workspace", { method: "PATCH", body: JSON.stringify({ name }) }),
+    setMemberRole: (userId: string, role: "admin" | "member") =>
+        req<{ ok: true }>(`/workspace/members/${userId}`, {
+            method: "PATCH",
+            body: JSON.stringify({ role }),
+        }),
+    leaveWorkspace: () => req<{ ok: true }>("/workspace/leave", { method: "POST" }),
+    transferOwnership: (userId: string) =>
+        req<{ ok: true }>("/workspace/transfer", {
+            method: "POST",
+            body: JSON.stringify({ userId }),
         }),
     revokeInvite: (id: string) =>
         req<{ ok: boolean }>(`/workspace/invites/${id}`, { method: "DELETE" }),
@@ -456,16 +533,6 @@ export const api = {
             body: JSON.stringify({ token }),
         }),
     portal: () => req<{ url: string }>("/billing/portal", { method: "POST" }),
-    spendCredits: (body?: {
-        amount?: number;
-        action?: ToolId;
-        meter?: MeterParams;
-        usage?: Usage;
-    }) =>
-        req<{ remaining: number }>("/billing/spend", {
-            method: "POST",
-            body: JSON.stringify(body ?? {}),
-        }),
 
     listLinks: () => req<{ links: LinkSummary[] }>("/links"),
     getArtifactLinks: (artifactId: string) =>

@@ -40,6 +40,7 @@ import {
     restoreFromTrash,
 } from "./library";
 import { addFolder, folders } from "./folders";
+import { templatesOnce } from "./templates";
 import { reportError } from "./errors";
 import { noteStep } from "./model-usage";
 import { textInsertAt, type ChatMsg, type UIBlock } from "./chat-blocks";
@@ -66,6 +67,7 @@ export interface Draft {
     done: number; // sections placed so far
     phase?: string;
     error?: string;
+    templateId?: string; // provenance when started from a starter; feeds template popularity
     state: "live" | "opened" | "discarded"; // live = the current refine target; terminal once opened/discarded
 }
 const [drafts, setDrafts] = createStore<Record<string, Draft>>({});
@@ -89,6 +91,7 @@ export interface ChatTarget {
     generation?: () => ChatGeneration | undefined;
     applyBeats?: (ops: OutlinePatch) => void;
     writeBeats?: (beatIds: string[]) => void;
+    requestPlan?: (req: { guidance?: string; andWrite?: boolean }) => void;
     setSteer?: (note: string) => void;
     imageSource?: () => "stock" | "ai" | undefined;
 }
@@ -171,7 +174,12 @@ function meta(): Pick<ChatContext, "plan" | "credits"> {
     };
 }
 
+// contexts attached to the conversation; every turn retrieves against them
+const [chatContextIds, setChatContextIds] = createSignal<string[]>([]);
+export { chatContextIds, setChatContextIds };
+
 function buildContext(): ChatContext {
+    const attached = chatContextIds().length ? { contextIds: chatContextIds() } : {};
     // a bound target outranks the editor: it's what's on screen
     const t = chatTarget();
     if (t) {
@@ -183,6 +191,7 @@ function buildContext(): ChatContext {
             focus: t.focus?.(),
             ...(generation && { generation }),
             ...(t.imageSource?.() === "ai" && { imageSource: "ai" as const }),
+            ...attached,
             ...meta(),
         };
     }
@@ -193,11 +202,12 @@ function buildContext(): ChatContext {
             artifactId: id,
             content: editor.artifact,
             focus: deriveFocus(),
+            ...attached,
             ...meta(),
         };
     const d = activeDraft();
-    if (d) return { surface: "editor", content: d.content, ...meta() };
-    return { surface: "library", library: buildLibrary(), ...meta() };
+    if (d) return { surface: "editor", content: d.content, ...attached, ...meta() };
+    return { surface: "library", library: buildLibrary(), ...attached, ...meta() };
 }
 
 function updateMsg(id: number, fn: (m: ChatMsg) => void): void {
@@ -456,17 +466,15 @@ export async function generateFromBrief(brief: GenBrief): Promise<void> {
     }
 }
 
-let templateCache: Template[] | null = null;
 export async function startDraftFromTemplate(templateId: string): Promise<void> {
     if (busy()) return;
-    if (!templateCache) {
-        try {
-            templateCache = (await api.listTemplates()).templates;
-        } catch {
-            return;
-        }
+    let all: Template[];
+    try {
+        all = await templatesOnce();
+    } catch {
+        return;
     }
-    const t = templateCache.find((x) => x.id === templateId);
+    const t = all.find((x) => x.id === templateId);
     if (!t) return;
     const id = `d-${++draftSeq}`;
     setDrafts(id, {
@@ -476,6 +484,7 @@ export async function startDraftFromTemplate(templateId: string): Promise<void> 
         status: "ready",
         total: t.content.sections.length,
         done: t.content.sections.length,
+        templateId,
         state: "live",
     });
     setActiveDraftId(id);
@@ -490,7 +499,13 @@ export async function startDraftFromTemplate(templateId: string): Promise<void> 
 export async function persistDraft(id: string): Promise<string | null> {
     const d = drafts[id];
     if (!d) return null;
-    const newId = await persistArtifact(d.content, d.title || artifactTitle(d.content));
+    const newId = await persistArtifact(
+        d.content,
+        d.title || artifactTitle(d.content),
+        null,
+        undefined,
+        d.templateId,
+    );
     if (newId) {
         setDrafts(id, "state", "opened");
         if (activeDraftId() === id) setActiveDraftId(null);
@@ -655,6 +670,14 @@ export function applyWrite(msgId: number, blockId: string): void {
     const w = findWidget(msgId, blockId);
     if (!w || w.block.type !== "write" || w.applied) return;
     chatTarget()?.writeBeats?.(w.block.beatIds);
+    markApplied(msgId, blockId, "applied");
+}
+
+// planning runs the studio's own plan turn, for the same reason
+export function applyPlanRequest(msgId: number, blockId: string): void {
+    const w = findWidget(msgId, blockId);
+    if (!w || w.block.type !== "plan" || w.applied) return;
+    chatTarget()?.requestPlan?.({ guidance: w.block.guidance, andWrite: w.block.andWrite });
     markApplied(msgId, blockId, "applied");
 }
 

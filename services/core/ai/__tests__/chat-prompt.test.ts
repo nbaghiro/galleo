@@ -47,9 +47,14 @@ describe("the generate prompt", () => {
     const out = (over?: Partial<ChatGeneration>): string =>
         chatSystem({ surface: "generate", content: content(1), generation: generation(over) });
 
-    it("names write-section as the way to execute the plan, and warns off add-section", () => {
-        expect(out()).toContain("write-section");
+    it("names request-write as the way to execute the plan, and warns off add-section", () => {
+        expect(out()).toContain("request-write");
         expect(out()).toContain("Never use add-section for this");
+    });
+    it("names request-plan for replanning the arc, distinct from revising it", () => {
+        const text = out();
+        expect(text).toContain("request-plan");
+        expect(text).toContain("REPLAN");
     });
     it("never offers to start a separate artifact", () => {
         expect(out()).not.toContain("propose-generation");

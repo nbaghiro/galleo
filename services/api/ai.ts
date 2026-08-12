@@ -4,27 +4,26 @@ import { getCookie } from "hono/cookie";
 import type { Surface, TurnEvent, TurnRequest } from "@model/ai";
 import { isKind } from "@model/ai";
 import { overridesFrom, requireWorkspace, type WorkspaceEnv } from "./middleware";
-import { costOf, creditsForUsd, estimateCost } from "@model/credits";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import { featuresFor } from "@model/billing";
 import { currentUser } from "../core/accounts";
 import { SESSION_COOKIE } from "../utils/auth";
-import { readJson } from "../utils/http";
+import { OUT_OF_CREDITS, readJson } from "../utils/http";
 import { warn } from "../utils/env";
-import { chargeCredits, settleCredits } from "../core/credits";
-import { generateImage, imageGenReady, storeGenerated } from "../core/media";
-import { ACTION_FOR, IMPLEMENTED, meterFor, ratesFor, usdOf, withMeter } from "../core/ai/meter";
-import { aiReady } from "../core/ai/provider";
-import { reviseElement, runTurn } from "../core/ai/run";
-import type { ImageOptions } from "../core/ai/run";
+import { reserve } from "../core/spend";
+import { assetUrl, generateImage, imageGenReady, refImage, storeGenerated } from "../core/media";
+import { ACTION_FOR, IMPLEMENTED, meterFor, ratesFor } from "../core/ai/meter";
+import { aiReady, embeddingReady } from "../core/ai/provider";
+import { runTurn } from "../core/ai/run";
+import { makeContext } from "../core/ai/tools";
+import { reviseElement } from "../core/ai/tools/element";
+import type { ImageOptions } from "../core/ai/images";
 import { makeWorkspaceReader } from "../core/ai/reader";
-import {
-    expandBrief,
-    generateThemeFromPrompt,
-    rewriteText,
-    suggestSections,
-    translateText,
-} from "../core/ai/tasks";
+import { makeContextRetriever, recallConversation, recordChatExchange } from "../core/context";
+import { expandBrief } from "../core/ai/tools/plan";
+import { generateThemeFromPrompt } from "../core/ai/tools/theme";
+import { rewriteText, translateText } from "../core/ai/tools/text";
+import { suggestSections } from "../core/ai/tools/suggest";
 import type { BriefRead } from "../core/ai/prompts/brief";
 
 export const ai = new Hono<WorkspaceEnv>();
@@ -56,18 +55,17 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
 
     // Reserve before the billable model calls; 402 when spent.
     const feats = featuresFor(ws);
-    const meter = meterFor(req, feats.maxSectionsPerGeneration);
     // a step pinned to a heavier model costs us more, so the reserve and the settle both price the
     // models this turn will actually run on
     const overrides = overridesFrom(c);
-    const rates = ratesFor(ws, overridesFrom(c));
-    const cost = estimateCost(ACTION_FOR[req.kind], meter, rates);
-    const spend = await chargeCredits(ws, cost, ACTION_FOR[req.kind]);
-    if (!spend.ok)
-        return c.json(
-            { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
-            402,
-        );
+    const held = await reserve(
+        ws,
+        c.get("user").id,
+        ACTION_FOR[req.kind],
+        meterFor(req, feats.maxSectionsPerGeneration),
+        ratesFor(ws, overrides),
+    );
+    if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
 
     // AI images are counted so the settle can reconcile the estimate to the real count; stock is free.
     const imageSource =
@@ -83,14 +81,25 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
     const image: ImageOptions = wantsAiImages
         ? {
               source: "ai",
-              generate: async (phrase, orientation) => {
+              generate: async (phrase, orientation, refUrl) => {
                   const aspect =
                       orientation === "portrait"
                           ? "3:4"
                           : orientation === "square"
                             ? "1:1"
                             : "16:9";
-                  const img = await generateImage(phrase, aspect, "photo", feats.imageModelTier);
+                  // a ref only exists for images we generated and stored; a stock url has no asset
+                  const refId = refUrl?.startsWith(ASSET_PREFIX)
+                      ? refUrl.slice(ASSET_PREFIX.length)
+                      : undefined;
+                  const ref = refId ? ((await refImage(ws.id, refId)) ?? undefined) : undefined;
+                  const img = await generateImage(
+                      phrase,
+                      aspect,
+                      "photo",
+                      feats.imageModelTier,
+                      ref,
+                  );
                   if (!img) return null;
                   const item = await storeGenerated(ws.id, "image", img, phrase);
                   aiImages++;
@@ -99,16 +108,33 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
           }
         : {};
 
+    // an asset url is the only ref we can resolve back to bytes
+    const ASSET_PREFIX = assetUrl("");
+
+    // attached context collections ground the turn; absent (or no embedding model) they cost nothing
+    const contextIds =
+        req.kind === "generate" || req.kind === "plan"
+            ? req.input.contextIds
+            : req.kind === "build"
+              ? req.input.brief.contextIds
+              : req.kind === "chat"
+                ? req.input.context.contextIds
+                : undefined;
+    const retriever =
+        embeddingReady() && contextIds?.length ? makeContextRetriever(ws.id, contextIds) : null;
+    // conversation memory is keyed to the piece being discussed; a draft with no id yet is "library"
+    const chatKey = req.kind === "chat" ? (req.input.context.artifactId ?? null) : null;
+
     const ctrl = new AbortController();
     return streamSSE(c, async (stream) =>
-        // every model call inside this scope reports its tokens, sub-tools included
-        withMeter(async (used) => {
+        held.settle(async (produced) => {
             stream.onAbort(() => ctrl.abort());
             let seq = 0;
             const send = (event: TurnEvent): Promise<void> =>
                 stream.writeSSE({ data: JSON.stringify({ seq: seq++, event }) });
             try {
                 const workspace = makeWorkspaceReader(ws.id);
+                let reply = "";
                 for await (const ev of runTurn(req, {
                     models: overrides,
                     signal: ctrl.signal,
@@ -116,8 +142,26 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
                     image,
                     tier: feats.textModelTier,
                     maxSections: feats.maxSectionsPerGeneration,
-                }))
+                    pack: retriever ? retriever.pack : undefined,
+                    recall:
+                        req.kind === "chat" && embeddingReady()
+                            ? (q) => recallConversation(ws.id, chatKey, q)
+                            : undefined,
+                })) {
+                    if (ev.type === "chat.text") reply += ev.delta;
                     await send(ev);
+                }
+                // memory is best-effort: a failed write must never fail the turn it remembers
+                if (req.kind === "chat" && embeddingReady()) {
+                    try {
+                        await recordChatExchange(ws.id, chatKey, [
+                            { role: "user", text: req.input.message },
+                            { role: "assistant", text: reply },
+                        ]);
+                    } catch {
+                        /* the turn already served; recall just won't see this exchange */
+                    }
+                }
             } catch (e) {
                 if (!ctrl.signal.aborted)
                     await send({
@@ -125,10 +169,8 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
                         message: e instanceof Error ? e.message : "the turn failed",
                     });
             } finally {
-                // Settle on what the turn really cost: tokens at provider list price, plus images at
-                // their flat per-asset rate. Runs even after a mid-turn error, so real spend is billed.
-                const owed = creditsForUsd(usdOf(used.uses)) + costOf({ image: aiImages });
-                await settleCredits(ws, owed - cost, `${ACTION_FOR[req.kind]}:settle`);
+                // tokens are metered for us; images are flat-priced, so their count is ours to report
+                produced({ image: aiImages });
             }
         }),
     );
@@ -141,35 +183,30 @@ ai.post("/ai/brief", requireWorkspace, async (c) => {
     if (!aiReady()) return c.json({ brief: null });
     const body = await readJson<{ prompt?: string; surface?: Surface; previous?: BriefRead }>(c);
     if (!body?.prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
+    const prompt = body.prompt.trim();
 
-    const spend = await chargeCredits(
+    const held = await reserve(
         ws,
-        estimateCost("draft-brief", {}, ratesFor(ws, overridesFrom(c))),
+        c.get("user").id,
         "draft-brief",
+        {},
+        ratesFor(ws, overridesFrom(c)),
     );
-    if (!spend.ok)
-        return c.json(
-            { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
-            402,
-        );
+    if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
 
-    try {
-        const brief = await expandBrief(body.prompt.trim(), body.surface, {
-            models: overridesFrom(c),
-            tier: featuresFor(ws).textModelTier,
-            previous: body.previous,
-        });
-        return c.json({ brief });
-    } catch (e) {
-        // refund a read that produced nothing — the user got no value from it
-        await settleCredits(
-            ws,
-            -estimateCost("draft-brief", {}, ratesFor(ws, overridesFrom(c))),
-            "draft-brief:refund",
-        );
-        warn(`[ai:brief] ${e instanceof Error ? e.message : "failed"}`.slice(0, 400));
-        return c.json({ brief: null });
-    }
+    return held.settle(async () => {
+        try {
+            const brief = await expandBrief(prompt, body.surface, {
+                models: overridesFrom(c),
+                tier: featuresFor(ws).textModelTier,
+                previous: body.previous,
+            });
+            return c.json({ brief });
+        } catch (e) {
+            warn(`[ai:brief] ${e instanceof Error ? e.message : "failed"}`.slice(0, 400));
+            return c.json({ brief: null });
+        }
+    });
 });
 
 // Unmetered: one tiny call, client-cached per artifact; empty on failure (the client falls back).
@@ -200,30 +237,35 @@ ai.post("/ai/element", requireWorkspace, async (c) => {
     }>(c);
     if (!body?.content?.sections?.length || !body.sectionId || !body.element?.type)
         return c.json({ error: "content, sectionId, and element are required" }, 400);
+    const { content, sectionId, element: target } = body;
 
-    const spend = await chargeCredits(
+    const held = await reserve(
         ws,
-        estimateCost("revise-element", {}, ratesFor(ws, overridesFrom(c))),
+        c.get("user").id,
         "revise-element",
+        {},
+        ratesFor(ws, overridesFrom(c)),
     );
-    if (!spend.ok)
-        return c.json(
-            { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
-            402,
-        );
+    if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
 
-    try {
-        const element = await reviseElement(
-            body.content,
-            body.sectionId,
-            body.element,
-            body.instruction,
-            { tier: featuresFor(ws).textModelTier, models: overridesFrom(c) },
-        );
-        return c.json({ element });
-    } catch (e) {
-        return c.json({ error: e instanceof Error ? e.message : "regeneration failed" }, 500);
-    }
+    return held.settle(async () => {
+        try {
+            const element = await reviseElement(
+                content,
+                sectionId,
+                target,
+                makeContext({
+                    image: {},
+                    tier: featuresFor(ws).textModelTier,
+                    models: overridesFrom(c),
+                }),
+                body.instruction,
+            );
+            return c.json({ element });
+        } catch (e) {
+            return c.json({ error: e instanceof Error ? e.message : "regeneration failed" }, 500);
+        }
+    });
 });
 
 ai.post("/ai/text", requireWorkspace, async (c) => {
@@ -242,33 +284,34 @@ ai.post("/ai/text", requireWorkspace, async (c) => {
         return c.json({ error: "an instruction is required" }, 400);
     if (body.op === "translate" && !body.language?.trim())
         return c.json({ error: "a target language is required" }, 400);
+    const instruction = body.instruction?.trim() ?? "";
+    const language = body.language?.trim() ?? "";
 
+    const source = body.text;
     const tool = body.op === "translate" ? "translate-text" : "rewrite-text";
-    const spend = await chargeCredits(ws, estimateCost(tool), tool);
-    if (!spend.ok)
-        return c.json(
-            { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
-            402,
-        );
+    const held = await reserve(ws, c.get("user").id, tool, {}, ratesFor(ws, overridesFrom(c)));
+    if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
 
-    try {
-        const tier = featuresFor(ws).textModelTier;
-        const text =
-            body.op === "translate"
-                ? await translateText(body.text, body.language!.trim(), {
-                      models: overridesFrom(c),
-                      context: body.context,
-                      tier,
-                  })
-                : await rewriteText(body.text, body.instruction!.trim(), {
-                      models: overridesFrom(c),
-                      context: body.context,
-                      tier,
-                  });
-        return c.json({ text });
-    } catch (e) {
-        return c.json({ error: e instanceof Error ? e.message : "the edit failed" }, 500);
-    }
+    return held.settle(async () => {
+        try {
+            const tier = featuresFor(ws).textModelTier;
+            const text =
+                body.op === "translate"
+                    ? await translateText(source, language, {
+                          models: overridesFrom(c),
+                          context: body.context,
+                          tier,
+                      })
+                    : await rewriteText(source, instruction, {
+                          models: overridesFrom(c),
+                          context: body.context,
+                          tier,
+                      });
+            return c.json({ text });
+        } catch (e) {
+            return c.json({ error: e instanceof Error ? e.message : "the edit failed" }, 500);
+        }
+    });
 });
 
 ai.post("/ai/theme", requireWorkspace, async (c) => {
@@ -276,26 +319,30 @@ ai.post("/ai/theme", requireWorkspace, async (c) => {
     if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
     const body = await readJson<{ prompt?: string; isDark?: boolean }>(c);
     if (!body?.prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
+    const wanted = body.prompt.trim();
 
-    const spend = await chargeCredits(
+    const held = await reserve(
         ws,
-        estimateCost("generate-theme", {}, ratesFor(ws, overridesFrom(c))),
+        c.get("user").id,
         "generate-theme",
+        {},
+        ratesFor(ws, overridesFrom(c)),
     );
-    if (!spend.ok)
-        return c.json(
-            { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
-            402,
-        );
+    if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
 
-    try {
-        const theme = await generateThemeFromPrompt(body.prompt.trim(), {
-            models: overridesFrom(c),
-            isDark: body.isDark,
-            tier: featuresFor(ws).textModelTier,
-        });
-        return c.json({ theme });
-    } catch (e) {
-        return c.json({ error: e instanceof Error ? e.message : "theme generation failed" }, 500);
-    }
+    return held.settle(async () => {
+        try {
+            const theme = await generateThemeFromPrompt(wanted, {
+                models: overridesFrom(c),
+                isDark: body.isDark,
+                tier: featuresFor(ws).textModelTier,
+            });
+            return c.json({ theme });
+        } catch (e) {
+            return c.json(
+                { error: e instanceof Error ? e.message : "theme generation failed" },
+                500,
+            );
+        }
+    });
 });

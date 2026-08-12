@@ -1,7 +1,8 @@
 export interface Attachment {
     id: string;
     name: string;
-    kind: "paste" | "file";
+    kind: "paste" | "file" | "link" | "artifact"; // artifact = a library piece or a template
+    ref?: string; // link only: the fetched page's final URL
     text: string;
 }
 
@@ -41,7 +42,12 @@ export function mergeAttachments(items: Attachment[]): string | undefined {
     const parts = items
         .map((a) => ({ ...a, text: a.text.trim() }))
         .filter((a) => a.text)
-        .map((a) => (a.kind === "file" ? `--- ${a.name} ---\n${a.text}` : a.text));
+        .map((a) => {
+            if (a.kind === "file") return `--- ${a.name} ---\n${a.text}`;
+            if (a.kind === "link") return `--- ${a.name} (${a.ref ?? "web page"}) ---\n${a.text}`;
+            if (a.kind === "artifact") return `--- ${a.name} (a Galleo artifact) ---\n${a.text}`;
+            return a.text;
+        });
     return parts.length ? parts.join("\n\n") : undefined;
 }
 

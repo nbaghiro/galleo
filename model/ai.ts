@@ -15,7 +15,7 @@ export interface GenerateInput {
     length?: string;
     mustInclude?: string[]; // the outline tags beats with these
     clarifications?: string[]; // answered "Q — A" lines from the brief stage
-    contextRefs?: string[]; // ids into the artifact's ContextPack
+    contextIds?: string[]; // attached context-library collections; retrieval grounds every call
     source?: string;
     sourceArtifactId?: string;
     imageSource?: "stock" | "ai"; // stock is the free default
@@ -145,6 +145,7 @@ export interface ChatContext {
     focus?: ChatFocus;
     library?: ChatLibrary; // present on the "library" surface (no open artifact)
     generation?: ChatGeneration; // present on the "generate" surface (a run in progress)
+    contextIds?: string[]; // attached context-library collections
     imageSource?: "stock" | "ai"; // so re-sourcing an image matches how the piece was built
     plan?: string; // so the agent can hint at gated capabilities
     credits?: { remaining: number; limit: number }; // so the agent can answer "how many left"
@@ -202,6 +203,8 @@ export type ChatBlock =
     // a designed theme: the client saves it to the workspace, then points the artifact at the new id
     | { type: "theme"; name: string; mood: string; isDark: boolean; tokens: Tokens }
     | { type: "write"; summary: string; beatIds: string[] } // write these already-planned beats
+    // plan (or replan) the run's outline; the studio runs the plan turn when the user starts it
+    | { type: "plan"; summary: string; guidance?: string; andWrite?: boolean }
     // a standing note for every section still to be written; "" clears it
     | { type: "steer"; note: string }
     | { type: "action"; action: WorkspaceAction }; // a workspace action the client runs (or confirms)
@@ -213,8 +216,6 @@ export type TurnRequest =
     | { kind: "chat"; input: ChatInput }
     | { kind: "plan"; input: GenerateInput }
     | { kind: "build"; input: BuildInput };
-
-export type TurnStatus = "pending" | "running" | "done" | "error" | "canceled";
 
 export const isKind = (k: string): k is TurnKind =>
     k === "generate" ||

@@ -128,7 +128,6 @@ const [sectionGen, setSectionGen] = createStore<SectionGenState>({
 });
 export { sectionGen };
 
-export const sectionGenActive = (): boolean => sectionGen.stage !== null;
 export const sectionGenGenerating = (): boolean =>
     sectionGen.stage === "planning" || sectionGen.stage === "writing";
 
@@ -257,13 +256,6 @@ export async function runSectionGen(instruction: string): Promise<void> {
     }, 800);
 }
 
-function collectTypes(el: ElementInstance | undefined, into: Set<string>): void {
-    if (!el) return;
-    into.add(el.type);
-    const kids = (el.data as { children?: ElementInstance[] }).children;
-    if (Array.isArray(kids)) kids.forEach((k) => collectTypes(k, into));
-}
-
 function firstText(section: Section): string {
     let found = "";
     const visit = (el?: ElementInstance): void => {
@@ -277,40 +269,6 @@ function firstText(section: Section): string {
     };
     visit(section.root);
     return found;
-}
-
-function typesOf(content: ArtifactContent): Set<string> {
-    const types = new Set<string>();
-    for (const s of content.sections) collectTypes(s.root, types);
-    return types;
-}
-
-export function suggestSections(content: ArtifactContent, n = 6): string[] {
-    const t = typesOf(content);
-    const has = (kind: string): boolean => t.has(kind);
-    const rules: { on: boolean; text: string; w: number }[] = [
-        { on: !has("stat"), text: "Add the key numbers as stats", w: 9 },
-        { on: !has("button"), text: "Add a closing call-to-action", w: 9 },
-        { on: !has("quote"), text: "Add a customer quote", w: 8 },
-        { on: has("quote"), text: "Add another voice or testimonial", w: 4 },
-        { on: !has("chart"), text: "Visualize a trend in a chart", w: 7 },
-        { on: !has("table"), text: "Add a comparison table", w: 6 },
-        { on: !has("diagram"), text: "Show the process as a diagram", w: 5 },
-        { on: !has("card"), text: "Break the highlights into three cards", w: 4 },
-        // evergreen: always eligible at low weight, so short artifacts still fill out
-        { on: true, text: "Add a proof or results section", w: 3 },
-        { on: true, text: "Add a “how it works” section", w: 2 },
-        { on: true, text: "Add an FAQ or objections section", w: 1 },
-    ];
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const r of rules.filter((r) => r.on).sort((a, b) => b.w - a.w)) {
-        if (seen.has(r.text)) continue;
-        seen.add(r.text);
-        out.push(r.text);
-        if (out.length >= n) break;
-    }
-    return out;
 }
 
 // a suggestion set is reused until the section count or opening headline changes
@@ -332,16 +290,11 @@ export async function fetchSuggestions(
         if (hit) return hit;
     }
     const handler = getSuggestSections();
-    if (!handler) return suggestSections(content);
-    try {
-        const got = await handler(content);
-        const list = got.filter((s) => typeof s === "string" && s.trim()).slice(0, 6);
-        const result = list.length ? list : suggestSections(content);
-        llmCache.set(key, result);
-        return result;
-    } catch {
-        return suggestSections(content);
-    }
+    if (!handler) return [];
+    const got = await handler(content);
+    const list = got.filter((s) => typeof s === "string" && s.trim()).slice(0, 6);
+    if (list.length) llmCache.set(key, list);
+    return list;
 }
 
 type Range = { from: number; to: number };
@@ -352,7 +305,6 @@ interface TextAssistState {
 }
 const [textAssist, setTextAssist] = createStore<TextAssistState>({ busy: false, error: null });
 export { textAssist };
-export const textAssistBusy = (): boolean => textAssist.busy;
 
 export const canAssistText = (): boolean => getTextAssist() !== null;
 

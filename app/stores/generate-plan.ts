@@ -1,7 +1,8 @@
 import type { Beat } from "@model/ai";
 import { LAYOUT_PRESETS } from "@model/artifact";
 import type { UnitRates } from "@model/credits";
-import { COST_UNITS, estimateCost } from "@model/credits";
+import { COST_UNITS } from "@model/credits";
+import { estimateCost } from "@model/tools";
 
 export const LAYOUT_IDS: string[] = Object.keys(LAYOUT_PRESETS);
 

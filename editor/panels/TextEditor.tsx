@@ -1,7 +1,7 @@
 import type { ElementAddress } from "@model/artifact";
 import type { Component, JSX } from "solid-js";
 import { createMemo, onCleanup, onMount, Show } from "solid-js";
-import { sectionContentTokens } from "@elements/compose";
+import { composedLeafFor, sectionContentTokens } from "@elements/compose";
 import { getElementAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { elementRegionId } from "@model/artifact";
@@ -72,7 +72,12 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         const base = editorTokens();
         const section = editor.artifact.sections.find((s) => s.id === props.address.section);
         const tokens = section ? sectionContentTokens(section, base) : base;
-        return spec.layout(i.data, ctxFor(200, tokens)).text ?? null;
+        // containers restyle their text children (a diagram label paints at node size, not body
+        // size), so style from the composed leaf; the spec's own leaf covers a bare element
+        const composed = section
+            ? composedLeafFor(section, props.address, ctxFor(200, base))
+            : null;
+        return composed ?? spec.layout(i.data, ctxFor(200, tokens)).text ?? null;
     });
     const box = createMemo(
         () => regions().find((r) => r.id === elementRegionId(props.address))?.box ?? null,

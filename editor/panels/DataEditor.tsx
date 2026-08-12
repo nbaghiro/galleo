@@ -5,11 +5,12 @@ import type { ElementAddress } from "@model/artifact";
 import { elementRegionId } from "@model/artifact";
 import { getElementAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
-import { canvasDrawContext } from "@canvas/render/backends";
+import { canvasDrawContext, renderToCanvas } from "@canvas/render/backends";
+import { layout } from "@engine/layout";
+import { resolveProfile } from "@engine/profile";
+import { measureText } from "@canvas/render/commands";
 import { renderChart } from "@elements/chart/render";
-import { renderDiagram } from "@elements/diagram/render";
 import { toChartData } from "@elements/chart/utils";
-import { toDiagramData } from "@elements/diagram/utils";
 import { commit, editor, editorTokens } from "../core/store";
 import { Badge, Button, IconButton } from "@ui/button";
 import { CellInput } from "@ui/inputs";
@@ -817,8 +818,29 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
         const d = currentData();
         const box = { x: 0, y: 0, w: W, h: H };
         try {
-            if (kind === "chart") renderChart(canvasDrawContext(cx), box, toChartData(d), tk);
-            else renderDiagram(canvasDrawContext(cx), box, toDiagramData(d), tk);
+            if (kind === "chart") {
+                renderChart(canvasDrawContext(cx), box, toChartData(d), tk);
+            } else {
+                // diagrams compose real children; run the element's own container path to commands
+                const dspec = getElement("diagram")!;
+                const data = { ...d, height: H };
+                const lctx = {
+                    box,
+                    availWidth: W,
+                    format: resolveProfile("deck"),
+                    theme: tk,
+                    plain: true,
+                };
+                const kids = dspec
+                    .container!.children(data)
+                    .map((child) => getElement(child.type)!.layout(child.data, lctx));
+                const node = dspec.container!.arrange(data, lctx, kids);
+                const { commands } = layout(node, box, measureText);
+                void renderToCanvas(commands, W, H, tk.surface, dpr).then((img) => {
+                    cx.setTransform(1, 0, 0, 1, 0, 0);
+                    cx.drawImage(img, 0, 0, cv!.width, cv!.height);
+                });
+            }
         } catch {
             /* malformed intermediate value — skip this frame */
         }

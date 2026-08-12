@@ -3,7 +3,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show }
 import { useNavigate } from "@solidjs/router";
 import type { ChatBlock, GenBrief, WorkspaceAction } from "@model/ai";
 import type { Section } from "@model/artifact";
-import { estimateCost } from "@model/credits";
+import { estimateCost } from "@model/tools";
 import { Credits } from "../components/credits";
 import type { Tokens } from "@themes";
 import { resolveTheme, themeCssVars } from "@themes";
@@ -25,10 +25,12 @@ type Templates = Extract<ChatBlock, { type: "templates" }>;
 import {
     actionLabel,
     applyOutline,
+    applyPlanRequest,
     applyWrite,
     applyProposal,
     applyTheme,
     busy,
+    chatContextIds,
     chatOpen,
     clearSteer,
     closeChat,
@@ -44,6 +46,7 @@ import {
     previewSource,
     resetThread,
     sendChat,
+    setChatContextIds,
     shareArtifactAction,
     startDraftFromTemplate,
     stopChat,
@@ -51,6 +54,8 @@ import {
     toggleChat,
 } from "../stores/chat";
 import { generateOpen } from "../stores/generate";
+import { ContextPicker } from "../components/ContextPicker";
+import { contextList } from "../stores/contexts";
 
 const ProposalCard: Component<{
     msgId: number;
@@ -215,6 +220,62 @@ const SteerCard: Component<{
                 Clear
             </Button>
         </Show>
+    </div>
+);
+
+type PlanRequest = Extract<ChatBlock, { type: "plan" }>;
+
+// planning is metered (the studio's plan turn), so the card prices it and waits for a go
+const PlanCard: Component<{
+    msgId: number;
+    blockId: string;
+    applied?: "applied" | "discarded";
+    plan: PlanRequest;
+}> = (props) => (
+    <div class="mt-1 overflow-hidden rounded-xl border border-line bg-canvas">
+        <div class="flex flex-col gap-0.5 px-3 py-2">
+            <span class="text-[12px] text-ink">{props.plan.summary}</span>
+            <Show when={props.plan.guidance}>
+                <span class="text-[11.5px] leading-snug text-muted">“{props.plan.guidance}”</span>
+            </Show>
+            <Show when={props.plan.andWrite}>
+                <span class="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+                    then every section, {estimateCost("add-section")} credits each
+                </span>
+            </Show>
+        </div>
+        <div class="flex items-center justify-end gap-2 border-t border-line px-3 py-2">
+            <Show
+                when={!props.applied}
+                fallback={
+                    <span
+                        class="flex-none text-[11px] font-semibold uppercase tracking-[0.1em]"
+                        classList={{
+                            "text-accent": props.applied === "applied",
+                            "text-muted": props.applied === "discarded",
+                        }}
+                    >
+                        {props.applied === "applied" ? "Planning ✓" : "Discarded"}
+                    </span>
+                }
+            >
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => discardProposal(props.msgId, props.blockId)}
+                >
+                    Not now
+                </Button>
+                <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => applyPlanRequest(props.msgId, props.blockId)}
+                >
+                    {props.plan.andWrite ? "Plan + write all" : "Plan the outline"} ·{" "}
+                    <Credits n={estimateCost("plan-outline")} />
+                </Button>
+            </Show>
+        </div>
     </div>
 );
 
@@ -797,6 +858,16 @@ const BlockView: Component<{ msgId: number; b: UIBlock }> = (props) => (
                 />
             )}
         </Show>
+        <Show when={props.b.k === "widget" && props.b.block.type === "plan" ? props.b : null}>
+            {(b) => (
+                <PlanCard
+                    msgId={props.msgId}
+                    blockId={b().blockId}
+                    applied={b().applied}
+                    plan={b().block as PlanRequest}
+                />
+            )}
+        </Show>
         <Show when={props.b.k === "widget" && props.b.block.type === "outline" ? props.b : null}>
             {(b) => (
                 <OutlineCardProposal
@@ -929,10 +1000,15 @@ const emptyExamples = (): string[] => (inEditor() ? EDITOR_EXAMPLES : LIBRARY_EX
 
 export const ChatPanel: Component = () => {
     const [input, setInput] = createSignal("");
+    const [ctxOpen, setCtxOpen] = createSignal(false);
     // the studio hosts the same thread in its console, so the dock stands down while it is open
     const hidden = (): boolean => generateOpen();
     let list!: HTMLDivElement;
     let field!: HTMLTextAreaElement;
+    let ctxAnchor!: HTMLButtonElement;
+
+    const ctxName = (id: string): string =>
+        contextList().find((c) => c.id === id)?.name ?? "Context";
 
     // collapse to 0 first so an empty box measures one line; re-measure on open (first is off-screen)
     const autosize = (): void => {
@@ -1050,7 +1126,47 @@ export const ChatPanel: Component = () => {
                     </div>
 
                     <div class="flex-none border-t border-line p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+                        <Show when={chatContextIds().length}>
+                            <div class="mb-1.5 flex flex-wrap gap-1">
+                                <For each={chatContextIds()}>
+                                    {(id) => (
+                                        <Chip
+                                            variant="outline"
+                                            size="sm"
+                                            rounded="md"
+                                            title="Attached context — the agent retrieves from it"
+                                            onRemove={() =>
+                                                setChatContextIds(
+                                                    chatContextIds().filter((c) => c !== id),
+                                                )
+                                            }
+                                        >
+                                            <Icon name="layers" size={11} />
+                                            <span class="truncate">{ctxName(id)}</span>
+                                        </Chip>
+                                    )}
+                                </For>
+                            </div>
+                        </Show>
                         <div class="flex items-center gap-2 rounded-xl border border-line bg-canvas px-2.5 py-2 focus-within:border-accent">
+                            <IconButton
+                                ref={ctxAnchor}
+                                size="sm"
+                                rounded="md"
+                                tone={chatContextIds().length ? "accent" : "muted"}
+                                class="flex-none"
+                                title="Attach a context collection"
+                                onClick={() => setCtxOpen(!ctxOpen())}
+                            >
+                                <Icon name="layers" size={13} />
+                            </IconButton>
+                            <ContextPicker
+                                anchor={() => ctxAnchor}
+                                open={ctxOpen()}
+                                onClose={() => setCtxOpen(false)}
+                                selected={chatContextIds()}
+                                onChange={setChatContextIds}
+                            />
                             <textarea
                                 ref={field}
                                 class="block max-h-32 flex-1 resize-none overflow-y-auto bg-transparent align-middle text-[13px] leading-[1.4] text-ink outline-none placeholder:text-muted"

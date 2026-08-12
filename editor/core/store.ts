@@ -52,6 +52,9 @@ export { canvasEl, setCanvasEl };
 const [canvasContentWidth, setCanvasContentWidth] = createSignal(1120);
 export { canvasContentWidth, setCanvasContentWidth };
 
+// view-only: author a paged artifact at its slide shape instead of at each section's natural height
+export const [slideFrame, setSlideFrame] = createSignal(false);
+
 // painted stage element, in content coords
 const [stageEl, setStageEl] = createSignal<HTMLElement | null>(null);
 export { stageEl, setStageEl };
@@ -277,14 +280,6 @@ export function renameArtifact(title: string): void {
     if (id) persistTitleHandler?.(id, t);
 }
 
-let switchHandler: ((id: string) => void) | null = null;
-export function onSwitchArtifact(fn: (id: string) => void): void {
-    switchHandler = fn;
-}
-export function requestSwitchArtifact(id: string): void {
-    switchHandler?.(id);
-}
-
 let homeHandler: (() => void) | null = null;
 export function onHome(fn: () => void): void {
     homeHandler = fn;
@@ -490,7 +485,9 @@ export async function ensureAllSections(): Promise<void> {
 
 // a painted height beats the byte estimate on re-reserve; bucketed by width, since height follows it
 const measured = new Map<string, number>();
-const heightKey = (id: string, width: number): string => `${id}@${Math.round(width / 40)}`;
+// slide framing changes a section's height at the same width, so it keys the memo too
+const heightKey = (id: string, width: number): string =>
+    `${id}@${Math.round(width / 40)}${slideFrame() ? ":slide" : ""}`;
 
 export function rememberHeight(id: string, width: number, height: number): void {
     measured.set(heightKey(id, width), height);

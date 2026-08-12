@@ -22,7 +22,6 @@ import {
     onShare,
     onSuggestSections,
     onTextAssist,
-    onSwitchArtifact,
     onThemePicker,
     onUpgrade,
     previewingTheme,
@@ -92,7 +91,6 @@ export const EditorView: Component = () => {
             return sections;
         });
         onHome(() => flushAutosave().then(() => navigate("/")));
-        onSwitchArtifact((id) => flushAutosave().then(() => navigate(`/edit/${id}`)));
         onThemePicker(() => openThemeEditor());
         onMediaPicker((req) => openMediaPicker(req));
         onPersistTitle((id, title) => renameArtifactById(id, title));

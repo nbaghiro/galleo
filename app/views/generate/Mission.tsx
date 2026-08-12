@@ -1,9 +1,7 @@
 import type { Component, JSX } from "solid-js";
 import { createMemo, createSignal, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { resolveProfile } from "@engine/profile";
 import { resolveTheme, themeCssVars } from "@themes";
-import { backdropCss } from "@canvas/render/backends";
 import { Button, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { FormatSwitcher } from "@ui/inputs";
 import { CloseIcon, Icon } from "@ui/icons";
@@ -32,7 +30,7 @@ import {
 import { BriefBar } from "./panels";
 import { Board } from "./Board";
 import { Console } from "./Console";
-import { Intake } from "./Intake";
+import { Intake, intakeExpanded } from "./Intake";
 import {
     phonePane,
     previewFormat,
@@ -99,15 +97,21 @@ export const Studio: Component = () => {
         closeGenerate();
     };
 
+    // the prompt is a compact dialog over the library (wide when a pane swaps in);
+    // the studio takes the screen once a run starts
     return (
         <Modal
-            size="screen"
-            scrim="light"
+            size={intake() ? (intakeExpanded() ? "full" : "lg") : "screen"}
+            scrim={intake() ? "blur" : "light"}
             vars={panelVars()}
-            class="flex flex-col overflow-hidden"
+            class={`flex flex-col overflow-hidden ${intake() ? "max-h-[88vh]" : ""}`}
             onClose={requestClose}
         >
-            <header class="flex flex-none items-center gap-3 border-b border-line bg-panel px-4 py-2.5">
+            {/* the intake dialog is chromeless — Escape or a click outside closes it */}
+            <header
+                class="flex flex-none items-center gap-3 border-b border-line bg-panel px-4 py-2.5"
+                classList={{ hidden: intake() }}
+            >
                 <div class="min-w-0 flex-1">
                     <div class="flex items-baseline gap-2">
                         <span class="truncate text-[13.5px] font-semibold tracking-tight">
@@ -413,8 +417,3 @@ export const GenerateStudio: Component = () => (
         <Studio />
     </Show>
 );
-
-export const studioBackdrop = (): string =>
-    backdropCss(gen.content.background, resolveTheme(gen.content.theme).tokens);
-export const studioGap = (): string =>
-    resolveProfile(previewFormat()).kind === "continuous" ? "0px" : "22px";

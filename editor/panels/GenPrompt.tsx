@@ -7,7 +7,7 @@ import { Icon } from "@ui/icons";
 import { FloatingPanel } from "@ui/overlay";
 import { TextArea } from "@ui/inputs";
 import { closeSectionGen, runSectionGen, sectionGen } from "../core/ai";
-import { fetchSuggestions, suggestSections } from "../core/ai";
+import { fetchSuggestions } from "../core/ai";
 
 export const SectionGenPopup: Component = () => {
     const [text, setText] = createSignal("");
@@ -43,9 +43,9 @@ export const SectionGenPopup: Component = () => {
     createEffect(() => {
         if (showing()) {
             setText("");
-            setChips(suggestSections(content()));
+            setChips([]);
             setRefined(false);
-            setLoading(false);
+            void refine();
             queueMicrotask(() => field?.focus());
         }
     });
