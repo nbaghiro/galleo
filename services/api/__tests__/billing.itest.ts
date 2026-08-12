@@ -6,6 +6,7 @@ import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
 import { db } from "../../db/client";
 import { schema } from "../../db/schema";
 import { chargeCredits, settleCredits } from "../../core/credits";
+import { reserve } from "../../core/spend";
 
 // Mocked at the package boundary, so the `new Stripe(key)` in services/billing/stripe.ts hands back
 // this stub; the pure price↔plan helpers still run for real off the stubbed env.
@@ -13,7 +14,8 @@ const stripeMock = vi.hoisted(() => ({
     customers: { create: vi.fn() },
     checkout: { sessions: { create: vi.fn() } },
     billingPortal: { sessions: { create: vi.fn() } },
-    subscriptions: { retrieve: vi.fn(), update: vi.fn() },
+    subscriptions: { retrieve: vi.fn(), update: vi.fn(), cancel: vi.fn() },
+    subscriptionSchedules: { create: vi.fn(), update: vi.fn(), release: vi.fn() },
     webhooks: { constructEvent: vi.fn() },
 }));
 
@@ -259,17 +261,14 @@ describe("POST /billing/change-plan", () => {
         );
     });
 
-    it("downgrades premium→pro with create_prorations (credit onto the next invoice)", async () => {
-        const { userId } = await withSubscription("premium", PRICE.premiumMonth);
+    it("parks premium→pro at period end — a paid tier runs out, it doesn't shrink", async () => {
+        const { userId, workspaceId } = await withSubscription("premium", PRICE.premiumMonth);
+        stripeMock.subscriptionSchedules.create.mockResolvedValue({ id: "sched_1" });
+        stripeMock.subscriptionSchedules.update.mockResolvedValue({ id: "sched_1" });
         const res = await authed(userId, "/billing/change-plan", jsonInit("POST", { plan: "pro" }));
-        expect((await res.json()).effect).toBe("changed");
-        expect(stripeMock.subscriptions.update).toHaveBeenCalledWith(
-            "sub_1",
-            expect.objectContaining({
-                proration_behavior: "create_prorations",
-                items: [{ id: "si_1", price: PRICE.proMonth, quantity: 1 }],
-            }),
-        );
+        expect((await res.json()).effect).toBe("scheduled");
+        expect(stripeMock.subscriptions.update).not.toHaveBeenCalled();
+        expect((await getWs(workspaceId)).scheduledChange).toMatchObject({ plan: "pro" });
     });
 
     it("downgrades to free by scheduling cancel-at-period-end (no immediate item swap)", async () => {
@@ -317,21 +316,17 @@ describe("POST /billing/change-plan", () => {
         );
     });
 
-    it("treats a seat decrease as a non-upgrade (create_prorations)", async () => {
-        const { userId } = await withSubscription("pro", PRICE.proMonth, 3);
+    it("parks a seat decrease at period end too", async () => {
+        const { userId, workspaceId } = await withSubscription("pro", PRICE.proMonth, 3);
+        stripeMock.subscriptionSchedules.create.mockResolvedValue({ id: "sched_1" });
+        stripeMock.subscriptionSchedules.update.mockResolvedValue({ id: "sched_1" });
         const res = await authed(
             userId,
             "/billing/change-plan",
             jsonInit("POST", { plan: "pro", seats: 1 }),
         );
-        expect((await res.json()).effect).toBe("changed");
-        expect(stripeMock.subscriptions.update).toHaveBeenCalledWith(
-            "sub_1",
-            expect.objectContaining({
-                proration_behavior: "create_prorations",
-                items: [{ id: "si_1", price: PRICE.proMonth, quantity: 1 }],
-            }),
-        );
+        expect((await res.json()).effect).toBe("scheduled");
+        expect((await getWs(workspaceId)).scheduledChange).toMatchObject({ seats: 1 });
     });
 
     it("switches monthly→annual on the same plan (non-upgrade proration, new price id)", async () => {
@@ -381,29 +376,26 @@ describe("POST /billing/resume", () => {
     });
 });
 
-describe("POST /billing/spend", () => {
-    // Keep the credit window in the future so currentWorkspace's lazy rollover can't zero our setup.
+// The client-priced POST /billing/spend route is gone: every paid action now reserves through
+// core/spend.ts, so the caller names a tool and the server prices it from the catalog.
+describe("reserving a priced action", () => {
     const future = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-    it("decrements credits by the given amount and returns the remaining balance", async () => {
+    it("prices the named action from the catalog", async () => {
         const { userId, workspaceId } = await seedUser();
         await setWs(workspaceId, { aiCreditsUsed: 0, creditsResetAt: future() });
-        const res = await authed(userId, "/billing/spend", jsonInit("POST", { amount: 5 }));
-        expect(res.status).toBe(200);
-        const limit = limitsFor("free").aiCreditsPerMonth;
-        expect((await res.json()).remaining).toBe(limit - 5);
-        expect((await getWs(workspaceId)).aiCreditsUsed).toBe(5);
+        const held = await reserve(await getWs(workspaceId), userId, "generate-theme");
+        expect(held.ok).toBe(true);
+        expect((await getWs(workspaceId)).aiCreditsUsed).toBe(4); // generate-theme = 4
     });
 
-    it("402s and charges nothing once the monthly allowance is exhausted", async () => {
+    it("refuses and charges nothing once the monthly allowance is exhausted", async () => {
         const { userId, workspaceId } = await seedUser();
         const limit = limitsFor("free").aiCreditsPerMonth;
         await setWs(workspaceId, { aiCreditsUsed: limit, creditsResetAt: future() });
-        const res = await authed(userId, "/billing/spend", jsonInit("POST", { amount: 5 }));
-        expect(res.status).toBe(402);
-        const body = await res.json();
-        expect(body.upgrade).toBe(true);
-        expect(body.remaining).toBe(0);
+        const held = await reserve(await getWs(workspaceId), userId, "generate-theme");
+        expect(held.ok).toBe(false);
+        expect(held.ok === false && held.remaining).toBe(0);
         expect((await getWs(workspaceId)).aiCreditsUsed).toBe(limit);
     });
 });
@@ -565,28 +557,29 @@ describe("credit engine", () => {
             aiCreditsUsed: perSeat + 100, // over one seat's worth, well inside two
             creditsResetAt: future(),
         });
-        const res = await authed(userId, "/billing/spend", jsonInit("POST", { amount: 50 }));
-        expect(res.status).toBe(200);
-        expect((await res.json()).remaining).toBe(perSeat * 2 - (perSeat + 150));
+        const held = await reserve(await getWs(workspaceId), userId, "generate-theme");
+        expect(held.ok).toBe(true);
+        expect((await getWs(workspaceId)).aiCreditsUsed).toBe(perSeat + 104);
     });
 
     it("exactly one of two concurrent near-limit spends wins", async () => {
         const { userId, workspaceId } = await seedUser();
         const limit = limitsFor("free").aiCreditsPerMonth;
         await setWs(workspaceId, { aiCreditsUsed: limit - 50, creditsResetAt: future() });
+        await setWs(workspaceId, { aiCreditsUsed: limit - 4, creditsResetAt: future() });
+        const ws = await getWs(workspaceId);
         const [a, b] = await Promise.all([
-            authed(userId, "/billing/spend", jsonInit("POST", { amount: 30 })),
-            authed(userId, "/billing/spend", jsonInit("POST", { amount: 30 })),
+            reserve(ws, userId, "generate-theme"),
+            reserve(ws, userId, "generate-theme"),
         ]);
-        const statuses = [a.status, b.status].sort();
-        expect(statuses).toEqual([200, 402]);
-        expect((await getWs(workspaceId)).aiCreditsUsed).toBe(limit - 20);
+        expect([a.ok, b.ok].sort()).toEqual([false, true]);
+        expect((await getWs(workspaceId)).aiCreditsUsed).toBe(limit);
     });
 
     it("writes a ledger row per charge with the remaining balance", async () => {
         const { userId, workspaceId } = await seedUser();
         await setWs(workspaceId, { aiCreditsUsed: 0, creditsResetAt: future() });
-        await authed(userId, "/billing/spend", jsonInit("POST", { action: "generate-theme" }));
+        await reserve(await getWs(workspaceId), userId, "generate-theme");
         const rows = await db
             .select()
             .from(schema.credits)
@@ -606,14 +599,15 @@ describe("credit engine", () => {
         const charged = await chargeCredits(ws, 50, "generate-image");
         expect(charged.ok).toBe(true);
         // a parallel spend lands while the "stream" runs — the settle must not clobber it
-        await chargeCredits(ws, 10, "rewrite-text");
-        await settleCredits(ws, -20, "generate-image:settle");
+        await chargeCredits(ws, 10, "ask-assistant");
+        await settleCredits(ws, charged.entryId!, -20);
         expect((await getWs(workspaceId)).aiCreditsUsed).toBe(40);
         const rows = await db
             .select()
             .from(schema.credits)
             .where(eq(schema.credits.workspaceId, workspaceId));
-        expect(rows.map((r) => r.delta).sort((x, y) => x - y)).toEqual([-50, -10, 20]);
+        // the image charge was rewritten from -50 to -30; the parallel spend is untouched
+        expect(rows.map((r) => r.delta).sort((x, y) => x - y)).toEqual([-30, -10]);
     });
 
     it("chargeCredits rejects without side effects once the pool is exhausted", async () => {
@@ -621,7 +615,7 @@ describe("credit engine", () => {
         const limit = limitsFor("free").aiCreditsPerMonth;
         await setWs(workspaceId, { aiCreditsUsed: limit, creditsResetAt: future() });
         const ws = await getWs(workspaceId);
-        const res = await chargeCredits(ws, 1, "rewrite-text");
+        const res = await chargeCredits(ws, 1, "ask-assistant");
         expect(res).toMatchObject({ ok: false, remaining: 0 });
         expect((await getWs(workspaceId)).aiCreditsUsed).toBe(limit);
         const rows = await db
@@ -804,14 +798,14 @@ describe("GET /billing/ledger", () => {
             aiCreditsUsed: 0,
             creditsResetAt: new Date(Date.now() + 86400_000),
         });
-        await authed(userId, "/billing/spend", jsonInit("POST", { amount: 10 }));
-        await authed(userId, "/billing/spend", jsonInit("POST", { amount: 5 }));
+        await reserve(await getWs(workspaceId), userId, "generate-theme");
+        await reserve(await getWs(workspaceId), userId, "rewrite-text");
         const res = await authed(userId, "/billing/ledger");
         expect(res.status).toBe(200);
         const { entries } = await res.json();
         expect(entries).toHaveLength(2);
-        expect(entries[0]).toMatchObject({ delta: -5 });
-        expect(entries[1]).toMatchObject({ delta: -10 });
+        expect(entries[0]).toMatchObject({ delta: -1 }); // rewrite-text, newest first
+        expect(entries[1]).toMatchObject({ delta: -4 }); // generate-theme
     });
 });
 
@@ -885,16 +879,15 @@ describe("credit top-ups", () => {
         const { userId, workspaceId } = await seedUser();
         const limit = limitsFor("free").aiCreditsPerMonth;
         await setWs(workspaceId, {
-            aiCreditsUsed: limit - 10,
+            aiCreditsUsed: limit - 1, // one pool credit left; generate-theme (4) must cross into bonus
             aiCreditsBonus: 50,
             creditsResetAt: new Date(Date.now() + 86400_000),
         });
-        const res = await authed(userId, "/billing/spend", jsonInit("POST", { amount: 30 }));
-        expect(res.status).toBe(200);
-        expect((await res.json()).remaining).toBe(30);
+        const held = await reserve(await getWs(workspaceId), userId, "generate-theme");
+        expect(held.ok).toBe(true);
         const ws = await getWs(workspaceId);
         expect(ws.aiCreditsUsed).toBe(limit);
-        expect(ws.aiCreditsBonus).toBe(30);
+        expect(ws.aiCreditsBonus).toBe(47);
     });
 
     it("402s only after both pool and bonus are exhausted", async () => {
@@ -902,13 +895,13 @@ describe("credit top-ups", () => {
         const limit = limitsFor("free").aiCreditsPerMonth;
         await setWs(workspaceId, {
             aiCreditsUsed: limit,
-            aiCreditsBonus: 5,
+            aiCreditsBonus: 1, // exactly one rewrite-text left
             creditsResetAt: new Date(Date.now() + 86400_000),
         });
-        const ok = await authed(userId, "/billing/spend", jsonInit("POST", { amount: 5 }));
-        expect(ok.status).toBe(200);
-        const broke = await authed(userId, "/billing/spend", jsonInit("POST", { amount: 1 }));
-        expect(broke.status).toBe(402);
+        const ok = await reserve(await getWs(workspaceId), userId, "rewrite-text");
+        expect(ok.ok).toBe(true);
+        const broke = await reserve(await getWs(workspaceId), userId, "rewrite-text");
+        expect(broke.ok).toBe(false);
     });
 });
 
@@ -959,5 +952,209 @@ describe("seat floor", () => {
         expect(res.status).toBe(400);
         expect((await res.json()).error).toContain("2 members");
         expect(stripeMock.subscriptions.update).not.toHaveBeenCalled();
+    });
+});
+
+describe("billing hardening", () => {
+    it("409s a checkout while a subscription is live — change-plan is the path", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "pro" });
+        await setWs(workspaceId, { stripeSubscriptionId: "sub_live" });
+        const res = await authed(
+            userId,
+            "/billing/checkout",
+            jsonInit("POST", { plan: "premium" }),
+        );
+        expect(res.status).toBe(409);
+        expect((await res.json()).useChangePlan).toBe(true);
+        expect(stripeMock.checkout.sessions.create).not.toHaveBeenCalled();
+    });
+
+    it("cancels a superseded subscription when a checkout replaces it", async () => {
+        const { workspaceId } = await seedUser({ plan: "pro" });
+        await setWs(workspaceId, { stripeSubscriptionId: "sub_old", stripeCustomerId: "cus_1" });
+        stripeMock.subscriptions.retrieve.mockResolvedValue(
+            fakeSub({ id: "sub_new", priceId: PRICE.premiumMonth }),
+        );
+        stripeMock.subscriptions.cancel.mockResolvedValue({});
+        const res = await postWebhook(
+            stripeEvent(
+                "checkout.session.completed",
+                {
+                    mode: "subscription",
+                    subscription: "sub_new",
+                    client_reference_id: workspaceId,
+                    customer: "cus_1",
+                },
+                "evt_supersede",
+            ),
+        );
+        expect(res.status).toBe(200);
+        expect(stripeMock.subscriptions.cancel).toHaveBeenCalledWith("sub_old");
+        expect((await getWs(workspaceId)).stripeSubscriptionId).toBe("sub_new");
+    });
+
+    it("a checkout that wipes usage writes an upgrade-reset audit row", async () => {
+        const { workspaceId } = await seedUser({ plan: "free" });
+        await setWs(workspaceId, { aiCreditsUsed: 120, aiCreditsBonus: 10 });
+        stripeMock.subscriptions.retrieve.mockResolvedValue(
+            fakeSub({ id: "sub_up", priceId: PRICE.proMonth }),
+        );
+        await postWebhook(
+            stripeEvent(
+                "checkout.session.completed",
+                {
+                    mode: "subscription",
+                    subscription: "sub_up",
+                    client_reference_id: workspaceId,
+                    customer: "cus_1",
+                },
+                "evt_upgrade_reset",
+            ),
+        );
+        const rows = await db
+            .select()
+            .from(schema.credits)
+            .where(eq(schema.credits.workspaceId, workspaceId));
+        const reset = rows.find((r) => r.reason === "upgrade-reset");
+        expect(reset).toBeTruthy();
+        expect(reset!.delta).toBe(120);
+        expect(reset!.userId).toBeNull();
+        expect(reset!.balanceAfter).toBe(limitsFor("pro").aiCreditsPerMonth + 10);
+        expect((await getWs(workspaceId)).aiCreditsUsed).toBe(0);
+    });
+
+    it("seat reduction counts unexpired invites as held seats", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "pro" });
+        await setWs(workspaceId, { stripeSubscriptionId: "sub_1", seats: 3 });
+        await db.insert(schema.invites).values({
+            workspaceId,
+            email: "held@test.local",
+            tokenHash: "hash-held",
+            invitedBy: userId,
+            expiresAt: new Date(Date.now() + 86400_000),
+        });
+        stripeMock.subscriptions.retrieve.mockResolvedValue(
+            fakeSub({ priceId: PRICE.proMonth, quantity: 3 }),
+        );
+        // 1 member + 1 pending invite = 2 held; dropping to 1 seat must refuse
+        const res = await authed(
+            userId,
+            "/billing/change-plan",
+            jsonInit("POST", { plan: "pro", seats: 1 }),
+        );
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toContain("2 members");
+    });
+});
+
+describe("scheduled downgrades", () => {
+    const arm = (
+        workspaceId: string,
+        sub = fakeSub({ priceId: PRICE.premiumMonth, quantity: 2 }),
+    ) => {
+        stripeMock.subscriptions.retrieve.mockResolvedValue(sub);
+        stripeMock.subscriptionSchedules.create.mockResolvedValue({ id: "sched_1" });
+        stripeMock.subscriptionSchedules.update.mockResolvedValue({ id: "sched_1" });
+        return setWs(workspaceId, {
+            plan: "premium",
+            seats: 2,
+            stripeSubscriptionId: "sub_1",
+        });
+    };
+
+    it("a tier downgrade parks at period end instead of applying now", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "premium" });
+        await arm(workspaceId);
+        const res = await authed(
+            userId,
+            "/billing/change-plan",
+            jsonInit("POST", { plan: "pro", seats: 2 }),
+        );
+        expect(res.status).toBe(200);
+        expect((await res.json()).effect).toBe("scheduled");
+        expect(stripeMock.subscriptionSchedules.create).toHaveBeenCalledWith({
+            from_subscription: "sub_1",
+        });
+        expect(stripeMock.subscriptions.update).not.toHaveBeenCalled(); // nothing changes today
+
+        const ws = await getWs(workspaceId);
+        expect(ws.plan).toBe("premium"); // still what they paid for
+        expect(ws.scheduledChange).toMatchObject({ plan: "pro", seats: 2 });
+    });
+
+    it("a seat reduction parks the same way", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "premium" });
+        await arm(workspaceId);
+        const res = await authed(
+            userId,
+            "/billing/change-plan",
+            jsonInit("POST", { plan: "premium", seats: 1 }),
+        );
+        expect((await res.json()).effect).toBe("scheduled");
+        expect((await getWs(workspaceId)).scheduledChange).toMatchObject({
+            plan: "premium",
+            seats: 1,
+        });
+    });
+
+    it("resume releases the schedule and clears the parked change", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "premium" });
+        await arm(workspaceId);
+        await authed(userId, "/billing/change-plan", jsonInit("POST", { plan: "pro", seats: 2 }));
+        stripeMock.subscriptions.retrieve.mockResolvedValue({
+            ...fakeSub({ priceId: PRICE.premiumMonth, quantity: 2 }),
+            schedule: "sched_1",
+        });
+        const res = await authed(userId, "/billing/resume", jsonInit("POST", {}));
+        expect(res.status).toBe(200);
+        expect(stripeMock.subscriptionSchedules.release).toHaveBeenCalledWith("sched_1");
+        expect((await getWs(workspaceId)).scheduledChange).toBeNull();
+    });
+
+    it("the phase landing clears the parked change via subscription.updated", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "premium" });
+        await arm(workspaceId);
+        await authed(userId, "/billing/change-plan", jsonInit("POST", { plan: "pro", seats: 2 }));
+
+        await postWebhook(
+            stripeEvent(
+                "customer.subscription.updated",
+                fakeSub({ id: "sub_1", priceId: PRICE.proMonth, quantity: 2 }),
+                "evt_phase_landed",
+            ),
+        );
+        const ws = await getWs(workspaceId);
+        expect(ws.plan).toBe("pro");
+        expect(ws.scheduledChange).toBeNull();
+    });
+
+    it("an unrelated subscription.updated keeps the parked change", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "premium" });
+        await arm(workspaceId);
+        await authed(userId, "/billing/change-plan", jsonInit("POST", { plan: "pro", seats: 2 }));
+
+        await postWebhook(
+            stripeEvent(
+                "customer.subscription.updated",
+                fakeSub({ id: "sub_1", priceId: PRICE.premiumMonth, quantity: 2 }),
+                "evt_unrelated_update",
+            ),
+        );
+        expect((await getWs(workspaceId)).scheduledChange).toMatchObject({ plan: "pro" });
+    });
+
+    it("upgrades stay immediate", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "pro" });
+        await setWs(workspaceId, { plan: "pro", seats: 1, stripeSubscriptionId: "sub_1" });
+        stripeMock.subscriptions.retrieve.mockResolvedValue(
+            fakeSub({ priceId: PRICE.proMonth, quantity: 1 }),
+        );
+        const res = await authed(
+            userId,
+            "/billing/change-plan",
+            jsonInit("POST", { plan: "premium" }),
+        );
+        expect((await res.json()).effect).toBe("upgraded");
+        expect(stripeMock.subscriptionSchedules.create).not.toHaveBeenCalled();
     });
 });

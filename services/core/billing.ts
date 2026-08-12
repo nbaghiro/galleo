@@ -1,21 +1,20 @@
 import Stripe from "stripe";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
-import type { CreditPackId, Interval, PlanId } from "@model/billing";
+import { and, desc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
+import type { CreditPackId, Interval, PlanId, ScheduledChange } from "@model/billing";
 import {
     CREDIT_PACKS,
     CREDITS_PER_GENERATION,
     creditLimitFor,
+    featuresFor,
     limitsFor,
     packFor,
     planFor,
     visiblePlans,
 } from "@model/billing";
-import type { MeterParams, ToolId, Usage } from "@model/credits";
-import { costOf, describeUsage, estimateCost } from "@model/credits";
 import { db } from "../db/client";
+import { warn } from "../utils/env";
 import { schema } from "../db/schema";
 import { appUrl } from "../utils/env";
-import { chargeCredits } from "./credits";
 import type { WorkspaceRow } from "./accounts";
 
 // Plans, subscriptions, credit packs, and the Stripe webhook that keeps the workspace row in step
@@ -98,12 +97,38 @@ function subPeriodEnd(sub: Stripe.Subscription): Date {
     return ts ? new Date(ts * 1000) : monthOut();
 }
 
-export async function billingSummary(ws: WorkspaceRow) {
+// The caller's net spend since the window opened: charges minus refunds. Only user-attributed rows
+// exist for spends/settles (grants and resets are system rows), so a plain sum nets naturally.
+async function spendThisCycle(ws: WorkspaceRow, userId: string): Promise<number> {
+    const [row] = await db
+        .select({ total: sql<string>`COALESCE(SUM(-${schema.credits.delta}), 0)` })
+        .from(schema.credits)
+        .where(
+            and(
+                eq(schema.credits.workspaceId, ws.id),
+                eq(schema.credits.userId, userId),
+                gt(schema.credits.createdAt, ws.creditsStartedAt),
+            ),
+        );
+    return Math.max(0, Number(row?.total ?? 0));
+}
+
+export async function billingSummary(ws: WorkspaceRow, userId: string) {
     const limits = limitsFor(ws.plan);
-    const rows = await db
-        .select({ id: schema.artifacts.id })
-        .from(schema.artifacts)
-        .where(and(eq(schema.artifacts.workspaceId, ws.id), isNull(schema.artifacts.trashedAt)));
+    const capMb = featuresFor(ws).storageMb; // overrides can widen storage per workspace
+    const [[artifactCount], [storage], mySpend] = await Promise.all([
+        db
+            .select({ n: sql<string>`count(*)` })
+            .from(schema.artifacts)
+            .where(
+                and(eq(schema.artifacts.workspaceId, ws.id), isNull(schema.artifacts.trashedAt)),
+            ),
+        db
+            .select({ total: sql<string>`COALESCE(SUM(${schema.assets.bytes}), 0)` })
+            .from(schema.assets)
+            .where(and(eq(schema.assets.workspaceId, ws.id), isNotNull(schema.assets.data))),
+        spendThisCycle(ws, userId),
+    ]);
     return {
         plan: ws.plan,
         status: ws.planStatus,
@@ -114,12 +139,20 @@ export async function billingSummary(ws: WorkspaceRow) {
             limit: creditLimitFor(ws),
             bonus: ws.aiCreditsBonus,
             perGeneration: CREDITS_PER_GENERATION,
+            resetAt: ws.creditsResetAt,
+            mySpend,
         },
         topUps: planFor(ws.plan).ai.creditTopUpsAllowed
             ? CREDIT_PACKS.filter((p) => !!packPriceId(p.id))
             : [],
-        usage: { artifacts: rows.length, maxArtifacts: limits.maxArtifacts },
+        usage: {
+            artifacts: Number(artifactCount?.n ?? 0),
+            maxArtifacts: limits.maxArtifacts,
+            storageMb: Math.round(Number(storage?.total ?? 0) / (1024 * 1024)),
+            maxStorageMb: capMb,
+        },
         seats: ws.seats,
+        scheduledChange: ws.scheduledChange ?? null,
         catalog: visiblePlans(),
         stripeReady: stripeReady(),
     };
@@ -219,7 +252,7 @@ export type ChangePlanResult =
     | { error: "no-item" }
     | { error: "invalid-plan" }
     | { error: "seats-below-members"; members: number }
-    | { effect: "cancel_at_period_end" | "upgraded" | "changed" };
+    | { effect: "cancel_at_period_end" | "upgraded" | "changed" | "scheduled"; at?: string };
 
 // Downgrade to Free cancels at period end; an upgrade invoices immediately, other changes prorate.
 export async function changePlan(
@@ -252,14 +285,58 @@ export async function changePlan(
     const newPrice = priceIdFor(targetPlan, targetInterval);
     if (!newPrice) return { error: "invalid-plan" };
 
-    // seats can't drop below the people using them — remove members first
+    // seats can't drop below the people using or holding them — an unexpired invite reserves its seat
     if (tp.billing.model === "per_seat" && targetSeats < curSeats) {
-        const memberRows = await db
-            .select({ userId: schema.members.userId })
-            .from(schema.members)
-            .where(eq(schema.members.workspaceId, ws.id));
-        if (targetSeats < memberRows.length)
-            return { error: "seats-below-members", members: memberRows.length };
+        const [memberRows, invites] = await Promise.all([
+            db
+                .select({ userId: schema.members.userId })
+                .from(schema.members)
+                .where(eq(schema.members.workspaceId, ws.id)),
+            db
+                .select({ id: schema.invites.id })
+                .from(schema.invites)
+                .where(
+                    and(
+                        eq(schema.invites.workspaceId, ws.id),
+                        isNull(schema.invites.acceptedAt),
+                        gt(schema.invites.expiresAt, new Date()),
+                    ),
+                ),
+        ]);
+        const held = memberRows.length + invites.length;
+        if (targetSeats < held) return { error: "seats-below-members", members: held };
+    }
+
+    // What you paid for, you keep: a lower tier or fewer seats waits for the period boundary via a
+    // subscription schedule; more capability (or an interval switch alone) applies now, prorated.
+    const downgrade = RANK[targetPlan] < RANK[curPlan] || targetSeats < curSeats;
+    if (downgrade) {
+        const at = subPeriodEnd(sub);
+        const schedule =
+            sub.schedule && typeof sub.schedule === "string"
+                ? sub.schedule
+                : (await stripe().subscriptionSchedules.create({ from_subscription: sub.id })).id;
+        await stripe().subscriptionSchedules.update(schedule, {
+            end_behavior: "release",
+            phases: [
+                {
+                    items: [{ price: item.price.id, quantity: curSeats }],
+                    end_date: Math.floor(at.getTime() / 1000),
+                },
+                { items: [{ price: newPrice, quantity: targetSeats }] },
+            ],
+        });
+        const scheduledChange: ScheduledChange = {
+            plan: targetPlan,
+            interval: targetInterval,
+            seats: targetSeats,
+            at: at.toISOString(),
+        };
+        await db
+            .update(schema.workspaces)
+            .set({ scheduledChange, cancelAtPeriodEnd: false })
+            .where(eq(schema.workspaces.id, ws.id));
+        return { effect: "scheduled", at: scheduledChange.at };
     }
 
     const upgrading = RANK[targetPlan] > RANK[curPlan] || targetSeats > curSeats;
@@ -270,49 +347,72 @@ export async function changePlan(
     });
     await db
         .update(schema.workspaces)
-        .set({ cancelAtPeriodEnd: false })
+        .set({ cancelAtPeriodEnd: false, scheduledChange: null })
         .where(eq(schema.workspaces.id, ws.id));
     return { effect: upgrading ? "upgraded" : "changed" };
 }
 
+// Resume clears both parking lots: the Free cancellation and any scheduled downgrade.
 export async function resumeSubscription(ws: WorkspaceRow, subscriptionId: string): Promise<void> {
+    if (ws.scheduledChange) {
+        const sub = await stripe().subscriptions.retrieve(subscriptionId);
+        if (sub.schedule && typeof sub.schedule === "string")
+            await stripe().subscriptionSchedules.release(sub.schedule);
+    }
     await stripe().subscriptions.update(subscriptionId, { cancel_at_period_end: false });
     await db
         .update(schema.workspaces)
-        .set({ cancelAtPeriodEnd: false })
+        .set({ cancelAtPeriodEnd: false, scheduledChange: null })
         .where(eq(schema.workspaces.id, ws.id));
 }
 
-export async function creditLedger(workspaceId: string) {
-    const rows = await db
-        .select()
-        .from(schema.credits)
-        .where(eq(schema.credits.workspaceId, workspaceId))
-        .orderBy(desc(schema.credits.createdAt))
-        .limit(50);
-    return rows.map((r) => ({
-        delta: r.delta,
-        reason: r.reason,
-        balanceAfter: r.balanceAfter,
-        at: r.createdAt,
-    }));
-}
+const LEDGER_PAGE = 30;
 
-// A spend can be priced three ways: from measured usage, from a tool id + meter, or as a flat amount.
-export function spendCredits(
-    ws: WorkspaceRow,
-    req: { amount?: number; action?: ToolId; meter?: MeterParams; usage?: Usage },
-) {
-    const cost = Math.max(
-        1,
-        req.usage
-            ? costOf(req.usage)
-            : req.action
-              ? estimateCost(req.action, req.meter)
-              : (req.amount ?? CREDITS_PER_GENERATION),
-    );
-    const reason = req.action ?? (req.usage ? describeUsage(req.usage) : "spend");
-    return chargeCredits(ws, cost, reason);
+export async function creditLedger(workspaceId: string, cursor?: { at: Date; id: string } | null) {
+    const rows = await db
+        .select({
+            id: schema.credits.id,
+            delta: schema.credits.delta,
+            reason: schema.credits.reason,
+            usage: schema.credits.usage,
+            balanceAfter: schema.credits.balanceAfter,
+            at: schema.credits.createdAt,
+            userName: schema.users.name,
+            userEmail: schema.users.email,
+            userAvatar: schema.users.avatarUrl,
+        })
+        .from(schema.credits)
+        .leftJoin(schema.users, eq(schema.users.id, schema.credits.userId))
+        .where(
+            and(
+                eq(schema.credits.workspaceId, workspaceId),
+                cursor
+                    ? sql`(${schema.credits.createdAt}, ${schema.credits.id}) < (${cursor.at.toISOString()}::timestamp, ${cursor.id}::uuid)`
+                    : undefined,
+            ),
+        )
+        .orderBy(desc(schema.credits.createdAt), desc(schema.credits.id))
+        .limit(LEDGER_PAGE + 1);
+    const page = rows.slice(0, LEDGER_PAGE);
+    const last = page.at(-1);
+    return {
+        entries: page.map((r) => ({
+            delta: r.delta,
+            reason: r.reason,
+            usage: r.usage,
+            balanceAfter: r.balanceAfter,
+            at: r.at,
+            user: r.userEmail
+                ? { name: r.userName, email: r.userEmail, avatarUrl: r.userAvatar }
+                : null,
+        })),
+        nextCursor:
+            rows.length > LEDGER_PAGE && last
+                ? Buffer.from(JSON.stringify({ at: last.at.toISOString(), id: last.id })).toString(
+                      "base64url",
+                  )
+                : null,
+    };
 }
 
 export type WebhookResult = { error: string } | { duplicate: boolean };
@@ -332,11 +432,21 @@ export async function consumeWebhook(
     }
     // Fetched before the claim transaction so no DB connection is held across a network call.
     let checkoutSub: Stripe.Subscription | null = null;
+    let supersededSubId: string | null = null;
     if (event.type === "checkout.session.completed") {
         const s = event.data.object as Stripe.Checkout.Session;
         const subId = typeof s.subscription === "string" ? s.subscription : s.subscription?.id;
-        if (s.mode !== "payment" && subId)
+        if (s.mode !== "payment" && subId) {
             checkoutSub = await stripe().subscriptions.retrieve(subId);
+            const wsId = s.client_reference_id ?? s.metadata?.workspaceId;
+            if (wsId) {
+                const [ws] = await db
+                    .select({ subId: schema.workspaces.stripeSubscriptionId })
+                    .from(schema.workspaces)
+                    .where(eq(schema.workspaces.id, wsId));
+                if (ws?.subId && ws.subId !== subId) supersededSubId = ws.subId;
+            }
+        }
     }
     // Claim + effects in ONE transaction: a redelivery finds the claim and no-ops, and any failure
     // rolls the claim back so Stripe's retry re-runs it.
@@ -350,6 +460,18 @@ export async function consumeWebhook(
         await handleEvent(event, checkoutSub, tx);
         return false;
     });
+    // A checkout that replaced a live subscription leaves the old one billing with no workspace
+    // attached; cancel it. Best-effort — a failure here is Stripe state to clean up, not a webhook 500.
+    if (!duplicate && supersededSubId) {
+        try {
+            await stripe().subscriptions.cancel(supersededSubId);
+            warn(`[billing] canceled superseded subscription ${supersededSubId}`);
+        } catch (e) {
+            warn(
+                `[billing] failed to cancel superseded sub ${supersededSubId}: ${e instanceof Error ? e.message : "unknown"}`,
+            );
+        }
+    }
     return { duplicate };
 }
 
@@ -414,6 +536,12 @@ async function handleEvent(
         const sub = checkoutSub;
         const plan = planForPrice(sub.items.data[0]?.price.id);
         if (!plan) return;
+        const [before] = await tx
+            .select()
+            .from(schema.workspaces)
+            .where(eq(schema.workspaces.id, wsId))
+            .for("update");
+        if (!before) return;
         await tx
             .update(schema.workspaces)
             .set({
@@ -425,9 +553,21 @@ async function handleEvent(
                 planPeriodEnd: subPeriodEnd(sub),
                 cancelAtPeriodEnd: sub.cancel_at_period_end,
                 aiCreditsUsed: 0,
+                creditsStartedAt: new Date(),
                 creditsResetAt: monthOut(),
+                scheduledChange: null,
             })
             .where(eq(schema.workspaces.id, wsId));
+        // the wiped usage leaves an audit trail like every other reset
+        if (before.aiCreditsUsed > 0)
+            await tx.insert(schema.credits).values({
+                workspaceId: wsId,
+                delta: before.aiCreditsUsed,
+                reason: "upgrade-reset",
+                balanceAfter:
+                    creditLimitFor({ ...before, plan, seats: seatsOf(sub) }) +
+                    before.aiCreditsBonus,
+            });
     } else if (event.type === "customer.subscription.updated") {
         const sub = event.data.object as Stripe.Subscription;
         let ws = await workspaceBySubId(tx, sub.id);
@@ -442,6 +582,9 @@ async function handleEvent(
         }
         if (!ws) return;
         const plan = planForPrice(sub.items.data[0]?.price.id);
+        // a scheduled downgrade has landed once the sub matches what was parked
+        const sc = ws.scheduledChange;
+        const scheduleDone = !!sc && sc.plan === plan && sc.seats === seatsOf(sub);
         await tx
             .update(schema.workspaces)
             .set({
@@ -451,6 +594,7 @@ async function handleEvent(
                 seats: seatsOf(sub),
                 planPeriodEnd: subPeriodEnd(sub),
                 cancelAtPeriodEnd: sub.cancel_at_period_end,
+                ...(scheduleDone ? { scheduledChange: null } : {}),
             })
             .where(eq(schema.workspaces.id, ws.id));
     } else if (event.type === "customer.subscription.deleted") {
@@ -467,6 +611,7 @@ async function handleEvent(
                 seats: 1,
                 planPeriodEnd: null,
                 cancelAtPeriodEnd: false,
+                scheduledChange: null,
             })
             .where(eq(schema.workspaces.id, ws.id));
     } else if (event.type === "invoice.payment_failed") {
@@ -486,14 +631,19 @@ async function handleEvent(
             // Only a cycle renewal opens a fresh credit window; other invoices just clear dunning.
             await tx
                 .update(schema.workspaces)
-                .set({ planStatus: "active", aiCreditsUsed: 0, creditsResetAt: monthOut() })
+                .set({
+                    planStatus: "active",
+                    aiCreditsUsed: 0,
+                    creditsStartedAt: new Date(),
+                    creditsResetAt: monthOut(),
+                })
                 .where(eq(schema.workspaces.id, ws.id));
             if (ws.aiCreditsUsed > 0)
                 await tx.insert(schema.credits).values({
                     workspaceId: ws.id,
                     delta: ws.aiCreditsUsed,
                     reason: "renewal-reset",
-                    balanceAfter: creditLimitFor(ws),
+                    balanceAfter: creditLimitFor(ws) + ws.aiCreditsBonus,
                 });
         } else if (ws.planStatus === "past_due") {
             await tx

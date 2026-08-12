@@ -1,4 +1,12 @@
-import { typicalCost } from "@model/credits";
+import { typicalCost } from "@model/tools";
+
+// a plan/seat downgrade parked at period end via a Stripe subscription schedule
+export interface ScheduledChange {
+    plan: PlanId;
+    interval: Interval;
+    seats: number;
+    at: string; // ISO date the phase flips
+}
 
 export type PlanId = "free" | "pro" | "premium";
 export type BillingModel = "flat" | "per_seat";

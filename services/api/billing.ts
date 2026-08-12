@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import type { CreditPackId, Interval, PlanId } from "@model/billing";
 import { planFor } from "@model/billing";
-import type { MeterParams, ToolId, Usage } from "@model/credits";
 import { readJson } from "../utils/http";
 import {
     billingSummary,
@@ -12,7 +11,6 @@ import {
     creditLedger,
     portalUrl,
     resumeSubscription,
-    spendCredits,
     stripeReady,
     topupUrl,
 } from "../core/billing";
@@ -29,13 +27,18 @@ const notOwner = (c: Context, ws: { ownerId: string }, userId: string): Response
 
 const NOT_CONFIGURED = { error: "billing not configured" } as const;
 
-plan.get("/billing", requireWorkspace, async (c) => c.json(await billingSummary(c.get("ws"))));
+plan.get("/billing", requireWorkspace, async (c) =>
+    c.json(await billingSummary(c.get("ws"), c.get("user").id)),
+);
 
 plan.post("/billing/checkout", requireWorkspace, async (c) => {
     const [user, ws] = [c.get("user"), c.get("ws")];
     const denied = notOwner(c, ws, user.id);
     if (denied) return denied;
     if (!stripeReady()) return c.json(NOT_CONFIGURED, 503);
+    // a live subscription changes through change-plan; a second checkout would double-bill
+    if (ws.stripeSubscriptionId)
+        return c.json({ error: "already subscribed", useChangePlan: true }, 409);
     const want = await readJson<{ plan?: PlanId; interval?: Interval; seats?: number }>(c);
     const result = await checkoutUrl(ws, user.email, want);
     if (result && typeof result === "object" && "error" in result)
@@ -99,24 +102,20 @@ plan.post("/billing/resume", requireWorkspace, async (c) => {
     return c.json({ ok: true });
 });
 
-plan.get("/billing/ledger", requireWorkspace, async (c) =>
-    c.json({ entries: await creditLedger(c.get("ws").id) }),
-);
-
-plan.post("/billing/spend", requireWorkspace, async (c) => {
-    const body = await readJson<{
-        amount?: number;
-        action?: ToolId;
-        meter?: MeterParams;
-        usage?: Usage;
-    }>(c);
-    const spend = await spendCredits(c.get("ws"), body);
-    if (!spend.ok)
-        return c.json(
-            { error: "out of AI credits", upgrade: true, remaining: spend.remaining },
-            402,
-        );
-    return c.json({ remaining: spend.remaining });
+plan.get("/billing/ledger", requireWorkspace, async (c) => {
+    const raw = c.req.query("cursor");
+    let cursor: { at: Date; id: string } | null = null;
+    if (raw)
+        try {
+            const parsed = JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as {
+                at?: string;
+                id?: string;
+            };
+            if (parsed.at && parsed.id) cursor = { at: new Date(parsed.at), id: parsed.id };
+        } catch {
+            /* a bad cursor reads as the first page */
+        }
+    return c.json(await creditLedger(c.get("ws").id, cursor));
 });
 
 // Unauthenticated: verified by signature, and it needs the RAW body bytes.

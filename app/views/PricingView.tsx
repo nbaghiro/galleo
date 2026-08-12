@@ -2,7 +2,7 @@ import type { Component } from "solid-js";
 import { createMemo, createResource, createSignal, For, onMount, Show } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import type { Interval, Plan, PlanId } from "@model/billing";
-import { PRICED_TOOLS, costRange, isMetered, typicalCost } from "@model/credits";
+import { PRICED_TOOLS, costRange, isMetered, typicalCost } from "@model/tools";
 import { CheckIcon } from "@ui/icons";
 import { Badge, Eyebrow, Spinner } from "@ui/button";
 import { TextField } from "@ui/inputs";
@@ -39,10 +39,9 @@ export const PricingView: Component = () => {
     // a paid plan set to lapse to Free at period end; it keeps running until then
     const pendingCancel = (): boolean => !!b()?.cancelAtPeriodEnd && current() !== "free";
 
-    const usagePct = createMemo(() => {
+    const creditsLeft = createMemo(() => {
         const c = b()?.credits;
-        if (!c || c.limit <= 0) return 0;
-        return Math.min(100, Math.round((c.used / c.limit) * 100));
+        return c ? Math.max(0, c.limit - c.used) : 0;
     });
 
     // how many of an action the monthly credit allowance buys
@@ -158,6 +157,29 @@ export const PricingView: Component = () => {
                             </button>
                         </div>
                     </Show>
+                    <Show when={b()?.scheduledChange}>
+                        {(sc) => (
+                            <div class="mb-5 flex items-center justify-between gap-3 rounded-xl border border-line bg-panel px-4 py-3 text-[13px] text-ink">
+                                <span>
+                                    Your plan switches to{" "}
+                                    <span class="font-semibold capitalize">{sc().plan}</span>
+                                    {sc().seats > 1 ? ` (${sc().seats} seats)` : ""} on{" "}
+                                    {new Date(sc().at).toLocaleDateString()}. You keep what you paid
+                                    for until then.
+                                </span>
+                                <button
+                                    class="flex-none inline-flex items-center gap-1.5 rounded-lg border border-line bg-canvas px-3 py-1.5 font-semibold hover:border-accent disabled:opacity-60"
+                                    disabled={anyBusy()}
+                                    onClick={() => void run("resume", resumePlan)}
+                                >
+                                    <Show when={busy("resume")}>
+                                        <Spinner size={13} tone="current" />
+                                    </Show>
+                                    {busy("resume") ? "Keeping…" : "Keep current plan"}
+                                </button>
+                            </div>
+                        )}
+                    </Show>
                     <Show when={pendingCancel()}>
                         <div class="mb-5 flex items-center justify-between gap-3 rounded-xl border border-line bg-panel px-4 py-3 text-[13px] text-ink">
                             <span>
@@ -191,13 +213,13 @@ export const PricingView: Component = () => {
                         {(state) => (
                             <div class="mb-8 grid grid-cols-2 gap-3 sm:max-w-130">
                                 <div class="rounded-xl border border-line bg-panel px-4 py-3">
-                                    <Eyebrow as="div">AI credits this month</Eyebrow>
+                                    <Eyebrow as="div">AI credits left</Eyebrow>
                                     <div class="mt-1 flex items-baseline gap-1.5 tabular-nums">
                                         <span class="text-[20px] font-bold">
-                                            {state().credits.used}
+                                            {creditsLeft().toLocaleString()}
                                         </span>
                                         <span class="text-[13px] text-muted">
-                                            / {state().credits.limit}
+                                            of {state().credits.limit.toLocaleString()}
                                         </span>
                                         <Show when={state().credits.bonus > 0}>
                                             <span class="text-[12px] font-semibold text-accent">
@@ -205,7 +227,16 @@ export const PricingView: Component = () => {
                                             </span>
                                         </Show>
                                     </div>
-                                    <Meter value={usagePct()} trackTone="canvas" class="mt-2" />
+                                    <Meter
+                                        value={creditsLeft()}
+                                        max={state().credits.limit}
+                                        trackTone="canvas"
+                                        class="mt-2"
+                                    />
+                                    <div class="mt-1.5 text-[11px] text-muted">
+                                        resets{" "}
+                                        {new Date(state().credits.resetAt).toLocaleDateString()}
+                                    </div>
                                     <Show when={state().topUps.length > 0 && ready()}>
                                         <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
                                             <For each={state().topUps}>
@@ -268,31 +299,6 @@ export const PricingView: Component = () => {
                                 </div>
                             </div>
                         )}
-                    </Show>
-
-                    <Show when={(ledger() ?? []).length > 0}>
-                        <div class="mb-8 rounded-xl border border-line bg-panel px-4 py-3 sm:max-w-130">
-                            <Eyebrow as="div">Recent AI activity</Eyebrow>
-                            <ul class="mt-1 divide-y divide-line text-[12.5px]">
-                                <For each={(ledger() ?? []).slice(0, 8)}>
-                                    {(e) => (
-                                        <li class="flex items-center justify-between gap-3 py-1.5 tabular-nums">
-                                            <span class="min-w-0 truncate capitalize text-ink">
-                                                {reasonLabel(e.reason)}
-                                            </span>
-                                            <span class="flex-none text-muted">
-                                                {new Date(e.at).toLocaleDateString()}
-                                            </span>
-                                            <span
-                                                class={`w-14 flex-none text-right font-semibold ${e.delta > 0 ? "text-accent" : "text-ink"}`}
-                                            >
-                                                {e.delta > 0 ? `+${e.delta}` : e.delta}
-                                            </span>
-                                        </li>
-                                    )}
-                                </For>
-                            </ul>
-                        </div>
                     </Show>
 
                     <div class="mb-4 flex flex-wrap items-center gap-3">
@@ -482,6 +488,31 @@ export const PricingView: Component = () => {
                             </For>
                         </div>
                     </section>
+
+                    <Show when={(ledger() ?? []).length > 0}>
+                        <div class="mt-12 rounded-xl border border-line bg-panel px-4 py-3">
+                            <Eyebrow as="div">Recent AI activity</Eyebrow>
+                            <ul class="mt-1 divide-y divide-line text-[12.5px]">
+                                <For each={(ledger() ?? []).slice(0, 8)}>
+                                    {(e) => (
+                                        <li class="flex items-center justify-between gap-3 py-1.5 tabular-nums">
+                                            <span class="min-w-0 truncate capitalize text-ink">
+                                                {reasonLabel(e.reason)}
+                                            </span>
+                                            <span class="flex-none text-muted">
+                                                {new Date(e.at).toLocaleDateString()}
+                                            </span>
+                                            <span
+                                                class={`w-14 flex-none text-right font-semibold ${e.delta > 0 ? "text-accent" : "text-ink"}`}
+                                            >
+                                                {e.delta > 0 ? `+${e.delta}` : e.delta}
+                                            </span>
+                                        </li>
+                                    )}
+                                </For>
+                            </ul>
+                        </div>
+                    </Show>
 
                     <Show when={current() !== "free"}>
                         <button

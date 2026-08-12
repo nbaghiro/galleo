@@ -8,6 +8,10 @@ import { makeSession, SESSION_COOKIE, SESSION_TTL_SECONDS } from "./auth";
 // The HTTP toolkit: everything here is database-free, so it stays unit-testable. Anything that
 // reads a row lives in domain/ (see domain/accounts.ts for the session/workspace readers).
 
+// the one 402 body every metered route returns, so the client's upgrade prompt has a single shape
+export const OUT_OF_CREDITS = (remaining: number) =>
+    ({ error: "out of AI credits", upgrade: true, remaining }) as const;
+
 // Defaults to {} on missing/malformed body, so field checks see undefined.
 export async function readJson<T>(c: Context): Promise<T> {
     return (await c.req.json().catch(() => ({}))) as T;

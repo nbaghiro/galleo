@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { db } from "../db/client";
+import { freshCreditWindow } from "../core/credits";
 import { schema } from "../db/schema";
 export { resetDb } from "./reset-db";
 import { SESSION_COOKIE, hashPassword, makeSession } from "../utils/auth";
@@ -15,6 +16,7 @@ import { media } from "../api/media";
 import { ai } from "../api/ai";
 import { links } from "../api/links";
 import { search } from "../api/search";
+import { context } from "../api/context";
 
 // Kept in sync with server.ts's router list by hand.
 export const app = new Hono();
@@ -30,6 +32,7 @@ app.route("/", media);
 app.route("/", ai);
 app.route("/", links);
 app.route("/", search);
+app.route("/", context);
 
 export const request = (path: string, init?: RequestInit): Promise<Response> =>
     Promise.resolve(app.request(path, init));
@@ -64,7 +67,13 @@ export async function seedUser(opts: { plan?: string; password?: string } = {}):
         .returning();
     const [w] = await db
         .insert(schema.workspaces)
-        .values({ name: "Test WS", slug: `ws-${seq}`, ownerId: u!.id, plan: opts.plan ?? "free" })
+        .values({
+            name: "Test WS",
+            slug: `ws-${seq}`,
+            ownerId: u!.id,
+            plan: opts.plan ?? "free",
+            ...freshCreditWindow(),
+        })
         .returning();
     await db.insert(schema.members).values({ workspaceId: w!.id, userId: u!.id, role: "owner" });
     return {
