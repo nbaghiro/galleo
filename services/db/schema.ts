@@ -11,10 +11,12 @@ import {
     jsonb,
     primaryKey,
     unique,
+    vector,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { GenMeta, ArtifactDigest } from "@model/artifact";
-import type { FeatureOverrides } from "@model/billing";
+import type { FeatureOverrides, ScheduledChange } from "@model/billing";
+import type { Usage } from "@model/credits";
 
 // Drizzle has no tsvector type; the column is generated from title + search_text, never written by hand
 const tsvector = customType<{ data: string; driverData: string }>({
@@ -80,6 +82,10 @@ export const workspaces = pgTable("workspaces", {
     aiCreditsUsed: integer("ai_credits_used").notNull().default(0),
     aiCreditsBonus: integer("ai_credits_bonus").notNull().default(0), // purchased top-ups; spent after the pool, never reset
     creditsResetAt: timestamp("credits_reset_at").notNull().defaultNow(),
+    // when the current credit window opened; every writer of credits_reset_at sets both
+    creditsStartedAt: timestamp("credits_started_at").notNull().defaultNow(),
+    // a downgrade waiting at period end (Stripe subscription schedule); null = none
+    scheduledChange: jsonb("scheduled_change").$type<ScheduledChange>(),
     // per-workspace grants that override the plan; see @model/billing
     featureOverrides: jsonb("feature_overrides").$type<FeatureOverrides>(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -163,28 +169,33 @@ export const artifacts = pgTable(
     ],
 );
 
-// updated_at is an edit clock, not a read clock, so open recency is recorded separately here
-export const artifactVisits = pgTable(
-    "artifact_visits",
+// What a user reached for, per (user, kind, ref): artifact opens (the read clock behind "Recent" —
+// updated_at is an edit clock) and template uses (catalog popularity = sum of uses across everyone).
+// ref is an artifacts.id or a template id from the code catalog — no FK since it spans two parents;
+// core deletes rows with their artifact (the chunks pattern).
+export const visits = pgTable(
+    "visits",
     {
         userId: uuid("user_id")
             .notNull()
             .references(() => users.id, { onDelete: "cascade" }),
-        artifactId: uuid("artifact_id")
-            .notNull()
-            .references(() => artifacts.id, { onDelete: "cascade" }),
-        views: integer("views").notNull().default(1),
-        viewedAt: timestamp("viewed_at").notNull().defaultNow(),
+        kind: text("kind").notNull(), // "artifact" | "template"
+        ref: text("ref").notNull(),
+        uses: integer("uses").notNull().default(1),
+        seenAt: timestamp("seen_at").notNull().defaultNow(),
     },
     (t) => [
-        primaryKey({ columns: [t.userId, t.artifactId] }),
-        index("artifact_visits_user_viewed_idx").on(t.userId, t.viewedAt.desc()),
+        primaryKey({ columns: [t.userId, t.kind, t.ref] }),
+        index("visits_kind_ref_idx").on(t.kind, t.ref),
     ],
 );
 
+// custom themes only — the built-in library lives in code (@themes)
 export const themes = pgTable("themes", {
     id: uuid("id").primaryKey().defaultRandom(),
-    workspaceId: uuid("workspace_id").references(() => workspaces.id), // null = system theme
+    workspaceId: uuid("workspace_id")
+        .notNull()
+        .references(() => workspaces.id),
     name: text("name").notNull(),
     tokens: jsonb("tokens").notNull(),
     mood: text("mood"),
@@ -206,17 +217,6 @@ export const assets = pgTable("assets", {
     meta: jsonb("meta"), // { provider, author, authorUrl, sourceUrl, downloadLocation, prompt, style }
     data: text("data"), // base64 bytes for stored media (generated / uploaded); null for stock (url only)
     mime: text("mime"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
-export const shares = pgTable("shares", {
-    id: uuid("id").primaryKey().defaultRandom(),
-    artifactId: uuid("artifact_id")
-        .notNull()
-        .references(() => artifacts.id),
-    subjectType: text("subject_type").notNull(), // user | link | workspace
-    subjectId: text("subject_id").notNull(),
-    role: text("role").notNull().default("viewer"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -273,16 +273,25 @@ export const linkRecipients = pgTable(
     (t) => [unique().on(t.linkId, t.email)],
 );
 
-export const credits = pgTable("credits", {
-    id: uuid("id").primaryKey().defaultRandom(),
-    workspaceId: uuid("workspace_id")
-        .notNull()
-        .references(() => workspaces.id),
-    delta: integer("delta").notNull(),
-    reason: text("reason").notNull(),
-    balanceAfter: integer("balance_after").notNull(),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const credits = pgTable(
+    "credits",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        workspaceId: uuid("workspace_id")
+            .notNull()
+            .references(() => workspaces.id),
+        // who initiated the spend; null = system (monthly resets, webhook grants)
+        userId: uuid("user_id").references(() => users.id),
+        delta: integer("delta").notNull(),
+        reason: text("reason").notNull(),
+        // the units of work this charge was for, so history can say what it bought and not just
+        // which tool ran; null on grants, resets, and rows written before it existed
+        usage: jsonb("usage").$type<Usage>(),
+        balanceAfter: integer("balance_after").notNull(),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+    },
+    (t) => [index("credits_ws_created_idx").on(t.workspaceId, t.createdAt.desc())],
+);
 
 // the event id is claimed before handling, so a Stripe redelivery can't re-apply the same effect
 export const stripeEvents = pgTable("stripe_events", {
@@ -292,6 +301,84 @@ export const stripeEvents = pgTable("stripe_events", {
 });
 
 // postgres(url) is lazy, so importing this for `drizzle-kit generate` stays connection-free
+// ---- The context library: reusable, workspace-shared grounding for generation + chat ----
+
+// a named, reusable collection of grounding material; workspace-scoped = shared with the team
+export const contexts = pgTable(
+    "contexts",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        workspaceId: uuid("workspace_id")
+            .notNull()
+            .references(() => workspaces.id),
+        name: text("name").notNull(),
+        description: text("description"),
+        createdBy: uuid("created_by").references(() => users.id),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+        updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    },
+    (t) => [index("contexts_ws_idx").on(t.workspaceId, t.updatedAt.desc())],
+);
+
+// one source inside a context; `body` is the extracted text and stays the chunks' source of truth
+export const contextItems = pgTable(
+    "context_items",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        contextId: uuid("context_id")
+            .notNull()
+            .references(() => contexts.id, { onDelete: "cascade" }),
+        kind: text("kind").notNull(), // "file" | "link" | "artifact" | "text"
+        title: text("title").notNull(),
+        ref: text("ref"), // the url (link) or artifact id (artifact); absent for file/text
+        body: text("body").notNull(),
+        chars: integer("chars").notNull(),
+        addedBy: uuid("added_by").references(() => users.id),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+    },
+    (t) => [index("context_items_ctx_idx").on(t.contextId)],
+);
+
+// ONE vector store for every retrievable text: context items and conversation memory side by side.
+// refId points at a context_item or a chat_message; no FK since it spans two parents — the core
+// deletes chunks with their parent.
+export const chunks = pgTable(
+    "chunks",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        workspaceId: uuid("workspace_id")
+            .notNull()
+            .references(() => workspaces.id),
+        scope: text("scope").notNull(), // "context" | "chat"
+        refId: uuid("ref_id").notNull(),
+        seq: integer("seq").notNull(),
+        text: text("text").notNull(),
+        embedding: vector("embedding", { dimensions: 768 }).notNull(),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+    },
+    (t) => [
+        index("chunks_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
+        index("chunks_ws_scope_idx").on(t.workspaceId, t.scope),
+        index("chunks_ref_idx").on(t.refId),
+    ],
+);
+
+// the chat thread's durable record; rows chunk into `chunks` (scope "chat") for recall
+export const chatMessages = pgTable(
+    "chat_messages",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        workspaceId: uuid("workspace_id")
+            .notNull()
+            .references(() => workspaces.id),
+        artifactId: uuid("artifact_id"), // no FK: chat runs against drafts that may never persist
+        role: text("role").notNull(), // "user" | "assistant"
+        text: text("text").notNull(),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+    },
+    (t) => [index("chat_messages_ws_art_idx").on(t.workspaceId, t.artifactId, t.createdAt.desc())],
+);
+
 export const schema = {
     users,
     oauthAccounts,
@@ -301,13 +388,16 @@ export const schema = {
     invites,
     folders,
     artifacts,
-    artifactVisits,
+    visits,
     themes,
     assets,
-    shares,
     links,
     linkRecipients,
     linkViews,
     credits,
     stripeEvents,
+    contexts,
+    contextItems,
+    chunks,
+    chatMessages,
 };

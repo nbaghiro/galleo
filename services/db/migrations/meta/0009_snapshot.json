@@ -1,6 +1,6 @@
 {
-    "id": "4b6d8419-b785-49a8-97c6-358f63121252",
-    "prevId": "c008fc23-c6d4-42be-a4ff-62858cef64b2",
+    "id": "1310f5b7-a616-477b-b632-f4c6726b7cb1",
+    "prevId": "5e6cd145-d0b4-4336-9986-03ad202c2989",
     "version": "7",
     "dialect": "postgresql",
     "tables": {
@@ -85,9 +85,74 @@
                     "primaryKey": false,
                     "notNull": true,
                     "default": "now()"
+                },
+                "digest": {
+                    "name": "digest",
+                    "type": "jsonb",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "search_text": {
+                    "name": "search_text",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "ai_meta": {
+                    "name": "ai_meta",
+                    "type": "jsonb",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "search_tsv": {
+                    "name": "search_tsv",
+                    "type": "tsvector",
+                    "primaryKey": false,
+                    "notNull": false,
+                    "generated": {
+                        "as": "setweight(to_tsvector('english', coalesce(title, '')), 'A') || setweight(to_tsvector('english', coalesce(search_text, '')), 'B')",
+                        "type": "stored"
+                    }
                 }
             },
-            "indexes": {},
+            "indexes": {
+                "artifacts_search_tsv_idx": {
+                    "name": "artifacts_search_tsv_idx",
+                    "columns": [
+                        {
+                            "expression": "search_tsv",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "gin",
+                    "with": {}
+                },
+                "artifacts_ws_updated_idx": {
+                    "name": "artifacts_ws_updated_idx",
+                    "columns": [
+                        {
+                            "expression": "workspace_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        },
+                        {
+                            "expression": "updated_at",
+                            "isExpression": false,
+                            "asc": false,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
             "foreignKeys": {
                 "artifacts_workspace_id_workspaces_id_fk": {
                     "name": "artifacts_workspace_id_workspaces_id_fk",
@@ -317,6 +382,12 @@
                     "primaryKey": false,
                     "notNull": true
                 },
+                "user_id": {
+                    "name": "user_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": false
+                },
                 "delta": {
                     "name": "delta",
                     "type": "integer",
@@ -343,13 +414,44 @@
                     "default": "now()"
                 }
             },
-            "indexes": {},
+            "indexes": {
+                "credits_ws_created_idx": {
+                    "name": "credits_ws_created_idx",
+                    "columns": [
+                        {
+                            "expression": "workspace_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        },
+                        {
+                            "expression": "created_at",
+                            "isExpression": false,
+                            "asc": false,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
             "foreignKeys": {
                 "credits_workspace_id_workspaces_id_fk": {
                     "name": "credits_workspace_id_workspaces_id_fk",
                     "tableFrom": "credits",
                     "tableTo": "workspaces",
                     "columnsFrom": ["workspace_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                },
+                "credits_user_id_users_id_fk": {
+                    "name": "credits_user_id_users_id_fk",
+                    "tableFrom": "credits",
+                    "tableTo": "users",
+                    "columnsFrom": ["user_id"],
                     "columnsTo": ["id"],
                     "onDelete": "no action",
                     "onUpdate": "no action"
@@ -412,6 +514,106 @@
             },
             "compositePrimaryKeys": {},
             "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.invites": {
+            "name": "invites",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "workspace_id": {
+                    "name": "workspace_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "email": {
+                    "name": "email",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "role": {
+                    "name": "role",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'editor'"
+                },
+                "token_hash": {
+                    "name": "token_hash",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "invited_by": {
+                    "name": "invited_by",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "expires_at": {
+                    "name": "expires_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "accepted_at": {
+                    "name": "accepted_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {},
+            "foreignKeys": {
+                "invites_workspace_id_workspaces_id_fk": {
+                    "name": "invites_workspace_id_workspaces_id_fk",
+                    "tableFrom": "invites",
+                    "tableTo": "workspaces",
+                    "columnsFrom": ["workspace_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "invites_invited_by_users_id_fk": {
+                    "name": "invites_invited_by_users_id_fk",
+                    "tableFrom": "invites",
+                    "tableTo": "users",
+                    "columnsFrom": ["invited_by"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {
+                "invites_token_hash_unique": {
+                    "name": "invites_token_hash_unique",
+                    "nullsNotDistinct": false,
+                    "columns": ["token_hash"]
+                },
+                "invites_workspace_id_email_unique": {
+                    "name": "invites_workspace_id_email_unique",
+                    "nullsNotDistinct": false,
+                    "columns": ["workspace_id", "email"]
+                }
+            },
             "policies": {},
             "checkConstraints": {},
             "isRLSEnabled": false
@@ -938,6 +1140,12 @@
                     "primaryKey": false,
                     "notNull": false
                 },
+                "active_workspace_id": {
+                    "name": "active_workspace_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": false
+                },
                 "created_at": {
                     "name": "created_at",
                     "type": "timestamp",
@@ -1037,6 +1245,13 @@
                 },
                 "ai_credits_used": {
                     "name": "ai_credits_used",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "ai_credits_bonus": {
+                    "name": "ai_credits_bonus",
                     "type": "integer",
                     "primaryKey": false,
                     "notNull": true,

@@ -1,0 +1,1 @@
+ALTER TABLE "credits" ADD COLUMN "usage" jsonb;

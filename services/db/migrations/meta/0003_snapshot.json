@@ -750,68 +750,6 @@
             "checkConstraints": {},
             "isRLSEnabled": false
         },
-        "public.shares": {
-            "name": "shares",
-            "schema": "",
-            "columns": {
-                "id": {
-                    "name": "id",
-                    "type": "uuid",
-                    "primaryKey": true,
-                    "notNull": true,
-                    "default": "gen_random_uuid()"
-                },
-                "artifact_id": {
-                    "name": "artifact_id",
-                    "type": "uuid",
-                    "primaryKey": false,
-                    "notNull": true
-                },
-                "subject_type": {
-                    "name": "subject_type",
-                    "type": "text",
-                    "primaryKey": false,
-                    "notNull": true
-                },
-                "subject_id": {
-                    "name": "subject_id",
-                    "type": "text",
-                    "primaryKey": false,
-                    "notNull": true
-                },
-                "role": {
-                    "name": "role",
-                    "type": "text",
-                    "primaryKey": false,
-                    "notNull": true,
-                    "default": "'viewer'"
-                },
-                "created_at": {
-                    "name": "created_at",
-                    "type": "timestamp",
-                    "primaryKey": false,
-                    "notNull": true,
-                    "default": "now()"
-                }
-            },
-            "indexes": {},
-            "foreignKeys": {
-                "shares_artifact_id_artifacts_id_fk": {
-                    "name": "shares_artifact_id_artifacts_id_fk",
-                    "tableFrom": "shares",
-                    "tableTo": "artifacts",
-                    "columnsFrom": ["artifact_id"],
-                    "columnsTo": ["id"],
-                    "onDelete": "no action",
-                    "onUpdate": "no action"
-                }
-            },
-            "compositePrimaryKeys": {},
-            "uniqueConstraints": {},
-            "policies": {},
-            "checkConstraints": {},
-            "isRLSEnabled": false
-        },
         "public.themes": {
             "name": "themes",
             "schema": "",
