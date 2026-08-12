@@ -13,10 +13,34 @@ export async function loadWorkspace(): Promise<void> {
     }
 }
 
-export async function inviteMember(email: string): Promise<{ url: string; sent: boolean }> {
-    const res = await api.inviteMember(email);
+export async function inviteMember(
+    email: string,
+    role: "admin" | "member" = "member",
+): Promise<{ url: string; sent: boolean }> {
+    const res = await api.inviteMember(email, role);
     await loadWorkspace();
     return res;
+}
+
+export async function renameWorkspace(name: string): Promise<void> {
+    await api.renameWorkspace(name);
+    await loadWorkspace();
+}
+
+export async function setMemberRole(userId: string, role: "admin" | "member"): Promise<void> {
+    await api.setMemberRole(userId, role);
+    await loadWorkspace();
+}
+
+// Full reload, like a switch: every store must re-fetch under whatever workspace comes next.
+export async function leaveWorkspace(): Promise<void> {
+    await api.leaveWorkspace();
+    window.location.href = "/";
+}
+
+export async function transferOwnership(userId: string): Promise<void> {
+    await api.transferOwnership(userId);
+    await loadWorkspace();
 }
 
 export async function revokeInvite(id: string): Promise<void> {

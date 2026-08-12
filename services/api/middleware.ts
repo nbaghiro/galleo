@@ -1,8 +1,9 @@
 import type { Context, MiddlewareHandler } from "hono";
 import { getCookie } from "hono/cookie";
-import type { User } from "@model/workspace";
+import type { User, WorkspaceRole } from "@model/workspace";
 import { SESSION_COOKIE } from "../utils/auth";
 import { currentUser, currentWorkspace, type WorkspaceRow } from "../core/accounts";
+import { roleOf } from "../core/workspaces";
 import { MODEL_HEADER, parseOverrides, type ModelOverrides } from "../core/models";
 
 // The api layer's shared guard: the only non-resource file here. It exists because the gate needs
@@ -35,6 +36,20 @@ export const requireWorkspace: MiddlewareHandler<WorkspaceEnv> = async (c, next)
     c.set("ws", ws);
     return next();
 };
+
+// Mounted after requireWorkspace. Owner derives from the workspace row; admin from the member row.
+export const requireRole =
+    (min: Exclude<WorkspaceRole, "member">): MiddlewareHandler<WorkspaceEnv> =>
+    async (c, next) => {
+        const role = await roleOf(c.get("ws"), c.get("user").id);
+        const allowed = role === "owner" || (min === "admin" && role === "admin");
+        if (!allowed)
+            return c.json(
+                { error: min === "owner" ? "only the workspace owner can do this" : "admins only" },
+                403,
+            );
+        return next();
+    };
 
 // The client may pin any step to a specific model; the registry decides which ids survive.
 export const overridesFrom = (c: Context): ModelOverrides =>

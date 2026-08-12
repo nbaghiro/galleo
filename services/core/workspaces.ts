@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, isNull, gt, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { schema } from "../db/schema";
+import { asRole, type WorkspaceRole } from "@model/workspace";
 import { appUrl } from "../utils/env";
 import { sendWorkspaceInvite } from "./mail";
 import type { WorkspaceRow } from "./accounts";
@@ -14,6 +15,55 @@ const INVITE_TTL_DAYS = 14;
 const hashToken = (raw: string): string => createHash("sha256").update(raw).digest("hex");
 const newToken = (): string => randomBytes(24).toString("base64url");
 const inviteUrl = (token: string): string => appUrl(`/invite/${token}`);
+
+/** The caller's effective role, or null when they are not a member at all. */
+export async function roleOf(ws: WorkspaceRow, userId: string): Promise<WorkspaceRole | null> {
+    if (ws.ownerId === userId) return "owner";
+    const [row] = await db
+        .select({ role: schema.members.role })
+        .from(schema.members)
+        .where(and(eq(schema.members.workspaceId, ws.id), eq(schema.members.userId, userId)));
+    return row ? asRole(row.role) : null;
+}
+
+export async function setMemberRole(
+    workspaceId: string,
+    userId: string,
+    role: "admin" | "member",
+): Promise<boolean> {
+    const [row] = await db
+        .update(schema.members)
+        .set({ role })
+        .where(and(eq(schema.members.workspaceId, workspaceId), eq(schema.members.userId, userId)))
+        .returning({ userId: schema.members.userId });
+    return !!row;
+}
+
+export async function renameWorkspace(workspaceId: string, name: string): Promise<void> {
+    await db.update(schema.workspaces).set({ name }).where(eq(schema.workspaces.id, workspaceId));
+}
+
+/** Hand the workspace to an existing member; the old owner stays on as an admin. */
+export async function transferOwnership(ws: WorkspaceRow, targetUserId: string): Promise<boolean> {
+    const [target] = await db
+        .select({ userId: schema.members.userId })
+        .from(schema.members)
+        .where(and(eq(schema.members.workspaceId, ws.id), eq(schema.members.userId, targetUserId)));
+    if (!target || targetUserId === ws.ownerId) return false;
+    await db.transaction(async (tx) => {
+        await tx
+            .update(schema.workspaces)
+            .set({ ownerId: targetUserId })
+            .where(eq(schema.workspaces.id, ws.id));
+        await tx
+            .update(schema.members)
+            .set({ role: "admin" })
+            .where(
+                and(eq(schema.members.workspaceId, ws.id), eq(schema.members.userId, ws.ownerId)),
+            );
+    });
+    return true;
+}
 
 export function liveMembers(workspaceId: string) {
     return db
@@ -69,6 +119,7 @@ export async function inviteMember(
     ws: WorkspaceRow,
     inviter: { id: string; name: string | null },
     email: string,
+    role: "admin" | "member" = "member",
 ): Promise<InviteResult> {
     const members = await liveMembers(ws.id);
     if (members.some((m) => m.email.toLowerCase() === email)) return { error: "already-member" };
@@ -85,6 +136,7 @@ export async function inviteMember(
         .values({
             workspaceId: ws.id,
             email,
+            role,
             tokenHash: hashToken(token),
             invitedBy: inviter.id,
             expiresAt,
@@ -93,6 +145,7 @@ export async function inviteMember(
             target: [schema.invites.workspaceId, schema.invites.email],
             // re-inviting refreshes the token + window (and revives an expired/accepted row)
             set: {
+                role,
                 tokenHash: hashToken(token),
                 invitedBy: inviter.id,
                 expiresAt,

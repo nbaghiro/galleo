@@ -1,9 +1,10 @@
 import { randomBytes, createHash } from "node:crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { Google } from "arctic";
-import { creditLimitFor } from "@model/billing";
+
 import type { User } from "@model/workspace";
 import { db } from "../db/client";
+import { freshCreditWindow, rollCreditWindow } from "./credits";
 import { schema } from "../db/schema";
 import { hashPassword, readSessionPayload, verifyPassword } from "../utils/auth";
 import { appUrl } from "../utils/env";
@@ -70,22 +71,8 @@ export async function currentWorkspace(userId: string) {
         .orderBy(schema.members.createdAt);
     const ws = rows.find((r) => r.ws.id === r.active)?.ws ?? rows[0]?.ws;
     if (!ws) return null;
-    if (ws.creditsResetAt.getTime() <= Date.now()) {
-        const next = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        await db
-            .update(schema.workspaces)
-            .set({ aiCreditsUsed: 0, creditsResetAt: next })
-            .where(eq(schema.workspaces.id, ws.id));
-        if (ws.aiCreditsUsed > 0)
-            await db.insert(schema.credits).values({
-                workspaceId: ws.id,
-                delta: ws.aiCreditsUsed,
-                reason: "monthly-reset",
-                balanceAfter: creditLimitFor(ws),
-            });
-        ws.aiCreditsUsed = 0;
-        ws.creditsResetAt = next;
-    }
+    const rolled = await rollCreditWindow(ws);
+    if (rolled) Object.assign(ws, rolled);
     return ws;
 }
 
@@ -150,7 +137,13 @@ export async function createWorkspaceForUser(
     const slug = opts.slug ?? (await uniqueSlug(opts.slugBase ?? opts.name));
     const [ws] = await db
         .insert(schema.workspaces)
-        .values({ name: opts.name, slug, ownerId: userId, plan: opts.plan ?? "free" })
+        .values({
+            name: opts.name,
+            slug,
+            ownerId: userId,
+            plan: opts.plan ?? "free",
+            ...freshCreditWindow(),
+        })
         .returning({ id: schema.workspaces.id, slug: schema.workspaces.slug });
     if (!ws) throw new Error("failed to create workspace");
     await db.insert(schema.members).values({ workspaceId: ws.id, userId, role: "owner" });

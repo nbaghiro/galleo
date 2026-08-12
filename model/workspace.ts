@@ -1,3 +1,10 @@
+// owner derives from workspaces.owner_id, never the role column; admin manages members, member edits
+export type WorkspaceRole = "owner" | "admin" | "member";
+
+// legacy rows predate roles and stored "editor"; anything unrecognized reads as a plain member
+export const asRole = (raw: string | null | undefined): "admin" | "member" =>
+    raw === "admin" ? "admin" : "member";
+
 export interface User {
     id: string;
     email: string;

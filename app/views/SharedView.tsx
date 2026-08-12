@@ -32,7 +32,6 @@ import {
     PlusIcon,
 } from "@ui/icons";
 import { Badge, Button, Chip, Eyebrow, IconButton } from "@ui/button";
-import { EmptyState } from "@ui/status";
 import { Modal } from "@ui/overlay";
 import { TextField } from "@ui/inputs";
 import { Sidebar, SidebarToggle } from "../components/Sidebar";
@@ -62,6 +61,46 @@ const FILTERS: [string, string][] = [
     ["protected", "Protected"],
     ["private", "Invite-only"],
 ];
+
+// first-run empty: teaches the three audiences and carries the page's only CTA
+// (the header button hides while there is nothing shared)
+const EmptyShared: Component<{ onShare: () => void }> = (p) => (
+    <div class="flex justify-center px-5 py-10 md:min-h-[52vh] md:items-center md:py-12">
+        <div class="w-full max-w-105 sm:max-w-135">
+            <div class="text-center">
+                <span class="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-accent/10 text-accent">
+                    <GlobeIcon size={20} />
+                </span>
+                <h2 class="font-display text-[20px] font-semibold text-ink">Nothing shared yet</h2>
+                <p class="mx-auto mt-1.5 max-w-75 text-[12.5px] leading-relaxed text-muted">
+                    Pick an artifact, choose who can open it, and follow every view from here.
+                </p>
+            </div>
+            <div class="mt-6 grid gap-2 sm:grid-cols-3">
+                <For each={Object.values(AUDIENCE)}>
+                    {(a) => (
+                        <div class="flex items-center gap-3 rounded-xl border border-line bg-panel px-3.5 py-3 sm:flex-col sm:gap-2.5 sm:px-4 sm:py-5 sm:text-center">
+                            <span class="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-accent/10 text-accent">
+                                <Dynamic component={a.icon} size={15} />
+                            </span>
+                            <div class="min-w-0">
+                                <div class="text-[12.5px] font-medium text-ink">{a.badge}</div>
+                                <div class="mt-0.5 text-[11.5px] leading-snug text-muted">
+                                    {a.blurb}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </For>
+            </div>
+            <div class="mt-6 flex justify-center">
+                <Button variant="primary" class="w-full sm:w-auto" onClick={p.onShare}>
+                    <PlusIcon size={15} /> Share an artifact
+                </Button>
+            </div>
+        </div>
+    </div>
+);
 
 const bareUrl = (url: string): string => url.replace(/^https?:\/\//, "");
 const viewsLabel = (n: number): string => `${n} view${n === 1 ? "" : "s"}`;
@@ -427,9 +466,11 @@ export const SharedView: Component = () => {
                                 Every artifact you’ve shared, its links, and how each one performs.
                             </p>
                         </div>
-                        <Button variant="primary" onClick={() => setPicker(true)}>
-                            <PlusIcon size={15} /> Share an artifact
-                        </Button>
+                        <Show when={!loading() && items().length}>
+                            <Button variant="primary" onClick={() => setPicker(true)}>
+                                <PlusIcon size={15} /> Share an artifact
+                            </Button>
+                        </Show>
                     </div>
 
                     <Show when={!loading() && stats().total}>
@@ -454,23 +495,7 @@ export const SharedView: Component = () => {
                 >
                     <Show
                         when={items().length}
-                        fallback={
-                            <EmptyState
-                                class="h-[58vh]"
-                                icon={
-                                    <span class="opacity-40">
-                                        <GlobeIcon size={30} />
-                                    </span>
-                                }
-                                title="Nothing shared yet"
-                                subtitle="Publish an artifact to a public, password-protected, or invite-only link — and track them all here."
-                                action={
-                                    <Button variant="primary" onClick={() => setPicker(true)}>
-                                        <PlusIcon size={15} /> Share an artifact
-                                    </Button>
-                                }
-                            />
-                        }
+                        fallback={<EmptyShared onShare={() => setPicker(true)} />}
                     >
                         <div class="flex flex-wrap gap-2 border-b border-line px-9 py-4">
                             <For each={FILTERS}>

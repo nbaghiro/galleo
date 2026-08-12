@@ -1,19 +1,67 @@
-import type { Component } from "solid-js";
+import type { Component, JSX } from "solid-js";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { Eyebrow, Spinner } from "@ui/button";
+import type { WorkspaceRole } from "@model/workspace";
+import { describeUsage } from "@model/credits";
+import { Button, Eyebrow, Spinner } from "@ui/button";
 import { TextField } from "@ui/inputs";
+import { Dropdown } from "@ui/select";
 import { Meter } from "@ui/status";
+import { ConfirmModal } from "@ui/overlay";
 import { Sidebar, SidebarToggle } from "../components/Sidebar";
-import { ApiError } from "../api";
-import { billing, loadBilling } from "../stores/billing";
+import { ApiError, api, type LedgerEntry, type WorkspaceMember } from "../api";
+import { billing, loadBilling, openPortal } from "../stores/billing";
 import {
     inviteMember,
+    leaveWorkspace,
     loadWorkspace,
     removeMember,
+    renameWorkspace,
     revokeInvite,
+    setMemberRole,
+    transferOwnership,
     workspaceState,
 } from "../stores/workspace";
+
+const Section: Component<{ title: string; children: JSX.Element }> = (props) => (
+    <section class="mb-8">
+        <Eyebrow as="div" class="mb-2">
+            {props.title}
+        </Eyebrow>
+        {props.children}
+    </section>
+);
+
+const StatCard: Component<{
+    label: string;
+    value: string;
+    caption?: string;
+    meter?: { value: number; max: number };
+    action?: JSX.Element;
+}> = (props) => (
+    <div class="rounded-xl border border-line bg-panel px-4 py-3">
+        <div class="flex items-baseline justify-between gap-1.5">
+            <Eyebrow as="div">{props.label}</Eyebrow>
+            {props.action}
+        </div>
+        <div class="mt-1 text-[20px] font-bold tabular-nums">{props.value}</div>
+        <Show when={props.meter}>
+            {(m) => <Meter value={m().value} max={m().max} trackTone="canvas" class="mt-2" />}
+        </Show>
+        <Show when={props.caption}>
+            {(t) => <div class="mt-1.5 text-[11.5px] text-muted">{t()}</div>}
+        </Show>
+    </div>
+);
+
+const initial = (name: string | null, mail: string): string =>
+    (name?.trim()[0] ?? mail[0] ?? "?").toUpperCase();
+
+const roleLabel: Record<WorkspaceRole, string> = {
+    owner: "Owner",
+    admin: "Admin",
+    member: "Member",
+};
 
 export const WorkspaceSettingsView: Component = () => {
     const navigate = useNavigate();
@@ -21,18 +69,59 @@ export const WorkspaceSettingsView: Component = () => {
     onMount(loadBilling);
 
     const st = workspaceState;
-    const isOwner = (): boolean => st()?.role === "owner";
+    const myRole = (): WorkspaceRole => st()?.role ?? "member";
+    const isOwner = (): boolean => myRole() === "owner";
+    const isAdmin = (): boolean => myRole() !== "member";
     const seatsUsed = createMemo(() => (st()?.members.length ?? 0) + (st()?.invites.length ?? 0));
     const seats = (): number => st()?.workspace.seats ?? 1;
-    const seatPct = (): number => Math.min(100, Math.round((seatsUsed() / seats()) * 100));
 
+    const b = billing;
+    const creditsLeft = (): number => {
+        const c = b()?.credits;
+        return c ? Math.max(0, c.limit - c.used) : 0;
+    };
+    const unlimited = (n: number): boolean => n < 0;
+    // "/ ∞" over a bare number, so no cap reads as unlimited rather than as a missing denominator
+    const storageValue = (): string => {
+        const u = b()?.usage;
+        if (!u) return "—";
+        return unlimited(u.maxStorageMb)
+            ? `${u.storageMb} MB / ∞`
+            : `${u.storageMb} / ${u.maxStorageMb} MB`;
+    };
+    const artifactsCaption = (): string => {
+        const u = b()?.usage;
+        if (!u) return "";
+        if (unlimited(u.maxArtifacts)) return `${u.artifacts} / ∞ artifacts`;
+        const left = Math.max(0, u.maxArtifacts - u.artifacts);
+        return `${u.artifacts} / ${u.maxArtifacts} artifacts · ${left} left`;
+    };
+
+    // rename (admin+)
+    const [name, setName] = createSignal<string | null>(null);
+    const [savingName, setSavingName] = createSignal(false);
+    const submitName = async (e: Event): Promise<void> => {
+        e.preventDefault();
+        const next = name()?.trim();
+        if (!next || next === st()?.workspace.name || savingName()) return;
+        setSavingName(true);
+        try {
+            await renameWorkspace(next);
+            setName(null);
+        } finally {
+            setSavingName(false);
+        }
+    };
+
+    // invite (admin+)
     const [email, setEmail] = createSignal("");
+    const [inviteRole, setInviteRole] = createSignal<"admin" | "member">("member");
     const [busy, setBusy] = createSignal(false);
     const [error, setError] = createSignal<string | null>(null);
     // the accept URL is only known at creation, so offer it once for copy
     const [lastInvite, setLastInvite] = createSignal<{ url: string; sent: boolean } | null>(null);
 
-    const submit = async (e: Event): Promise<void> => {
+    const submitInvite = async (e: Event): Promise<void> => {
         e.preventDefault();
         const target = email().trim();
         if (!target || busy()) return;
@@ -40,7 +129,7 @@ export const WorkspaceSettingsView: Component = () => {
         setError(null);
         setLastInvite(null);
         try {
-            setLastInvite(await inviteMember(target));
+            setLastInvite(await inviteMember(target, inviteRole()));
             setEmail("");
         } catch (err) {
             setError(err instanceof ApiError ? err.message : "the invite failed — try again");
@@ -49,19 +138,58 @@ export const WorkspaceSettingsView: Component = () => {
         }
     };
 
-    const initial = (name: string | null, mail: string): string =>
-        (name?.trim()[0] ?? mail[0] ?? "?").toUpperCase();
+    // leave / transfer confirmations
+    const [confirm, setConfirm] = createSignal<
+        { kind: "leave" } | { kind: "transfer"; member: WorkspaceMember } | null
+    >(null);
+    const [acting, setActing] = createSignal(false);
+    const runConfirm = async (): Promise<void> => {
+        const c = confirm();
+        if (!c || acting()) return;
+        setActing(true);
+        try {
+            if (c.kind === "leave") await leaveWorkspace();
+            else await transferOwnership(c.member.userId);
+            setConfirm(null);
+        } finally {
+            setActing(false);
+        }
+    };
+
+    // ledger, first page eagerly + load-more
+    const [ledger, setLedger] = createSignal<LedgerEntry[]>([]);
+    const [ledgerCursor, setLedgerCursor] = createSignal<string | null>(null);
+    const [ledgerLoading, setLedgerLoading] = createSignal(false);
+    const loadLedger = async (cursor?: string | null): Promise<void> => {
+        if (ledgerLoading()) return;
+        setLedgerLoading(true);
+        try {
+            const page = await api.getLedger(cursor);
+            setLedger(cursor ? [...ledger(), ...page.entries] : page.entries);
+            setLedgerCursor(page.nextCursor);
+        } catch {
+            /* the section just stays empty */
+        } finally {
+            setLedgerLoading(false);
+        }
+    };
+    onMount(() => void loadLedger());
+
+    // a settle now rewrites the charge's own row, so the suffixes only appear on rows written
+    // before that change
+    const reasonLabel = (r: string): string =>
+        r.replace(":settle", " (adjusted)").replace(":refund", " (refunded)").replace(/-/g, " ");
 
     return (
         <div class="flex h-dvh bg-canvas text-ink">
             <Sidebar />
             <main class="min-w-0 flex-1 overflow-y-auto">
                 <SidebarToggle />
-                <div class="mx-auto max-w-160 px-5 py-6 md:px-8 md:py-10">
+                <div class="mx-auto max-w-260 px-5 py-6 md:px-8 md:py-10">
                     <header class="mb-6">
                         <h1 class="text-[26px] font-bold tracking-[-0.02em]">Workspace settings</h1>
                         <p class="mt-1 text-[14px] text-muted">
-                            Members, seats, and plan for{" "}
+                            Members, plan, and usage for{" "}
                             <span class="font-semibold text-ink">{st()?.workspace.name}</span>.
                         </p>
                     </header>
@@ -69,180 +197,418 @@ export const WorkspaceSettingsView: Component = () => {
                     <Show when={st()}>
                         {(state) => (
                             <>
-                                <div class="mb-6 grid gap-3 sm:grid-cols-2">
+                                <Section title="General">
                                     <div class="rounded-xl border border-line bg-panel px-4 py-3">
-                                        <Eyebrow as="div">Plan</Eyebrow>
-                                        <div class="mt-1 flex items-baseline justify-between gap-1.5">
-                                            <span class="text-[20px] font-bold capitalize">
-                                                {billing()?.plan ?? state().workspace.plan}
-                                            </span>
-                                            <button
-                                                class="text-[12px] font-semibold text-soft underline hover:text-ink"
-                                                onClick={() => navigate("/pricing")}
+                                        <Show
+                                            when={isAdmin()}
+                                            fallback={
+                                                <div class="text-[14px] font-semibold">
+                                                    {state().workspace.name}
+                                                </div>
+                                            }
+                                        >
+                                            <form
+                                                class="flex items-center gap-2"
+                                                onSubmit={submitName}
                                             >
-                                                Manage plan →
-                                            </button>
-                                        </div>
-                                        <div class="mt-2 text-[11.5px] text-muted">
-                                            Billing, credits, and upgrades live on the plans page.
-                                        </div>
-                                    </div>
-                                    <div class="rounded-xl border border-line bg-panel px-4 py-3">
-                                        <Eyebrow as="div">Seats</Eyebrow>
-                                        <div class="mt-1 flex items-baseline justify-between gap-1.5 tabular-nums">
-                                            <div>
-                                                <span class="text-[20px] font-bold">
-                                                    {seatsUsed()}
-                                                </span>
-                                                <span class="text-[13px] text-muted">
-                                                    {" "}
-                                                    / {seats()} used
-                                                </span>
+                                                <TextField
+                                                    class="flex-1"
+                                                    value={name() ?? state().workspace.name}
+                                                    onChange={setName}
+                                                    aria-label="Workspace name"
+                                                />
+                                                <Button
+                                                    type="submit"
+                                                    variant="outline"
+                                                    disabled={
+                                                        savingName() ||
+                                                        !name()?.trim() ||
+                                                        name()?.trim() === state().workspace.name
+                                                    }
+                                                >
+                                                    {savingName() ? "Saving…" : "Rename"}
+                                                </Button>
+                                            </form>
+                                        </Show>
+                                        <Show when={!isOwner()}>
+                                            <div class="mt-3 border-t border-line pt-3">
+                                                <Button
+                                                    variant="ghost"
+                                                    class="text-[12.5px]"
+                                                    onClick={() => setConfirm({ kind: "leave" })}
+                                                >
+                                                    Leave this workspace
+                                                </Button>
                                             </div>
-                                            <Show when={isOwner()}>
+                                        </Show>
+                                    </div>
+                                </Section>
+
+                                <Section title="Plan & usage">
+                                    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                        <StatCard
+                                            label="Plan"
+                                            value={
+                                                (b()?.plan ?? state().workspace.plan)
+                                                    .charAt(0)
+                                                    .toUpperCase() +
+                                                (b()?.plan ?? state().workspace.plan).slice(1)
+                                            }
+                                            caption={
+                                                b()?.status === "past_due"
+                                                    ? "Payment failed — update your card"
+                                                    : b()?.cancelAtPeriodEnd
+                                                      ? "Ends at the period close"
+                                                      : undefined
+                                            }
+                                            action={
                                                 <button
                                                     class="text-[12px] font-semibold text-soft underline hover:text-ink"
-                                                    onClick={() => navigate("/pricing")}
+                                                    onClick={() =>
+                                                        b()?.status === "past_due"
+                                                            ? void openPortal()
+                                                            : navigate("/pricing")
+                                                    }
                                                 >
-                                                    Add seats →
+                                                    {b()?.status === "past_due"
+                                                        ? "Fix billing →"
+                                                        : "Manage plan →"}
                                                 </button>
-                                            </Show>
-                                        </div>
-                                        <Meter value={seatPct()} trackTone="canvas" class="mt-2" />
-                                    </div>
-                                </div>
-
-                                <Eyebrow as="div" class="mb-2">
-                                    Members
-                                </Eyebrow>
-                                <Show when={isOwner()}>
-                                    <form class="mb-2 flex items-start gap-2" onSubmit={submit}>
-                                        <TextField
-                                            type="email"
-                                            placeholder="teammate@company.com"
-                                            value={email()}
-                                            onChange={setEmail}
-                                            class="flex-1"
+                                            }
                                         />
-                                        <button
-                                            type="submit"
-                                            class="inline-flex flex-none items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-[13px] font-semibold text-canvas transition-colors hover:opacity-90 disabled:opacity-50"
-                                            disabled={busy() || !email().trim()}
-                                        >
-                                            <Show when={busy()}>
-                                                <Spinner size={13} tone="current" />
-                                            </Show>
-                                            {busy() ? "Inviting…" : "Invite"}
-                                        </button>
-                                    </form>
-                                    <Show when={error()}>
-                                        <p class="mb-3 text-[12.5px] text-red-500">{error()}</p>
-                                    </Show>
-                                    <Show when={lastInvite()}>
-                                        {(inv) => (
-                                            <div class="mb-4 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-[12.5px] text-ink">
-                                                {inv().sent
-                                                    ? "Invite sent."
-                                                    : "Invite created (email isn't configured on this server)."}{" "}
-                                                Share this link — it works once:
-                                                <div class="mt-1.5 flex items-center gap-2">
-                                                    <code class="min-w-0 flex-1 truncate rounded-md bg-canvas px-2 py-1 text-[11.5px]">
-                                                        {inv().url}
-                                                    </code>
+                                        <StatCard
+                                            label="AI credits left"
+                                            value={creditsLeft().toLocaleString()}
+                                            meter={{
+                                                value: creditsLeft(),
+                                                max: b()?.credits.limit ?? 1,
+                                            }}
+                                            caption={`of ${(b()?.credits.limit ?? 0).toLocaleString()} · you used ${(
+                                                b()?.credits.mySpend ?? 0
+                                            ).toLocaleString()} this cycle${
+                                                (b()?.credits.bonus ?? 0) > 0
+                                                    ? ` · +${b()!.credits.bonus.toLocaleString()} bonus`
+                                                    : ""
+                                            }`}
+                                        />
+                                        <StatCard
+                                            label="Seats"
+                                            value={`${seatsUsed()} / ${seats()}`}
+                                            meter={{ value: seatsUsed(), max: seats() }}
+                                            action={
+                                                <Show when={isOwner()}>
                                                     <button
-                                                        class="flex-none rounded-md border border-line bg-canvas px-2 py-1 text-[11.5px] font-semibold hover:border-accent"
-                                                        onClick={() =>
-                                                            void navigator.clipboard.writeText(
-                                                                inv().url,
-                                                            )
+                                                        class="text-[12px] font-semibold text-soft underline hover:text-ink"
+                                                        onClick={() => navigate("/pricing")}
+                                                    >
+                                                        Add seats →
+                                                    </button>
+                                                </Show>
+                                            }
+                                        />
+                                        <StatCard
+                                            label="Storage"
+                                            value={storageValue()}
+                                            meter={
+                                                unlimited(b()?.usage.maxStorageMb ?? 0)
+                                                    ? undefined
+                                                    : {
+                                                          value: b()?.usage.storageMb ?? 0,
+                                                          max: b()?.usage.maxStorageMb ?? 1,
+                                                      }
+                                            }
+                                            caption={artifactsCaption()}
+                                        />
+                                    </div>
+                                </Section>
+
+                                <Section title="Members">
+                                    <Show when={isAdmin()}>
+                                        <form
+                                            class="mb-2 flex items-start gap-2"
+                                            onSubmit={submitInvite}
+                                        >
+                                            <TextField
+                                                type="email"
+                                                placeholder="teammate@company.com"
+                                                value={email()}
+                                                onChange={setEmail}
+                                                class="flex-1"
+                                            />
+                                            {/* the plain trigger is w-full; unboxed it starves the email field */}
+                                            <div class="w-28 flex-none">
+                                                <Dropdown
+                                                    value={inviteRole()}
+                                                    options={[
+                                                        { label: "Member", value: "member" },
+                                                        { label: "Admin", value: "admin" },
+                                                    ]}
+                                                    onChange={(v) =>
+                                                        setInviteRole(
+                                                            v === "admin" ? "admin" : "member",
+                                                        )
+                                                    }
+                                                />
+                                            </div>
+                                            <Button
+                                                type="submit"
+                                                variant="primary"
+                                                disabled={busy() || !email().trim()}
+                                            >
+                                                <Show when={busy()}>
+                                                    <Spinner size={13} tone="current" />
+                                                </Show>
+                                                {busy() ? "Inviting…" : "Invite"}
+                                            </Button>
+                                        </form>
+                                        <Show when={error()}>
+                                            <p class="mb-3 text-[12.5px] text-accent">{error()}</p>
+                                        </Show>
+                                        <Show when={lastInvite()}>
+                                            {(inv) => (
+                                                <div class="mb-4 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-[12.5px] text-ink">
+                                                    {inv().sent
+                                                        ? "Invite sent."
+                                                        : "Invite created (email isn't configured on this server)."}{" "}
+                                                    Share this link — it works once:
+                                                    <div class="mt-1.5 flex items-center gap-2">
+                                                        <code class="min-w-0 flex-1 truncate rounded-md bg-canvas px-2 py-1 text-[11.5px]">
+                                                            {inv().url}
+                                                        </code>
+                                                        <button
+                                                            class="flex-none rounded-md border border-line bg-canvas px-2 py-1 text-[11.5px] font-semibold hover:border-accent"
+                                                            onClick={() =>
+                                                                void navigator.clipboard.writeText(
+                                                                    inv().url,
+                                                                )
+                                                            }
+                                                        >
+                                                            Copy
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </Show>
+                                    </Show>
+
+                                    <ul class="divide-y divide-line rounded-xl border border-line bg-panel">
+                                        <For each={state().members}>
+                                            {(m) => (
+                                                <li class="flex items-center gap-3 px-4 py-3">
+                                                    <span class="flex size-8 flex-none items-center justify-center overflow-hidden rounded-full bg-accent/15 text-[12.5px] font-bold text-accent">
+                                                        <Show
+                                                            when={m.avatarUrl}
+                                                            fallback={initial(m.name, m.email)}
+                                                        >
+                                                            <img
+                                                                src={m.avatarUrl!}
+                                                                alt=""
+                                                                class="size-full object-cover"
+                                                            />
+                                                        </Show>
+                                                    </span>
+                                                    <span class="min-w-0 flex-1">
+                                                        <span class="block truncate text-[13px] font-semibold">
+                                                            {m.name ?? m.email}
+                                                        </span>
+                                                        <Show when={m.name}>
+                                                            <span class="block truncate text-[11.5px] text-muted">
+                                                                {m.email}
+                                                            </span>
+                                                        </Show>
+                                                    </span>
+                                                    <Show
+                                                        when={isOwner() && !m.isOwner}
+                                                        fallback={
+                                                            <span class="flex-none text-[11px] font-semibold uppercase tracking-wide text-muted">
+                                                                {roleLabel[m.role]}
+                                                            </span>
                                                         }
                                                     >
-                                                        Copy
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </Show>
-                                </Show>
-
-                                <ul class="divide-y divide-line rounded-xl border border-line bg-panel">
-                                    <For each={state().members}>
-                                        {(m) => (
-                                            <li class="flex items-center gap-3 px-4 py-3">
-                                                <span class="flex size-8 flex-none items-center justify-center overflow-hidden rounded-full bg-accent/15 text-[12.5px] font-bold text-accent">
-                                                    <Show
-                                                        when={m.avatarUrl}
-                                                        fallback={initial(m.name, m.email)}
-                                                    >
-                                                        <img
-                                                            src={m.avatarUrl!}
-                                                            alt=""
-                                                            class="size-full object-cover"
+                                                        <Dropdown
+                                                            value={m.role}
+                                                            options={[
+                                                                {
+                                                                    label: "Member",
+                                                                    value: "member",
+                                                                },
+                                                                { label: "Admin", value: "admin" },
+                                                            ]}
+                                                            compact
+                                                            onChange={(v) =>
+                                                                void setMemberRole(
+                                                                    m.userId,
+                                                                    v === "admin"
+                                                                        ? "admin"
+                                                                        : "member",
+                                                                ).catch(() => {})
+                                                            }
                                                         />
+                                                        <button
+                                                            class="flex-none text-[12px] font-medium text-soft underline hover:text-ink"
+                                                            title="Make workspace owner"
+                                                            onClick={() =>
+                                                                setConfirm({
+                                                                    kind: "transfer",
+                                                                    member: m,
+                                                                })
+                                                            }
+                                                        >
+                                                            Transfer
+                                                        </button>
                                                     </Show>
-                                                </span>
-                                                <span class="min-w-0 flex-1">
-                                                    <span class="block truncate text-[13px] font-semibold">
-                                                        {m.name ?? m.email}
+                                                    <Show
+                                                        when={
+                                                            isAdmin() &&
+                                                            !m.isOwner &&
+                                                            (isOwner() || m.role !== "admin")
+                                                        }
+                                                    >
+                                                        <button
+                                                            class="flex-none text-[12px] font-medium text-soft underline hover:text-ink"
+                                                            onClick={() =>
+                                                                void removeMember(m.userId).catch(
+                                                                    () => {},
+                                                                )
+                                                            }
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    </Show>
+                                                </li>
+                                            )}
+                                        </For>
+                                        <For each={state().invites}>
+                                            {(inv) => (
+                                                <li class="flex items-center gap-3 px-4 py-3 opacity-70">
+                                                    <span class="flex size-8 flex-none items-center justify-center rounded-full border border-dashed border-line text-[12.5px] font-bold text-muted">
+                                                        {inv.email[0]?.toUpperCase()}
                                                     </span>
-                                                    <Show when={m.name}>
-                                                        <span class="block truncate text-[11.5px] text-muted">
-                                                            {m.email}
+                                                    <span class="min-w-0 flex-1">
+                                                        <span class="block truncate text-[13px] font-semibold">
+                                                            {inv.email}
                                                         </span>
-                                                    </Show>
-                                                </span>
-                                                <span class="flex-none text-[11px] font-semibold uppercase tracking-wide text-muted">
-                                                    {m.isOwner ? "Owner" : m.role}
-                                                </span>
-                                                <Show when={isOwner() && !m.isOwner}>
+                                                        <span class="block text-[11.5px] text-muted">
+                                                            Invited — expires{" "}
+                                                            {new Date(
+                                                                inv.expiresAt,
+                                                            ).toLocaleDateString()}
+                                                        </span>
+                                                    </span>
                                                     <button
                                                         class="flex-none text-[12px] font-medium text-soft underline hover:text-ink"
                                                         onClick={() =>
-                                                            void removeMember(m.userId).catch(
+                                                            void inviteMember(inv.email).catch(
                                                                 () => {},
                                                             )
                                                         }
                                                     >
-                                                        Remove
+                                                        Resend
                                                     </button>
-                                                </Show>
-                                            </li>
-                                        )}
-                                    </For>
-                                    <For each={state().invites}>
-                                        {(inv) => (
-                                            <li class="flex items-center gap-3 px-4 py-3 opacity-70">
-                                                <span class="flex size-8 flex-none items-center justify-center rounded-full border border-dashed border-line text-[12.5px] font-bold text-muted">
-                                                    {inv.email[0]?.toUpperCase()}
-                                                </span>
-                                                <span class="min-w-0 flex-1">
-                                                    <span class="block truncate text-[13px] font-semibold">
-                                                        {inv.email}
-                                                    </span>
-                                                    <span class="block text-[11.5px] text-muted">
-                                                        Invited — expires{" "}
-                                                        {new Date(
-                                                            inv.expiresAt,
-                                                        ).toLocaleDateString()}
-                                                    </span>
-                                                </span>
-                                                <button
-                                                    class="flex-none text-[12px] font-medium text-soft underline hover:text-ink"
-                                                    onClick={() =>
-                                                        void revokeInvite(inv.id).catch(() => {})
-                                                    }
-                                                >
-                                                    Revoke
-                                                </button>
-                                            </li>
-                                        )}
-                                    </For>
-                                </ul>
+                                                    <button
+                                                        class="flex-none text-[12px] font-medium text-soft underline hover:text-ink"
+                                                        onClick={() =>
+                                                            void revokeInvite(inv.id).catch(
+                                                                () => {},
+                                                            )
+                                                        }
+                                                    >
+                                                        Revoke
+                                                    </button>
+                                                </li>
+                                            )}
+                                        </For>
+                                    </ul>
+                                </Section>
+
+                                <Section title="Credit activity">
+                                    <Show
+                                        when={ledger().length}
+                                        fallback={
+                                            <p class="text-[12.5px] text-muted">
+                                                No credit activity yet.
+                                            </p>
+                                        }
+                                    >
+                                        <ul class="divide-y divide-line rounded-xl border border-line bg-panel">
+                                            <For each={ledger()}>
+                                                {(e) => (
+                                                    <li class="flex items-center gap-3 px-4 py-2.5 text-[12.5px]">
+                                                        <span class="min-w-0 flex-1">
+                                                            <span class="block truncate font-medium">
+                                                                {reasonLabel(e.reason)}
+                                                            </span>
+                                                            <span class="block text-[11px] text-muted">
+                                                                {e.user?.name ??
+                                                                    e.user?.email ??
+                                                                    "System"}{" "}
+                                                                · {new Date(e.at).toLocaleString()}
+                                                                <Show when={e.usage}>
+                                                                    {(u) => (
+                                                                        <> · {describeUsage(u())}</>
+                                                                    )}
+                                                                </Show>
+                                                            </span>
+                                                        </span>
+                                                        <span
+                                                            class={`flex-none font-mono tabular-nums ${e.delta > 0 ? "text-accent" : "text-soft"}`}
+                                                        >
+                                                            {e.delta > 0 ? "+" : ""}
+                                                            {e.delta.toLocaleString()}
+                                                        </span>
+                                                        <span class="w-16 flex-none text-right font-mono text-[11px] tabular-nums text-muted">
+                                                            {e.balanceAfter.toLocaleString()}
+                                                        </span>
+                                                    </li>
+                                                )}
+                                            </For>
+                                        </ul>
+                                        <Show when={ledgerCursor()}>
+                                            <Button
+                                                variant="ghost"
+                                                class="mt-2 text-[12px]"
+                                                disabled={ledgerLoading()}
+                                                onClick={() => void loadLedger(ledgerCursor())}
+                                            >
+                                                {ledgerLoading() ? "Loading…" : "Show older"}
+                                            </Button>
+                                        </Show>
+                                    </Show>
+                                </Section>
                             </>
                         )}
                     </Show>
                 </div>
             </main>
+
+            <Show when={confirm()}>
+                {(c) => (
+                    <ConfirmModal
+                        title={
+                            c().kind === "leave" ? "Leave this workspace?" : "Transfer ownership?"
+                        }
+                        body={
+                            c().kind === "leave" ? (
+                                <>You'll lose access to its artifacts until you're invited back.</>
+                            ) : (
+                                <>
+                                    <span class="font-semibold">
+                                        {(c() as { member: WorkspaceMember }).member.name ??
+                                            (c() as { member: WorkspaceMember }).member.email}
+                                    </span>{" "}
+                                    becomes the owner and takes over billing. You stay on as an
+                                    admin.
+                                </>
+                            )
+                        }
+                        confirmLabel={c().kind === "leave" ? "Leave" : "Transfer"}
+                        danger
+                        busy={acting()}
+                        onConfirm={() => void runConfirm()}
+                        onCancel={() => setConfirm(null)}
+                    />
+                )}
+            </Show>
         </div>
     );
 };
