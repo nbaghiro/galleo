@@ -1,7 +1,7 @@
 import { and, desc, eq, ilike, isNull } from "drizzle-orm";
 import type { ArtifactContent } from "@model/artifact";
 import type { ArtifactRef } from "@model/ai";
-import type { WorkspaceReader } from "./tools/registry";
+import type { WorkspaceReader } from "./tools";
 import { db } from "../../db/client";
 import { schema } from "../../db/schema";
 

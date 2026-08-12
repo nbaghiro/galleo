@@ -1,15 +1,15 @@
 import { ToolLoopAgent, stepCountIs, tool } from "ai";
 import type { ModelMessage, ToolSet } from "ai";
-import { z } from "zod";
 import type { ChatBlock, ChatInput, OutlinePatch, TurnEvent } from "@model/ai";
 import type { ElementInstance, Section } from "@model/artifact";
-import { resolveModel } from "./provider";
+import { modelCall } from "./provider";
 import { modelFor, modelNote } from "../models";
 import { chatSystem } from "./prompts/chat";
+import { heading, retrievedContext, stack } from "./prompts/system";
 import { thinkingSteps } from "./thinking";
 import type { RunOpts } from "./run";
-import { makeContext } from "./tools/registry";
-import type { Tool } from "./tools/registry";
+import { makeContext, spec } from "./tools";
+import type { Tool } from "./tools";
 import { showSectionsTool } from "./tools/inspect";
 import { findArtifactsTool, findTemplatesTool, readArtifactTool } from "./tools/library";
 import { addSectionTool, editArtifactTool, rewriteSectionTool } from "./tools/section";
@@ -34,6 +34,7 @@ import {
     setThemeTool,
 } from "./tools/structure";
 import { suggestSectionsTool } from "./tools/suggest";
+import { searchContextTool } from "./tools/context-search";
 
 function createChannel<T>() {
     const buf: T[] = [];
@@ -90,6 +91,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         tier: opts.tier,
         models: opts.models,
         maxSections: opts.maxSections,
+        pack: opts.pack,
     });
 
     const wrap = <I, R>(
@@ -133,34 +135,8 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         });
 
     const proposeGeneration = tool({
-        description:
-            "Propose building a whole NEW artifact (deck, doc, or site) from a one-line brief. This does NOT build it — it shows the user a confirm card with the brief; they click Generate to build it right here. Reach for this the moment the user wants to CREATE something new (there's no open document to edit). Distill the conversation to ONE tight, specific sentence — subject, angle, and audience — and pick the surface that fits.",
-        inputSchema: z.object({
-            prompt: z
-                .string()
-                .describe(
-                    "the one-sentence brief the generator builds from — subject + angle + audience in a single line",
-                ),
-            surface: z
-                .enum(["deck", "doc", "web"])
-                .describe("deck (slides), doc (a written document), or web (a landing page)"),
-            length: z
-                .enum(["Short", "Standard", "In-depth"])
-                .optional()
-                .describe("how long it should be — defaults to Standard"),
-            sourceFromMessage: z
-                .boolean()
-                .optional()
-                .describe(
-                    "set true to build FROM the content the user just pasted in their message (turn THIS into a deck) — don't re-type their text into the prompt",
-                ),
-            sourceArtifactId: z
-                .string()
-                .optional()
-                .describe(
-                    "to repurpose an existing artifact into a new format (e.g. 'turn my report into a deck'), its id from find-artifacts",
-                ),
-        }),
+        description: spec("propose-generation").describe,
+        inputSchema: spec("propose-generation").input,
         execute: async (
             brief: {
                 prompt: string;
@@ -178,51 +154,8 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
 
     // the outline lives only in the studio, so this proposes ops rather than a content patch
     const reviseOutline = tool({
-        description:
-            "Revise the OUTLINE of the piece being generated right now: add a beat, remove one, move one, or rewrite what a beat must say. Use this for anything structural or about intent — it is the main way you change a run in progress. Beats not yet written are free to change. Write real substance (claims, numbers, comparisons), never topic labels.",
-        inputSchema: z.object({
-            summary: z
-                .string()
-                .describe(
-                    "one short line naming the change, e.g. 'Add a pricing beat after proof'",
-                ),
-            ops: z
-                .array(
-                    z.object({
-                        op: z.enum(["add", "update", "remove", "move"]),
-                        id: z
-                            .string()
-                            .optional()
-                            .describe("the beat id to update / remove / move (not used by add)"),
-                        afterId: z
-                            .string()
-                            .nullish()
-                            .describe(
-                                "for add/move: the beat id this should sit after, or null for the very start",
-                            ),
-                        label: z.string().optional().describe("the beat's short working title"),
-                        role: z
-                            .string()
-                            .optional()
-                            .describe("scene · tension · turn · proof · momentum · close · detail"),
-                        brief: z.string().optional().describe("one line naming this section's job"),
-                        takeaway: z
-                            .string()
-                            .optional()
-                            .describe("a full sentence: the one thing the reader leaves with"),
-                        points: z
-                            .array(z.string())
-                            .optional()
-                            .describe("the 2–4 concrete moves the section makes, in order"),
-                        layout: z
-                            .string()
-                            .optional()
-                            .describe("full · split-6040 · split-4060 · two-col · three-up"),
-                        image: z.boolean().optional().describe("leads with a full-bleed image"),
-                    }),
-                )
-                .min(1),
-        }),
+        description: spec("revise-outline").describe,
+        inputSchema: spec("revise-outline").input,
         execute: async (
             revision: {
                 summary: string;
@@ -288,15 +221,8 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
     // every section still to be written. Applied on arrival rather than proposed — it writes nothing
     // and costs nothing, and asking the user to confirm their own instruction reads as a stall.
     const steerSections = tool({
-        description:
-            "Set the standing note that every section STILL TO BE WRITTEN must follow — tone, angle, emphasis, a constraint to respect. Use it when the user asks for something to hold across the rest of the run ('keep the rest short', 'more concrete numbers from here'), rather than a change to one beat. It does not touch sections already written; rewrite those instead. Pass an empty note to drop the current one.",
-        inputSchema: z.object({
-            note: z
-                .string()
-                .describe(
-                    "the instruction to hold for the rest of the run; empty string clears it",
-                ),
-        }),
+        description: spec("steer-sections").describe,
+        inputSchema: spec("steer-sections").input,
         execute: async (req: { note: string }, { toolCallId }: { toolCallId: string }) => {
             const note = req.note.trim();
             const had = input.context.generation?.steer?.trim();
@@ -308,22 +234,42 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         },
     });
 
+    // the outline turn runs client-side (it is the studio's own plan turn), so this only offers it
+    const requestPlan = tool({
+        description: spec("request-plan").describe,
+        inputSchema: spec("request-plan").input,
+        execute: async (
+            req: { summary: string; guidance?: string; andWrite?: boolean },
+            { toolCallId }: { toolCallId: string },
+        ) => {
+            // a replan would mint fresh beat ids over sections that already exist
+            if ((input.context.generation?.beats ?? []).some((b) => b.written))
+                return "Sections are already written, so a full replan would orphan them. Use revise-outline to reshape the remaining beats instead.";
+            ch.push({
+                type: "chat.block",
+                blockId: toolCallId,
+                block: {
+                    type: "plan",
+                    summary: req.summary,
+                    ...(req.guidance?.trim() && { guidance: req.guidance.trim() }),
+                    ...(req.andWrite && { andWrite: true }),
+                },
+            });
+            const planned = (input.context.generation?.beats ?? []).length;
+            const then = req.andWrite ? " and then write every section" : "";
+            return planned
+                ? `Offered to replan the outline${then}; the current beats are replaced when the user starts it.`
+                : `Offered to plan the outline${then}. Nothing runs until the user starts it.`;
+        },
+    });
+
     const generating = !!input.context.generation;
     const written = !!input.context.content?.sections.length;
     // the client owns the brief, outline, and anchor rules, so this only proposes which beats to
     // build; the studio then runs the same `build` turns the board does
     const writeSections = tool({
-        description:
-            "Write sections that are ALREADY PLANNED in the outline — the beats listed below that are not yet written. This is how you turn the plan into real content: pass the beat ids (s2, s3, …). Use this whenever the user asks to write, build, generate, or draft sections that exist in the outline. Do NOT use add-section for those — add-section creates a brand-new section beside the plan instead of writing the planned one.",
-        inputSchema: z.object({
-            beatIds: z
-                .array(z.string())
-                .min(1)
-                .describe("the outline beat ids to write, in the order they should be written"),
-            summary: z
-                .string()
-                .describe("one short line naming what gets written, e.g. 'Write sections 2 to 5'"),
-        }),
+        description: spec("request-write").describe,
+        inputSchema: spec("request-write").input,
         execute: async (
             req: { beatIds: string[]; summary: string },
             { toolCallId }: { toolCallId: string },
@@ -533,30 +479,32 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
               ),
           };
 
-    const tools: ToolSet = {
+    const findArtifacts = wrap(
+        findArtifactsTool,
+        "Searching your library",
+        (items) => (items.length ? { type: "artifacts", items } : null),
+        // note is the model's tool result — MUST carry ids so a follow-up read/edit targets the right one
+        (items) =>
+            items.length
+                ? `Found ${items.length}:\n${items.map((i) => `- ${i.id} — “${i.title}” (${i.format})`).join("\n")}`
+                : "No matching artifacts in the library.",
+    );
+    const readArtifact = wrap(
+        readArtifactTool,
+        "Reading",
+        () => null,
+        (digest) => digest,
+    );
+
+    const generalTools: ToolSet = {
         ...(generating
             ? {
                   "revise-outline": reviseOutline,
-                  "write-section": writeSections,
+                  "request-write": writeSections,
+                  "request-plan": requestPlan,
                   "steer-sections": steerSections,
               }
             : {}),
-        "find-artifacts": wrap(
-            findArtifactsTool,
-            "Searching your library",
-            (items) => (items.length ? { type: "artifacts", items } : null),
-            // note is the model's tool result — MUST carry ids so a follow-up read/edit targets the right one
-            (items) =>
-                items.length
-                    ? `Found ${items.length}:\n${items.map((i) => `- ${i.id} — “${i.title}” (${i.format})`).join("\n")}`
-                    : "No matching artifacts in the library.",
-        ),
-        "read-artifact": wrap(
-            readArtifactTool,
-            "Reading",
-            () => null,
-            (digest) => digest,
-        ),
         "rewrite-text": wrap(
             rewriteTextTool,
             "Rewording",
@@ -586,9 +534,38 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         ...artifactTools,
     };
 
+    const tools: ToolSet = {
+        ...generalTools,
+        "find-artifacts": findArtifacts,
+        "read-artifact": readArtifact,
+        ...(ctx.pack
+            ? {
+                  "search-context": wrap(
+                      searchContextTool,
+                      "Searching the attached contexts",
+                      () => null,
+                      (found) => found,
+                  ),
+              }
+            : {}),
+    };
+
+    // both are best-effort: a retrieval hiccup degrades to an ungrounded (but honest) turn
+    const packText = (await opts.pack?.(input.message).catch(() => null)) ?? null;
+    const recallText = (await opts.recall?.(input.message).catch(() => null)) ?? null;
+
     const agent = new ToolLoopAgent({
-        model: resolveModel(modelFor("chat", opts.tier, opts.models)),
-        instructions: chatSystem(input.context),
+        ...modelCall(modelFor("chat", opts.tier, opts.models)),
+        instructions: stack(
+            chatSystem(input.context),
+            retrievedContext(packText),
+            recallText
+                ? heading("Earlier in this conversation (recalled — possibly relevant)", recallText)
+                : undefined,
+            ctx.pack
+                ? "The user attached context collections to this conversation. search-context digs into them; the excerpts above were retrieved for this message."
+                : undefined,
+        ),
         tools,
         stopWhen: stepCountIs(6),
         // thinking summaries come back in the stream; the client shows them as a progress bubble

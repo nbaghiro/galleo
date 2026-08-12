@@ -1,6 +1,7 @@
-// side-effect imports: each runs the tool's register()
+// side-effect imports: each runs the tool's implement()
 
 import "./generate";
+import "./plan";
 import "./section";
 import "./element";
 import "./text";
@@ -11,3 +12,4 @@ import "./manage";
 import "./structure";
 import "./media";
 import "./theme";
+import "./context-search";

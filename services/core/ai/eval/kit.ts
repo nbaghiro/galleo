@@ -1,7 +1,7 @@
 import { writeFileSync } from "fs";
 import { generateObject } from "ai";
 import type { ZodType } from "zod";
-import { resolveModel, providerOpts } from "../provider";
+import { modelCall } from "../provider";
 import { out as log } from "../../../utils/env";
 
 export { log };
@@ -48,11 +48,10 @@ export async function judge<T>(
     spec: { system: string; prompt: string; schema: ZodType<T> },
 ): Promise<T> {
     const { object } = await generateObject({
-        model: resolveModel(model),
+        ...modelCall(model),
         schema: spec.schema,
         system: spec.system,
         prompt: spec.prompt,
-        providerOptions: providerOpts(model),
     });
     return object as T;
 }

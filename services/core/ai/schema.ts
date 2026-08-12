@@ -112,10 +112,6 @@ export const zRewrite = z.object({
     text: z.string().describe("the rewritten text, same language, ready to drop back in"),
 });
 
-export const zTranslate = z.object({
-    text: z.string().describe("the translated text, preserving meaning, tone, and any formatting"),
-});
-
 // matches @themes Tokens
 export const zTokens = z.object({
     bg: z.string().describe("page background hex"),
@@ -143,10 +139,6 @@ export const zTheme = z.object({
     tokens: zTokens,
 });
 
-export const zImagePrompt = z.object({
-    prompt: z.string().describe("a single vivid image-generation prompt, on-theme, no commentary"),
-});
-
 export const zBriefDraft = z.object({
     goal: z.string().describe("what the piece must achieve, one short line"),
     audience: z.string().describe("who it's for, one short line"),
@@ -170,3 +162,19 @@ export type Outline = z.infer<typeof zOutline>;
 export type Beat = z.infer<typeof zBeat>;
 export type ThemeGen = z.infer<typeof zTheme>;
 export type BriefDraftGen = z.infer<typeof zBriefDraft>;
+
+export function extractJson(text: string): unknown {
+    const t = text
+        .trim()
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/, "")
+        .trim();
+    const start = t.indexOf("{");
+    const end = t.lastIndexOf("}");
+    const slice = start >= 0 && end > start ? t.slice(start, end + 1) : t;
+    try {
+        return JSON.parse(slice);
+    } catch {
+        return null;
+    }
+}

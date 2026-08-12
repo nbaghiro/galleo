@@ -23,8 +23,6 @@ const catalogue = () => featuresState()?.models ?? null;
 
 export const catalogueReady = (): boolean => !!catalogue();
 
-export const modelTasks = (): string[] => featuresState()?.models?.tasks ?? [];
-
 export function modelLabel(id: string): string {
     return catalogue()?.models.find((m) => m.id === id)?.label ?? id;
 }

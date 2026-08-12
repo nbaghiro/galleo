@@ -1,18 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
-import { themeFromArtifactParts, themeFromPromptParts } from "../theme";
-
-const txt = (text: string): ElementInstance => ({ type: "text", data: { text } });
-const sec = (id: string, title: string): Section => ({
-    id,
-    root: { type: "group", data: { children: [txt(title)] } },
-});
-
-const content: ArtifactContent = {
-    format: "deck",
-    theme: "studio",
-    sections: [sec("s1", "Title"), sec("s2", "Thesis")],
-};
+import { themeFromPromptParts } from "../theme";
 
 describe("themeFromPromptParts", () => {
     it("lists the display, body, and mono font allow-lists in the system prompt", () => {
@@ -35,20 +22,5 @@ describe("themeFromPromptParts", () => {
     });
     it("adds a light clause when isDark is false", () => {
         expect(themeFromPromptParts("warm", false).prompt).toContain("It should be a light theme.");
-    });
-});
-
-describe("themeFromArtifactParts", () => {
-    it("embeds the artifact spine", () => {
-        expect(themeFromArtifactParts(content).prompt).toContain('A deck themed "studio".');
-    });
-    it("includes the extra direction only when a hint is given", () => {
-        expect(themeFromArtifactParts(content).prompt).not.toContain("Extra direction");
-        expect(themeFromArtifactParts(content, "lean brutalist").prompt).toContain(
-            "Extra direction",
-        );
-        expect(themeFromArtifactParts(content, "lean brutalist").prompt).toContain(
-            "lean brutalist",
-        );
     });
 });

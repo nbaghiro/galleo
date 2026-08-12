@@ -1,82 +1,45 @@
-import { z } from "zod";
 import type { Section } from "@model/artifact";
-import { register } from "./registry";
+import type { TurnEvent } from "@model/ai";
+import { implement } from "../tools";
 import { elementTypes, findElement, setImageSrc } from "../locate";
-import { findStock, resolveImage } from "../run";
+import { resolveImage } from "../images";
 
-const zImage = z.object({
-    phrase: z.string().describe("a short, vivid description of the wanted photo"),
-    orientation: z
-        .enum(["landscape", "portrait", "square"])
-        .optional()
-        .describe("preferred shape (default landscape)"),
+// the one producer: honours the turn's stock-or-AI strategy, and refines `ref` when given one
+export const generateImageTool = implement("generate-image", async function* (input, ctx) {
+    return await resolveImage(input.prompt, input.orientation ?? "landscape", ctx.image, input.ref);
 });
 
-export const sourceImageTool = register({
-    id: "source-image",
-    describe:
-        "Turn a phrase into a real image url — picks stock or AI per the current image strategy.",
-    input: zImage,
-    async *run(input, ctx) {
-        return await resolveImage(input.phrase, input.orientation ?? "landscape", ctx.image);
-    },
-});
+// placement only: what image to make is generate-image's job, where to put it is this one's
+export const reimageTool = implement("reimage", async function* (input, ctx): AsyncGenerator<
+    TurnEvent,
+    Section
+> {
+    if (!ctx.artifact) throw new Error("no artifact is open");
+    const section = ctx.artifact.sections.find((s) => s.id === input.sectionId);
+    if (!section) throw new Error(`There is no section “${input.sectionId}” in this piece.`);
+    const backdrop = input.target === "backdrop";
 
-export const findStockImageTool = register({
-    id: "find-stock-image",
-    describe:
-        "Search stock libraries for a photo matching a phrase; returns a url, or null if none fit.",
-    input: zImage,
-    async *run(input) {
-        return await findStock(input.phrase, input.orientation ?? "landscape");
-    },
-});
+    // resolve the target first: its current image becomes the reference, so re-generating keeps the
+    // picture's character and the phrase reads as the change to make
+    const hit = backdrop ? null : findElement(section.root, "image", input.nth ?? 0);
+    if (!backdrop && !hit)
+        throw new Error(
+            `No image in ${input.sectionId} to replace. It contains: ${elementTypes(section.root).join(", ")}. To give it a backdrop instead, pass target:"backdrop".`,
+        );
+    const current = backdrop
+        ? section.background?.image
+        : (hit!.element.data as { src?: string }).src;
 
-// resolveImage honours the turn's image strategy: stock or generated, the tool doesn't decide
-export const reimageTool = register({
-    id: "reimage",
-    describe:
-        "Replace an image with one sourced from a new description — the section's own image, or the piece's full-bleed backdrop. Use it when the picture is wrong for the words. `phrase` is a vivid description of the photo you want, not an instruction.",
-    input: z.object({
-        sectionId: z
-            .string()
-            .describe("the section whose image to replace; also the anchor for the backdrop"),
-        phrase: z
-            .string()
-            .describe("a vivid description of the wanted photo, e.g. 'a quiet studio at dawn'"),
-        target: z
-            .enum(["image", "backdrop"])
-            .optional()
-            .describe(
-                "the section's image element (default), or the section's full-bleed backdrop",
-            ),
-        nth: z
-            .number()
-            .int()
-            .min(0)
-            .optional()
-            .describe("which image, when the section has several (default 0)"),
-    }),
-    async *run(input, ctx): AsyncGenerator<never, Section> {
-        if (!ctx.artifact) throw new Error("no artifact is open");
-        const section = ctx.artifact.sections.find((s) => s.id === input.sectionId);
-        if (!section) throw new Error(`There is no section “${input.sectionId}” in this piece.`);
-        const backdrop = input.target === "backdrop";
-        const url = await resolveImage(input.phrase, "landscape", ctx.image);
-        if (backdrop)
-            return {
-                ...section,
-                background: {
-                    ...(section.background ?? { kind: "image" }),
-                    kind: "image",
-                    image: url,
-                },
-            };
-        const hit = findElement(section.root, "image", input.nth ?? 0);
-        if (!hit)
-            throw new Error(
-                `No image in ${input.sectionId} to replace. It contains: ${elementTypes(section.root).join(", ")}. To give it a backdrop instead, pass target:"backdrop".`,
-            );
-        return setImageSrc(section, hit.path, url);
-    },
+    const url = yield* ctx.use(generateImageTool, {
+        prompt: input.phrase,
+        orientation: "landscape",
+        ref: current,
+    });
+
+    if (backdrop)
+        return {
+            ...section,
+            background: { ...(section.background ?? { kind: "image" }), kind: "image", image: url },
+        };
+    return setImageSrc(section, hit!.path, url);
 });

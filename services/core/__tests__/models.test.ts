@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { sectionsForLength } from "@model/credits";
+import { sectionsForLength } from "@model/tools";
 import {
     AI_TASKS,
+    COST_MULTIPLIERS,
     DEFAULT_MODELS,
     getModel,
+    modelCatalogue,
     modelFor,
     modelNote,
     parseOverrides,
     samplingFor,
 } from "../models";
+import { unitMultipliers } from "@model/credits";
 
 describe("modelFor", () => {
     it("runs every task on Gemini 3.5 Flash", () => {
@@ -103,5 +106,41 @@ describe("section cap metering", () => {
         const raw = sectionsForLength("In-depth");
         expect(raw).toBe(18);
         expect(Math.min(raw, 10)).toBe(10); // the free plan's cap applied by meterFor
+    });
+});
+
+describe("model tier gating", () => {
+    it("a basic-tier override to a frontier model falls back to the tier default", () => {
+        const picked = modelFor("section", "basic", { section: "anthropic:claude-fable-5" });
+        expect(picked).toBe(modelFor("section", "basic"));
+    });
+
+    it("a premium tier keeps its override, and open models pass on any tier", () => {
+        expect(modelFor("section", "premium", { section: "anthropic:claude-fable-5" })).toBe(
+            "anthropic:claude-fable-5",
+        );
+        expect(modelFor("section", "basic", { section: "google:gemini-2.5-flash" })).toBe(
+            "google:gemini-2.5-flash",
+        );
+    });
+
+    it("rates follow the effective model, not the requested one", () => {
+        const gated = unitMultipliers(
+            (task) => modelFor(task, "basic", { section: "anthropic:claude-fable-5" }),
+            (id) => COST_MULTIPLIERS[id],
+        );
+        const honest = unitMultipliers(
+            (task) => modelFor(task, "basic"),
+            (id) => COST_MULTIPLIERS[id],
+        );
+        expect(gated.section).toBe(honest.section); // no premium surcharge for a model never run
+    });
+
+    it("the catalogue marks what the tier can't reach", () => {
+        const basic = modelCatalogue("basic");
+        const premium = modelCatalogue("premium");
+        expect(basic.models.find((m) => m.id === "anthropic:claude-fable-5")?.locked).toBe(true);
+        expect(basic.models.find((m) => m.id === "google:gemini-2.5-flash")?.locked).toBe(false);
+        expect(premium.models.every((m) => !m.locked)).toBe(true);
     });
 });

@@ -106,9 +106,14 @@ const RunRow: Component<{ run: RunRecord }> = (props) => {
 export const ModelPickerModal: Component = () => {
     const info = () => featuresState()?.models ?? null;
 
-    // no "server default" entry: the server's own choice is preselected, so the list is only models
+    // no "server default" entry: the server's own choice is preselected, so the list is only models;
+    // models above the plan's tier are listed but marked — the server would ignore them anyway
     const options = createMemo(() =>
-        (info()?.models ?? []).map((m) => ({ label: m.label, value: m.id, group: m.provider })),
+        (info()?.models ?? []).map((m) => ({
+            label: m.locked ? `${m.label} — upgrade` : m.label,
+            value: m.id,
+            group: m.provider,
+        })),
     );
     const steps = createMemo(() => {
         const tasks = info()?.tasks ?? [];

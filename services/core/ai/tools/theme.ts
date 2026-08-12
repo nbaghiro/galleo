@@ -1,23 +1,39 @@
-import { z } from "zod";
-import { register } from "./registry";
-import { generateThemeFromPrompt } from "../tasks";
+import type { ModelTier } from "@model/billing";
+import { generateObject } from "ai";
+import { finalizeTheme } from "@themes";
+import { implement } from "../tools";
+import { modelFor, type ModelOverrides } from "../../models";
+import { modelCall } from "../provider";
+import { zTheme, type ThemeGen } from "../schema";
+import { themeFromPromptParts } from "../prompts/theme";
 
-export const generateThemeTool = register({
-    id: "generate-theme",
-    describe:
-        "Create a theme (palette, mood, light/dark) from a text prompt — e.g. 'a warm editorial magazine look'.",
-    input: z.object({
-        prompt: z.string().describe("the look/mood to design toward"),
-        isDark: z
-            .boolean()
-            .optional()
-            .describe("force a dark theme (else inferred from the prompt)"),
-    }),
-    async *run(input, ctx) {
-        return await generateThemeFromPrompt(input.prompt, {
-            isDark: input.isDark,
-            tier: ctx.tier,
-            models: ctx.models,
-        });
-    },
+export interface ThemeOpts {
+    models?: ModelOverrides;
+    isDark?: boolean;
+    model?: string; // override the task default
+    tier?: ModelTier;
+    signal?: AbortSignal;
+}
+
+export async function generateThemeFromPrompt(
+    prompt: string,
+    opts: ThemeOpts = {},
+): Promise<ThemeGen> {
+    const parts = themeFromPromptParts(prompt, opts.isDark);
+    const { object } = await generateObject({
+        ...modelCall(modelFor("theme", opts.tier, opts.models), 0.7),
+        schema: zTheme,
+        system: parts.system,
+        prompt: parts.prompt,
+        abortSignal: opts.signal,
+    });
+    return { ...object, tokens: finalizeTheme(object.tokens) };
+}
+
+export const generateThemeTool = implement("generate-theme", async function* (input, ctx) {
+    return await generateThemeFromPrompt(input.prompt, {
+        isDark: input.isDark,
+        tier: ctx.tier,
+        models: ctx.models,
+    });
 });

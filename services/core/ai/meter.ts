@@ -1,6 +1,8 @@
 import type { TurnKind, TurnRequest } from "@model/ai";
-import type { MeterParams, ToolId, UnitRates } from "@model/credits";
-import { sectionsForLength, unitMultipliers } from "@model/credits";
+import type { UnitRates } from "@model/credits";
+import type { MeterParams, ToolId } from "@model/tools";
+import { unitMultipliers } from "@model/credits";
+import { sectionsForLength } from "@model/tools";
 import type { PlanBearer } from "@model/billing";
 import { featuresFor } from "@model/billing";
 import { COST_MULTIPLIERS, modelFor, type ModelOverrides } from "../models";
@@ -19,13 +21,15 @@ export interface TokenUse {
 
 export interface Meter {
     uses: TokenUse[];
+    // model spend that has no per-token registry price (embeddings); folded into the settle as-is
+    extraUsd: number;
 }
 
 const scope = new AsyncLocalStorage<Meter>();
 
 /** Runs `fn` with a fresh meter in scope and hands it back alongside the result. */
 export async function withMeter<T>(fn: (meter: Meter) => Promise<T>): Promise<T> {
-    const meter: Meter = { uses: [] };
+    const meter: Meter = { uses: [], extraUsd: 0 };
     return await scope.run(meter, () => fn(meter));
 }
 
@@ -33,6 +37,12 @@ export function recordTokens(modelId: string, input: number, output: number): vo
     const meter = scope.getStore();
     if (!meter || (!input && !output)) return;
     meter.uses.push({ modelId, input, output });
+}
+
+/** Spend priced at the call site (embeddings — no registry entry to price their tokens). */
+export function recordUsd(usd: number): void {
+    const meter = scope.getStore();
+    if (meter && usd > 0) meter.extraUsd += usd;
 }
 
 /** Provider list price for what was used, in USD. Unknown models price at zero rather than guess. */

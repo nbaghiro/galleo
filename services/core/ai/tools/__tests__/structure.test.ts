@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { TurnEvent } from "@model/ai";
 import { THEMES } from "@themes";
 import { reorderSectionTool, removeSectionTool, setFormatTool, setThemeTool } from "../structure";
-import { makeContext, type Tool, type ToolContext } from "../registry";
+import { makeContext, type Tool, type ToolContext } from "../../tools";
 
 const ctx = (): ToolContext => makeContext({ image: {} });
 

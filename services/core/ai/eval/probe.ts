@@ -2,11 +2,11 @@ import "dotenv/config";
 import { generateObject, generateText } from "ai";
 import { z } from "zod";
 import { out, warn } from "../../../utils/env";
-import { MODELS, PROVIDER_LABEL, samplingFor, type Provider } from "../../models";
-import { providerReady, resolveModel, providerOpts } from "../provider";
+import { MODELS, PROVIDER_LABEL, type Provider } from "../../models";
+import { modelCall, providerReady } from "../provider";
 import { runPlan } from "../run";
 import { runChat } from "../chat";
-import { expandBrief } from "../tasks";
+import { expandBrief } from "../tools/plan";
 import type { GenerateInput } from "@model/ai";
 
 // Does each registered model actually answer, with the key this environment holds? `check:models`
@@ -128,29 +128,25 @@ async function realFlows(id: string, signal: AbortSignal): Promise<string | null
 
 async function probe(id: string): Promise<Result> {
     const started = Date.now();
-    const model = resolveModel(id);
+    const call = modelCall(id, 0);
     const signal = AbortSignal.timeout(TIMEOUT_MS);
     try {
         const { text } = await generateText({
-            model,
+            ...call,
             prompt: "Reply with the single word: ready",
             maxOutputTokens: MAX_TOKENS,
             // a probe wants the first answer, not resilience: retries turn a permanent error into a
             // ten-second wait and bury the cause behind "failed after 3 attempts"
             maxRetries: 0,
             abortSignal: signal,
-            providerOptions: providerOpts(id),
-            ...samplingFor(id, 0),
         });
         if (checkJson) {
             await generateObject({
-                model,
+                ...call,
                 schema: z.object({ ok: z.boolean() }),
                 prompt: 'Return {"ok": true}.',
                 maxRetries: 0,
                 abortSignal: signal,
-                providerOptions: providerOpts(id),
-                ...samplingFor(id, 0),
             });
         }
         if (checkTurn) {

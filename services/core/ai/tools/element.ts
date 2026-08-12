@@ -1,29 +1,55 @@
-import { z } from "zod";
-import type { Section } from "@model/artifact";
-import { register } from "./registry";
+import type { ElementInstance, Section } from "@model/artifact";
+import type { ArtifactContent } from "@model/artifact";
+import { generateText } from "ai";
+import { implement, type ToolContext } from "../tools";
 import { elementTypes, findElement, replaceElement } from "../locate";
-import { reviseElement } from "../run";
+import { modelFor } from "../../models";
+import { modelCall } from "../provider";
+import { reviseElementParts } from "../prompts/generate";
+import { extractJson, zElement } from "../schema";
+import { resolveElement } from "../images";
+
+export async function reviseElement(
+    content: ArtifactContent,
+    sectionId: string,
+    element: ElementInstance,
+    ctx: ToolContext,
+    instruction?: string,
+): Promise<ElementInstance> {
+    const section = content.sections.find((s) => s.id === sectionId);
+    if (!section) throw new Error("that section is not in the artifact");
+    const parts = reviseElementParts(content, section, element, instruction);
+    const modelId = modelFor("section", ctx.tier, ctx.models);
+    const call = modelCall(modelId);
+    let note = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const { text } = await generateText({
+            ...call,
+            system: parts.system,
+            prompt: parts.prompt + note,
+            abortSignal: ctx.signal,
+        });
+        const parsed = zElement.safeParse(extractJson(text));
+        if (!parsed.success) {
+            note =
+                "\n\nYour previous reply was not valid JSON. Return ONLY the single element JSON object, nothing else.";
+            continue;
+        }
+        // keep original type + hand-set layout; regenerate content only
+        const revised: ElementInstance = {
+            type: element.type,
+            data: parsed.data.data,
+            ...(element.layout ? { layout: element.layout } : {}),
+        };
+        return resolveElement(revised, ctx.image);
+    }
+    throw new Error("the model returned an unreadable element");
+}
 
 // the agent has no selection to point with, so it names section + element type and we resolve the path
-export const reviseElementTool = register({
-    id: "revise-element",
-    describe:
-        "Regenerate ONE element in place — a fresh, stronger version of the SAME element type, leaving the rest of the section alone. Reach for it when a chart, stat, table or diagram is weak but the section around it is fine. `elementType` is the element's type (chart · stat · table · diagram · image · quote …); `nth` picks between several of that type in the same section (0 = the first).",
-    input: z.object({
-        sectionId: z.string().describe("the id of the section the element is in"),
-        elementType: z.string().describe("the element's type, e.g. 'chart' or 'stat'"),
-        nth: z
-            .number()
-            .int()
-            .min(0)
-            .optional()
-            .describe("which one, when the section has several of that type (default 0)"),
-        instruction: z
-            .string()
-            .optional()
-            .describe("optional: how to change it; omit for a straight re-roll"),
-    }),
-    async *run(input, ctx): AsyncGenerator<never, Section> {
+export const reviseElementTool = implement(
+    "revise-element",
+    async function* (input, ctx): AsyncGenerator<never, Section> {
         if (!ctx.artifact) throw new Error("no artifact is open");
         const section = ctx.artifact.sections.find((s) => s.id === input.sectionId);
         if (!section) throw new Error(`There is no section “${input.sectionId}” in this piece.`);
@@ -36,9 +62,9 @@ export const reviseElementTool = register({
             ctx.artifact,
             input.sectionId,
             hit.element,
+            ctx,
             input.instruction,
-            { image: ctx.image, signal: ctx.signal, tier: ctx.tier, models: ctx.models },
         );
         return replaceElement(section, hit.path, revised);
     },
-});
+);

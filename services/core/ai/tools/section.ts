@@ -1,61 +1,78 @@
-import { z } from "zod";
 import type { Section } from "@model/artifact";
-import { register } from "./registry";
-import { chatAddSection, chatEditSection } from "../run";
+import type { ArtifactContent } from "@model/artifact";
+import type { Beat, SectionPlan } from "../schema";
+import type { SectionInput } from "@model/ai";
+import { implement, type ToolContext } from "../tools";
+import { insertSectionParts, sectionPlanParts, editSectionParts } from "../prompts/generate";
+import { surfaceOf } from "../prompts/generate";
+import { resolveImages } from "../images";
+import { planSectionTool, writeSectionTool } from "./plan";
+import { drain } from "../tools";
 
-export const addSectionTool = register({
-    id: "add-section",
-    describe:
-        "Generate ONE new section for the open artifact and return it for insertion. afterId = the section id it should follow (null = at the end).",
-    input: z.object({
-        afterId: z
-            .string()
-            .nullable()
-            .describe("the section id to insert after, or null for the end"),
-        instruction: z.string().describe("what the new section should be about"),
-    }),
-    async *run(input, ctx) {
-        if (!ctx.artifact) throw new Error("no artifact is open");
-        return await chatAddSection(ctx.artifact, input.afterId, input.instruction, {
-            image: ctx.image,
-            signal: ctx.signal,
-            tier: ctx.tier,
-            models: ctx.models,
-        });
-    },
+// fresh non-colliding section id — mirror the editor's "s-xxxx" scheme
+export function newSectionId(content: ArtifactContent): string {
+    const taken = new Set(content.sections.map((s) => s.id));
+    for (let n = content.sections.length + 1; ; n++) {
+        const id = `s-${n}`;
+        if (!taken.has(id)) return id;
+    }
+}
+
+export async function chatAddSection(
+    content: ArtifactContent,
+    afterId: string | null,
+    instruction: string,
+    ctx: ToolContext,
+): Promise<Section> {
+    const input: SectionInput = { instruction, afterId, content };
+    const id = newSectionId(content);
+    const object = await drain(ctx.use(planSectionTool, sectionPlanParts(input)));
+    const beat: Beat = { ...(object as SectionPlan), id };
+    const section = await drain(
+        ctx.use(writeSectionTool, {
+            parts: insertSectionParts(input, beat),
+            id: id,
+            label: beat.label,
+            surface: surfaceOf(content.format),
+        }),
+    );
+    return resolveImages(section, ctx.image);
+}
+
+export async function chatEditSection(
+    content: ArtifactContent,
+    sectionId: string,
+    instruction: string,
+    ctx: ToolContext,
+): Promise<Section | null> {
+    const current = content.sections.find((s) => s.id === sectionId);
+    if (!current) return null;
+    const section = await drain(
+        ctx.use(writeSectionTool, {
+            parts: editSectionParts(content, current, instruction),
+            id: sectionId,
+            label: sectionId,
+            surface: surfaceOf(content.format),
+        }),
+    );
+    return resolveImages(section, ctx.image);
+}
+
+export const addSectionTool = implement("add-section", async function* (input, ctx) {
+    if (!ctx.artifact) throw new Error("no artifact is open");
+    return await chatAddSection(ctx.artifact, input.afterId, input.instruction, ctx);
 });
 
-export const rewriteSectionTool = register({
-    id: "rewrite-section",
-    describe:
-        "Rewrite an existing section to satisfy an instruction and return the revised section. sectionId = the id from the section map.",
-    input: z.object({
-        sectionId: z.string().describe("the id of the section to rewrite"),
-        instruction: z.string().describe("what to change about it"),
-    }),
-    async *run(input, ctx) {
-        if (!ctx.artifact) throw new Error("no artifact is open");
-        const section = await chatEditSection(ctx.artifact, input.sectionId, input.instruction, {
-            image: ctx.image,
-            signal: ctx.signal,
-            tier: ctx.tier,
-            models: ctx.models,
-        });
-        if (!section) throw new Error(`there is no section "${input.sectionId}"`);
-        return section;
-    },
+export const rewriteSectionTool = implement("rewrite-section", async function* (input, ctx) {
+    if (!ctx.artifact) throw new Error("no artifact is open");
+    const section = await chatEditSection(ctx.artifact, input.sectionId, input.instruction, ctx);
+    if (!section) throw new Error(`there is no section "${input.sectionId}"`);
+    return section;
 });
 
-export const editArtifactTool = register({
-    id: "edit-artifact",
-    describe:
-        "Rewrite a section of one of the user's OTHER artifacts — one that is NOT currently open — found via find-artifacts and inspected via read-artifact. Use it to change a specific library artifact from here (e.g. 'make the intro of my Aria deck punchier'). Returns a proposal the user applies; applying saves to that artifact.",
-    input: z.object({
-        artifactId: z.string().describe("the target artifact id (from find-artifacts)"),
-        sectionId: z.string().describe("the id of the section to rewrite (from read-artifact)"),
-        instruction: z.string().describe("what to change about that section"),
-    }),
-    async *run(
+export const editArtifactTool = implement(
+    "edit-artifact",
+    async function* (
         input,
         ctx,
     ): AsyncGenerator<
@@ -65,12 +82,12 @@ export const editArtifactTool = register({
         if (!ctx.workspace) throw new Error("there is no library access in this context");
         const found = await ctx.workspace.read(input.artifactId);
         if (!found) throw new Error("that artifact was not found");
-        const section = await chatEditSection(found.content, input.sectionId, input.instruction, {
-            image: ctx.image,
-            signal: ctx.signal,
-            tier: ctx.tier,
-            models: ctx.models,
-        });
+        const section = await chatEditSection(
+            found.content,
+            input.sectionId,
+            input.instruction,
+            ctx,
+        );
         if (!section) throw new Error(`there is no section "${input.sectionId}"`);
         return {
             artifactId: input.artifactId,
@@ -79,4 +96,4 @@ export const editArtifactTool = register({
             format: found.content.format,
         };
     },
-});
+);

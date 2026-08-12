@@ -2,17 +2,23 @@ import { describe, expect, it } from "vitest";
 import {
     AI_TASKS,
     COST_UNITS,
-    TOOL_CATALOG,
     costOf,
-    costRange,
     creditsForUsd,
     describeUsage,
-    estimateCost,
-    isMetered,
-    sectionsForLength,
-    typicalCost,
     unitMultipliers,
 } from "@model/credits";
+import {
+    PRICED_TOOLS,
+    TOOLS,
+    costRange,
+    estimateCost,
+    isFree,
+    isMetered,
+    reserveCost,
+    sectionsForLength,
+    typicalCost,
+    usageFor,
+} from "@model/tools";
 import type { CostUnit } from "@model/credits";
 
 // Unit prices: plan 3 · section 2 · image 5 · text 1.
@@ -138,8 +144,8 @@ describe("typicalCost", () => {
     it("prices a headline generate with its typical AI images", () => {
         expect(typicalCost("generate-artifact")).toBe(42);
     });
-    it("prices a single text rewrite at 1 credit", () => {
-        expect(typicalCost("rewrite-text")).toBe(1);
+    it("prices a single added section at 2 credits", () => {
+        expect(typicalCost("add-section")).toBe(2);
     });
 });
 
@@ -156,21 +162,15 @@ describe("sectionsForLength", () => {
 
 describe("studio tools", () => {
     it("plan-outline is a live, direct, plan-priced step (the outline gate charges it)", () => {
-        const t = TOOL_CATALOG["plan-outline"];
+        const t = TOOLS["plan-outline"];
         expect(t.surfaces).toContain("direct");
         expect(t.live).toBe(true);
         expect(estimateCost("plan-outline")).toBe(3);
     });
     it("keeps the composition primitives off every caller-facing surface", () => {
-        for (const id of [
-            "plan-section",
-            "write-section",
-            "source-image",
-            "check-section",
-            "pick-arc",
-        ] as const)
-            expect(TOOL_CATALOG[id].surfaces).toEqual(["internal"]);
-        expect(TOOL_CATALOG["reorder-section"].surfaces).not.toContain("internal");
+        for (const id of ["plan-section", "write-section", "check-section", "pick-arc"] as const)
+            expect(TOOLS[id].surfaces).toEqual(["internal"]);
+        expect(TOOLS["reorder-section"].surfaces).not.toContain("internal");
     });
 });
 
@@ -187,10 +187,95 @@ describe("costRange / isMetered", () => {
     });
 });
 
-describe("draft-brief pricing", () => {
-    it("is a live, metered call — cheap, but never free", () => {
-        const t = TOOL_CATALOG["draft-brief"];
-        expect(t.live).toBe(true);
-        expect(estimateCost("draft-brief")).toBe(1);
+describe("free tools", () => {
+    // action tools that move or rename something: no model call, so nothing to bill
+    const FREE = ["reorder-section", "remove-section", "set-format", "set-theme"] as const;
+
+    it.each(FREE)("%s reserves nothing, despite costOf's 1-credit floor", (id) => {
+        expect(isFree(id)).toBe(true);
+        expect(estimateCost(id)).toBe(0);
+        expect(typicalCost(id)).toBe(0);
+        expect(costRange(id)).toEqual({ min: 0, max: 0 });
+    });
+
+    it("keeps them off the credits table", () => {
+        const listed = PRICED_TOOLS.map((t) => t.id);
+        for (const id of FREE) expect(listed).not.toContain(id);
+    });
+});
+
+describe("the credits table", () => {
+    it("prices every action it lists", () => {
+        for (const t of PRICED_TOOLS) expect(estimateCost(t.id)).toBeGreaterThan(0);
+    });
+
+    it("lists exactly the actions we bill for", () => {
+        expect(PRICED_TOOLS.map((t) => t.id).sort()).toEqual([
+            "add-section",
+            "ask-assistant",
+            "draft-brief",
+            "edit-artifact",
+            "generate-artifact",
+            "generate-image",
+            "generate-theme",
+            "generate-video",
+            "plan-outline",
+            "revise-element",
+            "rewrite-passage",
+            "rewrite-section",
+            "rewrite-text",
+            "translate-text",
+        ]);
+    });
+
+    it("prices the media actions apart from the text ones", () => {
+        expect(typicalCost("generate-image")).toBe(COST_UNITS.image);
+        expect(typicalCost("generate-video")).toBe(COST_UNITS.video);
+    });
+});
+
+describe("what the gate holds", () => {
+    it("holds the estimate when a tool has no ceiling", () => {
+        expect(reserveCost("add-section")).toBe(estimateCost("add-section"));
+        expect(reserveCost("generate-artifact", { length: "Short" })).toBe(
+            estimateCost("generate-artifact", { length: "Short" }),
+        );
+    });
+
+    it("holds more than it shows for a chat turn, whose tool loop has no bound", () => {
+        expect(estimateCost("ask-assistant")).toBe(2);
+        expect(reserveCost("ask-assistant")).toBe(10);
+    });
+
+    it("keeps the shown price out of the ceiling, so the table is unaffected", () => {
+        expect(typicalCost("ask-assistant")).toBe(2);
+    });
+
+    it("prices a ceiling against the caller's models too", () => {
+        expect(reserveCost("ask-assistant", {}, { reply: 3 })).toBe(30);
+    });
+
+    it("never holds anything for a free tool", () => {
+        expect(reserveCost("reorder-section")).toBe(0);
+    });
+});
+
+describe("usageFor", () => {
+    it("reports the units a fixed-cost tool is made of", () => {
+        expect(usageFor("add-section")).toEqual({ section: 1 });
+    });
+
+    it("scales a metered tool to the job, which is what the ledger records", () => {
+        expect(usageFor("generate-artifact", { length: "Short", imageSource: "ai" })).toEqual({
+            plan: 1,
+            section: 7,
+            image: 2,
+        });
+    });
+
+    it("renders that into the breakdown history shows", () => {
+        expect(describeUsage(usageFor("generate-artifact", { length: "Short" }))).toBe(
+            "1 plan · 7 sections",
+        );
     });
 });

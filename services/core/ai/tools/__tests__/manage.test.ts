@@ -10,7 +10,7 @@ import {
     shareArtifactTool,
     exportArtifactTool,
 } from "../manage";
-import { makeContext, type Tool } from "../registry";
+import { makeContext, type Tool } from "../../tools";
 
 async function runTool<I, R>(tool: Tool<I, R>, input: I): Promise<R> {
     const gen = tool.run(input, makeContext({ image: {} }));

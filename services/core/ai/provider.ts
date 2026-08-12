@@ -2,7 +2,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createXai } from "@ai-sdk/xai";
-import type { LanguageModel } from "ai";
+import type { EmbeddingModel, LanguageModel } from "ai";
 import type { LanguageModelMiddleware } from "ai";
 import { wrapLanguageModel } from "ai";
 import { recordTokens } from "./meter";
@@ -11,7 +11,7 @@ import { recordTokens } from "./meter";
 type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
 type ProviderOpts = Record<string, { [k: string]: Json }>;
 import type { Provider } from "../models";
-import { getModel } from "../models";
+import { getModel, samplingFor } from "../models";
 
 const ENV_KEY: Record<Provider, string> = {
     anthropic: "ANTHROPIC_API_KEY",
@@ -36,6 +36,16 @@ export function providerReady(provider: Provider): boolean {
 
 export function aiReady(): boolean {
     return (Object.keys(ENV_KEY) as Provider[]).some(providerReady);
+}
+
+// the one embedding provider; contexts and conversation memory need it, everything else degrades
+export function embeddingReady(): boolean {
+    return providerReady("google");
+}
+
+export function googleEmbedding(modelId: string): EmbeddingModel {
+    google ??= createGoogleGenerativeAI({ apiKey: requireKey("google") });
+    return google.embedding(modelId);
 }
 
 let anthropic: ReturnType<typeof createAnthropic> | undefined;
@@ -81,7 +91,9 @@ function metering(id: string): LanguageModelMiddleware {
     };
 }
 
-export function resolveModel(id: string): LanguageModel {
+// private on purpose: reach a model through modelCall, which carries the provider
+// options a bare model would silently drop
+function resolveModel(id: string): LanguageModel {
     return wrapLanguageModel({ model: rawModel(id), middleware: metering(id) });
 }
 
@@ -106,7 +118,7 @@ function rawModel(id: string) {
 
 // Per-provider knobs every call needs. Keyed by provider name, so a key another provider does not
 // know is simply ignored by it.
-export function providerOpts(id: string): ProviderOpts | undefined {
+function providerOpts(id: string): ProviderOpts | undefined {
     const info = getModel(id);
     // Pro models reject thinkingBudget:0 ("only works in thinking mode"), so only Flash gets it
     if (info?.provider === "google" && !/pro/i.test(info.model)) {
@@ -124,4 +136,24 @@ export function providerOpts(id: string): ProviderOpts | undefined {
         return { openai: { strictJsonSchema: false } };
     }
     return undefined;
+}
+
+/**
+ * Everything a call needs to run correctly on `id`: the metered model, the provider quirks it has
+ * to be told about, and a temperature only where the model accepts one. Spread it into
+ * generateObject / generateText / an agent so a call site cannot silently omit one of the three —
+ * missing providerOptions is not a slow path, it is a hard failure on Anthropic and OpenAI.
+ */
+export function modelCall(id: string, temperature?: number): ModelCall {
+    return {
+        model: resolveModel(id),
+        providerOptions: providerOpts(id),
+        ...(temperature === undefined ? {} : samplingFor(id, temperature)),
+    };
+}
+
+export interface ModelCall {
+    model: LanguageModel;
+    providerOptions?: ProviderOpts;
+    temperature?: number;
 }

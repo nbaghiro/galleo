@@ -521,8 +521,9 @@ export async function generateImage(
     aspect: string | undefined,
     style: MediaGenStyle = "photo",
     tier?: ModelTier,
+    ref?: GenRef,
 ): Promise<GeneratedImage | null> {
-    return generateOne(prompt, aspect, style, undefined, tier).catch(() => null);
+    return generateOne(prompt, aspect, style, ref, tier).catch(() => null);
 }
 
 export interface GeneratedVideo {

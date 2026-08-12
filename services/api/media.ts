@@ -1,10 +1,9 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { MediaGenStyle, MediaItem, MediaKind, MediaProvider } from "@model/media";
-import { estimateCost, costOf } from "@model/credits";
 import { featuresFor } from "@model/billing";
-import { readJson } from "../utils/http";
-import { chargeCredits, settleCredits } from "../core/credits";
+import { OUT_OF_CREDITS, readJson } from "../utils/http";
+import { reserve } from "../core/spend";
 import {
     generateVideo,
     getIcon,
@@ -28,9 +27,6 @@ import { requireWorkspace, type WorkspaceEnv } from "./middleware";
 export const media = new Hono<WorkspaceEnv>();
 
 const STORAGE_FULL = { error: "storage limit reached", upgrade: true } as const;
-const OUT_OF_CREDITS = (remaining: number) =>
-    ({ error: "out of AI credits", upgrade: true, remaining }) as const;
-
 media.get("/media/providers", requireWorkspace, (c) =>
     c.json({ stock: stockReady(), generate: imageGenReady(), generateVideo: videoGenReady() }),
 );
@@ -96,37 +92,37 @@ media.post("/media/generate", requireWorkspace, async (c) => {
 
     if (await storageFull(ws)) return c.json(STORAGE_FULL, 402);
     const want = Math.max(1, Math.min(4, n ?? 1));
-    const reserve = estimateCost("generate-image", { variations: want });
-    const spend = await chargeCredits(ws, reserve, "generate-image");
-    if (!spend.ok) return c.json(OUT_OF_CREDITS(spend.remaining), 402);
+    const held = await reserve(ws, c.get("user").id, "generate-image", { variations: want });
+    if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
 
-    return streamSSE(c, async (stream) => {
-        const send = (data: unknown): Promise<void> =>
-            stream.writeSSE({ data: JSON.stringify(data) });
-        let produced = 0;
-        try {
-            for await (const img of streamImages(
-                p,
-                aspect,
-                want,
-                style ?? "photo",
-                ref,
-                featuresFor(ws).imageModelTier,
-            )) {
-                if (!img) {
-                    await send({ type: "fail" });
-                    continue;
+    return streamSSE(c, (stream) =>
+        held.settle(async (billed) => {
+            const send = (data: unknown): Promise<void> =>
+                stream.writeSSE({ data: JSON.stringify(data) });
+            let produced = 0;
+            try {
+                for await (const img of streamImages(
+                    p,
+                    aspect,
+                    want,
+                    style ?? "photo",
+                    ref,
+                    featuresFor(ws).imageModelTier,
+                )) {
+                    if (!img) {
+                        await send({ type: "fail" });
+                        continue;
+                    }
+                    const item = await storeGenerated(ws.id, "image", img, p);
+                    produced++;
+                    await send({ type: "image", item });
                 }
-                const item = await storeGenerated(ws.id, "image", img, p);
-                produced++;
-                await send({ type: "image", item });
+            } finally {
+                billed({ image: produced });
+                await send({ type: "done", produced });
             }
-        } finally {
-            const actual = produced ? estimateCost("generate-image", { variations: produced }) : 0;
-            await settleCredits(ws, actual - reserve, "generate-image:settle");
-            await send({ type: "done", produced });
-        }
-    });
+        }),
+    );
 });
 
 // One 8s clip per request; progress heartbeats keep the stream alive while Veo is polled.
@@ -139,30 +135,31 @@ media.post("/media/generate-video", requireWorkspace, async (c) => {
     const ar = aspect === "9:16" ? "9:16" : "16:9";
 
     if (await storageFull(ws)) return c.json(STORAGE_FULL, 402);
-    const reserve = costOf({ video: 1 });
-    const spend = await chargeCredits(ws, reserve, "generate-video");
-    if (!spend.ok) return c.json(OUT_OF_CREDITS(spend.remaining), 402);
+    const held = await reserve(ws, c.get("user").id, "generate-video");
+    if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
 
-    return streamSSE(c, async (stream) => {
-        const send = (data: unknown): Promise<void> =>
-            stream.writeSSE({ data: JSON.stringify(data) });
-        let produced = 0;
-        try {
-            const vid = await generateVideo(p, ar, () => send({ type: "progress" }));
-            if (!vid) {
-                await send({ type: "fail", error: "generation timed out" });
-            } else {
-                const item = await storeGenerated(ws.id, "video", vid, p);
-                produced = 1;
-                await send({ type: "video", item });
+    return streamSSE(c, (stream) =>
+        held.settle(async (billed) => {
+            const send = (data: unknown): Promise<void> =>
+                stream.writeSSE({ data: JSON.stringify(data) });
+            let produced = 0;
+            try {
+                const vid = await generateVideo(p, ar, () => send({ type: "progress" }));
+                if (!vid) {
+                    await send({ type: "fail", error: "generation timed out" });
+                } else {
+                    const item = await storeGenerated(ws.id, "video", vid, p);
+                    produced = 1;
+                    await send({ type: "video", item });
+                }
+            } catch (e) {
+                await send({ type: "fail", error: e instanceof Error ? e.message : "failed" });
+            } finally {
+                billed({ video: produced });
+                await send({ type: "done", produced });
             }
-        } catch (e) {
-            await send({ type: "fail", error: e instanceof Error ? e.message : "failed" });
-        } finally {
-            if (!produced) await settleCredits(ws, -reserve, "generate-video:settle");
-            await send({ type: "done", produced });
-        }
-    });
+        }),
+    );
 });
 
 media.post("/media/upload", requireWorkspace, async (c) => {

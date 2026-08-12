@@ -1,5 +1,4 @@
-import type { ArtifactContent } from "@model/artifact";
-import { artifactSpine, heading, stack } from "./system";
+import { heading, stack } from "./system";
 import type { PromptParts } from "./system";
 
 // Must stay in sync with the pickers in app/views/ThemeEditor.tsx (move to @themes eventually).
@@ -73,17 +72,6 @@ export function themeFromPromptParts(prompt: string, isDark?: boolean): PromptPa
             heading("Design a theme for", prompt),
             isDark !== undefined ? `It should be a ${isDark ? "dark" : "light"} theme.` : undefined,
             "Return the full theme (name, mood, isDark, tokens).",
-        ),
-    };
-}
-
-export function themeFromArtifactParts(content: ArtifactContent, hint?: string): PromptParts {
-    return {
-        system: stack(THEME_PERSONA, THEME_RULES),
-        prompt: stack(
-            artifactSpine(content),
-            hint && heading("Extra direction", hint),
-            "Design a custom theme whose mood fits this artifact's content and voice. Return the full theme.",
         ),
     };
 }

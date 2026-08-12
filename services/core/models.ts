@@ -27,6 +27,8 @@ export interface ModelInfo {
     json: boolean; // reliable structured / JSON output (generateObject)
     vision: boolean;
     usd: [inputPer1M: number, outputPer1M: number]; // see PRICED_ON
+    // the plan tier that unlocks this model as an override; the default per task ignores it
+    minTier?: ModelTier;
     // Claude 4.7+ rejects temperature/top_p/top_k with a 400; see samplingFor()
     sampling?: false;
 }
@@ -34,6 +36,7 @@ export interface ModelInfo {
 export const MODELS: readonly ModelInfo[] = [
     {
         id: "anthropic:claude-fable-5",
+        minTier: "premium",
         provider: "anthropic",
         model: "claude-fable-5",
         label: "Claude Fable 5",
@@ -45,6 +48,7 @@ export const MODELS: readonly ModelInfo[] = [
     },
     {
         id: "anthropic:claude-opus-5",
+        minTier: "premium",
         provider: "anthropic",
         model: "claude-opus-5",
         label: "Claude Opus 5",
@@ -56,6 +60,7 @@ export const MODELS: readonly ModelInfo[] = [
     },
     {
         id: "anthropic:claude-opus-4-8",
+        minTier: "premium",
         provider: "anthropic",
         model: "claude-opus-4-8",
         label: "Claude Opus 4.8",
@@ -67,6 +72,7 @@ export const MODELS: readonly ModelInfo[] = [
     },
     {
         id: "anthropic:claude-sonnet-5",
+        minTier: "premium",
         provider: "anthropic",
         model: "claude-sonnet-5",
         label: "Claude Sonnet 5",
@@ -88,6 +94,7 @@ export const MODELS: readonly ModelInfo[] = [
     },
     {
         id: "openai:gpt-5.5",
+        minTier: "premium",
         provider: "openai",
         model: "gpt-5.5",
         label: "GPT-5.5",
@@ -99,6 +106,7 @@ export const MODELS: readonly ModelInfo[] = [
     },
     {
         id: "openai:gpt-5.4",
+        minTier: "premium",
         provider: "openai",
         model: "gpt-5.4",
         label: "GPT-5.4",
@@ -132,6 +140,7 @@ export const MODELS: readonly ModelInfo[] = [
     },
     {
         id: "google:gemini-2.5-pro",
+        minTier: "premium",
         provider: "google",
         model: "gemini-2.5-pro",
         label: "Gemini 2.5 Pro",
@@ -172,6 +181,7 @@ export const MODELS: readonly ModelInfo[] = [
     },
     {
         id: "google:gemini-3.1-pro-preview",
+        minTier: "premium",
         provider: "google",
         model: "gemini-3.1-pro-preview",
         label: "Gemini 3.1 Pro (preview)",
@@ -247,6 +257,14 @@ const BASIC_OVERRIDES: Partial<Record<AiTask, string>> = {};
 // user's charge
 export type ModelOverrides = Partial<Record<AiTask, string>>;
 
+const TIER_RANK: Record<ModelTier, number> = { basic: 0, advanced: 1, premium: 2 };
+
+// a model with no minTier is open to every plan; the task defaults bypass this on purpose
+export function tierAllows(tier: ModelTier, id: string): boolean {
+    const min = MODELS_BY_ID[id]?.minTier;
+    return !min || TIER_RANK[tier] >= TIER_RANK[min];
+}
+
 export function modelFor(
     task: AiTask,
     tier: ModelTier = "premium",
@@ -254,7 +272,7 @@ export function modelFor(
 ): string {
     const picked = overrides?.[task];
     const id =
-        picked && MODELS_BY_ID[picked]
+        picked && MODELS_BY_ID[picked] && tierAllows(tier, picked)
             ? picked
             : ((tier === "basic" ? BASIC_OVERRIDES[task] : undefined) ?? DEFAULT_MODELS[task]);
     // only the overridden calls: the defaults are known, and a line per call would drown the log
@@ -322,7 +340,7 @@ export const MODEL_HEADER = "x-galleo-models";
 
 export interface ModelCatalogue {
     tasks: readonly AiTask[];
-    models: { id: string; label: string; provider: string }[];
+    models: { id: string; label: string; provider: string; locked: boolean }[];
     defaults: Record<string, string>;
     rates: Record<string, number>;
 }
@@ -334,7 +352,12 @@ export function modelCatalogue(tier: ModelTier): ModelCatalogue {
         tasks: AI_TASKS,
         models: [...MODELS]
             .sort((a, b) => PROVIDER_ORDER.indexOf(a.provider) - PROVIDER_ORDER.indexOf(b.provider))
-            .map((m) => ({ id: m.id, label: m.label, provider: PROVIDER_LABEL[m.provider] })),
+            .map((m) => ({
+                id: m.id,
+                label: m.label,
+                provider: PROVIDER_LABEL[m.provider],
+                locked: !tierAllows(tier, m.id), // the picker greys these instead of silently ignoring them
+            })),
         defaults: Object.fromEntries(AI_TASKS.map((t) => [t, modelFor(t, tier)])),
         rates: COST_MULTIPLIERS,
     };
