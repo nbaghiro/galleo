@@ -299,6 +299,7 @@ export interface ArtifactInput {
     draftContent?: ArtifactContent;
     folderId?: string | null;
     aiMeta?: GenMeta;
+    templateId?: string; // provenance: created from this starter; feeds template popularity
 }
 
 // section ops are applied server-side, and shared here so a windowed client can predict what the

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type {
     ArtifactContent,
     ArtifactInput,
@@ -230,27 +230,6 @@ export async function readSections(workspaceId: string, id: string): Promise<Sec
     return a ? asContent(a.draftContent).sections : null;
 }
 
-// The read clock behind "Recent" in ⌘K and the library.
-export async function recordVisit(
-    workspaceId: string,
-    id: string,
-    userId: string,
-): Promise<boolean> {
-    const [a] = await db
-        .select({ id: schema.artifacts.id })
-        .from(schema.artifacts)
-        .where(owned(id, workspaceId));
-    if (!a) return false;
-    await db
-        .insert(schema.artifactVisits)
-        .values({ userId, artifactId: a.id })
-        .onConflictDoUpdate({
-            target: [schema.artifactVisits.userId, schema.artifactVisits.artifactId],
-            set: { viewedAt: new Date(), views: sql`${schema.artifactVisits.views} + 1` },
-        });
-    return true;
-}
-
 export async function setTrashed(
     workspaceId: string,
     id: string,
@@ -259,19 +238,42 @@ export async function setTrashed(
     await db.update(schema.artifacts).set({ trashedAt }).where(owned(id, workspaceId));
 }
 
+// visits.ref has no FK (it spans artifacts and templates), so hard deletes drop the rows here
 export async function deleteArtifact(workspaceId: string, id: string): Promise<void> {
-    await db.delete(schema.artifacts).where(owned(id, workspaceId));
+    await db.transaction(async (tx) => {
+        const gone = await tx
+            .delete(schema.artifacts)
+            .where(owned(id, workspaceId))
+            .returning({ id: schema.artifacts.id });
+        if (gone.length)
+            await tx
+                .delete(schema.visits)
+                .where(and(eq(schema.visits.kind, "artifact"), eq(schema.visits.ref, id)));
+    });
 }
 
 export async function emptyTrash(workspaceId: string): Promise<void> {
-    await db
-        .delete(schema.artifacts)
-        .where(
-            and(
-                eq(schema.artifacts.workspaceId, workspaceId),
-                isNotNull(schema.artifacts.trashedAt),
-            ),
-        );
+    await db.transaction(async (tx) => {
+        const gone = await tx
+            .delete(schema.artifacts)
+            .where(
+                and(
+                    eq(schema.artifacts.workspaceId, workspaceId),
+                    isNotNull(schema.artifacts.trashedAt),
+                ),
+            )
+            .returning({ id: schema.artifacts.id });
+        if (gone.length)
+            await tx.delete(schema.visits).where(
+                and(
+                    eq(schema.visits.kind, "artifact"),
+                    inArray(
+                        schema.visits.ref,
+                        gone.map((g) => g.id),
+                    ),
+                ),
+            );
+    });
 }
 
 export type ContentPatchResult =

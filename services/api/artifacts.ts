@@ -1,8 +1,10 @@
 import { Hono } from "hono";
 import type { ArtifactInput, ArtifactPage, ContentPatch } from "@model/artifact";
 import { featuresFor, isUnlimited, limit } from "@model/billing";
+import { TEMPLATE_INDEX } from "@model/templates";
 import { readJson } from "../utils/http";
 import { currentWorkspace } from "../core/accounts";
+import { recordArtifactVisit, recordTemplateUse } from "../core/visits";
 import {
     applyContentOps,
     createArtifact,
@@ -17,7 +19,6 @@ import {
     readAiMeta,
     readArtifact,
     readSections,
-    recordVisit,
     setTrashed,
     updateArtifact,
     windowOf,
@@ -58,6 +59,9 @@ artifacts.post("/artifacts", requireWorkspace, async (c) => {
         );
     const body = await readJson<ArtifactInput>(c);
     const id = await createArtifact(ws.id, c.get("user").id, body);
+    // popularity is measured from these events; never let the tally break a create
+    if (id && body?.templateId && TEMPLATE_INDEX.some((t) => t.id === body.templateId))
+        await recordTemplateUse(c.get("user").id, body.templateId).catch(() => undefined);
     return id ? c.json({ id }) : c.json({ error: "create failed" }, 500);
 });
 
@@ -96,7 +100,7 @@ artifacts.get("/artifacts/:id/sections", requireWorkspace, async (c) => {
 });
 
 artifacts.post("/artifacts/:id/visit", requireWorkspace, async (c) => {
-    const ok = await recordVisit(c.get("ws").id, c.req.param("id"), c.get("user").id);
+    const ok = await recordArtifactVisit(c.get("ws").id, c.req.param("id"), c.get("user").id);
     return ok ? c.json({ ok: true }) : c.json({ error: "not found" }, 404);
 });
 

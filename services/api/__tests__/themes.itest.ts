@@ -8,10 +8,11 @@ import { schema } from "../../db/schema";
 const TOKENS = DEFAULT_THEME.tokens;
 
 describe("themes — list (workspace-scoped only)", () => {
-    it("returns only the workspace's themes, never system (null-workspace) rows", async () => {
+    it("returns only the workspace's themes, never another workspace's", async () => {
         const { userId, workspaceId } = await seedUser({ plan: "pro" });
+        const other = await seedUser({ plan: "pro" });
         await db.insert(schema.themes).values([
-            { workspaceId: null, name: "System", tokens: TOKENS }, // built-in — must be hidden
+            { workspaceId: other.workspaceId, name: "Theirs", tokens: TOKENS }, // must be hidden
             { workspaceId, name: "Mine", tokens: TOKENS, mood: "bold", isDark: true },
         ]);
 

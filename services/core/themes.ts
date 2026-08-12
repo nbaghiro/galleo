@@ -3,7 +3,7 @@ import type { ThemeInput } from "@themes";
 import { db } from "../db/client";
 import { schema } from "../db/schema";
 
-// Per-workspace custom themes only. workspaceId null = a built-in, never returned here.
+// Per-workspace custom themes; the built-in library lives in code (@themes).
 
 const themeCols = {
     id: schema.themes.id,

@@ -229,9 +229,12 @@ describe("POST /artifacts/:id/visit", () => {
         const id = await seedArtifact(mine.workspaceId, "Mine");
         await authed(mine.userId, `/artifacts/${id}/visit`, jsonInit("POST", {}));
         await authed(mine.userId, `/artifacts/${id}/visit`, jsonInit("POST", {}));
-        const rows = await db.select().from(schema.artifactVisits);
+        const rows = await db
+            .select()
+            .from(schema.visits)
+            .where(eq(schema.visits.kind, "artifact"));
         expect(rows).toHaveLength(1);
-        expect(rows[0]!.views).toBe(2);
+        expect(rows[0]!.uses).toBe(2);
 
         const res = await authed(theirs.userId, `/artifacts/${id}/visit`, jsonInit("POST", {}));
         expect(res.status).toBe(404);

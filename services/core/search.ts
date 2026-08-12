@@ -106,12 +106,13 @@ export async function recentArtifacts(opts: {
 }): Promise<SearchHit[]> {
     const rows = await db.execute<Row>(sql`
         SELECT a.id, a.title, a.format_id, a.theme_id, a.folder_id, a.updated_at, a.digest,
-               a.created_by, u.name AS author_name, u.avatar_url AS author_avatar, v.viewed_at
+               a.created_by, u.name AS author_name, u.avatar_url AS author_avatar,
+               v.seen_at AS viewed_at
         FROM artifacts a
         LEFT JOIN users u ON u.id = a.created_by
-        LEFT JOIN artifact_visits v ON v.artifact_id = a.id AND v.user_id = ${opts.userId}
+        LEFT JOIN visits v ON v.kind = 'artifact' AND v.ref = a.id::text AND v.user_id = ${opts.userId}
         WHERE a.workspace_id = ${opts.workspaceId} AND a.trashed_at IS NULL
-        ORDER BY GREATEST(v.viewed_at, a.updated_at) DESC
+        ORDER BY GREATEST(v.seen_at, a.updated_at) DESC
         LIMIT ${clampLimit(opts.limit)}
     `);
     return [...rows].map((r) => toHit({ ...r, snippet: null }));
@@ -151,7 +152,7 @@ export async function searchArtifacts(opts: {
         )
         SELECT h.id, h.title, h.format_id, h.theme_id, h.folder_id, h.updated_at, h.digest,
                h.title_hit, h.created_by, u.name AS author_name, u.avatar_url AS author_avatar,
-               v.viewed_at,
+               v.seen_at AS viewed_at,
                ${
                    tsq
                        ? sql`CASE WHEN h.title_hit THEN NULL
@@ -161,7 +162,7 @@ export async function searchArtifacts(opts: {
                } AS snippet
         FROM hits h
         LEFT JOIN users u ON u.id = h.created_by
-        LEFT JOIN artifact_visits v ON v.artifact_id = h.id AND v.user_id = ${opts.userId}
+        LEFT JOIN visits v ON v.kind = 'artifact' AND v.ref = h.id::text AND v.user_id = ${opts.userId}
         ORDER BY h.title_prefix DESC, h.title_hit DESC, h.rank DESC, h.updated_at DESC
     `);
     return [...rows].map(toHit);

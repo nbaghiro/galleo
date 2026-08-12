@@ -1,17 +1,11 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createSignal, For, onMount, Show } from "solid-js";
 import { useLocation, useNavigate } from "@solidjs/router";
-import { api, type ApiFolder } from "../api";
+import type { ApiFolder, BillingState } from "../api";
 import { logout, user } from "../stores/auth";
 import { billing, loadBilling } from "../stores/billing";
 import { loadWorkspace, switchWorkspace, workspaceState } from "../stores/workspace";
-import {
-    blankArtifact,
-    formatLabel,
-    draggingArtifact,
-    moveArtifact,
-    setDraggingArtifact,
-} from "../stores/library";
+import { draggingArtifact, moveArtifact, setDraggingArtifact } from "../stores/library";
 import {
     addFolder,
     folderColor,
@@ -34,9 +28,7 @@ import {
     ThemeIcon,
     TrashIcon,
 } from "@ui/icons";
-import { CreateModal } from "../components/modals";
 import { openThemeEditor } from "../stores/theme";
-import { isPhone } from "@ui/viewport";
 import { openGenerate } from "../stores/generate";
 import { Button, Eyebrow, IconButton } from "@ui/button";
 import { TextField } from "@ui/inputs";
@@ -82,16 +74,6 @@ export const Sidebar: Component = () => {
         setCollapsed(s);
     };
 
-    const create = async (fmt: string): Promise<void> => {
-        const { id } = await api.createArtifact({
-            title: `Untitled ${formatLabel(fmt).toLowerCase()}`,
-            formatId: fmt,
-            themeId: "studio",
-            draftContent: blankArtifact(fmt),
-        });
-        navigate(`/edit/${id}`);
-    };
-
     const drop = (folderId: string | null): void => {
         const id = draggingArtifact();
         if (id) moveArtifact(id, folderId);
@@ -130,32 +112,11 @@ export const Sidebar: Component = () => {
         if (n) renameFolderById(id, n);
     };
 
-    const [createOpen, setCreateOpen] = createSignal(false);
+    // one door: every device opens the generate studio, which carries templates + blank too
     const NewButton: Component = () => (
-        <Button
-            variant="primary"
-            rounded="xl"
-            class="w-full"
-            onClick={() => (isPhone() ? openGenerate() : setCreateOpen(true))}
-        >
+        <Button variant="primary" rounded="xl" class="w-full" onClick={() => openGenerate()}>
             <PlusIcon size={15} /> New artifact
         </Button>
-    );
-    // sibling of the drawer, never inside — a translated ancestor traps a fixed modal
-    const NewArtifactModal: Component = () => (
-        <Show when={createOpen()}>
-            <CreateModal
-                onClose={() => setCreateOpen(false)}
-                onGenerate={() => {
-                    setCreateOpen(false);
-                    openGenerate();
-                }}
-                onBlank={(fmt) => {
-                    setCreateOpen(false);
-                    create(fmt);
-                }}
-            />
-        </Show>
     );
 
     const navItem = (
@@ -414,35 +375,7 @@ export const Sidebar: Component = () => {
                     </Show>
                 </div>
 
-                <Show when={billing()}>
-                    {(b) => (
-                        <div class="mt-3 flex-none rounded-xl border border-line bg-canvas p-3">
-                            <div class="flex items-center justify-between text-[11.5px] font-semibold text-soft">
-                                <span class="capitalize">{b().plan} plan</span>
-                                <span class="font-mono text-muted">
-                                    {b().usage.artifacts}
-                                    {b().usage.maxArtifacts < 0
-                                        ? ""
-                                        : ` / ${b().usage.maxArtifacts}`}
-                                </span>
-                            </div>
-                            <Show when={b().usage.maxArtifacts > 0}>
-                                <Meter
-                                    value={b().usage.artifacts}
-                                    max={b().usage.maxArtifacts}
-                                    trackTone="line"
-                                    class="my-2"
-                                />
-                            </Show>
-                            <a
-                                class="mt-1 block cursor-pointer text-[11.5px] font-semibold text-accent"
-                                onClick={() => navigate("/pricing")}
-                            >
-                                {b().plan === "free" ? "Upgrade for unlimited →" : "Manage plan →"}
-                            </a>
-                        </div>
-                    )}
-                </Show>
+                <Show when={billing()}>{(b) => <CreditsCard b={b()} navigate={navigate} />}</Show>
                 <div class="mt-3 flex items-center gap-2.5 border-t border-line pt-3">
                     <span class="grid h-8 w-8 flex-none place-items-center rounded-lg bg-accent text-[12px] font-bold text-onaccent">
                         {(user()?.name ?? user()?.email ?? "U").charAt(0).toUpperCase()}
@@ -465,8 +398,57 @@ export const Sidebar: Component = () => {
                     </IconButton>
                 </div>
             </aside>
-            <NewArtifactModal />
         </>
+    );
+};
+
+// The plan-at-a-glance card: what's left to spend this cycle, and anything that needs attention
+// (failed payment, pending downgrade). Detail lives in settings; this is the glance.
+const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }> = (props) => {
+    const remaining = (): number => Math.max(0, props.b.credits.limit - props.b.credits.used);
+    const resetsIn = (): number =>
+        Math.max(
+            0,
+            Math.ceil((new Date(props.b.credits.resetAt).getTime() - Date.now()) / 86_400_000),
+        );
+    const pastDue = (): boolean => props.b.status === "past_due";
+    const lapsing = (): boolean => props.b.cancelAtPeriodEnd && props.b.plan !== "free";
+    return (
+        <div
+            class={`mt-3 flex-none rounded-xl border bg-canvas p-3 ${pastDue() ? "border-accent" : "border-line"}`}
+        >
+            <div class="flex items-baseline justify-between text-[11.5px] font-semibold text-soft">
+                <span class="capitalize">{props.b.plan} plan</span>
+                <Show when={props.b.seats > 1}>
+                    <span class="text-muted">{props.b.seats} seats</span>
+                </Show>
+            </div>
+            <Meter value={remaining()} max={props.b.credits.limit} trackTone="line" class="my-2" />
+            <div class="flex items-baseline justify-between text-[10.5px] text-muted">
+                <span class="tabular-nums">
+                    <span class="font-semibold text-soft">{remaining().toLocaleString()}</span>{" "}
+                    credits left
+                </span>
+                <span>resets in {resetsIn()}d</span>
+            </div>
+            <Show when={props.b.credits.bonus > 0}>
+                <div class="mt-0.5 text-[10.5px] tabular-nums text-muted">
+                    +{props.b.credits.bonus.toLocaleString()} bonus, never expires
+                </div>
+            </Show>
+            <a
+                class={`mt-1.5 block cursor-pointer text-[11.5px] font-semibold ${pastDue() ? "text-accent" : "text-accent"}`}
+                onClick={() => props.navigate("/pricing")}
+            >
+                {pastDue()
+                    ? "Payment failed — fix billing →"
+                    : lapsing()
+                      ? "Plan ends soon — resume →"
+                      : props.b.plan === "free"
+                        ? "Upgrade for more credits →"
+                        : "Manage plan →"}
+            </a>
+        </div>
     );
 };
 

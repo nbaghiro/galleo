@@ -288,6 +288,7 @@ export async function persistArtifact(
     title = artifactTitle(content),
     folderId: string | null = null,
     aiMeta?: GenMeta,
+    templateId?: string,
 ): Promise<string | null> {
     try {
         const { id } = await api.createArtifact({
@@ -297,6 +298,7 @@ export async function persistArtifact(
             draftContent: content,
             folderId,
             ...(aiMeta ? { aiMeta } : {}),
+            ...(templateId ? { templateId } : {}),
         });
         const summary: ArtifactSummary = {
             id,
@@ -356,6 +358,21 @@ export function blankArtifact(format: string, theme = "studio"): ArtifactContent
         theme,
         sections: [{ id: "s-1", root: emptyRegion() }],
     };
+}
+
+// a blank artifact in the given format; every "start blank" entry runs through here
+export async function createBlank(formatId: string): Promise<string | null> {
+    try {
+        const { id } = await api.createArtifact({
+            title: `Untitled ${formatLabel(formatId).toLowerCase()}`,
+            formatId,
+            themeId: "studio",
+            draftContent: blankArtifact(formatId),
+        });
+        return id;
+    } catch {
+        return null;
+    }
 }
 
 export const FORMAT_IDS = Object.keys(PROFILES);
