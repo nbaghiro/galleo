@@ -209,13 +209,19 @@ export type ChatBlock =
     | { type: "steer"; note: string }
     | { type: "action"; action: WorkspaceAction }; // a workspace action the client runs (or confirms)
 
-export type TurnRequest =
-    | { kind: "generate"; input: GenerateInput }
-    | { kind: "edit"; input: EditInput }
-    | { kind: "section"; input: SectionInput }
-    | { kind: "chat"; input: ChatInput }
-    | { kind: "plan"; input: GenerateInput }
-    | { kind: "build"; input: BuildInput };
+// `trace` asks the server to record every model call of this turn as an eval run. Honoured only for
+// eval admins, so a client setting it changes nothing on its own.
+type Traced = { trace?: boolean };
+
+export type TurnRequest = Traced &
+    (
+        | { kind: "generate"; input: GenerateInput }
+        | { kind: "edit"; input: EditInput }
+        | { kind: "section"; input: SectionInput }
+        | { kind: "chat"; input: ChatInput }
+        | { kind: "plan"; input: GenerateInput }
+        | { kind: "build"; input: BuildInput }
+    );
 
 export const isKind = (k: string): k is TurnKind =>
     k === "generate" ||

@@ -11,6 +11,7 @@ import type {
     Section,
 } from "@model/artifact";
 import type { Usage } from "@model/credits";
+import type { EvalRun, EvalRunSummary } from "@model/eval";
 import type { Folder, User, WorkspaceRole } from "@model/workspace";
 import type { Template } from "@model/templates";
 import type { ThemeSummary as Theme, ThemeInput, Tokens } from "@themes";
@@ -325,6 +326,15 @@ export const api = {
     listTemplates: () => req<{ templates: Template[]; uses: Record<string, number> }>("/templates"),
 
     // the context library
+    extractFile: (body: { name: string; mime: string; data: string }) =>
+        req<{ title: string; text: string; truncated: boolean; via: "text" | "vision" }>(
+            "/extract",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            },
+        ),
     fetchWebpage: (url: string) =>
         req<{ title: string; text: string; url: string }>("/webpage", {
             method: "POST",
@@ -498,6 +508,13 @@ export const api = {
     topUp: (pack: CreditPackId) =>
         req<{ url: string }>("/billing/topup", { method: "POST", body: JSON.stringify({ pack }) }),
     getWorkspace: () => req<WorkspaceState>("/workspace"),
+
+    // the eval playground; 404s for anyone who is not an eval admin
+    listEvalRuns: (before?: string | null) =>
+        req<{ runs: EvalRunSummary[]; nextCursor: string | null }>(
+            `/eval/runs${before ? `?before=${encodeURIComponent(before)}` : ""}`,
+        ),
+    getEvalRun: (id: string) => req<{ run: EvalRun }>(`/eval/runs/${id}`),
     inviteMember: (email: string, role: "admin" | "member" = "member") =>
         req<{ invite: WorkspaceInvite; url: string; sent: boolean }>("/workspace/invites", {
             method: "POST",
@@ -609,6 +626,22 @@ export const api = {
 };
 
 // stream one AI turn (POST /ai/turn) over SSE; throws ApiError pre-stream (e.g. 402), aborts via signal
+// Eval tracing rides along on whatever turn the studio runs, so the playground exercises the real
+// flow rather than a copy of it. Persisted, since turning it on and then navigating to the studio is
+// the whole point. The server honours it only for eval admins.
+const TRACE_KEY = "galleo.eval.trace";
+// Guarded by capability, not existence: node defines a `localStorage` global that has no getItem
+// unless it was started with a backing file, and streamTurn is exercised in node tests.
+const store = (): Storage | null => {
+    const s = typeof localStorage === "undefined" ? null : localStorage;
+    return typeof s?.getItem === "function" ? s : null;
+};
+export const traceTurns = (): boolean => store()?.getItem(TRACE_KEY) === "1";
+export const setTraceTurns = (on: boolean): void => {
+    if (on) store()?.setItem(TRACE_KEY, "1");
+    else store()?.removeItem(TRACE_KEY);
+};
+
 export async function streamTurn(
     request: TurnRequest,
     onEvent: (event: TurnEvent) => void,
@@ -618,7 +651,7 @@ export async function streamTurn(
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json", ...modelHeaders() },
-        body: JSON.stringify(request),
+        body: JSON.stringify(traceTurns() ? { ...request, trace: true } : request),
         signal,
     });
     if (!res.ok || !res.body) {

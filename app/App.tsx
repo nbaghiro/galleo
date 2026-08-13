@@ -29,6 +29,7 @@ import { ErrorModal } from "./components/ErrorModal";
 import { ThemeEditor } from "./views/ThemeEditor";
 import { TrashView } from "./views/TrashView";
 import { WorkspaceSettingsView } from "./views/WorkspaceSettingsView";
+import { EvalView } from "./views/EvalView";
 import { InviteView } from "./views/InviteView";
 import { UiThemeProvider } from "@ui/icons";
 import { Spinner } from "@ui/button";
@@ -126,6 +127,7 @@ export const App: Component = () => {
                             <Route path="/trash" component={TrashView} />
                             <Route path="/pricing" component={PricingView} />
                             <Route path="/settings" component={WorkspaceSettingsView} />
+                            <Route path="/eval" component={EvalView} />
                             <Route path="/invite/:token" component={InviteView} />
                             <Route path="/edit/:id" component={EditorView} />
                             <Route path="/present/:id" component={PresentView} />

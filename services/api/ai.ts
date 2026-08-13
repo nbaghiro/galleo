@@ -1,10 +1,12 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { getCookie } from "hono/cookie";
-import type { Surface, TurnEvent, TurnRequest } from "@model/ai";
-import { isKind } from "@model/ai";
+import type { GenerateInput, Surface, TurnEvent, TurnRequest } from "@model/ai";
+import { applyPatch, isKind } from "@model/ai";
 import { overridesFrom, requireWorkspace, type WorkspaceEnv } from "./middleware";
+import type { ModelOverrides } from "../core/models";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
+import type { ModelTier } from "@model/billing";
 import { featuresFor } from "@model/billing";
 import { currentUser } from "../core/accounts";
 import { SESSION_COOKIE } from "../utils/auth";
@@ -13,6 +15,11 @@ import { warn } from "../utils/env";
 import { reserve } from "../core/spend";
 import { assetUrl, generateImage, imageGenReady, refImage, storeGenerated } from "../core/media";
 import { ACTION_FOR, IMPLEMENTED, meterFor, ratesFor } from "../core/ai/meter";
+import { isEvalAdmin, recordRun } from "../core/ai/eval/runs";
+import { runChecks } from "../core/ai/eval/checks";
+import type { EvalConfig, EvalStatus } from "@model/eval";
+import { AI_TASKS } from "@model/credits";
+import { modelFor } from "../core/models";
 import { aiReady, embeddingReady } from "../core/ai/provider";
 import { runTurn } from "../core/ai/run";
 import { makeContext } from "../core/ai/tools";
@@ -25,6 +32,30 @@ import { generateThemeFromPrompt } from "../core/ai/tools/theme";
 import { rewriteText, translateText } from "../core/ai/tools/text";
 import { suggestSections } from "../core/ai/tools/suggest";
 import type { BriefRead } from "../core/ai/prompts/brief";
+
+// What the run was asked to do, resolved: the models recorded are the ones that actually ran, not
+// the overrides that were requested.
+function configOf(req: TurnRequest, overrides: ModelOverrides, tier: ModelTier): EvalConfig {
+    const models: Record<string, string> = {};
+    for (const task of AI_TASKS) models[task] = modelFor(task, tier, overrides);
+    const input = req.kind === "build" ? req.input.brief : "input" in req ? req.input : undefined;
+    const g = input as Partial<GenerateInput> | undefined;
+    return {
+        kind: req.kind,
+        prompt: g?.prompt ?? "",
+        surface: g?.surface,
+        length: g?.length,
+        imageSource: g?.imageSource,
+        theme: g?.theme,
+        models,
+    };
+}
+
+// a traced run rebuilds the artifact from its own patch stream; `format`/`theme` only seed it
+const emptyContent = (req: TurnRequest): ArtifactContent => {
+    const g = ("input" in req ? req.input : undefined) as Partial<GenerateInput> | undefined;
+    return { format: g?.surface ?? "deck", theme: g?.theme ?? "studio", sections: [] };
+};
 
 export const ai = new Hono<WorkspaceEnv>();
 
@@ -58,12 +89,15 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
     // a step pinned to a heavier model costs us more, so the reserve and the settle both price the
     // models this turn will actually run on
     const overrides = overridesFrom(c);
+    // a client asking to trace changes nothing on its own; only an eval admin gets a run recorded
+    const traced = !!req.trace && isEvalAdmin(c.get("user").id);
     const held = await reserve(
         ws,
         c.get("user").id,
         ACTION_FOR[req.kind],
         meterFor(req, feats.maxSectionsPerGeneration),
         ratesFor(ws, overrides),
+        traced,
     );
     if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
 
@@ -127,8 +161,12 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
 
     const ctrl = new AbortController();
     return streamSSE(c, async (stream) =>
-        held.settle(async (produced) => {
+        held.settle(async (produced, meter) => {
             stream.onAbort(() => ctrl.abort());
+            const startedAt = Date.now();
+            let status: EvalStatus = "ok";
+            let failure: string | undefined;
+            let built: ArtifactContent | undefined;
             let seq = 0;
             const send = (event: TurnEvent): Promise<void> =>
                 stream.writeSSE({ data: JSON.stringify({ seq: seq++, event }) });
@@ -149,6 +187,9 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
                             : undefined,
                 })) {
                     if (ev.type === "chat.text") reply += ev.delta;
+                    // the run's own copy of the result, so checks do not depend on the client
+                    if (traced && ev.type === "patch")
+                        built = applyPatch(built ?? emptyContent(req), ev.ops);
                     await send(ev);
                 }
                 // memory is best-effort: a failed write must never fail the turn it remembers
@@ -163,14 +204,34 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
                     }
                 }
             } catch (e) {
-                if (!ctrl.signal.aborted)
-                    await send({
-                        type: "error",
-                        message: e instanceof Error ? e.message : "the turn failed",
-                    });
+                failure = e instanceof Error ? e.message : "the turn failed";
+                status = ctrl.signal.aborted ? "aborted" : "error";
+                if (!ctrl.signal.aborted) await send({ type: "error", message: failure });
             } finally {
                 // tokens are metered for us; images are flat-priced, so their count is ours to report
                 produced({ image: aiImages });
+                // a trace is a dev record, never worth failing a turn the user already received
+                if (traced)
+                    try {
+                        await recordRun({
+                            workspaceId: ws.id,
+                            userId: c.get("user").id,
+                            config: configOf(req, overrides, feats.textModelTier),
+                            spans: meter.uses,
+                            checks: built
+                                ? runChecks(built, {
+                                      surface: built.format,
+                                      length: configOf(req, overrides, feats.textModelTier).length,
+                                  })
+                                : [],
+                            status: ctrl.signal.aborted ? "aborted" : status,
+                            error: failure,
+                            credits: 0, // settled after this block; the run row records tokens
+                            ms: Date.now() - startedAt,
+                        });
+                    } catch (e) {
+                        warn(`[eval] run not recorded: ${e instanceof Error ? e.message : "?"}`);
+                    }
             }
         }),
     );

@@ -6,7 +6,7 @@ const PLACEHOLDER_RE =
 const HEADING_STYLES = new Set(["h1", "h2", "h3", "subtitle"]);
 const FOCAL_TYPES = new Set(["image", "stat", "chart", "diagram", "table"]);
 
-interface Content {
+export interface Content {
     texts: string[];
     types: string[];
     headings: number;
@@ -27,6 +27,15 @@ function walk(el: ElementInstance, acc: Content): void {
     }
     if (Array.isArray(data.children)) for (const k of data.children) walk(k, acc);
 }
+
+/** The section's text and element types, flattened. Shared with the eval checks. */
+export function contentOf(section: Section): Content {
+    const acc: Content = { texts: [], types: [], headings: 0 };
+    walk(section.root, acc);
+    return acc;
+}
+
+export const PLACEHOLDER = PLACEHOLDER_RE;
 
 export interface SectionCheck {
     ok: boolean;

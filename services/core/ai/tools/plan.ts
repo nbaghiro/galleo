@@ -1,6 +1,7 @@
 import type { Section } from "@model/artifact";
 import { generateObject, generateText } from "ai";
 import { implement } from "../tools";
+import { withStep } from "../meter";
 import { modelCall } from "../provider";
 import { warn } from "../../../utils/env";
 import { defaultModelFor, modelFor } from "../../models";
@@ -37,15 +38,17 @@ export const planOutlineTool = implement(
         const pack = (await ctx.pack?.(packQuery).catch(() => null)) ?? undefined;
         const op = outlineParts(input, ctx.maxSections, pack);
         const model = modelFor("outline", ctx.tier, ctx.models);
-        const outline = await withSchemaRetry(() =>
-            generateObject({
-                // warm so section count + arc vary brief-to-brief; section writing stays cooler
-                ...modelCall(model, 0.9),
-                schema: zOutline,
-                system: op.system,
-                prompt: op.prompt,
-                abortSignal: ctx.signal,
-            }).then((r) => r.object as Outline),
+        const outline = await withStep("outline", () =>
+            withSchemaRetry(() =>
+                generateObject({
+                    // warm so section count + arc vary brief-to-brief; section writing stays cooler
+                    ...modelCall(model, 0.9),
+                    schema: zOutline,
+                    system: op.system,
+                    prompt: op.prompt,
+                    abortSignal: ctx.signal,
+                }).then((r) => r.object as Outline),
+            ),
         );
         // the prompt asks for the cap; the slice guarantees it
         if (ctx.maxSections) outline.beats = outline.beats.slice(0, ctx.maxSections);
@@ -57,13 +60,15 @@ export const planSectionTool = implement(
     "plan-section",
     async function* (input: PromptParts, ctx): AsyncGenerator<never, SectionPlan> {
         const model = modelFor("outline", ctx.tier, ctx.models);
-        const { object } = await generateObject({
-            ...modelCall(model, 0.9),
-            schema: zSectionPlan,
-            system: input.system,
-            prompt: input.prompt,
-            abortSignal: ctx.signal,
-        });
+        const { object } = await withStep("plan-section", () =>
+            generateObject({
+                ...modelCall(model, 0.9),
+                schema: zSectionPlan,
+                system: input.system,
+                prompt: input.prompt,
+                abortSignal: ctx.signal,
+            }),
+        );
         return object as SectionPlan;
     },
 );
@@ -82,12 +87,14 @@ export const writeSectionTool = implement(
         const call = modelCall(modelId);
         let note = ""; // feedback appended to the prompt on retry
         for (let attempt = 0; attempt < 2; attempt++) {
-            const { text } = await generateText({
-                ...call,
-                system: input.parts.system,
-                prompt: input.parts.prompt + note,
-                abortSignal: ctx.signal,
-            });
+            const { text } = await withStep(`section:${input.id}`, () =>
+                generateText({
+                    ...call,
+                    system: input.parts.system,
+                    prompt: input.parts.prompt + note,
+                    abortSignal: ctx.signal,
+                }),
+            );
             const parsed = zSection.safeParse(extractJson(text));
             if (!parsed.success) {
                 note =
@@ -129,14 +136,16 @@ export async function expandBrief(
 ): Promise<BriefDraft> {
     const parts = briefParts(prompt, surface, opts.previous);
     const modelId = modelFor("brief", opts.tier, opts.models);
-    const { object } = await generateObject({
-        // a re-read runs hot: the point is to land somewhere else
-        ...modelCall(modelId, opts.previous ? 1 : 0.7),
-        schema: zBriefDraft,
-        system: parts.system,
-        prompt: parts.prompt,
-        abortSignal: opts.signal,
-    });
+    const { object } = await withStep("brief", () =>
+        generateObject({
+            // a re-read runs hot: the point is to land somewhere else
+            ...modelCall(modelId, opts.previous ? 1 : 0.7),
+            schema: zBriefDraft,
+            system: parts.system,
+            prompt: parts.prompt,
+            abortSignal: opts.signal,
+        }),
+    );
     return normalizeBrief(prompt, object, surface);
 }
 

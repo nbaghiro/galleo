@@ -4,7 +4,7 @@ import { costOf, creditsForUsd } from "@model/credits";
 import { reserveCost, usageFor } from "@model/tools";
 import type { WorkspaceCreditFields } from "./credits";
 import { chargeCredits, settleCredits } from "./credits";
-import type { TokenUse } from "./ai/meter";
+import type { Meter, TokenUse } from "./ai/meter";
 import { usdOf, withMeter } from "./ai/meter";
 
 // One rule for every paid action: reserve the estimate up front, then owe what the work really did —
@@ -17,12 +17,19 @@ export type Produced = (units: Usage) => void;
 
 export type Reservation =
     | { ok: false; remaining: number }
-    | { ok: true; settle: <T>(run: (produced: Produced) => Promise<T>) => Promise<T> };
+    | {
+          ok: true;
+          // the meter is handed back so a caller that asked to trace can read the spans it collected
+          settle: <T>(run: (produced: Produced, meter: Meter) => Promise<T>) => Promise<T>;
+      };
 
 // A free tool never reaches the ledger: no row to write, no balance to lock, and nothing to settle
 // against, so `owed` must not run either — it would bill the real tokens of a call we chose to give
 // away.
-const FREE: Reservation = { ok: true, settle: (run) => run(() => {}) };
+const FREE: Reservation = {
+    ok: true,
+    settle: (run) => run(() => {}, { uses: [], extraUsd: 0, trace: false }),
+};
 
 /**
  * Hold the estimated cost of `tool`, then settle it against real usage.
@@ -41,6 +48,7 @@ export async function reserve(
     tool: ToolId,
     size: MeterParams = {},
     rates: UnitRates = {},
+    trace = false,
 ): Promise<Reservation> {
     const cost = reserveCost(tool, size, rates);
     if (cost === 0) return FREE;
@@ -57,12 +65,12 @@ export async function reserve(
             };
             return withMeter(async (meter) => {
                 try {
-                    return await run(produced);
+                    return await run(produced, meter);
                 } finally {
                     const delta = owed(meter.uses, made, meter.extraUsd) - cost;
                     await settleCredits(ws, entryId, delta, held.fromBonus);
                 }
-            });
+            }, trace);
         },
     };
 }

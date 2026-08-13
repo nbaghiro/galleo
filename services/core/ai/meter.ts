@@ -1,4 +1,5 @@
 import type { TurnKind, TurnRequest } from "@model/ai";
+import type { EvalSpan } from "@model/eval";
 import type { UnitRates } from "@model/credits";
 import type { MeterParams, ToolId } from "@model/tools";
 import { unitMultipliers } from "@model/credits";
@@ -19,24 +20,43 @@ export interface TokenUse {
     output: number;
 }
 
+// A Span IS a TokenUse structurally, so billing keeps reading `uses` unchanged; the trace-only
+// fields are filled when tracing is on, since prompt bodies dwarf everything else in the record.
+export type Span = EvalSpan;
+
 export interface Meter {
-    uses: TokenUse[];
+    uses: Span[];
     // model spend that has no per-token registry price (embeddings); folded into the settle as-is
     extraUsd: number;
+    trace: boolean;
 }
 
 const scope = new AsyncLocalStorage<Meter>();
+// separate scope so concurrent steps cannot overwrite each other's label
+const stepScope = new AsyncLocalStorage<string>();
 
 /** Runs `fn` with a fresh meter in scope and hands it back alongside the result. */
-export async function withMeter<T>(fn: (meter: Meter) => Promise<T>): Promise<T> {
-    const meter: Meter = { uses: [], extraUsd: 0 };
+export async function withMeter<T>(fn: (meter: Meter) => Promise<T>, trace = false): Promise<T> {
+    const meter: Meter = { uses: [], extraUsd: 0, trace };
     return await scope.run(meter, () => fn(meter));
 }
 
+/** Labels every model call made inside `fn`, so a span can be attributed to a pipeline step. */
+export function withStep<T>(step: string, fn: () => Promise<T>): Promise<T> {
+    return stepScope.run(step, fn);
+}
+
+export const tracing = (): boolean => scope.getStore()?.trace ?? false;
+
 export function recordTokens(modelId: string, input: number, output: number): void {
+    record({ modelId, input, output, step: stepScope.getStore() ?? "", ms: 0 });
+}
+
+/** The full record for one call; `recordTokens` is the billing-only shorthand. */
+export function record(span: Span): void {
     const meter = scope.getStore();
-    if (!meter || (!input && !output)) return;
-    meter.uses.push({ modelId, input, output });
+    if (!meter || (!span.input && !span.output)) return;
+    meter.uses.push({ ...span, step: span.step || (stepScope.getStore() ?? "") });
 }
 
 /** Spend priced at the call site (embeddings — no registry entry to price their tokens). */

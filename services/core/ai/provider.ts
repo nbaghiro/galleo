@@ -5,7 +5,7 @@ import { createXai } from "@ai-sdk/xai";
 import type { EmbeddingModel, LanguageModel } from "ai";
 import type { LanguageModelMiddleware } from "ai";
 import { wrapLanguageModel } from "ai";
-import { recordTokens } from "./meter";
+import { record, recordTokens, tracing } from "./meter";
 
 // what `providerOptions` accepts: one JSON bag per provider name (the SDK's SharedV4ProviderOptions)
 type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
@@ -60,28 +60,94 @@ type StreamPart =
         ? P
         : never;
 
+// prompt bodies are unbounded; a span is for reading, not for archiving the whole context
+const CLIP = 20_000;
+const clip = (s: string): string => (s.length > CLIP ? `${s.slice(0, CLIP)}\n… [clipped]` : s);
+
+// Pull the system and user text back out of the params the SDK is about to send, so a trace shows
+// what actually went over the wire rather than what a prompt builder would produce if re-run.
+type CallParams = Parameters<NonNullable<LanguageModelMiddleware["wrapGenerate"]>>[0]["params"];
+
+function promptOf(params: CallParams): { system?: string; prompt?: string } {
+    const parts = params.prompt;
+    if (!Array.isArray(parts)) return {};
+    const textOf = (m: (typeof parts)[number]): string =>
+        typeof m.content === "string"
+            ? m.content
+            : m.content
+                  .map((c: { type: string; text?: string }) =>
+                      typeof c.text === "string" ? c.text : `[${c.type}]`,
+                  )
+                  .join("\n");
+    const system = parts
+        .filter((m) => m.role === "system")
+        .map(textOf)
+        .join("\n\n");
+    const prompt = parts
+        .filter((m) => m.role !== "system")
+        .map((m) => `${m.role}: ${textOf(m)}`)
+        .join("\n\n");
+    return { system: system ? clip(system) : undefined, prompt: prompt ? clip(prompt) : undefined };
+}
+
 // The one place every call passes through, so metering here cannot be forgotten at a call site.
 function metering(id: string): LanguageModelMiddleware {
     return {
-        wrapGenerate: async ({ doGenerate }) => {
+        wrapGenerate: async ({ doGenerate, params }) => {
+            const t0 = Date.now();
             const r = await doGenerate();
-            recordTokens(id, r.usage?.inputTokens?.total ?? 0, r.usage?.outputTokens?.total ?? 0);
+            const input = r.usage?.inputTokens?.total ?? 0;
+            const output = r.usage?.outputTokens?.total ?? 0;
+            if (!tracing()) {
+                recordTokens(id, input, output);
+                return r;
+            }
+            const text = r.content
+                ?.map((c) => ("text" in c && typeof c.text === "string" ? c.text : ""))
+                .join("");
+            record({
+                modelId: id,
+                input,
+                output,
+                step: "",
+                ms: Date.now() - t0,
+                ...promptOf(params),
+                response: text ? clip(text) : undefined,
+                temperature: params.temperature,
+                finishReason: String(r.finishReason),
+            });
             return r;
         },
         // a stream only knows its usage at the end, so tap the parts on the way past
-        wrapStream: async ({ doStream }) => {
+        wrapStream: async ({ doStream, params }) => {
+            const t0 = Date.now();
             const r = await doStream();
+            const traced = tracing();
+            let text = "";
             return {
                 ...r,
                 stream: r.stream.pipeThrough(
                     new TransformStream<StreamPart, StreamPart>({
                         transform(part, controller) {
-                            if (part.type === "finish")
-                                recordTokens(
-                                    id,
-                                    part.usage?.inputTokens?.total ?? 0,
-                                    part.usage?.outputTokens?.total ?? 0,
-                                );
+                            if (traced && part.type === "text-delta" && "delta" in part)
+                                text += String(part.delta);
+                            if (part.type === "finish") {
+                                const input = part.usage?.inputTokens?.total ?? 0;
+                                const output = part.usage?.outputTokens?.total ?? 0;
+                                if (traced)
+                                    record({
+                                        modelId: id,
+                                        input,
+                                        output,
+                                        step: "",
+                                        ms: Date.now() - t0,
+                                        ...promptOf(params),
+                                        response: text ? clip(text) : undefined,
+                                        temperature: params.temperature,
+                                        finishReason: String(part.finishReason),
+                                    });
+                                else recordTokens(id, input, output);
+                            }
                             controller.enqueue(part);
                         },
                     }),

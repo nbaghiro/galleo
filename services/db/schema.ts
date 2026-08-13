@@ -17,6 +17,7 @@ import { sql } from "drizzle-orm";
 import type { GenMeta, ArtifactDigest } from "@model/artifact";
 import type { FeatureOverrides, ScheduledChange } from "@model/billing";
 import type { Usage } from "@model/credits";
+import type { EvalCheck, EvalConfig, EvalSpan, EvalStatus } from "@model/eval";
 
 // Drizzle has no tsvector type; the column is generated from title + search_text, never written by hand
 const tsvector = customType<{ data: string; driverData: string }>({
@@ -328,9 +329,9 @@ export const contextItems = pgTable(
         contextId: uuid("context_id")
             .notNull()
             .references(() => contexts.id, { onDelete: "cascade" }),
-        kind: text("kind").notNull(), // "file" | "link" | "artifact" | "text"
+        kind: text("kind").notNull(), // "file" | "link" | "artifact" | "template" | "text"
         title: text("title").notNull(),
-        ref: text("ref"), // the url (link) or artifact id (artifact); absent for file/text
+        ref: text("ref"), // the url (link) or artifact/template id; absent for file/text
         body: text("body").notNull(),
         chars: integer("chars").notNull(),
         addedBy: uuid("added_by").references(() => users.id),
@@ -379,6 +380,31 @@ export const chatMessages = pgTable(
     (t) => [index("chat_messages_ws_art_idx").on(t.workspaceId, t.artifactId, t.createdAt.desc())],
 );
 
+// A traced generation: the run's config, every model call it made, and what it cost. Written only
+// when a run asks to be traced, so this never grows on ordinary user turns.
+export const evalRuns = pgTable(
+    "eval_runs",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        workspaceId: uuid("workspace_id")
+            .notNull()
+            .references(() => workspaces.id),
+        userId: uuid("user_id").references(() => users.id),
+        artifactId: uuid("artifact_id"), // no FK: a run may be abandoned before the draft is saved
+        config: jsonb("config").$type<EvalConfig>().notNull(),
+        spans: jsonb("spans").$type<EvalSpan[]>().notNull(),
+        checks: jsonb("checks").$type<EvalCheck[]>(),
+        status: text("status").$type<EvalStatus>().notNull(),
+        error: text("error"),
+        tokensIn: integer("tokens_in").notNull(),
+        tokensOut: integer("tokens_out").notNull(),
+        credits: integer("credits").notNull(),
+        ms: integer("ms").notNull(),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+    },
+    (t) => [index("eval_runs_ws_created_idx").on(t.workspaceId, t.createdAt.desc())],
+);
+
 export const schema = {
     users,
     oauthAccounts,
@@ -400,4 +426,5 @@ export const schema = {
     contextItems,
     chunks,
     chatMessages,
+    evalRuns,
 };
