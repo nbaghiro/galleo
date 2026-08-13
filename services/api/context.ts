@@ -1,8 +1,10 @@
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { requireWorkspace, type WorkspaceEnv } from "./middleware";
 import { rateLimit, readJson } from "../utils/http";
 import { fetchWebpage } from "../utils/webpage";
 import { embeddingReady } from "../core/ai/provider";
+import { ExtractError, extractUpload } from "../core/extract";
 import {
     addArtifactItem,
     addLinkItem,
@@ -43,6 +45,28 @@ context.post("/webpage", requireWorkspace, webpageLimiter, async (c) => {
         });
     } catch (e) {
         return c.json({ error: e instanceof Error ? e.message : "couldn't fetch that page" }, 400);
+    }
+});
+
+// Files that need server-side reading (pdf/docx/xlsx/images): the client sends bytes, gets back
+// text, then attaches it exactly like a webpage snapshot. Both upload surfaces share this.
+const extractLimiter = rateLimit({ name: "extract", limit: 20, windowMs: 60_000 });
+// base64 of the 15 MB document cap, plus JSON envelope headroom
+const extractBody = bodyLimit({ maxSize: 32 * 1024 * 1024 });
+
+context.post("/extract", requireWorkspace, extractLimiter, extractBody, async (c) => {
+    const body = await readJson<{ name?: string; mime?: string; data?: string }>(c);
+    if (!body?.name || !body.data) return c.json({ error: "a file is required" }, 400);
+    try {
+        const out = await extractUpload({
+            name: body.name,
+            mime: body.mime ?? "",
+            data: body.data,
+        });
+        return c.json(out);
+    } catch (e) {
+        if (e instanceof ExtractError) return c.json({ error: e.message }, e.status);
+        throw e;
     }
 });
 

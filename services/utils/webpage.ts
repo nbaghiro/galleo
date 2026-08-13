@@ -66,14 +66,9 @@ async function assertPublicHost(
 
 const codePoint = (n: number): string => (n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : " ");
 
-// tags whose content is noise, then block-level breaks, then everything else stripped
-export function htmlToText(html: string): { title: string; text: string } {
-    const title = /<title[^>]*>([^<]*)<\/title>/i.exec(html)?.[1]?.trim() ?? "";
-    const text = html
-        .replace(/<(script|style|noscript|svg|head)[\s\S]*?<\/\1>/gi, " ")
-        .replace(/<!--[\s\S]*?-->/g, " ")
-        .replace(/<(br|\/p|\/div|\/li|\/h[1-6]|\/tr|\/section|\/article)[^>]*>/gi, "\n")
-        .replace(/<[^>]+>/g, " ")
+/** XML/HTML entity decode, `&amp;` last so double-escaped text isn't double-decoded. */
+export const decodeEntities = (s: string): string =>
+    s
         .replace(/&nbsp;/g, " ")
         .replace(/&lt;/g, "<")
         .replace(/&gt;/g, ">")
@@ -81,7 +76,18 @@ export function htmlToText(html: string): { title: string; text: string } {
         .replace(/&apos;/g, "'")
         .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => codePoint(parseInt(hex, 16)))
         .replace(/&#(\d+);/g, (_, dec: string) => codePoint(Number(dec)))
-        .replace(/&amp;/g, "&")
+        .replace(/&amp;/g, "&");
+
+// tags whose content is noise, then block-level breaks, then everything else stripped
+export function htmlToText(html: string): { title: string; text: string } {
+    const title = /<title[^>]*>([^<]*)<\/title>/i.exec(html)?.[1]?.trim() ?? "";
+    const text = decodeEntities(
+        html
+            .replace(/<(script|style|noscript|svg|head)[\s\S]*?<\/\1>/gi, " ")
+            .replace(/<!--[\s\S]*?-->/g, " ")
+            .replace(/<(br|\/p|\/div|\/li|\/h[1-6]|\/tr|\/section|\/article)[^>]*>/gi, "\n")
+            .replace(/<[^>]+>/g, " "),
+    )
         .replace(/[ \t]+/g, " ")
         .replace(/ ?\n ?/g, "\n")
         .replace(/\n{3,}/g, "\n\n")

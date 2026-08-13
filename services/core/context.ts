@@ -34,7 +34,8 @@ export interface ContextItemMeta {
     createdAt: string;
 }
 
-const BODY_CAP = 200_000; // one item can't swallow the store; ~50 chunks at the default size
+// one item can't swallow the store (~50 chunks at the default size); extraction shares the budget
+export const BODY_CAP = 200_000;
 
 const CLUSTER_CAP = 12; // a list card draws at most this many source clusters
 

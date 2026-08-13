@@ -244,6 +244,7 @@ export const DEFAULT_MODELS: Record<AiTask, string> = {
     translate: FLASH,
     chat: FLASH,
     theme: FLASH,
+    extract: FLASH,
 };
 
 export function defaultModelFor(task: AiTask): string {

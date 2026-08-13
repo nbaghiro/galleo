@@ -21,7 +21,8 @@ import {
     resyncItem,
     updateContext,
 } from "../../stores/contexts";
-import { extensionOf, readAttachment } from "./context";
+import { reportError } from "../../stores/errors";
+import { ACCEPT, extensionOf, readAttachment } from "./context";
 
 const KIND: Record<ContextItemMeta["kind"], { label: string; icon: string }> = {
     file: { label: "file", icon: "doc" },
@@ -400,7 +401,8 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
         if (!files?.length) return;
         void run(async () => {
             for (const file of Array.from(files)) {
-                const { attachment } = await readAttachment(file);
+                const { attachment, error } = await readAttachment(file);
+                if (error) reportError(new Error(error), error);
                 if (attachment)
                     await addItem(props.context.id, {
                         kind: "file",
@@ -492,7 +494,7 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
                 type="file"
                 multiple
                 class="hidden"
-                accept=".txt,.md,.markdown,.csv,.tsv,.json,.yaml,.yml,.html,.htm,.xml,.rtf,.log,.vtt,.srt,text/*"
+                accept={ACCEPT}
                 onChange={(e) => {
                     addFiles(e.currentTarget.files);
                     e.currentTarget.value = "";

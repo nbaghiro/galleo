@@ -22,6 +22,7 @@ import { contextList, contextsLoaded } from "../../stores/contexts";
 import { ContextsPane } from "./ContextsPane";
 import { TemplateRow } from "./TemplateRow";
 import {
+    ACCEPT,
     formatBytes,
     mergeAttachments,
     nextAttachmentId,
@@ -185,7 +186,7 @@ export const Intake: Component = () => {
         <Show
             when={!browsing()}
             fallback={
-                <div class="h-[85vh] min-h-0">
+                <div class="h-dvh min-h-0 md:h-[85vh]">
                     <GalleryPane onBack={() => setBrowsing(false)} />
                 </div>
             }
@@ -193,14 +194,14 @@ export const Intake: Component = () => {
             <Show
                 when={!managing()}
                 fallback={
-                    <div class="h-[85vh] min-h-0">
+                    <div class="h-dvh min-h-0 md:h-[85vh]">
                         <ContextsPane onBack={() => setManaging(false)} />
                     </div>
                 }
             >
                 {/* the dialog hugs this content; past the viewport cap, this is what scrolls */}
                 <div
-                    class="grid max-h-full justify-items-center overflow-y-auto px-4 py-6 md:px-6 md:py-8"
+                    class="flex h-full max-h-full overflow-y-auto px-4 py-6 md:px-6 md:py-8"
                     onDragOver={(e) => {
                         e.preventDefault();
                         setDropping(true);
@@ -214,7 +215,9 @@ export const Intake: Component = () => {
                 >
                     {/* min-w-0: a grid item can't shrink below min-content without it, and the
                     template strip's min-content would otherwise pin the column past small screens */}
-                    <div class="w-full min-w-0 max-w-150">
+                    {/* auto margins center when there's spare height (fullscreen phone, tall
+                    desktop) and collapse to top-aligned scrolling when content overflows */}
+                    <div class="m-auto w-full min-w-0 max-w-150">
                         <h1
                             class="text-center font-serif text-[25px] leading-tight md:text-[30px]"
                             style={{ "font-family": "var(--font-display)" }}
@@ -370,7 +373,7 @@ export const Intake: Component = () => {
                                     type="file"
                                     multiple
                                     class="hidden"
-                                    accept=".txt,.md,.markdown,.csv,.tsv,.json,.yaml,.yml,.html,.htm,.xml,.rtf,.log,.vtt,.srt,text/*"
+                                    accept={ACCEPT}
                                     onChange={(e) => {
                                         void addFiles(e.currentTarget.files);
                                         e.currentTarget.value = "";

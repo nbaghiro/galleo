@@ -58,7 +58,8 @@ export type AiTask =
     | "rewrite"
     | "translate"
     | "chat"
-    | "theme";
+    | "theme"
+    | "extract"; // reading uploaded files that need a model (images, scanned PDFs)
 
 export const AI_TASKS: readonly AiTask[] = [
     "generate",
@@ -70,6 +71,7 @@ export const AI_TASKS: readonly AiTask[] = [
     "translate",
     "chat",
     "theme",
+    "extract",
 ];
 
 // Which task's model does the work a cost unit stands for. `image` and `video` run on their own

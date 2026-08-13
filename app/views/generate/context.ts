@@ -1,3 +1,5 @@
+import { api } from "../../api";
+
 export interface Attachment {
     id: string;
     name: string;
@@ -28,6 +30,27 @@ const TEXT_EXTENSIONS = [
     "srt",
 ];
 
+// formats the server can read for us (POST /extract): parsed docs, and model-read images
+const EXTRACT_EXTENSIONS = ["pdf", "docx", "xlsx", "xlsm", "png", "jpg", "jpeg", "webp"];
+const EXTRACT_MIMES = [
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+];
+
+// documents cap at 15 MB server-side; the pre-check saves uploading a file that would bounce
+export const EXTRACT_MAX_BYTES = 15_000_000;
+
+// both file inputs share this, so the dialogs can't drift from what the gates accept
+export const ACCEPT = [
+    ...TEXT_EXTENSIONS.map((e) => `.${e}`),
+    ...EXTRACT_EXTENSIONS.map((e) => `.${e}`),
+    "text/*",
+].join(",");
+
 export const extensionOf = (name: string): string =>
     name.includes(".") ? name.slice(name.lastIndexOf(".") + 1).toLowerCase() : "";
 
@@ -36,6 +59,12 @@ export function isReadableFile(name: string, type: string): boolean {
     if (type.startsWith("text/")) return true;
     if (type === "application/json" || type === "application/xml") return true;
     return TEXT_EXTENSIONS.includes(extensionOf(name));
+}
+
+// needs the server to read it (binary formats; browsers often hand back an empty MIME)
+export function isExtractableFile(name: string, type: string): boolean {
+    if (EXTRACT_MIMES.includes(type)) return true;
+    return EXTRACT_EXTENSIONS.includes(extensionOf(name));
 }
 
 export function mergeAttachments(items: Attachment[]): string | undefined {
@@ -67,18 +96,48 @@ export interface ReadResult {
     error?: string;
 }
 
+const base64Of = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        // data:<mime>;base64,<payload> — the server wants only the payload
+        reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+        reader.onerror = () => reject(new Error("read failed"));
+        reader.readAsDataURL(file);
+    });
+
 export async function readAttachment(file: File): Promise<ReadResult> {
-    if (!isReadableFile(file.name, file.type))
-        return {
-            error: `${file.name} isn't a text file — paste the text instead, or attach .txt, .md, .csv, or .json.`,
-        };
-    try {
-        const text = await file.text();
-        if (!text.trim()) return { error: `${file.name} is empty.` };
-        return {
-            attachment: { id: nextAttachmentId(), name: file.name, kind: "file", text },
-        };
-    } catch {
-        return { error: `Couldn't read ${file.name}.` };
+    if (isReadableFile(file.name, file.type)) {
+        try {
+            const text = await file.text();
+            if (!text.trim()) return { error: `${file.name} is empty.` };
+            return {
+                attachment: { id: nextAttachmentId(), name: file.name, kind: "file", text },
+            };
+        } catch {
+            return { error: `Couldn't read ${file.name}.` };
+        }
     }
+    if (isExtractableFile(file.name, file.type)) {
+        if (file.size > EXTRACT_MAX_BYTES)
+            return {
+                error: `${file.name} is too large to read (limit ${Math.round(EXTRACT_MAX_BYTES / 1_000_000)} MB).`,
+            };
+        try {
+            const { text } = await api.extractFile({
+                name: file.name,
+                mime: file.type,
+                data: await base64Of(file),
+            });
+            return {
+                attachment: { id: nextAttachmentId(), name: file.name, kind: "file", text },
+            };
+        } catch (e) {
+            return {
+                error: e instanceof Error ? e.message : `Couldn't read ${file.name}.`,
+            };
+        }
+    }
+    return {
+        error: `${file.name} isn't a supported file — attach text (.txt, .md, .csv…), .pdf, .docx, .xlsx, or an image.`,
+    };
 }

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+    ACCEPT,
     extensionOf,
     formatBytes,
+    isExtractableFile,
     isReadableFile,
     mergeAttachments,
     sourceLength,
@@ -40,6 +42,33 @@ describe("readable files", () => {
     it("reads the extension off the last dot only", () => {
         expect(extensionOf("q3.final.md")).toBe("md");
         expect(extensionOf("README")).toBe("");
+    });
+});
+
+describe("extractable files (the server reads these)", () => {
+    it("routes the binary formats to extraction, by MIME or extension", () => {
+        expect(isExtractableFile("deck.pdf", "application/pdf")).toBe(true);
+        expect(isExtractableFile("deck.pdf", "")).toBe(true);
+        expect(
+            isExtractableFile(
+                "notes.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+        ).toBe(true);
+        expect(isExtractableFile("model.xlsm", "")).toBe(true);
+        expect(isExtractableFile("photo.png", "image/png")).toBe(true);
+        expect(isExtractableFile("photo.JPG", "")).toBe(true);
+    });
+    it("does not claim what neither gate supports", () => {
+        expect(isExtractableFile("movie.mp4", "video/mp4")).toBe(false);
+        expect(isExtractableFile("old.xls", "")).toBe(false);
+        // and the gates don't overlap: text stays on the inline path
+        expect(isExtractableFile("notes.md", "")).toBe(false);
+    });
+    it("the shared accept list carries both gates, so the dialogs can't drift", () => {
+        for (const ext of [".md", ".csv", ".pdf", ".docx", ".xlsx", ".png", ".webp"])
+            expect(ACCEPT).toContain(ext);
+        expect(ACCEPT).toContain("text/*");
     });
 });
 
