@@ -709,14 +709,21 @@ Reusable, workspace-shared **contexts** ground turns in real material. One inges
 source (`services/core/context.ts`): extract text → `chunkText` (paragraph-aware, 1200 chars, 200
 overlap; `services/core/context-text.ts`) → embed (`gemini-embedding-001` @ 768 dims,
 `services/core/ai/embed.ts`) → rows in the unified `chunks` table. The five source kinds and how each
-becomes text: **file** and **text** arrive already-extracted from the client (same reader as the intake's
-attachments); **link** is fetched server-side by `services/utils/webpage.ts` (SSRF-vetted per redirect
-hop, 2 MB cap, HTML → text); **artifact** re-extracts a library artifact's words with the same
-`extractArtifactText` the search index uses (artifacts have FTS, not vectors — context items get their
-own chunks); **template** resolves a starter from the curated catalog (`templateBody`) through the same
-extraction. Ingestion is unpriced to the user; retrieval-query embeddings settle into the turn via the
-meter's `extraUsd` (the embedding model is deliberately NOT in the `MODELS` registry — `check:models`
-validates against provider LanguageModelId unions).
+becomes text: **file** covers plain-text formats (read in the browser, same reader as the intake's
+attachments) plus the binary formats the server extracts via `POST /extract` — PDF text layers
+(`unpdf`), `.docx`/`.xlsx` (hand-walked OOXML on `jszip`, sheets serialized as named CSV blocks), and
+images or scanned PDFs, which Gemini reads (the `extract` task; `ImageReader` is an injectable seam
+like `Embedder`); the extraction lives in `services/utils/extract.ts` (pure parsers) +
+`services/core/extract.ts` (caps, dispatch, the scanned-PDF fallback), and only the extracted text is
+stored — originals are discarded. **text** is pasted material; **link** is fetched server-side by
+`services/utils/webpage.ts` (SSRF-vetted per redirect hop, 2 MB cap, HTML → text); **artifact**
+re-extracts a library artifact's words with the same `extractArtifactText` the search index uses
+(artifacts have FTS, not vectors — context items get their own chunks); **template** resolves a starter
+from the curated catalog (`templateBody`) through the same extraction. Ingestion is unpriced to the user
+— including the per-image vision call (<$0.02, bounded by a 20/min rate limit and 15/8 MB size caps);
+retrieval-query embeddings settle into the turn via the meter's `extraUsd` (the embedding model is
+deliberately NOT in the `MODELS` registry — `check:models` validates against provider LanguageModelId
+unions).
 
 Retrieval is one seam used four ways. Routes build a `ContextRetriever` (`makeContextRetriever`) from the
 request's `contextIds` and hand its `pack(query)` to the runtime via `RunOpts.pack` → `ToolContext.pack`:

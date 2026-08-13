@@ -194,6 +194,8 @@ core/          one file per functionality; no hono, no Response, no Context
                context.ts    the context library: item ingestion (extract → chunk → embed) · vector
                              retrieval · conversation memory (see ai.md §10.5)
                context-text.ts  the pure text half: the chunker + retrieval-pack assembly
+               extract.ts    upload extraction decisions: format dispatch + size caps + the
+                             Gemini read of images/scanned PDFs (ImageReader seam)
                models.ts     the model registry: tier defaults, cost multipliers, override parsing
                media.ts      stock + icon proxies · AI image/video generation · the asset library
                mail.ts       transactional email
@@ -212,7 +214,8 @@ db/            schema.ts (the tables — see Data model below) · client.ts (the
 
 utils/         http.ts (readJson · cookies · rateLimit · the 402 feature guards) · auth.ts (scrypt +
                signed-cookie session) · env.ts (out/warn/appUrl) · webpage.ts (the SSRF-vetted
-               link fetcher + HTML→text). Database-free by rule.
+               link fetcher + HTML→text) · extract.ts (pure byte→text parsers for uploads:
+               PDF text layers · docx/xlsx OOXML walking · format sniffing). Database-free by rule.
 ```
 
 Generation is a **real backend** now: the client speaks the `@model/ai` turn protocol over SSE and the
