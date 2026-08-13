@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { extractUpload, ExtractError, type ImageReader } from "../extract";
+import { extractUpload, textLooksReadable, ExtractError, type ImageReader } from "../extract";
 import { BODY_CAP } from "../context";
 
 const b64 = (s: string | Uint8Array): string => Buffer.from(s).toString("base64");
@@ -110,6 +110,19 @@ describe("extractUpload", () => {
         );
         expect(out.text.length).toBe(BODY_CAP);
         expect(out.truncated).toBe(true);
+    });
+
+    it("tells a real text layer from broken-CMap symbol soup", () => {
+        expect(
+            textLooksReadable(
+                "The Lumen One runs at 18 decibels on Night mode, and filters cost $12 per quarter.",
+            ),
+        ).toBe(true);
+        // the shape of an extraction whose font map lost its ToUnicode table
+        expect(textLooksReadable('.%" 5$+#,.6 )! *"".&0"3 .%" 5 1."/$.6 %)$"--%"(!".*.%"')).toBe(
+            false,
+        );
+        expect(textLooksReadable("")).toBe(false);
     });
 
     it("typed failures are ExtractError, so the route can map them", async () => {

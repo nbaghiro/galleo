@@ -114,11 +114,23 @@ export async function extractUpload(
         return finish(input.name, await read({ data: input.data, mime: input.mime }), "vision");
     }
 
-    // pdf: try the text layer; a scan (no layer) falls back to the model reading the same bytes
+    // pdf: try the text layer; a scan (no layer) or a broken character map (symbol soup from
+    // fonts without ToUnicode tables) falls back to the model reading the same bytes
     const pdf = await extractPdfText(new Uint8Array(bytes)).catch(() => {
         throw new ExtractError(`${input.name} couldn't be opened — is it a valid PDF?`, 400);
     });
-    if (pdf.charsPerPage >= SCANNED_CHARS_PER_PAGE) return finish(input.name, pdf.text, "text");
+    if (pdf.charsPerPage >= SCANNED_CHARS_PER_PAGE && textLooksReadable(pdf.text))
+        return finish(input.name, pdf.text, "text");
     if (!providerReady("google")) throw needsModel();
     return finish(input.name, await read({ data: input.data, mime: "application/pdf" }), "vision");
+}
+
+// A real text layer is mostly letters, digits, and spaces; a broken CMap extraction is mostly
+// punctuation and symbols. Sampled, since the ratio is stable well before the end.
+export function textLooksReadable(text: string): boolean {
+    const sample = text.slice(0, 4000);
+    if (!sample) return false;
+    let wordish = 0;
+    for (const ch of sample) if (/[\p{L}\p{N}\s.,;:'"()-]/u.test(ch)) wordish++;
+    return wordish / sample.length >= 0.85;
 }

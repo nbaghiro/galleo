@@ -1,1 +1,0 @@
-ALTER TABLE "eval_runs" ADD COLUMN "checks" jsonb;

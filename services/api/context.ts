@@ -14,6 +14,7 @@ import {
     deleteContext,
     getContextItems,
     getItemBody,
+    getItemOriginal,
     listContexts,
     removeItem,
     resyncItem,
@@ -125,9 +126,11 @@ interface NewItemBody {
     url?: string;
     artifactId?: string;
     templateId?: string;
+    // server-extracted uploads pass their original along, so the inspector can render the file
+    original?: { data?: string; mime?: string };
 }
 
-context.post("/contexts/:id/items", requireWorkspace, async (c) => {
+context.post("/contexts/:id/items", requireWorkspace, extractBody, async (c) => {
     const blocked = gate(embeddingReady());
     if (blocked) return c.json({ error: blocked }, 503);
     const ws = c.get("ws");
@@ -138,6 +141,10 @@ context.post("/contexts/:id/items", requireWorkspace, async (c) => {
     try {
         if (body.kind === "file" || body.kind === "text") {
             if (!body.body?.trim()) return c.json({ error: "there was no text to add" }, 400);
+            const original =
+                body.kind === "file" && body.original?.data && body.original.mime
+                    ? { data: body.original.data, mime: body.original.mime }
+                    : undefined;
             const item = await addTextItem(
                 ws.id,
                 contextId,
@@ -145,6 +152,8 @@ context.post("/contexts/:id/items", requireWorkspace, async (c) => {
                 body.kind,
                 body.title ?? (body.kind === "file" ? "Uploaded file" : "Pasted text"),
                 body.body,
+                undefined,
+                original,
             );
             return c.json({ item });
         }
@@ -166,6 +175,23 @@ context.post("/contexts/:id/items", requireWorkspace, async (c) => {
         return c.json({ error: "unknown item kind" }, 400);
     } catch (e) {
         return c.json({ error: e instanceof Error ? e.message : "couldn't add that" }, 400);
+    }
+});
+
+// the stored source file, byte-for-byte — the inspector points a PDF viewer / <img> at this
+context.get("/contexts/:id/items/:itemId/original", requireWorkspace, async (c) => {
+    try {
+        const original = await getItemOriginal(
+            c.get("ws").id,
+            c.req.param("id"),
+            c.req.param("itemId"),
+        );
+        if (!original) return c.json({ error: "no original stored for this item" }, 404);
+        c.header("Content-Type", original.mime);
+        c.header("Cache-Control", "private, max-age=3600");
+        return c.body(new Uint8Array(Buffer.from(original.data, "base64")));
+    } catch {
+        return c.json({ error: "no such item" }, 404);
     }
 });
 

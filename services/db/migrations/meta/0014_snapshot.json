@@ -1,5 +1,5 @@
 {
-    "id": "807d5cbd-d8a3-4f20-abb6-3608daf2beb4",
+    "id": "f7062fe4-3951-4642-bfce-e2df3078cff5",
     "prevId": "f491bd69-ae6f-4e01-94a2-1535105e3a8e",
     "version": "7",
     "dialect": "postgresql",
@@ -927,6 +927,12 @@
                     "type": "jsonb",
                     "primaryKey": false,
                     "notNull": true
+                },
+                "checks": {
+                    "name": "checks",
+                    "type": "jsonb",
+                    "primaryKey": false,
+                    "notNull": false
                 },
                 "status": {
                     "name": "status",

@@ -6,6 +6,8 @@ export interface Attachment {
     kind: "paste" | "file" | "link" | "artifact"; // artifact = a library piece or a template
     ref?: string; // link only: the fetched page's final URL
     text: string;
+    // server-extracted binaries keep their bytes, so a context item can store the real file
+    original?: { data: string; mime: string };
 }
 
 // must stay in sync with sourceMaterial()'s clip in services/ai/prompts/generate.ts
@@ -123,13 +125,16 @@ export async function readAttachment(file: File): Promise<ReadResult> {
                 error: `${file.name} is too large to read (limit ${Math.round(EXTRACT_MAX_BYTES / 1_000_000)} MB).`,
             };
         try {
-            const { text } = await api.extractFile({
-                name: file.name,
-                mime: file.type,
-                data: await base64Of(file),
-            });
+            const data = await base64Of(file);
+            const { text } = await api.extractFile({ name: file.name, mime: file.type, data });
             return {
-                attachment: { id: nextAttachmentId(), name: file.name, kind: "file", text },
+                attachment: {
+                    id: nextAttachmentId(),
+                    name: file.name,
+                    kind: "file",
+                    text,
+                    original: { data, mime: file.type || "application/octet-stream" },
+                },
             };
         } catch (e) {
             return {

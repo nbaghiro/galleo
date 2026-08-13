@@ -55,6 +55,41 @@ describe("POST /extract", () => {
         expect(chunks[0]!.text).toContain("fourteen arrays");
     });
 
+    it("stores the original alongside the text, and serves it back byte-for-byte", async () => {
+        const { userId, workspaceId } = await seedUser();
+        const data = await pdfBase64(["The original survives for the viewer."]);
+        const { id: ctx } = await createContext(workspaceId, userId, "Originals");
+
+        // ingestion via core with the fake embedder (the route embeds for real, per the contract)
+        const item = await addTextItem(
+            workspaceId,
+            ctx,
+            userId,
+            "file",
+            "keep.pdf",
+            "The original survives for the viewer.",
+            fakeEmbed,
+            { data, mime: "application/pdf" },
+        );
+        expect(item.original).toBe(true);
+
+        const listed = await authed(userId, `/contexts/${ctx}`);
+        const { items } = (await listed.json()) as { items: { id: string; original: boolean }[] };
+        expect(items.find((i) => i.id === item.id)?.original).toBe(true);
+
+        const served = await authed(userId, `/contexts/${ctx}/items/${item.id}/original`);
+        expect(served.status).toBe(200);
+        expect(served.headers.get("content-type")).toContain("application/pdf");
+        const bytes = Buffer.from(await served.arrayBuffer());
+        expect(bytes.equals(Buffer.from(data, "base64"))).toBe(true);
+
+        // an item without a stored original 404s rather than serving nothing
+        const bare = await addTextItem(workspaceId, ctx, userId, "text", "note", "x", fakeEmbed);
+        expect(bare.original).toBe(false);
+        const missing = await authed(userId, `/contexts/${ctx}/items/${bare.id}/original`);
+        expect(missing.status).toBe(404);
+    });
+
     it("maps typed extraction failures to 400 with the copy", async () => {
         const { userId } = await seedUser();
         const res = await authed(

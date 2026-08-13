@@ -714,8 +714,10 @@ attachments) plus the binary formats the server extracts via `POST /extract` —
 (`unpdf`), `.docx`/`.xlsx` (hand-walked OOXML on `jszip`, sheets serialized as named CSV blocks), and
 images or scanned PDFs, which Gemini reads (the `extract` task; `ImageReader` is an injectable seam
 like `Embedder`); the extraction lives in `services/utils/extract.ts` (pure parsers) +
-`services/core/extract.ts` (caps, dispatch, the scanned-PDF fallback), and only the extracted text is
-stored — originals are discarded. **text** is pasted material; **link** is fetched server-side by
+`services/core/extract.ts` (caps, dispatch, the scanned-PDF and broken-CMap fallbacks); context items
+keep the original bytes (`context_items.original`, served at `…/items/:id/original`) so the inspector
+renders the real file — the browser's PDF viewer, an `<img>` — while retrieval uses the extracted
+text; intake attachments extract only. **text** is pasted material; **link** is fetched server-side by
 `services/utils/webpage.ts` (SSRF-vetted per redirect hop, 2 MB cap, HTML → text); **artifact**
 re-extracts a library artifact's words with the same `extractArtifactText` the search index uses
 (artifacts have FTS, not vectors — context items get their own chunks); **template** resolves a starter

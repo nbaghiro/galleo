@@ -257,10 +257,16 @@ export interface ContextItemMeta {
     ref: string | null;
     chars: number;
     chunks: number;
+    original: boolean; // a stored source file, renderable via .../original
     createdAt: string;
 }
 export type NewContextItem =
-    | { kind: "file" | "text"; title: string; body: string }
+    | {
+          kind: "file" | "text";
+          title: string;
+          body: string;
+          original?: { data: string; mime: string };
+      }
     | { kind: "link"; url: string }
     | { kind: "artifact"; artifactId: string }
     | { kind: "template"; templateId: string };

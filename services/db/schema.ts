@@ -334,6 +334,10 @@ export const contextItems = pgTable(
         ref: text("ref"), // the url (link) or artifact/template id; absent for file/text
         body: text("body").notNull(),
         chars: integer("chars").notNull(),
+        // server-extracted binaries keep their original (base64), so the inspector can render
+        // the real file — a PDF in the browser's viewer, an image as an image
+        original: text("original"),
+        originalMime: text("original_mime"),
         addedBy: uuid("added_by").references(() => users.id),
         createdAt: timestamp("created_at").notNull().defaultNow(),
     },

@@ -51,7 +51,9 @@ type Snapshot =
     | { view: "sections"; content: ArtifactContent }
     | { view: "markdown"; body: string }
     | { view: "table"; rows: string[][] }
-    | { view: "prose"; body: string };
+    | { view: "prose"; body: string }
+    | { view: "pdf"; url: string }
+    | { view: "image"; url: string; title: string };
 
 const TABLE_ROW_CAP = 60;
 
@@ -309,6 +311,23 @@ const SnapshotView: Component<{ snap: Snapshot }> = (props) => {
                     {as<"prose">().body || "Nothing readable was stored for this source."}
                 </p>
             </Show>
+            <Show when={props.snap.view === "pdf"}>
+                {/* the browser's own PDF viewer, reading the stored original */}
+                <iframe
+                    src={as<"pdf">().url}
+                    title="Source PDF"
+                    class="h-120 w-full border-0 bg-canvas"
+                />
+            </Show>
+            <Show when={props.snap.view === "image"}>
+                <div class="bg-canvas p-3">
+                    <img
+                        src={as<"image">().url}
+                        alt={as<"image">().title}
+                        class="mx-auto max-w-full rounded-md border border-line"
+                    />
+                </div>
+            </Show>
         </>
     );
 };
@@ -344,8 +363,12 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
         return { view: "prose", body };
     };
 
-    // artifacts and templates render as real sections; everything else shows the original text
-    // in its format's reading view. The chunked form stays the machine's private business.
+    const originalUrl = (item: ContextItemMeta): string =>
+        `/api/contexts/${props.context.id}/items/${item.id}/original`;
+
+    // artifacts and templates render as real sections; uploads with a stored original render as
+    // the real file (the browser's PDF viewer, an image); everything else shows the extracted
+    // text in its format's reading view. The chunked form stays the machine's private business.
     const fetchSnapshot = async (item: ContextItemMeta): Promise<Snapshot> => {
         try {
             if (item.kind === "artifact" && item.ref) {
@@ -355,6 +378,13 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
             if (item.kind === "template" && item.ref) {
                 const tpl = (await templatesOnce()).find((t) => t.id === item.ref);
                 if (tpl) return { view: "sections", content: tpl.content };
+            }
+            if (item.kind === "file" && item.original) {
+                const ext = extensionOf(item.title);
+                if (ext === "pdf") return { view: "pdf", url: originalUrl(item) };
+                if (["png", "jpg", "jpeg", "webp"].includes(ext))
+                    return { view: "image", url: originalUrl(item), title: item.title };
+                // docx/xlsx have no in-browser renderer; their extracted text reads better
             }
             return await fetchBodyView(item);
         } catch {
@@ -408,6 +438,7 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
                         kind: "file",
                         title: attachment.name,
                         body: attachment.text,
+                        ...(attachment.original ? { original: attachment.original } : {}),
                     });
             }
         });
@@ -741,7 +772,7 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
                 <Show when={!loading() && items().length}>
                     <div
                         class="mt-3.5 grid items-start gap-4"
-                        classList={{ "md:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]": !!reading() }}
+                        classList={{ "md:grid-cols-2": !!reading() }}
                     >
                         <div class="flex flex-col gap-2" onMouseLeave={() => setLit(null)}>
                             <For each={items()}>

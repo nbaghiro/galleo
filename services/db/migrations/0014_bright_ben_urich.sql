@@ -5,6 +5,7 @@ CREATE TABLE "eval_runs" (
 	"artifact_id" uuid,
 	"config" jsonb NOT NULL,
 	"spans" jsonb NOT NULL,
+	"checks" jsonb,
 	"status" text NOT NULL,
 	"error" text,
 	"tokens_in" integer NOT NULL,
