@@ -62,19 +62,12 @@ const SheetBody: Component = () => {
                 <Icon name="inspector" size={16} />
                 <h2 class="font-display text-[16px] font-semibold text-ink">Keyboard shortcuts</h2>
                 <input
-                    class="ml-auto w-55 rounded-md border border-line bg-canvas px-2.5 py-1.5 text-[13px] text-ink outline-none placeholder:text-muted focus:border-accent"
+                    class="ml-auto mr-9 w-55 rounded-md border border-line bg-canvas px-2.5 py-1.5 text-[13px] text-ink outline-none placeholder:text-muted focus:border-accent"
                     type="search"
                     placeholder="Search shortcuts…"
                     value={query()}
                     onInput={(e) => setQuery(e.currentTarget.value)}
                 />
-                <button
-                    class="rounded-md p-1 text-muted hover:text-ink"
-                    title="Close (Esc)"
-                    onClick={closeShortcuts}
-                >
-                    <Icon name="close" size={16} />
-                </button>
             </div>
             <div class="grid min-h-0 flex-1 grid-cols-2 gap-x-8 gap-y-5 overflow-y-auto p-5">
                 <For each={groups()}>

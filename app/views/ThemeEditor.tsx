@@ -534,15 +534,7 @@ const ThemeEditorPanel: Component = () => {
                             }}
                         />
                     </div>
-                    <IconButton
-                        size="lg"
-                        tone="muted"
-                        class="flex-none"
-                        title="Close"
-                        onClick={() => closeThemeEditor()}
-                    >
-                        <CloseIcon size={15} />
-                    </IconButton>
+                    <span class="w-9 flex-none" aria-hidden="true" />
                 </header>
 
                 <div class="min-h-0 flex-1 overflow-y-auto">

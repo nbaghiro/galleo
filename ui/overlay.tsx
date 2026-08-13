@@ -1,9 +1,11 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createSignal, onCleanup, onMount, Show, splitProps } from "solid-js";
 import { Dynamic, Portal } from "solid-js/web";
-import { Button } from "./button";
+import { Button, IconButton } from "./button";
+import { CloseIcon } from "./icons";
 import { installKeyDispatcher, pushScope } from "./keys";
 import { trapFocus } from "./focus";
+import { isCoarsePointer, isPhone } from "./viewport";
 import { Z } from "./z";
 
 // A portaled panel escapes the themed subtree, so copy the theme vars off the anchor onto it.
@@ -188,6 +190,8 @@ export const Modal: Component<{
     children: JSX.Element;
 }> = (props) => {
     let panel!: HTMLDivElement;
+    // big surfaces take the whole phone screen; small alerts stay centered cards
+    const phoneFull = (): boolean => isPhone() && ["lg", "xl", "full"].includes(props.size ?? "md");
     onMount(() => {
         const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
         if (props.animate !== false && !reduced)
@@ -212,7 +216,7 @@ export const Modal: Component<{
     return (
         <div
             class="fixed inset-0 flex items-center justify-center text-ink"
-            classList={{ "p-4": props.size !== SCREEN }}
+            classList={{ "p-4": props.size !== SCREEN && !phoneFull() }}
             style={{ "z-index": props.z ?? Z.modal, ...(props.vars ?? {}) }}
         >
             <div
@@ -224,12 +228,24 @@ export const Modal: Component<{
                 role="dialog"
                 aria-modal="true"
                 tabindex="-1"
-                class={`relative w-full outline-none ${MODAL_W[props.size ?? "md"]} ${SURFACE[props.surface ?? "panel"]} ${props.class ?? ""}`}
+                class={`relative w-full outline-none ${phoneFull() ? "h-full max-w-none" : MODAL_W[props.size ?? "md"]} ${SURFACE[props.surface ?? "panel"]} ${props.class ?? ""}`}
                 classList={{
-                    "rounded-2xl border border-line shadow-2xl": props.size !== SCREEN,
+                    "rounded-2xl border border-line shadow-2xl":
+                        props.size !== SCREEN && !phoneFull(),
                 }}
             >
                 {props.children}
+                {/* every modal closes the same way, on every device */}
+                <IconButton
+                    size={isCoarsePointer() ? "touch" : "md"}
+                    tone="muted"
+                    rounded="md"
+                    class="absolute right-2 top-2 z-20"
+                    title="Close"
+                    onClick={() => props.onClose()}
+                >
+                    <CloseIcon size={15} />
+                </IconButton>
             </div>
         </div>
     );

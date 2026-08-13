@@ -1,7 +1,6 @@
 import type { Component } from "solid-js";
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { Button, Chip, Eyebrow, IconButton } from "@ui/button";
-import { CloseIcon } from "@ui/icons";
+import { Button, Chip, Eyebrow } from "@ui/button";
 import { Modal } from "@ui/overlay";
 import { Dropdown, type DropdownOption } from "@ui/select";
 import { featuresState } from "../stores/features";
@@ -129,17 +128,12 @@ export const ModelPickerModal: Component = () => {
                 class="p-5"
                 onClose={() => setOpen(false)}
             >
-                <div class="mb-3 flex items-start justify-between gap-4">
-                    <div>
-                        <h2 class="text-[16px] font-semibold text-ink">Models</h2>
-                        <p class="mt-0.5 text-[12px] text-soft">
-                            Pick the model each step runs on, and see what recent runs used. Kept in
-                            this browser, so it follows you rather than the workspace.
-                        </p>
-                    </div>
-                    <IconButton onClick={() => setOpen(false)}>
-                        <CloseIcon size={15} />
-                    </IconButton>
+                <div class="mb-3 pr-9">
+                    <h2 class="text-[16px] font-semibold text-ink">Models</h2>
+                    <p class="mt-0.5 text-[12px] text-soft">
+                        Pick the model each step runs on, and see what recent runs used. Kept in
+                        this browser, so it follows you rather than the workspace.
+                    </p>
                 </div>
 
                 <div class="max-h-[58vh] overflow-y-auto">

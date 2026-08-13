@@ -13,7 +13,7 @@ import {
 } from "@canvas/render/export";
 import { buildPptx } from "@canvas/render/pptx";
 import { Icon } from "@ui/icons";
-import { Badge, Button, IconButton, Spinner } from "@ui/button";
+import { Badge, Button, Spinner } from "@ui/button";
 import { Modal } from "@ui/overlay";
 import { cachedExport } from "../core/exportCache";
 import {
@@ -208,9 +208,6 @@ const Body: Component = () => {
                     {editor.artifact.format}
                 </Badge>
                 <div class="flex-1" />
-                <IconButton size="md" bordered tone="soft" title="Close" onClick={close}>
-                    <Icon name="close" size={14} />
-                </IconButton>
             </div>
 
             <div class="flex gap-1.5 border-b border-line px-4 py-2.5">

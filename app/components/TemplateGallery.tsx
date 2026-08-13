@@ -4,8 +4,7 @@ import { useNavigate } from "@solidjs/router";
 import { resolveTheme } from "@themes";
 import { api, type ApiTemplate } from "../api";
 import { FORMATS, formatLabel } from "../stores/library";
-import { CloseIcon } from "@ui/icons";
-import { Button, IconButton } from "@ui/button";
+import { Button } from "@ui/button";
 import { Segmented } from "@ui/inputs";
 import { Modal } from "@ui/overlay";
 import { PresentSurface } from "@ui/present";
@@ -200,7 +199,7 @@ export const TemplateGallery: Component<{ onCreated?: () => void }> = (props) =>
                                         onChange={setPreviewFmt}
                                     />
                                 </div>
-                                <div class="ml-auto flex items-center gap-2">
+                                <div class="ml-auto flex items-center gap-2 pr-10">
                                     <Button
                                         variant="primary"
                                         disabled={using() !== null}
@@ -208,13 +207,6 @@ export const TemplateGallery: Component<{ onCreated?: () => void }> = (props) =>
                                     >
                                         {using() === t().id ? "Creating…" : "Use template →"}
                                     </Button>
-                                    <IconButton
-                                        size="xl"
-                                        title="Close"
-                                        onClick={() => setPreview(null)}
-                                    >
-                                        <CloseIcon size={16} />
-                                    </IconButton>
                                 </div>
                             </header>
                             <div class="min-h-0 flex-1">

@@ -22,7 +22,6 @@ import {
     ArrowUpRightIcon,
     CheckIcon,
     ChevronRightIcon,
-    CloseIcon,
     CopyIcon,
     EditIcon,
     EyeIcon,
@@ -634,12 +633,11 @@ const InsightsModal: Component<{
                         {relativeTime(p.it.links[0]!.publishedAt)}
                     </div>
                 </div>
-                <Badge tone="outline" size="sm" uppercase>
-                    {formatLabel(p.it.art.formatId)}
-                </Badge>
-                <IconButton size="lg" tone="muted" title="Close" onClick={p.onClose}>
-                    <CloseIcon size={15} />
-                </IconButton>
+                <span class="mr-9 flex-none">
+                    <Badge tone="outline" size="sm" uppercase>
+                        {formatLabel(p.it.art.formatId)}
+                    </Badge>
+                </span>
             </header>
 
             <div class="flex min-h-0 flex-1">

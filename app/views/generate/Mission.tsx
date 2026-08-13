@@ -2,11 +2,11 @@ import type { Component, JSX } from "solid-js";
 import { createMemo, createSignal, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { resolveTheme, themeCssVars } from "@themes";
-import { Button, Eyebrow, IconButton, Spinner } from "@ui/button";
+import { Button, Eyebrow, Spinner } from "@ui/button";
 import { FormatSwitcher } from "@ui/inputs";
-import { CloseIcon, Icon } from "@ui/icons";
+import { Icon } from "@ui/icons";
 import { Modal } from "@ui/overlay";
-import { isCoarsePointer, viewportTier } from "@ui/viewport";
+import { viewportTier } from "@ui/viewport";
 import { Credits } from "../../components/credits";
 import { thread } from "../../stores/chat";
 import {
@@ -58,7 +58,6 @@ export const Studio: Component = () => {
     const switched = (): boolean => railMode(viewportTier()) === "switched";
     const boardHidden = (): boolean => switched() && !intake() && phonePane() === "chat";
     const railHidden = (): boolean => switched() && phonePane() === "board";
-    const touch = isCoarsePointer;
     // the console keeps the rail on a fresh run; the brief is a step you go and open
     onMount(() => setRailPane("chat"));
 
@@ -104,7 +103,7 @@ export const Studio: Component = () => {
             size={intake() ? (intakeExpanded() ? "full" : "lg") : "screen"}
             scrim={intake() ? "blur" : "light"}
             vars={panelVars()}
-            class={`flex flex-col overflow-hidden ${intake() ? "max-h-[88vh]" : ""}`}
+            class={`flex flex-col overflow-hidden ${intake() ? "md:max-h-[88vh]" : ""}`}
             onClose={requestClose}
         >
             {/* the intake dialog is chromeless — Escape or a click outside closes it */}
@@ -136,14 +135,7 @@ export const Studio: Component = () => {
                         />
                     </span>
                 </Show>
-                <IconButton
-                    size={touch() ? "touch" : "lg"}
-                    tone="muted"
-                    title="Close"
-                    onClick={requestClose}
-                >
-                    <CloseIcon size={15} />
-                </IconButton>
+                <span class="w-9 flex-none" aria-hidden="true" />
             </header>
 
             <div class="flex min-h-0 flex-1">
