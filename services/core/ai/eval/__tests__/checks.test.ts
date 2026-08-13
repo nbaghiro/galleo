@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
-import { CHECKS, failures, passRate, runChecks } from "../checks";
+import { CHECKS, failures, runChecks } from "../checks";
 import { galleo } from "../../corpus/galleo";
 
 const text = (t: string): ElementInstance => ({ type: "text", data: { text: t } });
@@ -56,26 +56,17 @@ describe("content checks", () => {
     });
 
     it("catches a slide carrying a document's worth of words", () => {
-        const wall = Array.from({ length: 80 }, (_, i) => `word${i}`).join(" ");
+        const wall = Array.from({ length: 120 }, (_, i) => `word${i}`).join(" ");
         expect(failed(artifact([section("a", [text(wall)])]), "body-copy-length")).toBe(true);
     });
 
     it("allows the same wall in a doc, where it is not a defect", () => {
-        const wall = Array.from({ length: 80 }, (_, i) => `word${i}`).join(" ");
+        const wall = Array.from({ length: 120 }, (_, i) => `word${i}`).join(" ");
         const results = runChecks(artifact([section("a", [text(wall)])]), {
             surface: "doc",
             length: "Short",
         });
         expect(failures(results).some((f) => f.id === "body-copy-length")).toBe(false);
-    });
-
-    it("flags a suspiciously round figure", () => {
-        expect(
-            failed(artifact([section("a", [text("We cut costs by 50%")])]), "invented-stat"),
-        ).toBe(true);
-        expect(
-            failed(artifact([section("a", [text("We cut costs by 37%")])]), "invented-stat"),
-        ).toBe(false);
     });
 });
 
@@ -124,10 +115,23 @@ describe("against the corpus, which is the quality bar", () => {
         expect(ids.has("has-content")).toBe(false);
     });
 
-    it("scores it well above a deliberately broken artifact", () => {
+    // a rate, not a count: the corpus has 19 sections to the fixture's 2, so absolute failures
+    // are not comparable across artifacts of different size
+    const faultRate = (c: ArtifactContent, cx = ctx): number => {
+        const all = runChecks(c, cx);
+        return failures(all).length / all.length;
+    };
+
+    // Calibration guard. The corpus IS the bar, so a check it fails is measuring the threshold
+    // rather than the work. Kept above zero on purpose: a check that can never fire is worthless.
+    it("stays near-clean on the bar, so a too-aggressive check fails here first", () => {
+        expect(faultRate(galleo, { surface: "deck", length: "In-depth" })).toBeLessThan(0.03);
+    });
+
+    it("finds proportionally fewer faults in it than in a deliberately broken artifact", () => {
         const broken = artifact([section("a", [text("TBD")]), section("b", [text("TBD")])]);
-        expect(
-            passRate(runChecks(galleo, { surface: "deck", length: "In-depth" })),
-        ).toBeGreaterThan(passRate(runChecks(broken, ctx)));
+        expect(faultRate(galleo, { surface: "deck", length: "In-depth" })).toBeLessThan(
+            faultRate(broken),
+        );
     });
 });

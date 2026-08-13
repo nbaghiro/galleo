@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { creditsForUsd } from "@model/credits";
-import { recordTokens, totalTokens, usdOf, withMeter } from "../meter";
+import { tokensOf } from "@model/eval";
+import { recordTokens, usdOf, withMeter } from "../meter";
 
 const FLASH = "google:gemini-3.5-flash"; // $1.50 in / $9.00 out per 1M
 
@@ -12,7 +13,7 @@ describe("the token meter", () => {
             return m.uses;
         });
         expect(uses).toHaveLength(2);
-        expect(totalTokens(uses)).toEqual({ input: 1200, output: 600 });
+        expect(tokensOf(uses)).toEqual({ input: 1200, output: 600 });
     });
 
     it("keeps concurrent turns apart, so one run never bills another's tokens", async () => {

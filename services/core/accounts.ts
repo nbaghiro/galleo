@@ -4,7 +4,7 @@ import { Google } from "arctic";
 
 import type { User } from "@model/workspace";
 import { db } from "../db/client";
-import { freshCreditWindow, rollCreditWindow } from "./credits";
+import { freshCreditWindow, rollCreditWindow } from "./ledger";
 import { schema } from "../db/schema";
 import { hashPassword, readSessionPayload, verifyPassword } from "../utils/auth";
 import { appUrl } from "../utils/env";

@@ -12,7 +12,6 @@ import {
     TOOLS,
     costRange,
     estimateCost,
-    isFree,
     isMetered,
     reserveCost,
     sectionsForLength,
@@ -192,7 +191,6 @@ describe("free tools", () => {
     const FREE = ["reorder-section", "remove-section", "set-format", "set-theme"] as const;
 
     it.each(FREE)("%s reserves nothing, despite costOf's 1-credit floor", (id) => {
-        expect(isFree(id)).toBe(true);
         expect(estimateCost(id)).toBe(0);
         expect(typicalCost(id)).toBe(0);
         expect(costRange(id)).toEqual({ min: 0, max: 0 });

@@ -280,6 +280,7 @@ export interface GenMeta {
     models: Record<string, string>; // AiTask → "provider:model", resolved when the step ran
     prompt: string;
     surface: string;
+    theme?: string;
     length?: string;
     imageSource?: string;
     goal?: string;

@@ -3,6 +3,24 @@ import type { Tokens } from "@model/theme";
 import { removeAtPath, updateAtPath } from "@model/artifact";
 
 export type TurnKind = "generate" | "edit" | "section" | "chat" | "plan" | "build";
+
+/**
+ * One model call, as the runtime recorded it. Owned here rather than by any one consumer: the
+ * meter reads the token fields to bill, and the eval playground reads the rest to explain. The
+ * prompt bodies are present only on a traced run, and are clipped at capture.
+ */
+export interface ModelSpan {
+    modelId: string;
+    input: number; // tokens
+    output: number;
+    step: string; // "brief" | "outline" | "plan-section" | "section:<beatId>" | "" when unlabelled
+    ms: number;
+    system?: string;
+    prompt?: string;
+    response?: string;
+    temperature?: number;
+    finishReason?: string;
+}
 export type Surface = "deck" | "doc" | "web";
 
 export interface GenerateInput {

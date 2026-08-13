@@ -1,18 +1,10 @@
-import type { TurnKind, TurnRequest } from "@model/ai";
-import type { EvalSpan } from "@model/eval";
-import type { UnitRates } from "@model/credits";
-import type { MeterParams, ToolId } from "@model/tools";
-import { unitMultipliers } from "@model/credits";
-import { sectionsForLength } from "@model/tools";
-import type { PlanBearer } from "@model/billing";
-import { featuresFor } from "@model/billing";
-import { COST_MULTIPLIERS, modelFor, type ModelOverrides } from "../models";
+import type { ModelSpan } from "@model/ai";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { getModel } from "../models";
 
-// What a turn actually cost us. Every model call reports here through the provider middleware
-// (`resolveModel`), so nothing has to be threaded down through RunOpts or remembered at a call site:
-// a new call site is metered by construction.
+// What a turn actually did. Every model call reports here through the provider middleware, so
+// nothing has to be threaded down through RunOpts or remembered at a call site: a new call site is
+// measured by construction. Measurement only — what it costs in credits is core/spend.ts.
 
 export interface TokenUse {
     modelId: string;
@@ -20,9 +12,9 @@ export interface TokenUse {
     output: number;
 }
 
-// A Span IS a TokenUse structurally, so billing keeps reading `uses` unchanged; the trace-only
+// A ModelSpan IS a TokenUse structurally, so billing keeps reading `uses` unchanged; the trace-only
 // fields are filled when tracing is on, since prompt bodies dwarf everything else in the record.
-export type Span = EvalSpan;
+export type Span = ModelSpan;
 
 export interface Meter {
     uses: Span[];
@@ -75,42 +67,3 @@ export function usdOf(uses: readonly TokenUse[]): number {
     }
     return usd;
 }
-
-export const totalTokens = (uses: readonly TokenUse[]): { input: number; output: number } =>
-    uses.reduce((t, u) => ({ input: t.input + u.input, output: t.output + u.output }), {
-        input: 0,
-        output: 0,
-    });
-
-// Which priced tool each turn kind bills as.
-export const ACTION_FOR: Record<TurnKind, ToolId> = {
-    generate: "generate-artifact",
-    edit: "revise-artifact",
-    section: "add-section",
-    chat: "ask-assistant",
-    plan: "plan-outline",
-    build: "add-section",
-};
-
-// Only generate scales; the plan's section cap clamps the metered size, so a Free "In-depth" brief
-// is billed for (and gets) 10 sections.
-export const meterFor = (req: TurnRequest, maxSections?: number): MeterParams =>
-    req.kind === "generate"
-        ? {
-              length: req.input.length,
-              imageSource: req.input.imageSource,
-              ...(maxSections
-                  ? { sections: Math.min(sectionsForLength(req.input.length), maxSections) }
-                  : {}),
-          }
-        : {};
-
-// Others 501 before any charge (blocking here avoids reserving credits for an unbuildable kind).
-export const IMPLEMENTED: readonly TurnKind[] = ["generate", "section", "chat", "plan", "build"];
-
-// the unit prices for this caller's picks; every metered route reserves and settles through it
-export const ratesFor = (ws: PlanBearer, overrides: ModelOverrides): UnitRates =>
-    unitMultipliers(
-        (task) => modelFor(task, featuresFor(ws).textModelTier, overrides),
-        (id) => COST_MULTIPLIERS[id],
-    );

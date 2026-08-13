@@ -1,11 +1,52 @@
+import type { TurnKind, TurnRequest } from "@model/ai";
 import type { CostUnit, UnitRates, Usage } from "@model/credits";
 import type { MeterParams, ToolId } from "@model/tools";
-import { costOf, creditsForUsd } from "@model/credits";
-import { reserveCost, usageFor } from "@model/tools";
-import type { WorkspaceCreditFields } from "./credits";
-import { chargeCredits, settleCredits } from "./credits";
+import type { PlanBearer } from "@model/billing";
+import { costOf, creditsForUsd, unitMultipliers } from "@model/credits";
+import { reserveCost, sectionsForLength, usageFor } from "@model/tools";
+import { featuresFor } from "@model/billing";
+import { COST_MULTIPLIERS, modelFor, type ModelOverrides } from "./models";
+import type { WorkspaceCreditFields } from "./ledger";
+import { chargeCredits, settleCredits } from "./ledger";
 import type { Meter, TokenUse } from "./ai/meter";
 import { usdOf, withMeter } from "./ai/meter";
+
+// AI spend policy: what a turn or a tool costs, and the reserve-then-settle protocol around it.
+// The balance mechanics underneath are core/ledger.ts; the measurement it settles against is
+// core/ai/meter.ts.
+
+// Which priced tool each turn kind bills as.
+export const ACTION_FOR: Record<TurnKind, ToolId> = {
+    generate: "generate-artifact",
+    edit: "revise-artifact",
+    section: "add-section",
+    chat: "ask-assistant",
+    plan: "plan-outline",
+    build: "add-section",
+};
+
+// Others 501 before any charge (blocking here avoids reserving credits for an unbuildable kind).
+export const IMPLEMENTED: readonly TurnKind[] = ["generate", "section", "chat", "plan", "build"];
+
+// Only generate scales; the plan's section cap clamps the metered size, so a Free "In-depth" brief
+// is billed for (and gets) 10 sections.
+export const meterFor = (req: TurnRequest, maxSections?: number): MeterParams =>
+    req.kind === "generate"
+        ? {
+              length: req.input.length,
+              imageSource: req.input.imageSource,
+              ...(maxSections
+                  ? { sections: Math.min(sectionsForLength(req.input.length), maxSections) }
+                  : {}),
+          }
+        : {};
+
+// the unit prices for this caller's picks; every metered route reserves and settles through it
+export const ratesFor = (ws: PlanBearer, overrides: ModelOverrides): UnitRates =>
+    unitMultipliers(
+        (task) => modelFor(task, featuresFor(ws).textModelTier, overrides),
+        (id) => COST_MULTIPLIERS[id],
+    );
 
 // One rule for every paid action: reserve the estimate up front, then owe what the work really did —
 // the tokens it burned at provider list price, plus the assets it produced at their flat rate. A run
@@ -13,9 +54,9 @@ import { usdOf, withMeter } from "./ai/meter";
 // needing a policy of its own.
 
 /** Report flat-priced assets as they land; tokens are measured for you. */
-export type Produced = (units: Usage) => void;
+type Produced = (units: Usage) => void;
 
-export type Reservation =
+type Reservation =
     | { ok: false; remaining: number }
     | {
           ok: true;

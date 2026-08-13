@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { EvalSpan } from "@model/eval";
+import type { ModelSpan } from "@model/ai";
 import { spansForStep, stepsOf, tokensOf } from "@model/eval";
 
-const span = (step: string, input = 10, output = 5): EvalSpan => ({
+const span = (step: string, input = 10, output = 5): ModelSpan => ({
     modelId: "google:gemini-3.5-flash",
     input,
     output,
@@ -10,7 +10,7 @@ const span = (step: string, input = 10, output = 5): EvalSpan => ({
     ms: 100,
 });
 
-const RUN: EvalSpan[] = [
+const RUN: ModelSpan[] = [
     span("brief"),
     span("outline", 1861, 715),
     span("section:b1"),

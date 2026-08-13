@@ -4,7 +4,7 @@ import { creditLimitFor } from "@model/billing";
 import { seedUser } from "../../__tests__/harness";
 import { db } from "../../db/client";
 import { schema } from "../../db/schema";
-import { chargeCredits, rollCreditWindow, settleCredits } from "../credits";
+import { chargeCredits, rollCreditWindow, settleCredits } from "../ledger";
 
 const wsRow = async (id: string) => {
     const [row] = await db.select().from(schema.workspaces).where(eq(schema.workspaces.id, id));

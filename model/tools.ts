@@ -63,17 +63,17 @@ export type ToolId =
     | "pick-arc"
     | "apply-patch";
 
-export type ToolTier = "composite" | "action" | "primitive";
+type ToolTier = "composite" | "action" | "primitive";
 
 // where a tool is exposed; internal = composition-only (never called directly)
 export type ToolSurface = "agent" | "direct" | "mcp" | "internal";
 
 // showcase grouping for the credits table
-export type ToolCategory = "create" | "edit" | "text" | "media" | "theme" | "assist";
+type ToolCategory = "create" | "edit" | "text" | "media" | "theme" | "assist";
 
 // a proposal runs no server body: it hands the client a block to apply, since only the client holds
 // the thing it changes (the studio's outline, the steer note, a not-yet-created artifact)
-export type ToolKind = "server" | "proposal";
+type ToolKind = "server" | "proposal";
 
 export interface MeterParams {
     length?: string; // "Short" | "Standard" | "In-depth"
@@ -84,7 +84,7 @@ export interface MeterParams {
     variations?: number;
 }
 
-export interface ToolMeta {
+interface ToolMeta {
     id: ToolId;
     title: string;
     summary: string;
@@ -540,7 +540,7 @@ export function usageFor(id: ToolId, m: MeterParams = {}): Usage {
 // A tool with neither usage nor a meter is free by construction. costOf floors at 1 so that a real
 // call is never billed nothing; free is a different case and has to reach zero, or every unpriced
 // tool would quietly cost a credit.
-export const isFree = (id: ToolId): boolean => !TOOLS[id].usage && !TOOLS[id].meter;
+const isFree = (id: ToolId): boolean => !TOOLS[id].usage && !TOOLS[id].meter;
 
 // what a run typically costs: the number the UI previews and the credits table lists
 export function estimateCost(id: ToolId, m?: MeterParams, rates?: UnitRates): number {

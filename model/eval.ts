@@ -1,20 +1,10 @@
 // The evaluation record: what a traced generation did, and what anyone (a check, a judge, a human)
-// concluded about it. Shared because the playground reads exactly what the backend writes.
+// concluded about it. Eval references the types the runtime already owns — a span is @model/ai's
+// ModelSpan, and what a run was asked to do is @model/artifact's GenMeta — so this file only
+// defines concepts that are genuinely its own.
 
-/** One model call inside a run. `step` attributes it to a stage of the pipeline. */
-export interface EvalSpan {
-    modelId: string;
-    input: number; // tokens
-    output: number;
-    step: string; // "brief" | "outline" | "plan-section" | "section:<beatId>" | "" when unlabelled
-    ms: number;
-    // present only on traced runs; prompt bodies are clipped at capture
-    system?: string;
-    prompt?: string;
-    response?: string;
-    temperature?: number;
-    finishReason?: string;
-}
+import type { ModelSpan } from "./ai";
+import type { GenMeta } from "./artifact";
 
 export type EvalStatus = "ok" | "error" | "aborted";
 
@@ -30,19 +20,14 @@ export interface EvalCheck {
 /** What the run was asked to do, kept beside the result so a run can be reproduced. */
 export interface EvalConfig {
     kind: string; // turn kind: generate | plan | build
-    prompt: string;
-    surface?: string;
-    length?: string;
-    imageSource?: string;
-    theme?: string;
-    models: Record<string, string>; // AiTask → resolved "provider:model"
+    meta: GenMeta; // the same record an artifact stores in ai_meta
 }
 
 export interface EvalRun {
     id: string;
     artifactId: string | null;
     config: EvalConfig;
-    spans: EvalSpan[];
+    spans: ModelSpan[];
     checks: EvalCheck[];
     status: EvalStatus;
     error?: string | null;
@@ -61,14 +46,14 @@ export type EvalRunSummary = Omit<EvalRun, "spans" | "checks"> & {
     checksRun: number;
 };
 
-export const stepsOf = (spans: readonly EvalSpan[]): string[] => [
+export const stepsOf = (spans: readonly ModelSpan[]): string[] => [
     ...new Set(spans.map((s) => s.step).filter(Boolean)),
 ];
 
-export const spansForStep = (spans: readonly EvalSpan[], step: string): EvalSpan[] =>
+export const spansForStep = (spans: readonly ModelSpan[], step: string): ModelSpan[] =>
     spans.filter((s) => s.step === step);
 
-export const tokensOf = (spans: readonly EvalSpan[]): { input: number; output: number } =>
+export const tokensOf = (spans: readonly ModelSpan[]): { input: number; output: number } =>
     spans.reduce((t, s) => ({ input: t.input + s.input, output: t.output + s.output }), {
         input: 0,
         output: 0,

@@ -3,7 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { authed, seedUser } from "../../__tests__/harness";
 import { db } from "../../db/client";
 import { schema } from "../../db/schema";
-import { chargeCredits, settleCredits } from "../../core/credits";
+import { chargeCredits, settleCredits } from "../../core/ledger";
 
 async function addMember(wsId: string, role = "member"): Promise<{ userId: string }> {
     const u = await seedUser();

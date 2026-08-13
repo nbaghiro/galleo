@@ -1,12 +1,6 @@
+import type { ModelSpan } from "@model/ai";
 import { and, desc, eq, lt, sql } from "drizzle-orm";
-import type {
-    EvalCheck,
-    EvalConfig,
-    EvalRun,
-    EvalRunSummary,
-    EvalSpan,
-    EvalStatus,
-} from "@model/eval";
+import type { EvalCheck, EvalConfig, EvalRun, EvalRunSummary, EvalStatus } from "@model/eval";
 import { tokensOf } from "@model/eval";
 import { db } from "../../../db/client";
 import { schema } from "../../../db/schema";
@@ -23,13 +17,13 @@ export function isEvalAdmin(userId: string): boolean {
 
 export const evalReady = (): boolean => !!process.env.EVAL_ADMIN_IDS?.trim();
 
-export interface RecordRun {
+interface RecordRun {
     workspaceId: string;
     checks?: EvalCheck[];
     userId: string;
     artifactId?: string | null;
     config: EvalConfig;
-    spans: EvalSpan[];
+    spans: ModelSpan[];
     status: EvalStatus;
     error?: string;
     credits: number;

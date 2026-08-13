@@ -4,6 +4,9 @@ import { schema } from "../db/schema";
 import { creditLimitFor } from "@model/billing";
 import type { Usage } from "@model/credits";
 
+// The credit ledger: how a balance moves and what history it leaves. Knows nothing about tools,
+// models, or tokens — what an AI action costs, and when to charge it, is core/spend.ts.
+//
 // Each mutation locks the workspace row (SELECT … FOR UPDATE) so concurrent requests serialize and
 // none passes a near-limit gate twice. Spend order is the monthly pool, then bonus credits (never
 // reset); a refund unwinds in reverse, restoring bonus before pool, since bonus is paid money.
@@ -19,7 +22,7 @@ export type WorkspaceCreditFields = {
     featureOverrides?: typeof schema.workspaces.$inferSelect.featureOverrides;
 };
 
-export interface SpendResult {
+interface SpendResult {
     ok: boolean;
     remaining: number; // pool room + bonus
     limit: number;
@@ -132,7 +135,7 @@ export function freshCreditWindow(): { creditsStartedAt: Date; creditsResetAt: D
     };
 }
 
-export interface RolledWindow {
+interface RolledWindow {
     aiCreditsUsed: number;
     creditsStartedAt: Date;
     creditsResetAt: Date;

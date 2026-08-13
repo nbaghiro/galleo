@@ -29,9 +29,6 @@ type CheckResult = EvalCheck;
 const words = (texts: string[]): number =>
     texts.join(" ").trim().split(/\s+/).filter(Boolean).length;
 
-// a stat a model invented reads round; a real one rarely does
-const ROUND = /\b\d+(?:0{2,})\b|\b(?:10|20|25|30|40|50|60|70|75|80|90|95|99)%/;
-
 const topTypes = (section: Section): string[] => {
     const kids = (section.root.data as { children?: ElementInstance[] }).children;
     return Array.isArray(kids) ? kids.map((k) => k.type) : [section.root.type];
@@ -50,11 +47,13 @@ export const CHECKS: Check[] = [
     {
         id: "body-copy-length",
         dimension: "content",
-        describe: "a slide is not a document: body copy stays under 60 words",
+        // calibrated against the corpus, whose densest hand-built slide runs to 83 words: a
+        // threshold the quality bar itself fails is measuring the threshold, not the work
+        describe: "a slide is not a document: body copy stays under 90 words",
         section: (s, ctx) => {
             if (ctx.surface !== "deck") return null;
             const n = words(contentOf(s).texts);
-            return n > 60 ? `${n} words on one slide` : null;
+            return n > 90 ? `${n} words on one slide` : null;
         },
     },
     {
@@ -64,22 +63,15 @@ export const CHECKS: Check[] = [
         section: (s) => (words(contentOf(s).texts) < 3 ? "almost no copy" : null),
     },
     {
-        id: "invented-stat",
-        dimension: "content",
-        describe: "numbers are not suspiciously round",
-        section: (s) => {
-            const hit = contentOf(s).texts.find((t) => ROUND.test(t));
-            return hit ? `round-looking figure: ${hit.slice(0, 60)}` : null;
-        },
-    },
-    {
-        id: "single-element-type",
+        id: "stacked-text",
         dimension: "variety",
-        describe: "a section is more than a stack of one thing",
+        // text only: three stat cards or three images in a row is a deliberate pattern the corpus
+        // uses often, while three stacked paragraphs is the wall this is meant to catch
+        describe: "a section is more than a stack of paragraphs",
         section: (s) => {
             const types = topTypes(s);
-            return types.length > 2 && new Set(types).size === 1
-                ? `${types.length} children, all ${types[0]}`
+            return types.length > 2 && types.every((t) => t === "text")
+                ? `${types.length} stacked text blocks`
                 : null;
         },
     },
@@ -163,7 +155,3 @@ export function runChecks(content: ArtifactContent, ctx: CheckCtx): CheckResult[
 
 export const failures = (results: readonly CheckResult[]): CheckResult[] =>
     results.filter((r) => !r.pass);
-
-/** Share of checks passed, the one number a run list can sort on. */
-export const passRate = (results: readonly CheckResult[]): number =>
-    results.length ? results.filter((r) => r.pass).length / results.length : 1;

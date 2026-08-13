@@ -5,7 +5,7 @@ import { CREDITS_PER_GENERATION, PLANS, limitsFor, visiblePlans } from "@model/b
 import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
 import { db } from "../../db/client";
 import { schema } from "../../db/schema";
-import { chargeCredits, settleCredits } from "../../core/credits";
+import { chargeCredits, settleCredits } from "../../core/ledger";
 import { reserve } from "../../core/spend";
 
 // Mocked at the package boundary, so the `new Stripe(key)` in services/billing/stripe.ts hands back

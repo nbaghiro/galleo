@@ -1,6 +1,7 @@
 import type { Component } from "solid-js";
 import { For, Show, createResource, createSignal } from "solid-js";
-import type { EvalCheck, EvalRun, EvalSpan } from "@model/eval";
+import type { ModelSpan } from "@model/ai";
+import type { EvalCheck, EvalRun } from "@model/eval";
 import { spansForStep, stepsOf, tokensOf } from "@model/eval";
 import { api, setTraceTurns, traceTurns } from "../api";
 
@@ -27,7 +28,7 @@ const Checks: Component<{ checks: EvalCheck[]; target: string }> = (props) => {
     );
 };
 
-const SpanDetail: Component<{ span: EvalSpan }> = (props) => (
+const SpanDetail: Component<{ span: ModelSpan }> = (props) => (
     <div>
         <p>
             {props.span.modelId} · {props.span.input} in / {props.span.output} out ·{" "}
@@ -76,16 +77,16 @@ const RunDetail: Component<{ id: string; onClose: () => void }> = (props) => {
             {(r: () => EvalRun) => (
                 <section>
                     <button onClick={props.onClose}>← back to runs</button>
-                    <h2>{r().config.prompt || "(no prompt)"}</h2>
+                    <h2>{r().config.meta.prompt || "(no prompt)"}</h2>
                     <p>
-                        {r().config.kind} · {r().config.surface} · {r().config.length} ·{" "}
+                        {r().config.kind} · {r().config.meta.surface} · {r().config.meta.length} ·{" "}
                         {r().status} · {ms(r().ms)} · {r().tokensIn} in / {r().tokensOut} out
                     </p>
                     <Show when={r().error}>{(e) => <p>Error: {e()}</p>}</Show>
 
                     <h3>Models</h3>
                     <ul>
-                        <For each={Object.entries(r().config.models)}>
+                        <For each={Object.entries(r().config.meta.models)}>
                             {([task, model]) => (
                                 <li>
                                     {task}: {model}
@@ -101,7 +102,7 @@ const RunDetail: Component<{ id: string; onClose: () => void }> = (props) => {
                     <ul>
                         <For each={stepsOf(r().spans)}>
                             {(s) => {
-                                const calls = (): EvalSpan[] => spansForStep(r().spans, s);
+                                const calls = (): ModelSpan[] => spansForStep(r().spans, s);
                                 const t = (): { input: number; output: number } =>
                                     tokensOf(calls());
                                 return (
@@ -177,7 +178,7 @@ export const EvalView: Component = () => {
                                         {(r) => (
                                             <tr>
                                                 <td>{new Date(r.at).toLocaleString()}</td>
-                                                <td>{r.config.prompt.slice(0, 60)}</td>
+                                                <td>{r.config.meta.prompt.slice(0, 60)}</td>
                                                 <td>{r.config.kind}</td>
                                                 <td>{r.status}</td>
                                                 <td>
