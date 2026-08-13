@@ -56,7 +56,8 @@ jobs:
         runs-on: ubuntu-latest
         services:
             postgres:
-                image: postgres:16-alpine
+                # pgvector, not plain postgres: chunks.embedding needs the vector type
+                image: pgvector/pgvector:pg16
                 env:
                     POSTGRES_USER: galleo
                     POSTGRES_PASSWORD: galleo
