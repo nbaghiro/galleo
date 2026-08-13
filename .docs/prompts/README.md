@@ -13,6 +13,7 @@ the billing/features entitlement gating; a separate billing session owns billing
 | `05-custom-domains.md` | Custom domains                | `customDomains`   | #01                  |
 | `06-public-api.md`     | Public API + API keys         | `apiAccess`       | —                    |
 | `07-sso.md`            | SSO                           | `sso`             | —                    |
+| `08-object-storage.md` | Source files → R2/MinIO       | — (infra)         | —                    |
 
 **Recommended order:** `01` first (unblocks `04` + `05`); `02` / `03` / `06` / `07` are independent — run as
 capacity allows.
