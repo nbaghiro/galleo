@@ -23,8 +23,12 @@ function appSpaFallback(): Plugin {
         configureServer(server) {
             server.middlewares.use((req, _res, next) => {
                 const url = req.url ?? "";
+                // an iframe navigating to an API URL (a served PDF) accepts text/html too —
+                // API paths belong to the proxy, never to the SPA fallback
                 const isHtmlNav =
-                    (req.headers.accept ?? "").includes("text/html") && !/\.\w+(\?|$)/.test(url);
+                    (req.headers.accept ?? "").includes("text/html") &&
+                    !url.startsWith("/api/") &&
+                    !/\.\w+(\?|$)/.test(url);
                 if (isHtmlNav) {
                     const path = url.split("?")[0] ?? url;
                     const authed =

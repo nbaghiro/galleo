@@ -367,6 +367,29 @@ const PATHS: Record<string, () => JSX.Element> = {
             <line x1="8.5" y1="16.5" x2="13" y2="16.5" />
         </>
     ),
+    // the file family shares doc's silhouette; the inner motif names the format
+    filePdf: () => (
+        <>
+            <path d="M6 3h8l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+            <path d="M14 3v4h4" />
+            <path d="M9.5 17.5v-6h2a2 2 0 0 1 0 4h-2" />
+        </>
+    ),
+    fileImage: () => (
+        <>
+            <path d="M6 3h8l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+            <path d="M14 3v4h4" />
+            <circle cx="9.6" cy="12" r="1.3" />
+            <path d="M7.5 18l3-3 2 2 2-2 2.5 2.5" />
+        </>
+    ),
+    fileSheet: () => (
+        <>
+            <path d="M6 3h8l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+            <path d="M14 3v4h4" />
+            <path d="M8 11.5h8M8 15h8M12 11.5v6.5" />
+        </>
+    ),
     site: () => (
         <>
             <rect x="3" y="4" width="18" height="16" />

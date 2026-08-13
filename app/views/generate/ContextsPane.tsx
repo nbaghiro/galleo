@@ -6,7 +6,7 @@ import { Button, Chip, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { TextArea, TextField } from "@ui/inputs";
 import { Icon } from "@ui/icons";
 import { Markdown } from "@ui/markdown";
-import { MiniCanvas } from "../../components/previews";
+import { PreviewCanvas } from "../../components/previews";
 import { SourcePickList } from "../../components/ContextPicker";
 import { templatesOnce } from "../../stores/templates";
 import {
@@ -31,6 +31,25 @@ const KIND: Record<ContextItemMeta["kind"], { label: string; icon: string }> = {
     template: { label: "template", icon: "templates" },
     text: { label: "pasted", icon: "text" },
 };
+
+const IMAGE_EXTS = ["png", "jpg", "jpeg", "webp"];
+const SHEET_EXTS = ["csv", "tsv", "xlsx", "xlsm"];
+
+// files differentiate by format; every other kind keeps its kind icon
+const itemIcon = (item: ContextItemMeta): string => {
+    if (item.kind !== "file") return KIND[item.kind].icon;
+    const ext = extensionOf(item.title);
+    if (ext === "pdf") return "filePdf";
+    if (IMAGE_EXTS.includes(ext)) return "fileImage";
+    if (SHEET_EXTS.includes(ext)) return "fileSheet";
+    return "doc";
+};
+
+// a binary uploaded before originals were stored has only its extracted text to show
+const missingOriginal = (item: ContextItemMeta): boolean =>
+    item.kind === "file" &&
+    !item.original &&
+    (extensionOf(item.title) === "pdf" || IMAGE_EXTS.includes(extensionOf(item.title)));
 
 const day = (iso: string): string =>
     new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -263,19 +282,13 @@ const SnapshotView: Component<{ snap: Snapshot }> = (props) => {
     return (
         <>
             <Show when={props.snap.view === "sections"}>
-                <div class="flex flex-col gap-2 bg-canvas p-3">
-                    <For each={as<"sections">().content.sections}>
-                        {(section) => (
-                            <MiniCanvas
-                                section={section}
-                                themeId={as<"sections">().content.theme}
-                                formatId={as<"sections">().content.format}
-                                width={370}
-                                lazy
-                                class="overflow-hidden rounded-md border border-line"
-                            />
-                        )}
-                    </For>
+                {/* the publish/preview renderer: the artifact in its own format at full width,
+                    exactly as the editor paints it, minus the controls */}
+                <div class="h-120">
+                    <PreviewCanvas
+                        content={as<"sections">().content}
+                        format={() => as<"sections">().content.format}
+                    />
                 </div>
             </Show>
             <Show when={props.snap.view === "markdown"}>
@@ -312,9 +325,10 @@ const SnapshotView: Component<{ snap: Snapshot }> = (props) => {
                 </p>
             </Show>
             <Show when={props.snap.view === "pdf"}>
-                {/* the browser's own PDF viewer, reading the stored original */}
+                {/* the browser's own PDF viewer, reading the stored original; the fragment strips
+                    its toolbar and thumbnail rail so only the pages remain */}
                 <iframe
-                    src={as<"pdf">().url}
+                    src={`${as<"pdf">().url}#toolbar=0&navpanes=0&view=FitH`}
                     title="Source PDF"
                     class="h-120 w-full border-0 bg-canvas"
                 />
@@ -798,7 +812,7 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
                                                 ),
                                             }}
                                         >
-                                            <Icon name={KIND[item.kind].icon} size={13} />
+                                            <Icon name={itemIcon(item)} size={13} />
                                         </span>
                                         <span class="min-w-0 flex-1">
                                             <span class="block truncate text-[13px] font-semibold text-ink">
@@ -871,7 +885,7 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
                                 <div class="overflow-hidden rounded-xl border border-line bg-panel md:sticky md:top-4">
                                     <div class="flex items-center gap-2.5 border-b border-line px-3.5 py-2.5">
                                         <span class="grid size-7 flex-none place-items-center rounded-full bg-accent/10 text-accent">
-                                            <Icon name={KIND[item().kind].icon} size={13} />
+                                            <Icon name={itemIcon(item())} size={13} />
                                         </span>
                                         <span class="min-w-0 flex-1">
                                             <span class="block truncate text-[13px] font-semibold text-ink">
@@ -904,6 +918,13 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
                                             <Icon name="close" size={12} />
                                         </IconButton>
                                     </div>
+                                    <Show when={missingOriginal(item())}>
+                                        <p class="border-b border-line bg-canvas px-3.5 py-2 font-mono text-[9.5px] leading-relaxed text-muted">
+                                            the source file wasn't stored for this item (added
+                                            before file storage) — showing its extracted text;
+                                            re-attach the file to view it
+                                        </p>
+                                    </Show>
                                     <div class="max-h-120 overflow-y-auto">
                                         <Show
                                             when={snapshot()}
