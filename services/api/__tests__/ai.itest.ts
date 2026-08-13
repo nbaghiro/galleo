@@ -65,6 +65,21 @@ describe("AI routes — unconfigured provider", () => {
         expect(res.status).toBe(503);
     });
 
+    it("POST /ai/refine 503s when unconfigured", async () => {
+        const { userId } = await seedUser();
+        const res = await authed(
+            userId,
+            "/ai/refine",
+            jsonInit("POST", { prompt: "a solar array", kind: "image" }),
+        );
+        expect(res.status).toBe(503);
+    });
+
+    it("POST /ai/refine 401s without a session", async () => {
+        const res = await request("/ai/refine", jsonInit("POST", { prompt: "x", kind: "image" }));
+        expect(res.status).toBe(401);
+    });
+
     it("POST /ai/theme 503s when unconfigured", async () => {
         const { userId } = await seedUser();
         const res = await authed(

@@ -12,9 +12,8 @@ import { currentUser } from "../core/accounts";
 import { SESSION_COOKIE } from "../utils/auth";
 import { OUT_OF_CREDITS, readJson } from "../utils/http";
 import { warn } from "../utils/env";
-import { reserve } from "../core/spend";
+import { ACTION_FOR, IMPLEMENTED, meterFor, ratesFor, reserve } from "../core/spend";
 import { assetUrl, generateImage, imageGenReady, refImage, storeGenerated } from "../core/media";
-import { ACTION_FOR, IMPLEMENTED, meterFor, ratesFor } from "../core/ai/meter";
 import { isEvalAdmin, recordRun } from "../core/ai/eval/runs";
 import { runChecks } from "../core/ai/eval/checks";
 import type { EvalConfig, EvalStatus } from "@model/eval";
@@ -30,11 +29,13 @@ import { makeContextRetriever, recallConversation, recordChatExchange } from "..
 import { expandBrief } from "../core/ai/tools/plan";
 import { generateThemeFromPrompt } from "../core/ai/tools/theme";
 import { rewriteText, translateText } from "../core/ai/tools/text";
+import { refinePrompt } from "../core/ai/tools/refine";
+import type { RefineKind } from "../core/ai/prompts/refine";
 import { suggestSections } from "../core/ai/tools/suggest";
 import type { BriefRead } from "../core/ai/prompts/brief";
 
-// What the run was asked to do, resolved: the models recorded are the ones that actually ran, not
-// the overrides that were requested.
+// What the run was asked to do, in the same shape an artifact stores in ai_meta. The models
+// recorded are the ones that actually ran, not the overrides that were requested.
 function configOf(req: TurnRequest, overrides: ModelOverrides, tier: ModelTier): EvalConfig {
     const models: Record<string, string> = {};
     for (const task of AI_TASKS) models[task] = modelFor(task, tier, overrides);
@@ -42,12 +43,19 @@ function configOf(req: TurnRequest, overrides: ModelOverrides, tier: ModelTier):
     const g = input as Partial<GenerateInput> | undefined;
     return {
         kind: req.kind,
-        prompt: g?.prompt ?? "",
-        surface: g?.surface,
-        length: g?.length,
-        imageSource: g?.imageSource,
-        theme: g?.theme,
-        models,
+        meta: {
+            at: new Date().toISOString(),
+            models,
+            prompt: g?.prompt ?? "",
+            surface: g?.surface ?? "deck",
+            theme: g?.theme,
+            length: g?.length,
+            imageSource: g?.imageSource,
+            goal: g?.goal,
+            audience: g?.audience,
+            tone: g?.tone,
+            mustInclude: g?.mustInclude,
+        },
     };
 }
 
@@ -221,7 +229,8 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
                             checks: built
                                 ? runChecks(built, {
                                       surface: built.format,
-                                      length: configOf(req, overrides, feats.textModelTier).length,
+                                      length: configOf(req, overrides, feats.textModelTier).meta
+                                          .length,
                                   })
                                 : [],
                             status: ctrl.signal.aborted ? "aborted" : status,
@@ -371,6 +380,45 @@ ai.post("/ai/text", requireWorkspace, async (c) => {
             return c.json({ text });
         } catch (e) {
             return c.json({ error: e instanceof Error ? e.message : "the edit failed" }, 500);
+        }
+    });
+});
+
+// User-triggered only: the refined text goes back to the box the user typed in, so nothing is spent
+// on a generation they did not ask for. Every generation path still takes a plain prompt string.
+const REFINE_KINDS = ["image", "video", "theme"] as const;
+
+ai.post("/ai/refine", requireWorkspace, async (c) => {
+    const ws = c.get("ws");
+    if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
+    const body = await readJson<{ prompt?: string; kind?: string; context?: string }>(c);
+    const prompt = body?.prompt?.trim() ?? "";
+    const kind = body?.kind as RefineKind | undefined;
+    if (!prompt || !kind || !REFINE_KINDS.includes(kind))
+        return c.json({ error: "prompt and kind ('image' | 'video' | 'theme') are required" }, 400);
+
+    const held = await reserve(
+        ws,
+        c.get("user").id,
+        "refine-prompt",
+        {},
+        ratesFor(ws, overridesFrom(c)),
+    );
+    if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
+
+    return held.settle(async () => {
+        try {
+            const refined = await refinePrompt(kind, prompt, {
+                models: overridesFrom(c),
+                context: body?.context,
+                tier: featuresFor(ws).textModelTier,
+            });
+            return c.json({ prompt: refined });
+        } catch (e) {
+            return c.json(
+                { error: e instanceof Error ? e.message : "refining the prompt failed" },
+                500,
+            );
         }
     });
 });

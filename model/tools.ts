@@ -24,6 +24,7 @@ export type ToolId =
     | "revise-element"
     | "ask-assistant"
     | "rewrite-text"
+    | "refine-prompt"
     | "rewrite-passage"
     | "translate-text"
     | "translate-artifact"
@@ -232,6 +233,15 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "action",
         AGENT_DIRECT,
         { category: "text", live: true, usage: { text: 1 } },
+    ),
+    // direct only: refining is a button the user presses, never something a run does on its own
+    "refine-prompt": meta(
+        "refine-prompt",
+        "Refine prompt",
+        "Turn a rough prompt into a fuller one for image, video, or theme generation",
+        "action",
+        ["direct"],
+        { category: "assist", live: true, usage: { text: 1 } },
     ),
     "rewrite-passage": meta(
         "rewrite-passage",
@@ -952,6 +962,20 @@ export const TOOL_SPEC = {
         input: z.object({
             text: z.string().describe("the passage to rewrite"),
             instruction: z.string().describe("how to change it, e.g. 'make it more concise'"),
+        }),
+    },
+    "refine-prompt": {
+        describe:
+            "Expand a rough prompt into a fuller, more specific one for the named kind of generation. Returns just the refined prompt.",
+        input: z.object({
+            prompt: z.string().describe("the user's rough prompt"),
+            kind: z
+                .enum(["image", "video", "theme"])
+                .describe("what the prompt will generate, which decides how it is refined"),
+            context: z
+                .string()
+                .optional()
+                .describe("nearby copy or the active theme, to keep the result on-brief"),
         }),
     },
     "set-format": {

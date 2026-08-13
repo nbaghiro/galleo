@@ -171,6 +171,27 @@ export const MediaPicker: Component = () => {
     const [page, setPage] = createSignal(1);
     const [hasMore, setHasMore] = createSignal(false);
     const [prompt, setPrompt] = createSignal("");
+    const [polishing, setPolishing] = createSignal(false);
+
+    // user-triggered: spends one credit, writes the fuller prompt back into the box so it stays
+    // editable, and leaves generation itself alone — a refined prompt is just a prompt
+    const polishPrompt = async (): Promise<void> => {
+        const rough = prompt().trim();
+        if (!rough || polishing()) return;
+        setPolishing(true);
+        try {
+            setPrompt(
+                await api.refinePrompt({
+                    prompt: rough,
+                    kind: kind() === "video" ? "video" : "image",
+                }),
+            );
+        } catch {
+            /* leave the user's own words in place */
+        } finally {
+            setPolishing(false);
+        }
+    };
     const [aspect, setAspect] = createSignal("16:9");
     const [genStyle, setGenStyle] = createSignal<MediaGenStyle>("photo");
     // count of shimmer placeholders still generating
@@ -734,6 +755,19 @@ export const MediaPicker: Component = () => {
                                     value={prompt()}
                                     onChange={setPrompt}
                                 />
+                                <div class="mt-1.5 flex justify-end">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        loading={polishing()}
+                                        disabled={!prompt().trim()}
+                                        title="Expand this into a fuller prompt you can edit"
+                                        onClick={() => void polishPrompt()}
+                                    >
+                                        <SparkleIcon size={11} />
+                                        {polishing() ? "Improving…" : "Improve prompt"}
+                                    </Button>
+                                </div>
                                 <Show when={refItem()}>
                                     {(r) => (
                                         <div class="mt-2 flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/8 px-2 py-1.5 text-[12px] text-ink">

@@ -5,6 +5,7 @@ import "./plan";
 import "./section";
 import "./element";
 import "./text";
+import "./refine";
 import "./suggest";
 import "./inspect";
 import "./library";

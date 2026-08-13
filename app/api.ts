@@ -428,6 +428,12 @@ export const api = {
             method: "POST",
             body: JSON.stringify(req_),
         }).then((r) => r.text),
+    // user-triggered: the refined prompt lands back in the box so it can be edited before generating
+    refinePrompt: (req_: { prompt: string; kind: "image" | "video" | "theme"; context?: string }) =>
+        req<{ prompt: string }>("/ai/refine", {
+            method: "POST",
+            body: JSON.stringify(req_),
+        }).then((r) => r.prompt),
     // q empty = the recents landing state; signal lets the palette cancel a superseded keystroke
     search: (q: string, limit?: number, signal?: AbortSignal, offset?: number) =>
         req<SearchResponse>(
