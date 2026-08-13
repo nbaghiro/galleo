@@ -218,7 +218,7 @@ export function modelCall(id: string, temperature?: number): ModelCall {
     };
 }
 
-export interface ModelCall {
+interface ModelCall {
     model: LanguageModel;
     providerOptions?: ProviderOpts;
     temperature?: number;

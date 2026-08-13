@@ -4,14 +4,14 @@ import { recordUsd } from "./meter";
 
 // One embedding contract for every retrievable text. The dimension is baked into the chunks
 // table's vector column, so changing it means a re-embed migration — not a config flip.
-export const EMBED_DIMS = 768;
+const EMBED_DIMS = 768;
 const EMBED_MODEL = "gemini-embedding-001";
 // provider list price per 1M input tokens; reported via recordUsd since the model registry only
 // prices language models
 const USD_PER_1M_TOKENS = 0.15;
 const BATCH = 100;
 
-export type EmbedTask = "doc" | "query";
+type EmbedTask = "doc" | "query";
 
 // asymmetric retrieval embeddings: documents and queries are embedded with their own task types
 const TASK: Record<EmbedTask, string> = { doc: "RETRIEVAL_DOCUMENT", query: "RETRIEVAL_QUERY" };

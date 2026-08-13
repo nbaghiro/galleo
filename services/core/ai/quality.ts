@@ -37,7 +37,7 @@ export function contentOf(section: Section): Content {
 
 export const PLACEHOLDER = PLACEHOLDER_RE;
 
-export interface SectionCheck {
+interface SectionCheck {
     ok: boolean;
     issues: string[];
 }

@@ -7,7 +7,7 @@ import { rewriteTextParts, translateTextParts } from "../prompts/text";
 import type { Section } from "@model/artifact";
 import { findPassage, replacePassage, textNodes } from "../locate";
 
-export interface TextOpts {
+interface TextOpts {
     models?: ModelOverrides;
     context?: string; // surrounding text, when only a sub-range is edited
     tier?: ModelTier;

@@ -18,7 +18,7 @@ export function newSectionId(content: ArtifactContent): string {
     }
 }
 
-export async function chatAddSection(
+async function chatAddSection(
     content: ArtifactContent,
     afterId: string | null,
     instruction: string,
@@ -39,7 +39,7 @@ export async function chatAddSection(
     return resolveImages(section, ctx.image);
 }
 
-export async function chatEditSection(
+async function chatEditSection(
     content: ArtifactContent,
     sectionId: string,
     instruction: string,

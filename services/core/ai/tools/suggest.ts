@@ -22,7 +22,7 @@ const SUGGEST_SYSTEM = `${PERSONA}
 
 You propose the NEXT sections that would most strengthen an EXISTING artifact — specific to its real subject and to what it already covers. Each suggestion is a short imperative (4–9 words) a person could drop straight into a "generate a section" box. Ground every idea in the actual content; never suggest a section the artifact already has; favor the concrete gap — a missing proof point, a comparison, a how-it-works, a closing action — over generic filler.`;
 
-export interface SuggestOpts {
+interface SuggestOpts {
     tier?: ModelTier;
     models?: ModelOverrides;
 }

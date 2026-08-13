@@ -64,7 +64,7 @@ function toQuery(phrase: string, max: number): string {
         .join(" ");
 }
 
-export async function findStock(phrase: string, orientation: string): Promise<string | null> {
+async function findStock(phrase: string, orientation: string): Promise<string | null> {
     const ready = stockReady();
     const queries = [toQuery(phrase, 6), toQuery(phrase, 3)].filter(
         (q, i, a) => !!q && a.indexOf(q) === i,
@@ -87,7 +87,7 @@ export async function findStock(phrase: string, orientation: string): Promise<st
     return null;
 }
 
-export type ImageSource = "stock" | "ai";
+type ImageSource = "stock" | "ai";
 
 export interface ImageOptions {
     source?: ImageSource; // default "stock"

@@ -1,7 +1,7 @@
 import type { ElementInstance, Section } from "@model/artifact";
 import { childrenRaw, updateAtPath } from "@model/artifact";
 
-export interface Passage {
+interface Passage {
     path: number[]; // into the section root, for updateAtPath
     text: string;
 }
@@ -50,7 +50,7 @@ export function replacePassage(section: Section, path: number[], text: string): 
     };
 }
 
-export interface Located {
+interface Located {
     path: number[];
     element: ElementInstance;
 }

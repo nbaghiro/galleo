@@ -142,7 +142,7 @@ function sectionSystem(surface: Surface, theme: string): string {
 
 // steer = a session-wide note applying to every section from here on; note = this attempt only;
 // content = the artifact as built so far (hand-edits included), for continuity + anti-repetition
-export interface SectionExtras {
+interface SectionExtras {
     steer?: string;
     note?: string;
     content?: ArtifactContent;

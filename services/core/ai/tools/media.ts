@@ -5,7 +5,7 @@ import { elementTypes, findElement, setImageSrc } from "../locate";
 import { resolveImage } from "../images";
 
 // the one producer: honours the turn's stock-or-AI strategy, and refines `ref` when given one
-export const generateImageTool = implement("generate-image", async function* (input, ctx) {
+const generateImageTool = implement("generate-image", async function* (input, ctx) {
     return await resolveImage(input.prompt, input.orientation ?? "landscape", ctx.image, input.ref);
 });
 

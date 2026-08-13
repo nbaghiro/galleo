@@ -1,8 +1,8 @@
 // grounded in the demo library — run `pnpm seed` first so `find-artifacts` resolves
 
-export type EvalSurface = "library" | "editor";
+type EvalSurface = "library" | "editor";
 
-export interface ExpectArgs {
+interface ExpectArgs {
     targetArtifact?: string; // proposal.targetArtifactId === the artifact whose title contains this
     actionKind?: string;
     actionArtifact?: string; // action.id === the artifact whose title contains this
@@ -13,8 +13,8 @@ export interface ExpectArgs {
     briefSource?: string; // repurpose → brief.sourceArtifactId === the artifact whose title contains this
 }
 
-export type JudgeWhat = "reply" | "proposalSection" | "brief";
-export interface JudgeSpec {
+type JudgeWhat = "reply" | "proposalSection" | "brief";
+interface JudgeSpec {
     what: JudgeWhat;
     rubric: string;
     min?: number; // pass threshold (default 3)

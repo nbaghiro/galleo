@@ -1,7 +1,7 @@
 import type { GenerateInput, Surface } from "@model/ai";
 import { heading } from "./system";
 
-export interface Arc {
+interface Arc {
     key: string;
     label: string;
     arc: string;

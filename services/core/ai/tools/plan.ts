@@ -73,7 +73,7 @@ export const planSectionTool = implement(
     },
 );
 
-export interface WriteSectionInput {
+interface WriteSectionInput {
     parts: PromptParts;
     id: string;
     label: string;
@@ -121,7 +121,7 @@ implement("draft-brief", async function* (input, ctx): AsyncGenerator<never, Bri
     });
 });
 
-export interface BriefOpts {
+interface BriefOpts {
     models?: ModelOverrides;
     tier?: ModelTier;
     signal?: AbortSignal;

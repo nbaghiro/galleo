@@ -19,12 +19,12 @@ export interface Check {
     artifact?(content: ArtifactContent, ctx: CheckCtx): string | null;
 }
 
-export interface CheckCtx {
+interface CheckCtx {
     surface: string;
     length?: string;
 }
 
-export type CheckResult = EvalCheck;
+type CheckResult = EvalCheck;
 
 const words = (texts: string[]): number =>
     texts.join(" ").trim().split(/\s+/).filter(Boolean).length;

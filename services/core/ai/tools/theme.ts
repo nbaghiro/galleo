@@ -7,7 +7,7 @@ import { modelCall } from "../provider";
 import { zTheme, type ThemeGen } from "../schema";
 import { themeFromPromptParts } from "../prompts/theme";
 
-export interface ThemeOpts {
+interface ThemeOpts {
     models?: ModelOverrides;
     isDark?: boolean;
     model?: string; // override the task default

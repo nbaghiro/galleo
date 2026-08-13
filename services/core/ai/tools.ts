@@ -40,7 +40,7 @@ export interface Tool<Input, Result> {
 }
 
 // the id→tool map can't carry each tool's concrete I/R
-export type AnyTool = Tool<never, unknown>;
+type AnyTool = Tool<never, unknown>;
 
 const REGISTRY = new Map<ToolId, AnyTool>();
 
