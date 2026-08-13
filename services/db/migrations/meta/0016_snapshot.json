@@ -1,6 +1,6 @@
 {
-    "id": "807d5cbd-d8a3-4f20-abb6-3608daf2beb4",
-    "prevId": "f491bd69-ae6f-4e01-94a2-1535105e3a8e",
+    "id": "594b2738-c7ca-4637-9276-20e40b45083f",
+    "prevId": "a6dc85ff-33df-4402-8614-8ada42a1ea4c",
     "version": "7",
     "dialect": "postgresql",
     "tables": {
@@ -627,6 +627,18 @@
                     "primaryKey": false,
                     "notNull": true
                 },
+                "original": {
+                    "name": "original",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "original_mime": {
+                    "name": "original_mime",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
                 "added_by": {
                     "name": "added_by",
                     "type": "uuid",
@@ -927,6 +939,12 @@
                     "type": "jsonb",
                     "primaryKey": false,
                     "notNull": true
+                },
+                "checks": {
+                    "name": "checks",
+                    "type": "jsonb",
+                    "primaryKey": false,
+                    "notNull": false
                 },
                 "status": {
                     "name": "status",
