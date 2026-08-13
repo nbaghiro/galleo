@@ -220,6 +220,7 @@ describe("the credits table", () => {
             "generate-theme",
             "generate-video",
             "plan-outline",
+            "refine-prompt",
             "revise-element",
             "rewrite-passage",
             "rewrite-section",
