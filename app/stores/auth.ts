@@ -6,6 +6,14 @@ export const [user, setUser] = createSignal<ApiUser | null>(null);
 export const [authReady, setAuthReady] = createSignal(false);
 
 export async function bootstrap(): Promise<void> {
+    // /login exists to create a session: probing /me there just prints a 401 in the console for
+    // every signed-out visitor. (An authed user who types /login sees the form; logging in or
+    // navigating home recovers.) Deep links elsewhere still probe — that's how a live cookie
+    // turns into a session.
+    if (window.location.pathname === "/login") {
+        setAuthReady(true);
+        return;
+    }
     try {
         const { user: u } = await api.me();
         setUser(u);

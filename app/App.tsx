@@ -69,20 +69,20 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => {
 
 export const App: Component = () => {
     onMount(() => {
-        // cookie-gated, so fire in parallel with the session restore (don't wait for /me)
+        // only the session probe fires before auth is known — the cookie-gated stores load in the
+        // per-user effect below, so a signed-out visit doesn't spray 401s across the console
         void bootstrap();
-        void loadCustomThemes();
-        void loadFeatures();
     });
 
-    // That parallel fetch 401s when the cookie is stale or absent, and nothing outside the editor
-    // retried it, leaving every feature-gated affordance hidden for the session. Re-fetch per user.
-    let featuresFor: string | null = null;
+    // per user, not per boot: covers the session restore, a fresh login, and an OAuth landing —
+    // and re-fetches after a user switch, so feature-gated affordances never stay stale
+    let loadedFor: string | null = null;
     createEffect(() => {
         const id = user()?.id ?? null;
-        if (!id || id === featuresFor) return;
-        featuresFor = id;
+        if (!id || id === loadedFor) return;
+        loadedFor = id;
         void loadFeatures();
+        void loadCustomThemes();
     });
 
     // customThemes() is read so the favicon re-resolves once they load
