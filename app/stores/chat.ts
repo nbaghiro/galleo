@@ -481,6 +481,13 @@ export async function generateFromBrief(brief: GenBrief): Promise<void> {
     abort = new AbortController();
     try {
         await streamTurn({ kind: "generate", input }, (ev) => draftDispatch(id, ev), abort.signal);
+        // a stream that closes without turn.done (an instance swap mid-deploy, a proxy timeout)
+        // must fail the card loudly instead of leaving it generating forever
+        if (drafts[id]?.status === "building")
+            setDrafts(id, {
+                status: "error",
+                error: "The connection dropped mid-build — try again.",
+            });
     } catch (e) {
         if (!abort?.signal.aborted) {
             setDrafts(id, {
