@@ -11,13 +11,13 @@ export function tierFor(width: number): Tier {
     return "desktop";
 }
 
-// Tier policy (.docs/frontend.md). What decides a surface is how you author, not whether you create:
-// direct manipulation needs pointer precision and panel room, instructed authoring is a form and a
-// result, so generation runs on a phone and canvas editing does not.
+// Tier policy (.docs/frontend.md). Every surface now runs on every tier: manipulate shipped its
+// phone chrome (bottom sheets over the full-bleed canvas), so the tier decides layout, not access.
+// The seam stays so a surface could be re-gated without touching its call sites.
 export type Surface = "consume" | "manage" | "manipulate";
 
-export function surfaceAllowed(surface: Surface, tier: Tier): boolean {
-    return surface !== "manipulate" || tier !== "phone";
+export function surfaceAllowed(_surface: Surface, _tier: Tier): boolean {
+    return true;
 }
 
 const COARSE = "(pointer: coarse)";

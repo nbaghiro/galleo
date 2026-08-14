@@ -26,16 +26,11 @@ describe("tierFor", () => {
 describe("surfaceAllowed", () => {
     const tiers: Tier[] = ["phone", "tablet", "desktop"];
 
-    it("allows consume and manage on every tier", () => {
+    it("admits every surface on every tier — the tier decides layout, not access", () => {
         for (const t of tiers) {
             expect(surfaceAllowed("consume", t)).toBe(true);
             expect(surfaceAllowed("manage", t)).toBe(true);
+            expect(surfaceAllowed("manipulate", t)).toBe(true);
         }
-    });
-
-    it("withholds direct manipulation from phones only", () => {
-        expect(surfaceAllowed("manipulate", "phone")).toBe(false);
-        expect(surfaceAllowed("manipulate", "tablet")).toBe(true);
-        expect(surfaceAllowed("manipulate", "desktop")).toBe(true);
     });
 });

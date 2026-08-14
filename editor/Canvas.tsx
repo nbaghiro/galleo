@@ -6,7 +6,8 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show }
 import { getElementAt, moveSection } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { profileFor } from "@engine/profile";
-import { elementRegionId, parseTarget, specificity } from "@model/artifact";
+import { elementRegionId, parseTarget, specificity, targetsEqual } from "@model/artifact";
+import { isPhone } from "@ui/viewport";
 import {
     backdropCss,
     createSectionStackCache,
@@ -67,6 +68,8 @@ import { TextEditor } from "./panels/TextEditor";
 const RAIL_GAP = 28;
 const PANEL_L = 200;
 const RAIL_R = 64;
+// phone: no rails to clear — a sliver of gutter, sections take essentially the full width
+const PHONE_PAD = 6;
 
 export const Canvas: Component = () => {
     let scrollEl!: HTMLElement;
@@ -88,8 +91,11 @@ export const Canvas: Component = () => {
     const draw = (preview?: Section[] | null, track = false, dimId?: string | null): void => {
         if (!paintHost) return;
         const profile = profileFor(editor.artifact);
-        const padL = leftOpen() ? PANEL_L : RAIL_GAP;
-        const fullW = Math.max(360, (scrollEl.clientWidth || 800) - padL - RAIL_R);
+        // a bleeding format (site) covers the backdrop entirely on phone; others keep the sliver
+        const phonePad = profile.bleedSections ? 0 : PHONE_PAD;
+        const padL = isPhone() ? phonePad : leftOpen() ? PANEL_L : RAIL_GAP;
+        const padR = isPhone() ? phonePad : RAIL_R;
+        const fullW = Math.max(isPhone() ? 280 : 360, (scrollEl.clientWidth || 800) - padL - padR);
         setCanvasContentWidth(fullW); // so minimap thumbnails match this width
         // hide the painted text of the edited element; the live overlay shows it
         const editAddr = editing();
@@ -250,12 +256,16 @@ export const Canvas: Component = () => {
         const t = pending.target;
         const caret = { x: pending.x, y: pending.y };
         pending = null;
+        // phone: first tap only selects — editing (and the keyboard) waits for a tap on the
+        // already-selected text, so browsing a document never summons the keyboard
+        const already = targetsEqual(t, selection());
         // stop editing first (idempotent) so a click on another text element switches straight into it
         if (editing()) stopEditing();
         setSelection(t);
         if (t?.kind === "element") {
             const el = getElementAt(editor.artifact, t.address);
-            if (el && getElement(el.type)?.richText) startEditing(t.address, caret);
+            if (el && getElement(el.type)?.richText && (!isPhone() || already))
+                startEditing(t.address, caret);
         }
     };
 
@@ -378,12 +388,13 @@ export const Canvas: Component = () => {
 
     const pageStyle = createMemo(() => {
         const tk = editorTokens();
+        const phonePad = profileFor(editor.artifact).bleedSections ? 0 : PHONE_PAD;
         return {
             background: backdropCss(editor.artifact.background, tk),
             "background-size": "cover",
             "background-position": "center",
-            "padding-left": `${leftOpen() ? PANEL_L : RAIL_GAP}px`,
-            "padding-right": `${RAIL_R}px`,
+            "padding-left": `${isPhone() ? phonePad : leftOpen() ? PANEL_L : RAIL_GAP}px`,
+            "padding-right": `${isPhone() ? phonePad : RAIL_R}px`,
             "--sb": tk.line,
             "--sb-strong": tk.muted,
         };
@@ -405,10 +416,14 @@ export const Canvas: Component = () => {
                 <div ref={paintHost} class="absolute inset-0" />
                 <VideoEmbeds />
                 <Overlay />
-                <DragHandle />
-                <ResizeHandles />
-                <RegionDividers />
-                <SectionActions />
+                {/* precision-pointer affordances; at phone width the reflowed layout no longer
+                    matches the geometry they edit, so the section sheet + presets stand in */}
+                <Show when={!isPhone()}>
+                    <DragHandle />
+                    <ResizeHandles />
+                    <RegionDividers />
+                    <SectionActions />
+                </Show>
                 <SectionGenStage />
                 <SectionGenPopup />
                 <ElementGenStage />

@@ -368,6 +368,43 @@ const PANEL_ROUNDED: Record<PanelRounded, string> = {
     xl: "rounded-xl",
     "2xl": "rounded-2xl",
 };
+/**
+ * Non-modal bottom sheet — phone chrome for surfaces that float as panels on wider tiers.
+ * No scrim: the content above stays interactive (tap the canvas to reselect while it's open).
+ * Positioned fixed, so it must render inside the themed subtree to inherit the CSS vars.
+ */
+export const Sheet: Component<{
+    open: boolean;
+    onClose: () => void;
+    title: string;
+    /** fix the height at half the viewport (lists that should not jump as they filter) */
+    tall?: boolean;
+    class?: string;
+    children: JSX.Element;
+}> = (props) => (
+    <Show when={props.open}>
+        <section
+            class={`fixed inset-x-0 bottom-0 z-panel flex flex-col rounded-t-2xl border-t border-line bg-panel pb-[env(safe-area-inset-bottom)] shadow-2xl ${
+                props.tall ? "h-[55dvh]" : "max-h-[55dvh]"
+            } ${props.class ?? ""}`}
+        >
+            <header class="flex flex-none items-center justify-between gap-2 border-b border-line py-1 pl-4 pr-2">
+                <span class="text-[12px] font-semibold text-ink">{props.title}</span>
+                <IconButton
+                    size="touch"
+                    tone="muted"
+                    rounded="md"
+                    title="Close"
+                    onClick={() => props.onClose()}
+                >
+                    <CloseIcon size={15} />
+                </IconButton>
+            </header>
+            <div class="min-h-0 flex-1 overflow-y-auto p-4">{props.children}</div>
+        </section>
+    </Show>
+);
+
 export const FloatingPanel: Component<
     JSX.HTMLAttributes<HTMLElement> & {
         as?: "div" | "aside";

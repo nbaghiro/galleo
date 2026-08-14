@@ -11,6 +11,8 @@ with high-fidelity export. Net-new, TypeScript.
   editing, charts/diagrams).
 - `.docs/ai.md` — the AI pipeline: the streamed turn protocol, tools, runtime, chat/workspace agent,
   prompts, routes + credit gate.
+- `.docs/workspaces.md` — the tenant: the workspace row, plans + the entitlement resolver, Stripe +
+  the webhook, the credit window/ledger, membership + seats, and what `pnpm seed` builds.
 - `.docs/frontend.md` — the shared `@ui` component library + the keyboard/command system.
 - `.docs/search.md` — library search + the ⌘K palette: the Postgres FTS index, the query, the palette
   source registry.
@@ -73,9 +75,9 @@ with high-fidelity export. Net-new, TypeScript.
 - **Responsive — three tiers, not one sweep.** `@ui/viewport` owns the policy (`tierFor`, `surfaceAllowed`,
   `isPhone`/`isCoarsePointer`/`canEditHere`): **consume** (publish, present) works everywhere, **manage**
   (library, templates, shared, trash, settings, pricing) is responsive down to phone via the sidebar drawer,
-  **manipulate** (the editor's canvas) is tablet + desktop; on phones `/edit/:id` redirects to the
-  read-only preview instead of a crammed canvas. What decides a tier is how you author, not whether you create: instructed authoring (the
-  generation studio, theme prompts) is a form plus a result and runs on a phone. Breakpoints mirror Tailwind's scale, so `md:` and `isPhone()` must
+  **manipulate** (the editor's canvas) runs on every tier — on phones the floating chrome (minimap ·
+  palette · inspector) collapses into a bottom bar + `@ui` `Sheet`s over the full-bleed canvas, and the
+  topbar folds its secondary controls into an overflow sheet. The tier decides layout, never access. Breakpoints mirror Tailwind's scale, so `md:` and `isPhone()` must
   agree. Use `h-dvh` never `h-screen`; `IconButton size="touch"` is the 44px hit target; content reflow
   belongs to the engine (`splitMinWidth` + `stacksAtWidth`), not to per-view CSS. Full rules:
   `.docs/frontend.md`.

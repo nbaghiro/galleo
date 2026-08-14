@@ -186,13 +186,14 @@ Galleo runs three kinds of surface, and they get different treatment on small sc
 uniform responsive sweep. `ui/viewport.ts` holds the whole policy: the breakpoints, the tier a width maps
 to, and which surfaces a tier admits.
 
-| Tier      | Width      | Admits                      |
-| --------- | ---------- | --------------------------- |
-| `phone`   | `< 768`    | consume, manage             |
-| `tablet`  | `768–1023` | consume, manage, manipulate |
-| `desktop` | `>= 1024`  | everything                  |
+| Tier      | Width      | Admits     |
+| --------- | ---------- | ---------- |
+| `phone`   | `< 768`    | everything |
+| `tablet`  | `768–1023` | everything |
+| `desktop` | `>= 1024`  | everything |
 
-`Surface` names only what can be withheld. Instructed authoring has no entry because it is never gated.
+`Surface` names what could be withheld; today nothing is (`surfaceAllowed` returns true), and the seam
+stays so a surface can be re-gated without touching its call sites. The tier decides layout, not access.
 
 - **Consume** (published links `/p/*`, `/present/:id`, `PresentSurface`) works on every tier. This is where
   mobile traffic actually arrives, since someone shares a link and the recipient opens it on a phone, so it
@@ -200,11 +201,20 @@ to, and which surfaces a tier admits.
 - **Manage** (library, templates, shared, trash, settings, pricing) is responsive down to phone: the
   sidebar becomes an overlay drawer below `md`, driven by `openSidebar`/`closeSidebar` with a
   `SidebarToggle` app bar that each view renders as the first child of its `<main>`.
-- **Manipulate** (the editor studio) is direct manipulation on a canvas, with drag-drop, resize handles, and
-  an inspector docked beside the work. It needs pointer precision and panel room, so on a phone `EditorView`
-  redirects to `/present/:id`, the read-only preview. Every route into the editor (library, templates, chat
-  proposals, a finished generation) funnels through `/edit/:id`, so that one redirect covers them all.
-  Withholding it is deliberate: a version of it crammed onto a phone would be worse than not offering it.
+- **Manipulate** (the editor studio) is direct manipulation on a canvas, with drag-drop, resize handles,
+  and an inspector beside the work. The canvas itself was always full-bleed with floating chrome, so on a
+  phone the chrome re-homes rather than crams: the minimap and right rail don't render; a bottom bar
+  (Sections · Insert · the selected element) opens `@ui` `Sheet`s holding the section list, the palette,
+  and the schema-generated inspector; the topbar keeps back · name · undo/redo · present and folds
+  format/theme/share/export into an overflow sheet. Touch interaction (coarse-pointer hit targets, touch
+  drag) was already built for the tablet tier and carries over unchanged. The engine reflows section
+  content at phone width, exactly as the preview does, and the profile type ramp (`rendering.md` §3.3)
+  scales type down with the container so sections keep sane heights. Phone-specific interaction rules:
+  the first tap on rich text selects and only a tap on the already-selected text starts editing (no
+  surprise keyboard); the floating format bar docks as a fixed scrollable strip under the topbar; the
+  hover pill's section actions + layout presets live in the bottom bar's Section sheet; and the
+  precision handles (drag grip · resize strip · column dividers) don't render — at reflowed width they
+  would edit geometry the screen can't show truthfully.
 - **Instructed authoring** (the generation studio, the theme editor's prompt tabs) is a form plus a result,
   so it runs on every tier. The distinction that predicts whether a surface survives a small screen is how
   you author, not whether you create. An earlier version of this policy split on create-vs-not and was wrong
@@ -214,8 +224,7 @@ to, and which surfaces a tier admits.
   drag-drop, and lets the engine reflow section content at phone width (`app/views/generate/layout.ts` holds
   the tier decisions, unit-tested). "New artifact" opens it directly on every device — the create modal is
   gone, and the intake itself carries the template row and the start-blank line, so phones get all
-  three ways in (a blank or template opened on a phone lands on the read-only preview, per the
-  manipulate tier).
+  three ways in, landing in the phone-chromed editor like any other route through `/edit/:id`.
 
 ```ts
 import { canEditHere, isCoarsePointer, isPhone, tierFor } from "@ui/viewport";

@@ -4,6 +4,7 @@ import type { Component } from "solid-js";
 import { createEffect, createMemo, For, Show, createSignal } from "solid-js";
 import { elementRegionId, parentTarget } from "@model/artifact";
 import { profileFor } from "@engine/profile";
+import { isPhone } from "@ui/viewport";
 import {
     duplicateAt,
     duplicatedAddr,
@@ -168,8 +169,15 @@ export const ContextBar: Component = () => {
                     anchor="free"
                     gap="0.5"
                     data-galleo-toolbar="true"
-                    class="absolute z-chrome -translate-x-1/2"
-                    style={{ left: `${p().left}px`, top: `${p().top}px` }}
+                    // phone: docked as a scrollable strip just under the 52px topbar — anchored to
+                    // the element it would sit under a finger or behind the keyboard, and clip at
+                    // 390px; fixed, so scrolling and the keyboard can't carry it away
+                    class={
+                        isPhone()
+                            ? "fixed inset-x-2 top-15 z-chrome overflow-x-auto"
+                            : "absolute z-chrome -translate-x-1/2"
+                    }
+                    style={isPhone() ? undefined : { left: `${p().left}px`, top: `${p().top}px` }}
                     onPointerDown={(e) => e.stopPropagation()}
                 >
                     <Show when={barFields().length}>

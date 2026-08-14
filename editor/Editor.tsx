@@ -11,13 +11,15 @@ import {
 } from "solid-js";
 import type { Tokens } from "@themes";
 import { themeCssVars } from "@themes";
+import type { ElementAddress, SectionBackground } from "@model/artifact";
 import { setArtifactFormat, getElementAt } from "@elements/ops";
 import { getElement, listElements } from "@elements/spec";
 import { installKeyDispatcher } from "@ui/keys";
 import { Button, Eyebrow, IconButton } from "@ui/button";
 import { Icon, UiThemeProvider } from "@ui/icons";
 import { TextField, FormatSwitcher } from "@ui/inputs";
-import { FloatingPanel } from "@ui/overlay";
+import { FloatingPanel, Sheet } from "@ui/overlay";
+import { isPhone } from "@ui/viewport";
 import { resolveProfile } from "@engine/profile";
 import { Canvas, Thumb } from "./Canvas";
 import { Present } from "./Present";
@@ -26,12 +28,18 @@ import { ExportModal, openExportModal } from "./panels/ExportModal";
 import { DragGhost, PaletteItem } from "./panels/Insert";
 import { ElementInspector } from "./panels/RightPanel";
 import { pickArtifactBackground } from "./core/media";
+import { setSectionBackground, clearBackgroundImage } from "@elements/ops";
+import { SectionLayoutPopup } from "./panels/SectionLayoutPopup";
+import { openSectionPrompt } from "./core/ai";
+import { pickMedia } from "./core/media";
 import {
     addSectionAfter,
     artifacts,
     canRedo,
     canUndo,
     commit,
+    duplicateSectionAt,
+    removeSectionAt,
     currentArtifactId,
     editor,
     editorTheme,
@@ -78,25 +86,30 @@ export const Editor: Component = () => {
                 <div class="relative min-h-0 overflow-hidden">
                     <Canvas />
                     <BackdropCornerButton />
-                    <Show
-                        when={leftOpen()}
-                        fallback={
-                            <IconButton
-                                size="xl"
-                                bordered
-                                tone="muted"
-                                rounded="xl"
-                                class="absolute left-3 top-1/2 z-panel -translate-y-1/2 bg-panel/95 shadow-lg backdrop-blur-md"
-                                title="Sections"
-                                onClick={() => setLeftOpen(true)}
-                            >
-                                <Icon name="sections" />
-                            </IconButton>
-                        }
-                    >
-                        <Minimap />
+                    <Show when={!isPhone()}>
+                        <Show
+                            when={leftOpen()}
+                            fallback={
+                                <IconButton
+                                    size="xl"
+                                    bordered
+                                    tone="muted"
+                                    rounded="xl"
+                                    class="absolute left-3 top-1/2 z-panel -translate-y-1/2 bg-panel/95 shadow-lg backdrop-blur-md"
+                                    title="Sections"
+                                    onClick={() => setLeftOpen(true)}
+                                >
+                                    <Icon name="sections" />
+                                </IconButton>
+                            }
+                        >
+                            <Minimap />
+                        </Show>
+                        <Panel />
                     </Show>
-                    <Panel />
+                    <Show when={isPhone()}>
+                        <PhoneChrome />
+                    </Show>
                 </div>
                 <DragGhost />
                 <Present />
@@ -156,7 +169,7 @@ const ArtifactName: Component = () => {
             when={renaming()}
             fallback={
                 <button
-                    class="min-w-0 max-w-40 cursor-text truncate rounded px-1 text-[13px] text-muted hover:text-ink lg:max-w-none"
+                    class="min-w-0 max-w-25 cursor-text truncate rounded px-1 text-[13px] text-muted hover:text-ink md:max-w-40 lg:max-w-none"
                     title="Rename"
                     onClick={startRename}
                 >
@@ -248,8 +261,58 @@ const ExportButton: Component = () => (
     </Button>
 );
 
+const ShareButton: Component = () => (
+    <Button
+        variant="tool"
+        size="sm"
+        title={features().publicLinks ? "Share" : "Sharing is a paid feature — upgrade"}
+        onClick={() => (features().publicLinks ? requestShare() : requestUpgrade())}
+    >
+        <Icon name={features().publicLinks ? "link" : "lock"} size={14} />
+        <span class="hidden lg:inline">Share</span>
+    </Button>
+);
+
+// phone: format · theme · share · export fold into one sheet behind a "⋯"
+const TopbarMore: Component = () => {
+    const [open, setOpen] = createSignal(false);
+    return (
+        <>
+            <IconButton
+                size="lg"
+                tone="soft"
+                class="md:hidden"
+                title="More"
+                onClick={() => setOpen(true)}
+            >
+                <Icon name="more" size={16} />
+            </IconButton>
+            <Sheet open={open()} title="Document" onClose={() => setOpen(false)}>
+                <div class="flex flex-col gap-4">
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-[12.5px] text-soft">Format</span>
+                        <FormatSwitcher
+                            value={editor.artifact.format}
+                            onChange={(v) => commit(setArtifactFormat(editor.artifact, v))}
+                        />
+                    </div>
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-[12.5px] text-soft">Theme</span>
+                        <ThemeMenu />
+                    </div>
+                    {/* these open their own modal above the sheet, so the sheet steps aside */}
+                    <div class="flex items-center gap-2" onClick={() => setOpen(false)}>
+                        <ShareButton />
+                        <ExportButton />
+                    </div>
+                </div>
+            </Sheet>
+        </>
+    );
+};
+
 const Topbar: Component = () => (
-    <header class="relative z-menu flex items-center gap-3.5 border-b border-line bg-panel px-4.5">
+    <header class="relative z-menu flex items-center gap-2 border-b border-line bg-panel px-3 md:gap-3.5 md:px-4.5">
         <button
             class="cursor-pointer font-mono text-[15px] font-bold tracking-wide text-accent hover:opacity-80"
             title="Back to library"
@@ -260,21 +323,15 @@ const Topbar: Component = () => (
         <ArtifactName />
         <HistoryButtons />
         <span class="flex-1" />
-        <FormatSwitcher
-            value={editor.artifact.format}
-            onChange={(v) => commit(setArtifactFormat(editor.artifact, v))}
-        />
-        <ThemeMenu />
-        <Button
-            variant="tool"
-            size="sm"
-            title={features().publicLinks ? "Share" : "Sharing is a paid feature — upgrade"}
-            onClick={() => (features().publicLinks ? requestShare() : requestUpgrade())}
-        >
-            <Icon name={features().publicLinks ? "link" : "lock"} size={14} />
-            <span class="hidden lg:inline">Share</span>
-        </Button>
-        <ExportButton />
+        <div class="hidden items-center gap-3.5 md:flex">
+            <FormatSwitcher
+                value={editor.artifact.format}
+                onChange={(v) => commit(setArtifactFormat(editor.artifact, v))}
+            />
+            <ThemeMenu />
+            <ShareButton />
+            <ExportButton />
+        </div>
         <Button
             variant="tool"
             size="sm"
@@ -288,14 +345,17 @@ const Topbar: Component = () => (
                 {editor.artifact.format === "deck" ? "Present" : "Preview"}
             </span>
         </Button>
+        <TopbarMore />
     </header>
 );
 
-const Minimap: Component = () => {
+// The section rail's body, shared by the desktop minimap and the phone Sections sheet.
+// `cols` lays thumbs as a 2-up grid and drops the reorder grips (hover-revealed, so they never
+// existed on touch anyway — Y-midpoint reordering also has no meaning in a grid).
+const SectionList: Component<{ root: () => HTMLElement | undefined; cols?: boolean }> = (props) => {
     const [dragIx, setDragIx] = createSignal<number | null>(null);
     const [overIx, setOverIx] = createSignal<number | null>(null);
     const rowEls: (HTMLElement | undefined)[] = [];
-    let asideEl: HTMLElement | undefined; // IO root for thumbnail visibility
     // key by section id, not object ref, or a content edit remounts the thumb every keystroke
     const sectionIds = createMemo(() => editor.artifact.sections.map((s) => s.id));
 
@@ -337,6 +397,55 @@ const Minimap: Component = () => {
     };
 
     return (
+        <div class={props.cols ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
+            <For each={sectionIds()}>
+                {(id, i) => {
+                    const section = createMemo(() =>
+                        editor.artifact.sections.find((s) => s.id === id),
+                    );
+                    return (
+                        <Show when={section()}>
+                            {(s) => (
+                                <div class="group relative" ref={(el) => (rowEls[i()] = el)}>
+                                    <Show when={dragIx() !== null && overIx() === i()}>
+                                        <div class="absolute -top-1.5 left-0 right-0 h-0.5 rounded bg-accent" />
+                                    </Show>
+                                    <div class={dragIx() === i() ? "opacity-40" : ""}>
+                                        <Thumb section={s()} index={i()} root={props.root} />
+                                    </div>
+                                    <Show when={!props.cols}>
+                                        <button
+                                            class="absolute left-0 top-1/2 z-raised flex h-6 w-4 -translate-y-1/2 cursor-grab items-center justify-center rounded text-muted opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
+                                            title="Drag to reorder"
+                                            onPointerDown={(e) => startReorder(i(), e)}
+                                        >
+                                            <Icon name="grip" size={14} />
+                                        </button>
+                                    </Show>
+                                </div>
+                            )}
+                        </Show>
+                    );
+                }}
+            </For>
+            <Show when={dragIx() !== null && overIx() === editor.artifact.sections.length}>
+                <div class="h-0.5 rounded bg-accent" />
+            </Show>
+            <button
+                onClick={() => addSectionAfter(null)}
+                class={`mt-1 rounded-lg border border-dashed border-line py-2 text-[11px] font-semibold text-muted hover:border-accent hover:text-accent ${
+                    props.cols ? "col-span-2" : ""
+                }`}
+            >
+                + Section
+            </button>
+        </div>
+    );
+};
+
+const Minimap: Component = () => {
+    let asideEl: HTMLElement | undefined; // IO root for thumbnail visibility
+    return (
         <FloatingPanel
             as="aside"
             pad="md"
@@ -373,43 +482,7 @@ const Minimap: Component = () => {
                     </IconButton>
                 </div>
             </div>
-            <For each={sectionIds()}>
-                {(id, i) => {
-                    const section = createMemo(() =>
-                        editor.artifact.sections.find((s) => s.id === id),
-                    );
-                    return (
-                        <Show when={section()}>
-                            {(s) => (
-                                <div class="group relative" ref={(el) => (rowEls[i()] = el)}>
-                                    <Show when={dragIx() !== null && overIx() === i()}>
-                                        <div class="absolute -top-1.5 left-0 right-0 h-0.5 rounded bg-accent" />
-                                    </Show>
-                                    <div class={dragIx() === i() ? "opacity-40" : ""}>
-                                        <Thumb section={s()} index={i()} root={() => asideEl} />
-                                    </div>
-                                    <button
-                                        class="absolute left-0 top-1/2 z-raised flex h-6 w-4 -translate-y-1/2 cursor-grab items-center justify-center rounded text-muted opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
-                                        title="Drag to reorder"
-                                        onPointerDown={(e) => startReorder(i(), e)}
-                                    >
-                                        <Icon name="grip" size={14} />
-                                    </button>
-                                </div>
-                            )}
-                        </Show>
-                    );
-                }}
-            </For>
-            <Show when={dragIx() !== null && overIx() === editor.artifact.sections.length}>
-                <div class="h-0.5 rounded bg-accent" />
-            </Show>
-            <button
-                onClick={() => addSectionAfter(null)}
-                class="mt-1 rounded-lg border border-dashed border-line py-2 text-[11px] font-semibold text-muted hover:border-accent hover:text-accent"
-            >
-                + Section
-            </button>
+            <SectionList root={() => asideEl} />
         </FloatingPanel>
     );
 };
@@ -427,40 +500,48 @@ const CAT_LABEL: Record<string, string> = {
     basic: "Basic",
 };
 
+// selection-derived chrome state, shared by the desktop rail and the phone bottom bar
+const selectedElementAddr = (): ElementAddress | null => {
+    const s = selection();
+    return s?.kind === "element" ? s.address : null;
+};
+// fully on-canvas-editable elements skip the panel; a frame forces it, for the radius slider
+const selectedInline = (): boolean => {
+    const a = selectedElementAddr();
+    if (!a) return false;
+    const spec = getElement(getElementAt(editor.artifact, a)?.type ?? "");
+    if (!spec) return false;
+    if (spec.richText) return true;
+    if (spec.frame) return false;
+    const bar = spec.bar ?? [];
+    return spec.controls.every((c) => bar.includes(c.key));
+};
+const selectedLabel = (): string | null => {
+    const a = selectedElementAddr();
+    if (!a || selectedInline()) return null;
+    const type = getElementAt(editor.artifact, a)?.type;
+    return (type && getElement(type)?.label) || "Element";
+};
+const selectedSectionId = (): string | null => {
+    const s = selection();
+    return s ? (s.kind === "section" ? s.section : s.address.section) : null;
+};
+
+// a non-inline selection opens the inspector; inline elements and sections are handled elsewhere
+const useInspectorAutoOpen = (): void => {
+    createEffect(() => {
+        const s = selection();
+        const showInspector = s?.kind === "element" && !selectedInline();
+        if (showInspector) setRightTab("inspector");
+        else setRightTab((t) => (t === "inspector" ? null : t));
+    });
+};
+
 const Panel: Component = () => {
     const [q, setQ] = createSignal("");
     const all = listElements().filter((s) => !HIDDEN.has(s.type));
     const cats = createMemo(() => CAT_ORDER.filter((c) => all.some((s) => s.category === c)));
-
-    const elementAddr = createMemo(() => {
-        const s = selection();
-        return s?.kind === "element" ? s.address : null;
-    });
-    // fully on-canvas-editable elements skip the panel; a frame forces it, for the radius slider
-    const elementInline = createMemo((): boolean => {
-        const a = elementAddr();
-        if (!a) return false;
-        const spec = getElement(getElementAt(editor.artifact, a)?.type ?? "");
-        if (!spec) return false;
-        if (spec.richText) return true;
-        if (spec.frame) return false;
-        const bar = spec.bar ?? [];
-        return spec.controls.every((c) => bar.includes(c.key));
-    });
-    const inspectorLabel = createMemo((): string | null => {
-        const a = elementAddr();
-        if (!a || elementInline()) return null;
-        const type = getElementAt(editor.artifact, a)?.type;
-        return (type && getElement(type)?.label) || "Element";
-    });
-
-    // a non-inline selection opens the inspector; inline elements and sections are handled elsewhere
-    createEffect(() => {
-        const s = selection();
-        const showInspector = s?.kind === "element" && !elementInline();
-        if (showInspector) setRightTab("inspector");
-        else setRightTab((t) => (t === "inspector" ? null : t));
-    });
+    useInspectorAutoOpen();
 
     const items = createMemo(() => {
         const query = q().trim().toLowerCase();
@@ -530,7 +611,7 @@ const Panel: Component = () => {
                                     </p>
                                 }
                             >
-                                <Match when={!elementInline() && elementAddr()}>
+                                <Match when={!selectedInline() && selectedElementAddr()}>
                                     {(a) => <ElementInspector address={a()} />}
                                 </Match>
                             </Switch>
@@ -540,10 +621,172 @@ const Panel: Component = () => {
             </Show>
 
             <FloatingPanel pad="sm" shadow="panel" class="flex flex-col gap-1 self-center">
-                <Show when={inspectorLabel()}>{(label) => railBtn("inspector", label())}</Show>
+                <Show when={selectedLabel()}>{(label) => railBtn("inspector", label())}</Show>
                 {railBtn("search", "Search")}
                 <For each={cats()}>{(c) => railBtn(c, CAT_LABEL[c] ?? c)}</For>
             </FloatingPanel>
+        </div>
+    );
+};
+
+// Phone chrome: the floating rails re-home into a bottom bar opening non-modal sheets over the
+// full-bleed canvas. Same stores, same tabs signal — only the housing differs.
+const PhoneChrome: Component = () => {
+    const [q, setQ] = createSignal("");
+    const all = listElements().filter((s) => !HIDDEN.has(s.type));
+    useInspectorAutoOpen();
+    const items = createMemo(() => {
+        const query = q().trim().toLowerCase();
+        return query
+            ? all.filter((s) => s.label.toLowerCase().includes(query) || s.type.includes(query))
+            : all;
+    });
+    const toggle = (id: string): void => {
+        setRightTab((t) => (t === id ? null : id));
+    };
+    const barBtn = (id: string, icon: string, label: string): JSX.Element => (
+        <IconButton
+            size="touch"
+            tone="muted"
+            active={rightTab() === id}
+            title={label}
+            onClick={() => toggle(id)}
+        >
+            <Icon name={icon} size={17} />
+        </IconButton>
+    );
+    let sectionsBody: HTMLDivElement | undefined;
+    return (
+        <>
+            <div class="absolute inset-x-0 bottom-0 z-chrome flex items-center justify-around border-t border-line bg-panel/95 px-3 pb-[env(safe-area-inset-bottom)] backdrop-blur-md">
+                {barBtn("sections", "sections", "Sections")}
+                {barBtn("search", "plus", "Insert")}
+                <Show when={selectedSectionId()}>{barBtn("section", "layout", "Section")}</Show>
+                <Show when={selectedLabel()}>
+                    {(label) => barBtn("inspector", "edit", label())}
+                </Show>
+            </div>
+            <Sheet
+                open={rightTab() === "sections"}
+                title="Sections"
+                tall
+                onClose={() => setRightTab(null)}
+            >
+                <div ref={sectionsBody}>
+                    <SectionList root={() => sectionsBody} cols />
+                </div>
+            </Sheet>
+            <Sheet
+                open={rightTab() === "search"}
+                title="Insert"
+                tall
+                onClose={() => setRightTab(null)}
+            >
+                <TextField
+                    type="search"
+                    value={q()}
+                    placeholder="Search elements…"
+                    class="mb-4"
+                    onChange={setQ}
+                />
+                {/* touching a tile starts its canvas drag; close the sheet so the drop target shows */}
+                <div
+                    class="grid grid-cols-3 gap-3"
+                    onPointerDown={() => queueMicrotask(() => setRightTab(null))}
+                >
+                    <For each={items()}>{(s) => <PaletteItem type={s.type} />}</For>
+                </div>
+                <Show when={items().length === 0}>
+                    <p class="text-[13px] text-muted">No elements match.</p>
+                </Show>
+            </Sheet>
+            <Sheet
+                open={rightTab() === "inspector" && !!selectedElementAddr()}
+                title={selectedLabel() ?? "Element"}
+                onClose={() => setRightTab(null)}
+            >
+                <Show when={selectedElementAddr()}>
+                    {(a) => <ElementInspector address={a()} />}
+                </Show>
+            </Sheet>
+            <Sheet
+                open={rightTab() === "section" && !!selectedSectionId()}
+                title="Section"
+                tall
+                onClose={() => setRightTab(null)}
+            >
+                <Show when={selectedSectionId()}>
+                    {(sid) => <SectionSheetBody sid={sid()} onDone={() => setRightTab(null)} />}
+                </Show>
+            </Sheet>
+        </>
+    );
+};
+
+// the phone home for everything the hover pill offers on wide tiers, plus the layout presets
+const SectionSheetBody: Component<{ sid: string; onDone: () => void }> = (props) => {
+    const ix = createMemo(() => editor.artifact.sections.findIndex((s) => s.id === props.sid));
+    const bg = (): SectionBackground | undefined =>
+        editor.artifact.sections.find((s) => s.id === props.sid)?.background;
+    const pickBg = (): void => {
+        const cur = bg();
+        props.onDone(); // the media picker is a modal; the sheet steps aside
+        pickMedia(
+            (url) =>
+                commit(
+                    setSectionBackground(editor.artifact, props.sid, {
+                        ...cur,
+                        kind: "image",
+                        image: url,
+                    }),
+                ),
+            "photo",
+            cur?.image
+                ? () =>
+                      commit(
+                          setSectionBackground(editor.artifact, props.sid, {
+                              ...clearBackgroundImage(cur),
+                          }),
+                      )
+                : undefined,
+        );
+    };
+    const act = (icon: string, label: string, run: () => void, disabled = false): JSX.Element => (
+        <IconButton
+            size="touch"
+            tone="muted"
+            bordered
+            rounded="lg"
+            title={label}
+            disabled={disabled}
+            onClick={run}
+        >
+            <Icon name={icon} size={16} />
+        </IconButton>
+    );
+    return (
+        <div class="flex flex-col gap-4">
+            <div class="flex flex-wrap items-center gap-2">
+                {act("chevronUp", "Move up", () => moveSectionBy(props.sid, -1), ix() <= 0)}
+                {act(
+                    "chevronDown",
+                    "Move down",
+                    () => moveSectionBy(props.sid, 1),
+                    ix() === editor.artifact.sections.length - 1,
+                )}
+                {act("plus", "Add a section below", () => addSectionAfter(props.sid))}
+                {act("sparkle", "Generate a section here", () => {
+                    props.onDone();
+                    openSectionPrompt(props.sid);
+                })}
+                {act("media", "Background image", pickBg)}
+                {act("duplicate", "Duplicate", () => duplicateSectionAt(props.sid))}
+                {act("trash", "Delete", () => {
+                    props.onDone();
+                    removeSectionAt(props.sid);
+                })}
+            </div>
+            <SectionLayoutPopup section={props.sid} />
         </div>
     );
 };
