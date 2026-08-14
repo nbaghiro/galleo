@@ -434,6 +434,10 @@ export const api = {
             method: "POST",
             body: JSON.stringify(req_),
         }).then((r) => r.prompt),
+    // voice dictation: probe once to decide whether the mic renders; each hold mints its own
+    // single-use socket url and streams audio browser → provider directly
+    voiceStatus: () => req<{ ready: boolean }>("/ai/voice"),
+    voiceToken: () => req<{ url: string }>("/ai/voice-token", { method: "POST" }),
     // q empty = the recents landing state; signal lets the palette cancel a superseded keystroke
     search: (q: string, limit?: number, signal?: AbortSignal, offset?: number) =>
         req<SearchResponse>(

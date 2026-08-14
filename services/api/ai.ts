@@ -10,7 +10,7 @@ import type { ModelTier } from "@model/billing";
 import { featuresFor } from "@model/billing";
 import { currentUser } from "../core/accounts";
 import { SESSION_COOKIE } from "../utils/auth";
-import { OUT_OF_CREDITS, readJson } from "../utils/http";
+import { OUT_OF_CREDITS, rateLimit, readJson } from "../utils/http";
 import { warn } from "../utils/env";
 import { ACTION_FOR, IMPLEMENTED, meterFor, ratesFor, reserve } from "../core/spend";
 import { assetUrl, generateImage, imageGenReady, refImage, storeGenerated } from "../core/media";
@@ -20,6 +20,7 @@ import type { EvalConfig, EvalStatus } from "@model/eval";
 import { AI_TASKS } from "@model/credits";
 import { modelFor } from "../core/models";
 import { aiReady, embeddingReady } from "../core/ai/provider";
+import { mintVoiceToken, voiceReady, VoiceError } from "../core/ai/voice";
 import { runTurn } from "../core/ai/run";
 import { makeContext } from "../core/ai/tools";
 import { reviseElement } from "../core/ai/tools/element";
@@ -421,6 +422,20 @@ ai.post("/ai/refine", requireWorkspace, async (c) => {
             );
         }
     });
+});
+
+const voiceLimiter = rateLimit({ name: "voice", limit: 30, windowMs: 60_000 });
+
+ai.get("/ai/voice", requireWorkspace, (c) => c.json({ ready: voiceReady() }));
+
+// dictation is unpriced (like ingestion): the limiter and the token's single use bound abuse
+ai.post("/ai/voice-token", requireWorkspace, voiceLimiter, async (c) => {
+    try {
+        return c.json(await mintVoiceToken());
+    } catch (e) {
+        if (e instanceof VoiceError) return c.json({ error: e.message }, e.status);
+        throw e;
+    }
 });
 
 ai.post("/ai/theme", requireWorkspace, async (c) => {
