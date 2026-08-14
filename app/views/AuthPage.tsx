@@ -7,7 +7,9 @@ import { TextField } from "@ui/inputs";
 import { Button, Eyebrow } from "@ui/button";
 import { Mark } from "@ui/brand";
 
-const authField = "rounded-lg bg-panel px-3.5 py-2.5 text-[14px] placeholder:text-muted";
+// the autofill cover in ui/styles.css needs the field's own surface, not the canvas default
+const authField =
+    "rounded-lg bg-panel [--autofill-bg:var(--color-panel)] px-3.5 py-2.5 text-[14px] placeholder:text-muted";
 const oauth =
     "flex w-full items-center justify-center gap-2 rounded-lg border border-line bg-panel py-2.5 text-[13px] font-medium text-soft cursor-not-allowed opacity-55";
 const oauthEnabled =

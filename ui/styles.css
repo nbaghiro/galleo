@@ -39,6 +39,10 @@
     --color-muted: #8c8273;
     --color-accent: #9a4f24;
     --color-onaccent: #ffffff;
+    /* Semantic, deliberately not the accent: a verdict must not read as branding. Mixed toward
+       the active theme's ink so they gain contrast on a dark ground instead of losing it. */
+    --color-pass: color-mix(in oklab, #4f7a45 68%, var(--color-ink));
+    --color-fail: color-mix(in oklab, #c0392b 74%, var(--color-ink));
     /* Roles, not families: display = headings, body = UI/text, mono = labels. */
     --font-display: "Fraunces", serif;
     --font-body: "Hanken Grotesk", system-ui, sans-serif;
@@ -61,6 +65,20 @@ body {
         -apple-system,
         sans-serif;
     color: var(--color-ink);
+}
+
+/* Chrome paints an autofilled field a fixed pale blue that ignores the theme, and its UA rule marks
+   `background-color` !important, so it can only be covered, not overridden — hence the inset shadow.
+   `--autofill-bg` follows the field's own surface; unset falls back to the canvas most inputs sit on. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+    box-shadow: 0 0 0 1000px var(--autofill-bg, var(--color-canvas)) inset;
+    -webkit-text-fill-color: var(--color-ink);
+    caret-color: var(--color-ink);
 }
 
 /* `--sb` / `--sb-strong` are set per scroll region; unset falls back to the neutral line token. */
