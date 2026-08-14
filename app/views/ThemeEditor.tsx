@@ -111,7 +111,8 @@ const FORMATS: [string, string][] = [
     ["web", "Site"],
 ];
 
-const CARD_W = 150; // two cards per row in the 360px rail
+const CARD_MIN = 140; // column floor for the theme-card grid
+const GRID_GAP = 12; // gap-3
 
 // static catalog: the shuffle cycles these, no LLM call
 const THEME_PROMPTS = [
@@ -212,6 +213,25 @@ const ThemeEditorPanel: Component = () => {
     const [shadowPreset, setShadowPreset] = createSignal(inferShadow(baseTokens.shadow));
     const [busy, setBusy] = createSignal(false);
     const [width, setWidth] = createSignal(900);
+
+    // the rail is fluid below md (full-screen modal), so the card grid is measured, not fixed
+    const [railW, setRailW] = createSignal(328);
+    const gridCols = (): number =>
+        Math.max(1, Math.floor((railW() + GRID_GAP) / (CARD_MIN + GRID_GAP)));
+    const cardW = (): number => Math.floor((railW() - GRID_GAP * (gridCols() - 1)) / gridCols());
+    const gridStyle = (): JSX.CSSProperties => ({
+        "grid-template-columns": `repeat(${gridCols()}, minmax(0, 1fr))`,
+    });
+    let railRO: ResizeObserver | undefined;
+    const measureRail = (el: HTMLDivElement): void => {
+        railRO?.disconnect();
+        railRO = new ResizeObserver((entries) => {
+            const w = entries[0]?.contentRect.width ?? 0;
+            if (w) setRailW(w);
+        });
+        railRO.observe(el);
+    };
+    onCleanup(() => railRO?.disconnect());
 
     const [genPrompt, setGenPrompt] = createSignal("");
     const [genMode, setGenMode] = createSignal<"auto" | "light" | "dark">("auto");
@@ -401,12 +421,12 @@ const ThemeEditorPanel: Component = () => {
     ].filter((g) => g.themes.length);
 
     const card = (t: Theme, custom: boolean): JSX.Element => (
-        <div class="group" style={{ width: `${CARD_W}px` }}>
+        <div class="group min-w-0">
             <SectionThumb
                 section={THEME_SAMPLE}
                 themeId={t.id}
                 formatId="deck"
-                width={CARD_W}
+                width={cardW()}
                 selected={selectedId() === t.id}
                 onOpen={() => pick(t.id)}
             />
@@ -539,7 +559,7 @@ const ThemeEditorPanel: Component = () => {
 
                 <div class="min-h-0 flex-1 overflow-y-auto">
                     <Show when={mode() === "list"}>
-                        <div class="px-4 py-3">
+                        <div ref={measureRail} class="px-4 py-3">
                             <Show
                                 when={
                                     editing &&
@@ -566,7 +586,7 @@ const ThemeEditorPanel: Component = () => {
                                     <Eyebrow weight="normal">My themes</Eyebrow>
                                     <span class="font-mono text-[9px] text-accent">synced</span>
                                 </div>
-                                <div class="mb-5 flex flex-wrap gap-3">
+                                <div class="mb-5 grid gap-3" style={gridStyle()}>
                                     <For each={customThemes()}>{(t) => card(t, true)}</For>
                                 </div>
                             </Show>
@@ -576,7 +596,7 @@ const ThemeEditorPanel: Component = () => {
                                         <Eyebrow as="div" weight="normal" class="mb-2 mt-4">
                                             {g.label}
                                         </Eyebrow>
-                                        <div class="mb-1 flex flex-wrap gap-3">
+                                        <div class="mb-1 grid gap-3" style={gridStyle()}>
                                             <For each={g.themes}>{(t) => card(t, false)}</For>
                                         </div>
                                     </>

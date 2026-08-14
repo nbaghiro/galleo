@@ -6,6 +6,7 @@ import type { Tokens } from "@themes";
 import { getElement } from "@elements/spec";
 import { elementRegionId, sectionRegionId } from "@model/artifact";
 import { scaleDrawContext } from "@engine/drawscale";
+import { rampScale } from "@engine/profile";
 import type { ElementLayout, Size } from "@model/geometry";
 import { fit, fixed, grow, percent } from "@model/geometry";
 import { fontStack, luminance, mixWhite } from "@themes";
@@ -278,7 +279,7 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
     // The section's own gutters scale here rather than in scaleTokens, because contentW is what
     // children size against (stacksAtWidth, rowShares): scaling padding afterwards would leave them
     // measured against a width the section no longer has.
-    const k = ctx.format.tokenScale || 1;
+    const k = rampScale(ctx.format, ctx.availWidth);
     const sidePad = (bleed ? BLEED_PAD_X : SECTION_PAD) * k;
     const gutter = GUTTER * k;
     const outerW = ctx.availWidth - sidePad * 2;

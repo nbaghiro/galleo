@@ -844,7 +844,9 @@ export function sectionLayoutWidth(
     fullW: number,
 ): number {
     const bleed = (section.bleed ?? false) || profile.bleedSections === true;
-    return bleed ? fullW : Math.min(fullW - 64, profile.maxContentWidth ?? 1080);
+    return bleed
+        ? fullW
+        : Math.min(fullW - (profile.stackInset ?? 64), profile.maxContentWidth ?? 1080);
 }
 
 /** Windowed: off-screen sections still lay out (tops/height exact) but build no DOM or regions. */

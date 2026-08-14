@@ -126,8 +126,12 @@ resolution path only. The presets table and dimension editor land with the first
 ### 3.3 Type scale and overflow (`tokenScale`, `overflow`)
 
 A page size alone does not make a format readable: type sizes are constants inside each element spec, so
-the same content at 1080×1920 is dimensionally right and visually tiny. Two profile fields carry that,
-and both are no-ops for the shipped three.
+the same content at 1080×1920 is dimensionally right and visually tiny. Two profile fields carry that.
+`tokenScale` itself is 1 for the shipped three, but each carries a **`ramp`** (`{reference: 640, min: 0.7}`):
+below the reference container width the effective scale is `tokenScale · clamp(width/reference, min, 1)`
+(`rampScale` in `@engine/profile`), so a phone-width editor canvas, preview, or published page sets type
+~30% smaller and then reflows, instead of pouring desktop-sized type into a 390px column. Wide layouts —
+thumbnails (which lay out wide and CSS-scale) and exports — sit at or above the reference and never ramp.
 
 **`tokenScale`** multiplies type and space. It lands in `composeSection`, in two parts. The section's own
 gutters (`SECTION_PAD`/`BLEED_PAD_X`/`GUTTER`) scale _before_ `contentW` is computed, because `contentW`

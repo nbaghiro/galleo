@@ -4,6 +4,7 @@ import {
     pagedSize,
     previewContentProfile,
     profileFor,
+    rampScale,
     resolveProfile,
     sectionFrame,
     stacksAtWidth,
@@ -190,5 +191,37 @@ describe("stacksAtWidth", () => {
             expect(stacksAtWidth(p, 226)).toBe(true);
             expect(stacksAtWidth(p, 1180)).toBe(false);
         }
+    });
+});
+
+describe("rampScale", () => {
+    const web = PROFILES.web!;
+
+    it("is exactly the base scale at and above the reference width", () => {
+        expect(rampScale(web, web.ramp!.reference)).toBe(1);
+        expect(rampScale(web, 1280)).toBe(1);
+    });
+
+    it("tracks the width linearly between the floor and the reference", () => {
+        const ref = web.ramp!.reference;
+        expect(rampScale(web, ref * 0.9)).toBeCloseTo(0.9);
+        expect(rampScale(web, ref * 0.8)).toBeCloseTo(0.8);
+    });
+
+    it("floors at min so a phone keeps the type hierarchy", () => {
+        expect(rampScale(web, 390)).toBe(web.ramp!.min);
+        expect(rampScale(web, 1)).toBe(web.ramp!.min);
+    });
+
+    it("multiplies the profile's base tokenScale and skips profiles with no ramp", () => {
+        const scaled = { ...web, tokenScale: 2 };
+        expect(rampScale(scaled, 390)).toBeCloseTo(2 * web.ramp!.min);
+        const flat = { ...web, ramp: undefined };
+        expect(rampScale(flat, 390)).toBe(1);
+    });
+
+    it("every shipped format carries the shared ramp", () => {
+        for (const p of [PROFILES.deck!, PROFILES.doc!, PROFILES.web!])
+            expect(p.ramp).toEqual(PROFILES.web!.ramp);
     });
 });

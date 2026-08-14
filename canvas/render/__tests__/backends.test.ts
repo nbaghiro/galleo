@@ -49,9 +49,11 @@ describe("sectionLayoutWidth", () => {
     const deck = resolveProfile("deck");
     const web = resolveProfile("web");
     const s = sectionOf(inst("text", {}));
-    it("a contained section uses maxContentWidth, clamped to the board minus 64", () => {
+    it("a contained section uses maxContentWidth, clamped to the board minus its stackInset", () => {
         expect(sectionLayoutWidth(s, deck, 2000)).toBe(deck.maxContentWidth);
-        expect(sectionLayoutWidth(s, deck, 800)).toBe(800 - 64);
+        // a deck keeps only a sliver of backdrop on a narrow stack; a doc holds its reading gutter
+        expect(sectionLayoutWidth(s, deck, 800)).toBe(800 - 16);
+        expect(sectionLayoutWidth(s, resolveProfile("doc"), 800)).toBe(800 - 64);
     });
     it("a bleed section — or any web-format section — fills the board", () => {
         expect(sectionLayoutWidth(sectionOf(inst("text", {}), { bleed: true }), deck, 900)).toBe(

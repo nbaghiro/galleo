@@ -37,6 +37,12 @@ export interface FormatDescriptor {
     maxContentWidth?: number;
     bleedSections?: boolean; // sections span the host width instead of sitting in a gutter
     tokenScale: number; // type + space multiplier; 1 leaves the composed tree untouched
+    // Fluid type: below `reference` px of container width, tokenScale ramps down linearly with the
+    // width, floored at `min` so hierarchy survives. Absent = fixed type at every width.
+    ramp?: { reference: number; min: number };
+    // Backdrop a non-bleed section keeps visible inside a narrow stack (the effective gutter once
+    // the container is narrower than maxContentWidth + inset). Default 64.
+    stackInset?: number;
     splitMinWidth: number;
     // What a paged render does with a section taller than its frame: split it across pages, or keep
     // one page and let the caller scale the content down. A card format wants "fit" — silently

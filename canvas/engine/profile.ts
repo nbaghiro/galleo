@@ -3,6 +3,11 @@ import type { Id, PageSize, Section } from "@model/artifact";
 
 // `width`/`height` drive paged framing (Present/Export); `maxContentWidth` drives the editor canvas.
 
+// One ramp for all three: type constants are tuned for ~640px+ columns, so narrower containers
+// (phone editor, phone preview, a published page on a phone) scale type + space down with the
+// width. The 0.7 floor keeps the type hierarchy legible instead of shrinking to parity.
+const TYPE_RAMP = { reference: 640, min: 0.7 };
+
 export const PROFILES: Record<string, FormatDescriptor> = {
     deck: {
         id: "deck",
@@ -12,6 +17,10 @@ export const PROFILES: Record<string, FormatDescriptor> = {
         height: 720,
         maxContentWidth: 1120,
         tokenScale: 1,
+        ramp: TYPE_RAMP,
+        // slides read best broad: on a narrow stack they keep only a sliver of backdrop,
+        // where a doc (default 64) holds its reading-column gutter
+        stackInset: 16,
         splitMinWidth: 520,
         overflow: "paginate",
     },
@@ -23,6 +32,7 @@ export const PROFILES: Record<string, FormatDescriptor> = {
         height: "auto",
         maxContentWidth: 1000,
         tokenScale: 1,
+        ramp: TYPE_RAMP,
         splitMinWidth: 560,
         overflow: "paginate",
     },
@@ -35,6 +45,7 @@ export const PROFILES: Record<string, FormatDescriptor> = {
         maxContentWidth: 1180,
         bleedSections: true,
         tokenScale: 1,
+        ramp: TYPE_RAMP,
         splitMinWidth: 720,
         overflow: "paginate",
     },
@@ -78,6 +89,16 @@ export function pagedSize(profile: FormatDescriptor): { w: number; h: number } {
 // Below this a row of columns stacks; a deck sits at its fixed page width, doc/web track the viewport.
 export const stacksAtWidth = (profile: FormatDescriptor, availWidth: number): boolean =>
     availWidth < profile.splitMinWidth;
+
+// The effective token scale at a real container width: the profile's base scale times the fluid
+// ramp. Wide containers are exactly the base (thumbnails and exports lay out wide, so they never
+// ramp); the floor stops a phone from flattening the type hierarchy.
+export function rampScale(profile: FormatDescriptor, availWidth: number): number {
+    const base = profile.tokenScale || 1;
+    const r = profile.ramp;
+    if (!r || availWidth >= r.reference) return base;
+    return base * Math.max(r.min, availWidth / r.reference);
+}
 
 // The paged frame in logical px; the artifact's page size arrives via the profile, and a section's
 // `frame.aspect` overrides the height on top of it.
