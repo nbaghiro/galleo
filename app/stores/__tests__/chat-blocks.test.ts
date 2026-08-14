@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { UIBlock } from "../chat-blocks";
-import { textInsertAt } from "../chat-blocks";
+import { resolveBriefs, textInsertAt } from "../chat-blocks";
 
 const text = (t: string): UIBlock => ({ k: "text", text: t });
 const tool = (id: string): UIBlock => ({ k: "tool", blockId: id, tool: id, title: id, done: true });
@@ -33,5 +33,34 @@ describe("textInsertAt", () => {
 
     it("handles an empty message", () => {
         expect(textInsertAt([])).toBe(0);
+    });
+});
+
+describe("resolveBriefs", () => {
+    const brief = (blockId: string, state: "pending" | "started" | "superseded"): UIBlock => ({
+        k: "brief",
+        blockId,
+        brief: { prompt: "p", surface: "deck" },
+        state,
+    });
+
+    it("starts the chosen brief and supersedes the other pending ones", () => {
+        const blocks: UIBlock[] = [brief("a", "pending"), text("x"), brief("b", "pending")];
+        resolveBriefs(blocks, "b");
+        expect(blocks[0]).toMatchObject({ state: "superseded" });
+        expect(blocks[2]).toMatchObject({ state: "started" });
+    });
+
+    it("supersedes every pending brief in messages that hold no started one", () => {
+        const blocks: UIBlock[] = [brief("a", "pending")];
+        resolveBriefs(blocks, null);
+        expect(blocks[0]).toMatchObject({ state: "superseded" });
+    });
+
+    it("never rewrites briefs that already resolved", () => {
+        const blocks: UIBlock[] = [brief("a", "started"), brief("b", "superseded")];
+        resolveBriefs(blocks, "b");
+        expect(blocks[0]).toMatchObject({ state: "started" });
+        expect(blocks[1]).toMatchObject({ state: "superseded" });
     });
 });

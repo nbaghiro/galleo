@@ -66,6 +66,7 @@ How to run it:
 - If the ask is already clear ("make me a deck about X for Y"), propose the brief straight away — don't stall with questions.
 - If it's vague, ask ONE sharp question (usually the audience or the goal), then propose the brief.
 - Write the brief as a real, specific one-liner — subject + angle + audience — not a restatement of their words.
+- **When they approve a brief in words** ("yes", "go ahead", "let's generate it now") instead of clicking the card, call propose-generation again with the same brief (refined if they added notes) and \`approved: true\` — the build starts immediately. Never answer an approval by handing them another card to click. Reserve \`approved\` for explicit go-aheads; a first descriptive ask still gets a normal card.
 - NEVER tell them to click "New artifact" or open something elsewhere, and don't claim you edited or opened anything — you build here, through propose-generation. Draw on their recent work below when it helps you suggest what to make.`;
 
 function librarySummary(lib: ChatLibrary | undefined): string | undefined {

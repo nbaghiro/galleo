@@ -749,8 +749,10 @@ Client side there is no contexts page: the intake's **+ menu** is the attach poi
 upload files / paste text for one-off source material, toggle context collections
 (`GenerateInput.contextIds`), and open the in-studio `ContextsPane` to create or manage collections
 (`app/views/generate/ContextsPane.tsx`, hosted like the template gallery so the prompt survives the
-detour). The chat dock's composer carries the same toggle picker (`app/components/ContextPicker.tsx`),
-feeding `ChatContext.contextIds`.
+detour). The attach UI is one shared family (`app/components/context-attach.tsx`: the "+" `AttachMenu`,
+the source flows behind it via `createAttachSources`, the `ContextChips`/`AttachmentChips` rows) — the
+chat dock's composer carries the same menu restricted to collection toggles, feeding
+`ChatContext.contextIds`, and `ContextsPane` wires the same source flows to permanent ingestion.
 
 ## 11. Routes + the credit gate (`services/api/ai.ts`)
 
@@ -772,6 +774,13 @@ POST /ai/theme     One structured ThemeInput from a prompt. Meters generate-them
 POST /ai/element   Regenerate one element in place → { element }. Meters revise-element. The element rides in
                    the body (the runtime can't traverse the canvas tree).
 POST /ai/text      Rewrite / translate one passage → { text }. Meters rewrite-text / translate-text.
+GET  /ai/voice     UNMETERED. `{ ready }` — whether dictation is configured; the chat mic hides on false.
+POST /ai/voice-token  UNMETERED, rate-limited (30/min). Mints a single-use ElevenLabs realtime-STT socket
+                   url (`services/core/ai/voice.ts`; 15-min TTL, consumed on connect). Audio then streams
+                   browser → provider directly — it never transits Galleo. The client (`app/components/
+                   voice.ts` + `VoiceInput.tsx`) captures mic audio in an AudioWorklet, downsamples to
+                   16 kHz PCM, and reduces partial/committed events into the hold-to-talk overlay;
+                   release inserts the transcript at the composer caret. Needs ELEVENLABS_API_KEY.
 ```
 
 **Reconciliation (turn route).** The reserve is a pre-flight estimate; the `finally` block trues it up to what
@@ -829,7 +838,7 @@ mode would be a second way to do the same thing. The stages:
 
 - **Intake** — a centred composer that owns its own settings (format / length / image-source as compact
   dropdowns in its footer, beside the attach actions) plus **context to build from**: pasted text and
-  dropped text files, merged into `GenerateInput.source` (`app/views/generate/context.ts`; binaries are
+  dropped text files, merged into `GenerateInput.source` (`app/components/attachments.ts`; binaries are
   refused with a reason rather than read as mojibake, and the 6000-char planner clip is surfaced). The intake is
   also the app's ONE create entry ("New artifact" on every device — the old create modal is gone):
   below the composer, a template row live-matches the typed prompt against the edge-safe

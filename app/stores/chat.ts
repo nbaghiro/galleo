@@ -43,7 +43,7 @@ import { addFolder, folders } from "./folders";
 import { templatesOnce } from "./templates";
 import { reportError } from "./errors";
 import { noteStep } from "./model-usage";
-import { textInsertAt, type ChatMsg, type UIBlock } from "./chat-blocks";
+import { resolveBriefs, textInsertAt, type ChatMsg, type UIBlock } from "./chat-blocks";
 
 const [thread, setThread] = createStore<{ messages: ChatMsg[] }>({ messages: [] });
 export { thread };
@@ -296,8 +296,17 @@ function dispatch(ev: TurnEvent, aid: number): void {
                         b.k === "tool" && b.blockId === ev.blockId,
                 );
                 if (shell) shell.done = true;
-                if (ev.block.type === "brief") m.blocks.push({ k: "brief", brief: ev.block.brief });
-                else m.blocks.push({ k: "widget", blockId: ev.blockId, block: ev.block });
+                if (ev.block.type === "brief") {
+                    m.blocks.push({
+                        k: "brief",
+                        blockId: ev.blockId,
+                        brief: ev.block.brief,
+                        state: "pending",
+                    });
+                    // spoken/typed approval: the build starts once this turn's stream closes
+                    if (ev.block.brief.approved)
+                        approvedBrief = { msgId: aid, blockId: ev.blockId };
+                } else m.blocks.push({ k: "widget", blockId: ev.blockId, block: ev.block });
             });
             break;
         case "error":
@@ -350,6 +359,7 @@ export async function sendChat(text: string): Promise<void> {
             reportError(e, "The chat couldn’t finish");
         }
     } finally {
+        const aborted = abort?.signal.aborted ?? false;
         setBusy(false);
         updateMsg(aid, (m) => {
             m.streaming = false;
@@ -358,6 +368,10 @@ export async function sendChat(text: string): Promise<void> {
         });
         abort = null;
         void loadBilling();
+        // an in-message approval starts the build now that the chat turn is off the wire
+        const auto = approvedBrief;
+        approvedBrief = null;
+        if (auto && !aborted) startBrief(auto.msgId, auto.blockId);
     }
 }
 
@@ -400,6 +414,23 @@ function draftDispatch(id: string, ev: TurnEvent): void {
 }
 
 let draftSeq = 0;
+
+// set while a turn streams a brief the user already approved in their message
+let approvedBrief: { msgId: number; blockId: string } | null = null;
+
+/** Start a brief's build (button click or in-message approval) and resolve every pending card. */
+export function startBrief(msgId: number, blockId: string): void {
+    const msg = thread.messages.find((m) => m.id === msgId);
+    const b = msg?.blocks.find(
+        (x): x is Extract<UIBlock, { k: "brief" }> => x.k === "brief" && x.blockId === blockId,
+    );
+    if (!b || b.state !== "pending" || busy()) return;
+    const brief = b.brief;
+    for (const m of thread.messages)
+        if (m.blocks.some((x) => x.k === "brief" && x.state === "pending"))
+            updateMsg(m.id, (mm) => resolveBriefs(mm.blocks, mm.id === msgId ? blockId : null));
+    void generateFromBrief(brief);
+}
 
 function lastUserText(): string | undefined {
     for (let i = thread.messages.length - 1; i >= 0; i--) {

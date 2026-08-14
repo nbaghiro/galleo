@@ -144,11 +144,14 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
                 length?: string;
                 sourceFromMessage?: boolean;
                 sourceArtifactId?: string;
+                approved?: boolean;
             },
             { toolCallId }: { toolCallId: string },
         ) => {
             ch.push({ type: "chat.block", blockId: toolCallId, block: { type: "brief", brief } });
-            return `Proposed a ${brief.surface} to generate. The user can review the brief and click Generate to build it here — nothing is created until they do.`;
+            return brief.approved
+                ? `The user already approved — the ${brief.surface} build is starting right now in this chat. Say so in a short sentence; do not ask them to click anything.`
+                : `Proposed a ${brief.surface} to generate. The user can review the brief and click Generate to build it here — nothing is created until they do.`;
         },
     });
 

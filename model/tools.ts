@@ -635,7 +635,7 @@ export const TOOL_SPEC = {
     },
     "propose-generation": {
         describe:
-            "Propose building a whole NEW artifact (deck, doc, or site) from a one-line brief. This does NOT build it — it shows the user a confirm card with the brief; they click Generate to build it right here. Reach for this the moment the user wants to CREATE something new (there's no open document to edit). Distill the conversation to ONE tight, specific sentence — subject, angle, and audience — and pick the surface that fits.",
+            "Propose building a whole NEW artifact (deck, doc, or site) from a one-line brief. This does NOT build it — it shows the user a confirm card with the brief; they click Generate to build it right here. Reach for this the moment the user wants to CREATE something new (there's no open document to edit). Distill the conversation to ONE tight, specific sentence — subject, angle, and audience — and pick the surface that fits. When the user is explicitly telling you to build NOW (approving a brief you already proposed — 'yes', 'go ahead', 'generate it'), call this again with the same or refined brief and approved: true — the build starts immediately, no second card to click.",
         input: z.object({
             prompt: z
                 .string()
@@ -660,6 +660,12 @@ export const TOOL_SPEC = {
                 .optional()
                 .describe(
                     "to repurpose an existing artifact into a new format (e.g. 'turn my report into a deck'), its id from find-artifacts",
+                ),
+            approved: z
+                .boolean()
+                .optional()
+                .describe(
+                    "true ONLY when the user's message explicitly says to build it now (approving a proposed brief: 'yes', 'go ahead', 'generate it now') — the build starts immediately without a confirm click. Leave unset on a first proposal.",
                 ),
         }),
     },

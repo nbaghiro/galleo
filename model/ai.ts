@@ -196,6 +196,8 @@ export interface GenBrief {
     tone?: string;
     sourceFromMessage?: boolean; // build from the user's last pasted message
     sourceArtifactId?: string;
+    // the user's message already said "build it" — the client starts the run without a click
+    approved?: boolean;
 }
 
 // a chat response is an ordered list of these

@@ -7,7 +7,7 @@ export type UIBlock =
     | { k: "thinking"; steps: string[]; done: boolean }
     | { k: "text"; text: string }
     | { k: "tool"; blockId: string; tool: string; title: string; done: boolean; detail?: string }
-    | { k: "brief"; brief: GenBrief }
+    | { k: "brief"; blockId: string; brief: GenBrief; state: "pending" | "started" | "superseded" }
     | { k: "draft"; draftId: string }
     | {
           k: "action";
@@ -26,6 +26,14 @@ export interface ChatMsg {
 
 // what a turn produced, as opposed to what it narrated on the way
 export const OUTPUT_BLOCKS: UIBlock["k"][] = ["widget", "brief", "action"];
+
+// Starting one brief resolves the rest of the message's briefs: the started card shows progress,
+// every other still-pending proposal is superseded so no stale "Generate →" button dangles.
+export function resolveBriefs(blocks: UIBlock[], startedId: string | null): void {
+    for (const b of blocks)
+        if (b.k === "brief" && b.state === "pending")
+            b.state = b.blockId === startedId ? "started" : "superseded";
+}
 
 // A tool's card is pushed the moment the tool returns, but the prose introducing it streams after.
 // Text therefore sinks above any trailing cards instead of landing underneath them; the tool shell
