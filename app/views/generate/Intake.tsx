@@ -1,8 +1,8 @@
 import type { Component } from "solid-js";
 import { createSignal, For, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { Button, Chip, IconButton, Spinner } from "@ui/button";
-import { TextArea, TextField } from "@ui/inputs";
+import { Button } from "@ui/button";
+import { TextArea } from "@ui/inputs";
 import { Icon } from "@ui/icons";
 import { Dropdown } from "@ui/select";
 import { appTheme } from "../../stores/theme";
@@ -15,29 +15,24 @@ import { createBlank, formatLabel } from "../../stores/library";
 import { reportError } from "../../stores/errors";
 import { IMAGE_SOURCES, LENGTHS, PLACEHOLDER, SURFACES } from "./prompts";
 import { setPreviewFormat } from "./shared";
-import { Popover } from "@ui/overlay";
 import { TemplateGallery } from "../../components/TemplateGallery";
-import { ContextToggleRows, SourcePickList, type SourcePick } from "../../components/ContextPicker";
-import { contextList, contextsLoaded } from "../../stores/contexts";
+import {
+    AttachMenu,
+    AttachmentChips,
+    ContextChips,
+    createAttachSources,
+    type SourcePick,
+} from "../../components/context-attach";
 import { ContextsPane } from "./ContextsPane";
 import { TemplateRow } from "./TemplateRow";
 import {
-    ACCEPT,
-    formatBytes,
     mergeAttachments,
     nextAttachmentId,
     readAttachment,
     SOURCE_LIMIT,
     sourceLength,
     type Attachment,
-} from "./context";
-
-const ATTACH_ICON: Record<Attachment["kind"], string> = {
-    file: "doc",
-    paste: "text",
-    link: "link",
-    artifact: "library",
-};
+} from "../../components/attachments";
 
 // module-level so the studio shell can size the dialog: the prompt is compact, but "Browse all"
 // and the contexts pane swap in full-height surfaces that want the wide modal
@@ -51,21 +46,9 @@ export const Intake: Component = () => {
     const [length, setLength] = createSignal("Standard");
     const [imageSource, setImageSource] = createSignal("stock");
     const [items, setItems] = createSignal<Attachment[]>([]);
-    const [pasting, setPasting] = createSignal(false);
-    const [paste, setPaste] = createSignal("");
-    const [linking, setLinking] = createSignal(false);
-    const [url, setUrl] = createSignal("");
-    const [fetching, setFetching] = createSignal(false);
-    const [pickingArtifact, setPickingArtifact] = createSignal(false);
     const [dropping, setDropping] = createSignal(false);
     const [fileError, setFileError] = createSignal("");
     const [ctxIds, setCtxIds] = createSignal<string[]>([]);
-    const [addOpen, setAddOpen] = createSignal(false);
-    let fileInput!: HTMLInputElement;
-    let addAnchor!: HTMLButtonElement;
-
-    const ctxName = (id: string): string =>
-        contextList().find((c) => c.id === id)?.name ?? "Context";
 
     const addFiles = async (files: FileList | null): Promise<void> => {
         if (!files?.length) return;
@@ -77,22 +60,8 @@ export const Intake: Component = () => {
         }
     };
 
-    const commitPaste = (): void => {
-        const text = paste().trim();
-        setPaste("");
-        setPasting(false);
-        if (!text) return;
-        setItems((cur) => [
-            ...cur,
-            { id: nextAttachmentId(), name: "Pasted text", kind: "paste", text },
-        ]);
-    };
-
     // fetched server-side (SSRF-vetted), reduced to page text, attached like any other material
-    const fetchLink = async (): Promise<void> => {
-        const target = url().trim();
-        if (!target || fetching()) return;
-        setFetching(true);
+    const fetchLink = async (target: string): Promise<boolean> => {
         setFileError("");
         try {
             const page = await api.fetchWebpage(target);
@@ -106,18 +75,15 @@ export const Intake: Component = () => {
                     text: page.text,
                 },
             ]);
-            setUrl("");
-            setLinking(false);
+            return true;
         } catch (e) {
             setFileError(e instanceof Error ? e.message : "Couldn’t fetch that page.");
-        } finally {
-            setFetching(false);
+            return false;
         }
     };
 
     // a library piece needs one read for its content; a template's body is already in the cache
     const attachPick = async (pick: SourcePick): Promise<void> => {
-        setPickingArtifact(false);
         setFileError("");
         try {
             const content =
@@ -141,6 +107,17 @@ export const Intake: Component = () => {
     const remove = (id: string): void => {
         setItems((cur) => cur.filter((a) => a.id !== id));
     };
+
+    const attach = createAttachSources({
+        onFiles: (files) => void addFiles(files),
+        onPaste: (text) =>
+            setItems((cur) => [
+                ...cur,
+                { id: nextAttachmentId(), name: "Pasted text", kind: "paste", text },
+            ]),
+        onLink: fetchLink,
+        onPick: (pick) => void attachPick(pick),
+    });
 
     const overLimit = (): number => Math.max(0, sourceLength(items()) - SOURCE_LIMIT);
     const ready = (): boolean => !!prompt().trim() || items().length > 0;
@@ -249,240 +226,30 @@ export const Intake: Component = () => {
 
                             <Show when={items().length || ctxIds().length}>
                                 <div class="flex flex-wrap gap-1.5 px-3 pb-2">
-                                    <For each={ctxIds()}>
-                                        {(id) => (
-                                            <Chip
-                                                variant="outline"
-                                                size="sm"
-                                                rounded="md"
-                                                class="max-w-full"
-                                                title="Attached context — sections write from its material"
-                                                onRemove={() =>
-                                                    setCtxIds((cur) => cur.filter((c) => c !== id))
-                                                }
-                                            >
-                                                <Icon name="layers" size={11} />
-                                                <span class="truncate">{ctxName(id)}</span>
-                                            </Chip>
-                                        )}
-                                    </For>
-                                    <For each={items()}>
-                                        {(a) => (
-                                            <Chip
-                                                variant="outline"
-                                                size="sm"
-                                                rounded="md"
-                                                class="max-w-full"
-                                                title={`${a.text.length.toLocaleString()} characters`}
-                                                onRemove={() => remove(a.id)}
-                                            >
-                                                <Icon name={ATTACH_ICON[a.kind]} size={11} />
-                                                <span class="truncate">{a.name}</span>
-                                                <span class="font-mono text-[9.5px] text-muted">
-                                                    {formatBytes(a.text.length)}
-                                                </span>
-                                            </Chip>
-                                        )}
-                                    </For>
-                                </div>
-                            </Show>
-
-                            <Show when={pasting()}>
-                                <div class="px-3 pb-2">
-                                    <TextArea
-                                        rounded="lg"
-                                        rows={5}
-                                        autofocus
-                                        placeholder="Paste the notes, transcript, or copy this should be built from…"
-                                        value={paste()}
-                                        onChange={setPaste}
+                                    <ContextChips
+                                        ids={ctxIds()}
+                                        title="Attached context — sections write from its material"
+                                        onRemove={(id) =>
+                                            setCtxIds((cur) => cur.filter((c) => c !== id))
+                                        }
                                     />
-                                    <div class="mt-1.5 flex items-center gap-1.5">
-                                        <Button variant="outline" size="sm" onClick={commitPaste}>
-                                            Attach
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => {
-                                                setPaste("");
-                                                setPasting(false);
-                                            }}
-                                        >
-                                            Cancel
-                                        </Button>
-                                    </div>
+                                    <AttachmentChips items={items()} onRemove={remove} />
                                 </div>
                             </Show>
 
-                            <Show when={linking()}>
-                                <div class="flex items-center gap-1.5 px-3 pb-2">
-                                    <TextField
-                                        compact
-                                        autofocus
-                                        value={url()}
-                                        placeholder="https://…  (fetched and attached as text)"
-                                        onChange={setUrl}
-                                        onKeyDown={(e: KeyboardEvent) => {
-                                            if (e.key === "Enter") void fetchLink();
-                                            if (e.key === "Escape") setLinking(false);
-                                        }}
-                                    />
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        class="flex-none"
-                                        disabled={fetching()}
-                                        onClick={() => void fetchLink()}
-                                    >
-                                        <Show when={!fetching()} fallback={<Spinner size={12} />}>
-                                            Fetch
-                                        </Show>
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        class="flex-none"
-                                        onClick={() => {
-                                            setUrl("");
-                                            setLinking(false);
-                                        }}
-                                    >
-                                        Cancel
-                                    </Button>
-                                </div>
-                            </Show>
-
-                            <Show when={pickingArtifact()}>
-                                <div class="px-3 pb-2">
-                                    <SourcePickList onPick={(pick) => void attachPick(pick)} />
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        class="mt-1.5"
-                                        onClick={() => setPickingArtifact(false)}
-                                    >
-                                        Cancel
-                                    </Button>
-                                </div>
-                            </Show>
+                            <attach.Panels class="px-3 pb-2" />
 
                             <div class="flex flex-wrap items-center gap-x-1 gap-y-1.5 border-t border-line px-2 py-1.5">
-                                <input
-                                    ref={fileInput}
-                                    type="file"
-                                    multiple
-                                    class="hidden"
-                                    accept={ACCEPT}
-                                    onChange={(e) => {
-                                        void addFiles(e.currentTarget.files);
-                                        e.currentTarget.value = "";
-                                    }}
-                                />
                                 <div class="flex flex-none items-center gap-x-1">
-                                    <IconButton
-                                        ref={addAnchor}
+                                    <AttachMenu
                                         size={touch() ? "touch" : "lg"}
-                                        tone={ctxIds().length ? "accent" : "muted"}
-                                        title="Add context — files, pasted text, collections"
-                                        onClick={() => setAddOpen(!addOpen())}
-                                    >
-                                        <Icon name="plus" size={14} />
-                                    </IconButton>
-                                    <Popover
-                                        anchor={() => addAnchor}
-                                        open={addOpen()}
-                                        onClose={() => setAddOpen(false)}
-                                        minWidth={260}
-                                        estHeight={280}
-                                    >
-                                        <div class="p-1">
-                                            <button
-                                                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-ink hover:bg-canvas"
-                                                onClick={() => {
-                                                    setAddOpen(false);
-                                                    fileInput.click();
-                                                }}
-                                            >
-                                                <Icon name="doc" size={13} />
-                                                <span class="flex-1">Upload files</span>
-                                                <span class="font-mono text-[9px] text-muted">
-                                                    .txt .md .csv…
-                                                </span>
-                                            </button>
-                                            <button
-                                                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-ink hover:bg-canvas"
-                                                disabled={pasting()}
-                                                onClick={() => {
-                                                    setAddOpen(false);
-                                                    setPasting(true);
-                                                }}
-                                            >
-                                                <Icon name="text" size={13} />
-                                                <span class="flex-1">Paste text</span>
-                                                <span class="font-mono text-[9px] text-muted">
-                                                    docs · email · slack
-                                                </span>
-                                            </button>
-                                            <button
-                                                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-ink hover:bg-canvas"
-                                                disabled={linking()}
-                                                onClick={() => {
-                                                    setAddOpen(false);
-                                                    setLinking(true);
-                                                }}
-                                            >
-                                                <Icon name="link" size={13} />
-                                                <span class="flex-1">Add a link</span>
-                                                <span class="font-mono text-[9px] text-muted">
-                                                    page → text
-                                                </span>
-                                            </button>
-                                            <button
-                                                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-ink hover:bg-canvas"
-                                                disabled={pickingArtifact()}
-                                                onClick={() => {
-                                                    setAddOpen(false);
-                                                    setPickingArtifact(true);
-                                                }}
-                                            >
-                                                <Icon name="library" size={13} />
-                                                <span class="flex-1">Galleo artifact</span>
-                                                <span class="font-mono text-[9px] text-muted">
-                                                    library · template
-                                                </span>
-                                            </button>
-                                            <div class="mx-2 my-1 border-t border-line" />
-                                            <div class="px-2 pb-1 pt-1 font-mono text-[9.5px] uppercase tracking-[0.12em] text-muted">
-                                                Context collections
-                                            </div>
-                                            <Show when={contextsLoaded() && !contextList().length}>
-                                                <p class="px-2 pb-1 text-[11.5px] leading-snug text-muted">
-                                                    Reusable grounding built from files, links, and
-                                                    your library — attach one to write from its
-                                                    facts.
-                                                </p>
-                                            </Show>
-                                            <ContextToggleRows
-                                                selected={ctxIds()}
-                                                onChange={setCtxIds}
-                                            />
-                                            <button
-                                                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-soft hover:bg-canvas hover:text-ink"
-                                                onClick={() => {
-                                                    setAddOpen(false);
-                                                    setManaging(true);
-                                                }}
-                                            >
-                                                <Icon name="layers" size={13} />
-                                                <span class="flex-1">
-                                                    {contextList().length
-                                                        ? "New or manage contexts…"
-                                                        : "Create a context…"}
-                                                </span>
-                                            </button>
-                                        </div>
-                                    </Popover>
+                                        sources={attach}
+                                        collections={{
+                                            selected: ctxIds(),
+                                            onChange: setCtxIds,
+                                            onManage: () => setManaging(true),
+                                        }}
+                                    />
                                     <span class="mx-1 hidden h-4 w-px flex-none bg-line md:block" />
                                 </div>
 

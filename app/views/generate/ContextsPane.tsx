@@ -7,7 +7,7 @@ import { TextArea, TextField } from "@ui/inputs";
 import { Icon } from "@ui/icons";
 import { Markdown } from "@ui/markdown";
 import { PreviewCanvas } from "../../components/previews";
-import { SourcePickList } from "../../components/ContextPicker";
+import { createAttachSources } from "../../components/context-attach";
 import { templatesOnce } from "../../stores/templates";
 import {
     addItem,
@@ -22,7 +22,7 @@ import {
     updateContext,
 } from "../../stores/contexts";
 import { reportError } from "../../stores/errors";
-import { ACCEPT, extensionOf, readAttachment } from "./context";
+import { extensionOf, readAttachment } from "../../components/attachments";
 
 const KIND: Record<ContextItemMeta["kind"], { label: string; icon: string }> = {
     file: { label: "file", icon: "doc" },
@@ -353,11 +353,6 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
     const [busy, setBusy] = createSignal(false);
     const [dropping, setDropping] = createSignal(false);
     const [lit, setLit] = createSignal<number | null>(null);
-    const [pasting, setPasting] = createSignal(false);
-    const [paste, setPaste] = createSignal("");
-    const [linking, setLinking] = createSignal(false);
-    const [url, setUrl] = createSignal("");
-    const [picking, setPicking] = createSignal(false);
     const [syncing, setSyncing] = createSignal<string | null>(null);
     const [editingName, setEditingName] = createSignal(false);
     const [nameDraft, setNameDraft] = createSignal("");
@@ -365,7 +360,6 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
     const [descDraft, setDescDraft] = createSignal("");
     const [reading, setReading] = createSignal<ContextItemMeta | null>(null);
     const [snapshot, setSnapshot] = createSignal<Snapshot | null>(null);
-    let fileInput!: HTMLInputElement;
 
     const fetchBodyView = async (item: ContextItemMeta): Promise<Snapshot> => {
         const { body } = await api.getContextItemSnapshot(props.context.id, item.id);
@@ -464,18 +458,31 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
         );
     };
 
-    const commitPaste = (): void => {
-        const text = paste().trim();
-        setPaste("");
-        setPasting(false);
-        if (text) addText(text);
+    const addLink = (target: string): void => {
+        void run(() => addItem(props.context.id, { kind: "link", url: target }));
     };
 
-    const commitLink = (target: string): void => {
-        setUrl("");
-        setLinking(false);
-        if (target) void run(() => addItem(props.context.id, { kind: "link", url: target }));
-    };
+    // the shared source flows, wired to permanent ingestion instead of one-off attachments
+    const attach = createAttachSources({
+        onFiles: addFiles,
+        onPaste: addText,
+        onLink: (target) => {
+            addLink(target);
+            return Promise.resolve(true);
+        },
+        onPick: (pick) =>
+            void run(() =>
+                addItem(
+                    props.context.id,
+                    pick.kind === "artifact"
+                        ? { kind: "artifact", artifactId: pick.id }
+                        : { kind: "template", templateId: pick.id },
+                ),
+            ),
+        pastePlaceholder: "Paste the material this context should carry…",
+        pasteLabel: "Add it",
+        linkPlaceholder: "https://…  (fetched and snapshotted as text)",
+    });
 
     // ⌘V anywhere in the pane: a URL becomes a link, files become files, anything else is pasted text
     const onPaste = (e: ClipboardEvent): void => {
@@ -489,7 +496,7 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
         const text = e.clipboardData?.getData("text/plain").trim();
         if (!text) return;
         e.preventDefault();
-        if (URL_RE.test(text)) commitLink(text);
+        if (URL_RE.test(text)) addLink(text);
         else addText(text);
     };
 
@@ -534,18 +541,6 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
                 addFiles(e.dataTransfer?.files ?? null);
             }}
         >
-            <input
-                ref={fileInput}
-                type="file"
-                multiple
-                class="hidden"
-                accept={ACCEPT}
-                onChange={(e) => {
-                    addFiles(e.currentTarget.files);
-                    e.currentTarget.value = "";
-                }}
-            />
-
             {/* ——— the observatory: full-bleed sky, legend set into it ——— */}
             <div class="relative overflow-hidden border-b border-line bg-panel">
                 <Sky
@@ -689,7 +684,7 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
                             "border-line hover:border-accent": !dropping(),
                         }}
                         disabled={busy()}
-                        onClick={() => fileInput.click()}
+                        onClick={() => attach.openFiles()}
                     >
                         <span class="flex-none text-accent">
                             <Show when={!busy()} fallback={<Spinner size={16} />}>
@@ -704,78 +699,12 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
                             ⌘V
                         </span>
                     </button>
-                    {quickPill("paste", () => setPasting(true))}
-                    {quickPill("link", () => setLinking(true))}
-                    {quickPill("artifact · template", () => setPicking(!picking()))}
+                    {quickPill("paste", () => attach.openPaste())}
+                    {quickPill("link", () => attach.openLink())}
+                    {quickPill("artifact · template", () => attach.togglePick())}
                 </div>
 
-                <Show when={pasting()}>
-                    <div class="mt-3">
-                        <TextArea
-                            rows={5}
-                            rounded="lg"
-                            autofocus
-                            placeholder="Paste the material this context should carry…"
-                            value={paste()}
-                            onChange={setPaste}
-                        />
-                        <div class="mt-1.5 flex gap-1.5">
-                            <Button variant="outline" size="sm" onClick={commitPaste}>
-                                Add it
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => setPasting(false)}>
-                                Cancel
-                            </Button>
-                        </div>
-                    </div>
-                </Show>
-                <Show when={linking()}>
-                    <div class="mt-3 flex items-center gap-1.5">
-                        <TextField
-                            compact
-                            autofocus
-                            value={url()}
-                            placeholder="https://…  (fetched and snapshotted as text)"
-                            onChange={setUrl}
-                            onKeyDown={(e: KeyboardEvent) => {
-                                if (e.key === "Enter") commitLink(url().trim());
-                            }}
-                        />
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            class="flex-none"
-                            onClick={() => commitLink(url().trim())}
-                        >
-                            Fetch
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            class="flex-none"
-                            onClick={() => setLinking(false)}
-                        >
-                            Cancel
-                        </Button>
-                    </div>
-                </Show>
-                <Show when={picking()}>
-                    <div class="mt-3">
-                        <SourcePickList
-                            onPick={(pick) => {
-                                setPicking(false);
-                                void run(() =>
-                                    addItem(
-                                        props.context.id,
-                                        pick.kind === "artifact"
-                                            ? { kind: "artifact", artifactId: pick.id }
-                                            : { kind: "template", templateId: pick.id },
-                                    ),
-                                );
-                            }}
-                        />
-                    </div>
-                </Show>
+                <attach.Panels class="mt-3" />
 
                 {/* ——— the sources, each one a cluster; click one to read its snapshot ——— */}
                 <Show when={loading()}>

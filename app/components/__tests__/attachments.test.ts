@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
     ACCEPT,
+    ATTACH_ICON,
     extensionOf,
     formatBytes,
     isExtractableFile,
     isReadableFile,
     mergeAttachments,
+    SOURCE_OPTIONS,
     sourceLength,
     type Attachment,
-} from "../context";
+} from "../attachments";
 
 const file = (name: string, text: string): Attachment => ({
     id: name,
@@ -97,5 +99,35 @@ describe("byte labels", () => {
         expect(formatBytes(512)).toBe("512 B");
         expect(formatBytes(2048)).toBe("2 KB");
         expect(formatBytes(3 * 1024 * 1024)).toBe("3.0 MB");
+    });
+});
+
+describe("the shared + menu's source options", () => {
+    it("offers the four sources with their canonical labels, in the intake's order", () => {
+        expect(SOURCE_OPTIONS.map((o) => o.id)).toEqual(["files", "paste", "link", "artifact"]);
+        expect(SOURCE_OPTIONS.map((o) => o.label)).toEqual([
+            "Upload files",
+            "Paste text",
+            "Add a link",
+            "Galleo artifact",
+        ]);
+        expect(SOURCE_OPTIONS.map((o) => o.tag)).toEqual([
+            ".txt .md .csv…",
+            "docs · email · slack",
+            "page → text",
+            "library · template",
+        ]);
+    });
+    it("menu icons and attachment-chip icons agree per source kind", () => {
+        const iconOf = (id: string): string | undefined =>
+            SOURCE_OPTIONS.find((o) => o.id === id)?.icon;
+        expect(iconOf("files")).toBe(ATTACH_ICON.file);
+        expect(iconOf("paste")).toBe(ATTACH_ICON.paste);
+        expect(iconOf("link")).toBe(ATTACH_ICON.link);
+        expect(iconOf("artifact")).toBe(ATTACH_ICON.artifact);
+    });
+    it("keeps one chip icon per attachment kind", () => {
+        expect(Object.keys(ATTACH_ICON).sort()).toEqual(["artifact", "file", "link", "paste"]);
+        for (const icon of Object.values(ATTACH_ICON)) expect(icon).toBeTruthy();
     });
 });

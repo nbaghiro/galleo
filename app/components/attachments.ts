@@ -1,4 +1,4 @@
-import { api } from "../../api";
+import { api } from "../api";
 
 export interface Attachment {
     id: string;
@@ -9,6 +9,33 @@ export interface Attachment {
     // server-extracted binaries keep their bytes, so a context item can store the real file
     original?: { data: string; mime: string };
 }
+
+export const ATTACH_ICON: Record<Attachment["kind"], string> = {
+    file: "doc",
+    paste: "text",
+    link: "link",
+    artifact: "library",
+};
+
+// the "+" menu's source rows — one canonical label set, shared by every attach surface
+export interface SourceOption {
+    id: "files" | "paste" | "link" | "artifact";
+    icon: string;
+    label: string;
+    tag: string;
+}
+
+export const SOURCE_OPTIONS: SourceOption[] = [
+    { id: "files", icon: ATTACH_ICON.file, label: "Upload files", tag: ".txt .md .csv…" },
+    { id: "paste", icon: ATTACH_ICON.paste, label: "Paste text", tag: "docs · email · slack" },
+    { id: "link", icon: ATTACH_ICON.link, label: "Add a link", tag: "page → text" },
+    {
+        id: "artifact",
+        icon: ATTACH_ICON.artifact,
+        label: "Galleo artifact",
+        tag: "library · template",
+    },
+];
 
 // must stay in sync with sourceMaterial()'s clip in services/ai/prompts/generate.ts
 export const SOURCE_LIMIT = 6000;
