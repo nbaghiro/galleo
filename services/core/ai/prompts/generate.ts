@@ -23,7 +23,7 @@ import { sectionExemplars } from "./exemplars";
 import type { PromptParts } from "./system";
 
 const OUTLINE_JOB = `## Your job
-Plan the artifact: your reading of the brief, a title, a backdrop, and an ordered list of beats (sections). Start by stating what you take the piece to be — its \`goal\` (what it has to achieve), \`audience\` (who it's for), and \`tone\` (how it should sound) — inferred from the prompt and any source material; these are shown to the user and every section is written against them, so make them specific rather than generic. The backdrop is the artifact's full-bleed background image — describe a moody, on-theme atmospheric scene that evokes the subject (a wide, low-detail environment, since it sits behind every section under a scrim), never a generic abstract texture. Give the piece a real narrative arc that fits the topic — the beat roles (scene, tension, turn, proof, momentum, close) are a toolbox to draw on, not a fixed sequence: use the ones the story needs, in the order it needs, and repeat proof/momentum beats where the argument earns them. For each beat: an id (s1, s2, …), a short working label, its narrative role, the layout you intend (\`layout\` — a named preset: full · split-6040 · split-4060 · two-col · three-up), and — crucially — design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Vary layouts and blocks across the piece, and place visual blocks (image / stat / chart / diagram / table) where they earn their spot rather than defaulting to walls of text — the layout you choose is rendered as a live skeleton and the section writer must fill it exactly. Also give each beat whether it leads with an image. Then WRITE THE STORY, not a table of contents — for every beat give all three of: \`brief\` (one line naming the section's job), \`takeaway\` (a full sentence stating the one thing the reader leaves with), and \`points\` (the 2–4 concrete moves it makes, in order — the actual claims, numbers, comparisons, or steps, never topic labels like "benefits" or "overview"). Decide the real substance here: what each section actually argues, and with what. A section written from "Traction" is generic; one written from "1,900 studios joined in five months, four in five still active at week eight, and the curve steepened after the referral launch" is not. Make consecutive beats build on each other rather than restating the same idea. Give the opening (scene) and closing (close) sections a full-bleed background image — set image=true for them; they anchor the piece. Don't pad and don't truncate.`;
+Plan the artifact: your reading of the brief, a title, a backdrop, and an ordered list of beats (sections). Start by stating what you take the piece to be, its \`goal\` (what it has to achieve), \`audience\` (who it's for), and \`tone\` (how it should sound), inferred from the prompt and any source material; these are shown to the user and every section is written against them, so make them specific rather than generic. The backdrop is the artifact's full-bleed background image, describe a moody, on-theme atmospheric scene that evokes the subject (a wide, low-detail environment, since it sits behind every section under a scrim). Never a generic abstract texture. Give the piece a real narrative arc that fits the topic, the beat roles (scene, tension, turn, proof, momentum, close) are a toolbox to draw on, not a fixed sequence: use the ones the story needs, in the order it needs, and repeat proof/momentum beats where the argument earns them. For each beat: an id (s1, s2, …), a short working label, its narrative role, the layout you intend (\`layout\`, a named preset: full · split-6040 · split-4060 · two-col · three-up), and, crucially, design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Vary layouts and blocks across the piece, and place visual blocks (image / stat / chart / diagram / table) where they earn their spot rather than defaulting to walls of text, the layout you choose is rendered as a live skeleton and the section writer must fill it exactly. Also give each beat whether it leads with an image. Then WRITE THE STORY, not a table of contents, for every beat give all three of: \`brief\` (one line naming the section's job), \`takeaway\` (a full sentence stating the one thing the reader leaves with), and \`points\` (the 2–4 concrete moves it makes, in order, the actual claims, numbers, comparisons, or steps. Never topic labels like "benefits" or "overview"). Decide the real substance here: what each section actually argues, and with what. A section written from "Traction" is generic; one written from "1,900 studios joined in five months, four in five still active at week eight, and the curve steepened after the referral launch" is not. Make consecutive beats build on each other rather than restating the same idea. Give the opening (scene) and closing (close) sections a full-bleed background image, set image=true for them; they anchor the piece. Don't pad and don't truncate.`;
 
 // one clip for both readers of the source, so the planner and the writers see the same window
 const SOURCE_CLIP = 6000;
@@ -35,8 +35,8 @@ function sourceMaterial(source?: string): string | undefined {
     const s = source?.trim();
     if (!s) return undefined;
     return heading(
-        "Source material — build the piece FROM this",
-        `Ground the outline in this material: use its real facts, structure, and specifics — don't invent competing ones. Distill and reorganize it into a strong narrative that fits this format.\n\n${clipSource(s)}`,
+        "Source material, build the piece FROM this",
+        `Ground the outline in this material: use its real facts, structure, and specifics, don't invent competing ones. Distill and reorganize it into a strong narrative that fits this format.\n\n${clipSource(s)}`,
     );
 }
 
@@ -45,8 +45,8 @@ function sourceForSection(source?: string): string | undefined {
     const s = source?.trim();
     if (!s) return undefined;
     return heading(
-        "Source material — the piece is built from this",
-        `Where this section's points touch the material, use its REAL facts: the exact numbers, names, dates, and phrasing. Ground every claim you can in it, and never invent a fact that competes with it.\n\n${clipSource(s)}`,
+        "Source material, the piece is built from this",
+        `Where this section's points touch the material. Use its REAL facts: the exact numbers, names, dates, and phrasing. Ground every claim you can in it, and never invent a fact that competes with it.\n\n${clipSource(s)}`,
     );
 }
 
@@ -71,7 +71,7 @@ export function outlineParts(
             retrievedContext(pack),
             lengthGuidance(input.length),
             maxSections
-                ? `Hard limit: plan at MOST ${maxSections} sections — anything beyond is discarded.`
+                ? `Hard limit: plan at MOST ${maxSections} sections, anything beyond is discarded.`
                 : "",
             input.mustInclude?.length
                 ? `Every "Must cover" point in the brief gets a home: for each beat, set \`covers\` to the point(s) it covers, copied VERBATIM from the list. Every point appears in at least one beat's \`covers\`; leave \`covers\` off beats that cover none. Echo that same list back as \`mustInclude\`.`
@@ -88,7 +88,7 @@ function columnPlan(beat: Beat): string {
 
 function blockLine(beat: Beat): string | undefined {
     if (!beat.blocks?.length) return undefined;
-    return `Fill the columns in this exact order, leading each with its assigned block — ${columnPlan(beat)}. A "text" column = a headline + supporting copy; "image" = one image; "stat" = a stat; "bullets" = a short list; "chart"/"diagram"/"table" = that visual; "quote" = a pulled quote; "cards" = a small group of cards. The live preview shows this layout, so match it exactly (don't move a block to a different column).`;
+    return `Fill the columns in this exact order, leading each with its assigned block, ${columnPlan(beat)}. A "text" column = a headline + supporting copy; "image" = one image; "stat" = a stat; "bullets" = a short list; "chart"/"diagram"/"table" = that visual; "quote" = a pulled quote; "cards" = a small group of cards. The live preview shows this layout, so match it exactly (don't move a block to a different column).`;
 }
 
 function placement(beat: Beat, outline: Outline): string {
@@ -104,18 +104,18 @@ function placement(beat: Beat, outline: Outline): string {
             beat.brief && `What it must say: ${beat.brief}`,
             beat.takeaway && `The one thing the reader must leave with: ${beat.takeaway}`,
             beat.points?.length &&
-                `Make these moves, in this order — this is the section's substance, so write them out properly rather than gesturing at them:\n${beat.points
+                `Make these moves, in this order. This is the section's substance, so write them out properly rather than gesturing at them:\n${beat.points
                     .map((p, i) => `  ${i + 1}. ${p}`)
                     .join("\n")}`,
             beat.layout &&
-                `Use EXACTLY this layout — the plan chose it and a live preview is already showing it: ${beat.layout}.`,
+                `Use EXACTLY this layout, the plan chose it and a live preview is already showing it: ${beat.layout}.`,
             blockLine(beat),
             beat.image ? "This section leads with a prominent image." : undefined,
             idx === 0
-                ? "This is the COVER — give it a full-bleed background image and keep the overlay to the title plus a one-line subtitle."
+                ? "This is the COVER, give it a full-bleed background image and keep the overlay to the title plus a one-line subtitle."
                 : undefined,
             idx === outline.beats.length - 1
-                ? "This is the CLOSING section — a full-bleed background image behind a short closing line and a call to action reads beautifully."
+                ? "This is the CLOSING section, a full-bleed background image behind a short closing line and a call to action reads beautifully."
                 : undefined,
             "",
             "The full arc, for continuity:",
@@ -166,13 +166,13 @@ export function sectionParts(
             writtenContext(extras.content, beat.id),
             placement(beat, outline),
             extras.steer?.trim() &&
-                heading("Steering note from the reader — follow it", extras.steer.trim()),
+                heading("Steering note from the reader, follow it", extras.steer.trim()),
             extras.note?.trim() &&
                 heading(
                     "What to change versus the previous attempt",
-                    `${extras.note.trim()}\nThis is a fresh take on the same beat — keep the beat's job and layout, change the content to satisfy the note.`,
+                    `${extras.note.trim()}\nThis is a fresh take on the same beat, keep the beat's job and layout, change the content to satisfy the note.`,
                 ),
-            `Write section "${beat.id}" now — real, specific, finished content.`,
+            `Write section "${beat.id}" now, real, specific, finished content.`,
         ),
     };
 }
@@ -182,7 +182,7 @@ export function surfaceOf(format: string): Surface {
 }
 
 const PLAN_ONE_JOB = `## Your job
-Plan ONE new section to slot into this artifact at the marked spot. Decide its narrative role, choose the layout that fits (\`layout\` — a named preset: full · split-6040 · split-4060 · two-col · three-up), and design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Reach for a visual block (image / stat / chart / diagram / table) where the idea is a picture, number, trend, or process rather than defaulting to a wall of text. Give it a short working label, whether it leads with an image, and a one-line brief of what it must say. Match the density and voice of the sections around it — this section has to feel like it was always there.`;
+Plan ONE new section to slot into this artifact at the marked spot. Decide its narrative role, choose the layout that fits (\`layout\`, a named preset: full · split-6040 · split-4060 · two-col · three-up), and design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Reach for a visual block (image / stat / chart / diagram / table) where the idea is a picture, number, trend, or process rather than defaulting to a wall of text. Give it a short working label, whether it leads with an image, and a one-line brief of what it must say. Match the density and voice of the sections around it. This section has to feel like it was always there.`;
 
 export function sectionPlanParts(input: SectionInput): PromptParts {
     const surface = surfaceOf(input.content.format);
@@ -215,7 +215,7 @@ function insertPlacement(beat: Beat, input: SectionInput): string {
                 beat.points?.length &&
                     `Make these moves, in order:\n${beat.points.map((p, i) => `  ${i + 1}. ${p}`).join("\n")}`,
                 beat.layout &&
-                    `Use EXACTLY this layout — a live preview is already showing it: ${beat.layout}.`,
+                    `Use EXACTLY this layout, a live preview is already showing it: ${beat.layout}.`,
                 blockLine(beat),
                 beat.image ? "This section leads with a prominent image." : undefined,
             ]
@@ -233,7 +233,7 @@ export function insertSectionParts(input: SectionInput, beat: Beat): PromptParts
         prompt: stack(
             heading("The brief", `This one section: ${input.instruction}`),
             insertPlacement(beat, input),
-            `Write section "${beat.id}" now — real, specific, finished content.`,
+            `Write section "${beat.id}" now, real, specific, finished content.`,
         ),
     };
 }
@@ -249,15 +249,15 @@ export function editSectionParts(
             heading("What to change", instruction),
             neighbors(content, section.id),
             heading("The section as it is now", "```json\n" + JSON.stringify(section) + "\n```"),
-            `Rewrite section "${section.id}" to satisfy the instruction — keep its id (and its layout, unless the change requires a different one), and return the full revised section as JSON.`,
+            `Rewrite section "${section.id}" to satisfy the instruction, keep its id (and its layout, unless the change requires a different one), and return the full revised section as JSON.`,
         ),
     };
 }
 
-const ELEMENT_OUTPUT = `## Output — return ONE JSON object and nothing else
+const ELEMENT_OUTPUT = `## Output, return ONE JSON object and nothing else
 No prose, no explanation, no markdown fences. A single element in this exact shape:
 { "type": "<the SAME type as the original element>", "data": { /* the fields the catalog lists for that type */ } }
-Keep "type" identical to the original — you are rewriting its CONTENT, not changing what kind of element it is. If it's a container (group / card / quote / stat / bullets / callout), return it with its \`data.children\` fully populated. Every string is real, finished copy — never placeholder text.`;
+Keep "type" identical to the original. You are rewriting its CONTENT, not changing what kind of element it is. If it's a container (group / card / quote / stat / bullets / callout), return it with its \`data.children\` fully populated. Every string is real, finished copy. Never placeholder text.`;
 
 function elementSystem(surface: Surface, theme: string): string {
     return stack(
@@ -291,7 +291,7 @@ export function reviseElementParts(
         ? heading("What to change", instruction.trim())
         : heading(
               "What to do",
-              "Regenerate this element — a fresh, stronger version that makes the same kind of point in a better way. Keep it the same TYPE, but genuinely rework the wording, numbers, or framing so it reads as a real alternative, not the same text handed back.",
+              "Regenerate this element, a fresh, stronger version that makes the same kind of point in a better way. Keep it the same TYPE, but genuinely rework the wording, numbers, or framing so it reads as a real alternative, not the same text handed back.",
           );
     return {
         system: elementSystem(surfaceOf(content.format), content.theme),
@@ -299,7 +299,7 @@ export function reviseElementParts(
             change,
             elementContext(content, section),
             heading("The element as it is now", "```json\n" + JSON.stringify(element) + "\n```"),
-            `Return the single revised element as JSON — same "type", fresh content.`,
+            `Return the single revised element as JSON, same "type", fresh content.`,
         ),
     };
 }

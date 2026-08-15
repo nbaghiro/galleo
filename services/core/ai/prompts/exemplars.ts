@@ -47,11 +47,11 @@ export function sectionExemplars(surface: Surface): string {
     const body = picks
         .map(
             (s, i) =>
-                `Example ${i + 1} — layout ${shapeOf(s)}:\n${JSON.stringify(cleanSection(s))}`,
+                `Example ${i + 1} · layout ${shapeOf(s)}:\n${JSON.stringify(cleanSection(s))}`,
         )
         .join("\n\n");
     return heading(
-        `Gold-standard ${surface} sections — match this richness and density`,
-        `These are real sections from hand-crafted, published artifacts. Notice how each fills its frame with a clear headline plus purposeful, varied elements (stats, cards, groups, bullets, images) — never a lone line of text on an empty frame:\n\n${body}`,
+        `Gold-standard ${surface} sections. Match this richness and density`,
+        `These are real sections from hand-crafted, published artifacts. Notice how each fills its frame with a clear headline plus purposeful, varied elements (stats, cards, groups, bullets, images). Never a lone line of text on an empty frame:\n\n${body}`,
     );
 }

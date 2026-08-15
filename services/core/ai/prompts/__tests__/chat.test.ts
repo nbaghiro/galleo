@@ -40,7 +40,7 @@ describe("chatSystem — library surface (no open artifact)", () => {
         const out = chatSystem(libCtx);
         expect(out).toContain("They have 3 artifacts.");
         expect(out).toContain("Aria deck");
-        expect(out).toContain("f1 — Work");
+        expect(out).toContain("f1 · Work");
     });
     it("pluralizes the artifact count", () => {
         expect(chatSystem({ surface: "library", library: { artifactCount: 1 } })).toContain(

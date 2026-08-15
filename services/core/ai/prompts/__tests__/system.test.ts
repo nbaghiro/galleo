@@ -83,15 +83,15 @@ describe("artifactDigest", () => {
     });
     it("renders one numbered row per section with its id and first-text label", () => {
         const out = artifactDigest(content);
-        expect(out).toContain("1. [s1] — Title");
-        expect(out).toContain("2. [s2] — Thesis");
+        expect(out).toContain("1. [s1] · Title");
+        expect(out).toContain("2. [s2] · Thesis");
     });
     it("labels a text-less section (untitled)", () => {
         const out = artifactDigest({
             ...content,
             sections: [sec("s1")],
         });
-        expect(out).toContain("1. [s1] — (untitled)");
+        expect(out).toContain("1. [s1] · (untitled)");
     });
     it("truncates a long label to 80 characters", () => {
         const long = "A".repeat(100);

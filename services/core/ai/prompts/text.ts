@@ -3,11 +3,11 @@ import { heading, stack } from "./system";
 import type { PromptParts } from "./system";
 
 const RETURN_RULE =
-    "Return ONLY the edited text — no preamble, no explanation, no surrounding quotes, no markdown fences, no notes. Preserve the passage's meaning and its inline emphasis, and keep it about the same length unless the instruction says otherwise.";
+    "Return ONLY the edited text, no preamble, no explanation, no surrounding quotes, no markdown fences, no notes. Preserve the passage's meaning and its inline emphasis, and keep it about the same length unless the instruction says otherwise.";
 
 function contextNote(context: string | undefined): string | undefined {
     return context
-        ? heading("Surrounding text (context only — do NOT return or repeat this)", context)
+        ? heading("Surrounding text (context only, do NOT return or repeat this)", context)
         : undefined;
 }
 

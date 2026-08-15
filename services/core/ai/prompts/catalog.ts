@@ -84,13 +84,13 @@ export const ELEMENTS: readonly ElementSchema[] = [
         type: "text",
         label: "Text",
         category: "text",
-        when: "any standalone piece of writing — a title, a paragraph, an eyebrow label, a caption",
+        when: "any standalone piece of writing, a title, a paragraph, an eyebrow label, a caption",
         fields: [
             {
                 key: "text",
                 type: "text",
                 required: true,
-                desc: "the writing itself; real, specific copy — never lorem ipsum or placeholders",
+                desc: "the writing itself; real, specific copy. Never lorem ipsum or placeholders",
             },
             {
                 key: "style",
@@ -123,7 +123,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 type: "enum",
                 values: BULLET_MARKERS,
                 default: "dot",
-                desc: "dot • / number 1. / dash — / check ✓",
+                desc: "dot • / number 1. / dash, / check ✓",
             },
         ],
     },
@@ -132,7 +132,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
         label: "Callout",
         category: "text",
         container: true,
-        when: "one point that must stand out — a warning, a tip, a key takeaway",
+        when: "one point that must stand out, a warning, a tip, a key takeaway",
         fields: [
             childrenField("the callout body, usually one `text` (style 'body')"),
             {
@@ -181,7 +181,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 key: "src",
                 type: "string",
                 required: true,
-                desc: "an image URL; if unknown, use a short descriptive phrase and the module will source/generate it",
+                desc: "an image URL; if unknown. Use a short descriptive phrase and the module will source/generate it",
             },
             {
                 key: "aspect",
@@ -220,7 +220,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
         label: "Stat",
         category: "data",
         container: true,
-        when: "a single headline number with a label — the most persuasive way to show one metric",
+        when: "a single headline number with a label, the most persuasive way to show one metric",
         fields: [
             childrenField(
                 "two `text` elements: the value (style 'h1', e.g. '92%') then its label (style 'caption')",
@@ -231,7 +231,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
         type: "table",
         label: "Table",
         category: "data",
-        when: "tabular data — a comparison grid, a pricing matrix, a schedule",
+        when: "tabular data, a comparison grid, a pricing matrix, a schedule",
         fields: [
             {
                 key: "data",
@@ -252,7 +252,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
         type: "chart",
         label: "Chart",
         category: "data",
-        when: "quantitative data worth visualizing — trends, comparisons, distributions, proportions",
+        when: "quantitative data worth visualizing, trends, comparisons, distributions, proportions",
         fields: [
             {
                 key: "type",
@@ -286,20 +286,20 @@ export const ELEMENTS: readonly ElementSchema[] = [
         type: "diagram",
         label: "Diagram",
         category: "data",
-        when: "a relationship or flow — a process, a cycle, a hierarchy, a funnel, a mind map",
+        when: "a relationship or flow, a process, a cycle, a hierarchy, a funnel, a mind map",
         fields: [
             {
                 key: "type",
                 type: "enum",
                 required: true,
                 values: DIAGRAM_TYPES,
-                desc: "which diagram. For a LINEAR sequence of steps use `process` (connected steps, reads left-to-right). `steps` = a staircase of escalating stages; `cycle` = a repeating loop; `funnel` = narrowing stages; `pyramid` = layered levels; `timeline` = dated milestones; `matrix`/`quadrant` = a 2×2; `hub` = one centre with satellites (first item is the centre). Reserve `org` for a genuine hierarchy — it requires the `links` field.",
+                desc: "which diagram. For a LINEAR sequence of steps use `process` (connected steps, reads left-to-right). `steps` = a staircase of escalating stages; `cycle` = a repeating loop; `funnel` = narrowing stages; `pyramid` = layered levels; `timeline` = dated milestones; `matrix`/`quadrant` = a 2×2; `hub` = one centre with satellites (first item is the centre). Reserve `org` for a genuine hierarchy. It requires the `links` field.",
             },
             {
                 key: "items",
                 type: "text",
                 required: true,
-                desc: "the node labels, comma-separated — or one per line, which is required if any label contains a comma. An entry may add a short supporting phrase after a pipe ('Label | why it matters'), rendered smaller under the label. A number after a second pipe ('Label | detail | 2') is read by `funnel`, where it sizes each band so the stages are proportional (give every stage one, or none). Other types ignore it.",
+                desc: "the node labels, comma-separated, or one per line, which is required if any label contains a comma. An entry may add a short supporting phrase after a pipe ('Label | why it matters'), rendered smaller under the label. A number after a second pipe ('Label | detail | 2') is read by `funnel`, where it sizes each band so the stages are proportional (give every stage one, or none). Other types ignore it.",
             },
             {
                 key: "links",
@@ -331,10 +331,10 @@ export const ELEMENTS: readonly ElementSchema[] = [
         label: "Card",
         category: "container",
         container: true,
-        when: "group a small cluster of elements into a bordered/filled panel — a feature, a plan, a person",
+        when: "group a small cluster of elements into a bordered/filled panel, a feature, a plan, a person",
         fields: [
             childrenField(
-                "the card's contents — typically a `text` title (h3) + a `text` body, or a stat",
+                "the card's contents, typically a `text` title (h3) + a `text` body, or a stat",
             ),
             {
                 key: "style",
@@ -385,7 +385,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
         type: "button",
         label: "Button",
         category: "interactive",
-        when: "a call to action — 'Get started', 'Book a demo'",
+        when: "a call to action, 'Get started', 'Book a demo'",
         fields: [
             { key: "label", type: "string", required: true, desc: "the button text" },
             {
@@ -401,7 +401,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
         type: "badge",
         label: "Badge",
         category: "branding",
-        when: "a tiny status pill — 'NEW', 'OUT SEPT 4', a tag",
+        when: "a tiny status pill, 'NEW', 'OUT SEPT 4', a tag",
         fields: [
             { key: "text", type: "string", required: true, desc: "the badge text; keep it short" },
         ],
@@ -421,11 +421,11 @@ function fieldLine(f: FieldSpec): string {
     if (f.type === "enum" && f.values) bits.push(`one of: ${f.values.join(" | ")}`);
     else bits.push(f.type);
     if (f.default !== undefined) bits.push(`default ${JSON.stringify(f.default)}`);
-    return `    - ${f.key} (${bits.join(", ")}) — ${f.desc}`;
+    return `    - ${f.key} (${bits.join(", ")}), ${f.desc}`;
 }
 
 function elementBlock(e: ElementSchema): string {
-    const head = `- \`${e.type}\`${e.container ? " [container]" : ""} — ${e.when}`;
+    const head = `- \`${e.type}\`${e.container ? " [container]" : ""}, ${e.when}`;
     const fields = e.fields.map(fieldLine).join("\n");
     return `${head}\n${fields}`;
 }
@@ -445,11 +445,11 @@ export function elementCatalog(): string {
 export function layoutCatalog(): string {
     const rows = LAYOUTS.map(
         (g) =>
-            `- \`${g.id}\` — ${g.widths} (${g.columns} column${g.columns > 1 ? "s" : ""}) — ${g.when}`,
+            `- \`${g.id}\`, ${g.widths} (${g.columns} column${g.columns > 1 ? "s" : ""}), ${g.when}`,
     ).join("\n");
     return [
         "## Section layout",
-        'A section is `{ id, root }`, where `root` is one element tree. For side-by-side columns, make `root` a `group` with `direction: "row"` whose children each carry `layout: { width: { pct } }` (their column share, summing to ~100). To stack, use `direction: "col"`. Nest to any depth. For a full-width section, `root` is a single element. These named presets are handy starting splits (custom widths are fine too):',
+        'A section is `{ id, root }`, where `root` is one element tree. For side-by-side columns, make `root` a `group` with `direction: "row"` whose children each carry `layout: { width: { pct } }` (their column share, summing to ~100). To stack. Use `direction: "col"`. Nest to any depth. For a full-width section, `root` is a single element. These named presets are handy starting splits (custom widths are fine too):',
         "",
         rows,
     ].join("\n");
@@ -463,7 +463,7 @@ export function describeTheme(id: string): string {
 
 export function themeCatalog(): string {
     const rows = THEME_LIST.map(
-        (t) => `- \`${t.id}\` — ${t.name} (${t.tag}, ${t.dark ? "dark" : "light"})`,
+        (t) => `- \`${t.id}\`, ${t.name} (${t.tag}, ${t.dark ? "dark" : "light"})`,
     ).join("\n");
     return ["## Themes", "Pick a theme id whose mood fits the content:", "", rows].join("\n");
 }

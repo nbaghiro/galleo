@@ -21,14 +21,14 @@ describe("sectionExemplars", () => {
         for (const s of surfaces) {
             const out = sectionExemplars(s);
             expect(out).toContain(`Gold-standard ${s} sections`);
-            expect(out).toContain("Example 1 — layout");
+            expect(out).toContain("Example 1 · layout");
         }
     });
 
     it("emits two structurally-labelled examples for a rich gold artifact", () => {
         const out = sectionExemplars("deck");
-        expect(out).toContain("Example 1 — layout");
-        expect(out).toContain("Example 2 — layout");
+        expect(out).toContain("Example 1 · layout");
+        expect(out).toContain("Example 2 · layout");
     });
 
     it("serializes each pick as a clean { id, root } section", () => {

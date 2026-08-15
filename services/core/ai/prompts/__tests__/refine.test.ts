@@ -16,7 +16,7 @@ describe("refinePromptParts", () => {
     });
 
     it("keeps a theme brief away from hex values and font files", () => {
-        expect(refinePromptParts("theme", "x").system).toContain("never specific hex values");
+        expect(refinePromptParts("theme", "x").system).toContain("Never specific hex values");
     });
 
     it("returns only the prompt, with the user's subject preserved", () => {

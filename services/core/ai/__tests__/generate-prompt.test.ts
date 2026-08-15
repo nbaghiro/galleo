@@ -103,7 +103,7 @@ describe("the piece so far reaches every later section write", () => {
     });
     it("marks a text-free section instead of dropping it silently", () => {
         const visual: Section = { id: "s9", root: { type: "image", data: { src: "a harbor" } } };
-        expect(writtenContext(content(visual))).toContain("[s9] (a visual section — no text)");
+        expect(writtenContext(content(visual))).toContain("[s9] (a visual section, no text)");
     });
 });
 
