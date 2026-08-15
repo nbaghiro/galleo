@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Surface } from "@model/ai";
-import { sectionExemplars } from "../exemplars";
+import { sectionExemplars } from "@services/core/ai/prompts/exemplars";
 
 const surfaces: Surface[] = ["deck", "doc", "web"];
 

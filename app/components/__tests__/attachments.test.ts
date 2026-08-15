@@ -10,7 +10,7 @@ import {
     SOURCE_OPTIONS,
     sourceLength,
     type Attachment,
-} from "../attachments";
+} from "@app/components/attachments";
 
 const file = (name: string, text: string): Attachment => ({
     id: name,

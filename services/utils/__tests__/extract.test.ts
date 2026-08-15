@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import JSZip from "jszip";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { extractDocx, extractPdfText, extractXlsx, sniffFormat } from "../extract";
+import { extractDocx, extractPdfText, extractXlsx, sniffFormat } from "@services/utils/extract";
 
 describe("sniffFormat", () => {
     it("routes by MIME first, extension as fallback", () => {

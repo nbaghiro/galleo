@@ -1,6 +1,6 @@
 import type { Section } from "@model/artifact";
 import type { TurnEvent } from "@model/ai";
-import { implement } from "../tools";
+import { implement } from "@services/core/ai/tools";
 
 export const showSectionsTool = implement(
     "show-sections",

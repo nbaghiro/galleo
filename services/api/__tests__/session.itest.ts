@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { SESSION_COOKIE } from "../../utils/auth";
-import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
+import { SESSION_COOKIE } from "@services/utils/auth";
+import { authed, jsonInit, request, seedUser } from "@services/__tests__/harness";
 
 describe("session routes", () => {
     it("logs in with valid credentials and sets a session cookie", async () => {

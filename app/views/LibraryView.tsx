@@ -15,7 +15,7 @@ import {
 } from "solid-js";
 import { useNavigate, useParams, useSearchParams } from "@solidjs/router";
 import { resolveTheme, fontStack } from "@themes";
-import { type ArtifactSummary, type SearchHit } from "../api";
+import { type ArtifactSummary, type SearchHit } from "@app/api";
 import {
     cardSection,
     FORMAT_IDS,
@@ -35,11 +35,11 @@ import {
     removeArtifacts,
     setDraggingArtifact,
     type LibraryQuery,
-} from "../stores/library";
-import { appTheme } from "../stores/theme";
-import { openGenerate } from "../stores/generate";
-import { folders } from "../stores/folders";
-import { fetchHitPage, LIBRARY_LIMIT } from "../stores/search";
+} from "@app/stores/library";
+import { appTheme } from "@app/stores/theme";
+import { openGenerate } from "@app/stores/generate";
+import { folders } from "@app/stores/folders";
+import { fetchHitPage, LIBRARY_LIMIT } from "@app/stores/search";
 import { ConfirmModal, FloatingBar } from "@ui/overlay";
 import { Button, Chip, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@ui/menu";
@@ -56,8 +56,8 @@ import {
     SparkleIcon,
     TrashIcon,
 } from "@ui/icons";
-import { SectionThumb } from "../components/previews";
-import { Sidebar, SidebarToggle } from "../components/Sidebar";
+import { SectionThumb } from "@app/components/previews";
+import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
 
 // fills use soft/accent tints, legible on light and dark unlike line
 const TILE_W = 176;

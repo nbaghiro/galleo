@@ -13,6 +13,8 @@ export default defineConfig({
             "@canvas": abs("./canvas"),
             "@ui": abs("./ui"),
             "@editor": abs("./editor"),
+            "@app": abs("./app"),
+            "@services": abs("./services"),
         },
     },
     test: {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { authed, seedUser } from "../../__tests__/harness";
+import { authed, seedUser } from "@services/__tests__/harness";
 
 // the mint path itself is unit-covered with an injected fetch (core/ai/__tests__/voice.test.ts);
 // here we prove the routes: the readiness probe, the 503 gate, and the limiter

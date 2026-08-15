@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fuzzyScore, rankItems } from "../fuzzy";
+import { fuzzyScore, rankItems } from "@ui/fuzzy";
 
 describe("fuzzyScore", () => {
     it("returns null when the query is not a subsequence", () => {

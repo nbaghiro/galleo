@@ -1,5 +1,5 @@
 import type { Template } from "@model/templates";
-import { api } from "../api";
+import { api } from "@app/api";
 
 // One fetch of the template bodies per session, shared by every surface that needs them (the
 // intake's template row, chat's start-from-template). The edge-safe TEMPLATE_INDEX stays the

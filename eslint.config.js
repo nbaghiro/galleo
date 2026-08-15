@@ -11,33 +11,33 @@ import importPlugin from "eslint-plugin-import";
 // specifier string, so it needs no resolution and cannot go quiet the same way.
 const LAYERS = {
     model: {
-        aliases: ["@canvas", "@engine", "@elements", "@ui", "@editor"],
+        aliases: ["@canvas", "@engine", "@elements", "@ui", "@editor", "@app", "@services"],
         dirs: ["canvas", "ui", "editor", "services", "app"],
         message:
             "model is the pure contract: it must not depend on canvas, ui, editor, services, or app",
     },
     canvas: {
-        aliases: ["@ui", "@editor"],
+        aliases: ["@ui", "@editor", "@app", "@services"],
         dirs: ["ui", "editor", "services", "app"],
         message: "canvas (render) may depend on model only, not ui, editor, services, or app",
     },
     ui: {
-        aliases: ["@editor"],
+        aliases: ["@editor", "@app", "@services"],
         dirs: ["editor", "services", "app"],
         message: "ui (shared Solid components) may depend on model, @themes, and canvas only",
     },
     editor: {
-        aliases: [],
+        aliases: ["@app", "@services"],
         dirs: ["services", "app"],
         message: "editor may depend on model, canvas, and ui only, not services or app",
     },
     app: {
-        aliases: [],
+        aliases: ["@services"],
         dirs: ["services"],
         message: "app is the browser SPA: it talks to services over HTTP, it must not import it",
     },
     services: {
-        aliases: ["@canvas", "@engine", "@elements", "@ui", "@editor"],
+        aliases: ["@canvas", "@engine", "@elements", "@ui", "@editor", "@app"],
         dirs: ["canvas", "ui", "editor", "app"],
         message: "services (backend) may depend on model only, not canvas, ui, editor, or app",
     },
@@ -85,7 +85,7 @@ const serviceLayerConfigs = SERVICE_LAYERS.map((layer) => {
             message: LAYERS.services.message,
         },
     ];
-    // relative form, since a specifier inside services reads `../domain/x`, never `../services/domain/x`
+    // matches by segment: the canonical `@services/domain/x` spelling and any relative form alike
     if (above.length)
         patterns.push({ group: above.map((d) => `**/${d}/**`), message: LAYER_MSG(layer, above) });
     // The whole point of the api/core split: a core file that reaches for hono is a route in disguise.
@@ -210,7 +210,16 @@ export default tseslint.config(
                 },
             ],
             "import/no-restricted-paths": ["error", { zones: [...zones, ...serviceLayerZones] }],
+            // cross-directory imports use aliases; only `./sibling` stays relative. The ignore is
+            // load-bearing: the rule resolves specifiers to files, so without it an alias whose target
+            // sits in a parent directory (all of them) is flagged too.
+            "import/no-relative-parent-imports": ["error", { ignore: ["^@"] }],
         },
+    },
+    // scripts/ has no alias, so its tests reach their subjects by relative path.
+    {
+        files: ["scripts/**/__tests__/**"],
+        rules: { "import/no-relative-parent-imports": "off" },
     },
     ...boundaryConfigs,
     ...serviceLayerConfigs,

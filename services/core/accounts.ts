@@ -3,11 +3,11 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import { Google } from "arctic";
 
 import type { User } from "@model/workspace";
-import { db } from "../db/client";
+import { db } from "@services/db/client";
 import { freshCreditWindow, rollCreditWindow } from "./ledger";
-import { schema } from "../db/schema";
-import { hashPassword, readSessionPayload, verifyPassword } from "../utils/auth";
-import { appUrl } from "../utils/env";
+import { schema } from "@services/db/schema";
+import { hashPassword, readSessionPayload, verifyPassword } from "@services/utils/auth";
+import { appUrl } from "@services/utils/env";
 import { sendEmail } from "./mail";
 
 // Users, sessions, provisioning, and the OAuth link. Nothing here knows about HTTP: the routes in

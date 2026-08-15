@@ -5,19 +5,19 @@ import { useNavigate } from "@solidjs/router";
 import type { ChatBlock, GenBrief, WorkspaceAction } from "@model/ai";
 import type { Section } from "@model/artifact";
 import { estimateCost } from "@model/tools";
-import { Credits } from "../components/credits";
+import { Credits } from "@app/components/credits";
 import type { Tokens } from "@themes";
 import { resolveTheme, themeCssVars } from "@themes";
 import { placeholderSection } from "@canvas/elements/blueprint";
 import { AgentIcon, Icon, UiThemeProvider } from "@ui/icons";
 import { Markdown } from "@ui/markdown";
-import { MiniCanvas } from "../components/previews";
-import { VoiceInput } from "../components/VoiceInput";
+import { MiniCanvas } from "@app/components/previews";
+import { VoiceInput } from "@app/components/VoiceInput";
 import { Button, IconButton, Chip, Eyebrow, Spinner } from "@ui/button";
 import { editor } from "@editor/core/store";
-import { appTheme, appThemeOverride, appThemeVars, customThemes } from "../stores/theme";
-import { formatLabel } from "../stores/library";
-import { OUTPUT_BLOCKS, type ChatMsg, type UIBlock } from "../stores/chat-blocks";
+import { appTheme, appThemeOverride, appThemeVars, customThemes } from "@app/stores/theme";
+import { formatLabel } from "@app/stores/library";
+import { OUTPUT_BLOCKS, type ChatMsg, type UIBlock } from "@app/stores/chat-blocks";
 
 type Proposal = Extract<ChatBlock, { type: "proposal" }>;
 type Suggestions = Extract<ChatBlock, { type: "suggestions" }>;
@@ -54,9 +54,9 @@ import {
     stopChat,
     thread,
     toggleChat,
-} from "../stores/chat";
-import { generateOpen } from "../stores/generate";
-import { AttachMenu, ContextChips } from "../components/context-attach";
+} from "@app/stores/chat";
+import { generateOpen } from "@app/stores/generate";
+import { AttachMenu, ContextChips } from "@app/components/context-attach";
 
 const ProposalCard: Component<{
     msgId: number;

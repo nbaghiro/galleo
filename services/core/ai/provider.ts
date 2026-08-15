@@ -11,8 +11,8 @@ import { partsOf, record, recordTokens, tracing } from "./meter";
 // what `providerOptions` accepts: one JSON bag per provider name (the SDK's SharedV4ProviderOptions)
 type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
 type ProviderOpts = Record<string, { [k: string]: Json }>;
-import type { Provider } from "../models";
-import { getModel, samplingFor } from "../models";
+import type { Provider } from "@services/core/models";
+import { getModel, samplingFor } from "@services/core/models";
 
 const ENV_KEY: Record<Provider, string> = {
     anthropic: "ANTHROPIC_API_KEY",

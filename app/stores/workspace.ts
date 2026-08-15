@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
-import type { WorkspaceState } from "../api";
-import { api } from "../api";
+import type { WorkspaceState } from "@app/api";
+import { api } from "@app/api";
 
 const [workspaceState, setWorkspaceState] = createSignal<WorkspaceState | null>(null);
 export { workspaceState };

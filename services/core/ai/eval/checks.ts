@@ -1,7 +1,7 @@
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import type { CheckDimension, EvalCheck } from "@model/eval";
 import { sectionsForLength } from "@model/tools";
-import { PLACEHOLDER, contentOf } from "../quality";
+import { PLACEHOLDER, contentOf } from "@services/core/ai/quality";
 
 // Deterministic quality checks: free to run and they never drift, so everything that can be decided
 // without a model is decided here and the judge's budget goes to taste. Layout-derived checks

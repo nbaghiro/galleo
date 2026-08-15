@@ -1,10 +1,10 @@
 import type { Surface } from "@model/ai";
 import type { ArtifactContent } from "@model/artifact";
-import { galleo } from "../corpus/galleo";
-import { helios } from "../corpus/helios";
-import { slowweb } from "../corpus/slowweb";
-import { lumen } from "../corpus/lumen";
-import { terra } from "../corpus/terra";
+import { galleo } from "@services/core/ai/corpus/galleo";
+import { helios } from "@services/core/ai/corpus/helios";
+import { slowweb } from "@services/core/ai/corpus/slowweb";
+import { lumen } from "@services/core/ai/corpus/lumen";
+import { terra } from "@services/core/ai/corpus/terra";
 
 export interface GenCase {
     id: string;

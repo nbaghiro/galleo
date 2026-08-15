@@ -3,10 +3,10 @@ import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { ArtifactContent } from "@model/artifact";
 import type { PlanId } from "@model/billing";
 import { resolveFeatures } from "@model/billing";
-import { db } from "../db/client";
-import { schema } from "../db/schema";
-import { hashPassword, verifyPassword } from "../utils/auth";
-import { appUrl } from "../utils/env";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
+import { hashPassword, verifyPassword } from "@services/utils/auth";
+import { appUrl } from "@services/utils/env";
 import { sendShareInvite } from "./mail";
 
 // Share links: creation, recipients, analytics, and the read the public viewer performs. The routes

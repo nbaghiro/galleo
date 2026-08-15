@@ -1,7 +1,7 @@
 import { registerCommands } from "@ui/keys";
 import { openGenerate } from "./generate";
 import { openThemeEditor } from "./theme";
-import { modelPickerReady, openModelPicker } from "../components/ModelPicker";
+import { modelPickerReady, openModelPicker } from "@app/components/ModelPicker";
 import { toggleChat } from "./chat";
 import { logout } from "./auth";
 import { go } from "./navigate";

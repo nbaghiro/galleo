@@ -2,12 +2,12 @@ import type { Component } from "solid-js";
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { sectionRegionId } from "@model/artifact";
 import { Button, Chip, Eyebrow, Spinner } from "@ui/button";
-import { content, currentArtifactId, regions } from "../core/store";
+import { content, currentArtifactId, regions } from "@editor/core/store";
 import { Icon } from "@ui/icons";
 import { FloatingPanel } from "@ui/overlay";
 import { TextArea } from "@ui/inputs";
-import { closeSectionGen, runSectionGen, sectionGen } from "../core/ai";
-import { fetchSuggestions } from "../core/ai";
+import { closeSectionGen, runSectionGen, sectionGen } from "@editor/core/ai";
+import { fetchSuggestions } from "@editor/core/ai";
 
 export const SectionGenPopup: Component = () => {
     const [text, setText] = createSignal("");

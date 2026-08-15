@@ -2,7 +2,7 @@ import { createSignal } from "solid-js";
 import { resolveTheme, registerThemes, themeCssVars } from "@themes";
 import type { JSX } from "solid-js";
 import type { Theme, Tokens } from "@themes";
-import { api, type ApiTheme } from "../api";
+import { api, type ApiTheme } from "@app/api";
 import { useLocation } from "@solidjs/router";
 import { editorTokens } from "@editor/core/store";
 import type { ElementInstance, Section } from "@model/artifact";

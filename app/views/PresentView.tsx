@@ -4,7 +4,7 @@ import { createResource, Show } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
 import { PresentSurface } from "@ui/present";
 import { canEditHere } from "@ui/viewport";
-import { api } from "../api";
+import { api } from "@app/api";
 
 export const PresentView: Component = () => {
     const params = useParams();

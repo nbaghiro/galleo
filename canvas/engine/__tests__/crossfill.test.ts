@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fit, fixed, grow } from "@model/geometry";
 import type { EngineNode } from "@engine/node";
 import { layout } from "@engine/layout";
-import { measure } from "../../testkit";
+import { measure } from "@canvas/testkit";
 
 // sections are solved against an "unbounded" sentinel height, which is what makes the fit-column
 // case below load-bearing rather than theoretical

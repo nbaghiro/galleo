@@ -137,7 +137,7 @@ table, run in `beforeEach` (`setup.ts`) for per-test isolation.
 
 - **Location.** Each folder's tests live in its own `__tests__/` subdirectory (`canvas/engine/__tests__/layout.test.ts`
   tests `canvas/engine/layout.ts`). Vitest's `**/*.test.ts` include finds them anywhere; imports use path
-  aliases so a test's depth doesn't matter. Shared helpers are `canvas/testkit.ts` / `*.testkit.ts` (not
+  aliases (enforced by `import/no-relative-parent-imports`) so a test's depth doesn't matter. Shared helpers are `canvas/testkit.ts` / `*.testkit.ts` (not
   matched by the include, excluded from coverage).
 - **Environment.** `node` default; DOM files add `// @vitest-environment happy-dom` at the top.
 - **Imports.** Explicit `import { describe, it, expect } from "vitest"` (no globals → no tsconfig change).

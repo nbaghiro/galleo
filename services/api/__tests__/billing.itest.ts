@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import type Stripe from "stripe";
 import { CREDITS_PER_GENERATION, PLANS, limitsFor, visiblePlans } from "@model/billing";
-import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
-import { db } from "../../db/client";
-import { schema } from "../../db/schema";
-import { chargeCredits, settleCredits } from "../../core/ledger";
-import { reserve } from "../../core/spend";
+import { authed, jsonInit, request, seedUser } from "@services/__tests__/harness";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
+import { chargeCredits, settleCredits } from "@services/core/ledger";
+import { reserve } from "@services/core/spend";
 
 // Mocked at the package boundary, so the `new Stripe(key)` in services/billing/stripe.ts hands back
 // this stub; the pure price↔plan helpers still run for real off the stubbed env.

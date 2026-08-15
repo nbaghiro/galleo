@@ -3,7 +3,7 @@ import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { IconButton } from "@ui/button";
 import { Icon } from "@ui/icons";
 import { isCoarsePointer } from "@ui/viewport";
-import { api } from "../api";
+import { api } from "@app/api";
 import type { TranscriptState, VoiceSession, VoiceStatus } from "./voice";
 import { emptyTranscript, insertDictation, startVoiceSession, voiceSupported } from "./voice";
 

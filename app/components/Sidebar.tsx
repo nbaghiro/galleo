@@ -1,11 +1,11 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createSignal, For, onMount, Show } from "solid-js";
 import { useLocation, useNavigate } from "@solidjs/router";
-import type { ApiFolder, BillingState } from "../api";
-import { logout, user } from "../stores/auth";
-import { billing, loadBilling } from "../stores/billing";
-import { loadWorkspace, switchWorkspace, workspaceState } from "../stores/workspace";
-import { draggingArtifact, moveArtifact, setDraggingArtifact } from "../stores/library";
+import type { ApiFolder, BillingState } from "@app/api";
+import { logout, user } from "@app/stores/auth";
+import { billing, loadBilling } from "@app/stores/billing";
+import { loadWorkspace, switchWorkspace, workspaceState } from "@app/stores/workspace";
+import { draggingArtifact, moveArtifact, setDraggingArtifact } from "@app/stores/library";
 import {
     addFolder,
     folderColor,
@@ -13,7 +13,7 @@ import {
     loadFolders,
     removeFolder,
     renameFolderById,
-} from "../stores/folders";
+} from "@app/stores/folders";
 import {
     ChevronRightIcon,
     CloseIcon,
@@ -29,8 +29,8 @@ import {
     ThemeIcon,
     TrashIcon,
 } from "@ui/icons";
-import { openThemeEditor } from "../stores/theme";
-import { openGenerate } from "../stores/generate";
+import { openThemeEditor } from "@app/stores/theme";
+import { openGenerate } from "@app/stores/generate";
 import { Button, Eyebrow, IconButton } from "@ui/button";
 import { TextField } from "@ui/inputs";
 import { Meter } from "@ui/status";

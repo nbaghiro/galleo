@@ -25,7 +25,7 @@ import {
     remountEditing,
     setArtifactLive,
     stopEditing,
-} from "../core/store";
+} from "@editor/core/store";
 import { ctxFor } from "@canvas/render/commands";
 import {
     registerTextField,
@@ -34,7 +34,7 @@ import {
     setActiveValues,
     setTextSelection,
     unregisterTextField,
-} from "../core/text";
+} from "@editor/core/text";
 import type { Run } from "@engine/node";
 
 type TextFields = { text?: string; marks?: Mark[] } & Record<string, unknown>;

@@ -69,6 +69,8 @@ export default defineConfig({
             "@canvas": abs("./canvas"),
             "@ui": abs("./ui"),
             "@editor": abs("./editor"),
+            "@app": abs("./app"),
+            // no @services on purpose: a frontend import of services must fail the build
         },
     },
     build: {

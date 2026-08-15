@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
+import { authed, jsonInit, request, seedUser } from "@services/__tests__/harness";
 
 describe("template popularity", () => {
     it("counts creates that carry a templateId, and ignores made-up ids", async () => {

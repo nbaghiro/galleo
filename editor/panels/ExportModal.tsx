@@ -15,7 +15,7 @@ import { buildPptx } from "@canvas/render/pptx";
 import { Icon } from "@ui/icons";
 import { Badge, Button, Spinner } from "@ui/button";
 import { Modal } from "@ui/overlay";
-import { cachedExport } from "../core/exportCache";
+import { cachedExport } from "@editor/core/exportCache";
 import {
     currentArtifactId,
     editSeq,
@@ -24,7 +24,7 @@ import {
     ensureAllSections,
     features,
     requestUpgrade,
-} from "../core/store";
+} from "@editor/core/store";
 
 const [target, setTarget] = createSignal(false);
 export function openExportModal(): void {

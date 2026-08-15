@@ -1,4 +1,4 @@
-import { implement } from "../tools";
+import { implement } from "@services/core/ai/tools";
 
 // Retrieval over the request's attached contexts; the retriever itself is injected per request
 // (services/core/context.ts), so this body is just the agent-facing shape around it.

@@ -4,36 +4,46 @@ import { getCookie } from "hono/cookie";
 import type { GenerateInput, Surface, TurnEvent, TurnRequest } from "@model/ai";
 import { applyPatch, isKind } from "@model/ai";
 import { overridesFrom, requireWorkspace, type WorkspaceEnv } from "./middleware";
-import type { ModelOverrides } from "../core/models";
+import type { ModelOverrides } from "@services/core/models";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import type { ModelTier } from "@model/billing";
 import { featuresFor } from "@model/billing";
-import { currentUser } from "../core/accounts";
-import { SESSION_COOKIE } from "../utils/auth";
-import { OUT_OF_CREDITS, rateLimit, readJson } from "../utils/http";
-import { warn } from "../utils/env";
-import { ACTION_FOR, IMPLEMENTED, meterFor, ratesFor, reserve } from "../core/spend";
-import { assetUrl, generateImage, imageGenReady, refImage, storeGenerated } from "../core/media";
-import { isEvalAdmin, recordRun } from "../core/ai/eval/runs";
-import { runChecks } from "../core/ai/eval/checks";
+import { currentUser } from "@services/core/accounts";
+import { SESSION_COOKIE } from "@services/utils/auth";
+import { OUT_OF_CREDITS, rateLimit, readJson } from "@services/utils/http";
+import { warn } from "@services/utils/env";
+import { ACTION_FOR, IMPLEMENTED, meterFor, ratesFor, reserve } from "@services/core/spend";
+import {
+    assetUrl,
+    generateImage,
+    imageGenReady,
+    refImage,
+    storeGenerated,
+} from "@services/core/media";
+import { isEvalAdmin, recordRun } from "@services/core/ai/eval/runs";
+import { runChecks } from "@services/core/ai/eval/checks";
 import type { EvalConfig, EvalStatus } from "@model/eval";
 import { AI_TASKS } from "@model/credits";
-import { modelFor } from "../core/models";
-import { aiReady, embeddingReady } from "../core/ai/provider";
-import { mintVoiceToken, voiceReady, VoiceError } from "../core/ai/voice";
-import { runTurn } from "../core/ai/run";
-import { makeContext } from "../core/ai/tools";
-import { reviseElement } from "../core/ai/tools/element";
-import type { ImageOptions } from "../core/ai/images";
-import { makeWorkspaceReader } from "../core/ai/reader";
-import { makeContextRetriever, recallConversation, recordChatExchange } from "../core/context";
-import { expandBrief } from "../core/ai/tools/plan";
-import { generateThemeFromPrompt } from "../core/ai/tools/theme";
-import { rewriteText, translateText } from "../core/ai/tools/text";
-import { refinePrompt } from "../core/ai/tools/refine";
-import type { RefineKind } from "../core/ai/prompts/refine";
-import { suggestSections } from "../core/ai/tools/suggest";
-import type { BriefRead } from "../core/ai/prompts/brief";
+import { modelFor } from "@services/core/models";
+import { aiReady, embeddingReady } from "@services/core/ai/provider";
+import { mintVoiceToken, voiceReady, VoiceError } from "@services/core/ai/voice";
+import { runTurn } from "@services/core/ai/run";
+import { makeContext } from "@services/core/ai/tools";
+import { reviseElement } from "@services/core/ai/tools/element";
+import type { ImageOptions } from "@services/core/ai/images";
+import { makeWorkspaceReader } from "@services/core/ai/reader";
+import {
+    makeContextRetriever,
+    recallConversation,
+    recordChatExchange,
+} from "@services/core/context";
+import { expandBrief } from "@services/core/ai/tools/plan";
+import { generateThemeFromPrompt } from "@services/core/ai/tools/theme";
+import { rewriteText, translateText } from "@services/core/ai/tools/text";
+import { refinePrompt } from "@services/core/ai/tools/refine";
+import type { RefineKind } from "@services/core/ai/prompts/refine";
+import { suggestSections } from "@services/core/ai/tools/suggest";
+import type { BriefRead } from "@services/core/ai/prompts/brief";
 
 // What the run was asked to do, in the same shape an artifact stores in ai_meta. The models
 // recorded are the ones that actually ran, not the overrides that were requested.

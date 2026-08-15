@@ -1,6 +1,6 @@
 import type { Patch, TurnEvent } from "@model/ai";
 import { THEMES } from "@themes";
-import { implement } from "../tools";
+import { implement } from "@services/core/ai/tools";
 
 interface StructureEdit {
     patch: Patch;

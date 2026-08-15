@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { ArtifactPage, ArtifactWindow, Section, SectionOp } from "@model/artifact";
 import { artifactDigest, artifactSearchText } from "@model/artifact";
-import { authed, jsonInit, seedUser } from "../../__tests__/harness";
-import { db } from "../../db/client";
-import { schema } from "../../db/schema";
+import { authed, jsonInit, seedUser } from "@services/__tests__/harness";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
 
 const section = (id: string, text: string): Section => ({
     id,

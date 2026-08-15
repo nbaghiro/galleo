@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { ChatContext } from "@model/ai";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import { THEME_LIST } from "@themes";
-import { chatSystem } from "../chat";
+import { chatSystem } from "@services/core/ai/prompts/chat";
 
 const txt = (text: string): ElementInstance => ({ type: "text", data: { text } });
 const sec = (id: string, title: string): Section => ({

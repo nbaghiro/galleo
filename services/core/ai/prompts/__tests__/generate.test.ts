@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { GenerateInput, SectionInput } from "@model/ai";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import { BLOCK_KINDS } from "@model/elements";
-import type { Beat, Outline } from "../../schema";
+import type { Beat, Outline } from "@services/core/ai/schema";
 import {
     editSectionParts,
     insertSectionParts,
@@ -11,7 +11,7 @@ import {
     sectionParts,
     sectionPlanParts,
     surfaceOf,
-} from "../generate";
+} from "@services/core/ai/prompts/generate";
 
 const txt = (text: string): ElementInstance => ({ type: "text", data: { text } });
 const sec = (id: string, title: string): Section => ({

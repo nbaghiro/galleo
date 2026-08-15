@@ -7,7 +7,7 @@ import {
     MAX_DOC_BYTES,
     MAX_IMAGE_BYTES,
     SCANNED_CHARS_PER_PAGE,
-} from "../utils/extract";
+} from "@services/utils/extract";
 import { modelCall, providerReady } from "./ai/provider";
 import { defaultModelFor } from "./models";
 import { BODY_CAP } from "./context";

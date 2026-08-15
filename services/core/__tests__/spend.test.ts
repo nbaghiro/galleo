@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { COST_UNITS, CREDIT_USD, creditsForUsd } from "@model/credits";
-import { owed } from "../spend";
+import { owed } from "@services/core/spend";
 
 const FLASH = "google:gemini-3.5-flash";
 const use = (input: number, output: number) => [{ modelId: FLASH, input, output }];

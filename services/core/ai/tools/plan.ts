@@ -1,21 +1,21 @@
 import type { Section } from "@model/artifact";
 import { generateObject, generateText } from "ai";
-import { implement } from "../tools";
-import { withStep } from "../meter";
-import { modelCall } from "../provider";
-import { warn } from "../../../utils/env";
-import { defaultModelFor, modelFor } from "../../models";
-import { outlineParts } from "../prompts/generate";
-import type { PromptParts } from "../prompts/system";
-import { checkSection } from "../quality";
-import { zOutline, zSection, zSectionPlan } from "../schema";
-import type { Outline, SectionPlan } from "../schema";
+import { implement } from "@services/core/ai/tools";
+import { withStep } from "@services/core/ai/meter";
+import { modelCall } from "@services/core/ai/provider";
+import { warn } from "@services/utils/env";
+import { defaultModelFor, modelFor } from "@services/core/models";
+import { outlineParts } from "@services/core/ai/prompts/generate";
+import type { PromptParts } from "@services/core/ai/prompts/system";
+import { checkSection } from "@services/core/ai/quality";
+import { zOutline, zSection, zSectionPlan } from "@services/core/ai/schema";
+import type { Outline, SectionPlan } from "@services/core/ai/schema";
 import type { BriefDraft, GenerateInput, Surface } from "@model/ai";
-import { zBriefDraft, type BriefDraftGen } from "../schema";
-import { briefParts, type BriefRead } from "../prompts/brief";
+import { zBriefDraft, type BriefDraftGen } from "@services/core/ai/schema";
+import { briefParts, type BriefRead } from "@services/core/ai/prompts/brief";
 import type { ModelTier } from "@model/billing";
-import type { ModelOverrides } from "../../models";
-import { extractJson } from "../schema";
+import type { ModelOverrides } from "@services/core/models";
+import { extractJson } from "@services/core/ai/schema";
 
 // A schema miss is a sampling accident, not a broken model, and the SDK's own retries do not cover
 // it: they only fire on transport errors. Losing the plan ends the whole run, so it gets one more go.

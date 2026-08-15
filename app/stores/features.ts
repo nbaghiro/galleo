@@ -1,8 +1,8 @@
 import { createSignal } from "solid-js";
 import type { BoolFeature, FeatureKey, FeatureStatus } from "@model/billing";
 import { featureStatus } from "@model/billing";
-import type { FeaturesState } from "../api";
-import { api } from "../api";
+import type { FeaturesState } from "@app/api";
+import { api } from "@app/api";
 
 const [featuresState, setFeaturesState] = createSignal<FeaturesState | null>(null);
 export { featuresState };

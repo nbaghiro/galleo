@@ -7,14 +7,14 @@ import {
     mergeChecks,
     pruneRuns,
     saveJudgements,
-} from "../core/ai/eval/runs";
-import { judgeRun } from "../core/ai/eval/judge";
-import { RUBRIC } from "../core/ai/eval/rubric";
-import { galleo } from "../core/ai/corpus/galleo";
-import { helios } from "../core/ai/corpus/helios";
-import { aiReady } from "../core/ai/provider";
+} from "@services/core/ai/eval/runs";
+import { judgeRun } from "@services/core/ai/eval/judge";
+import { RUBRIC } from "@services/core/ai/eval/rubric";
+import { galleo } from "@services/core/ai/corpus/galleo";
+import { helios } from "@services/core/ai/corpus/helios";
+import { aiReady } from "@services/core/ai/provider";
 import type { EvalCheck } from "@model/eval";
-import { readJson } from "../utils/http";
+import { readJson } from "@services/utils/http";
 
 export const evals = new Hono<WorkspaceEnv>();
 

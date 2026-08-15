@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
-import { db } from "../db/client";
-import { schema } from "../db/schema";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
 import { creditLimitFor } from "@model/billing";
 import type { Usage } from "@model/credits";
 

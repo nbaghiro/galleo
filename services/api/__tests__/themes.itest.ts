@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { DEFAULT_THEME } from "@themes";
-import { authed, jsonInit, request, seedUser } from "../../__tests__/harness";
-import { db } from "../../db/client";
-import { schema } from "../../db/schema";
+import { authed, jsonInit, request, seedUser } from "@services/__tests__/harness";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
 
 const TOKENS = DEFAULT_THEME.tokens;
 

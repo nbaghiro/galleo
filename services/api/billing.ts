@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import type { CreditPackId, Interval, PlanId } from "@model/billing";
 import { planFor } from "@model/billing";
-import { readJson } from "../utils/http";
+import { readJson } from "@services/utils/http";
 import {
     billingSummary,
     changePlan,
@@ -13,7 +13,7 @@ import {
     resumeSubscription,
     stripeReady,
     topupUrl,
-} from "../core/billing";
+} from "@services/core/billing";
 import { requireWorkspace, type WorkspaceEnv } from "./middleware";
 
 // One router for the whole plan surface. /features is its own file; this is /billing/*.

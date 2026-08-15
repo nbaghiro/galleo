@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getContext } from "@ui/keys";
-import { publishRoute } from "../stores/route-context";
+import { publishRoute } from "@app/stores/route-context";
 
 describe("publishRoute", () => {
     it("maps each root-relative route to its context key", () => {

@@ -8,7 +8,7 @@ import {
     elementCatalog,
     layoutCatalog,
     themeCatalog,
-} from "../catalog";
+} from "@services/core/ai/prompts/catalog";
 
 describe("elementCatalog", () => {
     const out = elementCatalog();

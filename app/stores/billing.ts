@@ -1,8 +1,8 @@
 import { createSignal } from "solid-js";
 import type { Interval, PlanId } from "@model/billing";
 import type { CreditPackId } from "@model/billing";
-import type { BillingState } from "../api";
-import { api } from "../api";
+import type { BillingState } from "@app/api";
+import { api } from "@app/api";
 
 const [billing, setBilling] = createSignal<BillingState | null>(null);
 export { billing };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pickModel, summarizeSteps } from "../models";
+import { pickModel, summarizeSteps } from "@app/stores/models";
 
 const SERVED = ["google:gemini-3.5-flash", "anthropic:claude-opus-5"];
 const DEFAULTS = { outline: "google:gemini-3.5-flash", section: "google:gemini-3.5-flash" };

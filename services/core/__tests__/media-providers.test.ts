@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { stockReady } from "../media";
+import { stockReady } from "@services/core/media";
 
 describe("stockReady", () => {
     afterEach(() => {

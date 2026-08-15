@@ -2,9 +2,9 @@ import { Hono } from "hono";
 import type { ArtifactInput, ArtifactPage, ContentPatch } from "@model/artifact";
 import { featuresFor, isUnlimited, limit } from "@model/billing";
 import { TEMPLATE_INDEX } from "@model/templates";
-import { readJson } from "../utils/http";
-import { currentWorkspace } from "../core/accounts";
-import { recordArtifactVisit, recordTemplateUse } from "../core/visits";
+import { readJson } from "@services/utils/http";
+import { currentWorkspace } from "@services/core/accounts";
+import { recordArtifactVisit, recordTemplateUse } from "@services/core/visits";
 import {
     applyContentOps,
     createArtifact,
@@ -22,7 +22,7 @@ import {
     setTrashed,
     updateArtifact,
     windowOf,
-} from "../core/artifacts";
+} from "@services/core/artifacts";
 import { requireUser, requireWorkspace, type WorkspaceEnv } from "./middleware";
 
 export const artifacts = new Hono<WorkspaceEnv>();

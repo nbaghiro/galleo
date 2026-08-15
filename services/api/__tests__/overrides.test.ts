@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
-import { overridesFrom } from "../middleware";
-import { MODEL_HEADER } from "../../core/models";
+import { overridesFrom } from "@services/api/middleware";
+import { MODEL_HEADER } from "@services/core/models";
 
 const app = new Hono().post("/echo", (c) => c.json(overridesFrom(c)));
 

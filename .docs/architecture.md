@@ -58,10 +58,12 @@ website/    a separate public marketing build (served at /)
 ```
 
 Path aliases are directory aliases: `@model/*`→`model/*`, `@engine`→
-`canvas/engine`, `@elements`→`canvas/elements`, `@canvas`→`canvas`, `@editor`→`editor` — plus the one
-file alias `@themes`→`model/theme.ts` (the whole theme contract is a single file). No `index.ts`
-barrels — every concept is a named file. (`services` import each other by relative path.) Dependency
-direction: `model ← canvas ← editor ← app`; canvas imports only model; services imports only model.
+`canvas/engine`, `@elements`→`canvas/elements`, `@canvas`→`canvas`, `@ui`→`ui`, `@editor`→`editor`,
+`@app`→`app`, `@services`→`services` — plus the one file alias `@themes`→`model/theme.ts` (the whole
+theme contract is a single file). No `index.ts` barrels — every concept is a named file. Cross-directory
+imports use aliases; same-directory siblings stay relative (enforced by
+`import/no-relative-parent-imports`). Dependency direction: `model ← canvas ← ui ← editor ← app`; canvas
+imports only model; services imports only model.
 
 ---
 

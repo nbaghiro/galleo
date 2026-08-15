@@ -20,11 +20,23 @@ const PROBES = [
         source: 'import { Editor } from "@editor/Editor";\nexport const probe = Editor;\n',
     },
     {
+        law: "outer layering (alias form)",
+        under: "app",
+        violation: "app → @services",
+        source: 'import { listArtifacts } from "@services/core/artifacts";\nexport const probe = listArtifacts;\n',
+    },
+    {
         law: "services layer",
         under: join("services", "core"),
         violation: "core → api",
-        // relative form: a specifier inside services never carries the `services/` prefix
+        // relative form stays banned even though the canonical spelling is now @services/…
         source: 'import { requireUser } from "../../api/middleware";\nexport const probe = requireUser;\n',
+    },
+    {
+        law: "services layer (alias form)",
+        under: join("services", "core"),
+        violation: "core → @services/api",
+        source: 'import { requireUser } from "@services/api/middleware";\nexport const probe = requireUser;\n',
     },
     {
         law: "core-is-not-routes",

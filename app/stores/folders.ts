@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
 import { resolveTheme } from "@themes";
-import { api, type ApiFolder } from "../api";
+import { api, type ApiFolder } from "@app/api";
 import { appTheme } from "./theme";
 
 const [folders, setFolders] = createSignal<ApiFolder[]>([]);

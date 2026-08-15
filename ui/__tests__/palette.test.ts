@@ -8,8 +8,8 @@ import {
     type Bucket,
     type DisplayOpts,
     type Row,
-} from "../palette-model";
-import { slashAlias, type KeyCtx } from "../keys";
+} from "@ui/palette-model";
+import { slashAlias, type KeyCtx } from "@ui/keys";
 
 const row = (id: string, title: string, group: Row["group"], slash?: string): Row => ({
     id,

@@ -12,7 +12,7 @@ import {
     loadArtifactWindow,
     onLoadSections,
 } from "@editor/core/store";
-import { flushAutosave, installAutosave } from "../save";
+import { flushAutosave, installAutosave } from "@app/stores/save";
 
 const shell: ArtifactShell = { format: "deck", theme: "studio" };
 const sec = (id: string): Section => sectionOf(emptyRegion(), { id });

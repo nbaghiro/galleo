@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rewriteTextParts, translateTextParts } from "../text";
+import { rewriteTextParts, translateTextParts } from "@services/core/ai/prompts/text";
 
 describe("rewriteTextParts", () => {
     it("uses the persona + hard return-only rule and carries the instruction and text", () => {

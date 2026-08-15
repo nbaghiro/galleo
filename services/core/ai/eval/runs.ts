@@ -5,8 +5,8 @@ import { and, desc, eq, lt, sql } from "drizzle-orm";
 import type { EvalCheck, EvalConfig, EvalRun, EvalRunSummary, EvalStatus } from "@model/eval";
 import type { Section } from "@model/artifact";
 import { LEAD_SECTIONS, tokensOf } from "@model/eval";
-import { db } from "../../../db/client";
-import { schema } from "../../../db/schema";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
 
 // Who can reach the playground. A single seeded account rather than a role or an env var: there is
 // no staff concept in @model/workspace, and the eval tools are not something a customer should be

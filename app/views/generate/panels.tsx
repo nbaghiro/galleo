@@ -12,8 +12,8 @@ import {
     setBriefField,
     setGen,
     setMustInclude,
-} from "../../stores/generate";
-import { Credits } from "../../components/credits";
+} from "@app/stores/generate";
+import { Credits } from "@app/components/credits";
 
 const FIELDS = [
     ["Goal", "goal", "what it has to achieve"],

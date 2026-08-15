@@ -1,10 +1,10 @@
 import type { Context, MiddlewareHandler } from "hono";
 import { getCookie } from "hono/cookie";
 import type { User, WorkspaceRole } from "@model/workspace";
-import { SESSION_COOKIE } from "../utils/auth";
-import { currentUser, currentWorkspace, type WorkspaceRow } from "../core/accounts";
-import { roleOf } from "../core/workspaces";
-import { MODEL_HEADER, parseOverrides, type ModelOverrides } from "../core/models";
+import { SESSION_COOKIE } from "@services/utils/auth";
+import { currentUser, currentWorkspace, type WorkspaceRow } from "@services/core/accounts";
+import { roleOf } from "@services/core/workspaces";
+import { MODEL_HEADER, parseOverrides, type ModelOverrides } from "@services/core/models";
 
 // The api layer's shared guard: the only non-resource file here. It exists because the gate needs
 // both hono and a database read, and domain/ may not import hono.

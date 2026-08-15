@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assemblePack, chunkText, type RetrievedChunk } from "../context";
+import { assemblePack, chunkText, type RetrievedChunk } from "@services/core/context";
 
 const para = (ch: string, len: number): string => ch.repeat(len);
 

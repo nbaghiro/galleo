@@ -13,15 +13,15 @@ import {
 import type { IconItem, MediaGenStyle, MediaItem, MediaKind, MediaProvider } from "@model/media";
 import { KIND_PROVIDERS, MEDIA_ASPECTS, MEDIA_GEN_STYLES } from "@model/media";
 import { editorTokens } from "@editor/core/store";
-import { api, streamGenerateMedia, streamGenerateVideo, type MediaProvidersState } from "../api";
+import { api, streamGenerateMedia, streamGenerateVideo, type MediaProvidersState } from "@app/api";
 import {
     closeMediaPicker,
     mediaRequest,
     pickMedia,
     pickMediaIcon,
     removeMedia,
-} from "../stores/media";
-import { overlayThemeVars } from "../stores/theme";
+} from "@app/stores/media";
+import { overlayThemeVars } from "@app/stores/theme";
 import { CloseIcon, SparkleIcon, TrashIcon } from "@ui/icons";
 import { Modal } from "@ui/overlay";
 import { Button, Chip, Eyebrow, IconButton } from "@ui/button";

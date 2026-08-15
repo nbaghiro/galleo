@@ -11,7 +11,7 @@ import type {
 } from "@model/ai";
 import type { ArtifactContent, Section, ElementInstance } from "@model/artifact";
 import type { ModelTier } from "@model/billing";
-import { modelNote, type AiTask, type ModelOverrides } from "../models";
+import { modelNote, type AiTask, type ModelOverrides } from "@services/core/models";
 import { insertSectionParts, sectionParts, sectionPlanParts, surfaceOf } from "./prompts/generate";
 import { runChat } from "./chat";
 import type { ImageOptions } from "./images";

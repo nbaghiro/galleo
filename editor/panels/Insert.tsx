@@ -14,13 +14,13 @@ import {
     duplicateSectionAt,
     moveSectionBy,
     removeSectionAt,
-} from "../core/store";
+} from "@editor/core/store";
 import { Icon } from "@ui/icons";
 import { FloatingPanel, Popover } from "@ui/overlay";
 import { PRESETS } from "@elements/compose";
 import { getElement } from "@elements/spec";
 import { previewSvg } from "@elements/previews";
-import { startDrag, drag } from "../core/dnd";
+import { startDrag, drag } from "@editor/core/dnd";
 
 export const EmptyRegionAdd: Component = () => {
     const [open, setOpen] = createSignal(false);

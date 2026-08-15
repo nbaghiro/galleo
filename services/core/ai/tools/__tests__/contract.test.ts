@@ -11,7 +11,7 @@ import {
     type Tool,
     type ToolContext,
     type WorkspaceReader,
-} from "../../tools";
+} from "@services/core/ai/tools";
 
 // imports only the contract (not the tool modules), so the registry starts empty
 

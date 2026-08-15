@@ -1,4 +1,4 @@
-import { recordParts } from "../meter";
+import { recordParts } from "@services/core/ai/meter";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import type { GenerateInput } from "@model/ai";
 

@@ -1,11 +1,11 @@
 import type { ModelTier } from "@model/billing";
 import { generateText } from "ai";
-import { implement } from "../tools";
-import { modelFor, type ModelOverrides } from "../../models";
-import { modelCall } from "../provider";
-import { rewriteTextParts, translateTextParts } from "../prompts/text";
+import { implement } from "@services/core/ai/tools";
+import { modelFor, type ModelOverrides } from "@services/core/models";
+import { modelCall } from "@services/core/ai/provider";
+import { rewriteTextParts, translateTextParts } from "@services/core/ai/prompts/text";
 import type { Section } from "@model/artifact";
-import { findPassage, replacePassage, textNodes } from "../locate";
+import { findPassage, replacePassage, textNodes } from "@services/core/ai/locate";
 
 interface TextOpts {
     models?: ModelOverrides;

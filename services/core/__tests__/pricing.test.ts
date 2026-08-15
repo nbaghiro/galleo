@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COST_MULTIPLIERS, costMultiplier, DEFAULT_MODELS, MODELS } from "../models";
+import { COST_MULTIPLIERS, costMultiplier, DEFAULT_MODELS, MODELS } from "@services/core/models";
 
 describe("costMultiplier", () => {
     it("prices the default model at exactly the baseline, so an untouched run bills as before", () => {

@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { ApiError } from "../api";
+import { ApiError } from "@app/api";
 
 // One place every failed AI action reports to. The server passes the provider's own message through,
 // which is sometimes plain ("no credits remaining") and sometimes jargon ("Grammar compilation timed

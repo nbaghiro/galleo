@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { record, recordTokens, tracing, withMeter, withStep } from "../meter";
+import { record, recordTokens, tracing, withMeter, withStep } from "@services/core/ai/meter";
 
 const FLASH = "google:gemini-3.5-flash";
 

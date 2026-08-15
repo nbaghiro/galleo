@@ -9,8 +9,8 @@ import {
     createFolderTool,
     shareArtifactTool,
     exportArtifactTool,
-} from "../manage";
-import { makeContext, type Tool } from "../../tools";
+} from "@services/core/ai/tools/manage";
+import { makeContext, type Tool } from "@services/core/ai/tools";
 
 async function runTool<I, R>(tool: Tool<I, R>, input: I): Promise<R> {
     const gen = tool.run(input, makeContext({ image: {} }));

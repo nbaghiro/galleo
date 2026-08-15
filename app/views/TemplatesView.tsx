@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { Eyebrow } from "@ui/button";
-import { Sidebar, SidebarToggle } from "../components/Sidebar";
-import { TemplateGallery } from "../components/TemplateGallery";
+import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
+import { TemplateGallery } from "@app/components/TemplateGallery";
 
 export const TemplatesView: Component = () => (
     <div class="flex h-full">

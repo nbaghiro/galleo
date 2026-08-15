@@ -2,9 +2,9 @@ import type { Component } from "solid-js";
 import { Show } from "solid-js";
 import { Button, Eyebrow } from "@ui/button";
 import { Modal } from "@ui/overlay";
-import { appError, dismissError } from "../stores/errors";
-import { go } from "../stores/navigate";
-import { overlayThemeVars } from "../stores/theme";
+import { appError, dismissError } from "@app/stores/errors";
+import { go } from "@app/stores/navigate";
+import { overlayThemeVars } from "@app/stores/theme";
 
 // Every AI action reports here, so a failed turn says what happened instead of leaving the studio
 // parked with nothing to read.

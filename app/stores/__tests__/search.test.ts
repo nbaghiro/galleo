@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SearchHit } from "@model/artifact";
-import { loadLibrary } from "../library";
+import { loadLibrary } from "@app/stores/library";
 import {
     cachedHits,
     clearSearchCache,
@@ -11,7 +11,7 @@ import {
     putHits,
     reconcile,
     SEARCH_LIMIT,
-} from "../search";
+} from "@app/stores/search";
 
 interface FetchCall {
     url: string;

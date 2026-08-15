@@ -1,9 +1,9 @@
 import type { ModelTier } from "@model/billing";
 import { generateText } from "ai";
-import { implement } from "../tools";
-import { modelFor, type ModelOverrides } from "../../models";
-import { modelCall } from "../provider";
-import { refinePromptParts, themeContext, type RefineKind } from "../prompts/refine";
+import { implement } from "@services/core/ai/tools";
+import { modelFor, type ModelOverrides } from "@services/core/models";
+import { modelCall } from "@services/core/ai/provider";
+import { refinePromptParts, themeContext, type RefineKind } from "@services/core/ai/prompts/refine";
 
 interface RefineOpts {
     models?: ModelOverrides;

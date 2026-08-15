@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { api, type LinkSummary } from "../api";
+import { api, type LinkSummary } from "@app/api";
 
 const [links, setLinks] = createSignal<LinkSummary[]>([]);
 const [linksLoaded, setLinksLoaded] = createSignal(false);

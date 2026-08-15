@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import type { ThemeInput } from "@themes";
-import { db } from "../db/client";
-import { schema } from "../db/schema";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
 
 // Per-workspace custom themes; the built-in library lives in code (@themes).
 

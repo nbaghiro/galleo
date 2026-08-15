@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { frameWidthFor, hitRegion, outlineEditable, railMode } from "../layout";
+import { frameWidthFor, hitRegion, outlineEditable, railMode } from "@app/views/generate/layout";
 
 describe("frameWidthFor", () => {
     it("caps a deck at its reading width on a wide board", () => {

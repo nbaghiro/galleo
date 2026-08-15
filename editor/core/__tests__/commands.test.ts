@@ -1,7 +1,7 @@
-import "../commands"; // side-effect: register editor commands + keymap
+import "@editor/core/commands"; // side-effect: register editor commands + keymap
 import { describe, expect, it } from "vitest";
 import { allCommands, bindingLabel, GROUP_ORDER, resolveChord, type KeyCtx } from "@ui/keys";
-import { commit, editor } from "../store";
+import { commit, editor } from "@editor/core/store";
 
 describe("editor command registry", () => {
     const cmds = allCommands();

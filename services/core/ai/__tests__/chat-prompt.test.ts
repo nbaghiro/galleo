@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChatGeneration } from "@model/ai";
 import type { ArtifactContent } from "@model/artifact";
-import { chatSystem } from "../prompts/chat";
+import { chatSystem } from "@services/core/ai/prompts/chat";
 
 const content = (n: number): ArtifactContent => ({
     format: "deck",

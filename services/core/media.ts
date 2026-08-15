@@ -12,8 +12,8 @@ import type {
 import { KIND_PROVIDERS } from "@model/media";
 import type { FeatureOverrides, ModelTier } from "@model/billing";
 import { featuresFor, isUnlimited } from "@model/billing";
-import { db } from "../db/client";
-import { schema } from "../db/schema";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
 
 // Everything media: the stock/icon provider proxies, AI image + video generation, and the workspace
 // asset library those write into. api/media.ts is the HTTP surface over this.

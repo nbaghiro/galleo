@@ -5,8 +5,8 @@ import { useParams, useSearchParams } from "@solidjs/router";
 import { registerThemes, resolveTheme, themeCssVars } from "@themes";
 import { PresentSurface } from "@ui/present";
 import { UiThemeProvider } from "@ui/icons";
-import { api, type PublicContent } from "../app/api";
-import { setFavicon } from "../app/stores/theme";
+import { api, type PublicContent } from "@app/api";
+import { setFavicon } from "@app/stores/theme";
 
 const Surface: Component<{
     artifact: ArtifactContent;

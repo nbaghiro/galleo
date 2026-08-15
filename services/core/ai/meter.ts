@@ -1,6 +1,6 @@
 import type { ModelSpan, PromptPart } from "@model/ai";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { getModel } from "../models";
+import { getModel } from "@services/core/models";
 
 // What a turn actually did. Every model call reports here through the provider middleware, so
 // nothing has to be threaded down through RunOpts or remembered at a call site: a new call site is

@@ -1,12 +1,12 @@
 import { and, cosineDistance, desc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import type { ArtifactContent } from "@model/artifact";
 import { TEMPLATE_INDEX } from "@model/templates";
-import { db } from "../db/client";
-import { schema } from "../db/schema";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
 import { embedTexts, type Embedder } from "./ai/embed";
 import { extractArtifactText } from "./ai/run";
 import { templateBody } from "./templates";
-import { fetchWebpage } from "../utils/webpage";
+import { fetchWebpage } from "@services/utils/webpage";
 
 // The context library: reusable, workspace-shared grounding built from files, links, artifacts,
 // and pasted text — one ingestion path (extract → chunk → embed) whatever the source, and one

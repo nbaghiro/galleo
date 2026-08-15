@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TEMPLATE_INDEX } from "@model/templates";
-import { template, templateBody } from "../templates";
+import { template, templateBody } from "@services/core/templates";
 
 // The catalog is split in two: @model/templates carries the client-facing index (edge-safe, no
 // bodies), and core/templates.ts holds the bodies and resolves an id to one. Nothing but this test

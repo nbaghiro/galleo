@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import type { ArtifactContent, ArtifactInput, ElementInstance } from "@model/artifact";
 import type { TurnEvent, TurnRequest } from "@model/ai";
-import { ApiError, api, streamTurn } from "../api";
+import { ApiError, api, streamTurn } from "@app/api";
 
 interface FetchCall {
     url: string;

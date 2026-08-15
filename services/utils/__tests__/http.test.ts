@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import type { PlanBearer } from "@model/billing";
-import { checkLimit, requireFeature } from "../http";
+import { checkLimit, requireFeature } from "@services/utils/http";
 
 describe("plan guards", () => {
     // Hono seals its matcher on the first request, so every probe route is registered up front.

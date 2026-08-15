@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
-import { db } from "../db/client";
-import { schema } from "../db/schema";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
 
 // What a user reached for, one upsert counter per (user, kind, ref): artifact opens are the read
 // clock behind "Recent" (updated_at is an edit clock), template uses rank the catalog by measured

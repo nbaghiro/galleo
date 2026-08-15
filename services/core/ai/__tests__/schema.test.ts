@@ -9,7 +9,7 @@ import {
     zRewrite,
     zTokens,
     zTheme,
-} from "../schema";
+} from "@services/core/ai/schema";
 
 describe("zElement", () => {
     it("accepts a { type, data } instance; data is an OPEN record (extra keys tolerated)", () => {

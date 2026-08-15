@@ -8,7 +8,7 @@ import {
     replacePassage,
     setImageSrc,
     textNodes,
-} from "../locate";
+} from "@services/core/ai/locate";
 
 const text = (t: string): ElementInstance => ({ type: "text", data: { text: t } });
 const group = (...kids: ElementInstance[]): ElementInstance => ({

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { asRole } from "@model/workspace";
-import { readJson } from "../utils/http";
+import { readJson } from "@services/utils/http";
 import {
     acceptInvite,
     inviteByToken,
@@ -15,7 +15,7 @@ import {
     setMemberRole,
     switchWorkspace,
     transferOwnership,
-} from "../core/workspaces";
+} from "@services/core/workspaces";
 import { requireRole, requireUser, requireWorkspace, type WorkspaceEnv } from "./middleware";
 
 export const workspace = new Hono<WorkspaceEnv>();

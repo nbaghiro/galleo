@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { intervalForPrice, planForPrice, priceIdFor, stripeReady } from "../billing";
+import { intervalForPrice, planForPrice, priceIdFor, stripeReady } from "@services/core/billing";
 
 const PRICE_ENV = [
     "STRIPE_SECRET_KEY",

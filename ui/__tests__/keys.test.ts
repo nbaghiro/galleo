@@ -14,7 +14,7 @@ import {
     resolveChord,
     toSteps,
     type KeyCtx,
-} from "../keys";
+} from "@ui/keys";
 
 const MOD: Partial<KeyboardEventInit> = isMac ? { metaKey: true } : { ctrlKey: true };
 

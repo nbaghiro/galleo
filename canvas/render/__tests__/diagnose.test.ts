@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ElementInstance, Section } from "@model/artifact";
 import { resolveProfile } from "@engine/profile";
-import { diagnoseSection, diagnoseSections, SPARSE_BELOW } from "../diagnose";
-import { measure } from "../../testkit";
-import "../../elements/register";
+import { diagnoseSection, diagnoseSections, SPARSE_BELOW } from "@canvas/render/diagnose";
+import { measure } from "@canvas/testkit";
+import "@elements/register";
 
 const text = (t: string): ElementInstance => ({ type: "text", data: { text: t } });
 

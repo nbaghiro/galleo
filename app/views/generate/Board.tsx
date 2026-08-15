@@ -25,8 +25,8 @@ import {
     slotSection,
     type SectionSlot,
     type SlotStatus,
-} from "../../stores/generate";
-import { Credits } from "../../components/credits";
+} from "@app/stores/generate";
+import { Credits } from "@app/components/credits";
 import { isCoarsePointer } from "@ui/viewport";
 import { outlineSection } from "@elements/blueprint";
 import { hitRegion, outlineEditable } from "./layout";

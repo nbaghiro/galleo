@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { briefParts } from "../brief";
+import { briefParts } from "@services/core/ai/prompts/brief";
 
 describe("briefParts", () => {
     it("carries the raw prompt and ends with the draft instruction", () => {

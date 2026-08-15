@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
-import { CHECKS, failures, runChecks } from "../checks";
-import { galleo } from "../../corpus/galleo";
+import { CHECKS, failures, runChecks } from "@services/core/ai/eval/checks";
+import { galleo } from "@services/core/ai/corpus/galleo";
 
 const text = (t: string): ElementInstance => ({ type: "text", data: { text: t } });
 

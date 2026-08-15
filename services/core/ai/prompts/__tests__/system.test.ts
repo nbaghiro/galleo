@@ -9,7 +9,7 @@ import {
     insertionContext,
     neighbors,
     stack,
-} from "../system";
+} from "@services/core/ai/prompts/system";
 
 const txt = (text: string): ElementInstance => ({ type: "text", data: { text } });
 const sec = (id: string, title?: string): Section => ({

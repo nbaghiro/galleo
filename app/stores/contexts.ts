@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { api, type ContextItemMeta, type ContextSummary, type NewContextItem } from "../api";
+import { api, type ContextItemMeta, type ContextSummary, type NewContextItem } from "@app/api";
 import { reportError } from "./errors";
 
 // The context library, client side: one cached list + per-context item loads. Mutations reload

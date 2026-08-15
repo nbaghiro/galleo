@@ -4,12 +4,12 @@ import { useNavigate } from "@solidjs/router";
 import type { Template, TemplateEntry } from "@model/templates";
 import { TEMPLATE_INDEX } from "@model/templates";
 import { Eyebrow } from "@ui/button";
-import { api } from "../../api";
-import { appTheme } from "../../stores/theme";
-import { reportError } from "../../stores/errors";
-import { closeGenerate } from "../../stores/generate";
-import { templatesOnce, templateUsesOnce } from "../../stores/templates";
-import { SectionThumb } from "../../components/previews";
+import { api } from "@app/api";
+import { appTheme } from "@app/stores/theme";
+import { reportError } from "@app/stores/errors";
+import { closeGenerate } from "@app/stores/generate";
+import { templatesOnce, templateUsesOnce } from "@app/stores/templates";
+import { SectionThumb } from "@app/components/previews";
 
 // The intake's second exit: the whole catalog, most-used first — popularity is measured across
 // all users (the visits table), not curated. Bodies load once for thumbnails and creation.

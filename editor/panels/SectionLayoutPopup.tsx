@@ -6,7 +6,7 @@ import { SECTION_LAYOUTS, type SectionLayout } from "@elements/layouts";
 import { setSectionBackground, setSectionBleed } from "@elements/ops";
 import { SECTION_CONTROLS } from "@elements/spec";
 import { ScaledSectionCanvas } from "@ui/section";
-import { commit, editor, editorTokens } from "../core/store";
+import { commit, editor, editorTokens } from "@editor/core/store";
 import { SchemaFields, Group } from "./SharedControlFields";
 
 export const SectionLayoutPopup: Component<{ section: string }> = (props) => {

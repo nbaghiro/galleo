@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeBrief } from "../tools/plan";
+import { normalizeBrief } from "@services/core/ai/tools/plan";
 
 describe("normalizeBrief", () => {
     const read = { goal: "g", audience: "a", tone: "t", mustInclude: ["one", "two"] };

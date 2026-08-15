@@ -12,12 +12,12 @@ import {
 import { Dynamic } from "solid-js/web";
 import { useNavigate } from "@solidjs/router";
 import { resolveTheme } from "@themes";
-import { api, type ArtifactSummary, type LinkSummary, type Visibility } from "../api";
-import { artifacts, formatLabel, loadLibrary, relativeTime } from "../stores/library";
-import { links, loadLinks } from "../stores/links";
-import { fetchHits } from "../stores/search";
-import { featuresState, loadFeatures } from "../stores/features";
-import { openShare, shareRequest } from "../stores/share";
+import { api, type ArtifactSummary, type LinkSummary, type Visibility } from "@app/api";
+import { artifacts, formatLabel, loadLibrary, relativeTime } from "@app/stores/library";
+import { links, loadLinks } from "@app/stores/links";
+import { fetchHits } from "@app/stores/search";
+import { featuresState, loadFeatures } from "@app/stores/features";
+import { openShare, shareRequest } from "@app/stores/share";
 import {
     ArrowUpRightIcon,
     CheckIcon,
@@ -33,8 +33,8 @@ import {
 import { Badge, Button, Chip, Eyebrow, IconButton } from "@ui/button";
 import { Modal } from "@ui/overlay";
 import { TextField } from "@ui/inputs";
-import { Sidebar, SidebarToggle } from "../components/Sidebar";
-import { PreviewCanvas } from "../components/previews";
+import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
+import { PreviewCanvas } from "@app/components/previews";
 
 // an artifact with every link published for it: the Shared page's unit
 interface Item {

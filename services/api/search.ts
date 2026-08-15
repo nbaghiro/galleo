@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import type { SearchResponse } from "@model/artifact";
-import { rateLimit } from "../utils/http";
-import { currentWorkspace } from "../core/accounts";
-import { recentArtifacts, searchArtifacts } from "../core/search";
+import { rateLimit } from "@services/utils/http";
+import { currentWorkspace } from "@services/core/accounts";
+import { recentArtifacts, searchArtifacts } from "@services/core/search";
 import { requireUser, type AuthedEnv } from "./middleware";
 
 export const search = new Hono<AuthedEnv>();

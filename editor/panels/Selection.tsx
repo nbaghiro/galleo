@@ -28,10 +28,10 @@ import {
     duplicateSectionAt,
     moveSectionBy,
     removeSectionAt,
-} from "../core/store";
-import { startDrag, drag } from "../core/dnd";
-import { openSectionPrompt } from "../core/ai";
-import { pickMedia } from "../core/media";
+} from "@editor/core/store";
+import { startDrag, drag } from "@editor/core/dnd";
+import { openSectionPrompt } from "@editor/core/ai";
+import { pickMedia } from "@editor/core/media";
 import { SectionLayoutPopup } from "./SectionLayoutPopup";
 import { Icon } from "@ui/icons";
 import {

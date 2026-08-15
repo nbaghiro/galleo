@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { TemplateRef, TurnEvent } from "@model/ai";
-import { findTemplatesTool } from "../library";
-import { makeContext } from "../../tools";
+import { findTemplatesTool } from "@services/core/ai/tools/library";
+import { makeContext } from "@services/core/ai/tools";
 import { TEMPLATE_INDEX } from "@model/templates";
 
 async function find(query?: string): Promise<TemplateRef[]> {

@@ -3,8 +3,8 @@ import { createMemo, createSignal, For, Show } from "solid-js";
 import { Button, Chip, Eyebrow } from "@ui/button";
 import { Modal } from "@ui/overlay";
 import { Dropdown, type DropdownOption } from "@ui/select";
-import { featuresState } from "../stores/features";
-import { artifacts, relativeTime } from "../stores/library";
+import { featuresState } from "@app/stores/features";
+import { artifacts, relativeTime } from "@app/stores/library";
 import { ArtifactThumb } from "./previews";
 import {
     chooseModel,
@@ -14,9 +14,9 @@ import {
     modelLabel,
     modelRuns,
     type RunRecord,
-} from "../stores/model-usage";
-import { overlayThemeVars } from "../stores/theme";
-import { clearModelOverrides, overrideCount } from "../stores/models";
+} from "@app/stores/model-usage";
+import { overlayThemeVars } from "@app/stores/theme";
+import { clearModelOverrides, overrideCount } from "@app/stores/models";
 
 // in the order a generation walks through them
 const STEPS: { task: string; label: string; note: string }[] = [

@@ -2,8 +2,8 @@ import { z } from "zod";
 import { generateText, Output } from "ai";
 import type { ArtifactContent, Section } from "@model/artifact";
 import type { EvalJudgement, Rubric, RubricQuestion } from "@model/eval";
-import { modelCall } from "../provider";
-import { contentOf } from "../quality";
+import { modelCall } from "@services/core/ai/provider";
+import { contentOf } from "@services/core/ai/quality";
 import { RUBRIC, questionsFor } from "./rubric";
 
 // The judge answers a checklist rather than assigning a score, so every verdict points at a

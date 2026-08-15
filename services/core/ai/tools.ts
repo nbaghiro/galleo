@@ -3,7 +3,7 @@ import type { ToolId, ToolSurface } from "@model/tools";
 import type { ToolInput } from "@model/tools";
 import type { ToolSpec } from "@model/tools";
 import { TOOL_SPEC, TOOLS } from "@model/tools";
-import type { ModelOverrides } from "../models";
+import type { ModelOverrides } from "@services/core/models";
 import type { ModelTier } from "@model/billing";
 import type { ArtifactRef, TurnEvent } from "@model/ai";
 import type { ArtifactContent } from "@model/artifact";

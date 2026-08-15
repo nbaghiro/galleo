@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { GenerateInput } from "@model/ai";
-import { ARCS, arcGuidance, chooseArc } from "../arcs";
+import { ARCS, arcGuidance, chooseArc } from "@services/core/ai/prompts/arcs";
 
 describe("chooseArc", () => {
     it("routes a pitch goal to the pitch arc", () => {

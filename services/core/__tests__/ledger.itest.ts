@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { desc, eq } from "drizzle-orm";
 import { creditLimitFor } from "@model/billing";
-import { seedUser } from "../../__tests__/harness";
-import { db } from "../../db/client";
-import { schema } from "../../db/schema";
-import { chargeCredits, rollCreditWindow, settleCredits } from "../ledger";
+import { seedUser } from "@services/__tests__/harness";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
+import { chargeCredits, rollCreditWindow, settleCredits } from "@services/core/ledger";
 
 const wsRow = async (id: string) => {
     const [row] = await db.select().from(schema.workspaces).where(eq(schema.workspaces.id, id));

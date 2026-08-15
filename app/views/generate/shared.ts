@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
 import { viewportTier } from "@ui/viewport";
-import type { Surface } from "../../stores/generate";
+import type { Surface } from "@app/stores/generate";
 import { frameWidthFor } from "./layout";
 
 export const reduced = (): boolean =>

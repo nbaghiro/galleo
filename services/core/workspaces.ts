@@ -1,9 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, isNull, gt, sql } from "drizzle-orm";
-import { db } from "../db/client";
-import { schema } from "../db/schema";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
 import { asRole, type WorkspaceRole } from "@model/workspace";
-import { appUrl } from "../utils/env";
+import { appUrl } from "@services/utils/env";
 import { sendWorkspaceInvite } from "./mail";
 import type { WorkspaceRow } from "./accounts";
 

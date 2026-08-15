@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { createSignal, Show } from "solid-js";
-import { user } from "../stores/auth";
-import { api } from "../api";
+import { user } from "@app/stores/auth";
+import { api } from "@app/api";
 
 // OAuth users land verified, so they never see it
 export const VerifyBanner: Component = () => {

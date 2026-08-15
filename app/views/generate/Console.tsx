@@ -2,9 +2,9 @@ import type { Component } from "solid-js";
 import { createEffect, createSignal, For, Show } from "solid-js";
 import { Button, Eyebrow, Spinner } from "@ui/button";
 import { TextArea } from "@ui/inputs";
-import { busy, sendChat, stopChat, thread } from "../../stores/chat";
-import { builtCount, gen, pauseBuild, runLocked } from "../../stores/generate";
-import { MessageView } from "../ChatPanel";
+import { busy, sendChat, stopChat, thread } from "@app/stores/chat";
+import { builtCount, gen, pauseBuild, runLocked } from "@app/stores/generate";
+import { MessageView } from "@app/views/ChatPanel";
 
 const PLAN_HINTS = [
     "Add a pricing section after the traction one",

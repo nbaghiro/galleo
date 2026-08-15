@@ -11,10 +11,10 @@ import {
     planFor,
     visiblePlans,
 } from "@model/billing";
-import { db } from "../db/client";
-import { warn } from "../utils/env";
-import { schema } from "../db/schema";
-import { appUrl } from "../utils/env";
+import { db } from "@services/db/client";
+import { warn } from "@services/utils/env";
+import { schema } from "@services/db/schema";
+import { appUrl } from "@services/utils/env";
 import type { WorkspaceRow } from "./accounts";
 
 // Plans, subscriptions, credit packs, and the Stripe webhook that keeps the workspace row in step

@@ -15,12 +15,12 @@ import { Badge, Button, Chip, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { Segmented, Toggle } from "@ui/inputs";
 import { Dropdown, type DropdownOption } from "@ui/select";
 import { EmptyState, Meter, StatusDot } from "@ui/status";
-import { PreviewCanvas, SectionThumb } from "../components/previews";
+import { PreviewCanvas, SectionThumb } from "@app/components/previews";
 import { Icon } from "@ui/icons";
-import { api, setTraceTurns, traceTurns } from "../api";
-import { generateOpen, openGenerate } from "../stores/generate";
-import { appTheme } from "../stores/theme";
-import { fitChecks } from "../stores/eval-fit";
+import { api, setTraceTurns, traceTurns } from "@app/api";
+import { generateOpen, openGenerate } from "@app/stores/generate";
+import { appTheme } from "@app/stores/theme";
+import { fitChecks } from "@app/stores/eval-fit";
 
 // A pipeline inspector: every call the run made down the left, the exact bytes of the selected call
 // in the middle, its verdict on the right. The system prompt is shown as the fragments it was
@@ -533,8 +533,14 @@ const CallRail: Component<{
                         const t = createMemo(() => tokensOf(calls()));
                         const first = createMemo(() => calls()[0]);
                         const sel = createMemo(() => props.step === s);
+                        // scrolling the preview moves the selection here, so keep it in view
+                        let row!: HTMLButtonElement;
+                        createEffect(() => {
+                            if (sel()) row.scrollIntoView({ block: "nearest" });
+                        });
                         return (
                             <button
+                                ref={row}
                                 type="button"
                                 class={`block w-full border-b border-line py-1.5 pr-3 pl-2.5 text-left last:border-b-0 hover:bg-canvas ${
                                     sel() ? "border-l-2 border-l-accent bg-canvas pl-2" : ""
@@ -779,6 +785,7 @@ const Rendered: Component<{
                     format={format}
                     selected={props.step.startsWith("section:") ? props.step.slice(8) : undefined}
                     onSelect={(id) => props.onPick(`section:${id}`)}
+                    onActive={(id) => props.onPick(`section:${id}`)}
                     mark={(id) => {
                         if (props.checks.some((c) => c.target === `section:${id}` && !c.pass))
                             return "fail";
@@ -1055,16 +1062,18 @@ export const EvalView: Component = () => {
 
     return (
         <main class="h-dvh overflow-hidden bg-canvas text-ink">
-            <div class="mx-auto flex h-full max-w-360 flex-col">
+            <div class="flex h-full flex-col">
                 <Show
                     when={!open()}
                     fallback={
+                        // full-bleed: the rail and verdict are fixed columns, so every pixel the
+                        // list page spends on centring margins goes to the preview here
                         <div class="flex min-h-0 flex-1 flex-col px-1 py-2 md:px-1.5 md:py-2.5">
                             <RunDetail id={open()!} onClose={() => setOpen(null)} />
                         </div>
                     }
                 >
-                    <div class="flex min-h-0 flex-1 flex-col gap-3 px-2 py-4 md:px-3 md:py-5">
+                    <div class="mx-auto flex w-full min-h-0 max-w-360 flex-1 flex-col gap-3 px-2 py-4 md:px-3 md:py-5">
                         <header class="flex flex-none flex-wrap items-center gap-x-3 gap-y-2 rounded-[var(--radius)] border border-line bg-panel px-4 py-2.5">
                             <div class="min-w-0">
                                 <Eyebrow as="div">galleo / eval</Eyebrow>

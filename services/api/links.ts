@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { getCookie } from "hono/cookie";
-import { SESSION_COOKIE } from "../utils/auth";
-import { readJson, requireFeature } from "../utils/http";
-import { currentUser, currentWorkspace } from "../core/accounts";
+import { SESSION_COOKIE } from "@services/utils/auth";
+import { readJson, requireFeature } from "@services/utils/http";
+import { currentUser, currentWorkspace } from "@services/core/accounts";
 import {
     addRecipients,
     analyticsFor,
@@ -28,7 +28,7 @@ import {
     type LinkBody,
     type RecipientView,
     type ViewerContext,
-} from "../core/links";
+} from "@services/core/links";
 import { requireUser, requireWorkspace, type WorkspaceEnv } from "./middleware";
 
 export const links = new Hono<WorkspaceEnv>();

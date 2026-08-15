@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import type { ThemeInput } from "@themes";
-import { readJson, requireFeature } from "../utils/http";
-import { currentWorkspace } from "../core/accounts";
-import { createTheme, deleteTheme, listThemes, updateTheme } from "../core/themes";
+import { readJson, requireFeature } from "@services/utils/http";
+import { currentWorkspace } from "@services/core/accounts";
+import { createTheme, deleteTheme, listThemes, updateTheme } from "@services/core/themes";
 import { requireUser, requireWorkspace, type WorkspaceEnv } from "./middleware";
 
 export const themes = new Hono<WorkspaceEnv>();

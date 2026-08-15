@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchFontTtf } from "../fonts";
+import { fetchFontTtf } from "@canvas/render/fonts";
 
 const cssWithTtf = "/* latin */ @font-face { src: url(https://fonts.gstatic.com/f.ttf); }";
 

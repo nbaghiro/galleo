@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { refinePromptParts, themeContext } from "../refine";
+import { refinePromptParts, themeContext } from "@services/core/ai/prompts/refine";
 
 describe("refinePromptParts", () => {
     it("names the craft for the kind, so the model adds direction rather than adjectives", () => {

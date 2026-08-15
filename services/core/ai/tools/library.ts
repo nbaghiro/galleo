@@ -1,6 +1,6 @@
 import type { ArtifactRef, TemplateRef, TurnEvent } from "@model/ai";
-import { implement } from "../tools";
-import { artifactDigest, artifactSpine } from "../prompts/system";
+import { implement } from "@services/core/ai/tools";
+import { artifactDigest, artifactSpine } from "@services/core/ai/prompts/system";
 import { TEMPLATE_INDEX } from "@model/templates";
 
 export const findArtifactsTool = implement(

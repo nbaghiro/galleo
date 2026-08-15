@@ -1,8 +1,8 @@
 import type { Component } from "solid-js";
 import { createSignal, onMount, Show } from "solid-js";
-import { login, signup, resetPassword } from "../stores/auth";
-import { api } from "../api";
-import { Visual } from "../components/previews";
+import { login, signup, resetPassword } from "@app/stores/auth";
+import { api } from "@app/api";
+import { Visual } from "@app/components/previews";
 import { TextField } from "@ui/inputs";
 import { Button, Eyebrow } from "@ui/button";
 import { Mark } from "@ui/brand";

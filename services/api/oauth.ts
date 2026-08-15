@@ -4,14 +4,14 @@ import type { Google } from "arctic";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { generateState, generateCodeVerifier, decodeIdToken } from "arctic";
 import type { AuthProvider } from "@model/workspace";
-import { appUrl } from "../utils/env";
-import { setSessionCookie } from "../utils/http";
+import { appUrl } from "@services/utils/env";
+import { setSessionCookie } from "@services/utils/http";
 import {
     googleProvider,
     linkOAuthAccount,
     oauthProvidersReady,
     OAUTH_SCOPES,
-} from "../core/accounts";
+} from "@services/core/accounts";
 
 // Failures redirect to /login?authError=<code>, which the auth page explains.
 export const oauth = new Hono();

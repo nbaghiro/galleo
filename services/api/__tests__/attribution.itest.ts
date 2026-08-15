@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { desc, eq } from "drizzle-orm";
-import { authed, seedUser } from "../../__tests__/harness";
-import { db } from "../../db/client";
-import { schema } from "../../db/schema";
-import { chargeCredits, settleCredits } from "../../core/ledger";
+import { authed, seedUser } from "@services/__tests__/harness";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
+import { chargeCredits, settleCredits } from "@services/core/ledger";
 
 async function addMember(wsId: string, role = "member"): Promise<{ userId: string }> {
     const u = await seedUser();

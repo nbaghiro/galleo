@@ -2,13 +2,13 @@ import type { Accessor, Component, JSX } from "solid-js";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import type { ArtifactContent } from "@model/artifact";
 import type { Template } from "@model/templates";
-import { api, type ArtifactSummary } from "../api";
+import { api, type ArtifactSummary } from "@app/api";
 import { Button, Chip, IconButton, Spinner } from "@ui/button";
 import { TextArea, TextField } from "@ui/inputs";
 import { Icon } from "@ui/icons";
 import { Popover } from "@ui/overlay";
-import { contextList, contextsLoaded, loadContexts } from "../stores/contexts";
-import { templatesOnce } from "../stores/templates";
+import { contextList, contextsLoaded, loadContexts } from "@app/stores/contexts";
+import { templatesOnce } from "@app/stores/templates";
 import {
     ACCEPT,
     ATTACH_ICON,

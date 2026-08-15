@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { authed, jsonInit, seedUser } from "../../__tests__/harness";
-import { db } from "../../db/client";
-import { schema } from "../../db/schema";
-import { addTextItem, createContext } from "../../core/context";
-import type { Embedder } from "../../core/ai/embed";
+import { authed, jsonInit, seedUser } from "@services/__tests__/harness";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
+import { addTextItem, createContext } from "@services/core/context";
+import type { Embedder } from "@services/core/ai/embed";
 
 const fakeEmbed: Embedder = (texts) =>
     Promise.resolve(texts.map(() => new Array<number>(768).fill(0.1)));

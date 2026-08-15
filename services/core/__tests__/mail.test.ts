@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mailReady, sendShareInvite } from "../mail";
-import type { ShareInvite } from "../mail";
+import { mailReady, sendShareInvite } from "@services/core/mail";
+import type { ShareInvite } from "@services/core/mail";
 
 const invite = (over: Partial<ShareInvite> = {}): ShareInvite => ({
     to: "guest@example.com",

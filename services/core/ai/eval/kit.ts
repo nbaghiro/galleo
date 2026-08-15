@@ -1,8 +1,8 @@
 import { writeFileSync } from "fs";
 import { generateObject } from "ai";
 import type { ZodType } from "zod";
-import { modelCall } from "../provider";
-import { out as log } from "../../../utils/env";
+import { modelCall } from "@services/core/ai/provider";
+import { out as log } from "@services/utils/env";
 
 export { log };
 

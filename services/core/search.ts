@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { ArtifactDigest, SearchHit, SearchSnippet } from "@model/artifact";
-import { db } from "../db/client";
+import { db } from "@services/db/client";
 
 // Searches the FTS columns maintained at write time by db/derived.ts.
 

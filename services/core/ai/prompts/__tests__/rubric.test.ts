@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { RUBRIC, VOICE, lengthGuidance } from "../rubric";
+import { RUBRIC, VOICE, lengthGuidance } from "@services/core/ai/prompts/rubric";
 
 describe("RUBRIC / VOICE", () => {
     it("are two distinct, non-empty guidance blocks", () => {

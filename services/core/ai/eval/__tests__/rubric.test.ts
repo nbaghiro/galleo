@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EvalJudgement } from "@model/eval";
 import { disagreements, scoreOf } from "@model/eval";
-import { RUBRIC, questionsFor } from "../rubric";
+import { RUBRIC, questionsFor } from "@services/core/ai/eval/rubric";
 
 const judgement = (answers: [string, boolean][]): EvalJudgement => ({
     target: "outline",

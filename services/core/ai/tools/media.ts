@@ -1,8 +1,8 @@
 import type { Section } from "@model/artifact";
 import type { TurnEvent } from "@model/ai";
-import { implement } from "../tools";
-import { elementTypes, findElement, setImageSrc } from "../locate";
-import { resolveImage } from "../images";
+import { implement } from "@services/core/ai/tools";
+import { elementTypes, findElement, setImageSrc } from "@services/core/ai/locate";
+import { resolveImage } from "@services/core/ai/images";
 
 // the one producer: honours the turn's stock-or-AI strategy, and refines `ref` when given one
 const generateImageTool = implement("generate-image", async function* (input, ctx) {

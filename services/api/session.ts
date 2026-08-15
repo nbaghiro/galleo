@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { LoginBody, SignupBody, ForgotBody, ResetBody } from "@model/workspace";
-import { appUrl } from "../utils/env";
-import { readJson, setSessionCookie, clearSessionCookie, rateLimit } from "../utils/http";
+import { appUrl } from "@services/utils/env";
+import { readJson, setSessionCookie, clearSessionCookie, rateLimit } from "@services/utils/http";
 import {
     authenticate,
     consumeAuthToken,
@@ -14,7 +14,7 @@ import {
     sendResetEmail,
     sendVerifyEmail,
     signUp,
-} from "../core/accounts";
+} from "@services/core/accounts";
 import { requireUser, type AuthedEnv } from "./middleware";
 
 export const session = new Hono<AuthedEnv>();

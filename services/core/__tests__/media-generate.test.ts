@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { imageGenReady } from "../media";
+import { imageGenReady } from "@services/core/media";
 
 describe("imageGenReady", () => {
     afterEach(() => {

@@ -1,6 +1,6 @@
 import type { TurnEvent } from "@model/ai";
-import { implement } from "../tools";
-import { extractArtifactText, runGenerate } from "../run";
+import { implement } from "@services/core/ai/tools";
+import { extractArtifactText, runGenerate } from "@services/core/ai/run";
 
 export const generateArtifactTool = implement(
     "generate-artifact",

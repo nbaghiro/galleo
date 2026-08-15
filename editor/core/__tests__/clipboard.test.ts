@@ -4,7 +4,7 @@ import type { ElementInstance, Target } from "@model/artifact";
 import { rowGroup } from "@model/artifact";
 import { columnFractions, getElementAt } from "@elements/ops";
 import { artifactOf, inst, sectionOf } from "@canvas/testkit";
-import { clipboardEl, copyToClipboard, hasClipboard, pasteElement } from "../clipboard";
+import { clipboardEl, copyToClipboard, hasClipboard, pasteElement } from "@editor/core/clipboard";
 
 const textOf = (el: ElementInstance | undefined): string | undefined =>
     (el?.data as { text?: string })?.text;

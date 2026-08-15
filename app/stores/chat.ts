@@ -23,7 +23,7 @@ import {
     ensureAllSections,
     selection,
 } from "@editor/core/store";
-import { api, streamTurn } from "../api";
+import { api, streamTurn } from "@app/api";
 import { appTheme, saveCustomTheme } from "./theme";
 import { openShare } from "./share";
 import { billing, loadBilling } from "./billing";

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mintVoiceToken, voiceReady, VoiceError } from "../voice";
+import { mintVoiceToken, voiceReady, VoiceError } from "@services/core/ai/voice";
 
 let savedKey: string | undefined;
 beforeEach(() => {

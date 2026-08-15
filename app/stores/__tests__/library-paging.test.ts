@@ -10,7 +10,7 @@ import {
     missingCardSections,
     nextCursor,
     seedCardSections,
-} from "../library";
+} from "@app/stores/library";
 
 interface FetchCall {
     url: string;

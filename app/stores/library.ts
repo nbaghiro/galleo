@@ -1,7 +1,7 @@
 import type { ArtifactContent, ElementInstance, Section, GenMeta } from "@model/artifact";
 import { emptyRegion } from "@model/artifact";
 import { createSignal } from "solid-js";
-import { api, type ArtifactSummary } from "../api";
+import { api, type ArtifactSummary } from "@app/api";
 import { PROFILES, resolveProfile } from "@engine/profile";
 
 const [artifacts, setArtifacts] = createSignal<ArtifactSummary[]>([]);

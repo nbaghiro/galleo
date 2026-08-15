@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import type { FolderInput } from "@model/workspace";
-import { readJson } from "../utils/http";
-import { currentWorkspace } from "../core/accounts";
-import { createFolder, deleteFolderTree, listFolders, renameFolder } from "../core/folders";
+import { readJson } from "@services/utils/http";
+import { currentWorkspace } from "@services/core/accounts";
+import { createFolder, deleteFolderTree, listFolders, renameFolder } from "@services/core/folders";
 import { requireUser, requireWorkspace, type WorkspaceEnv } from "./middleware";
 
 export const folders = new Hono<WorkspaceEnv>();

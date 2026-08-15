@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ApiError } from "../../api";
-import { describeError } from "../errors";
+import { ApiError } from "@app/api";
+import { describeError } from "@app/stores/errors";
 
 describe("describeError", () => {
     it("stays quiet when the user cancelled", () => {

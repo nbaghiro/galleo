@@ -1,7 +1,7 @@
 import type { ModelTier } from "@model/billing";
 import type { AiTask } from "@model/credits";
 import { AI_TASKS } from "@model/credits";
-import { out } from "../utils/env";
+import { out } from "@services/utils/env";
 
 export type Provider = "anthropic" | "openai" | "google" | "xai";
 

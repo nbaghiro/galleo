@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { UIBlock } from "../chat-blocks";
-import { resolveBriefs, textInsertAt } from "../chat-blocks";
+import type { UIBlock } from "@app/stores/chat-blocks";
+import { resolveBriefs, textInsertAt } from "@app/stores/chat-blocks";
 
 const text = (t: string): UIBlock => ({ k: "text", text: t });
 const tool = (id: string): UIBlock => ({ k: "tool", blockId: id, tool: id, title: id, done: true });

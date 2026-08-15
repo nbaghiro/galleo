@@ -7,8 +7,8 @@ import { FormatSwitcher } from "@ui/inputs";
 import { Icon } from "@ui/icons";
 import { Modal } from "@ui/overlay";
 import { viewportTier } from "@ui/viewport";
-import { Credits } from "../../components/credits";
-import { thread } from "../../stores/chat";
+import { Credits } from "@app/components/credits";
+import { thread } from "@app/stores/chat";
 import {
     builtCount,
     closeGenerate,
@@ -26,7 +26,7 @@ import {
     startPlan,
     stopHere,
     type Surface,
-} from "../../stores/generate";
+} from "@app/stores/generate";
 import { BriefBar } from "./panels";
 import { Board } from "./Board";
 import { Console } from "./Console";

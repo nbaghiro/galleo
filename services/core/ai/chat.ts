@@ -3,7 +3,7 @@ import type { ModelMessage, ToolSet } from "ai";
 import type { ChatBlock, ChatInput, OutlinePatch, TurnEvent } from "@model/ai";
 import type { ElementInstance, Section } from "@model/artifact";
 import { modelCall } from "./provider";
-import { modelFor, modelNote } from "../models";
+import { modelFor, modelNote } from "@services/core/models";
 import { chatSystem } from "./prompts/chat";
 import { heading, retrievedContext, stack } from "./prompts/system";
 import { thinkingSteps } from "./thinking";

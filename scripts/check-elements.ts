@@ -13,7 +13,7 @@ import { listElements } from "@elements/spec";
 import { chartTypeOptions } from "@elements/chart/render";
 import { diagramTypeOptions } from "@elements/diagram/render";
 import { CHART_TYPES, DIAGRAM_TYPES } from "@model/elements";
-import { ELEMENTS } from "../services/core/ai/prompts/catalog";
+import { ELEMENTS } from "@services/core/ai/prompts/catalog";
 
 const w = (s: string): boolean => process.stdout.write(`${s}\n`);
 

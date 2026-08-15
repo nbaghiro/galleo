@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { extractUpload, textLooksReadable, ExtractError, type ImageReader } from "../extract";
-import { BODY_CAP } from "../context";
+import {
+    extractUpload,
+    textLooksReadable,
+    ExtractError,
+    type ImageReader,
+} from "@services/core/extract";
+import { BODY_CAP } from "@services/core/context";
 
 const b64 = (s: string | Uint8Array): string => Buffer.from(s).toString("base64");
 

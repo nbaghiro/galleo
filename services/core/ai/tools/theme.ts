@@ -1,11 +1,11 @@
 import type { ModelTier } from "@model/billing";
 import { generateObject } from "ai";
 import { finalizeTheme } from "@themes";
-import { implement } from "../tools";
-import { modelFor, type ModelOverrides } from "../../models";
-import { modelCall } from "../provider";
-import { zTheme, type ThemeGen } from "../schema";
-import { themeFromPromptParts } from "../prompts/theme";
+import { implement } from "@services/core/ai/tools";
+import { modelFor, type ModelOverrides } from "@services/core/models";
+import { modelCall } from "@services/core/ai/provider";
+import { zTheme, type ThemeGen } from "@services/core/ai/schema";
+import { themeFromPromptParts } from "@services/core/ai/prompts/theme";
 
 interface ThemeOpts {
     models?: ModelOverrides;

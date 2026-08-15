@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { seedUser } from "../../__tests__/harness";
-import { db } from "../../db/client";
-import { schema } from "../../db/schema";
-import type { Embedder } from "../ai/embed";
+import { seedUser } from "@services/__tests__/harness";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
+import type { Embedder } from "@services/core/ai/embed";
 import {
     addArtifactItem,
     addTemplateItem,
@@ -20,7 +20,7 @@ import {
     resyncItem,
     retrieveContext,
     updateContext,
-} from "../context";
+} from "@services/core/context";
 
 // Keyword-axis embedder: texts sharing a keyword land on the same axis (distance 0), everything
 // else is orthogonal — deterministic ranking with no model call.

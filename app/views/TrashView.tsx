@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { createSignal, For, onMount, Show } from "solid-js";
 import { resolveTheme } from "@themes";
-import { type ArtifactSummary } from "../api";
+import { type ArtifactSummary } from "@app/api";
 import {
     formatLabel,
     relativeTime,
@@ -10,12 +10,12 @@ import {
     purgeArtifact,
     restoreFromTrash,
     trash,
-} from "../stores/library";
+} from "@app/stores/library";
 import { RestoreIcon, TrashIcon } from "@ui/icons";
 import { ConfirmModal } from "@ui/overlay";
 import { Button, Eyebrow, IconButton } from "@ui/button";
 import { EmptyState } from "@ui/status";
-import { Sidebar, SidebarToggle } from "../components/Sidebar";
+import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
 
 const DANGER = "#C0392B";
 

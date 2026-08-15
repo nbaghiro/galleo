@@ -14,8 +14,8 @@ import { Button, IconButton, Eyebrow } from "@ui/button";
 import { Slider, Segmented, TextField, TextArea } from "@ui/inputs";
 import { Modal } from "@ui/overlay";
 import { ChevronLeftIcon, CloseIcon, EditIcon, RefreshIcon } from "@ui/icons";
-import { SectionThumb } from "../components/previews";
-import { api } from "../api";
+import { SectionThumb } from "@app/components/previews";
+import { api } from "@app/api";
 import {
     appTheme,
     setAppTheme,
@@ -29,7 +29,7 @@ import {
     closeThemeEditor,
     THEME_SAMPLE,
     type ThemeDraft,
-} from "../stores/theme";
+} from "@app/stores/theme";
 import { themeDemo } from "./theme-demo";
 
 const DISPLAY_FONTS = [

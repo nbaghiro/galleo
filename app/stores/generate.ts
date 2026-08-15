@@ -14,7 +14,7 @@ import type {
 import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { applyPatch } from "@model/ai";
-import { api, setTraceSession, streamTurn } from "../api";
+import { api, setTraceSession, streamTurn } from "@app/api";
 import { loadBilling } from "./billing";
 import { bindChatTarget } from "./chat";
 import { appTheme } from "./theme";

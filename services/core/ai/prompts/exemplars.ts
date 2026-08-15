@@ -1,8 +1,8 @@
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import type { Surface } from "@model/ai";
-import { galleo } from "../corpus/galleo";
-import { helios } from "../corpus/helios";
-import { terra } from "../corpus/terra";
+import { galleo } from "@services/core/ai/corpus/galleo";
+import { helios } from "@services/core/ai/corpus/helios";
+import { terra } from "@services/core/ai/corpus/terra";
 import { heading } from "./system";
 
 const GOLD: Record<Surface, ArtifactContent> = { deck: galleo, doc: helios, web: terra };

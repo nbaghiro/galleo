@@ -11,7 +11,7 @@ import { resolveProfile } from "@engine/profile";
 import { measureText } from "@canvas/render/commands";
 import { renderChart } from "@elements/chart/render";
 import { toChartData } from "@elements/chart/utils";
-import { commit, editor, editorTokens } from "../core/store";
+import { commit, editor, editorTokens } from "@editor/core/store";
 import { Badge, Button, IconButton } from "@ui/button";
 import { CellInput } from "@ui/inputs";
 import { Modal } from "@ui/overlay";
@@ -36,7 +36,7 @@ import {
     type ScalarModel,
     type SeriesModel,
     type Shape,
-} from "../core/infographic";
+} from "@editor/core/infographic";
 
 const TH =
     "sticky top-0 z-[1] whitespace-nowrap border-b border-line bg-canvas px-2.5 py-2 text-left text-[12px] font-semibold text-soft";

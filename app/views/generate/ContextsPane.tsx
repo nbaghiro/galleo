@@ -1,14 +1,14 @@
 import type { Component, JSX } from "solid-js";
 import { createMemo, createSignal, For, Index, onMount, Show } from "solid-js";
 import type { ArtifactContent } from "@model/artifact";
-import { api, type ContextItemMeta, type ContextSummary } from "../../api";
+import { api, type ContextItemMeta, type ContextSummary } from "@app/api";
 import { Button, Chip, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { TextArea, TextField } from "@ui/inputs";
 import { Icon } from "@ui/icons";
 import { Markdown } from "@ui/markdown";
-import { PreviewCanvas } from "../../components/previews";
-import { createAttachSources } from "../../components/context-attach";
-import { templatesOnce } from "../../stores/templates";
+import { PreviewCanvas } from "@app/components/previews";
+import { createAttachSources } from "@app/components/context-attach";
+import { templatesOnce } from "@app/stores/templates";
 import {
     addItem,
     contextList,
@@ -20,9 +20,9 @@ import {
     removeItem,
     resyncItem,
     updateContext,
-} from "../../stores/contexts";
-import { reportError } from "../../stores/errors";
-import { extensionOf, readAttachment } from "../../components/attachments";
+} from "@app/stores/contexts";
+import { reportError } from "@app/stores/errors";
+import { extensionOf, readAttachment } from "@app/components/attachments";
 
 const KIND: Record<ContextItemMeta["kind"], { label: string; icon: string }> = {
     file: { label: "file", icon: "doc" },

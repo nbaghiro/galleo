@@ -1,7 +1,7 @@
 import type { ElementInstance, Section } from "@model/artifact";
 import type { MediaProvider } from "@model/media";
-import { searchStock, stockReady } from "../media";
-import { warn } from "../../utils/env";
+import { searchStock, stockReady } from "@services/core/media";
+import { warn } from "@services/utils/env";
 
 // Turning a phrase into a real picture: stock search, AI generation, and the walk that fills every
 // image slot in a written section.

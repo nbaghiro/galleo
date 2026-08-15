@@ -1,12 +1,12 @@
 import "dotenv/config";
 import { generateObject, generateText } from "ai";
 import { z } from "zod";
-import { out, warn } from "../../../utils/env";
-import { MODELS, PROVIDER_LABEL, type Provider } from "../../models";
-import { modelCall, providerReady } from "../provider";
-import { runPlan } from "../run";
-import { runChat } from "../chat";
-import { expandBrief } from "../tools/plan";
+import { out, warn } from "@services/utils/env";
+import { MODELS, PROVIDER_LABEL, type Provider } from "@services/core/models";
+import { modelCall, providerReady } from "@services/core/ai/provider";
+import { runPlan } from "@services/core/ai/run";
+import { runChat } from "@services/core/ai/chat";
+import { expandBrief } from "@services/core/ai/tools/plan";
 import type { GenerateInput } from "@model/ai";
 
 // Does each registered model actually answer, with the key this environment holds? `check:models`

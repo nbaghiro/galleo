@@ -1,6 +1,7 @@
 import {
     createSignal,
     For,
+    on,
     onCleanup,
     onMount,
     Show,
@@ -10,7 +11,7 @@ import {
 import type { Section, ArtifactContent, Cover, PageSize, SectionSummary } from "@model/artifact";
 import { profileFor } from "@engine/profile";
 import { resolveTheme, type Tokens } from "@themes";
-import { appTheme } from "../stores/theme";
+import { appTheme } from "@app/stores/theme";
 import {
     backdropCss,
     createSectionStackCache,
@@ -20,6 +21,7 @@ import {
 import { stackWindow, windowMoved } from "@canvas/render/window";
 import { SECTION_GAP } from "@canvas/render/commands";
 import { ScaledSectionCanvas } from "@ui/section";
+import { StatusDot } from "@ui/status";
 
 // abstract motion, styled in visuals.css; pass `viz` to pin one (else cycles)
 type Viz =
@@ -254,6 +256,10 @@ export const SectionThumb: Component<{
 
 // uses natural section heights (not the 16:9 slide frame) so backgrounds show fully
 const PAD = 28;
+// a section becomes the active one once its top crosses this far down the viewport
+const ANCHOR = 0.3;
+// smooth scrolling has no completion event, so the spy un-mutes on arrival or on this timeout
+const SETTLE_MS = 700;
 
 export const PreviewCanvas: Component<{
     content: ArtifactContent;
@@ -263,6 +269,8 @@ export const PreviewCanvas: Component<{
     // anything themselves.
     selected?: string;
     onSelect?: (id: string) => void;
+    /** Scrolling reports the section now being read, so a caller's list can follow the view. */
+    onActive?: (id: string) => void;
     mark?: (id: string) => "fail" | "warn" | null;
 }> = (props) => {
     let host!: HTMLDivElement;
@@ -271,6 +279,12 @@ export const PreviewCanvas: Component<{
     const cache = createSectionStackCache();
     let lastWindow: StackWindow | null = null;
     const [boxes, setBoxes] = createSignal<{ id: string; top: number; height: number }[]>([]);
+    // Two guards keep scrolling and selection from driving each other in a loop: `settleTo` mutes
+    // the spy while our own scroll is in flight, and `reported` stops the follow-effect from
+    // re-centring a selection the spy itself just produced.
+    let settleTo: number | null = null;
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    let reported: string | null = null;
 
     const render = (): void => {
         if (!host) return;
@@ -313,18 +327,52 @@ export const PreviewCanvas: Component<{
         render();
     });
 
+    const activeAt = (): string | undefined => {
+        const bs = boxes();
+        const first = bs[0];
+        if (!first) return undefined;
+        // the last section can be too short to reach the anchor, so the end of the scroll is its cue
+        if (host.scrollTop + host.clientHeight >= host.scrollHeight - 4)
+            return bs[bs.length - 1]?.id;
+        const line = host.scrollTop + host.clientHeight * ANCHOR;
+        let hit = first.id;
+        for (const b of bs) if (b.top <= line) hit = b.id;
+        return hit;
+    };
+
     const onScroll = (): void => {
         const viewH = host?.clientHeight || 800;
         if (windowMoved(lastWindow, stackWindow(host.scrollTop, viewH), viewH)) render();
+        if (settleTo !== null) {
+            if (Math.abs(host.scrollTop - settleTo) > 4) return;
+            settleTo = null;
+        }
+        const id = activeAt();
+        if (id && id !== props.selected) {
+            reported = id;
+            props.onActive?.(id);
+        }
     };
 
-    // follow the caller's selection, using the painter's own offsets rather than a DOM query
-    createEffect(() => {
-        const id = props.selected;
-        if (!id || !host) return;
-        const box = boxes().find((b) => b.id === id);
-        if (box) host.scrollTo({ top: Math.max(0, box.top - PAD), behavior: "smooth" });
-    });
+    // follow the caller's selection, using the painter's own offsets rather than a DOM query.
+    // `on` keeps this off boxes(), which a windowed repaint rewrites mid-scroll.
+    createEffect(
+        on(
+            () => props.selected,
+            (id) => {
+                if (!id || !host || id === reported) return;
+                const box = boxes().find((b) => b.id === id);
+                if (!box) return;
+                reported = null; // this selection came from outside, so the spy's last word is stale
+                const top = Math.max(0, box.top - PAD);
+                settleTo = top;
+                clearTimeout(settleTimer);
+                settleTimer = setTimeout(() => (settleTo = null), SETTLE_MS);
+                host.scrollTo({ top, behavior: "smooth" });
+            },
+        ),
+    );
+    onCleanup(() => clearTimeout(settleTimer));
 
     return (
         <div ref={host} class="relative h-full w-full overflow-y-auto" onScroll={onScroll}>
@@ -334,22 +382,36 @@ export const PreviewCanvas: Component<{
                     <For each={boxes()}>
                         {(b) => {
                             const tone = (): "fail" | "warn" | null => props.mark?.(b.id) ?? null;
-                            const on = (): boolean => props.selected === b.id;
+                            const active = (): boolean => props.selected === b.id;
                             return (
                                 <div
-                                    class="pointer-events-auto absolute left-0 w-full cursor-pointer"
+                                    class="absolute left-0 w-full"
                                     style={{ top: `${b.top}px`, height: `${b.height}px` }}
-                                    onClick={() => props.onSelect?.(b.id)}
                                 >
-                                    <Show when={on()}>
-                                        <div class="pointer-events-none absolute inset-0 rounded-[var(--radius)] ring-2 ring-accent" />
+                                    <Show when={active()}>
+                                        <div class="absolute inset-0 rounded-[var(--radius)] ring-2 ring-accent" />
                                     </Show>
-                                    <Show when={tone()}>
-                                        <span
-                                            class={`absolute top-2 right-2 size-2.5 rounded-full ring-2 ring-panel ${
-                                                tone() === "fail" ? "bg-fail" : "bg-accent"
-                                            }`}
-                                        />
+                                    {/* the dot, not the section body, is the hit area: the preview
+                                        stays scrollable and its text selectable */}
+                                    <Show when={props.onSelect}>
+                                        <button
+                                            type="button"
+                                            class="pointer-events-auto absolute top-1.5 right-1.5 grid size-7 place-items-center"
+                                            title={`Inspect ${b.id}`}
+                                            onClick={() => props.onSelect?.(b.id)}
+                                        >
+                                            <StatusDot
+                                                tone={
+                                                    tone() === "fail"
+                                                        ? "fail"
+                                                        : tone() === "warn"
+                                                          ? "accent"
+                                                          : "line"
+                                                }
+                                                size={active() ? 11 : 8}
+                                                class="ring-2 ring-panel transition-all"
+                                            />
+                                        </button>
                                     </Show>
                                 </div>
                             );

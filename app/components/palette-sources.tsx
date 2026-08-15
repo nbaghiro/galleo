@@ -1,13 +1,13 @@
 import type { SearchHit } from "@model/artifact";
 import { registerPaletteSource, type Row } from "@ui/palette-model";
 import { rankItems } from "@ui/fuzzy";
-import { folders } from "../stores/folders";
-import { artifacts, relativeTime } from "../stores/library";
-import { ensureLibrary } from "../stores/library";
-import { openGenerate } from "../stores/generate";
+import { folders } from "@app/stores/folders";
+import { artifacts, relativeTime } from "@app/stores/library";
+import { ensureLibrary } from "@app/stores/library";
+import { openGenerate } from "@app/stores/generate";
 import { modelPickerReady, openModelPicker } from "./ModelPicker";
-import { modelRuns, stepSummary } from "../stores/model-usage";
-import { go } from "../stores/navigate";
+import { modelRuns, stepSummary } from "@app/stores/model-usage";
+import { go } from "@app/stores/navigate";
 import {
     fetchHits,
     hitMeta,
@@ -15,7 +15,7 @@ import {
     localHits,
     reconcile,
     SEARCH_LIMIT,
-} from "../stores/search";
+} from "@app/stores/search";
 import { ArtifactThumb } from "./previews";
 
 // registered as palette sources, so @ui keeps knowing nothing about artifacts

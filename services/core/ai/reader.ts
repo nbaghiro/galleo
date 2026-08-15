@@ -2,8 +2,8 @@ import { and, desc, eq, ilike, isNull } from "drizzle-orm";
 import type { ArtifactContent } from "@model/artifact";
 import type { ArtifactRef } from "@model/ai";
 import type { WorkspaceReader } from "./tools";
-import { db } from "../../db/client";
-import { schema } from "../../db/schema";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
 
 // Postgres throws on a malformed uuid rather than just not matching, and a model may pass a title.
 const isUuid = (s: string): boolean =>

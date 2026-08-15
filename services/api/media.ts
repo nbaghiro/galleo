@@ -2,8 +2,8 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { MediaGenStyle, MediaItem, MediaKind, MediaProvider } from "@model/media";
 import { featuresFor } from "@model/billing";
-import { OUT_OF_CREDITS, readJson } from "../utils/http";
-import { reserve } from "../core/spend";
+import { OUT_OF_CREDITS, readJson } from "@services/utils/http";
+import { reserve } from "@services/core/spend";
 import {
     generateVideo,
     getIcon,
@@ -21,7 +21,7 @@ import {
     useItem,
     videoGenReady,
     type GenRef,
-} from "../core/media";
+} from "@services/core/media";
 import { requireWorkspace, type WorkspaceEnv } from "./middleware";
 
 export const media = new Hono<WorkspaceEnv>();

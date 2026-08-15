@@ -13,7 +13,7 @@ import {
     removeBeat,
     reorderBeat,
     updateBeat,
-} from "../generate-plan";
+} from "@app/stores/generate-plan";
 
 const beats: Beat[] = [
     { id: "s1", label: "Cover", role: "scene", covers: ["the team"] },

@@ -2,16 +2,16 @@ import type { Component } from "solid-js";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { resolveTheme } from "@themes";
-import { api, type ApiTemplate } from "../api";
-import { FORMATS, formatLabel } from "../stores/library";
+import { api, type ApiTemplate } from "@app/api";
+import { FORMATS, formatLabel } from "@app/stores/library";
 import { Button } from "@ui/button";
 import { Segmented } from "@ui/inputs";
 import { Modal } from "@ui/overlay";
 import { PresentSurface } from "@ui/present";
 import { canEditHere } from "@ui/viewport";
 import { PreviewCanvas, SectionThumb } from "./previews";
-import { appTheme } from "../stores/theme";
-import { templatesOnce } from "../stores/templates";
+import { appTheme } from "@app/stores/theme";
+import { templatesOnce } from "@app/stores/templates";
 
 // The template gallery — category rows, live-preview modal, and the use action — shared by the
 // Templates page and the intake's in-place browser. `onCreated` runs before the navigate, so a

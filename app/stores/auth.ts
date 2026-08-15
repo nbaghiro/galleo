@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { api, type ApiUser } from "../api";
+import { api, type ApiUser } from "@app/api";
 import { clearCustomThemes } from "./theme";
 
 export const [user, setUser] = createSignal<ApiUser | null>(null);

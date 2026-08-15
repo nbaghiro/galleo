@@ -1,13 +1,13 @@
 import type { ElementInstance, Section } from "@model/artifact";
 import type { ArtifactContent } from "@model/artifact";
 import { generateText } from "ai";
-import { implement, type ToolContext } from "../tools";
-import { elementTypes, findElement, replaceElement } from "../locate";
-import { modelFor } from "../../models";
-import { modelCall } from "../provider";
-import { reviseElementParts } from "../prompts/generate";
-import { extractJson, zElement } from "../schema";
-import { resolveElement } from "../images";
+import { implement, type ToolContext } from "@services/core/ai/tools";
+import { elementTypes, findElement, replaceElement } from "@services/core/ai/locate";
+import { modelFor } from "@services/core/models";
+import { modelCall } from "@services/core/ai/provider";
+import { reviseElementParts } from "@services/core/ai/prompts/generate";
+import { extractJson, zElement } from "@services/core/ai/schema";
+import { resolveElement } from "@services/core/ai/images";
 
 export async function reviseElement(
     content: ArtifactContent,

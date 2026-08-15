@@ -10,9 +10,9 @@ import { Eyebrow, Spinner } from "@ui/button";
 import { FloatingBar } from "@ui/overlay";
 import { GenOverlay } from "@ui/gen-overlay";
 import { Icon } from "@ui/icons";
-import { editor, editorAccent, editorTokens, regions } from "../core/store";
-import { elementGen } from "../core/ai";
-import { PLACEHOLDER_SECTION_ID, sectionGen } from "../core/ai";
+import { editor, editorAccent, editorTokens, regions } from "@editor/core/store";
+import { elementGen } from "@editor/core/ai";
+import { PLACEHOLDER_SECTION_ID, sectionGen } from "@editor/core/ai";
 
 export const ElementGenStage: Component = () => {
     const region = createMemo(() => {

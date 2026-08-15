@@ -7,8 +7,8 @@ import { CheckIcon } from "@ui/icons";
 import { Badge, Eyebrow, Spinner } from "@ui/button";
 import { TextField } from "@ui/inputs";
 import { Meter } from "@ui/status";
-import { Sidebar, SidebarToggle } from "../components/Sidebar";
-import { api } from "../api";
+import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
+import { api } from "@app/api";
 import {
     billing,
     changePlan,
@@ -17,7 +17,7 @@ import {
     resumePlan,
     startCheckout,
     startTopUp,
-} from "../stores/billing";
+} from "@app/stores/billing";
 
 export const PricingView: Component = () => {
     const [params] = useSearchParams();

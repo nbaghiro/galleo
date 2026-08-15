@@ -1,6 +1,6 @@
 import type { SearchHit } from "@model/artifact";
 import { rankScored } from "@ui/fuzzy";
-import { api } from "../api";
+import { api } from "@app/api";
 import { artifacts, artifactsLoaded, formatLabel, relativeTime } from "./library";
 
 export const SEARCH_LIMIT = 8; // artifact rows in the palette before "show all results"

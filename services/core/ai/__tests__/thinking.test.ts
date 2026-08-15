@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { thinkingSteps } from "../thinking";
+import { thinkingSteps } from "@services/core/ai/thinking";
 
 // what a Gemini thought summary actually looks like: a bold step name, then prose about it
 const summary = `**Analyzing the Request**

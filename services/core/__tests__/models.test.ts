@@ -10,7 +10,7 @@ import {
     modelNote,
     parseOverrides,
     samplingFor,
-} from "../models";
+} from "@services/core/models";
 import { unitMultipliers } from "@model/credits";
 
 describe("modelFor", () => {

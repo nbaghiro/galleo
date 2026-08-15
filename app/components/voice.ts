@@ -1,7 +1,7 @@
 // Hold-to-talk dictation: capture mic audio, downsample to 16k PCM in an AudioWorklet graph,
 // stream it over a direct WebSocket to the transcription provider (the server only mints the
 // single-use socket url), and reduce partial/committed events into live transcript state.
-import { api } from "../api";
+import { api } from "@app/api";
 
 export const TARGET_RATE = 16000;
 const BATCH_MS = 100;

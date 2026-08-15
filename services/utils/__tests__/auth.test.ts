@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { hashPassword, makeSession, readSession, verifyPassword } from "../auth";
+import { hashPassword, makeSession, readSession, verifyPassword } from "@services/utils/auth";
 
 // SESSION_SECRET is read once at module load — hence the re-import in the different-secret case
 describe("hashPassword + verifyPassword", () => {
@@ -61,7 +61,7 @@ describe("makeSession + readSession", () => {
     it("rejects a token signed under a different secret", async () => {
         vi.resetModules();
         vi.stubEnv("SESSION_SECRET", "other-secret");
-        const other = await import("../auth");
+        const other = await import("@services/utils/auth");
         const foreignToken = other.makeSession("user-42");
         vi.unstubAllEnvs();
         expect(other.readSession(foreignToken)).toBe("user-42");

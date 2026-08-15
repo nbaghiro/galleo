@@ -82,8 +82,9 @@ with high-fidelity export. Net-new, TypeScript.
   belongs to the engine (`splitMinWidth` + `stacksAtWidth`), not to per-view CSS. Full rules:
   `.docs/frontend.md`.
 - **Path aliases** (directory aliases): `@model`, `@themes`, `@engine`, `@elements`, `@canvas`, `@ui`,
-  `@editor` (e.g. `@model/artifact`, `@ui/button`). Backend + frontend both import the shared wire shapes
-  from `@model` + `@themes`; `services` otherwise use relative imports.
+  `@editor`, `@app`, `@services` (e.g. `@model/artifact`, `@ui/button`). Backend + frontend both import
+  the shared wire shapes from `@model` + `@themes`. Cross-directory imports use aliases; same-directory
+  siblings stay relative (`./sibling`), enforced by `import/no-relative-parent-imports`.
 - **TS style:** 4-space indent, double quotes, semicolons, `printWidth` 100, **no `any`**, **no
   `console`** in app code. (ESLint + Prettier enforce these.)
 - **Tailwind — canonical scale over arbitrary px.** The `--spacing` base is `0.25rem` (4px), so a spacing

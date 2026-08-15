@@ -8,7 +8,7 @@ import {
     isWindowed,
     themeForPersist,
 } from "@editor/core/store";
-import { api } from "../api";
+import { api } from "@app/api";
 
 // sends the difference from what the server is known to hold, so a windowed client can save at all
 const DEBOUNCE_MS = 1200;

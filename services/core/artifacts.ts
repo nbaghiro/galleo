@@ -8,9 +8,9 @@ import type {
     SectionOp,
 } from "@model/artifact";
 import { applySectionOps, artifactDigest } from "@model/artifact";
-import { db } from "../db/client";
-import { schema } from "../db/schema";
-import { contentWrite } from "../db/derived";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
+import { contentWrite } from "@services/db/derived";
 
 // Keyset, not offset: the cursor names the last row seen, so a concurrent edit can't make a row repeat
 // or vanish. A tampered or stale cursor degrades to "start from the beginning" rather than erroring.

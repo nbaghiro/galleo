@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { fetchWebpage, htmlToText, isPrivateAddress, type WebpageDeps } from "../webpage";
+import {
+    fetchWebpage,
+    htmlToText,
+    isPrivateAddress,
+    type WebpageDeps,
+} from "@services/utils/webpage";
 
 describe("isPrivateAddress", () => {
     it("rejects the private v4 ranges", () => {

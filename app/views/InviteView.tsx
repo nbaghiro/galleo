@@ -2,7 +2,7 @@ import type { Component } from "solid-js";
 import { createResource, createSignal, Show } from "solid-js";
 import { useParams } from "@solidjs/router";
 import { Spinner } from "@ui/button";
-import { api, ApiError } from "../api";
+import { api, ApiError } from "@app/api";
 
 // reached from the emailed invite link; possession of the token is the credential
 export const InviteView: Component = () => {

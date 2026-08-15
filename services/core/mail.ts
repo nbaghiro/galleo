@@ -1,4 +1,4 @@
-import { out } from "../utils/env";
+import { out } from "@services/utils/env";
 const FROM = process.env.MAIL_FROM ?? "Galleo <onboarding@resend.dev>";
 
 export function mailReady(): boolean {

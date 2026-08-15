@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { GenerateInput } from "@model/ai";
 import type { ArtifactContent, Section } from "@model/artifact";
-import type { Beat, Outline } from "../schema";
-import { outlineParts, sectionParts } from "../prompts/generate";
-import { retrievedContext, sectionText, writtenContext } from "../prompts/system";
+import type { Beat, Outline } from "@services/core/ai/schema";
+import { outlineParts, sectionParts } from "@services/core/ai/prompts/generate";
+import { retrievedContext, sectionText, writtenContext } from "@services/core/ai/prompts/system";
 
 const brief = (over: Partial<GenerateInput> = {}): GenerateInput => ({
     prompt: "A launch deck for Meridian",

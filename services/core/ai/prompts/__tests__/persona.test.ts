@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PERSONA, surfaceVoice } from "../persona";
+import { PERSONA, surfaceVoice } from "@services/core/ai/prompts/persona";
 
 describe("PERSONA", () => {
     it("states the content-designer identity", () => {

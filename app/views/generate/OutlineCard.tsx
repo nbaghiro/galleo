@@ -17,8 +17,8 @@ import {
 import { Separator } from "@ui/inputs";
 import { Dropdown } from "@ui/select";
 import { isCoarsePointer } from "@ui/viewport";
-import { Credits } from "../../components/credits";
-import { blocksForLayout, LAYOUT_IDS } from "../../stores/generate-plan";
+import { Credits } from "@app/components/credits";
+import { blocksForLayout, LAYOUT_IDS } from "@app/stores/generate-plan";
 import {
     addBeatAfter,
     buildSectionNow,
@@ -27,7 +27,7 @@ import {
     patchBeat,
     removeBeatById,
     sectionCost,
-} from "../../stores/generate";
+} from "@app/stores/generate";
 import { BEAT_ROLES, LAYOUT_LABELS } from "./shared";
 import { Field, Inline, Tag } from "./inline";
 

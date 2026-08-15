@@ -1,9 +1,9 @@
 /* @refresh reload */
-import "../ui/styles.css";
+import "@ui/styles.css";
 import "./website.css";
 import { render } from "solid-js/web";
 import { registerThemes, resolveTheme, themeCssVars, type Theme } from "@themes";
-import { setFavicon } from "../app/stores/theme";
+import { setFavicon } from "@app/stores/theme";
 import { WebsitePage } from "./WebsitePage";
 
 // keep in sync with app/stores/theme.ts (KEY · DEFAULT · CUSTOM_KEY)

@@ -30,16 +30,16 @@ import {
     setFeatures,
     startThemePreview,
 } from "@editor/core/store";
-import { api, streamTurn } from "../api";
-import { openMediaPicker } from "../stores/media";
-import { openShare } from "../stores/share";
-import { can, loadFeatures } from "../stores/features";
-import { renameArtifactById } from "../stores/library";
-import { recordVisit } from "../stores/search";
-import { billing, loadBilling } from "../stores/billing";
-import { setEditorActive } from "../stores/chat";
-import { appTheme, loadCustomThemes, setFaviconOverride, openThemeEditor } from "../stores/theme";
-import { flushAutosave, installAutosave } from "../stores/save";
+import { api, streamTurn } from "@app/api";
+import { openMediaPicker } from "@app/stores/media";
+import { openShare } from "@app/stores/share";
+import { can, loadFeatures } from "@app/stores/features";
+import { renameArtifactById } from "@app/stores/library";
+import { recordVisit } from "@app/stores/search";
+import { billing, loadBilling } from "@app/stores/billing";
+import { setEditorActive } from "@app/stores/chat";
+import { appTheme, loadCustomThemes, setFaviconOverride, openThemeEditor } from "@app/stores/theme";
+import { flushAutosave, installAutosave } from "@app/stores/save";
 
 // Above what a normal deck or doc holds, so windowing only engages for the long ones.
 const FIRST_WINDOW = 24;

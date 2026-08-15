@@ -23,9 +23,9 @@ import {
     setSelection,
     stageEl,
     editorTokens,
-} from "../core/store";
-import { drag } from "../core/dnd";
-import { canRegenerate, elementGenBusy, regenerateElement } from "../core/ai";
+} from "@editor/core/store";
+import { drag } from "@editor/core/dnd";
+import { canRegenerate, elementGenBusy, regenerateElement } from "@editor/core/ai";
 import {
     canAssistText,
     LANGUAGES,
@@ -34,7 +34,7 @@ import {
     runRewrite,
     runTranslate,
     textAssist,
-} from "../core/ai";
+} from "@editor/core/ai";
 import { Field } from "./SharedControlFields";
 import { Icon } from "@ui/icons";
 import type { MarkType } from "@model/text";
@@ -49,7 +49,7 @@ import {
     setTextMark,
     textSelection,
     toggleTextMark,
-} from "../core/text";
+} from "@editor/core/text";
 
 const BAR_GAP = 10;
 

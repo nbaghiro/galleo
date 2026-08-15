@@ -9,7 +9,7 @@ import {
     formatIcon,
     formatLabel,
     formatLabelPlural,
-} from "../library";
+} from "@app/stores/library";
 
 const text = (t: string): ElementInstance => ({ type: "text", data: { text: t } });
 const group = (...children: ElementInstance[]): ElementInstance => ({

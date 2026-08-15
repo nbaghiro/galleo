@@ -1,7 +1,7 @@
 import type { GenerateInput, SectionInput, Surface } from "@model/ai";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import { BLOCK_KINDS } from "@model/elements";
-import type { Beat, Outline } from "../schema";
+import type { Beat, Outline } from "@services/core/ai/schema";
 import { PERSONA, surfaceVoice } from "./persona";
 import { describeTheme, elementCatalog, layoutCatalog } from "./catalog";
 import { RUBRIC, VOICE, lengthGuidance } from "./rubric";

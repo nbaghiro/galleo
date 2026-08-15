@@ -1,13 +1,17 @@
 import type { Section } from "@model/artifact";
 import type { ArtifactContent } from "@model/artifact";
-import type { Beat, SectionPlan } from "../schema";
+import type { Beat, SectionPlan } from "@services/core/ai/schema";
 import type { SectionInput } from "@model/ai";
-import { implement, type ToolContext } from "../tools";
-import { insertSectionParts, sectionPlanParts, editSectionParts } from "../prompts/generate";
-import { surfaceOf } from "../prompts/generate";
-import { resolveImages } from "../images";
+import { implement, type ToolContext } from "@services/core/ai/tools";
+import {
+    insertSectionParts,
+    sectionPlanParts,
+    editSectionParts,
+} from "@services/core/ai/prompts/generate";
+import { surfaceOf } from "@services/core/ai/prompts/generate";
+import { resolveImages } from "@services/core/ai/images";
 import { planSectionTool, writeSectionTool } from "./plan";
-import { drain } from "../tools";
+import { drain } from "@services/core/ai/tools";
 
 // fresh non-colliding section id — mirror the editor's "s-xxxx" scheme
 export function newSectionId(content: ArtifactContent): string {

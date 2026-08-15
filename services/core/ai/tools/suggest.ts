@@ -2,11 +2,11 @@ import { z } from "zod";
 import type { ModelTier } from "@model/billing";
 import type { ArtifactContent } from "@model/artifact";
 import { generateObject } from "ai";
-import { implement } from "../tools";
-import { modelFor, type ModelOverrides } from "../../models";
-import { modelCall } from "../provider";
-import { PERSONA } from "../prompts/persona";
-import { artifactDigest, artifactSpine } from "../prompts/system";
+import { implement } from "@services/core/ai/tools";
+import { modelFor, type ModelOverrides } from "@services/core/models";
+import { modelCall } from "@services/core/ai/provider";
+import { PERSONA } from "@services/core/ai/prompts/persona";
+import { artifactDigest, artifactSpine } from "@services/core/ai/prompts/system";
 
 const zSuggest = z.object({
     suggestions: z

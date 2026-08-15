@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { ElementInstance, Section } from "@model/artifact";
-import { checkSection } from "../quality";
+import { checkSection } from "@services/core/ai/quality";
 
 const text = (t: string, style?: string): ElementInstance => ({
     type: "text",

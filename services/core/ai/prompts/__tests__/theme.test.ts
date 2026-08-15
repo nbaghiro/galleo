@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { themeFromPromptParts } from "../theme";
+import { themeFromPromptParts } from "@services/core/ai/prompts/theme";
 
 describe("themeFromPromptParts", () => {
     it("lists the display, body, and mono font allow-lists in the system prompt", () => {

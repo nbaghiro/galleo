@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from "vitest";
-import { focusables, trapFocus } from "../focus";
+import { focusables, trapFocus } from "@ui/focus";
 
 function mount(html: string): HTMLElement {
     const host = document.createElement("div");

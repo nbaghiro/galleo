@@ -1,10 +1,10 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { requireWorkspace, type WorkspaceEnv } from "./middleware";
-import { rateLimit, readJson } from "../utils/http";
-import { fetchWebpage } from "../utils/webpage";
-import { embeddingReady } from "../core/ai/provider";
-import { ExtractError, extractUpload } from "../core/extract";
+import { rateLimit, readJson } from "@services/utils/http";
+import { fetchWebpage } from "@services/utils/webpage";
+import { embeddingReady } from "@services/core/ai/provider";
+import { ExtractError, extractUpload } from "@services/core/extract";
 import {
     addArtifactItem,
     addLinkItem,
@@ -19,7 +19,7 @@ import {
     removeItem,
     resyncItem,
     updateContext,
-} from "../core/context";
+} from "@services/core/context";
 
 // The context library: workspace-scoped CRUD + per-kind ingestion. Ingestion is unpriced to the
 // user (a context is an investment we want made); the embedding spend is ours and marginal.

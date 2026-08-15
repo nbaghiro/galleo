@@ -2,12 +2,12 @@ import type { Component } from "solid-js";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { useNavigate } from "@solidjs/router";
-import { api, type LinkState, type ShareRecipient, type Visibility } from "../api";
-import { closeShare, shareRequest, type ShareRequest } from "../stores/share";
-import { flushAutosave } from "../stores/save";
-import { can, isComingSoon, loadFeatures } from "../stores/features";
-import { relativeTime } from "../stores/library";
-import { overlayThemeVars } from "../stores/theme";
+import { api, type LinkState, type ShareRecipient, type Visibility } from "@app/api";
+import { closeShare, shareRequest, type ShareRequest } from "@app/stores/share";
+import { flushAutosave } from "@app/stores/save";
+import { can, isComingSoon, loadFeatures } from "@app/stores/features";
+import { relativeTime } from "@app/stores/library";
+import { overlayThemeVars } from "@app/stores/theme";
 import {
     ArrowUpRightIcon,
     CheckIcon,

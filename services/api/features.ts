@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { FeatureKey, FeatureStatus } from "@model/billing";
 import { FEATURES, featuresFor } from "@model/billing";
-import { modelCatalogue } from "../core/models";
+import { modelCatalogue } from "@services/core/models";
 import { requireWorkspace, type WorkspaceEnv } from "./middleware";
 
 export const features = new Hono<WorkspaceEnv>();

@@ -4,10 +4,10 @@ import type { ChatBlock, ChatContext, ChatInput, ChatLibrary, ChatTurnRef } from
 import { applyPatch } from "@model/ai";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import { limitsFor } from "@model/billing";
-import { db } from "../../../db/client";
-import { schema } from "../../../db/schema";
-import { makeWorkspaceReader } from "../reader";
-import { runChat } from "../chat";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
+import { makeWorkspaceReader } from "@services/core/ai/reader";
+import { runChat } from "@services/core/ai/chat";
 import { EVAL_CASES, type EvalCase, type Step } from "./cases";
 import { arg, avg, hasFlag, int, judge, list, log, pct, pool, reporter, shortModel } from "./kit";
 

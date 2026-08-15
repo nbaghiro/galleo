@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { TOOLS } from "@model/tools";
 import type { ToolId } from "@model/tools";
-import "../register";
-import { getTool } from "../../tools";
+import "@services/core/ai/tools/register";
+import { getTool } from "@services/core/ai/tools";
 
 // implement() throws at import for a body whose definition is missing or contradicts it, so simply
 // loading the registry is the check: without this, a broken tool only surfaces when the server boots

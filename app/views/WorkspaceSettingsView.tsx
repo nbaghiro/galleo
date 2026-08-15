@@ -8,9 +8,9 @@ import { TextField } from "@ui/inputs";
 import { Dropdown } from "@ui/select";
 import { Meter } from "@ui/status";
 import { ConfirmModal } from "@ui/overlay";
-import { Sidebar, SidebarToggle } from "../components/Sidebar";
-import { ApiError, api, type LedgerEntry, type WorkspaceMember } from "../api";
-import { billing, loadBilling, openPortal } from "../stores/billing";
+import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
+import { ApiError, api, type LedgerEntry, type WorkspaceMember } from "@app/api";
+import { billing, loadBilling, openPortal } from "@app/stores/billing";
 import {
     inviteMember,
     leaveWorkspace,
@@ -21,7 +21,7 @@ import {
     setMemberRole,
     transferOwnership,
     workspaceState,
-} from "../stores/workspace";
+} from "@app/stores/workspace";
 
 const Section: Component<{ title: string; children: JSX.Element }> = (props) => (
     <section class="mb-8">

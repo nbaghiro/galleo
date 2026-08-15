@@ -1,5 +1,5 @@
 import type { TurnEvent, WorkspaceAction } from "@model/ai";
-import { implement } from "../tools";
+import { implement } from "@services/core/ai/tools";
 
 type Action<K extends WorkspaceAction["kind"]> = Extract<WorkspaceAction, { kind: K }>;
 
