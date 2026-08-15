@@ -2,7 +2,7 @@ import "dotenv/config";
 import { execFileSync } from "node:child_process";
 import Stripe from "stripe";
 import type { AddOnId, Interval, PlanId } from "@model/billing";
-import { ADD_ONS, ADD_ON_IDS, PLANS, PLAN_ORDER } from "@model/billing";
+import { ADD_ONS, ADD_ON_IDS, CREDIT_PACKS, PLANS, PLAN_ORDER } from "@model/billing";
 
 /**
  * Creates (or updates) the Stripe products and prices Galleo sells, from the catalog in
@@ -27,7 +27,7 @@ const USD = "usd";
 interface WantedPrice {
     lookup: string;
     envVar: string;
-    interval: Interval;
+    interval: Interval | null; // null = a one-off price, bought rather than subscribed to
     cents: number;
     product: WantedProduct;
 }
@@ -103,6 +103,23 @@ function wanted(): WantedPrice[] {
         });
     }
 
+    // Credit packs are one-off prices: they are bought once and land in the balance, so they must
+    // NOT be recurring, or Stripe would bill them every month.
+    for (const pack of CREDIT_PACKS) {
+        const key = pack.id.replace("pack-", "").toUpperCase();
+        out.push({
+            lookup: `galleo_${pack.id.replace("-", "_")}`,
+            envVar: `STRIPE_PRICE_PACK_${key}`,
+            interval: null,
+            cents: Math.round(pack.priceUsd * 100),
+            product: {
+                id: `pack_${pack.id}`,
+                name: `Galleo ${pack.label}`,
+                description: `${pack.credits.toLocaleString()} AI credits, bought once. They join the workspace balance and carry over.`,
+            },
+        });
+    }
+
     return out;
 }
 
@@ -165,25 +182,30 @@ async function ensurePrice(stripe: Stripe, want: WantedPrice, productId: string)
         existing.active &&
         existing.unit_amount === want.cents &&
         existing.currency === USD &&
-        existing.recurring?.interval === want.interval &&
+        (existing.recurring?.interval ?? null) === want.interval &&
         existing.product === productId;
     if (matches) {
-        log(`  = ${want.lookup.padEnd(24)} ${dollars(want.cents / 100)}/${want.interval}`);
+        log(
+            `  = ${want.lookup.padEnd(24)} ${dollars(want.cents / 100)}${want.interval ? `/${want.interval}` : " once"}`,
+        );
         return existing.id;
     }
     if (existing)
         log(
             `  ~ ${want.lookup.padEnd(24)} ${dollars((existing.unit_amount ?? 0) / 100)} → ` +
-                `${dollars(want.cents / 100)}/${want.interval} (new price, old one archived)`,
+                `${dollars(want.cents / 100)}${want.interval ? `/${want.interval}` : " once"} (new price, old one archived)`,
         );
-    else log(`  + ${want.lookup.padEnd(24)} ${dollars(want.cents / 100)}/${want.interval}`);
+    else
+        log(
+            `  + ${want.lookup.padEnd(24)} ${dollars(want.cents / 100)}${want.interval ? `/${want.interval}` : " once"}`,
+        );
     if (DRY) return `price_DRYRUN_${want.lookup}`;
 
     const created = await stripe.prices.create({
         product: productId,
         currency: USD,
         unit_amount: want.cents,
-        recurring: { interval: want.interval },
+        ...(want.interval ? { recurring: { interval: want.interval } } : {}),
         lookup_key: want.lookup,
         transfer_lookup_key: !!existing,
     });
