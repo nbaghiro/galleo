@@ -376,7 +376,7 @@ export const Studio: Component = () => {
                                         Pausing
                                         <span class="hidden md:inline">
                                             {" "}
-                                            — finishing this section
+                                            · finishing this section
                                         </span>
                                     </>
                                 }
@@ -384,7 +384,7 @@ export const Studio: Component = () => {
                                 Paused
                                 <span class="hidden md:inline">
                                     {" "}
-                                    — {queuedCount()} still to write
+                                    · {queuedCount()} still to write
                                 </span>
                             </Show>
                         </span>

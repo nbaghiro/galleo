@@ -204,7 +204,7 @@ export const Intake: Component = () => {
                             What are we making?
                         </h1>
                         <p class="mt-1.5 text-center text-[13px] leading-relaxed text-muted">
-                            Describe it in a sentence — or just enough for a template to catch it.
+                            Describe it in a sentence, or just enough for a template to catch it.
                         </p>
 
                         {/* relative: the VoiceInput transcript overlay anchors here, spanning the composer */}

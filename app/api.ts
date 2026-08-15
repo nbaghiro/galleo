@@ -313,7 +313,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     if (!res.ok) {
         const body = data as { error?: string } & ErrorRemedies;
         const msg =
-            body.error ?? (res.status >= 500 ? "Server error — please try again" : res.statusText);
+            body.error ?? (res.status >= 500 ? "Server error. Please try again" : res.statusText);
         throw new ApiError(res.status, msg, {
             upgrade: body.upgrade,
             topUp: body.topUp,

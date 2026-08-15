@@ -265,7 +265,7 @@ const ShareButton: Component = () => (
     <Button
         variant="tool"
         size="sm"
-        title={features().publicLinks ? "Share" : "Sharing is a paid feature — upgrade"}
+        title={features().publicLinks ? "Share" : "Sharing is a paid feature · upgrade"}
         onClick={() => (features().publicLinks ? requestShare() : requestUpgrade())}
     >
         <Icon name={features().publicLinks ? "link" : "lock"} size={14} />

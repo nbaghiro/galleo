@@ -82,7 +82,7 @@ export const PricingView: Component = () => {
 
                     <Show when={params.status === "success"}>
                         <div class="mb-5 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-[13px] text-ink">
-                            🎉 Payment received — your plan updates the moment Stripe confirms it
+                            🎉 Payment received. Your plan updates the moment Stripe confirms it
                             (usually a second or two). Refresh if it still shows the old tier.
                         </div>
                     </Show>
@@ -100,7 +100,7 @@ export const PricingView: Component = () => {
                     <Show when={b()?.status === "past_due"}>
                         <div class="mb-5 flex items-center justify-between gap-3 rounded-xl border border-accent bg-accent/10 px-4 py-3 text-[13px] text-ink">
                             <span>
-                                Your last payment failed — update your payment method to keep your
+                                Your last payment failed. Update your payment method to keep your
                                 plan.
                             </span>
                             <button
@@ -325,7 +325,8 @@ export const PricingView: Component = () => {
                             What your credits buy
                         </h2>
                         <p class="mt-0.5 text-[13px] text-muted">
-                            Every AI action draws from your monthly credits — bigger jobs cost more.
+                            Every AI action draws from your monthly credits, and bigger jobs cost
+                            more.
                         </p>
                         <div class="mt-4 overflow-hidden rounded-xl border border-line bg-panel">
                             <For each={PRICED_TOOLS}>

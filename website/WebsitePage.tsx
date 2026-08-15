@@ -542,9 +542,9 @@ export const WebsitePage: Component = () => (
                     </h2>
                 </div>
                 <p class="text-soft text-base md:text-lg max-w-sm leading-relaxed">
-                    Every block — text, image, chart, table, stat, quote, diagram, callout — is a
-                    first-class element that re-typesets per format. Switch deck ⇄ doc ⇄ site
-                    instantly. No copy-paste, no drift.
+                    Every block, from text and image to chart, table, stat, quote, diagram and
+                    callout, is a first-class element that re-typesets per format. Switch deck ⇄ doc
+                    ⇄ site instantly. No copy-paste, no drift.
                 </p>
             </div>
 
@@ -561,7 +561,7 @@ export const WebsitePage: Component = () => (
                         The source
                     </div>
                     <div class="mt-4 font-display text-2xl font-bold leading-snug">
-                        “Make a launch brief for Project Northwind — vision, traction, the ask.”
+                        “Make a launch brief for Project Northwind: vision, traction, the ask.”
                     </div>
                     <div class="mt-6 space-y-2.5">
                         <For each={sourceBlocks}>
@@ -673,7 +673,7 @@ export const WebsitePage: Component = () => (
                     ✺ Why we built it
                 </div>
                 <p class="font-display font-semibold text-[clamp(1.8rem,4.6vw,3.4rem)] leading-[1.08] tracking-tight">
-                    AI made a first draft free — and the average deck{" "}
+                    AI made a first draft free, and the average deck{" "}
                     <span style={{ color: "var(--color-accent)" }}>worse</span>. The bottleneck
                     moved from <span class="hollow-bg">making</span> to{" "}
                     <span style={{ "border-bottom": "6px solid var(--color-accent)" }}>
@@ -702,7 +702,7 @@ export const WebsitePage: Component = () => (
                     </h2>
                 </div>
                 <p class="text-soft text-base md:text-lg max-w-sm leading-relaxed">
-                    Fonts, color, radius, borders, shadow — every theme is a full system. This page
+                    Fonts, color, radius, borders, shadow: every theme is a full system. This page
                     wears your theme too: it matches whatever design you last picked in the editor.
                 </p>
             </div>
@@ -785,7 +785,7 @@ export const WebsitePage: Component = () => (
                 </span>
                 <blockquote class="font-display font-semibold text-[clamp(1.5rem,3.6vw,2.6rem)] leading-snug max-w-4xl relative">
                     We replaced three tools with one. The pitch deck, the leave-behind doc, and the
-                    launch microsite now come from a single Galleo file — and they finally{" "}
+                    launch microsite now come from a single Galleo file, and they finally{" "}
                     <span class="text-accent">look the same</span>.
                 </blockquote>
                 <div class="mt-8 flex items-center gap-4 relative">

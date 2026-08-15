@@ -12,6 +12,7 @@
         "check:elements": "tsx scripts/check-elements.ts",
         "eval:diagrams": "vitest run canvas/elements/diagram/__tests__/visual-invariants.test.ts",
         "check:boundaries": "node scripts/check-boundaries.mjs",
+        "check:copy": "node scripts/check-copy.mjs",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",

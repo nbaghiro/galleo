@@ -19,6 +19,9 @@ pnpm check:boundaries
 echo "▸ model-id guard"
 pnpm check:models
 
+echo "▸ copy guard"
+pnpm check:copy
+
 echo "▸ typecheck"
 pnpm typecheck
 

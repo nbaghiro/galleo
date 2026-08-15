@@ -181,11 +181,11 @@ export const AuthPage: Component = () => {
                     </p>
                     <p class="mt-6 text-[15.5px] leading-relaxed text-white/72">
                         Galleo is the editor for the judging. Generate a deck, document, or website
-                        in seconds — then make it genuinely good. One canonical source, three
+                        in seconds, then make it genuinely good. One canonical source, three
                         polished views.
                     </p>
                     <p class="mt-6 font-mono text-[11px] uppercase tracking-[0.16em] text-white/50">
-                        — the Galleo thesis
+                        · the Galleo thesis
                     </p>
                 </div>
             </div>
@@ -218,7 +218,7 @@ export const AuthPage: Component = () => {
                     <Show when={mode() === "forgot" && sent()}>
                         <div class="rounded-lg border border-line bg-panel p-4 text-[13px] leading-relaxed text-soft">
                             If an account exists for <span class="text-ink">{email().trim()}</span>,
-                            we’ve sent a reset link. Check your inbox — it expires in an hour.
+                            we’ve sent a reset link. Check your inbox; it expires in an hour.
                         </div>
                         <p class="mt-6 text-[13px] text-muted">
                             <button

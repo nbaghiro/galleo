@@ -165,7 +165,7 @@ const BriefFields: Component = () => {
             </Show>
             <Show when={gen.briefDirty}>
                 <p class="text-[11px] leading-snug text-accent">
-                    The plan was made against an older brief — reroll it to match.
+                    The plan was made against an older brief. Reroll it to match.
                 </p>
             </Show>
         </div>

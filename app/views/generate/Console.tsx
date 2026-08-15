@@ -84,7 +84,7 @@ export const Console: Component<{ active?: boolean }> = (props) => {
                     fallback={
                         <div class="flex flex-col gap-1.5">
                             <p class="text-[11.5px] leading-snug text-muted">
-                                Ask for anything, any time. Changes arrive as proposals you apply —
+                                Ask for anything, any time. Changes arrive as proposals you apply,
                                 to the outline before it's written, to the words after.
                             </p>
                             <For each={hints()}>

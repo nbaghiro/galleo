@@ -317,7 +317,7 @@ export const REWRITE_PRESETS: RewritePreset[] = [
     {
         label: "Improve writing",
         instruction:
-            "Improve the writing — clearer, more polished and compelling — without changing its meaning or length much.",
+            "Improve the writing: clearer, more polished and compelling, without changing its meaning or length much.",
     },
     {
         label: "Make it punchier",
@@ -325,7 +325,7 @@ export const REWRITE_PRESETS: RewritePreset[] = [
     },
     {
         label: "Make shorter",
-        instruction: "Make it more concise — the same message in noticeably fewer words.",
+        instruction: "Make it more concise: the same message in noticeably fewer words.",
     },
     {
         label: "Make longer",
@@ -416,7 +416,7 @@ export function runRegenerate(): Promise<void> {
         "rewrite",
         {
             instruction:
-                "Rewrite this from scratch — a genuinely fresh, stronger version that makes the same point a different way. Keep it roughly the same length; don't just hand the same text back.",
+                "Rewrite this from scratch: a genuinely fresh, stronger version that makes the same point a different way. Keep it roughly the same length; don't just hand the same text back.",
         },
         { from: 0, to: 0 },
     );

@@ -135,7 +135,7 @@ describe("req — shared request/response behavior", () => {
         stubFetch(jsonResponse({}, { status: 500, statusText: "Internal Server Error" }));
         const err = await caught(api.getArtifact("nope"));
         expect(err.status).toBe(500);
-        expect(err.message).toBe("Server error — please try again");
+        expect(err.message).toBe("Server error. Please try again");
     });
 
     it("still prefers the body error over the generic 5xx message", async () => {

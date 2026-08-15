@@ -14,7 +14,7 @@ export const TemplatesView: Component = () => (
                 </Eyebrow>
                 <h1 class="mt-1 font-display text-[26px] font-semibold text-ink">Templates</h1>
                 <p class="mt-1 text-[13px] text-muted">
-                    Beautiful, ready-to-edit starting points — pick one and make it yours.
+                    Ready-to-edit starting points. Pick one and make it yours.
                 </p>
             </div>
             <TemplateGallery />

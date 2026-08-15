@@ -657,7 +657,7 @@ const ThemeEditorPanel: Component = () => {
                                         Generate a theme
                                     </h2>
                                     <p class="mb-4 text-[12.5px] leading-relaxed text-muted">
-                                        Describe a mood, brand, or vibe — the AI designs a full
+                                        Describe a mood, brand, or vibe, and the AI designs a full
                                         color-and-type system (palette, fonts, shape) you can
                                         preview, tweak, and save.
                                     </p>
@@ -730,7 +730,7 @@ const ThemeEditorPanel: Component = () => {
                                         </p>
                                     </Show>
                                     <p class="mt-3 text-[11px] leading-relaxed text-muted">
-                                        Generates in a few seconds — the result opens in Customize,
+                                        Generates in a few seconds. The result opens in Customize,
                                         ready to fine-tune and save.
                                     </p>
                                 </div>

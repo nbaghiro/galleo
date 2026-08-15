@@ -124,7 +124,7 @@ export const PublicView: Component = () => {
                 setPwFormat(res.format);
                 setGateMsg(
                     res.status === 429
-                        ? "Too many attempts — try again in a few minutes."
+                        ? "Too many attempts. Try again in a few minutes."
                         : password
                           ? "Incorrect password."
                           : "",

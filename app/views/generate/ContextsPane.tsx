@@ -643,7 +643,7 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
                 </div>
                 <Show when={!loading() && !items().length}>
                     <p class="absolute bottom-4 right-5 font-mono text-[10.5px] text-muted md:right-9">
-                        no stars yet — everything you feed it becomes one
+                        no stars yet. Everything you feed it becomes one
                     </p>
                 </Show>
             </div>
@@ -850,7 +850,7 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
                                     <Show when={missingOriginal(item())}>
                                         <p class="border-b border-line bg-canvas px-3.5 py-2 font-mono text-[9.5px] leading-relaxed text-muted">
                                             the source file wasn't stored for this item (added
-                                            before file storage) — showing its extracted text;
+                                            before file storage), showing its extracted text;
                                             re-attach the file to view it
                                         </p>
                                     </Show>

@@ -111,6 +111,18 @@ with high-fidelity export. Net-new, TypeScript.
   file to `ALLOW` in `scripts/check-suppressions.mjs` with a reason, so it lands in a reviewed diff.
   Enforced in-editor by ESLint (`noInlineConfig` + `ban-ts-comment` + `--max-warnings 0`) and backstopped
   by `pnpm check:suppressions`, which also reads files ESLint skips. Both pre-commit and CI run it.
+- **Copy — plain, and never em-dashed.** What a person reads on screen is written the way you would
+  say it: no em-dashes, no unearned promises ("it fills up fast" on an empty screen), no startup-speak
+  ("spin up", "lands right here"), no hedged hype ("finished-feeling", "in seconds"). An em-dash
+  joining two clauses is the clearest tell that a string was machine-written, so it is a hard failure:
+  use a comma when the second clause qualifies the first, a period when it is a separate thought, a
+  colon before a list, a middot when joining a label to a value (`Invited · expires in 2 days`). Watch
+  for the rhythm too: thirty catalogue blurbs sharing one shape read as generated even when each line
+  is fine on its own, so vary the construction. A string that is only an em-dash is a typographic
+  glyph, not prose, and passes. Comments are exempt and use em-dashes freely. Enforced by
+  `pnpm check:copy` over `app`/`website`/`ui`/`editor`/`publish` plus `model/billing.ts`,
+  `model/templates.ts`, and `services/core/mail.ts`; a genuine exception goes in that script's `ALLOW`
+  with a reason. Both pre-commit and CI run it.
 - **Boundaries** (ESLint, linear `model ← canvas ← ui ← editor ← app`): model ⇏ canvas/ui/editor/services/app;
   canvas ⇏ ui/editor/services/app; **ui ⇏ editor/services/app** (shared UI depends only on model + canvas +
   `@themes`); editor ⇏ services/app; app ⇏ services (it talks over HTTP); services ⇏ canvas/ui/editor/app.
@@ -145,6 +157,7 @@ pnpm check:suppressions   # no eslint-disable / @ts-* / prettier-ignore / covera
 pnpm check:program        # every tracked .ts(x) is actually in the tsc program
 pnpm check:boundaries     # the layering law still reports, not just "no errors"
 pnpm check:models         # every model id is one the installed @ai-sdk provider still declares
+pnpm check:copy           # no em-dashes in user-facing copy (the machine-written tell)
 ```
 
 Galleo owns the **86xx** host-port block (runs alongside the sibling apps). See the ports table in

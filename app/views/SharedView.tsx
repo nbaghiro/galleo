@@ -753,7 +753,7 @@ const InsightsModal: Component<{
                                                         No views yet
                                                     </div>
                                                     <p class="mx-auto mt-1 max-w-56 text-[11.5px] leading-relaxed text-muted">
-                                                        Copy the link and share it — every visit
+                                                        Copy the link and share it. Every visit
                                                         lands here live, with sources and
                                                         read-depth.
                                                     </p>
@@ -909,7 +909,7 @@ const ArtifactPicker: Component<{
         <header class="flex-none border-b border-line px-5 py-4">
             <div class="text-[14px] font-semibold text-ink">Share an artifact</div>
             <div class="mb-3 text-[11.5px] text-muted">
-                Pick something to publish — choose its audience next.
+                Pick something to publish, then choose its audience.
             </div>
             <TextField
                 value={p.query}

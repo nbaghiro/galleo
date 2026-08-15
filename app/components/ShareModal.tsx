@@ -155,9 +155,9 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                             fallback={
                                 <>
                                     <p class="mb-3 text-[12px] text-muted">
-                                        Not shared yet — create a link to share this. Make as many
-                                        links as you need: one per audience or channel, each with
-                                        its own access and view stats.
+                                        Not shared yet. Create a link to share this, and make as
+                                        many links as you need: one per audience or channel, each
+                                        with its own access and view stats.
                                     </p>
                                     <CreateForm onCreate={create} />
                                 </>
@@ -588,7 +588,7 @@ const LinkRow: Component<{
 
                         <Show when={!props.link.recipients.length}>
                             <p class="mt-2.5 text-[11.5px] text-muted">
-                                No one can view this yet — add people above to grant access.
+                                No one can view this yet. Add people above to grant access.
                             </p>
                         </Show>
                         <Show when={props.link.recipients.length}>

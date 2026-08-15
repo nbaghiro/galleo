@@ -363,7 +363,7 @@ export const WorkspaceSettingsView: Component = () => {
                                                     {inv().sent
                                                         ? "Invite sent."
                                                         : "Invite created (email isn't configured on this server)."}{" "}
-                                                    Share this link — it works once:
+                                                    Share this link, which works once:
                                                     <div class="mt-1.5 flex items-center gap-2">
                                                         <code class="min-w-0 flex-1 truncate rounded-md bg-canvas px-2 py-1 text-[11.5px]">
                                                             {inv().url}
@@ -482,7 +482,7 @@ export const WorkspaceSettingsView: Component = () => {
                                                             {inv.email}
                                                         </span>
                                                         <span class="block text-[11.5px] text-muted">
-                                                            Invited — expires{" "}
+                                                            Invited · expires{" "}
                                                             {new Date(
                                                                 inv.expiresAt,
                                                             ).toLocaleDateString()}

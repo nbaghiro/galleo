@@ -827,7 +827,7 @@ export const LibraryView: Component = () => {
                             body={
                                 cur.kind === "delete-batch" ? (
                                     <>
-                                        {n} artifact{plural} will be moved to Trash — you can
+                                        {n} artifact{plural} will be moved to Trash, and you can
                                         restore
                                         {n === 1 ? " it" : " them"} from there.
                                     </>
