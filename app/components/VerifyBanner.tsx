@@ -26,7 +26,7 @@ export const VerifyBanner: Component = () => {
             <div class="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border border-line bg-panel px-4 py-2 text-[12.5px] text-soft shadow-lg">
                 <Show
                     when={!sent()}
-                    fallback={<span class="text-ink">Verification sent — check your inbox.</span>}
+                    fallback={<span class="text-ink">Verification sent. Check your inbox.</span>}
                 >
                     <span>Verify your email to secure your account.</span>
                     <button

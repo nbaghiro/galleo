@@ -1088,7 +1088,7 @@ export const EvalView: Component = () => {
                                 <EmptyState
                                     class="flex-1"
                                     title="Couldn’t load runs"
-                                    subtitle={`${error()} — the eval tools are only available to the demo@galleo.app account.`}
+                                    subtitle={`${error()}. The eval tools are only available to the demo@galleo.app account.`}
                                     action={
                                         <Button
                                             variant="outline"

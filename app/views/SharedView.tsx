@@ -128,7 +128,7 @@ const DayBars: Component<{ days: { day: string; views: number }[] }> = (p) => {
                     {(b) => (
                         <div
                             class="flex h-full flex-1 flex-col justify-end"
-                            title={`${b.day} — ${viewsLabel(b.views)}`}
+                            title={`${b.day} · ${viewsLabel(b.views)}`}
                         >
                             <Show
                                 when={b.views}
@@ -159,7 +159,7 @@ const SourceBars: Component<{ rows: { label: string; views: number }[] }> = (p) 
                 {(r) => (
                     <div
                         class="flex items-center gap-2"
-                        title={`${r.label} — ${viewsLabel(r.views)}`}
+                        title={`${r.label} · ${viewsLabel(r.views)}`}
                     >
                         <span class="w-30 truncate text-[11.5px] text-ink">{r.label}</span>
                         <div class="h-2 flex-1 overflow-hidden rounded-full bg-canvas">

@@ -110,7 +110,7 @@ export const ModelPickerModal: Component = () => {
     // models above the plan's tier are listed but marked — the server would ignore them anyway
     const options = createMemo(() =>
         (info()?.models ?? []).map((m) => ({
-            label: m.locked ? `${m.label} — upgrade` : m.label,
+            label: m.locked ? `${m.label} · upgrade` : m.label,
             value: m.id,
             group: m.provider,
         })),

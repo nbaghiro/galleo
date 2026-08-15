@@ -79,7 +79,7 @@ export const UpgradeNotice: Component<{
             fallback={
                 <EmptyState
                     class="mx-auto max-w-85 py-4"
-                    title={soon() ? `${props.title} — coming soon` : props.title}
+                    title={soon() ? `${props.title} · coming soon` : props.title}
                     subtitle={
                         <span class="leading-relaxed">
                             {props.children} {where()}

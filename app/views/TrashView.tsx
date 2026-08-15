@@ -123,7 +123,7 @@ export const TrashView: Component = () => {
                             <p class="mt-0.5 text-[13px] text-muted">
                                 {trash().length === 0
                                     ? "Nothing here."
-                                    : `${trash().length} ${trash().length === 1 ? "item" : "items"} — restore them, or clear Trash to delete forever.`}
+                                    : `${trash().length} ${trash().length === 1 ? "item" : "items"}. Restore them, or clear Trash to delete forever.`}
                             </p>
                         </div>
                         <Show when={trash().length}>

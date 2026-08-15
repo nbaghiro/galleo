@@ -9,13 +9,13 @@ import { MessageView } from "@app/views/ChatPanel";
 
 const PLAN_HINTS = [
     "Add a pricing section after the traction one",
-    "The middle drags — cut a beat",
+    "The middle drags, cut a beat",
     "Move the ask to the end",
     "What's this arc still missing?",
 ];
 const WRITTEN_HINTS = [
     "Make this section a three-stat row",
-    "Tighten the opening — it's too long",
+    "Tighten the opening, it runs long",
     "Add a section on pricing after this one",
     "What's this piece still missing?",
 ];

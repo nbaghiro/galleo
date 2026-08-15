@@ -232,7 +232,7 @@ export const Intake: Component = () => {
                                 <div class="flex flex-wrap gap-1.5 px-3 pb-2">
                                     <ContextChips
                                         ids={ctxIds()}
-                                        title="Attached context — sections write from its material"
+                                        title="Attached context, which sections write from"
                                         onRemove={(id) =>
                                             setCtxIds((cur) => cur.filter((c) => c !== id))
                                         }
@@ -306,7 +306,7 @@ export const Intake: Component = () => {
                         </Show>
                         <Show when={overLimit() > 0}>
                             <p class="mt-2 text-[11.5px] leading-snug text-muted">
-                                That's more material than one plan reads — the first{" "}
+                                That's more material than one plan reads. The first{" "}
                                 {SOURCE_LIMIT.toLocaleString()} characters are used, and{" "}
                                 {overLimit().toLocaleString()} are dropped.
                             </p>

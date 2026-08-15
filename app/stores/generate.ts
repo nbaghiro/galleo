@@ -494,7 +494,7 @@ export async function planFromChat(req: { guidance?: string; andWrite?: boolean 
     if (note)
         setGen("brief", "clarifications", [
             ...(gen.brief.clarifications ?? []),
-            `Shaping note — ${note}`,
+            `Shaping note: ${note}`,
         ]);
     await startPlan();
     if (req.andWrite && gen.stage === "outline" && gen.beats.length) startBuild();
@@ -525,7 +525,7 @@ export function answerClarify(answer: string): void {
     if (!question || !text) return;
     setGen("brief", "clarifications", [
         ...(gen.brief.clarifications ?? []),
-        `${question} — ${text}`,
+        `${question} · ${text}`,
     ]);
     if (/^(yes|yep|yeah|sure|please do|do it)\b/i.test(text)) {
         const point = pointFromQuestion(question);
@@ -732,7 +732,7 @@ async function buildLoop(): Promise<void> {
             const landed = await buildOne(index);
             if (!landed) {
                 requeueInFlight();
-                fail("building", "The section didn’t land — try again.");
+                fail("building", "The section didn’t come back. Try again.");
                 return;
             }
             void saveDraft();

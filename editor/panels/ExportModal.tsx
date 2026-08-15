@@ -295,9 +295,9 @@ const Body: Component = () => {
             <div class="flex items-center gap-2.5 border-t border-line px-5 py-3">
                 <Show when={!features().removeBranding}>
                     <span class="text-[12px] text-muted">
-                        Adds a small "Made with Galleo" mark —{" "}
+                        Adds a small "Made with Galleo" mark.{" "}
                         <button class="font-semibold text-accent" onClick={() => requestUpgrade()}>
-                            upgrade to remove
+                            Upgrade to remove
                         </button>
                     </span>
                 </Show>

@@ -129,7 +129,7 @@ export const WorkspaceSettingsView: Component = () => {
             setLastInvite(await inviteMember(target, inviteRole()));
             setEmail("");
         } catch (err) {
-            setError(err instanceof ApiError ? err.message : "the invite failed — try again");
+            setError(err instanceof ApiError ? err.message : "the invite failed. Try again");
         } finally {
             setBusy(false);
         }
@@ -253,7 +253,7 @@ export const WorkspaceSettingsView: Component = () => {
                                             }
                                             caption={
                                                 b()?.status === "past_due"
-                                                    ? "Payment failed — update your card"
+                                                    ? "Payment failed. Update your card"
                                                     : b()?.cancelAtPeriodEnd
                                                       ? "Ends at the period close"
                                                       : undefined

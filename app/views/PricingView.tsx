@@ -88,12 +88,12 @@ export const PricingView: Component = () => {
                     </Show>
                     <Show when={params.status === "cancel"}>
                         <div class="mb-5 rounded-xl border border-line bg-panel px-4 py-3 text-[13px] text-soft">
-                            Checkout canceled — no charge. You can upgrade whenever you're ready.
+                            Checkout canceled, no charge. You can upgrade whenever you're ready.
                         </div>
                     </Show>
                     <Show when={b() && !ready()}>
                         <div class="mb-5 rounded-xl border border-line bg-panel px-4 py-3 text-[13px] text-soft">
-                            Billing isn't configured on this server yet — the plans below are live,
+                            Billing isn't configured on this server yet. The plans below are live,
                             but checkout is disabled until the Stripe keys are set.
                         </div>
                     </Show>

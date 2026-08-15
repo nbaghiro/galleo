@@ -120,7 +120,7 @@ export const SectionGenPopup: Component = () => {
                                 submit();
                             }
                         }}
-                        placeholder="Describe the section to add — it'll fit the story around it…"
+                        placeholder="Describe the section to add. It'll fit the story around it…"
                         class="resize-none placeholder:text-soft"
                     />
                     <div class="mt-2 flex flex-wrap gap-1.5">

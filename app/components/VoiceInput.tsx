@@ -136,7 +136,7 @@ export const VoiceInput: Component<{
                                     "text-muted": !error(),
                                 }}
                             >
-                                {error() ?? "Hold the mic while you speak — release to insert."}
+                                {error() ?? "Hold the mic while you speak. Release to insert."}
                             </p>
                         }
                     >

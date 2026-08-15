@@ -140,7 +140,7 @@ const BriefFields: Component = () => {
                         compact
                         class="min-w-40 flex-1"
                         value={point()}
-                        placeholder="Add a point to cover — Enter"
+                        placeholder="Add a point to cover, then Enter"
                         onChange={setPoint}
                         onKeyDown={(e: KeyboardEvent) => e.key === "Enter" && addPoint()}
                     />
@@ -160,7 +160,7 @@ const BriefFields: Component = () => {
             </Show>
             <Show when={gen.briefFailed}>
                 <p class="text-[11px] leading-snug text-muted">
-                    That read didn't come back — the arc still plans from your prompt.
+                    That read didn't come back. The arc still plans from your prompt.
                 </p>
             </Show>
             <Show when={gen.briefDirty}>

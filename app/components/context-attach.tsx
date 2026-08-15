@@ -382,7 +382,7 @@ export const AttachMenu: Component<{
                 title={
                     props.title ??
                     (props.sources
-                        ? "Add context — files, pasted text, collections"
+                        ? "Add context: files, pasted text, collections"
                         : "Attach a context collection")
                 }
                 onClick={() => setOpen(!open())}
@@ -433,7 +433,7 @@ export const AttachMenu: Component<{
                                 <Show when={contextsLoaded() && !contextList().length}>
                                     <p class="px-2 pb-1 text-[11.5px] leading-snug text-muted">
                                         {col().emptyCopy ??
-                                            "Reusable grounding built from files, links, and your library — attach one to write from its facts."}
+                                            "Reusable grounding built from files, links, and your library. Attach one to write from its facts."}
                                     </p>
                                 </Show>
                                 <ContextToggleRows

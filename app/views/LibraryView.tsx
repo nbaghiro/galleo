@@ -115,17 +115,14 @@ const EmptyLibrary: Component<{ onGenerate: () => void; onTemplates: () => void 
         </div>
 
         <div class="relative z-raised max-w-110 rounded-2xl border border-line bg-panel/95 px-9 py-8 text-center shadow-2xl backdrop-blur-sm">
-            <Eyebrow as="div" tracking="widest" class="mb-2">
-                A clean slate
-            </Eyebrow>
             <h2
                 class="font-display text-[24px] font-semibold text-ink"
                 style={{ "text-wrap": "balance" }}
             >
-                Nothing here yet — it fills up fast.
+                Nothing here yet
             </h2>
             <p class="mx-auto mt-2 max-w-85 text-[14px] text-soft">
-                Spin up your first deck, doc, or site. Everything you make lands right here.
+                Make a deck, a doc, or a site. Everything you create shows up here.
             </p>
             <div class="mt-6 flex flex-wrap items-center justify-center gap-2.5">
                 <button

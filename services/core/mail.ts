@@ -87,7 +87,7 @@ export async function sendShareInvite(invite: ShareInvite): Promise<boolean> {
     <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;line-height:1.3">${title}</h1>
     ${note}
     <a href="${invite.url}" style="display:inline-block;padding:11px 20px;background:#18181b;color:#fff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600">Open document</a>
-    <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa;line-height:1.5">This link is unique to you — please don't forward it. If the button doesn't work, paste this URL into your browser:<br><span style="color:#71717a;word-break:break-all">${escapeHtml(
+    <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa;line-height:1.5">This link is unique to you. Please don't forward it. If the button doesn't work, paste this URL into your browser:<br><span style="color:#71717a;word-break:break-all">${escapeHtml(
         invite.url,
     )}</span></p>
     <p style="margin:28px 0 0;font-size:11px;color:#d4d4d8">Sent via Galleo</p>
@@ -112,7 +112,7 @@ export async function sendWorkspaceInvite(invite: WorkspaceInvite): Promise<bool
     <p style="margin:0 0 8px;font-size:13px;color:#71717a">${who} invited you to collaborate</p>
     <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;line-height:1.3">Join ${wsName} on Galleo</h1>
     <a href="${invite.url}" style="display:inline-block;padding:11px 20px;background:#18181b;color:#fff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600">Accept invitation</a>
-    <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa;line-height:1.5">This link is unique to you — please don't forward it. If the button doesn't work, paste this URL into your browser:<br><span style="color:#71717a;word-break:break-all">${escapeHtml(
+    <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa;line-height:1.5">This link is unique to you. Please don't forward it. If the button doesn't work, paste this URL into your browser:<br><span style="color:#71717a;word-break:break-all">${escapeHtml(
         invite.url,
     )}</span></p>
     <p style="margin:28px 0 0;font-size:11px;color:#d4d4d8">Sent via Galleo</p>

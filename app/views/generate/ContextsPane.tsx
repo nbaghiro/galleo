@@ -692,8 +692,8 @@ const ContextDetail: Component<{ context: ContextSummary; onDeleted: () => void 
                             </Show>
                         </span>
                         <span class="min-w-0 flex-1 text-[12.5px] text-soft">
-                            <span class="font-semibold text-ink">Drop anything here</span> — files,
-                            a pasted block, or a link
+                            <span class="font-semibold text-ink">Drop anything here</span>: files, a
+                            pasted block, or a link
                         </span>
                         <span class="flex-none rounded-md border border-line px-1.5 py-0.5 font-mono text-[9px] text-muted">
                             ⌘V
@@ -1048,7 +1048,7 @@ export const ContextsPane: Component<{ onBack: () => void }> = (props) => {
                         </Show>
                         <Show when={contextsLoaded() && !contextList().length}>
                             <p class="max-w-md px-5 pb-8 text-[12.5px] leading-relaxed text-muted md:px-9">
-                                Nothing here yet — a context is remembered material your whole
+                                Nothing here yet. A context is remembered material your whole
                                 workspace can attach to any generate.{" "}
                                 <span class="font-mono text-[10.5px] text-soft">
                                     Seed the first one above.

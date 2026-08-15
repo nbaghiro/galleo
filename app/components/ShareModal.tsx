@@ -269,7 +269,7 @@ const CreateForm: Component<{
     return (
         <div>
             <TextField
-                placeholder="Label, only you see it — e.g. “Investor update”"
+                placeholder="Label, only you see it. For example “Investor update”"
                 value={name()}
                 onChange={setName}
             />
@@ -637,7 +637,7 @@ const LinkRow: Component<{
                             variant="dangerGhost"
                             size="sm"
                             disabled={busy()}
-                            title="Delete this link — its URL stops working"
+                            title="Delete this link. Its URL stops working"
                             onClick={() => props.onDelete()}
                         >
                             Delete link

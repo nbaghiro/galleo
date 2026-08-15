@@ -99,7 +99,7 @@ export const THEME_SAMPLE: Section = {
     root: group(
         tx("Galleo · design system", "label"),
         tx("A theme you can feel", "h1"),
-        tx("One token set themes every surface — decks, docs, and sites alike.", "subtitle"),
+        tx("One token set themes every surface: decks, docs, and sites alike.", "subtitle"),
         button("Get started"),
     ),
 };

@@ -615,7 +615,7 @@ export const MediaPicker: Component = () => {
                         fallback={
                             query().trim()
                                 ? "No icons found."
-                                : "Search 200,000+ icons — try “rocket”, “heart”, or “arrow”."
+                                : "Search 200,000+ icons. Try “rocket”, “heart”, or “arrow”."
                         }
                     >
                         Loading…
@@ -749,8 +749,8 @@ export const MediaPicker: Component = () => {
                                     rounded="lg"
                                     placeholder={
                                         refItem()
-                                            ? "Describe the change — e.g. same but warmer light, closer crop"
-                                            : "Describe the image — e.g. a rooftop solar array at golden hour, wide angle"
+                                            ? "Describe the change. For example: same but warmer light, closer crop"
+                                            : "Describe the image. For example: a rooftop solar array at golden hour, wide angle"
                                     }
                                     value={prompt()}
                                     onChange={setPrompt}

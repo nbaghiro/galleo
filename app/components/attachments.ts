@@ -170,6 +170,6 @@ export async function readAttachment(file: File): Promise<ReadResult> {
         }
     }
     return {
-        error: `${file.name} isn't a supported file — attach text (.txt, .md, .csv…), .pdf, .docx, .xlsx, or an image.`,
+        error: `${file.name} isn't a supported file. Attach text (.txt, .md, .csv…), .pdf, .docx, .xlsx, or an image.`,
     };
 }

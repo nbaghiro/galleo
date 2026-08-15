@@ -35,7 +35,7 @@ const HEADING: Record<Mode, string> = {
     reset: "Choose a new password",
 };
 const SUBCOPY: Record<Mode, string> = {
-    signin: "Decks, docs, and sites — one canonical artifact.",
+    signin: "One artifact. Decks, docs, and sites.",
     signup: "Start with a deck, doc, or site — one canonical artifact.",
     forgot: "Enter your email and we’ll send you a reset link.",
     reset: "Set a new password for your account.",

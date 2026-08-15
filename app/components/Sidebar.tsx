@@ -346,7 +346,7 @@ export const Sidebar: Component = () => {
                     <a
                         href="/home"
                         rel="external"
-                        title="Galleo — marketing site"
+                        title="Galleo · marketing site"
                         class="flex items-center gap-2.5 px-1.5 font-mono text-[14px] font-bold tracking-[0.06em] text-accent transition-opacity hover:opacity-70"
                     >
                         <Mark size={24} rounded="md" />
@@ -495,9 +495,9 @@ const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }>
                 onClick={() => props.navigate("/pricing")}
             >
                 {pastDue()
-                    ? "Payment failed — fix billing →"
+                    ? "Payment failed. Fix billing →"
                     : lapsing()
-                      ? "Plan ends soon — resume →"
+                      ? "Plan ends soon. Resume →"
                       : props.b.plan === "free"
                         ? "Upgrade for more credits →"
                         : "Manage plan →"}

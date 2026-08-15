@@ -93,7 +93,7 @@ let workletUrl: string | undefined;
 const micErrorMessage = (e: unknown): string => {
     const name = e instanceof DOMException ? e.name : "";
     if (name === "NotAllowedError" || name === "SecurityError")
-        return "Microphone access is blocked — allow it in your browser settings.";
+        return "Microphone access is blocked. Allow it in your browser settings.";
     if (name === "NotFoundError") return "No microphone was found.";
     return "The microphone could not be started.";
 };

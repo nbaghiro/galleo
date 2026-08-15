@@ -1015,8 +1015,8 @@ const LIBRARY_EXAMPLES = [
 const inEditor = (): boolean => editorActive();
 const emptyPrompt = (): string =>
     inEditor()
-        ? "Ask about the open artifact, or tell me what to add or change — I'll propose it for you to apply."
-        : "No document open — tell me what you'd like to make and I'll build it right here for you to refine, or ask me anything.";
+        ? "Ask about the open artifact, or tell me what to add or change, and I'll propose it for you to apply."
+        : "Nothing open yet. Tell me what to make and I'll build it here for you to refine, or ask me anything.";
 const emptyExamples = (): string[] => (inEditor() ? EDITOR_EXAMPLES : LIBRARY_EXAMPLES);
 
 export const ChatPanel: Component = () => {
@@ -1147,7 +1147,7 @@ export const ChatPanel: Component = () => {
                             <div class="mb-1.5 flex flex-wrap gap-1">
                                 <ContextChips
                                     ids={chatContextIds()}
-                                    title="Attached context — the agent retrieves from it"
+                                    title="Attached context, which the agent retrieves from"
                                     onRemove={(id) =>
                                         setChatContextIds(chatContextIds().filter((c) => c !== id))
                                     }
@@ -1163,7 +1163,7 @@ export const ChatPanel: Component = () => {
                                     selected: chatContextIds(),
                                     onChange: setChatContextIds,
                                     emptyCopy:
-                                        "No contexts yet — build one from the + menu on the generate screen, then attach it here.",
+                                        "No contexts yet. Build one from the + menu on the generate screen, then attach it here.",
                                 }}
                             />
                             <textarea

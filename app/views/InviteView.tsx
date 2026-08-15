@@ -22,7 +22,7 @@ export const InviteView: Component = () => {
             await api.acceptInvite(params.token);
             window.location.href = "/"; // full reload so every store re-fetches under the new workspace
         } catch (e) {
-            setError(e instanceof ApiError ? e.message : "joining failed — try again");
+            setError(e instanceof ApiError ? e.message : "joining failed. Try again");
             setBusy(false);
         }
     };

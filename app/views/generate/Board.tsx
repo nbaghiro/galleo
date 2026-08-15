@@ -170,7 +170,7 @@ export const Board: Component = () => {
                             variant="outline"
                             size="sm"
                             rounded="xl"
-                            title="Stop after this section — then edit, rework, or ask for changes"
+                            title="Stop after this section, then edit, rework, or ask for changes"
                             onClick={pauseBuild}
                         >
                             Stop

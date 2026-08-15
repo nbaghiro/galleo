@@ -510,7 +510,7 @@ export async function generateFromBrief(brief: GenBrief): Promise<void> {
         if (drafts[id]?.status === "building")
             setDrafts(id, {
                 status: "error",
-                error: "The connection dropped mid-build — try again.",
+                error: "The connection dropped mid-build. Try again.",
             });
     } catch (e) {
         if (!abort?.signal.aborted) {
