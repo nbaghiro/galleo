@@ -59,6 +59,17 @@ describe("composedLeafFor", () => {
         const s = sectionOf(inst("image", { src: "x" }), { id: "s1" });
         expect(composedLeafFor(s, { section: "s1", path: [] }, deckCtx)).toBeNull();
     });
+    it("scales leaves with the width ramp — overlay callers must compose at the painted width", () => {
+        const s = sectionOf(textRoot(), { id: "s1" });
+        const wide = composedLeafFor(s, { section: "s1", path: [] }, deckCtx)!;
+        const narrow = composedLeafFor(
+            s,
+            { section: "s1", path: [] },
+            layoutCtx(320, resolveProfile("deck")),
+        )!;
+        // 320/640 sits below the ramp floor, so the leaf lands at exactly 0.7× the wide size
+        expect(narrow.size).toBeCloseTo(wide.size * 0.7, 5);
+    });
 });
 
 describe("composeSection", () => {

@@ -169,15 +169,21 @@ export const ContextBar: Component = () => {
                     anchor="free"
                     gap="0.5"
                     data-galleo-toolbar="true"
-                    // phone: docked as a scrollable strip just under the 52px topbar — anchored to
-                    // the element it would sit under a finger or behind the keyboard, and clip at
-                    // 390px; fixed, so scrolling and the keyboard can't carry it away
+                    // phone: the same above-the-element anchor as desktop, as a full-width
+                    // scrollable strip (a centered pill can't clamp on a narrow viewport). Content
+                    // coords on purpose: when the keyboard opens the browser scrolls the focused
+                    // element into view and the bar rides along, whereas a `fixed` strip attaches
+                    // to the layout viewport and the keyboard's visual-viewport pan can strand it.
                     class={
                         isPhone()
-                            ? "fixed inset-x-2 top-15 z-chrome overflow-x-auto"
+                            ? "absolute inset-x-2 z-chrome overflow-x-auto"
                             : "absolute z-chrome -translate-x-1/2"
                     }
-                    style={isPhone() ? undefined : { left: `${p().left}px`, top: `${p().top}px` }}
+                    style={
+                        isPhone()
+                            ? { top: `${p().top}px` }
+                            : { left: `${p().left}px`, top: `${p().top}px` }
+                    }
                     onPointerDown={(e) => e.stopPropagation()}
                 >
                     <Show when={barFields().length}>
