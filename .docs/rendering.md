@@ -236,10 +236,9 @@ different label and placeholder per diagram type.
 
 **Ghosts & previews.** `skeletonize` (`elements/spec.ts`) derives a structural ghost (bars/blocks/pills)
 from any composed node — used by the AI live-build skeletons (`layoutSectionSkeleton` /
-`layoutSlideSkeleton`) and as the drop-ghost fallback; because it's real engine output, it occupies the
-exact final geometry. Palette tiles and new-from-palette drop ghosts use the hand-drawn themed SVG previews
-in `previews.ts` (`previewSvg` emits CSS-var colors so tiles recolor live with the theme; `previewDataUri`
-bakes concrete tokens for the on-canvas ghost, where CSS vars wouldn't resolve).
+`layoutSlideSkeleton`); because it's real engine output, it occupies the exact final geometry. Palette
+tiles (and the drag cursor's mini tile) use the hand-drawn themed SVG previews in `previews.ts`
+(`previewSvg` emits CSS-var colors so tiles recolor live with the theme).
 
 ### 5.1 Where elements live
 
@@ -256,7 +255,6 @@ canvas/elements/
                  each with applies/matches/transform over a role-tagged flatten of the root tree
   previews.ts    hand-drawn themed SVG palette tiles (previewSvg CSS-var / previewDataUri baked tokens)
   blueprint.ts   placeholder sections/blocks (AI generation staging)
-  dropghost.ts   the internal __dropghost element (the live drop preview)
   register.ts    the manifest — side-effect-imports every element file (imported by app/main.tsx)
 
   text/      text · bullets("List") · callout · code · quote
@@ -277,8 +275,8 @@ side-effect-imports every element file at startup (that's when each `register(sp
 
 ### 5.2 The catalog
 
-**63 registered types, 58 palette-visible.** Hidden from the palette (`HIDDEN` in `editor/Editor.tsx`):
-`group`, `avatar`, `__dropghost`, and the `chart`/`diagram` elements themselves — content stores one of
+**62 registered types, 58 palette-visible.** Hidden from the palette (`HIDDEN` in `editor/Editor.tsx`):
+`group`, `avatar`, and the `chart`/`diagram` elements themselves — content stores one of
 those with a `data.type`, while the per-type entries are the palette tiles. Palette rail order + labels
 (`CAT_ORDER` / `CAT_LABEL`, same file):
 
@@ -433,20 +431,25 @@ clipboard (paste lands through the same `place()` logic as a drop). Bindings are
 or the inline editor has focus.
 
 **The overlay stack.** All chrome is mounted as absolutely-positioned siblings over the `paintHost` inside
-one stage div — the selection/hover rings (`Overlay`), the drag/resize/divider handle layers, the section
-pill, the `ContextBar`, the empty-region "+ Add element" affordance, the AI generate popup/stages, live
-video embeds, and the inline `TextEditor`. There's no separate drop indicator: a drop previews by reflowing
-the painted section around an inline ghost, not by an overlay.
+one stage div — the selection/hover rings (`Overlay`), the drop indicators + lift veil
+(`panels/DropIndicators.tsx`), the drag/resize/divider handle layers, the section pill, the `ContextBar`,
+the empty-region "+ Add element" affordance, the AI generate popup/stages, live video embeds, and the
+inline `TextEditor`.
 
-**Drag & drop (`editor/core/dnd.ts`).** A drag resolves against the engine regions to ONE of five ops —
-replace an empty region, insert into a container at the nearest gap, wrap a leaf into a new row/col, add a
-section column (a band around a column boundary), or **create a new section** (bands between/above/below
-sections — checked first, so dragging out of a section reads as "new section", never a destructive
-replace). A move removes the source, re-aims the target path across the removal, places the element, then
-**collapses** only the emptied source column (unrelated empty columns stay put). `previewDrop` runs the
-identical path, splicing an inline ghost of the dragged element — the real element dimmed for a move, its
-themed preview tile for a new-from-palette drop — so the live reflow matches the drop exactly, at every
-drop target.
+**Drag & drop (`editor/core/dnd.ts`).** The canvas never reflows during an element drag: the document
+stays frozen, so the regions captured at drag start stay valid for the whole gesture. `computeDropSlots`
+enumerates every droppable place ONCE into `DropSlot`s — target + indicator geometry (a line in a gap, a
+region highlight for an empty container) + a hitbox — covering the five ops: replace an empty region,
+insert into a container at a sibling gap (hitboxes tile the container at child midpoints, so there are no
+dead zones), wrap a leaf root into a new row/col (four edge slots sharing the leaf's box), add a section
+column (bands around column boundaries), or create a new section (bands between/above/below sections). A
+move excludes the dragged subtree and the no-op gaps flanking the source. Per pointer move, `activeSlot`
+is a hitbox lookup: the highest priority class wins (element < column < newSection), then the deepest
+path, then the nearest indicator, with a small hysteresis margin so boundaries don't flap.
+`DropIndicators` draws the slots (accent line/highlight for the active one, faint markers for the section
+gaps and the hovered section's candidates); `LiftVeil` dims a move's source in place. The single mutation
+happens at drop: `applyDrop` removes the source, re-aims the target path across the removal, places the
+element, then **collapses** only the emptied source column (unrelated empty columns stay put).
 
 **Section-level chrome** (`editor/panels/Selection.tsx`): **`SectionActions`** — one pill straddling a
 section's bottom edge whenever any region inside it is _hovered_ (pinned while its popup is open): reorder

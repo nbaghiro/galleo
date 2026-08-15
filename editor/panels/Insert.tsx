@@ -228,15 +228,30 @@ export const ContextMenu: Component = () => (
 );
 
 // always mounted; only visibility toggles
-export const DragGhost: Component = () => (
-    <div
-        class="pointer-events-none fixed z-overlay rounded-full border border-line bg-panel/95 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-lg backdrop-blur-md"
-        style={{
-            display: drag() ? "block" : "none",
-            left: `${(drag()?.x ?? 0) + 14}px`,
-            top: `${(drag()?.y ?? 0) + 14}px`,
-        }}
-    >
-        {drag()?.label}
-    </div>
-);
+export const DragGhost: Component = () => {
+    // a new-element drag carries its palette tile along; moves already show the veiled source
+    const newType = (): string | null => {
+        const p = drag()?.payload;
+        return p?.kind === "new" ? p.type : null;
+    };
+    return (
+        <div
+            class="pointer-events-none fixed z-overlay flex items-center gap-2 rounded-full border border-line bg-panel/95 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-lg backdrop-blur-md"
+            style={{
+                display: drag() ? "flex" : "none",
+                left: `${(drag()?.x ?? 0) + 14}px`,
+                top: `${(drag()?.y ?? 0) + 14}px`,
+            }}
+        >
+            <Show when={newType()}>
+                {(t) => (
+                    <span
+                        class="-my-0.5 block h-5 w-9 overflow-hidden rounded border border-line bg-canvas"
+                        innerHTML={previewSvg(t())}
+                    />
+                )}
+            </Show>
+            {drag()?.label}
+        </div>
+    );
+};

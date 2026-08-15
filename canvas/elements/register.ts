@@ -33,5 +33,3 @@ import "@elements/basic/spacer";
 
 import "@elements/chart/element";
 import "@elements/diagram/element";
-
-import "@elements/dropghost";

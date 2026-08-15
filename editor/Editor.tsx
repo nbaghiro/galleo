@@ -488,7 +488,7 @@ const Minimap: Component = () => {
 };
 
 // hidden from the palette: internals with no standalone meaning
-const HIDDEN = new Set(["group", "__dropghost", "avatar"]);
+const HIDDEN = new Set(["group", "avatar"]);
 const CAT_ORDER = ["text", "media", "table", "composite", "chart", "diagram", "basic"];
 const CAT_LABEL: Record<string, string> = {
     text: "Text",
