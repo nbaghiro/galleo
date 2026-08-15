@@ -5,26 +5,27 @@ import { Button } from "@ui/button";
 import { TextArea } from "@ui/inputs";
 import { Icon } from "@ui/icons";
 import { Dropdown } from "@ui/select";
-import { appTheme } from "../../stores/theme";
+import { appTheme } from "@app/stores/theme";
 import { isCoarsePointer } from "@ui/viewport";
-import { Credits } from "../../components/credits";
+import { Credits } from "@app/components/credits";
 import { artifactSearchText } from "@model/artifact";
-import { api } from "../../api";
-import { closeGenerate, planCost, startSession, type Surface } from "../../stores/generate";
-import { createBlank, formatLabel } from "../../stores/library";
-import { reportError } from "../../stores/errors";
+import { api } from "@app/api";
+import { closeGenerate, planCost, startSession, type Surface } from "@app/stores/generate";
+import { createBlank, formatLabel } from "@app/stores/library";
+import { reportError } from "@app/stores/errors";
 import { IMAGE_SOURCES, LENGTHS, PLACEHOLDER, SURFACES } from "./prompts";
 import { setPreviewFormat } from "./shared";
-import { TemplateGallery } from "../../components/TemplateGallery";
+import { TemplateGallery } from "@app/components/TemplateGallery";
 import {
     AttachMenu,
     AttachmentChips,
     ContextChips,
     createAttachSources,
     type SourcePick,
-} from "../../components/context-attach";
+} from "@app/components/context-attach";
 import { ContextsPane } from "./ContextsPane";
 import { TemplateRow } from "./TemplateRow";
+import { VoiceInput } from "@app/components/VoiceInput";
 import {
     mergeAttachments,
     nextAttachmentId,
@@ -32,7 +33,7 @@ import {
     SOURCE_LIMIT,
     sourceLength,
     type Attachment,
-} from "../../components/attachments";
+} from "@app/components/attachments";
 
 // module-level so the studio shell can size the dialog: the prompt is compact, but "Browse all"
 // and the contexts pane swap in full-height surfaces that want the wide modal
@@ -41,6 +42,7 @@ const [managing, setManaging] = createSignal(false);
 export const intakeExpanded = (): boolean => browsing() || managing();
 
 export const Intake: Component = () => {
+    let field!: HTMLTextAreaElement;
     const [prompt, setPrompt] = createSignal("");
     const [fmt, setFmt] = createSignal<Surface>("deck");
     const [length, setLength] = createSignal("Standard");
@@ -205,14 +207,16 @@ export const Intake: Component = () => {
                             Describe it in a sentence — or just enough for a template to catch it.
                         </p>
 
+                        {/* relative: the VoiceInput transcript overlay anchors here, spanning the composer */}
                         <div
-                            class="mt-6 rounded-2xl border bg-panel shadow-xl transition-colors"
+                            class="relative mt-6 rounded-2xl border bg-panel shadow-xl transition-colors"
                             classList={{
                                 "border-accent ring-2 ring-accent/25": dropping(),
                                 "border-line": !dropping(),
                             }}
                         >
                             <TextArea
+                                ref={field}
                                 rounded="xl"
                                 rows={4}
                                 class="border-0 bg-transparent text-[15px] leading-relaxed placeholder:text-muted"
@@ -276,16 +280,24 @@ export const Intake: Component = () => {
                                     />
                                 </div>
 
-                                <Button
-                                    variant="primary"
-                                    rounded="xl"
-                                    size="sm"
-                                    class="ml-auto whitespace-nowrap"
-                                    disabled={!ready()}
-                                    onClick={launch}
-                                >
-                                    Plan the outline → · <Credits n={planCost()} />
-                                </Button>
+                                <div class="ml-auto flex flex-none items-center gap-x-1">
+                                    {/* no onAutoSend: dictation drafts the brief for review, never launches */}
+                                    <VoiceInput
+                                        field={() => field}
+                                        value={prompt}
+                                        setValue={setPrompt}
+                                    />
+                                    <Button
+                                        variant="primary"
+                                        rounded="xl"
+                                        size="sm"
+                                        class="whitespace-nowrap"
+                                        disabled={!ready()}
+                                        onClick={launch}
+                                    >
+                                        Plan the outline → · <Credits n={planCost()} />
+                                    </Button>
+                                </div>
                             </div>
                         </div>
 
