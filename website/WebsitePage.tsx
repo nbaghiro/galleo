@@ -7,7 +7,7 @@ const THEME_COUNT = THEME_LIST.length;
 
 const announceItems = [
     "Now in public beta",
-    "One source — three polished views",
+    "One source, three views",
     `${THEME_COUNT} designer themes, one click`,
     "Edit once, stays in sync",
     "Decks · docs · sites",
@@ -46,21 +46,21 @@ const viewCards = [
         alt: "Deck view",
         name: "Deck",
         tag: "16:9",
-        desc: "Big type, one idea per slide — present live or export to PPTX.",
+        desc: "Big type, one idea per slide. Present live, or export to PPTX.",
     },
     {
         seed: "galleodoc",
         alt: "Document view",
         name: "Doc",
         tag: "A4",
-        desc: "Flowing columns and footnotes — a leave-behind that reads like print.",
+        desc: "Flowing columns and footnotes. A leave-behind that reads like print.",
     },
     {
         seed: "galleosite",
         alt: "Website view",
         name: "Site",
         tag: "RESPONSIVE",
-        desc: "A scrolling page on your domain — publish in a click, no build step.",
+        desc: "A scrolling page on your domain. Publish in one click, with no build step.",
     },
 ];
 
@@ -91,22 +91,22 @@ const features = [
     {
         num: "03",
         title: `${THEME_COUNT} designer themes`,
-        body: "Each is a complete system — font trio, color, radius, borders, shadow. One click restyles the whole artifact.",
+        body: "Each is a complete system: font trio, color, radius, borders, shadow. One click restyles the whole artifact.",
     },
     {
         num: "04",
         title: "AI first draft",
-        body: "Prompt it, or import an outline, and get a finished-feeling draft in seconds — structured, not a wall of text.",
+        body: "Prompt it, or import an outline, and get a structured draft rather than a wall of text.",
     },
     {
         num: "05",
         title: "High-fidelity export",
-        body: "PDF, PPTX, and live web publishing — pixel-faithful to what you see, ready to send or ship.",
+        body: "PDF, PPTX, and live web publishing, pixel-faithful to what you see and ready to send.",
     },
     {
         num: "06",
         title: "Built for teams",
-        body: "Real-time collaboration, shared workspaces, and folders — so the whole team works from one source of truth.",
+        body: "Real-time collaboration, shared workspaces, and folders, so the whole team works from one source.",
     },
 ];
 
@@ -486,11 +486,10 @@ export const WebsitePage: Component = () => (
                         style={{ "animation-delay": "0.46s" }}
                     >
                         Describe what you need. Galleo generates one canonical artifact that renders
-                        three ways — a <strong style={{ color: "var(--color-ink)" }}>deck</strong>,
-                        a <strong style={{ color: "var(--color-ink)" }}>document</strong>, and a
-                        live <strong style={{ color: "var(--color-ink)" }}>website</strong>. Edit
-                        once; every format stays in sync. Real typesetting, not
-                        slides-with-textboxes.
+                        three ways: a <strong style={{ color: "var(--color-ink)" }}>deck</strong>, a{" "}
+                        <strong style={{ color: "var(--color-ink)" }}>document</strong>, and a live{" "}
+                        <strong style={{ color: "var(--color-ink)" }}>website</strong>. Edit once;
+                        every format stays in sync. Real typesetting, not slides-with-textboxes.
                     </p>
                     <div
                         class="md:col-span-5 flex flex-wrap gap-3 md:justify-end rise"
@@ -958,7 +957,7 @@ export const WebsitePage: Component = () => (
                         class="btn btn-primary text-lg"
                         style={{ padding: "1.1rem 2rem" }}
                     >
-                        Start creating — it's free →
+                        Start creating, free →
                     </a>
                     <a
                         href="#views"
@@ -1038,7 +1037,7 @@ export const WebsitePage: Component = () => (
                 class="mt-14 pt-7 flex flex-col sm:flex-row items-center justify-between gap-4 lab text-muted"
                 style={{ "border-top": "calc(var(--border-width) * 2) solid var(--color-ink)" }}
             >
-                <span>© 2026 Galleo — Decks, docs & sites from one source.</span>
+                <span>© 2026 Galleo · Decks, docs and sites from one source.</span>
                 <span>Made for people who care how it looks ✺</span>
             </div>
         </footer>
