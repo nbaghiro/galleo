@@ -289,6 +289,9 @@ export const credits = pgTable(
         userId: uuid("user_id").references(() => users.id),
         delta: integer("delta").notNull(),
         reason: text("reason").notNull(),
+        // the Stripe object a webhook grant keys on (checkout session / invoice id): unique, so a
+        // redelivered event finds its row and cannot re-grant; null on ordinary spend/refund rows
+        key: text("key").unique(),
         // the units of work this charge was for, so history can say what it bought and not just
         // which tool ran; null on grants, resets, and rows written before it existed
         usage: jsonb("usage").$type<Usage>(),
@@ -297,13 +300,6 @@ export const credits = pgTable(
     },
     (t) => [index("credits_ws_created_idx").on(t.workspaceId, t.createdAt.desc())],
 );
-
-// the event id is claimed before handling, so a Stripe redelivery can't re-apply the same effect
-export const stripeEvents = pgTable("stripe_events", {
-    id: text("id").primaryKey(), // Stripe event id (evt_…)
-    type: text("type").notNull(),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-});
 
 // postgres(url) is lazy, so importing this for `drizzle-kit generate` stays connection-free
 // ---- The context library: reusable, workspace-shared grounding for generation + chat ----
@@ -433,7 +429,6 @@ export const schema = {
     linkRecipients,
     linkViews,
     credits,
-    stripeEvents,
     contexts,
     contextItems,
     chunks,

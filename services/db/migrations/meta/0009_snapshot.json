@@ -1000,38 +1000,6 @@
             "checkConstraints": {},
             "isRLSEnabled": false
         },
-        "public.stripe_events": {
-            "name": "stripe_events",
-            "schema": "",
-            "columns": {
-                "id": {
-                    "name": "id",
-                    "type": "text",
-                    "primaryKey": true,
-                    "notNull": true
-                },
-                "type": {
-                    "name": "type",
-                    "type": "text",
-                    "primaryKey": false,
-                    "notNull": true
-                },
-                "created_at": {
-                    "name": "created_at",
-                    "type": "timestamp",
-                    "primaryKey": false,
-                    "notNull": true,
-                    "default": "now()"
-                }
-            },
-            "indexes": {},
-            "foreignKeys": {},
-            "compositePrimaryKeys": {},
-            "uniqueConstraints": {},
-            "policies": {},
-            "checkConstraints": {},
-            "isRLSEnabled": false
-        },
         "public.themes": {
             "name": "themes",
             "schema": "",

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import type Stripe from "stripe";
 import {
     ADD_ONS,
+    CREDIT_PACKS,
     CREDITS_PER_GENERATION,
     PLANS,
     limitsFor,
@@ -87,7 +88,7 @@ function fakeSub(o: SubOverrides = {}): Stripe.Subscription {
     } as unknown as Stripe.Subscription;
 }
 
-// The id feeds the webhook's idempotency claim; reused verbatim to simulate a redelivery.
+// Event ids carry no idempotency weight (grants key on the Stripe OBJECT ids); kept for realism.
 const stripeEvent = (type: string, object: unknown, id = "evt_test"): Stripe.Event =>
     ({ id, type, data: { object } }) as unknown as Stripe.Event;
 
@@ -101,6 +102,16 @@ async function setWs(
 async function getWs(id: string) {
     const [ws] = await db.select().from(schema.workspaces).where(eq(schema.workspaces.id, id));
     return ws!;
+}
+
+// Subscription events sync from a fresh retrieve, so the mocked live sub is what the handler sees.
+function postSubEvent(
+    type: "customer.subscription.updated" | "customer.subscription.deleted",
+    sub: Stripe.Subscription,
+    id = "evt_test",
+): Promise<Response> {
+    stripeMock.subscriptions.retrieve.mockResolvedValue(sub);
+    return postWebhook(stripeEvent(type, { id: sub.id }, id));
 }
 
 // constructEvent is faked, so signature verification is bypassed and the handler still runs for real.
@@ -454,13 +465,13 @@ describe("POST /billing/webhook", () => {
         stripeMock.subscriptions.retrieve.mockResolvedValue(
             fakeSub({ id: "sub_1", priceId: PRICE.proMonth, quantity: 2, status: "active" }),
         );
-        const res = await postWebhook(
-            stripeEvent("checkout.session.completed", {
-                client_reference_id: workspaceId,
-                subscription: "sub_1",
-                customer: "cus_1",
-            }),
-        );
+        const ev = stripeEvent("checkout.session.completed", {
+            id: "cs_1",
+            client_reference_id: workspaceId,
+            subscription: "sub_1",
+            customer: "cus_1",
+        });
+        const res = await postWebhook(ev);
         expect(res.status).toBe(200);
         expect((await res.json()).received).toBe(true);
         expect(await getWs(workspaceId)).toMatchObject({
@@ -472,35 +483,40 @@ describe("POST /billing/webhook", () => {
             aiCreditsBalance: 99 + PLANS.pro.ai.includedCredits,
             cancelAtPeriodEnd: false,
         });
+
+        // Redelivery: the upgrade grant keys on the checkout session, so nothing re-applies.
+        await postWebhook(ev);
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(99 + PLANS.pro.ai.includedCredits);
+        const grants = await db
+            .select()
+            .from(schema.credits)
+            .where(eq(schema.credits.workspaceId, workspaceId));
+        expect(grants).toHaveLength(1);
+        expect(grants[0]).toMatchObject({ reason: "upgrade-grant", key: "cs_1" });
     });
 
-    it("is idempotent: a redelivered event id is claimed once and not re-applied", async () => {
+    it("is idempotent: a redelivered subscription event re-syncs from live state, harmlessly", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
         await setWs(workspaceId, { stripeSubscriptionId: "sub_1", seats: 1 });
-        const ev = stripeEvent(
-            "customer.subscription.updated",
-            fakeSub({ id: "sub_1", priceId: PRICE.premiumMonth, quantity: 3 }),
-            "evt_dup",
-        );
-        const first = await postWebhook(ev);
+        const sub = fakeSub({ id: "sub_1", priceId: PRICE.premiumMonth, quantity: 3 });
+        const first = await postSubEvent("customer.subscription.updated", sub, "evt_dup");
         expect((await first.json()).received).toBe(true);
         expect(await getWs(workspaceId)).toMatchObject({ plan: "premium", seats: 3 });
 
-        // Simulate drift, then redeliver the exact same event — the claim short-circuits the handler.
+        // Simulate drift, then redeliver the exact same event — the handler syncs from the live
+        // subscription, so the duplicate converges on Stripe truth instead of re-applying a payload.
         await setWs(workspaceId, { plan: "pro", seats: 1 });
-        const second = await postWebhook(ev);
-        expect((await second.json()).duplicate).toBe(true);
-        expect(await getWs(workspaceId)).toMatchObject({ plan: "pro", seats: 1 });
+        const second = await postSubEvent("customer.subscription.updated", sub, "evt_dup");
+        expect((await second.json()).received).toBe(true);
+        expect(await getWs(workspaceId)).toMatchObject({ plan: "premium", seats: 3 });
     });
 
     it("customer.subscription.updated syncs a scheduled cancel onto the workspace", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
         await setWs(workspaceId, { stripeSubscriptionId: "sub_1", cancelAtPeriodEnd: false });
-        await postWebhook(
-            stripeEvent(
-                "customer.subscription.updated",
-                fakeSub({ id: "sub_1", priceId: PRICE.proMonth, cancelAtPeriodEnd: true }),
-            ),
+        await postSubEvent(
+            "customer.subscription.updated",
+            fakeSub({ id: "sub_1", priceId: PRICE.proMonth, cancelAtPeriodEnd: true }),
         );
         expect((await getWs(workspaceId)).cancelAtPeriodEnd).toBe(true);
     });
@@ -508,16 +524,14 @@ describe("POST /billing/webhook", () => {
     it("customer.subscription.updated syncs plan, seats and status for the matching workspace", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
         await setWs(workspaceId, { stripeSubscriptionId: "sub_1", seats: 1 });
-        await postWebhook(
-            stripeEvent(
-                "customer.subscription.updated",
-                fakeSub({
-                    id: "sub_1",
-                    priceId: PRICE.premiumMonth,
-                    quantity: 3,
-                    status: "active",
-                }),
-            ),
+        await postSubEvent(
+            "customer.subscription.updated",
+            fakeSub({
+                id: "sub_1",
+                priceId: PRICE.premiumMonth,
+                quantity: 3,
+                status: "active",
+            }),
         );
         expect(await getWs(workspaceId)).toMatchObject({
             plan: "premium",
@@ -529,8 +543,9 @@ describe("POST /billing/webhook", () => {
     it("customer.subscription.updated for an unknown subscription is a no-op", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
         await setWs(workspaceId, { stripeSubscriptionId: "sub_1", seats: 1 });
-        await postWebhook(
-            stripeEvent("customer.subscription.updated", fakeSub({ id: "sub_other", quantity: 9 })),
+        await postSubEvent(
+            "customer.subscription.updated",
+            fakeSub({ id: "sub_other", quantity: 9 }),
         );
         expect(await getWs(workspaceId)).toMatchObject({ plan: "pro", seats: 1 });
     });
@@ -538,7 +553,10 @@ describe("POST /billing/webhook", () => {
     it("customer.subscription.deleted reverts the workspace to free", async () => {
         const { workspaceId } = await seedUser({ plan: "premium" });
         await setWs(workspaceId, { stripeSubscriptionId: "sub_1", seats: 3 });
-        await postWebhook(stripeEvent("customer.subscription.deleted", fakeSub({ id: "sub_1" })));
+        await postSubEvent(
+            "customer.subscription.deleted",
+            fakeSub({ id: "sub_1", status: "canceled" }),
+        );
         expect(await getWs(workspaceId)).toMatchObject({
             plan: "free",
             planStatus: "canceled",
@@ -665,15 +683,21 @@ describe("webhook hardening", () => {
     it("a cycle-renewal invoice re-anchors the window and grants on top of the balance", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
         await setWs(workspaceId, { stripeCustomerId: "cus_1", aiCreditsBalance: 999 });
-        await postWebhook(
-            stripeEvent("invoice.paid", {
-                customer: "cus_1",
-                billing_reason: "subscription_cycle",
-            }),
-        );
+        const ev = stripeEvent("invoice.paid", {
+            id: "in_1",
+            customer: "cus_1",
+            billing_reason: "subscription_cycle",
+        });
+        await postWebhook(ev);
         const ws = await getWs(workspaceId);
         expect(ws.aiCreditsBalance).toBe(999 + PLANS.pro.ai.includedCredits); // leftovers carry
         expect(ws.planStatus).toBe("active");
+
+        // Redelivery of the same invoice grants nothing: the grant keys on the invoice id.
+        await postWebhook(ev);
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(
+            999 + PLANS.pro.ai.includedCredits,
+        );
         const rows = await db
             .select()
             .from(schema.credits)
@@ -682,6 +706,32 @@ describe("webhook hardening", () => {
         expect(rows[0]).toMatchObject({
             delta: PLANS.pro.ai.includedCredits,
             reason: "renewal-grant",
+            key: "in_1",
+        });
+    });
+
+    it("a pack purchase grants once, keyed on the checkout session", async () => {
+        const { workspaceId } = await seedUser({ plan: "pro" });
+        await setWs(workspaceId, { aiCreditsBalance: 10 });
+        const pack = CREDIT_PACKS[0]!;
+        const ev = stripeEvent("checkout.session.completed", {
+            id: "cs_pack_1",
+            mode: "payment",
+            client_reference_id: workspaceId,
+            metadata: { pack: pack.id },
+        });
+        await postWebhook(ev);
+        await postWebhook(ev);
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(10 + pack.credits);
+        const rows = await db
+            .select()
+            .from(schema.credits)
+            .where(eq(schema.credits.workspaceId, workspaceId));
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            delta: pack.credits,
+            reason: `topup:${pack.id}`,
+            key: "cs_pack_1",
         });
     });
 
@@ -699,15 +749,13 @@ describe("webhook hardening", () => {
 
     it("subscription.updated adopts an unlinked workspace via the metadata backref", async () => {
         const { workspaceId } = await seedUser({ plan: "free" });
-        await postWebhook(
-            stripeEvent(
-                "customer.subscription.updated",
-                fakeSub({
-                    id: "sub_new",
-                    priceId: PRICE.proMonth,
-                    metadata: { workspaceId },
-                }),
-            ),
+        await postSubEvent(
+            "customer.subscription.updated",
+            fakeSub({
+                id: "sub_new",
+                priceId: PRICE.proMonth,
+                metadata: { workspaceId },
+            }),
         );
         expect(await getWs(workspaceId)).toMatchObject({
             plan: "pro",
@@ -718,11 +766,9 @@ describe("webhook hardening", () => {
     it("subscription.updated cannot hijack a workspace already linked to another sub", async () => {
         const { workspaceId } = await seedUser({ plan: "premium" });
         await setWs(workspaceId, { stripeSubscriptionId: "sub_current" });
-        await postWebhook(
-            stripeEvent(
-                "customer.subscription.updated",
-                fakeSub({ id: "sub_stale", priceId: PRICE.proMonth, metadata: { workspaceId } }),
-            ),
+        await postSubEvent(
+            "customer.subscription.updated",
+            fakeSub({ id: "sub_stale", priceId: PRICE.proMonth, metadata: { workspaceId } }),
         );
         expect(await getWs(workspaceId)).toMatchObject({
             plan: "premium",
@@ -736,32 +782,31 @@ describe("webhook hardening", () => {
             stripeSubscriptionId: "sub_1",
             planPeriodEnd: new Date(YEAR_2030 * 1000),
         });
-        await postWebhook(stripeEvent("customer.subscription.deleted", fakeSub({ id: "sub_1" })));
+        await postSubEvent(
+            "customer.subscription.deleted",
+            fakeSub({ id: "sub_1", status: "canceled" }),
+        );
         expect((await getWs(workspaceId)).planPeriodEnd).toBeNull();
     });
 
-    it("a handler failure rolls the claim back so the redelivery applies", async () => {
+    it("a handler failure rolls the transaction back and the redelivery applies", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
         await setWs(workspaceId, { stripeSubscriptionId: "sub_1", seats: 1 });
-        // malformed payload → handleEvent throws inside the claim transaction
+        // malformed live sub → handleEvent throws inside the transaction
         const broken = {
             ...fakeSub({ id: "sub_1", priceId: PRICE.premiumMonth, quantity: 3 }),
             items: undefined,
         } as unknown as Stripe.Subscription;
-        const first = await postWebhook(
-            stripeEvent("customer.subscription.updated", broken, "evt_retry"),
-        );
+        const first = await postSubEvent("customer.subscription.updated", broken, "evt_retry");
         expect(first.status).toBe(500);
         expect(await getWs(workspaceId)).toMatchObject({ plan: "pro", seats: 1 });
 
-        const second = await postWebhook(
-            stripeEvent(
-                "customer.subscription.updated",
-                fakeSub({ id: "sub_1", priceId: PRICE.premiumMonth, quantity: 3 }),
-                "evt_retry",
-            ),
+        const second = await postSubEvent(
+            "customer.subscription.updated",
+            fakeSub({ id: "sub_1", priceId: PRICE.premiumMonth, quantity: 3 }),
+            "evt_retry",
         );
-        expect((await second.json()).duplicate).toBeUndefined();
+        expect((await second.json()).received).toBe(true);
         expect(await getWs(workspaceId)).toMatchObject({ plan: "premium", seats: 3 });
     });
 
@@ -1165,12 +1210,10 @@ describe("scheduled downgrades", () => {
         await arm(workspaceId);
         await authed(userId, "/billing/change-plan", jsonInit("POST", { plan: "pro", seats: 1 }));
 
-        await postWebhook(
-            stripeEvent(
-                "customer.subscription.updated",
-                fakeSub({ id: "sub_1", priceId: PRICE.proMonth }),
-                "evt_phase_landed",
-            ),
+        await postSubEvent(
+            "customer.subscription.updated",
+            fakeSub({ id: "sub_1", priceId: PRICE.proMonth }),
+            "evt_phase_landed",
         );
         const ws = await getWs(workspaceId);
         expect(ws.plan).toBe("pro");
@@ -1182,12 +1225,10 @@ describe("scheduled downgrades", () => {
         await arm(workspaceId);
         await authed(userId, "/billing/change-plan", jsonInit("POST", { plan: "pro", seats: 1 }));
 
-        await postWebhook(
-            stripeEvent(
-                "customer.subscription.updated",
-                fakeSub({ id: "sub_1", priceId: PRICE.premiumMonth, quantity: 2 }),
-                "evt_unrelated_update",
-            ),
+        await postSubEvent(
+            "customer.subscription.updated",
+            fakeSub({ id: "sub_1", priceId: PRICE.premiumMonth, quantity: 2 }),
+            "evt_unrelated_update",
         );
         expect((await getWs(workspaceId)).scheduledChange).toMatchObject({ plan: "pro" });
     });

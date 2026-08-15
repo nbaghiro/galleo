@@ -61,7 +61,8 @@ one code path rather than a personal one and a team one.
 | `feature_overrides` (jsonb)                     | a per-workspace `FeatureOverrides` patch merged over the plan by the resolver                                   |
 
 Related tables: `members` (composite pk on workspace + user, `role`), `invites` (unique per workspace
-and email, `token_hash` only), `credits` (the ledger), `stripe_events` (webhook idempotency claims).
+and email, `token_hash` only), `credits` (the ledger; its unique `key` column doubles as the webhook
+grant idempotency claim).
 
 ## Lifecycle: create, resolve, switch
 
@@ -246,14 +247,18 @@ the `scheduled downgrades` block in `services/api/__tests__/billing.itest.ts` ar
 
 ### The webhook
 
-`consumeWebhook(rawBody, signature)` verifies the signature, then claims the event id in
-`stripe_events` and applies its effects **inside one transaction**. A redelivery finds the claim and
-no-ops; a mid-handle failure rolls the claim back so Stripe's retry re-runs it. That is at-least-once
-delivery with exactly-once effects.
+`consumeWebhook(rawBody, signature)` verifies the signature, then applies the event's effects
+**inside one transaction**. Idempotency needs no event log, because every effect is safe to re-apply:
+sync effects (plan, seats, status, period end) **set** workspace state from freshly retrieved
+subscription state, so a duplicate, stale, or out-of-order delivery converges on what Stripe
+currently says; credit grants write their `credits` ledger row first, keyed by the unique `key`
+column (the checkout-session or invoice id), so a redelivery finds the row and grants nothing. A
+mid-handle failure rolls the transaction back — grant claim included — so Stripe's retry re-runs it.
+That is at-least-once delivery with exactly-once effects.
 
-One network call happens before the transaction on purpose: a `checkout.session.completed` retrieves
-the subscription (and looks up whether it superseded an older one) outside the claim, so no database
-connection is held across a round trip to Stripe.
+Network calls happen before the transaction on purpose: a `checkout.session.completed` retrieves the
+subscription (and looks up whether it superseded an older one), and subscription events retrieve the
+live subscription they sync from, so no database connection is held across a round trip to Stripe.
 
 | Event                                       | What it does                                                                                                                                                                                                                                                                                                                    |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -319,7 +324,7 @@ which is a real liability at `CREDIT_USD` per credit; if that needs bounding, th
 A seat is an ongoing entitlement, so it is a subscription item and its credits recur. A pack is
 bought once: `POST /billing/topup` opens a payment-mode Checkout, and the webhook re-derives the
 grant from `CREDIT_PACKS` by pack id rather than trusting a count in metadata, then adds it to the
-balance under the `stripe_events` idempotency claim so a redelivery cannot grant twice.
+balance in a ledger row keyed on the checkout session id, so a redelivery cannot grant twice.
 
 Packs are priced above every plan's own per-credit rate, so buying capacity outright never beats
 subscribing for it, and both invariants are asserted in `model/__tests__/billing.test.ts`.

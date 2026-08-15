@@ -351,10 +351,9 @@ embedded in the artifact's `draft_content` JSON.
 
 **Billing**
 
-| Table             | Purpose                                                       | Key columns                                        |
-| ----------------- | ------------------------------------------------------------- | -------------------------------------------------- |
-| **credits**       | AI-credit ledger (every charge/settle/grant/reset writes one) | `workspace_id`, `delta`, `reason`, `balance_after` |
-| **stripe_events** | webhook idempotency claims (claimed + applied in one tx)      | `id` (Stripe event id), `type`                     |
+| Table       | Purpose                                                       | Key columns                                                                                                                   |
+| ----------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **credits** | AI-credit ledger (every charge/settle/grant/reset writes one) | `workspace_id`, `delta`, `reason`, `balance_after`, `key` (unique Stripe object id on webhook grants — the idempotency claim) |
 
 > **Not their own tables today:** api_keys, comments, activity, notifications (incl. "X viewed
 > your doc"), brand kits, custom formats/fonts, version history / content snapshots, custom domains, and
@@ -442,7 +441,6 @@ workspaces ─┬─< members >─ users ─┬─< oauth_accounts · auth_token
             ├─< chunks            (scope = context | chat; ref_id spans both, no FK)
             └─< chat_messages     (artifact_id nullable, no FK)
 users ─< artifacts.created_by
-stripe_events                     (webhook idempotency, standalone)
 ```
 
 ---
@@ -669,9 +667,13 @@ signature-verified `/billing/webhook`.
 | seat +/− (per-seat)  | update item `quantity` (floor = active member count)  | immediate        | up invoices now; down credits next invoice |
 | monthly ↔ annual     | `subscriptions.update` price + interval               | per policy above | Stripe computes                            |
 
-The webhook claims each event id and applies its effects in **one transaction** (`stripe_events`):
-redeliveries no-op, and a mid-handle failure rolls the claim back so Stripe's retry re-runs it —
-at-least-once delivery, exactly-once effects. It syncs plan/seat/status/period-end/cancel-at-period-end on
+The webhook is idempotent without an event log, in two halves. Sync effects converge: subscription
+events re-fetch the live subscription and **set** workspace state, so a duplicate, stale, or
+out-of-order delivery lands on what Stripe currently says. Credit grants key their own ledger row:
+each grant writes `credits` with a unique `key` (the checkout-session or invoice id) insert-first, so
+a redelivery finds the row and grants nothing. Effects run in one transaction; a mid-handle failure
+rolls it back and Stripe's retry re-runs it — at-least-once delivery, exactly-once effects. It syncs
+plan/seat/status/period-end/cancel-at-period-end on
 `checkout.session.completed` (payment-mode sessions grant credit packs instead),
 `customer.subscription.updated` (with a `metadata.workspaceId` fallback that can adopt a sub onto a
 workspace that missed its checkout event — only when unlinked, so stale events can't hijack), and
@@ -745,7 +747,7 @@ live-collab (Yjs) update logs.
   list + watermark are enforced in the editor (`ExportModal` reads pushed features); public links stay
   the server-enforced surface (`links.ts` gates + brands server-side). Revisit only if export ever moves
   server-side.
-- **Unknown price ids in webhooks** are claimed and skipped silently (env misconfig); surfacing them
+- **Unknown price ids in webhooks** are skipped silently (env misconfig); surfacing them
   needs an ops/logging story first (no `console` in app code).
 
 **Billing — open tunables / decisions.**

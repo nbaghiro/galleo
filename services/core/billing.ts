@@ -546,7 +546,7 @@ export async function creditLedger(workspaceId: string, cursor?: { at: Date; id:
     };
 }
 
-export type WebhookResult = { error: string } | { duplicate: boolean };
+export type WebhookResult = { error: string } | { received: true };
 
 // Unauthenticated at the edge but signature-verified here; the RAW body bytes are required.
 export async function consumeWebhook(
@@ -579,21 +579,25 @@ export async function consumeWebhook(
             }
         }
     }
-    // Claim + effects in ONE transaction: a redelivery finds the claim and no-ops, and any failure
-    // rolls the claim back so Stripe's retry re-runs it.
-    const duplicate = await db.transaction(async (tx) => {
-        const [claimed] = await tx
-            .insert(schema.stripeEvents)
-            .values({ id: event.id, type: event.type })
-            .onConflictDoNothing()
-            .returning({ id: schema.stripeEvents.id });
-        if (!claimed) return true;
-        await handleEvent(event, checkoutSub, tx);
-        return false;
-    });
+    // Subscription events sync from freshly retrieved state, not the event payload: any delivery —
+    // duplicate, stale, or out of order — converges on what Stripe currently says. Fetched before
+    // the transaction so no DB connection is held across a network call.
+    let liveSub: Stripe.Subscription | null = null;
+    if (
+        event.type === "customer.subscription.updated" ||
+        event.type === "customer.subscription.deleted"
+    ) {
+        const sub = event.data.object as Stripe.Subscription;
+        liveSub = await stripe().subscriptions.retrieve(sub.id);
+    }
+    // No idempotency claim: sync effects converge on replay, and grants key their own ledger row
+    // (credits.key), so a redelivery finds the row and applies nothing. A failure rolls the whole
+    // transaction back and Stripe's retry re-runs it.
+    await db.transaction((tx) => handleEvent(event, checkoutSub, liveSub, tx));
     // A checkout that replaced a live subscription leaves the old one billing with no workspace
-    // attached; cancel it. Best-effort — a failure here is Stripe state to clean up, not a webhook 500.
-    if (!duplicate && supersededSubId) {
+    // attached; cancel it. Best-effort — a failure here is Stripe state to clean up, not a webhook
+    // 500. Self-guarding on redelivery: once processed, the workspace's sub already matches.
+    if (supersededSubId) {
         try {
             await stripe().subscriptions.cancel(supersededSubId);
             warn(`[billing] canceled superseded subscription ${supersededSubId}`);
@@ -603,7 +607,7 @@ export async function consumeWebhook(
             );
         }
     }
-    return { duplicate };
+    return { received: true };
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -619,12 +623,42 @@ async function workspaceBySubId(tx: Tx, subId: string) {
     return ws ?? null;
 }
 
+// Grant paths read the row FOR UPDATE so concurrent deliveries serialize on the balance.
 async function workspaceByCustomer(tx: Tx, customerId: string) {
     const [ws] = await tx
         .select()
         .from(schema.workspaces)
-        .where(eq(schema.workspaces.stripeCustomerId, customerId));
+        .where(eq(schema.workspaces.stripeCustomerId, customerId))
+        .for("update");
     return ws ?? null;
+}
+
+/**
+ * The ledger row IS the idempotency claim: a grant keys on the Stripe object that caused it
+ * (checkout session, invoice), so a redelivered or duplicated event finds the row and applies
+ * nothing — including `also`, the workspace fields that ride along with a first-time grant.
+ */
+async function grantOnce(
+    tx: Tx,
+    ws: { id: string; aiCreditsBalance: number },
+    g: {
+        key: string;
+        delta: number;
+        reason: string;
+        also?: Partial<typeof schema.workspaces.$inferInsert>;
+    },
+): Promise<void> {
+    const balanceAfter = ws.aiCreditsBalance + g.delta;
+    const [claimed] = await tx
+        .insert(schema.credits)
+        .values({ workspaceId: ws.id, delta: g.delta, reason: g.reason, key: g.key, balanceAfter })
+        .onConflictDoNothing({ target: schema.credits.key })
+        .returning({ id: schema.credits.id });
+    if (!claimed) return;
+    await tx
+        .update(schema.workspaces)
+        .set({ ...g.also, aiCreditsBalance: balanceAfter })
+        .where(eq(schema.workspaces.id, ws.id));
 }
 
 // seats come off the seat item, so the plan item's quantity is always 1
@@ -639,6 +673,7 @@ const invCustomer = (inv: Stripe.Invoice): string | null =>
 async function handleEvent(
     event: Stripe.Event,
     checkoutSub: Stripe.Subscription | null,
+    liveSub: Stripe.Subscription | null,
     tx: Tx,
 ): Promise<void> {
     if (event.type === "checkout.session.completed") {
@@ -650,19 +685,16 @@ async function handleEvent(
             // it to the balance: with rollover there is nothing to keep it separate from.
             const pack = packFor(s.metadata?.pack);
             if (!wsId || !pack) return;
-            const [after] = await tx
-                .update(schema.workspaces)
-                .set({
-                    aiCreditsBalance: sql`${schema.workspaces.aiCreditsBalance} + ${pack.credits}`,
-                })
+            const [ws] = await tx
+                .select()
+                .from(schema.workspaces)
                 .where(eq(schema.workspaces.id, wsId))
-                .returning();
-            if (after)
-                await tx.insert(schema.credits).values({
-                    workspaceId: wsId,
+                .for("update");
+            if (ws)
+                await grantOnce(tx, ws, {
+                    key: s.id,
                     delta: pack.credits,
                     reason: `topup:${pack.id}`,
-                    balanceAfter: after.aiCreditsBalance,
                 });
             return;
         }
@@ -677,9 +709,11 @@ async function handleEvent(
             .for("update");
         if (!before) return;
         const grant = monthlyGrantFor({ ...before, plan, seats: seatsOf(sub) });
-        await tx
-            .update(schema.workspaces)
-            .set({
+        await grantOnce(tx, before, {
+            key: s.id,
+            delta: grant,
+            reason: "upgrade-grant",
+            also: {
                 plan,
                 planStatus: activeStatus(sub.status),
                 stripeCustomerId: customerId ?? undefined,
@@ -688,20 +722,17 @@ async function handleEvent(
                 planPeriodEnd: subPeriodEnd(sub),
                 cancelAtPeriodEnd: sub.cancel_at_period_end,
                 // subscribing opens a window and grants on top of whatever is already banked
-                aiCreditsBalance: before.aiCreditsBalance + grant,
                 creditsStartedAt: new Date(),
                 creditsResetAt: monthOut(),
                 scheduledChange: null,
-            })
-            .where(eq(schema.workspaces.id, wsId));
-        await tx.insert(schema.credits).values({
-            workspaceId: wsId,
-            delta: grant,
-            reason: "upgrade-grant",
-            balanceAfter: before.aiCreditsBalance + grant,
+            },
         });
-    } else if (event.type === "customer.subscription.updated") {
-        const sub = event.data.object as Stripe.Subscription;
+    } else if (
+        event.type === "customer.subscription.updated" ||
+        event.type === "customer.subscription.deleted"
+    ) {
+        const sub = liveSub;
+        if (!sub) return;
         let ws = await workspaceBySubId(tx, sub.id);
         // A missed checkout.completed leaves the sub unlinked; adopt it only onto a workspace with
         // NO current sub, so a stale event can't hijack a newer one.
@@ -713,6 +744,25 @@ async function handleEvent(
             if (cand && !cand.stripeSubscriptionId) ws = cand;
         }
         if (!ws) return;
+        // A live status of canceled means the subscription is gone (deleted, or an update racing a
+        // deletion): back to Free; data kept, over-limit use soft-locked by the resolver's gates.
+        if (sub.status === "canceled" || sub.status === "incomplete_expired") {
+            await tx
+                .update(schema.workspaces)
+                .set({
+                    plan: "free",
+                    planStatus: "canceled",
+                    stripeSubscriptionId: null,
+                    // the seat add-on dies with the subscription; members stay and sit over the cap.
+                    // Banked credits are untouched: they were granted or bought, not rented.
+                    seats: 1,
+                    planPeriodEnd: null,
+                    cancelAtPeriodEnd: false,
+                    scheduledChange: null,
+                })
+                .where(eq(schema.workspaces.id, ws.id));
+            return;
+        }
         const plan = planForPrice(sub.items.data[0]?.price.id);
         // a scheduled downgrade has landed once the sub matches what was parked
         const sc = ws.scheduledChange;
@@ -727,25 +777,6 @@ async function handleEvent(
                 planPeriodEnd: subPeriodEnd(sub),
                 cancelAtPeriodEnd: sub.cancel_at_period_end,
                 ...(scheduleDone ? { scheduledChange: null } : {}),
-            })
-            .where(eq(schema.workspaces.id, ws.id));
-    } else if (event.type === "customer.subscription.deleted") {
-        const sub = event.data.object as Stripe.Subscription;
-        const ws = await workspaceBySubId(tx, sub.id);
-        if (!ws) return;
-        // Back to Free; data kept, over-limit use soft-locked by the resolver's gates.
-        await tx
-            .update(schema.workspaces)
-            .set({
-                plan: "free",
-                planStatus: "canceled",
-                stripeSubscriptionId: null,
-                // the seat add-on dies with the subscription; members stay and sit over the cap.
-                // Banked credits are untouched: they were granted or bought, not rented.
-                seats: 1,
-                planPeriodEnd: null,
-                cancelAtPeriodEnd: false,
-                scheduledChange: null,
             })
             .where(eq(schema.workspaces.id, ws.id));
     } else if (event.type === "invoice.payment_failed") {
@@ -764,22 +795,15 @@ async function handleEvent(
         if (inv.billing_reason === "subscription_cycle") {
             // Only a cycle renewal grants; other invoices just clear dunning. The grant adds to
             // what is banked rather than replacing it, the same as rollCreditWindow.
-            const grant = monthlyGrantFor(ws);
-            const balance = ws.aiCreditsBalance + grant;
-            await tx
-                .update(schema.workspaces)
-                .set({
+            await grantOnce(tx, ws, {
+                key: inv.id,
+                delta: monthlyGrantFor(ws),
+                reason: "renewal-grant",
+                also: {
                     planStatus: "active",
-                    aiCreditsBalance: balance,
                     creditsStartedAt: new Date(),
                     creditsResetAt: monthOut(),
-                })
-                .where(eq(schema.workspaces.id, ws.id));
-            await tx.insert(schema.credits).values({
-                workspaceId: ws.id,
-                delta: grant,
-                reason: "renewal-grant",
-                balanceAfter: balance,
+                },
             });
         } else if (ws.planStatus === "past_due") {
             await tx

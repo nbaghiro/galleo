@@ -123,5 +123,5 @@ plan.get("/billing/ledger", requireWorkspace, async (c) => {
 plan.post("/billing/webhook", async (c) => {
     const result = await consumeWebhook(await c.req.text(), c.req.header("stripe-signature"));
     if ("error" in result) return c.json({ error: result.error }, 400);
-    return c.json(result.duplicate ? { received: true, duplicate: true } : { received: true });
+    return c.json(result);
 });
