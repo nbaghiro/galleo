@@ -1,5 +1,5 @@
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
-import type { EvalCheck } from "@model/eval";
+import type { CheckDimension, EvalCheck } from "@model/eval";
 import { sectionsForLength } from "@model/tools";
 import { PLACEHOLDER, contentOf } from "../quality";
 
@@ -8,11 +8,9 @@ import { PLACEHOLDER, contentOf } from "../quality";
 // (overflow, stacking) need the engine and so live in evaltools/, not here — services cannot import
 // canvas.
 
-export type Dimension = "content" | "structure" | "variety";
-
 export interface Check {
     id: string;
-    dimension: Dimension;
+    dimension: CheckDimension;
     describe: string;
     /** null passes; a string is the reason it failed, shown as-is. */
     section?(section: Section, ctx: CheckCtx): string | null;

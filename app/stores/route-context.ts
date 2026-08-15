@@ -10,4 +10,5 @@ export function publishRoute(pathname: string): void {
     setContext("trash", p === "/trash");
     setContext("pricing", p === "/pricing");
     setContext("editor", p.startsWith("/edit"));
+    setContext("eval", p.startsWith("/eval"));
 }

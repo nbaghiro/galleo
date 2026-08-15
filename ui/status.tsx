@@ -1,9 +1,18 @@
 import type { Component, JSX } from "solid-js";
 import { Show } from "solid-js";
 
+// pass/fail are the verdict tones, deliberately not the accent (see --color-pass in styles.css)
+type FillTone = "accent" | "pass" | "fail";
+const METER_FILL: Record<FillTone, string> = {
+    accent: "bg-accent",
+    pass: "bg-pass",
+    fail: "bg-fail",
+};
+
 export const Meter: Component<{
     value: number;
     max?: number; // default 100 (value is then a raw percentage)
+    tone?: FillTone;
     trackTone?: "line" | "canvas";
     class?: string;
 }> = (props) => {
@@ -13,21 +22,25 @@ export const Meter: Component<{
             class={`h-1.5 overflow-hidden rounded-full ${props.trackTone === "canvas" ? "bg-canvas" : "bg-line"} ${props.class ?? ""}`}
         >
             <div
-                class="h-full rounded-full bg-accent transition-all"
+                class={`h-full rounded-full transition-all ${METER_FILL[props.tone ?? "accent"]}`}
                 style={{ width: `${pct()}%` }}
             />
         </div>
     );
 };
 
-type DotTone = "accent" | "soft" | "line";
+type DotTone = FillTone | "soft" | "line";
 const DOT_SOLID: Record<DotTone, string> = {
     accent: "bg-accent",
+    pass: "bg-pass",
+    fail: "bg-fail",
     soft: "bg-soft",
     line: "bg-line",
 };
 const DOT_RING: Record<DotTone, string> = {
     accent: "border border-accent",
+    pass: "border border-pass",
+    fail: "border border-fail",
     soft: "border border-soft",
     line: "border border-line",
 };

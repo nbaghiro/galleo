@@ -1,3 +1,4 @@
+import { recordParts } from "../meter";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import type { GenerateInput } from "@model/ai";
 
@@ -7,9 +8,24 @@ export interface PromptParts {
     prompt: string;
 }
 
-export function stack(...parts: (string | undefined | false)[]): string {
-    return parts.filter((p): p is string => !!p).join("\n\n");
+/**
+ * Joins prompt fragments. A fragment may be labelled as `[name, text]`, which changes nothing about
+ * the prompt sent but lets a traced run show what the system prompt was assembled from and what
+ * each piece costs.
+ */
+export function stack(...parts: (Fragment | undefined | false)[]): string {
+    const kept = parts.filter((p): p is Fragment => !!p && (typeof p === "string" || !!p[1]));
+    const text = kept.map((p) => (typeof p === "string" ? p : p[1])).join("\n\n");
+    const named = kept.filter((p): p is [string, string] => Array.isArray(p));
+    if (named.length)
+        recordParts(
+            text,
+            named.map(([name, body]) => ({ name, text: body })),
+        );
+    return text;
 }
+
+type Fragment = string | [string, string];
 
 export function heading(title: string, body: string): string {
     return `## ${title}\n${body}`;

@@ -204,6 +204,8 @@ core/          one file per functionality; no hono, no Response, no Context
                              the index↔body test in core/__tests__/templates.test.ts)
                ai/           the LLM runtime (may NOT import canvas — see ai.md): run · chat · tasks ·
                              provider · schema · locate · quality · meter · thinking · reader ·
+                             voice (the ElevenLabs single-use-token mint for chat dictation; audio
+                             streams browser → provider directly, needs ELEVENLABS_API_KEY) ·
                              tools/ · prompts/ · eval/ · corpus/ (the seven gold-standard artifacts,
                              injected as few-shot exemplars into every generate turn by
                              prompts/exemplars.ts, and reused as eval references and demo content)
@@ -648,9 +650,10 @@ seats`; Stripe multiplies. `plan.billing.model` tells our code to show a seat pi
 
 ### Upgrade / downgrade / cancel flows
 
-Policy: **upgrades invoice immediately (`always_invoice`); tier/seat downgrades apply immediately with
-`create_prorations` (the unused remainder returns as a credit on the next invoice); cancels take effect
-at period end**. Implemented in `POST /billing/change-plan`
+Policy: **upgrades invoice immediately (`always_invoice`); tier and seat downgrades park at period end
+via a Stripe subscription schedule, recorded in `workspaces.scheduled_change`; cancels take effect at
+period end**. A downgrade therefore keeps the current entitlements until the period rolls, which is
+what `changePlan` returns as `effect: "scheduled"`. Implemented in `POST /billing/change-plan`
 (in-app up/downgrade + seat + interval changes) alongside `/billing/checkout`, `/billing/portal`, and the
 signature-verified `/billing/webhook`.
 

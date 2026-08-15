@@ -14,7 +14,7 @@ import type {
 import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { applyPatch } from "@model/ai";
-import { api, streamTurn } from "../api";
+import { api, setTraceSession, streamTurn } from "../api";
 import { loadBilling } from "./billing";
 import { bindChatTarget } from "./chat";
 import { appTheme } from "./theme";
@@ -180,9 +180,11 @@ export function openGenerate(prompt?: string): void {
     // the studio is stamped with the session's theme, so the intake starts in the user's, not the default
     setGen({ stage: "intake", content: { format: "deck", theme: appTheme(), sections: [] } });
     if (prompt) setGen("brief", "prompt", prompt);
+    setTraceSession(crypto.randomUUID());
     setGenerateOpen(true);
 }
 export function closeGenerate(): void {
+    setTraceSession(null);
     cancelSession();
     unbindTarget?.();
     unbindTarget = null;

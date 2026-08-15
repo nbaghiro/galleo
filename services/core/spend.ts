@@ -69,7 +69,7 @@ type Reservation =
 // away.
 const FREE: Reservation = {
     ok: true,
-    settle: (run) => run(() => {}, { uses: [], extraUsd: 0, trace: false }),
+    settle: (run) => run(() => {}, { uses: [], extraUsd: 0, parts: new Map(), trace: false }),
 };
 
 /**

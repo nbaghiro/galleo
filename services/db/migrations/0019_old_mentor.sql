@@ -1,0 +1,1 @@
+ALTER TABLE "eval_runs" ADD COLUMN "session_id" text;

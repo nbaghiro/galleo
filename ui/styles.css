@@ -39,10 +39,11 @@
     --color-muted: #8c8273;
     --color-accent: #9a4f24;
     --color-onaccent: #ffffff;
-    /* Semantic, deliberately not the accent: a verdict must not read as branding. Mixed toward
-       the active theme's ink so they gain contrast on a dark ground instead of losing it. */
-    --color-pass: color-mix(in oklab, #4f7a45 68%, var(--color-ink));
-    --color-fail: color-mix(in oklab, #c0392b 74%, var(--color-ink));
+    /* Semantic, deliberately not the accent: a verdict must not read as branding. Nudged toward the
+       active theme's ink so they keep contrast on a dark ground, but only slightly — mixing hard
+       enough to matter on dark also muddies the hue on light, which reads as an unthemed colour. */
+    --color-pass: color-mix(in oklab, #4f7a45 90%, var(--color-ink));
+    --color-fail: color-mix(in oklab, #c0392b 90%, var(--color-ink));
     /* Roles, not families: display = headings, body = UI/text, mono = labels. */
     --font-display: "Fraunces", serif;
     --font-body: "Hanken Grotesk", system-ui, sans-serif;

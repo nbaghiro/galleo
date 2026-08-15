@@ -3,9 +3,10 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createXai } from "@ai-sdk/xai";
 import type { EmbeddingModel, LanguageModel } from "ai";
+import type { PromptPart } from "@model/ai";
 import type { LanguageModelMiddleware } from "ai";
 import { wrapLanguageModel } from "ai";
-import { record, recordTokens, tracing } from "./meter";
+import { partsOf, record, recordTokens, tracing } from "./meter";
 
 // what `providerOptions` accepts: one JSON bag per provider name (the SDK's SharedV4ProviderOptions)
 type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
@@ -87,7 +88,32 @@ function promptOf(params: CallParams): { system?: string; prompt?: string } {
         .filter((m) => m.role !== "system")
         .map((m) => `${m.role}: ${textOf(m)}`)
         .join("\n\n");
-    return { system: system ? clip(system) : undefined, prompt: prompt ? clip(prompt) : undefined };
+    // unclipped: the parts lookup keys on the exact text the builder produced
+    return { system: system || undefined, prompt: prompt || undefined };
+}
+
+/** The trace fields of a span: prompts clipped for storage, parts resolved against the full text. */
+function traceFields(params: CallParams): {
+    system?: string;
+    prompt?: string;
+    parts?: PromptPart[];
+} {
+    const { system, prompt } = promptOf(params);
+    return {
+        system: system ? clip(system) : undefined,
+        prompt: prompt ? clip(prompt) : undefined,
+        parts: partsOf(system),
+    };
+}
+
+// The provider reports a structured finish reason, so String() on it yields "[object Object]".
+function finishOf(reason: unknown): string | undefined {
+    if (typeof reason === "string") return reason;
+    if (reason && typeof reason === "object" && "type" in reason) {
+        const t = (reason as { type: unknown }).type;
+        if (typeof t === "string") return t;
+    }
+    return undefined;
 }
 
 // The one place every call passes through, so metering here cannot be forgotten at a call site.
@@ -111,10 +137,10 @@ function metering(id: string): LanguageModelMiddleware {
                 output,
                 step: "",
                 ms: Date.now() - t0,
-                ...promptOf(params),
+                ...traceFields(params),
                 response: text ? clip(text) : undefined,
                 temperature: params.temperature,
-                finishReason: String(r.finishReason),
+                finishReason: finishOf(r.finishReason),
             });
             return r;
         },
@@ -141,10 +167,10 @@ function metering(id: string): LanguageModelMiddleware {
                                         output,
                                         step: "",
                                         ms: Date.now() - t0,
-                                        ...promptOf(params),
+                                        ...traceFields(params),
                                         response: text ? clip(text) : undefined,
                                         temperature: params.temperature,
-                                        finishReason: String(part.finishReason),
+                                        finishReason: finishOf(part.finishReason),
                                     });
                                 else recordTokens(id, input, output);
                             }

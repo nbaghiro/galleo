@@ -57,13 +57,13 @@ export function outlineParts(
 ): PromptParts {
     return {
         system: stack(
-            PERSONA,
-            surfaceVoice(input.surface),
-            describeTheme(input.theme),
-            OUTLINE_JOB,
-            layoutCatalog(),
-            RUBRIC,
-            OUTPUT_NOTE,
+            ["persona", PERSONA],
+            ["surface voice", surfaceVoice(input.surface)],
+            ["theme", describeTheme(input.theme)],
+            ["job", OUTLINE_JOB],
+            ["layouts", layoutCatalog()],
+            ["rubric", RUBRIC],
+            ["output", OUTPUT_NOTE],
         ),
         prompt: stack(
             briefContext(input),
@@ -128,15 +128,15 @@ function placement(beat: Beat, outline: Outline): string {
 
 function sectionSystem(surface: Surface, theme: string): string {
     return stack(
-        PERSONA,
-        surfaceVoice(surface),
-        describeTheme(theme),
-        elementCatalog(),
-        layoutCatalog(),
-        SECTION_RULES,
-        VOICE,
-        sectionExemplars(surface),
-        SECTION_OUTPUT,
+        ["persona", PERSONA],
+        ["surface voice", surfaceVoice(surface)],
+        ["theme", describeTheme(theme)],
+        ["elements", elementCatalog()],
+        ["layouts", layoutCatalog()],
+        ["rules", SECTION_RULES],
+        ["voice", VOICE],
+        ["exemplars", sectionExemplars(surface)],
+        ["output", SECTION_OUTPUT],
     );
 }
 

@@ -1,17 +1,35 @@
 import "dotenv/config";
-import type { ArtifactContent } from "@model/artifact";
-import { eq } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { and, eq, inArray, notInArray } from "drizzle-orm";
+import type { ArtifactContent, GenMeta } from "@model/artifact";
+import { creditLimitFor, packFor } from "@model/billing";
+import { TEMPLATE_INDEX } from "@model/templates";
+import { THEMES } from "@themes";
 import { assertDatabaseUrl, db } from "./client";
+import { tokensOf } from "@model/eval";
 import { schema } from "./schema";
 import { contentWrite } from "./derived";
 import { hashPassword } from "../utils/auth";
-import { out as log, warn } from "../utils/env";
-import { createWorkspaceForUser } from "../core/accounts";
+import { appUrl, out as log, warn } from "../utils/env";
+import { createWorkspaceForUser, type WorkspaceRow } from "../core/accounts";
 import { addArtifactItem, addTextItem, createContext } from "../core/context";
 import { embeddingReady } from "../core/ai/provider";
-import { DEMO_CONTEXTS } from "./seed-contexts";
-import { TEMPLATE_INDEX } from "@model/templates";
+import { modelFor } from "../core/models";
 import { templateBody } from "../core/templates";
+import { DEMO_CONTEXTS } from "./seed-contexts";
+import { runChecks } from "../core/ai/eval/checks";
+import { EVAL_RUNS } from "./seed-eval-data";
+import { dealEvalRuns, spansOf } from "./seed-evals";
+import type { DocEntry, DocRef, Person, WorkspaceSpec } from "./seed-workspaces";
+import {
+    DEMO_EMAIL,
+    DEMO_PASSWORD,
+    PEOPLE,
+    WORKSPACES,
+    refKey,
+    evalTargets,
+    seededUserIds,
+} from "./seed-workspaces";
 import { aria } from "../core/ai/corpus/aria";
 import { fieldnotes } from "../core/ai/corpus/fieldnotes";
 import { galleo } from "../core/ai/corpus/galleo";
@@ -20,89 +38,233 @@ import { lumen } from "../core/ai/corpus/lumen";
 import { slowweb } from "../core/ai/corpus/slowweb";
 import { terra } from "../core/ai/corpus/terra";
 
-interface Demo {
-    id: string;
+const DAY = 86_400_000;
+const HOUR = 3_600_000;
+// negative = the future
+const ago = (days: number): Date => new Date(Date.now() - days * DAY);
+// must match WINDOW_MS in core/ledger.ts
+const WINDOW_MS = 30 * DAY;
+// must match INVITE_TTL_DAYS in core/workspaces.ts
+const INVITE_TTL_DAYS = 14;
+
+const handle = (email: string): string => email.split("@")[0] ?? email;
+
+// must match hashToken in core/workspaces.ts (invites store only the hash)
+const sha256 = (raw: string): string => createHash("sha256").update(raw).digest("hex");
+
+// derived, not random, so the accept URL survives a reseed and can be pasted into /invite/:token
+const inviteToken = (slug: string, email: string): string => `${slug}-${handle(email)}-demo`;
+
+const CORPUS: Record<string, { title: string; artifact: ArtifactContent }> = {
+    galleo: { title: "Galleo — Seed deck", artifact: galleo },
+    aria: { title: "Aria — Album launch", artifact: aria },
+    terra: { title: "Terra — Brand site", artifact: terra },
+    lumen: { title: "Lumen — Product launch", artifact: lumen },
+    slowweb: { title: "The Slow Web — Essay", artifact: slowweb },
+    helios: { title: "Helios — Climate report", artifact: helios },
+    fieldnotes: { title: "Field Notes — Faroe Islands", artifact: fieldnotes },
+};
+
+interface Doc {
     title: string;
     artifact: ArtifactContent;
 }
-const DEMOS: Demo[] = [
-    { id: "galleo", title: "Galleo — Seed deck", artifact: galleo },
-    { id: "aria", title: "Aria — Album launch", artifact: aria },
-    { id: "terra", title: "Terra — Brand site", artifact: terra },
-    { id: "lumen", title: "Lumen — Product launch", artifact: lumen },
-    { id: "slowweb", title: "The Slow Web — Essay", artifact: slowweb },
-    { id: "helios", title: "Helios — Climate report", artifact: helios },
-    { id: "fieldnotes", title: "Field Notes — Faroe Islands", artifact: fieldnotes },
-];
 
-const DEMO_EMAIL = "demo@galleo.app";
-const DEMO_PASSWORD = "galleo-demo-2026";
-
-type Doc = { title: string; artifact: ArtifactContent };
-const demo = (id: string): Doc => {
-    const d = DEMOS.find((x) => x.id === id);
-    if (!d) throw new Error(`no demo "${id}"`);
-    return { title: d.title, artifact: d.artifact };
-};
-const tpl = (id: string): Doc => {
-    const t = TEMPLATE_INDEX.find((x) => x.id === id);
-    const artifact = templateBody(id);
-    if (!t || !artifact) throw new Error(`no template "${id}"`);
-    return { title: t.name, artifact };
-};
-
-// folder name → its artifacts; `null` folder = loose at the library root
-const PLAN: { folder: string | null; docs: Doc[] }[] = [
-    { folder: "Decks", docs: [demo("galleo"), demo("aria"), tpl("series-a"), tpl("sales-deck")] },
-    {
-        folder: "Web & landing",
-        docs: [demo("terra"), demo("lumen"), tpl("landing-page"), tpl("portfolio")],
-    },
-    { folder: "Reports & writing", docs: [demo("helios"), demo("slowweb"), tpl("annual-report")] },
-    { folder: "Personal", docs: [demo("fieldnotes"), tpl("photo-essay")] },
-    { folder: null, docs: [tpl("market-analysis"), tpl("newsletter")] },
-];
-
-async function seed(): Promise<void> {
-    assertDatabaseUrl();
-    let [user] = await db.select().from(schema.users).where(eq(schema.users.email, DEMO_EMAIL));
-    if (!user) {
-        [user] = await db
-            .insert(schema.users)
-            .values({ email: DEMO_EMAIL, name: "Demo User", emailVerifiedAt: new Date() })
-            .returning();
-        log("• created demo user");
+function docFor(ref: DocRef): Doc {
+    if ("corpus" in ref) {
+        const d = CORPUS[ref.corpus];
+        if (!d) throw new Error(`no corpus artifact "${ref.corpus}"`);
+        return d;
     }
-    if (!user) throw new Error("failed to create demo user");
-    await db
-        .update(schema.users)
-        .set({ passwordHash: hashPassword(DEMO_PASSWORD), emailVerifiedAt: new Date() })
-        .where(eq(schema.users.id, user.id));
+    const t = TEMPLATE_INDEX.find((x) => x.id === ref.template);
+    const artifact = templateBody(ref.template);
+    if (!t || !artifact) throw new Error(`no template "${ref.template}"`);
+    return { title: t.name, artifact };
+}
 
-    const [existingWs] = await db
+// model ids come from the registry, so provenance can't name a model we no longer install
+function genMetaFor(entry: DocEntry, doc: Doc): GenMeta | null {
+    if (!entry.ai) return null;
+    return {
+        at: ago(entry.ai.daysAgo).toISOString(),
+        models: { outline: modelFor("outline"), section: modelFor("section") },
+        prompt: entry.ai.prompt,
+        surface: entry.ai.surface,
+        theme: doc.artifact.theme,
+        length: "Standard",
+    };
+}
+
+async function upsertUser(p: Person): Promise<string> {
+    const patch = {
+        name: p.name,
+        avatarUrl: `https://picsum.photos/seed/${handle(p.email)}/128/128`,
+        passwordHash: hashPassword(DEMO_PASSWORD),
+        emailVerifiedAt: new Date(),
+    };
+    const [existing] = await db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(eq(schema.users.email, p.email));
+    if (existing) {
+        await db.update(schema.users).set(patch).where(eq(schema.users.id, existing.id));
+        return existing.id;
+    }
+    const [created] = await db
+        .insert(schema.users)
+        .values({ email: p.email, ...patch })
+        .returning({ id: schema.users.id });
+    if (!created) throw new Error(`failed to create user "${p.email}"`);
+    return created.id;
+}
+
+// Found by slug, then every column the spec owns is rewritten: a workspace that the app has been
+// clicked around in must converge back onto the spec, not keep its drifted plan and counters.
+async function upsertWorkspace(spec: WorkspaceSpec, ownerId: string): Promise<WorkspaceRow> {
+    if (spec.windowStartedDaysAgo * DAY >= WINDOW_MS)
+        throw new Error(
+            `"${spec.slug}": credit window already lapsed; the first read would roll it`,
+        );
+    const [found] = await db
         .select({ id: schema.workspaces.id })
         .from(schema.workspaces)
-        .where(eq(schema.workspaces.slug, "demo"));
-    let wsId = existingWs?.id ?? null;
-    if (!wsId) {
-        // premium: seed writes 12+ artifacts directly, bypassing the API cap; demo account needs unlimited
-        const created = await createWorkspaceForUser(user.id, {
-            name: "Demo Workspace",
-            slug: "demo",
-            plan: "premium",
-        });
-        wsId = created.id;
-        log("• created demo workspace");
-    }
+        .where(eq(schema.workspaces.slug, spec.slug));
+    const id =
+        found?.id ??
+        (
+            await createWorkspaceForUser(ownerId, {
+                name: spec.name,
+                slug: spec.slug,
+                plan: spec.plan,
+            })
+        ).id;
 
-    // artifacts reference folders, so clear artifacts first
-    await db.delete(schema.artifacts).where(eq(schema.artifacts.workspaceId, wsId));
+    const periodEnd = spec.periodEndInDays === undefined ? null : ago(-spec.periodEndInDays);
+    const startedAt = ago(spec.windowStartedDaysAgo);
+    const [row] = await db
+        .update(schema.workspaces)
+        .set({
+            name: spec.name,
+            ownerId,
+            plan: spec.plan,
+            seats: spec.seats,
+            planStatus: spec.planStatus ?? "active",
+            planPeriodEnd: periodEnd,
+            cancelAtPeriodEnd: spec.cancelAtPeriodEnd ?? false,
+            scheduledChange:
+                spec.scheduledChange && periodEnd
+                    ? { ...spec.scheduledChange, at: periodEnd.toISOString() }
+                    : null,
+            featureOverrides: spec.featureOverrides ?? null,
+            aiCreditsUsed: 0,
+            aiCreditsBonus: 0,
+            creditsStartedAt: startedAt,
+            creditsResetAt: new Date(startedAt.getTime() + WINDOW_MS),
+        })
+        .where(eq(schema.workspaces.id, id))
+        .returning();
+    if (!row) throw new Error(`failed to write workspace "${spec.slug}"`);
+    return row;
+}
+
+// FK-safe order. visits.ref has no FK (it spans artifacts and templates), so those rows are dropped
+// by hand, the way core/artifacts.ts does on a real delete. eval_runs are left alone: the eval
+// seeder owns them, and a workspace reseed must not destroy them.
+async function wipeWorkspace(wsId: string): Promise<void> {
+    const owned = await db
+        .select({ id: schema.artifacts.id })
+        .from(schema.artifacts)
+        .where(eq(schema.artifacts.workspaceId, wsId));
+    await db.delete(schema.chunks).where(eq(schema.chunks.workspaceId, wsId));
+    await db.delete(schema.chatMessages).where(eq(schema.chatMessages.workspaceId, wsId));
+    await db.delete(schema.contexts).where(eq(schema.contexts.workspaceId, wsId)); // items cascade
+    if (owned.length)
+        await db.delete(schema.visits).where(
+            and(
+                eq(schema.visits.kind, "artifact"),
+                inArray(
+                    schema.visits.ref,
+                    owned.map((a) => a.id),
+                ),
+            ),
+        );
+    await db.delete(schema.credits).where(eq(schema.credits.workspaceId, wsId));
+    await db.delete(schema.invites).where(eq(schema.invites.workspaceId, wsId));
+    await db.delete(schema.artifacts).where(eq(schema.artifacts.workspaceId, wsId)); // links cascade
     await db.delete(schema.folders).where(eq(schema.folders.workspaceId, wsId));
+    await db.delete(schema.assets).where(eq(schema.assets.workspaceId, wsId));
+    await db.delete(schema.themes).where(eq(schema.themes.workspaceId, wsId));
+}
 
-    let folders = 0;
-    let docs = 0;
-    const artifactIds = new Map<string, string>();
-    for (const group of PLAN) {
+// Reconciled rather than wiped, so members.created_at (the "joined" column, and currentWorkspace's
+// fallback order) stays stable across reseeds.
+async function syncMembers(
+    wsId: string,
+    ownerId: string,
+    spec: WorkspaceSpec,
+    ids: Map<string, string>,
+): Promise<void> {
+    const keep = [ownerId];
+    await db
+        .insert(schema.members)
+        .values({ workspaceId: wsId, userId: ownerId, role: "owner" })
+        .onConflictDoUpdate({
+            target: [schema.members.workspaceId, schema.members.userId],
+            set: { role: "owner" },
+        });
+    for (const m of spec.members) {
+        const userId = ids.get(m.email);
+        if (!userId) throw new Error(`no seeded user "${m.email}"`);
+        keep.push(userId);
+        await db
+            .insert(schema.members)
+            .values({ workspaceId: wsId, userId, role: m.role })
+            .onConflictDoUpdate({
+                target: [schema.members.workspaceId, schema.members.userId],
+                set: { role: m.role },
+            });
+    }
+    await db
+        .delete(schema.members)
+        .where(and(eq(schema.members.workspaceId, wsId), notInArray(schema.members.userId, keep)));
+}
+
+async function seedInvites(
+    wsId: string,
+    inviterId: string,
+    spec: WorkspaceSpec,
+): Promise<string[]> {
+    const urls: string[] = [];
+    for (const i of spec.invites ?? []) {
+        const raw = inviteToken(spec.slug, i.email);
+        await db.insert(schema.invites).values({
+            workspaceId: wsId,
+            email: i.email,
+            role: i.role,
+            tokenHash: sha256(raw),
+            invitedBy: inviterId,
+            expiresAt: ago(i.sentDaysAgo - INVITE_TTL_DAYS),
+            createdAt: ago(i.sentDaysAgo),
+        });
+        urls.push(appUrl(`/invite/${raw}`));
+    }
+    return urls;
+}
+
+interface SeededDocs {
+    byRef: Map<string, string>; // refKey → artifact id
+    byTitle: Map<string, string>; // title → artifact id, for the contexts' artifactTitles
+}
+
+async function seedArtifacts(
+    wsId: string,
+    createdBy: string,
+    spec: WorkspaceSpec,
+): Promise<SeededDocs> {
+    const byRef = new Map<string, string>();
+    const byTitle = new Map<string, string>();
+    let n = 0;
+    for (const group of spec.folders ?? []) {
         let folderId: string | null = null;
         if (group.folder) {
             const [f] = await db
@@ -110,9 +272,10 @@ async function seed(): Promise<void> {
                 .values({ workspaceId: wsId, name: group.folder })
                 .returning({ id: schema.folders.id });
             folderId = f?.id ?? null;
-            folders++;
         }
-        for (const d of group.docs) {
+        for (const entry of group.docs) {
+            const d = docFor(entry.ref);
+            const touched = new Date(Date.now() - n * 9 * HOUR); // a varied library order
             const [row] = await db
                 .insert(schema.artifacts)
                 .values({
@@ -122,112 +285,294 @@ async function seed(): Promise<void> {
                     themeId: d.artifact.theme,
                     ...contentWrite(d.artifact),
                     folderId,
-                    createdBy: user.id,
+                    createdBy,
+                    aiMeta: genMetaFor(entry, d),
+                    createdAt: new Date(touched.getTime() - 3 * DAY),
+                    updatedAt: touched,
                 })
                 .returning({ id: schema.artifacts.id });
-            if (row) artifactIds.set(d.title, row.id);
-            docs++;
+            if (row) {
+                byRef.set(refKey(entry.ref), row.id);
+                byTitle.set(d.title, row.id);
+            }
+            n++;
         }
     }
-
-    log(`• seeded ${docs} artifacts across ${folders} folders`);
-
-    // context library: reset, then re-ingest through the real path (chunk → embed → pgvector),
-    // so the demo skies and retrieval behave exactly like user-fed material
-    await db.delete(schema.chunks).where(eq(schema.chunks.workspaceId, wsId));
-    await db.delete(schema.chatMessages).where(eq(schema.chatMessages.workspaceId, wsId));
-    await db.delete(schema.contexts).where(eq(schema.contexts.workspaceId, wsId));
-    if (!embeddingReady()) {
-        warn("• skipped context seeding — no Google key, so nothing can be embedded");
-    } else {
-        let sources = 0;
-        for (const plan of DEMO_CONTEXTS) {
-            const { id } = await createContext(wsId, user.id, plan.name, plan.description);
-            for (const item of plan.items) {
-                await addTextItem(wsId, id, user.id, item.kind, item.title, item.body);
-                sources++;
-            }
-            for (const title of plan.artifactTitles) {
-                const artifactId = artifactIds.get(title);
-                if (!artifactId) throw new Error(`no seeded artifact titled "${title}"`);
-                await addArtifactItem(wsId, id, user.id, artifactId);
-                sources++;
-            }
-        }
-        log(`• seeded ${DEMO_CONTEXTS.length} contexts (${sources} embedded sources)`);
+    for (const t of spec.trashed ?? []) {
+        const d = docFor(t.ref);
+        await db.insert(schema.artifacts).values({
+            workspaceId: wsId,
+            title: d.title,
+            formatId: d.artifact.format,
+            themeId: d.artifact.theme,
+            ...contentWrite(d.artifact),
+            createdBy,
+            createdAt: ago(t.daysAgo + 20),
+            updatedAt: ago(t.daysAgo),
+            trashedAt: ago(t.daysAgo),
+        });
     }
+    return { byRef, byTitle };
+}
 
-    // reset first so re-seeding stays idempotent; picsum gives stable photos without an API key
-    await db.delete(schema.assets).where(eq(schema.assets.workspaceId, wsId));
-    const cc = (author: string) => ({
-        provider: "Openverse",
-        author,
-        authorUrl: "https://openverse.org",
-        sourceUrl: "https://openverse.org",
-    });
-    const DEMO_ASSETS: {
-        source: string;
-        seed: string;
-        w: number;
-        h: number;
-        alt: string;
-        prompt?: string;
-        attribution?: ReturnType<typeof cc>;
-    }[] = [
-        {
-            source: "stock",
-            seed: "galleo-meadow",
-            w: 1600,
-            h: 1000,
-            alt: "Meadow at first light",
-            attribution: cc("Priya Nair"),
-        },
-        {
-            source: "generated",
-            seed: "galleo-solar",
-            w: 1536,
-            h: 864,
-            alt: "Rooftop solar array at golden hour",
-            prompt: "a 1.4-megawatt rooftop solar array at golden hour, wide angle, photographic",
-        },
-        {
-            source: "stock",
-            seed: "galleo-coast",
-            w: 1600,
-            h: 1067,
-            alt: "Rocky coastline at dusk",
-            attribution: cc("Marco Ferri"),
-        },
-        { source: "upload", seed: "galleo-offsite", w: 1400, h: 933, alt: "team-offsite.jpg" },
-        {
-            source: "generated",
-            seed: "galleo-studio",
-            w: 1024,
-            h: 1024,
-            alt: "Late-night recording studio",
-            prompt: "a moody late-night recording studio bathed in neon, cinematic, shallow depth of field",
-        },
-        {
-            source: "stock",
-            seed: "galleo-city",
-            w: 1600,
-            h: 1000,
-            alt: "City skyline at dusk",
-            attribution: cc("Lena Osei"),
-        },
-        { source: "upload", seed: "galleo-flatlay", w: 1200, h: 1200, alt: "product-flatlay.png" },
-        {
-            source: "stock",
-            seed: "galleo-lake",
-            w: 1600,
-            h: 1000,
-            alt: "Mountain lake, still water",
-            attribution: cc("Kamil Porembiński"),
-        },
-    ];
+const REFERRERS = ["direct", "mail.google.com", "www.linkedin.com", "t.co", "www.notion.so"];
+const COUNTRIES = ["US", "GB", "DE", "SE", "NL"];
+
+// Deterministic (index arithmetic, no RNG), so a reseed doesn't reshuffle the analytics chart.
+function viewRows(
+    linkId: string,
+    slug: string,
+    count: number,
+    recipientId: string | null,
+    offset: number,
+): (typeof schema.linkViews.$inferInsert)[] {
+    const rows: (typeof schema.linkViews.$inferInsert)[] = [];
+    const total = 12;
+    for (let i = 0; i < count; i++) {
+        const seen = new Date(Date.now() - (6 + (i + offset) * 7) * HOUR);
+        rows.push({
+            linkId,
+            recipientId,
+            sessionKey: `seed:${slug}:${offset}:${i}`,
+            referrer: REFERRERS[(i + offset) % REFERRERS.length] ?? "direct",
+            device: (i + offset) % 4 === 0 ? "mobile" : "desktop",
+            country: COUNTRIES[(i * 3 + offset) % COUNTRIES.length] ?? "US",
+            viewedAt: seen,
+            lastSeenAt: new Date(seen.getTime() + (40 + ((i * 37) % 260)) * 1000),
+            maxUnit: (i * 5) % total, // 0-based; analyticsFor reads (max_unit + 1) / unit_total
+            unitTotal: total,
+        });
+    }
+    return rows;
+}
+
+async function seedLinks(spec: WorkspaceSpec, docs: SeededDocs): Promise<string[]> {
+    const urls: string[] = [];
+    for (const l of spec.links ?? []) {
+        const artifactId = docs.byRef.get(refKey(l.ref));
+        if (!artifactId)
+            throw new Error(`"${spec.slug}": link "${l.slug}" names an artifact it does not seed`);
+        const [link] = await db
+            .insert(schema.links)
+            .values({
+                artifactId,
+                slug: l.slug,
+                name: l.name,
+                visibility: l.visibility,
+                password: l.password ? hashPassword(l.password) : null,
+                createdAt: ago(l.createdDaysAgo),
+            })
+            .returning({ id: schema.links.id });
+        if (!link) continue;
+        urls.push(appUrl(`/p/${l.slug}`));
+
+        const views = viewRows(link.id, l.slug, l.views ?? 0, null, 0);
+        let offset = l.views ?? 0;
+        for (const r of l.recipients ?? []) {
+            // the recipient token is stored raw, so /p/<slug>?k=<token> is testable straight away
+            const [rec] = await db
+                .insert(schema.linkRecipients)
+                .values({
+                    linkId: link.id,
+                    email: r.email,
+                    token: `${l.slug}-${handle(r.email)}`,
+                    message: "Sharing this ahead of Thursday.",
+                    invitedAt: ago(l.createdDaysAgo),
+                    lastViewedAt: r.views ? ago(1) : null,
+                })
+                .returning({ id: schema.linkRecipients.id });
+            if (!rec) continue;
+            views.push(...viewRows(link.id, l.slug, r.views, rec.id, offset));
+            offset += r.views;
+        }
+        if (views.length) await db.insert(schema.linkViews).values(views);
+    }
+    return urls;
+}
+
+/**
+ * Replays the spec's charges oldest-first with the same pool-then-bonus arithmetic as
+ * chargeCredits, so balance_after, ai_credits_used and ai_credits_bonus cannot disagree with the
+ * history. A monthly-reset row takes its delta from the replay (what was returned) and is skipped
+ * when nothing was spent, matching rollCreditWindow.
+ */
+async function seedLedger(
+    ws: WorkspaceRow,
+    spec: WorkspaceSpec,
+    ids: Map<string, string>,
+): Promise<{ used: number; bonus: number }> {
+    const limit = creditLimitFor(ws);
+    let used = 0;
+    let bonus = 0;
+    const rows: (typeof schema.credits.$inferInsert)[] = [];
+    for (const c of [...(spec.ledger ?? [])].sort((a, b) => b.at - a.at)) {
+        const createdAt = ago(c.at);
+        if (c.kind === "spend") {
+            const userId = ids.get(c.by);
+            if (!userId) throw new Error(`no seeded user "${c.by}"`);
+            const fromPool = Math.min(c.credits, Math.max(0, limit - used));
+            used += fromPool;
+            bonus -= c.credits - fromPool;
+            rows.push({
+                workspaceId: ws.id,
+                userId,
+                delta: -c.credits,
+                reason: c.tool,
+                usage: c.usage,
+                balanceAfter: Math.max(0, limit - used) + bonus,
+                createdAt,
+            });
+        } else if (c.kind === "topup") {
+            const pack = packFor(c.pack);
+            if (!pack) throw new Error(`no credit pack "${c.pack}"`);
+            bonus += pack.credits;
+            rows.push({
+                workspaceId: ws.id,
+                delta: pack.credits,
+                reason: `topup:${pack.id}`,
+                balanceAfter: Math.max(0, limit - used) + bonus,
+                createdAt,
+            });
+        } else if (used > 0) {
+            rows.push({
+                workspaceId: ws.id,
+                delta: used,
+                reason: "monthly-reset",
+                balanceAfter: limit + bonus,
+                createdAt,
+            });
+            used = 0;
+        }
+    }
+    if (rows.length) await db.insert(schema.credits).values(rows);
+    await db
+        .update(schema.workspaces)
+        .set({ aiCreditsUsed: used, aiCreditsBonus: bonus })
+        .where(eq(schema.workspaces.id, ws.id));
+    return { used, bonus };
+}
+
+async function seedThemes(wsId: string, spec: WorkspaceSpec): Promise<void> {
+    for (const t of spec.themes ?? []) {
+        const base = THEMES[t.from];
+        if (!base) throw new Error(`no built-in theme "${t.from}"`);
+        await db.insert(schema.themes).values({
+            workspaceId: wsId,
+            name: t.name,
+            tokens: { ...base.tokens, accent: t.accent },
+            mood: t.mood,
+            isDark: base.dark,
+        });
+    }
+}
+
+async function seedVisits(
+    spec: WorkspaceSpec,
+    docs: SeededDocs,
+    userIds: Map<string, string>,
+): Promise<void> {
+    const demoId = userIds.get(DEMO_EMAIL);
+    if (demoId)
+        for (const [i, ref] of (spec.visits ?? []).entries()) {
+            const artifactId = docs.byRef.get(refKey(ref));
+            if (!artifactId)
+                throw new Error(`"${spec.slug}": a visit names an artifact it does not seed`);
+            await db
+                .insert(schema.visits)
+                .values({
+                    userId: demoId,
+                    kind: "artifact",
+                    ref: artifactId,
+                    uses: Math.max(1, 3 - i),
+                    seenAt: ago(i + 1),
+                })
+                .onConflictDoNothing();
+        }
+    for (const t of spec.templateUses ?? []) {
+        const userId = userIds.get(t.by);
+        if (!userId) throw new Error(`no seeded user "${t.by}"`);
+        await db
+            .insert(schema.visits)
+            .values({ userId, kind: "template", ref: t.templateId, uses: t.uses, seenAt: ago(2) })
+            .onConflictDoUpdate({
+                target: [schema.visits.userId, schema.visits.kind, schema.visits.ref],
+                set: { uses: t.uses, seenAt: ago(2) },
+            });
+    }
+}
+
+const cc = (author: string) => ({
+    provider: "Openverse",
+    author,
+    authorUrl: "https://openverse.org",
+    sourceUrl: "https://openverse.org",
+});
+
+const DEMO_ASSETS: {
+    source: string;
+    seed: string;
+    w: number;
+    h: number;
+    alt: string;
+    prompt?: string;
+    attribution?: ReturnType<typeof cc>;
+}[] = [
+    {
+        source: "stock",
+        seed: "galleo-meadow",
+        w: 1600,
+        h: 1000,
+        alt: "Meadow at first light",
+        attribution: cc("Priya Nair"),
+    },
+    {
+        source: "generated",
+        seed: "galleo-solar",
+        w: 1536,
+        h: 864,
+        alt: "Rooftop solar array at golden hour",
+        prompt: "a 1.4-megawatt rooftop solar array at golden hour, wide angle, photographic",
+    },
+    {
+        source: "stock",
+        seed: "galleo-coast",
+        w: 1600,
+        h: 1067,
+        alt: "Rocky coastline at dusk",
+        attribution: cc("Marco Ferri"),
+    },
+    { source: "upload", seed: "galleo-offsite", w: 1400, h: 933, alt: "team-offsite.jpg" },
+    {
+        source: "generated",
+        seed: "galleo-studio",
+        w: 1024,
+        h: 1024,
+        alt: "Late-night recording studio",
+        prompt: "a moody late-night recording studio bathed in neon, cinematic, shallow depth of field",
+    },
+    {
+        source: "stock",
+        seed: "galleo-city",
+        w: 1600,
+        h: 1000,
+        alt: "City skyline at dusk",
+        attribution: cc("Lena Osei"),
+    },
+    { source: "upload", seed: "galleo-flatlay", w: 1200, h: 1200, alt: "product-flatlay.png" },
+    {
+        source: "stock",
+        seed: "galleo-lake",
+        w: 1600,
+        h: 1000,
+        alt: "Mountain lake, still water",
+        attribution: cc("Kamil Porembiński"),
+    },
+];
+
+// picsum gives stable photos without an API key; stock rows carry no bytes, so they cost no storage
+async function seedAssets(wsId: string): Promise<void> {
     const now = Date.now();
-    for (let i = 0; i < DEMO_ASSETS.length; i++) {
-        const a = DEMO_ASSETS[i]!;
+    for (const [i, a] of DEMO_ASSETS.entries())
         await db.insert(schema.assets).values({
             workspaceId: wsId,
             kind: "image",
@@ -241,12 +586,138 @@ async function seed(): Promise<void> {
                 prompt: a.prompt,
                 thumbUrl: `https://picsum.photos/seed/${a.seed}/500/${Math.round((500 * a.h) / a.w)}`,
             },
-            createdAt: new Date(now - i * 3_600_000), // newest first in the Recent grid
+            createdAt: new Date(now - i * HOUR), // newest first in the Recent grid
         });
-        docs++;
+}
+
+// re-ingested through the real path (chunk → embed → pgvector), so demo retrieval behaves like
+// user-fed material
+async function seedContexts(wsId: string, userId: string, docs: SeededDocs): Promise<number> {
+    let sources = 0;
+    for (const plan of DEMO_CONTEXTS) {
+        const { id } = await createContext(wsId, userId, plan.name, plan.description);
+        for (const item of plan.items) {
+            await addTextItem(wsId, id, userId, item.kind, item.title, item.body);
+            sources++;
+        }
+        for (const title of plan.artifactTitles) {
+            const artifactId = docs.byTitle.get(title);
+            if (!artifactId) throw new Error(`no seeded artifact titled "${title}"`);
+            await addArtifactItem(wsId, id, userId, artifactId);
+            sources++;
+        }
     }
-    log(`• seeded ${DEMO_ASSETS.length} recent-media assets`);
+    return sources;
+}
+
+async function seed(): Promise<void> {
+    assertDatabaseUrl();
+
+    const userIds = new Map<string, string>();
+    for (const p of PEOPLE) userIds.set(p.email, await upsertUser(p));
+    log(`• ${PEOPLE.length} accounts (all password "${DEMO_PASSWORD}")`);
+
+    const embed = embeddingReady();
+    if (!embed) warn("• skipping contexts — no Google key, so nothing can be embedded");
+
+    const links: string[] = [];
+    const invites: string[] = [];
+    for (const spec of WORKSPACES) {
+        const ownerId = userIds.get(spec.ownerEmail);
+        if (!ownerId) throw new Error(`no seeded user "${spec.ownerEmail}"`);
+        const ws = await upsertWorkspace(spec, ownerId);
+        await wipeWorkspace(ws.id);
+        await syncMembers(ws.id, ownerId, spec, userIds);
+        invites.push(...(await seedInvites(ws.id, ownerId, spec)));
+
+        const docs = await seedArtifacts(ws.id, ownerId, spec);
+        await seedThemes(ws.id, spec);
+        links.push(...(await seedLinks(spec, docs)));
+        await seedVisits(spec, docs, userIds);
+        if (spec.assets) await seedAssets(ws.id);
+        if (spec.contexts && embed) await seedContexts(ws.id, ownerId, docs);
+        const { used, bonus } = await seedLedger(ws, spec, userIds);
+
+        const live = (spec.folders ?? []).reduce((n, g) => n + g.docs.length, 0);
+        const role =
+            spec.ownerEmail === DEMO_EMAIL
+                ? "owner"
+                : (spec.members.find((m) => m.email === DEMO_EMAIL)?.role ?? "—");
+        log(
+            `• ${spec.name} (${spec.plan}, demo is ${role}) — ${live} artifacts, ` +
+                `${spec.members.length + 1} members, ${used}/${creditLimitFor(ws)} credits` +
+                `${bonus ? ` +${bonus} bonus` : ""}`,
+        );
+    }
+
+    // otherwise currentWorkspace falls back to the oldest membership, which is insertion-ordered
+    for (const p of PEOPLE) {
+        const home =
+            WORKSPACES.find((w) => w.ownerEmail === p.email) ??
+            WORKSPACES.find((w) => w.members.some((m) => m.email === p.email));
+        const userId = userIds.get(p.email);
+        if (!home || !userId) continue;
+        const [ws] = await db
+            .select({ id: schema.workspaces.id })
+            .from(schema.workspaces)
+            .where(eq(schema.workspaces.slug, home.slug));
+        if (ws)
+            await db
+                .update(schema.users)
+                .set({ activeWorkspaceId: ws.id })
+                .where(eq(schema.users.id, userId));
+    }
+
+    await seedEvalRuns();
+
     log(`\nLog in with:  ${DEMO_EMAIL}  /  ${DEMO_PASSWORD}`);
+    if (invites.length) log(`Pending invites:\n  ${invites.join("\n  ")}`);
+    if (links.length) log(`Published links:\n  ${links.join("\n  ")}`);
+}
+
+/**
+ * Traced runs for the playground. Checks and token totals are recomputed rather than stored: a check
+ * is a pure function of the content, so a stored one could contradict the artifact beside it.
+ */
+async function seedEvalRuns(): Promise<void> {
+    const targets = await evalTargets();
+    const users = await seededUserIds();
+    const demoId = users.get(DEMO_EMAIL);
+    if (!targets.length || !demoId) return warn("• no workspace eligible for eval runs");
+    for (const t of targets)
+        await db.delete(schema.evalRuns).where(eq(schema.evalRuns.workspaceId, t.id));
+    const deals = dealEvalRuns(
+        targets.map((t) => ({ workspaceId: t.id, userId: demoId, plan: t.plan })),
+        EVAL_RUNS,
+    );
+    for (const { target, run } of deals) {
+        const spans = spansOf(run);
+        const { input, output } = tokensOf(spans);
+        const meta = run.config.meta;
+        await db.insert(schema.evalRuns).values({
+            workspaceId: target.workspaceId,
+            userId: target.userId,
+            sessionId: `seed-${run.id}`,
+            artifactId: null,
+            config: run.config,
+            spans,
+            checks: run.content
+                ? runChecks(run.content, { surface: meta.surface, length: meta.length })
+                : [],
+            judgements: run.judgements,
+            content: run.content,
+            status: run.status,
+            error: run.error,
+            tokensIn: input,
+            tokensOut: output,
+            credits: run.credits,
+            ms: run.ms,
+            createdAt: new Date(Date.now() - run.minutesAgo * 60_000),
+        });
+    }
+    log(
+        `• ${deals.length} eval runs across ${new Set(deals.map((d) => d.target.workspaceId)).size} workspaces`,
+    );
 }
 
 seed()

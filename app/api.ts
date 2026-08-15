@@ -11,7 +11,7 @@ import type {
     Section,
 } from "@model/artifact";
 import type { Usage } from "@model/credits";
-import type { EvalRun, EvalRunSummary } from "@model/eval";
+import type { EvalCheck, EvalJudgement, EvalRun, EvalRunSummary, Rubric } from "@model/eval";
 import type { Folder, User, WorkspaceRole } from "@model/workspace";
 import type { Template } from "@model/templates";
 import type { ThemeSummary as Theme, ThemeInput, Tokens } from "@themes";
@@ -405,7 +405,16 @@ export const api = {
     ) =>
         req<{ brief: BriefDraft | null }>("/ai/brief", {
             method: "POST",
-            body: JSON.stringify({ prompt, surface, previous }),
+            body: JSON.stringify({
+                prompt,
+                surface,
+                previous,
+                // the brief is the first call of a session; without this the run would start at
+                // the outline and hide a real model call
+                ...(traceTurns()
+                    ? { trace: true, ...(session ? { traceSession: session } : {}) }
+                    : {}),
+            }),
         }).then((r) => r.brief),
     reviseElement: (
         content: ArtifactContent,
@@ -531,6 +540,14 @@ export const api = {
             `/eval/runs${before ? `?before=${encodeURIComponent(before)}` : ""}`,
         ),
     getEvalRun: (id: string) => req<{ run: EvalRun }>(`/eval/runs/${id}`),
+    getEvalRubric: () => req<{ rubric: Rubric }>("/eval/rubric"),
+    judgeEvalRun: (id: string) =>
+        req<{ judgements: EvalJudgement[] }>(`/eval/runs/${id}/judge`, { method: "POST" }),
+    postEvalChecks: (id: string, checks: EvalCheck[]) =>
+        req<{ ok: true }>(`/eval/runs/${id}/checks`, {
+            method: "POST",
+            body: JSON.stringify({ checks }),
+        }),
     inviteMember: (email: string, role: "admin" | "member" = "member") =>
         req<{ invite: WorkspaceInvite; url: string; sent: boolean }>("/workspace/invites", {
             method: "POST",
@@ -658,6 +675,12 @@ export const setTraceTurns = (on: boolean): void => {
     else store()?.removeItem(TRACE_KEY);
 };
 
+// One authoring session; every turn it makes folds into a single eval run.
+let session: string | null = null;
+export const setTraceSession = (id: string | null): void => {
+    session = id;
+};
+
 export async function streamTurn(
     request: TurnRequest,
     onEvent: (event: TurnEvent) => void,
@@ -667,7 +690,11 @@ export async function streamTurn(
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json", ...modelHeaders() },
-        body: JSON.stringify(traceTurns() ? { ...request, trace: true } : request),
+        body: JSON.stringify(
+            traceTurns()
+                ? { ...request, trace: true, ...(session ? { traceSession: session } : {}) }
+                : request,
+        ),
         signal,
     });
     if (!res.ok || !res.body) {

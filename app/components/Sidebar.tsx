@@ -17,6 +17,7 @@ import {
 import {
     ChevronRightIcon,
     CloseIcon,
+    ChevronDownIcon,
     EditIcon,
     FolderFillIcon,
     LibraryIcon,
@@ -34,6 +35,7 @@ import { Button, Eyebrow, IconButton } from "@ui/button";
 import { TextField } from "@ui/inputs";
 import { Meter } from "@ui/status";
 import { Mark } from "@ui/brand";
+import { Menu, MenuItem, MenuLabel } from "@ui/menu";
 
 // Below `md` the sidebar is an overlay drawer; at md+ it is a static column and this stays false.
 const [drawerOpen, setDrawerOpen] = createSignal(false);
@@ -45,6 +47,65 @@ export const closeSidebar = (): void => {
 };
 
 // phone app bar; each management view renders it first inside its <main>
+// Two initials where the name gives two words, one otherwise: "Northwind Studio" reads as NS, and a
+// single-word workspace still gets a mark rather than a blank.
+const initials = (name: string): string => {
+    const words = name.trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return "W";
+    const first = words[0]![0] ?? "";
+    const last = words.length > 1 ? (words.at(-1)![0] ?? "") : "";
+    return (first + last).toUpperCase();
+};
+
+const WorkspaceCard: Component<{
+    anchor?: (el: HTMLElement) => void;
+    onToggle?: () => void;
+}> = (props) => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    return (
+        <div
+            ref={props.anchor}
+            class={`mb-2 flex w-full items-center gap-1 rounded-xl border bg-canvas pr-1 transition-colors ${
+                location.pathname === "/settings"
+                    ? "border-accent"
+                    : "border-line hover:border-accent/50"
+            }`}
+        >
+            <button
+                class="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2 text-left"
+                title="Workspace settings"
+                onClick={() => navigate("/settings")}
+            >
+                <span class="grid size-7 flex-none place-items-center rounded-lg bg-accent text-[11px] font-bold text-onaccent">
+                    {initials(workspaceState()?.workspace.name ?? "Workspace")}
+                </span>
+                <span class="min-w-0 flex-1">
+                    <span class="block truncate text-[12.5px] font-bold text-ink">
+                        {workspaceState()?.workspace.name ?? "Workspace"}
+                    </span>
+                    <span class="block text-[10.5px] text-muted">
+                        {(workspaceState()?.members.length ?? 1) > 1
+                            ? `${workspaceState()!.members.length} members`
+                            : "Personal workspace"}
+                    </span>
+                </span>
+            </button>
+            <Show when={props.onToggle}>
+                <IconButton
+                    size="sm"
+                    rounded="md"
+                    tone="muted"
+                    title="Switch workspace"
+                    onClick={props.onToggle}
+                >
+                    <ChevronDownIcon size={15} />
+                </IconButton>
+            </Show>
+        </div>
+    );
+};
+
 export const SidebarToggle: Component = () => (
     <div class="sticky top-0 z-panel flex items-center gap-2 border-b border-line bg-panel/95 px-3 py-2 backdrop-blur-md md:hidden">
         <IconButton size="touch" tone="muted" title="Menu" onClick={openSidebar}>
@@ -301,36 +362,29 @@ export const Sidebar: Component = () => {
                         <CloseIcon />
                     </IconButton>
                 </div>
-                <button
-                    class={`mb-2 flex w-full items-center gap-2.5 rounded-xl border bg-canvas px-2.5 py-2 text-left transition-colors ${route() === "/settings" ? "border-accent" : "border-line hover:border-accent/50"}`}
-                    title="Workspace settings"
-                    onClick={() => navigate("/settings")}
+                {/* One card, two actions: the name opens settings, the chevron opens the switcher.
+                    The menu anchors to the card rather than the chevron so it lines up with the
+                    workspace name and takes the card's width instead of hanging off a 24px button. */}
+                <Show
+                    when={(workspaceState()?.memberships.length ?? 0) > 1}
+                    fallback={<WorkspaceCard />}
                 >
-                    <Mark size={28} />
-                    <span class="min-w-0 flex-1">
-                        <span class="block truncate text-[12.5px] font-bold text-ink">
-                            {workspaceState()?.workspace.name ?? "Workspace"}
-                        </span>
-                        <span class="block text-[10.5px] text-muted">
-                            {(workspaceState()?.members.length ?? 1) > 1
-                                ? `${workspaceState()!.members.length} members`
-                                : "Personal workspace"}
-                        </span>
-                    </span>
-                </button>
-                <Show when={(workspaceState()?.memberships.length ?? 0) > 1}>
-                    <select
-                        class="mb-2 w-full rounded-lg border border-line bg-canvas px-2 py-1.5 text-[12px] font-semibold text-ink"
-                        onChange={(e) => void switchWorkspace(e.currentTarget.value)}
+                    <Menu
+                        align="start"
+                        trigger={(m) => <WorkspaceCard anchor={m.ref} onToggle={m.toggle} />}
                     >
+                        <MenuLabel>Switch workspace</MenuLabel>
                         <For each={workspaceState()!.memberships}>
-                            {(m) => (
-                                <option value={m.id} selected={m.active}>
-                                    {m.name}
-                                </option>
+                            {(w) => (
+                                <MenuItem
+                                    selected={w.active}
+                                    onClick={() => void switchWorkspace(w.id)}
+                                >
+                                    {w.name}
+                                </MenuItem>
                             )}
                         </For>
-                    </select>
+                    </Menu>
                 </Show>
                 <NewButton />
                 <nav class="mt-3 flex flex-col gap-0.5">

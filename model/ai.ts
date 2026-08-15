@@ -20,6 +20,13 @@ export interface ModelSpan {
     response?: string;
     temperature?: number;
     finishReason?: string;
+    /** The named fragments the system prompt was assembled from, when the builder labelled them. */
+    parts?: PromptPart[];
+}
+
+export interface PromptPart {
+    name: string;
+    text: string;
 }
 export type Surface = "deck" | "doc" | "web";
 
@@ -229,9 +236,11 @@ export type ChatBlock =
     | { type: "steer"; note: string }
     | { type: "action"; action: WorkspaceAction }; // a workspace action the client runs (or confirms)
 
-// `trace` asks the server to record every model call of this turn as an eval run. Honoured only for
-// eval admins, so a client setting it changes nothing on its own.
-type Traced = { trace?: boolean };
+// `trace` asks the server to record every model call of this turn as an eval run, and `traceSession`
+// groups the turns of one authoring session into a single run: the studio builds a section per turn,
+// but the thing worth evaluating is the artifact. Honoured only for eval admins, so a client setting
+// them changes nothing on its own.
+type Traced = { trace?: boolean; traceSession?: string };
 
 export type TurnRequest = Traced &
     (

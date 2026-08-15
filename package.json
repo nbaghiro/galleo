@@ -11,6 +11,7 @@
         "check:models": "node scripts/check-models.mjs",
         "check:elements": "tsx scripts/check-elements.ts",
         "eval:diagrams": "vitest run canvas/elements/diagram/__tests__/visual-invariants.test.ts",
+        "eval:capture": "tsx scripts/capture-eval-fixtures.ts",
         "check:boundaries": "node scripts/check-boundaries.mjs",
         "test": "vitest run",
         "test:watch": "vitest",

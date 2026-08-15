@@ -18,7 +18,8 @@ import { sql } from "drizzle-orm";
 import type { GenMeta, ArtifactDigest } from "@model/artifact";
 import type { FeatureOverrides, ScheduledChange } from "@model/billing";
 import type { Usage } from "@model/credits";
-import type { EvalCheck, EvalConfig, EvalStatus } from "@model/eval";
+import type { ArtifactContent } from "@model/artifact";
+import type { EvalCheck, EvalConfig, EvalJudgement, EvalStatus } from "@model/eval";
 
 // Drizzle has no tsvector type; the column is generated from title + search_text, never written by hand
 const tsvector = customType<{ data: string; driverData: string }>({
@@ -395,10 +396,14 @@ export const evalRuns = pgTable(
             .notNull()
             .references(() => workspaces.id),
         userId: uuid("user_id").references(() => users.id),
+        // one authoring session; the studio's turns fold into a single run
+        sessionId: text("session_id"),
         artifactId: uuid("artifact_id"), // no FK: a run may be abandoned before the draft is saved
         config: jsonb("config").$type<EvalConfig>().notNull(),
         spans: jsonb("spans").$type<ModelSpan[]>().notNull(),
         checks: jsonb("checks").$type<EvalCheck[]>(),
+        content: jsonb("content").$type<ArtifactContent>(),
+        judgements: jsonb("judgements").$type<EvalJudgement[]>(),
         status: text("status").$type<EvalStatus>().notNull(),
         error: text("error"),
         tokensIn: integer("tokens_in").notNull(),

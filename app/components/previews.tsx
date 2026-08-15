@@ -255,13 +255,22 @@ export const SectionThumb: Component<{
 // uses natural section heights (not the 16:9 slide frame) so backgrounds show fully
 const PAD = 28;
 
-export const PreviewCanvas: Component<{ content: ArtifactContent; format: () => string }> = (
-    props,
-) => {
+export const PreviewCanvas: Component<{
+    content: ArtifactContent;
+    format: () => string;
+    // Optional selection layer. The stack painter already returns each section's top and height, so
+    // hit areas, the scroll-into-view and the corner marks all read those rather than measuring
+    // anything themselves.
+    selected?: string;
+    onSelect?: (id: string) => void;
+    mark?: (id: string) => "fail" | "warn" | null;
+}> = (props) => {
     let host!: HTMLDivElement;
+    let paintHost!: HTMLDivElement;
     let stage: HTMLDivElement | null = null;
     const cache = createSectionStackCache();
     let lastWindow: StackWindow | null = null;
+    const [boxes, setBoxes] = createSignal<{ id: string; top: number; height: number }[]>([]);
 
     const render = (): void => {
         if (!host) return;
@@ -273,19 +282,27 @@ export const PreviewCanvas: Component<{ content: ArtifactContent; format: () => 
         host.style.background = backdropCss(props.content.background, tk);
         if (!stage) {
             stage = document.createElement("div");
-            host.replaceChildren(stage);
+            paintHost.replaceChildren(stage);
         }
         stage.style.cssText = `position:relative;width:${fullW}px`;
         const viewH = host.clientHeight || 800;
         const win = stackWindow(host.scrollTop, viewH);
         lastWindow = win;
-        const { height } = paintSectionStack(stage, props.content.sections, profile, tk, {
-            fullW,
-            startY: PAD,
-            cache,
-            window: win,
-        });
+        const { height, tops, heights } = paintSectionStack(
+            stage,
+            props.content.sections,
+            profile,
+            tk,
+            { fullW, startY: PAD, cache, window: win },
+        );
         stage.style.height = `${height - gap + PAD}px`;
+        setBoxes(
+            props.content.sections.map((s, i) => ({
+                id: s.id,
+                top: tops[i] ?? 0,
+                height: heights[i] ?? 0,
+            })),
+        );
     };
 
     createEffect(() => {
@@ -301,5 +318,45 @@ export const PreviewCanvas: Component<{ content: ArtifactContent; format: () => 
         if (windowMoved(lastWindow, stackWindow(host.scrollTop, viewH), viewH)) render();
     };
 
-    return <div ref={host} class="h-full w-full overflow-y-auto" onScroll={onScroll} />;
+    // follow the caller's selection, using the painter's own offsets rather than a DOM query
+    createEffect(() => {
+        const id = props.selected;
+        if (!id || !host) return;
+        const box = boxes().find((b) => b.id === id);
+        if (box) host.scrollTo({ top: Math.max(0, box.top - PAD), behavior: "smooth" });
+    });
+
+    return (
+        <div ref={host} class="relative h-full w-full overflow-y-auto" onScroll={onScroll}>
+            <div ref={paintHost} />
+            <Show when={props.onSelect || props.mark}>
+                <div class="pointer-events-none absolute inset-0">
+                    <For each={boxes()}>
+                        {(b) => {
+                            const tone = (): "fail" | "warn" | null => props.mark?.(b.id) ?? null;
+                            const on = (): boolean => props.selected === b.id;
+                            return (
+                                <div
+                                    class="pointer-events-auto absolute left-0 w-full cursor-pointer"
+                                    style={{ top: `${b.top}px`, height: `${b.height}px` }}
+                                    onClick={() => props.onSelect?.(b.id)}
+                                >
+                                    <Show when={on()}>
+                                        <div class="pointer-events-none absolute inset-0 rounded-[var(--radius)] ring-2 ring-accent" />
+                                    </Show>
+                                    <Show when={tone()}>
+                                        <span
+                                            class={`absolute top-2 right-2 size-2.5 rounded-full ring-2 ring-panel ${
+                                                tone() === "fail" ? "bg-fail" : "bg-accent"
+                                            }`}
+                                        />
+                                    </Show>
+                                </div>
+                            );
+                        }}
+                    </For>
+                </div>
+            </Show>
+        </div>
+    );
 };

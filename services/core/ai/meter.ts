@@ -1,4 +1,4 @@
-import type { ModelSpan } from "@model/ai";
+import type { ModelSpan, PromptPart } from "@model/ai";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { getModel } from "../models";
 
@@ -18,6 +18,9 @@ export type Span = ModelSpan;
 
 export interface Meter {
     uses: Span[];
+    // Prompt fragments keyed by the text they assembled into. Keyed by text rather than by step
+    // because a prompt is usually built before its step opens, and two steps may build in parallel.
+    parts: Map<string, PromptPart[]>;
     // model spend that has no per-token registry price (embeddings); folded into the settle as-is
     extraUsd: number;
     trace: boolean;
@@ -29,7 +32,7 @@ const stepScope = new AsyncLocalStorage<string>();
 
 /** Runs `fn` with a fresh meter in scope and hands it back alongside the result. */
 export async function withMeter<T>(fn: (meter: Meter) => Promise<T>, trace = false): Promise<T> {
-    const meter: Meter = { uses: [], extraUsd: 0, trace };
+    const meter: Meter = { uses: [], extraUsd: 0, parts: new Map(), trace };
     return await scope.run(meter, () => fn(meter));
 }
 
@@ -39,6 +42,16 @@ export function withStep<T>(step: string, fn: () => Promise<T>): Promise<T> {
 }
 
 export const tracing = (): boolean => scope.getStore()?.trace ?? false;
+
+/** Called by the prompt builders when tracing; the assembled text is the key. */
+export function recordParts(assembled: string, parts: PromptPart[]): void {
+    const meter = scope.getStore();
+    if (meter?.trace && assembled) meter.parts.set(assembled, parts);
+}
+
+/** The fragments a given system prompt was assembled from, if its builder labelled them. */
+export const partsOf = (assembled: string | undefined): PromptPart[] | undefined =>
+    assembled ? scope.getStore()?.parts.get(assembled) : undefined;
 
 export function recordTokens(modelId: string, input: number, output: number): void {
     record({ modelId, input, output, step: stepScope.getStore() ?? "", ms: 0 });

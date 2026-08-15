@@ -37,9 +37,15 @@ import type { BriefRead } from "../core/ai/prompts/brief";
 
 // What the run was asked to do, in the same shape an artifact stores in ai_meta. The models
 // recorded are the ones that actually ran, not the overrides that were requested.
-function configOf(req: TurnRequest, overrides: ModelOverrides, tier: ModelTier): EvalConfig {
+// the models that will actually run, not the overrides that were asked for
+function modelMap(overrides: ModelOverrides, tier: ModelTier): Record<string, string> {
     const models: Record<string, string> = {};
     for (const task of AI_TASKS) models[task] = modelFor(task, tier, overrides);
+    return models;
+}
+
+function configOf(req: TurnRequest, overrides: ModelOverrides, tier: ModelTier): EvalConfig {
+    const models = modelMap(overrides, tier);
     const input = req.kind === "build" ? req.input.brief : "input" in req ? req.input : undefined;
     const g = input as Partial<GenerateInput> | undefined;
     return {
@@ -60,8 +66,12 @@ function configOf(req: TurnRequest, overrides: ModelOverrides, tier: ModelTier):
     };
 }
 
-// a traced run rebuilds the artifact from its own patch stream; `format`/`theme` only seed it
-const emptyContent = (req: TurnRequest): ArtifactContent => {
+// A traced run rebuilds the artifact from its own patch stream. A build turn only patches the one
+// section it writes, so it has to start from the artifact so far or the run would record a
+// one-section piece.
+const seedContent = (req: TurnRequest): ArtifactContent => {
+    const input = "input" in req ? (req.input as { content?: ArtifactContent }) : undefined;
+    if (input?.content?.sections) return input.content;
     const g = ("input" in req ? req.input : undefined) as Partial<GenerateInput> | undefined;
     return { format: g?.surface ?? "deck", theme: g?.theme ?? "studio", sections: [] };
 };
@@ -99,7 +109,7 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
     // models this turn will actually run on
     const overrides = overridesFrom(c);
     // a client asking to trace changes nothing on its own; only an eval admin gets a run recorded
-    const traced = !!req.trace && isEvalAdmin(c.get("user").id);
+    const traced = !!req.trace && isEvalAdmin(c.get("user"));
     const held = await reserve(
         ws,
         c.get("user").id,
@@ -198,7 +208,7 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
                     if (ev.type === "chat.text") reply += ev.delta;
                     // the run's own copy of the result, so checks do not depend on the client
                     if (traced && ev.type === "patch")
-                        built = applyPatch(built ?? emptyContent(req), ev.ops);
+                        built = applyPatch(built ?? seedContent(req), ev.ops);
                     await send(ev);
                 }
                 // memory is best-effort: a failed write must never fail the turn it remembers
@@ -225,8 +235,10 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
                         await recordRun({
                             workspaceId: ws.id,
                             userId: c.get("user").id,
+                            sessionId: req.traceSession ?? null,
                             config: configOf(req, overrides, feats.textModelTier),
                             spans: meter.uses,
+                            content: built ?? null,
                             checks: built
                                 ? runChecks(built, {
                                       surface: built.format,
@@ -252,9 +264,16 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
 ai.post("/ai/brief", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     if (!aiReady()) return c.json({ brief: null });
-    const body = await readJson<{ prompt?: string; surface?: Surface; previous?: BriefRead }>(c);
+    const body = await readJson<{
+        prompt?: string;
+        surface?: Surface;
+        previous?: BriefRead;
+        trace?: boolean;
+        traceSession?: string;
+    }>(c);
     if (!body?.prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
     const prompt = body.prompt.trim();
+    const traced = !!body.trace && isEvalAdmin(c.get("user"));
 
     const held = await reserve(
         ws,
@@ -262,10 +281,12 @@ ai.post("/ai/brief", requireWorkspace, async (c) => {
         "draft-brief",
         {},
         ratesFor(ws, overridesFrom(c)),
+        traced,
     );
     if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
 
-    return held.settle(async () => {
+    return held.settle(async (_produced, meter) => {
+        const startedAt = Date.now();
         try {
             const brief = await expandBrief(prompt, body.surface, {
                 models: overridesFrom(c),
@@ -276,6 +297,31 @@ ai.post("/ai/brief", requireWorkspace, async (c) => {
         } catch (e) {
             warn(`[ai:brief] ${e instanceof Error ? e.message : "failed"}`.slice(0, 400));
             return c.json({ brief: null });
+        } finally {
+            // the brief opens the session's run; the turns that follow append to it
+            if (traced)
+                try {
+                    await recordRun({
+                        workspaceId: ws.id,
+                        userId: c.get("user").id,
+                        sessionId: body.traceSession ?? null,
+                        config: {
+                            kind: "brief",
+                            meta: {
+                                at: new Date().toISOString(),
+                                models: modelMap(overridesFrom(c), featuresFor(ws).textModelTier),
+                                prompt,
+                                surface: body.surface ?? "deck",
+                            },
+                        },
+                        spans: meter.uses,
+                        status: "ok",
+                        credits: 0,
+                        ms: Date.now() - startedAt,
+                    });
+                } catch (e) {
+                    warn(`[eval] brief not recorded: ${e instanceof Error ? e.message : "?"}`);
+                }
         }
     });
 });
