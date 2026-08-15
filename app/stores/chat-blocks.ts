@@ -35,6 +35,22 @@ export function resolveBriefs(blocks: UIBlock[], startedId: string | null): void
             b.state = b.blockId === startedId ? "started" : "superseded";
 }
 
+// Applying one outline/write/plan card discards every EARLIER still-unapplied card of the same
+// type: the newer proposal supersedes the older ones, so no stale actionable card remains.
+// `appliedId` marks the applied card in this message (null when it lives in a later message);
+// cards after it stay live.
+export function discardSuperseded(
+    blocks: UIBlock[],
+    type: "outline" | "write" | "plan",
+    appliedId: string | null,
+): void {
+    for (const b of blocks) {
+        if (b.k !== "widget" || b.block.type !== type) continue;
+        if (b.blockId === appliedId) return;
+        if (!b.applied) b.applied = "discarded";
+    }
+}
+
 // A tool's card is pushed the moment the tool returns, but the prose introducing it streams after.
 // Text therefore sinks above any trailing cards instead of landing underneath them; the tool shell
 // left in between keeps a second prose run from merging into the first.

@@ -128,6 +128,8 @@ The rest:
 - **set-theme** — restyle the piece (pick an id from the theme list below).
 - **find-artifacts / read-artifact** — read the user's OTHER work when they want to pull facts or structure from it into this one. Read-only: you never edit another artifact from inside a run.
 
+**When the user approves a pending proposal in words** ("yes", "go ahead", "generate it", "write it") instead of clicking its card, call the SAME tool again with the same (or refined) payload and \`approved: true\` — it is applied the moment the turn ends. Never answer a spoken approval by handing them another card to click, and never claim something is running unless you made that \`approved\` call. Reserve \`approved\` for explicit go-aheads; a first ask still gets a normal card.
+
 Reply concisely in plain text — say briefly what you changed and why. Reference beats and sections by their real ids; never invent one. Every change is a proposal the user applies or discards, so make the good one rather than asking permission first.`;
 
 function generationState(g: ChatContext["generation"]): string | undefined {

@@ -226,12 +226,14 @@ export type ChatBlock =
     | { type: "brief"; brief: GenBrief } // a proposed generation the user confirms
     | { type: "artifacts"; items: ArtifactRef[] } // library search results, a pick-list
     | { type: "templates"; items: TemplateRef[] } // starter templates, a pick-list
-    | { type: "outline"; summary: string; ops: OutlinePatch } // a proposed edit to the live outline
+    // on outline/write/plan, `approved` = the user's message already said to do it — the client
+    // applies the card without a click
+    | { type: "outline"; summary: string; ops: OutlinePatch; approved?: boolean } // a proposed edit to the live outline
     // a designed theme: the client saves it to the workspace, then points the artifact at the new id
     | { type: "theme"; name: string; mood: string; isDark: boolean; tokens: Tokens }
-    | { type: "write"; summary: string; beatIds: string[] } // write these already-planned beats
+    | { type: "write"; summary: string; beatIds: string[]; approved?: boolean } // write these already-planned beats
     // plan (or replan) the run's outline; the studio runs the plan turn when the user starts it
-    | { type: "plan"; summary: string; guidance?: string; andWrite?: boolean }
+    | { type: "plan"; summary: string; guidance?: string; andWrite?: boolean; approved?: boolean }
     // a standing note for every section still to be written; "" clears it
     | { type: "steer"; note: string }
     | { type: "action"; action: WorkspaceAction }; // a workspace action the client runs (or confirms)

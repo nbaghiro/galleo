@@ -43,7 +43,13 @@ import { addFolder, folders } from "./folders";
 import { templatesOnce } from "./templates";
 import { reportError } from "./errors";
 import { noteStep } from "./model-usage";
-import { resolveBriefs, textInsertAt, type ChatMsg, type UIBlock } from "./chat-blocks";
+import {
+    discardSuperseded,
+    resolveBriefs,
+    textInsertAt,
+    type ChatMsg,
+    type UIBlock,
+} from "./chat-blocks";
 
 const [thread, setThread] = createStore<{ messages: ChatMsg[] }>({ messages: [] });
 export { thread };
@@ -306,7 +312,13 @@ function dispatch(ev: TurnEvent, aid: number): void {
                     // spoken/typed approval: the build starts once this turn's stream closes
                     if (ev.block.brief.approved)
                         approvedBrief = { msgId: aid, blockId: ev.blockId };
-                } else m.blocks.push({ k: "widget", blockId: ev.blockId, block: ev.block });
+                } else {
+                    m.blocks.push({ k: "widget", blockId: ev.blockId, block: ev.block });
+                    // spoken/typed approval: applied once this turn's stream closes
+                    const t = ev.block.type;
+                    if ((t === "outline" || t === "write" || t === "plan") && ev.block.approved)
+                        approvedApply = { msgId: aid, blockId: ev.blockId, type: t };
+                }
             });
             break;
         case "error":
@@ -372,6 +384,14 @@ export async function sendChat(text: string): Promise<void> {
         const auto = approvedBrief;
         approvedBrief = null;
         if (auto && !aborted) startBrief(auto.msgId, auto.blockId);
+        // same for an approved generate-surface proposal: apply its card without a click
+        const apply = approvedApply;
+        approvedApply = null;
+        if (apply && !aborted) {
+            if (apply.type === "outline") applyOutline(apply.msgId, apply.blockId);
+            else if (apply.type === "write") applyWrite(apply.msgId, apply.blockId);
+            else applyPlanRequest(apply.msgId, apply.blockId);
+        }
     }
 }
 
@@ -417,6 +437,10 @@ let draftSeq = 0;
 
 // set while a turn streams a brief the user already approved in their message
 let approvedBrief: { msgId: number; blockId: string } | null = null;
+
+// same, for an approved outline/write/plan card on the generate surface (last-wins)
+let approvedApply: { msgId: number; blockId: string; type: "outline" | "write" | "plan" } | null =
+    null;
 
 /** Start a brief's build (button click or in-message approval) and resolve every pending card. */
 export function startBrief(msgId: number, blockId: string): void {
@@ -666,10 +690,20 @@ async function saveProposalToArtifact(id: string, patch: Patch): Promise<void> {
 }
 
 function markApplied(msgId: number, blockId: string, state: "applied" | "discarded"): void {
+    const type = findWidget(msgId, blockId)?.block.type;
     updateMsg(msgId, (m) => {
         const b = m.blocks.find((x) => x.k === "widget" && x.blockId === blockId);
         if (b && b.k === "widget") b.applied = state;
     });
+    // applying an outline/write/plan card (click or auto-approval) retires every earlier
+    // still-unapplied card of its kind, so no stale actionable card remains
+    if (state !== "applied" || (type !== "outline" && type !== "write" && type !== "plan")) return;
+    for (const m of thread.messages) {
+        if (m.id > msgId) break;
+        updateMsg(m.id, (mm) =>
+            discardSuperseded(mm.blocks, type, mm.id === msgId ? blockId : null),
+        );
+    }
 }
 
 // only the bound target holds the beats, so an outline revision has nowhere else to go

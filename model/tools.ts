@@ -714,6 +714,12 @@ export const TOOL_SPEC = {
                     }),
                 )
                 .min(1),
+            approved: z
+                .boolean()
+                .optional()
+                .describe(
+                    "true ONLY when the user's message explicitly says to apply it now (approving a change you already proposed: 'yes', 'go ahead', 'update it') — the outline is updated immediately without a confirm click. Leave unset on a first proposal.",
+                ),
         }),
     },
     "steer-sections": {
@@ -753,6 +759,12 @@ export const TOOL_SPEC = {
                 .describe(
                     "true only when the user wants every section written straight after planning, without stopping at the outline",
                 ),
+            approved: z
+                .boolean()
+                .optional()
+                .describe(
+                    "true ONLY when the user's message explicitly says to plan it now (approving a plan you already offered, or an unambiguous imperative: 'go ahead', 'plan it', 'just build it') — the plan turn starts immediately without a confirm click. Leave unset on a first offer.",
+                ),
         }),
     },
     "request-write": {
@@ -766,6 +778,12 @@ export const TOOL_SPEC = {
             summary: z
                 .string()
                 .describe("one short line naming what gets written, e.g. 'Write sections 2 to 5'"),
+            approved: z
+                .boolean()
+                .optional()
+                .describe(
+                    "true ONLY when the user's message explicitly says to write them now (approving a write you already offered: 'yes', 'go ahead', 'write it') — the writing starts immediately without a confirm click. Leave unset on a first offer.",
+                ),
         }),
     },
     "add-section": {

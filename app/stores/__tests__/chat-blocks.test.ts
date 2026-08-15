@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { UIBlock } from "@app/stores/chat-blocks";
-import { resolveBriefs, textInsertAt } from "@app/stores/chat-blocks";
+import { discardSuperseded, resolveBriefs, textInsertAt } from "@app/stores/chat-blocks";
 
 const text = (t: string): UIBlock => ({ k: "text", text: t });
 const tool = (id: string): UIBlock => ({ k: "tool", blockId: id, tool: id, title: id, done: true });
@@ -62,5 +62,54 @@ describe("resolveBriefs", () => {
         resolveBriefs(blocks, "b");
         expect(blocks[0]).toMatchObject({ state: "started" });
         expect(blocks[1]).toMatchObject({ state: "superseded" });
+    });
+});
+
+describe("discardSuperseded", () => {
+    type CardType = "outline" | "write" | "plan";
+    const card = (blockId: string, type: CardType, applied?: "applied" | "discarded"): UIBlock => ({
+        k: "widget",
+        blockId,
+        block:
+            type === "outline"
+                ? { type, summary: "s", ops: [{ op: "removeBeat", id: "b1" }] }
+                : type === "write"
+                  ? { type, summary: "s", beatIds: ["s2"] }
+                  : { type, summary: "s" },
+        ...(applied && { applied }),
+    });
+
+    it("discards earlier unapplied cards of the same type, up to the applied one", () => {
+        const blocks: UIBlock[] = [card("a", "write"), text("x"), card("b", "write", "applied")];
+        discardSuperseded(blocks, "write", "b");
+        expect(blocks[0]).toMatchObject({ applied: "discarded" });
+        expect(blocks[2]).toMatchObject({ applied: "applied" });
+    });
+
+    it("leaves cards of the other types alone", () => {
+        const blocks: UIBlock[] = [card("a", "outline"), card("b", "plan"), card("c", "write")];
+        discardSuperseded(blocks, "write", "c");
+        expect(blocks[0]).not.toHaveProperty("applied");
+        expect(blocks[1]).not.toHaveProperty("applied");
+    });
+
+    it("leaves cards after the applied one live", () => {
+        const blocks: UIBlock[] = [card("a", "outline", "applied"), card("b", "outline")];
+        discardSuperseded(blocks, "outline", "a");
+        expect(blocks[1]).not.toHaveProperty("applied");
+    });
+
+    it("discards every unapplied card when the applied one lives in a later message", () => {
+        const blocks: UIBlock[] = [card("a", "plan"), card("b", "plan")];
+        discardSuperseded(blocks, "plan", null);
+        expect(blocks[0]).toMatchObject({ applied: "discarded" });
+        expect(blocks[1]).toMatchObject({ applied: "discarded" });
+    });
+
+    it("never rewrites cards that already resolved", () => {
+        const blocks: UIBlock[] = [card("a", "write", "applied"), card("b", "write")];
+        discardSuperseded(blocks, "write", null);
+        expect(blocks[0]).toMatchObject({ applied: "applied" });
+        expect(blocks[1]).toMatchObject({ applied: "discarded" });
     });
 });

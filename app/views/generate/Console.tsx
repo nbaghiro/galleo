@@ -4,6 +4,7 @@ import { Button, Eyebrow, Spinner } from "@ui/button";
 import { TextArea } from "@ui/inputs";
 import { busy, sendChat, stopChat, thread } from "@app/stores/chat";
 import { builtCount, gen, pauseBuild, runLocked } from "@app/stores/generate";
+import { VoiceInput } from "@app/components/VoiceInput";
 import { MessageView } from "@app/views/ChatPanel";
 
 const PLAN_HINTS = [
@@ -34,6 +35,7 @@ const StopToChat: Component = () => (
 export const Console: Component<{ active?: boolean }> = (props) => {
     const [draft, setDraft] = createSignal("");
     let feed!: HTMLDivElement;
+    let field!: HTMLTextAreaElement;
 
     createEffect(() => {
         const tick = thread.messages.reduce(
@@ -102,8 +104,10 @@ export const Console: Component<{ active?: boolean }> = (props) => {
                     <For each={thread.messages}>{(m) => <MessageView m={m} />}</For>
                 </Show>
             </div>
-            <div class="flex-none border-t border-line p-2">
+            {/* `relative` anchors the mic's live-transcript overlay across the whole composer */}
+            <div class="relative flex-none border-t border-line p-2">
                 <TextArea
+                    ref={field}
                     rows={2}
                     rounded="md"
                     disabled={locked()}
@@ -127,6 +131,13 @@ export const Console: Component<{ active?: boolean }> = (props) => {
                         </Show>
                     </span>
                     <Show when={!locked()} fallback={<StopToChat />}>
+                        {/* send() refuses while busy/locked, so a mid-turn dictation stays a draft */}
+                        <VoiceInput
+                            field={() => field}
+                            value={draft}
+                            setValue={setDraft}
+                            onAutoSend={send}
+                        />
                         <Show
                             when={!busy()}
                             fallback={

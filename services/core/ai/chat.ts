@@ -174,6 +174,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
                     layout?: string;
                     image?: boolean;
                 }[];
+                approved?: boolean;
             },
             { toolCallId }: { toolCallId: string },
         ) => {
@@ -214,9 +215,16 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
             ch.push({
                 type: "chat.block",
                 blockId: toolCallId,
-                block: { type: "outline", summary: revision.summary, ops },
+                block: {
+                    type: "outline",
+                    summary: revision.summary,
+                    ops,
+                    ...(revision.approved && { approved: true }),
+                },
             });
-            return `Proposed an outline change: ${revision.summary}. The user applies or discards it.`;
+            return revision.approved
+                ? `The user already approved — the outline change (${revision.summary}) is being applied right now. Say so in a short sentence; do not ask them to click anything.`
+                : `Proposed an outline change: ${revision.summary}. The user applies or discards it.`;
         },
     });
 
@@ -242,7 +250,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         description: spec("request-plan").describe,
         inputSchema: spec("request-plan").input,
         execute: async (
-            req: { summary: string; guidance?: string; andWrite?: boolean },
+            req: { summary: string; guidance?: string; andWrite?: boolean; approved?: boolean },
             { toolCallId }: { toolCallId: string },
         ) => {
             // a replan would mint fresh beat ids over sections that already exist
@@ -256,10 +264,13 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
                     summary: req.summary,
                     ...(req.guidance?.trim() && { guidance: req.guidance.trim() }),
                     ...(req.andWrite && { andWrite: true }),
+                    ...(req.approved && { approved: true }),
                 },
             });
             const planned = (input.context.generation?.beats ?? []).length;
             const then = req.andWrite ? " and then write every section" : "";
+            if (req.approved)
+                return `The user already approved — the outline is being planned${then} right now${planned ? ", replacing the current beats" : ""}. Say so in a short sentence; do not ask them to click anything.`;
             return planned
                 ? `Offered to replan the outline${then}; the current beats are replaced when the user starts it.`
                 : `Offered to plan the outline${then}. Nothing runs until the user starts it.`;
@@ -274,7 +285,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
         description: spec("request-write").describe,
         inputSchema: spec("request-write").input,
         execute: async (
-            req: { beatIds: string[]; summary: string },
+            req: { beatIds: string[]; summary: string; approved?: boolean },
             { toolCallId }: { toolCallId: string },
         ) => {
             const beats = input.context.generation?.beats ?? [];
@@ -289,10 +300,18 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
             ch.push({
                 type: "chat.block",
                 blockId: toolCallId,
-                block: { type: "write", summary: req.summary, beatIds: todo },
+                block: {
+                    type: "write",
+                    summary: req.summary,
+                    beatIds: todo,
+                    ...(req.approved && { approved: true }),
+                },
             });
             const skipped = [...unknown, ...already];
-            return `Offered to write ${todo.length} planned section${todo.length === 1 ? "" : "s"} (${todo.join(", ")})${skipped.length ? `; skipped ${skipped.join(", ")}` : ""}. The user starts it — nothing is written until they do.`;
+            const skippedNote = skipped.length ? `; skipped ${skipped.join(", ")}` : "";
+            return req.approved
+                ? `The user already approved — ${todo.length} planned section${todo.length === 1 ? " is" : "s are"} being written right now (${todo.join(", ")})${skippedNote}. Say so in a short sentence; do not ask them to click anything.`
+                : `Offered to write ${todo.length} planned section${todo.length === 1 ? "" : "s"} (${todo.join(", ")})${skippedNote}. The user starts it — nothing is written until they do.`;
         },
     });
 
