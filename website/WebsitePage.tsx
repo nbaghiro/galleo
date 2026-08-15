@@ -1,6 +1,7 @@
 import type { Accessor, Component, JSX } from "solid-js";
 import { createSignal, For, onMount, Show } from "solid-js";
 import { THEME_LIST } from "@themes";
+import { visiblePlans } from "@model/billing";
 
 // the marketing "N designer themes" claim, so it cannot drift from the theme library
 const THEME_COUNT = THEME_LIST.length;
@@ -171,55 +172,23 @@ const logos = [
     "Hatch",
 ];
 
-const plans = [
-    {
-        name: "Free",
-        price: "$0",
-        per: "/forever",
-        blurb: "For trying it out and one-off artifacts.",
-        features: [
-            "3 active documents",
-            `All ${THEME_COUNT} designer themes`,
-            "Deck, doc & site views",
-            "PDF export (with watermark)",
-        ],
-        cta: "Get started",
-        href: "/signup",
-        featured: false,
-    },
-    {
-        name: "Pro",
-        price: "$20",
-        per: "/month",
-        blurb: "For people who care how it looks.",
-        features: [
-            "Unlimited documents",
-            "AI generation & rewrites",
-            "High-fidelity PDF + PPTX",
-            "Publish to your own domain",
-            "No watermark · version history",
-        ],
-        cta: "Start Pro free",
-        href: "/signup",
-        featured: true,
-    },
-    {
-        name: "Team",
-        price: "$48",
-        per: "/user/mo",
-        blurb: "For teams shipping from one source.",
-        features: [
-            "Everything in Pro",
-            "Real-time collaboration",
-            "Shared workspaces & folders",
-            "Brand kit & locked themes",
-            "Roles, permissions & SSO",
-        ],
-        cta: "Talk to us",
-        href: "/login",
-        featured: false,
-    },
-];
+// Derived from @model/billing, never retyped: the table drifted to a $48 "Team" tier while the
+// product sold Premium at $99, and promised a Pro trial that does not exist.
+const plans = visiblePlans().map((p) => ({
+    name: p.name,
+    price: `$${p.billing.priceMonthly}`,
+    // one plan is one base subscription; extra seats are an add-on, never a different rate
+    per: p.billing.priceMonthly === 0 ? "/forever" : "/month",
+    blurb: p.tagline,
+    features: p.highlights,
+    cta: p.contactSales
+        ? "Talk to us"
+        : p.billing.priceMonthly === 0
+          ? "Get started"
+          : `Start ${p.name}`,
+    href: p.contactSales ? "/login" : "/signup",
+    featured: !!p.badge,
+}));
 
 const wordmark = [false, true, false, true];
 

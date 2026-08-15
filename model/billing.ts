@@ -1,3 +1,4 @@
+import { THEME_LIST } from "@model/theme";
 import { typicalCost } from "@model/tools";
 
 // a plan/seat downgrade parked at period end via a Stripe subscription schedule
@@ -138,7 +139,7 @@ export const PLANS: Record<PlanId, Plan> = {
         highlights: [
             `About ${gens(CREDITS_PER_MONTH.free)} AI generations a month`,
             "Up to 10 artifacts",
-            "All 52 built-in themes",
+            `All ${THEME_LIST.length} built-in themes`,
             "PNG · PDF export (with a Galleo mark)",
             "Just you",
         ],
