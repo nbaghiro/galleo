@@ -1,8 +1,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import type { CreditPackId, Interval, PlanId } from "@model/billing";
-import { planFor } from "@model/billing";
 import { readJson } from "@services/utils/http";
+import type { Wanted } from "@services/core/billing";
 import {
     billingSummary,
     changePlan,
@@ -12,7 +11,6 @@ import {
     portalUrl,
     resumeSubscription,
     stripeReady,
-    topupUrl,
 } from "@services/core/billing";
 import { requireWorkspace, type WorkspaceEnv } from "./middleware";
 
@@ -39,27 +37,11 @@ plan.post("/billing/checkout", requireWorkspace, async (c) => {
     // a live subscription changes through change-plan; a second checkout would double-bill
     if (ws.stripeSubscriptionId)
         return c.json({ error: "already subscribed", useChangePlan: true }, 409);
-    const want = await readJson<{ plan?: PlanId; interval?: Interval; seats?: number }>(c);
+    const want = await readJson<Wanted>(c);
     const result = await checkoutUrl(ws, user.email, want);
     if (result && typeof result === "object" && "error" in result)
         return c.json({ error: "invalid plan" }, 400);
     return c.json({ url: result });
-});
-
-plan.post("/billing/topup", requireWorkspace, async (c) => {
-    const [user, ws] = [c.get("user"), c.get("ws")];
-    const denied = notOwner(c, ws, user.id);
-    if (denied) return denied;
-    if (!stripeReady()) return c.json(NOT_CONFIGURED, 503);
-    if (!planFor(ws.plan).ai.creditTopUpsAllowed)
-        return c.json({ error: "Credit top-ups need a paid plan — upgrade.", upgrade: true }, 402);
-    const { pack } = await readJson<{ pack?: CreditPackId }>(c);
-    const result = await topupUrl(ws, user.email, pack);
-    if ("error" in result)
-        return result.error === "invalid-pack"
-            ? c.json({ error: "invalid pack" }, 400)
-            : c.json({ error: "pack not configured" }, 503);
-    return c.json({ url: result.url });
 });
 
 plan.post("/billing/portal", requireWorkspace, async (c) => {
@@ -77,7 +59,7 @@ plan.post("/billing/change-plan", requireWorkspace, async (c) => {
     if (!ws.stripeSubscriptionId)
         return c.json({ error: "no active subscription", useCheckout: true }, 400);
     if (!stripeReady()) return c.json(NOT_CONFIGURED, 503);
-    const want = await readJson<{ plan?: PlanId; interval?: Interval; seats?: number }>(c);
+    const want = await readJson<Wanted>(c);
     const result = await changePlan(ws, ws.stripeSubscriptionId, want);
     if ("error" in result) {
         if (result.error === "no-item") return c.json({ error: "no subscription item" }, 400);

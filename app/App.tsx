@@ -128,6 +128,8 @@ export const App: Component = () => {
                             <Route path="/pricing" component={PricingView} />
                             <Route path="/settings" component={WorkspaceSettingsView} />
                             <Route path="/eval" component={EvalView} />
+                            {/* a run is linkable: the detail page is a route, not a signal */}
+                            <Route path="/eval/:id" component={EvalView} />
                             <Route path="/invite/:token" component={InviteView} />
                             <Route path="/edit/:id" component={EditorView} />
                             <Route path="/present/:id" component={PresentView} />

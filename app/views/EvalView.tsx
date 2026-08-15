@@ -1,5 +1,5 @@
 import type { Component, JSX } from "solid-js";
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
 import type { ModelSpan } from "@model/ai";
 import type { ArtifactContent } from "@model/artifact";
 import type {
@@ -17,6 +17,7 @@ import { Dropdown, type DropdownOption } from "@ui/select";
 import { EmptyState, Meter, StatusDot } from "@ui/status";
 import { PreviewCanvas, SectionThumb } from "@app/components/previews";
 import { Icon } from "@ui/icons";
+import { useNavigate, useParams } from "@solidjs/router";
 import { api, setTraceTurns, traceTurns } from "@app/api";
 import { generateOpen, openGenerate } from "@app/stores/generate";
 import { appTheme } from "@app/stores/theme";
@@ -74,32 +75,14 @@ const dayLabel = (iso: string): string => {
 };
 
 /**
- * The lead sections as they actually render, the way the library shows an artifact. A row says what
- * the run made rather than describing it, and shows as many as the width allows rather than a fixed
- * few, so a wide screen earns more of the piece.
+ * The lead sections as they actually render, the way the library's card does it: every section the
+ * row has, in a strip that scrolls sideways. No measuring and no "+N" counter, so the row shows the
+ * same thing at any width and the reader scrolls rather than being told what they are missing.
  */
 // the library's own tile width (LibraryView TILE_W), so a strip here reads at the same scale
 const THUMB_W = 176;
-const THUMB_GAP = 12;
 
 const SectionStrip: Component<{ run: EvalRunSummary; onOpen: () => void }> = (props) => {
-    const [room, setRoom] = createSignal(0);
-    let box!: HTMLDivElement;
-    onMount(() => {
-        const ro = new ResizeObserver(([e]) => setRoom(e?.contentRect.width ?? 0));
-        ro.observe(box);
-        onCleanup(() => ro.disconnect());
-    });
-
-    // leave a slot for the "+N" counter whenever there is more than the width can hold
-    const fits = createMemo(() => {
-        const w = room();
-        if (!w) return props.run.lead.length;
-        return Math.max(1, Math.floor((w - 34) / (THUMB_W + THUMB_GAP)));
-    });
-    const shown = createMemo(() => props.run.lead.slice(0, fits()));
-    const rest = createMemo(() => props.run.sections.length - shown().length);
-
     const markOf = (id: string): SectionMark | undefined =>
         props.run.sections.find((m) => m.id === id);
 
@@ -113,14 +96,14 @@ const SectionStrip: Component<{ run: EvalRunSummary; onOpen: () => void }> = (pr
     };
 
     return (
-        <div ref={box} class="mt-2.5 flex w-full items-center gap-3 overflow-hidden">
-            <For each={shown()}>
+        <div class="mt-2.5 flex items-center gap-3 overflow-x-auto overscroll-x-contain pb-2 pt-0.5">
+            <For each={props.run.lead}>
                 {(section) => {
                     const m = createMemo(() => markOf(section.id));
                     const bad = createMemo(() => (m()?.failed.length ?? 0) > 0);
                     const weak = createMemo(() => !bad() && (m()?.score ?? 1) < 0.5);
                     return (
-                        <div class="relative flex-none" title={explain(section.id, m())}>
+                        <span class="relative flex-none" title={explain(section.id, m())}>
                             {/* the app's theme, as the library does: a thumbnail sits inside our
                                 chrome, so the artifact's own palette would fight the list */}
                             <SectionThumb
@@ -132,8 +115,6 @@ const SectionStrip: Component<{ run: EvalRunSummary; onOpen: () => void }> = (pr
                                 onOpen={props.onOpen}
                             />
                             <Show when={bad() || weak()}>
-                                {/* inside the tile, not straddling its edge: the strip clips its
-                                    overflow to work out how many thumbnails fit */}
                                 <span
                                     class={`absolute top-1.5 right-1.5 size-2.5 rounded-full ring-2 ring-panel ${
                                         bad() ? "bg-fail" : "bg-accent"
@@ -141,18 +122,10 @@ const SectionStrip: Component<{ run: EvalRunSummary; onOpen: () => void }> = (pr
                                     title={explain(section.id, m())}
                                 />
                             </Show>
-                        </div>
+                        </span>
                     );
                 }}
             </For>
-            <Show when={rest() > 0}>
-                <span
-                    class="flex-none font-mono text-[10px] text-muted"
-                    title={`${rest()} more section${rest() === 1 ? "" : "s"} not shown`}
-                >
-                    +{rest()}
-                </span>
-            </Show>
         </div>
     );
 };
@@ -783,6 +756,7 @@ const Rendered: Component<{
                 <PreviewCanvas
                     content={props.content}
                     format={format}
+                    themeId={appTheme()}
                     selected={props.step.startsWith("section:") ? props.step.slice(8) : undefined}
                     onSelect={(id) => props.onPick(`section:${id}`)}
                     onActive={(id) => props.onPick(`section:${id}`)}
@@ -1029,7 +1003,6 @@ export const EvalView: Component = () => {
     const [cursor, setCursor] = createSignal<string | null>(null);
     const [loading, setLoading] = createSignal(true);
     const [error, setError] = createSignal<string | null>(null);
-    const [open, setOpen] = createSignal<string | null>(null);
     const [tracing, setTracing] = createSignal(traceTurns());
 
     const load = async (append = false): Promise<void> => {
@@ -1052,6 +1025,12 @@ export const EvalView: Component = () => {
         setTracing(v);
     };
 
+    // the open run is the URL, so a detail page can be linked to and the back button works
+    const params = useParams();
+    const navigate = useNavigate();
+    const open = (): string | null => params.id ?? null;
+    const setOpen = (id: string | null): void => navigate(id ? `/eval/${id}` : "/eval");
+
     // a run generated from here lands after the studio closes, so pick it up then
     let wasOpen = generateOpen();
     createEffect(() => {
@@ -1066,9 +1045,10 @@ export const EvalView: Component = () => {
                 <Show
                     when={!open()}
                     fallback={
-                        // full-bleed: the rail and verdict are fixed columns, so every pixel the
-                        // list page spends on centring margins goes to the preview here
-                        <div class="flex min-h-0 flex-1 flex-col px-1 py-2 md:px-1.5 md:py-2.5">
+                        // Full-bleed rather than the list page's centring margins: the rail and
+                        // verdict are fixed columns, so every pixel goes to the preview. Side
+                        // padding is twice the vertical, enough to breathe without giving that back.
+                        <div class="flex min-h-0 flex-1 flex-col px-4 py-2 md:px-5 md:py-2.5">
                             <RunDetail id={open()!} onClose={() => setOpen(null)} />
                         </div>
                     }

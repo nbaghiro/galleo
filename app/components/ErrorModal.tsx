@@ -4,6 +4,7 @@ import { Button, Eyebrow } from "@ui/button";
 import { Modal } from "@ui/overlay";
 import { appError, dismissError } from "@app/stores/errors";
 import { go } from "@app/stores/navigate";
+import { UpgradeButton } from "@app/components/Upgrade";
 import { overlayThemeVars } from "@app/stores/theme";
 
 // Every AI action reports here, so a failed turn says what happened instead of leaving the studio
@@ -35,16 +36,20 @@ export const ErrorModal: Component = () => (
                     )}
                 </Show>
                 <div class="mt-4 flex items-center justify-end gap-2">
+                    {/* both can apply on a mid-tier plan; the top plan gets only the pack */}
                     <Show when={err().upgrade}>
+                        <UpgradeButton variant="outline" onBefore={dismissError} />
+                    </Show>
+                    <Show when={err().topUp}>
                         <Button
                             variant="outline"
                             size="sm"
                             onClick={() => {
                                 dismissError();
-                                go("/pricing");
+                                go("/pricing#credits");
                             }}
                         >
-                            See plans
+                            Buy credits
                         </Button>
                     </Show>
                     <Button variant="primary" size="sm" onClick={dismissError}>

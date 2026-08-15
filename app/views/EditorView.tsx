@@ -2,7 +2,6 @@ import type { Component } from "solid-js";
 import { createEffect, createSignal, on, onCleanup, onMount, Show } from "solid-js";
 import { Navigate, useNavigate, useParams, useSearchParams } from "@solidjs/router";
 import { resolveTheme } from "@themes";
-import { limitsFor } from "@model/billing";
 import { Editor } from "@editor/Editor";
 import { Button } from "@ui/button";
 import { FloatingBar } from "@ui/overlay";
@@ -33,10 +32,10 @@ import {
 import { api, streamTurn } from "@app/api";
 import { openMediaPicker } from "@app/stores/media";
 import { openShare } from "@app/stores/share";
-import { can, loadFeatures } from "@app/stores/features";
+import { can, exportFormatsOf, loadFeatures } from "@app/stores/features";
 import { renameArtifactById } from "@app/stores/library";
 import { recordVisit } from "@app/stores/search";
-import { billing, loadBilling } from "@app/stores/billing";
+import { loadBilling } from "@app/stores/billing";
 import { setEditorActive } from "@app/stores/chat";
 import { appTheme, loadCustomThemes, setFaviconOverride, openThemeEditor } from "@app/stores/theme";
 import { flushAutosave, installAutosave } from "@app/stores/save";
@@ -59,11 +58,14 @@ export const EditorView: Component = () => {
 
     createEffect(() => setFaviconOverride(editor.artifact.theme));
 
-    // defaults to Free until billing loads
+    // All three from the resolved set, never limitsFor(plan): only the resolved set carries this
+    // workspace's featureOverrides and each feature's launch status. Defaults to Free until it loads.
     createEffect(() => {
-        const { exportFormats, removeBranding } = limitsFor(billing()?.plan);
-        // publicLinks is launch-status-aware, so read the features store, not the raw plan grant
-        setFeatures({ exportFormats, removeBranding, publicLinks: can("publicLinks") });
+        setFeatures({
+            exportFormats: exportFormatsOf(),
+            removeBranding: can("removeBranding"),
+            publicLinks: can("publicLinks"),
+        });
     });
     onCleanup(() => setFaviconOverride(null));
     onCleanup(() => endThemePreview());

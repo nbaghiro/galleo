@@ -7,9 +7,12 @@ import type { Usage } from "@model/credits";
 // The credit ledger: how a balance moves and what history it leaves. Knows nothing about tools,
 // models, or tokens — what an AI action costs, and when to charge it, is core/spend.ts.
 //
+// There is one counter. Every credit a workspace has arrives monthly (from its plan, its seats, and
+// its credit blocks — see creditLimitFor) and expires with the window, so spend is a single number
+// measured against a single limit and a refund is that number going back down.
+//
 // Each mutation locks the workspace row (SELECT … FOR UPDATE) so concurrent requests serialize and
-// none passes a near-limit gate twice. Spend order is the monthly pool, then bonus credits (never
-// reset); a refund unwinds in reverse, restoring bonus before pool, since bonus is paid money.
+// none passes a near-limit gate twice.
 //
 // One action is one ledger row. The charge writes it at its estimate and the settle rewrites that
 // same row with what the work really cost, so history reads as a list of things the user did rather
@@ -19,21 +22,16 @@ export type WorkspaceCreditFields = {
     id: string;
     plan: string | null;
     seats: number;
+    creditBlocks: number;
     featureOverrides?: typeof schema.workspaces.$inferSelect.featureOverrides;
 };
 
 interface SpendResult {
     ok: boolean;
-    remaining: number; // pool room + bonus
+    remaining: number;
     limit: number;
-    fromBonus: number; // how much of this charge bonus covered — the settle needs it to refund fairly
     entryId: string | null; // the ledger row to true up; null when the charge was refused
 }
-
-const balanceCols = {
-    used: schema.workspaces.aiCreditsUsed,
-    bonus: schema.workspaces.aiCreditsBonus,
-};
 
 export async function chargeCredits(
     ws: WorkspaceCreditFields,
@@ -45,23 +43,19 @@ export async function chargeCredits(
     const limit = creditLimitFor(ws);
     return db.transaction(async (tx) => {
         const [row] = await tx
-            .select(balanceCols)
+            .select({ used: schema.workspaces.aiCreditsUsed })
             .from(schema.workspaces)
             .where(eq(schema.workspaces.id, ws.id))
             .for("update");
-        if (!row) return { ok: false, remaining: 0, limit, fromBonus: 0, entryId: null };
-        const available = Math.max(0, limit - row.used) + row.bonus;
-        if (cost > available)
-            return { ok: false, remaining: available, limit, fromBonus: 0, entryId: null };
-        const fromPool = Math.min(cost, Math.max(0, limit - row.used));
-        const fromBonus = cost - fromPool;
-        const used = row.used + fromPool;
-        const bonus = row.bonus - fromBonus;
+        if (!row) return { ok: false, remaining: 0, limit, entryId: null };
+        const available = Math.max(0, limit - row.used);
+        if (cost > available) return { ok: false, remaining: available, limit, entryId: null };
+        const used = row.used + cost;
         await tx
             .update(schema.workspaces)
-            .set({ aiCreditsUsed: used, aiCreditsBonus: bonus })
+            .set({ aiCreditsUsed: used })
             .where(eq(schema.workspaces.id, ws.id));
-        const remaining = Math.max(0, limit - used) + bonus;
+        const remaining = Math.max(0, limit - used);
         const [entry] = await tx
             .insert(schema.credits)
             .values({
@@ -73,52 +67,38 @@ export async function chargeCredits(
                 balanceAfter: remaining,
             })
             .returning({ id: schema.credits.id });
-        return { ok: true, remaining, limit, fromBonus, entryId: entry!.id };
+        return { ok: true, remaining, limit, entryId: entry!.id };
     });
 }
 
 // delta > 0 bills usage beyond the reserve, delta < 0 refunds an over-reserve; applied against the
-// LIVE row, so a spend that landed mid-turn survives and extra spend can push the pool past its cap.
-// `bonusFirst` is the charge's fromBonus: a refund restores that much to bonus before touching pool.
+// LIVE row, so a spend that landed mid-turn survives and extra spend can push `used` past the cap.
 // `entryId` is the row chargeCredits wrote, which this rewrites in place rather than appending to.
 export async function settleCredits(
     ws: WorkspaceCreditFields,
     entryId: string,
     delta: number,
-    bonusFirst = 0,
 ): Promise<void> {
     if (delta === 0) return;
     const limit = creditLimitFor(ws);
     await db.transaction(async (tx) => {
         const [row] = await tx
-            .select(balanceCols)
+            .select({ used: schema.workspaces.aiCreditsUsed })
             .from(schema.workspaces)
             .where(eq(schema.workspaces.id, ws.id))
             .for("update");
         if (!row) return;
-        let { used, bonus } = row;
-        if (delta > 0) {
-            const fromPool = Math.min(delta, Math.max(0, limit - used));
-            const rest = delta - fromPool;
-            const fromBonus = Math.min(rest, bonus);
-            used += fromPool + (rest - fromBonus);
-            bonus -= fromBonus;
-        } else {
-            const back = -delta;
-            const toBonus = Math.min(back, Math.max(0, bonusFirst));
-            bonus += toBonus;
-            used = Math.max(0, used - (back - toBonus));
-        }
+        const used = Math.max(0, row.used + delta);
         await tx
             .update(schema.workspaces)
-            .set({ aiCreditsUsed: used, aiCreditsBonus: bonus })
+            .set({ aiCreditsUsed: used })
             .where(eq(schema.workspaces.id, ws.id));
         // the charge row already carries the reason and who ran it; only the amount moved
         await tx
             .update(schema.credits)
             .set({
                 delta: sql`${schema.credits.delta} - ${delta}`,
-                balanceAfter: Math.max(0, limit - used) + bonus,
+                balanceAfter: Math.max(0, limit - used),
             })
             .where(eq(schema.credits.id, entryId));
     });
@@ -154,7 +134,6 @@ export async function rollCreditWindow(
         const [row] = await tx
             .select({
                 used: schema.workspaces.aiCreditsUsed,
-                bonus: schema.workspaces.aiCreditsBonus,
                 resetAt: schema.workspaces.creditsResetAt,
             })
             .from(schema.workspaces)
@@ -172,7 +151,7 @@ export async function rollCreditWindow(
                 workspaceId: ws.id,
                 delta: row.used,
                 reason: "monthly-reset",
-                balanceAfter: creditLimitFor(ws) + row.bonus,
+                balanceAfter: creditLimitFor(ws),
             });
         return { aiCreditsUsed: 0, creditsStartedAt: startedAt, creditsResetAt: resetAt };
     });

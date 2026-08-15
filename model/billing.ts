@@ -5,38 +5,35 @@ export interface ScheduledChange {
     plan: PlanId;
     interval: Interval;
     seats: number;
+    creditBlocks: number;
     at: string; // ISO date the phase flips
 }
 
 export type PlanId = "free" | "pro" | "premium";
-export type BillingModel = "flat" | "per_seat";
 export type Interval = "month" | "year";
 export type ModelTier = "basic" | "advanced" | "premium";
 export type ExportFormat = "png" | "pdf" | "print" | "pptx" | "slides";
 
-// prices are per-unit (per seat when per_seat); annual = effective $/mo billed yearly
+// The base price buys `includedSeats` seats and `includedCredits` credits a month. Anything beyond
+// that is an add-on (see ADD_ONS), never a different base price, so one plan is one Stripe price.
 export interface PlanBilling {
-    model: BillingModel;
-    priceMonthly: number; // USD; 0 = free
-    priceAnnualMonthly: number; // USD; 0 = free
-    minSeats: number;
-    maxSeats: number | null; // null = unbounded / contact sales
+    priceMonthly: number; // USD for the whole base subscription; 0 = free
+    priceAnnualMonthly: number; // USD; effective $/mo billed yearly
+    includedSeats: number;
+    sellsSeats: boolean; // may buy the seat add-on; only the team plan does
+    sellsCredits: boolean; // may buy the credit add-on
     trialDays: number; // 0 = none
 }
 
-// per-seat pool = seats × creditsPerMonth
 export interface PlanAi {
-    creditsPerMonth: number; // per seat when per_seat
-    creditsRollover: boolean;
+    includedCredits: number; // a month, covered by the base price
     maxSectionsPerGeneration: number;
     textModelTier: ModelTier;
     imageModelTier: ModelTier;
-    creditTopUpsAllowed: boolean;
 }
 
 export interface PlanAccount {
     maxArtifacts: number; // -1 = unlimited
-    maxMembers: number; // base seats included; real cap = workspace.seats
     storageMb: number; // -1 = unlimited
 }
 
@@ -73,23 +70,50 @@ export interface Plan {
 // representative cost; the real charge scales with length
 export const CREDITS_PER_GENERATION = typicalCost("generate-artifact");
 
-// gated by plan.ai.creditTopUpsAllowed; pack credits sit outside the monthly window, spent after it
-// prices resolve from STRIPE_PRICE_PACK_1K / STRIPE_PRICE_PACK_5K, like the plan prices
-export type CreditPackId = "pack-1k" | "pack-5k";
+/**
+ * The monthly allowance per plan, per seat on a per-seat plan. Declared here rather than inline in
+ * PLANS so the pricing-card prose below is derived from it: the two are easy to drift apart, and a
+ * credit is real provider spend (CREDIT_USD in model/credits.ts), so an allowance is a dollar
+ * liability. Sanity-check any change against price: allowance × CREDIT_USD is the worst-case cost of
+ * serving a fully-utilised seat, and it must stay well under what that seat pays.
+ */
+// the only plan that holds a team; Free and Pro are solo, so a seat add-on is Premium-only
+const PREMIUM_SEATS = 3;
 
-export interface CreditPack {
-    id: CreditPackId;
-    credits: number;
-    priceUsd: number;
+const CREDITS_PER_MONTH: Record<PlanId, number> = { free: 100, pro: 700, premium: 2400 };
+
+/** What the allowance buys, for the pricing card. */
+const gens = (n: number): number => Math.round(n / CREDITS_PER_GENERATION);
+
+/**
+ * What a workspace can buy on top of its plan. Both are recurring subscription items, never one-off
+ * purchases: a credit bought once would have to survive the monthly reset, which is the only reason
+ * a second credit balance ever needed to exist. Everything here resets with the plan's own window,
+ * so a workspace has exactly one credit counter.
+ *
+ * Both are priced well above CREDIT_USD (model/credits.ts), what a credit costs us to serve, and a
+ * bare credit costs more per credit than one bundled with a seat, so buying capacity never beats
+ * buying a colleague.
+ */
+export type AddOnId = "seat" | "credits";
+
+export interface AddOn {
+    id: AddOnId;
+    label: string;
+    priceUsd: number; // per unit, per month
+    seats: number; // seats one unit adds
+    credits: number; // monthly credits one unit adds
 }
 
-export const CREDIT_PACKS: CreditPack[] = [
-    { id: "pack-1k", credits: 1000, priceUsd: 10 },
-    { id: "pack-5k", credits: 5000, priceUsd: 40 },
-];
+export const ADD_ONS: Record<AddOnId, AddOn> = {
+    seat: { id: "seat", label: "Extra seat", priceUsd: 30, seats: 1, credits: 800 },
+    credits: { id: "credits", label: "Credit block", priceUsd: 20, seats: 0, credits: 500 },
+};
 
-export const packFor = (id: string | null | undefined): CreditPack | null =>
-    CREDIT_PACKS.find((p) => p.id === id) ?? null;
+export const ADD_ON_IDS: AddOnId[] = ["seat", "credits"];
+
+export const addOnFor = (id: string | null | undefined): AddOn | null =>
+    ADD_ON_IDS.includes(id as AddOnId) ? ADD_ONS[id as AddOnId] : null;
 
 export const PLANS: Record<PlanId, Plan> = {
     free: {
@@ -97,7 +121,7 @@ export const PLANS: Record<PlanId, Plan> = {
         name: "Free",
         tagline: "Kick the tires.",
         highlights: [
-            "≈3 AI generations a month",
+            `≈${gens(CREDITS_PER_MONTH.free)} AI generations a month`,
             "Up to 10 artifacts",
             "All 52 built-in themes",
             "PNG · PDF export (with a Galleo mark)",
@@ -107,22 +131,20 @@ export const PLANS: Record<PlanId, Plan> = {
         visible: true,
         contactSales: false,
         billing: {
-            model: "flat",
             priceMonthly: 0,
             priceAnnualMonthly: 0,
-            minSeats: 1,
-            maxSeats: 1,
+            includedSeats: 1,
+            sellsSeats: false,
+            sellsCredits: false,
             trialDays: 0,
         },
         ai: {
-            creditsPerMonth: 150,
-            creditsRollover: false,
+            includedCredits: CREDITS_PER_MONTH.free,
             maxSectionsPerGeneration: 10,
             textModelTier: "basic",
             imageModelTier: "basic",
-            creditTopUpsAllowed: false,
         },
-        account: { maxArtifacts: 10, maxMembers: 1, storageMb: 500 },
+        account: { maxArtifacts: 10, storageMb: 500 },
         features: {
             removeBranding: false,
             customThemes: false,
@@ -143,32 +165,30 @@ export const PLANS: Record<PlanId, Plan> = {
         tagline: "For creators who ship — solo or as a team.",
         badge: "Most popular",
         highlights: [
-            "≈60 AI generations / seat / month",
+            `≈${gens(CREDITS_PER_MONTH.pro)} AI generations a month`,
             "Unlimited artifacts",
             "Custom themes + every font",
             "Premium AI models · every export format · no watermark",
-            "Invite your team — billed per seat",
+            "Top up with credit blocks any time",
         ],
         order: 1,
         visible: true,
         contactSales: false,
         billing: {
-            model: "per_seat",
             priceMonthly: 20,
             priceAnnualMonthly: 16,
-            minSeats: 1,
-            maxSeats: null,
+            includedSeats: 1,
+            sellsSeats: false, // Pro is solo: more capacity is credits, not people
+            sellsCredits: true,
             trialDays: 0,
         },
         ai: {
-            creditsPerMonth: 2500,
-            creditsRollover: false,
+            includedCredits: CREDITS_PER_MONTH.pro,
             maxSectionsPerGeneration: 60,
             textModelTier: "premium",
             imageModelTier: "premium",
-            creditTopUpsAllowed: true,
         },
-        account: { maxArtifacts: -1, maxMembers: 1, storageMb: 20000 },
+        account: { maxArtifacts: -1, storageMb: 20000 },
         features: {
             removeBranding: true,
             customThemes: true,
@@ -188,7 +208,7 @@ export const PLANS: Record<PlanId, Plan> = {
         name: "Premium",
         tagline: "For teams that need control.",
         highlights: [
-            "≈140 AI generations / seat / month",
+            `${PREMIUM_SEATS} seats · ≈${gens(CREDITS_PER_MONTH.premium)} AI generations a month`,
             "Everything in Pro",
             "Admin controls + shared brand kit",
             "Link analytics: views, referrers, engagement",
@@ -199,22 +219,20 @@ export const PLANS: Record<PlanId, Plan> = {
         visible: true,
         contactSales: false,
         billing: {
-            model: "per_seat",
-            priceMonthly: 40,
-            priceAnnualMonthly: 33,
-            minSeats: 1,
-            maxSeats: null,
+            priceMonthly: 99,
+            priceAnnualMonthly: 82,
+            includedSeats: PREMIUM_SEATS,
+            sellsSeats: true,
+            sellsCredits: true,
             trialDays: 0,
         },
         ai: {
-            creditsPerMonth: 6000,
-            creditsRollover: false,
+            includedCredits: CREDITS_PER_MONTH.premium,
             maxSectionsPerGeneration: 75,
             textModelTier: "premium",
             imageModelTier: "premium",
-            creditTopUpsAllowed: true,
         },
-        account: { maxArtifacts: -1, maxMembers: 1, storageMb: -1 },
+        account: { maxArtifacts: -1, storageMb: -1 },
         features: {
             removeBranding: true,
             customThemes: true,
@@ -236,8 +254,43 @@ export const PLAN_ORDER: PlanId[] = ["free", "pro", "premium"];
 export const visiblePlans = (): Plan[] =>
     PLAN_ORDER.map((id) => PLANS[id]).filter((p) => p.visible);
 
-export const isPerSeat = (id: string | null | undefined): boolean =>
-    planFor(id).billing.model === "per_seat";
+/** Whether the plan sells seats at all; Free and Pro are solo by design. */
+export const sellsSeats = (id: string | null | undefined): boolean =>
+    planFor(id).billing.sellsSeats;
+
+/** Whether the plan may buy either add-on, which is what makes a workspace's limit adjustable. */
+export const canBuyAddOns = (id: string | null | undefined): boolean => {
+    const b = planFor(id).billing;
+    return b.sellsSeats || b.sellsCredits;
+};
+
+/** The add-ons this plan may actually buy, in catalog order. */
+export const addOnsFor = (id: string | null | undefined): AddOn[] => {
+    const b = planFor(id).billing;
+    return ADD_ON_IDS.filter((a) => (a === "seat" ? b.sellsSeats : b.sellsCredits)).map(
+        (a) => ADD_ONS[a],
+    );
+};
+
+/**
+ * The cheapest plan on sale above `from` that actually grants `key`, or null when none does. Reads
+ * the resolved set rather than the raw grant, so an unbuilt feature has no upgrade target and a
+ * caller can say "coming soon" instead of selling a plan that would not deliver it. Callers derive
+ * their copy from this, so "available on Pro" cannot drift from the catalog.
+ */
+export function upgradeFor(key: BoolFeature, from: string | null | undefined): Plan | null {
+    const cur = planFor(from);
+    return visiblePlans().find((p) => p.order > cur.order && resolveFeatures(p.id)[key]) ?? null;
+}
+
+/** Whether a higher plan is actually on sale, so "upgrade" is a remedy we can offer. */
+export const canUpgradeFrom = (id: string | null | undefined): boolean => {
+    const cur = planFor(id);
+    return visiblePlans().some((p) => p.order > cur.order);
+};
+
+/** Whether the plan may buy add-ons, the only remedy left once there is nothing above it. */
+export const canTopUp = (id: string | null | undefined): boolean => canBuyAddOns(id);
 
 export const isUnlimited = (n: number): boolean => n < 0;
 
@@ -245,14 +298,14 @@ export function planFor(id: string | null | undefined): Plan {
     return PLANS[(id ?? "free") as PlanId] ?? PLANS.free;
 }
 
-// legacy flat shape; new code uses resolveFeatures()
+// legacy flat shape; new code uses resolveFeatures(). `includedCredits` is the plan's own allowance,
+// not the workspace's limit: add-ons only resolve through creditLimitFor.
 export interface PlanLimits {
     maxArtifacts: number;
-    aiCreditsPerMonth: number;
+    includedCredits: number;
     customThemes: boolean;
     exportFormats: ExportFormat[];
     removeBranding: boolean;
-    maxMembers: number;
     publicLinks: boolean;
     workspaceThemes: boolean;
     analytics: boolean;
@@ -262,11 +315,10 @@ export function limitsFor(id: string | null | undefined): PlanLimits {
     const p = planFor(id);
     return {
         maxArtifacts: p.account.maxArtifacts,
-        aiCreditsPerMonth: p.ai.creditsPerMonth,
+        includedCredits: p.ai.includedCredits,
         customThemes: p.features.customThemes,
         exportFormats: p.features.exportFormats,
         removeBranding: p.features.removeBranding,
-        maxMembers: p.account.maxMembers,
         publicLinks: p.features.publicLinks,
         workspaceThemes: p.features.workspaceThemes,
         analytics: p.features.analytics,
@@ -291,10 +343,9 @@ export type BoolFeature =
 // -1 = unlimited, 0 = none
 export type NumFeature =
     | "maxArtifacts"
-    | "maxMembers"
     | "customDomains"
     | "storageMb"
-    | "creditsPerMonth"
+    | "includedCredits"
     | "maxSectionsPerGeneration";
 
 export type EnumFeature = "exportFormats" | "textModelTier" | "imageModelTier";
@@ -328,20 +379,15 @@ export const FEATURES: Record<FeatureKey, FeatureDef> = {
         status: "live",
         description: "How many live artifacts a workspace can hold.",
     },
-    maxMembers: {
-        label: "Members / seats",
-        status: "live",
-        description: "How many members a workspace can have (1 = solo).",
-    },
     storageMb: {
         label: "Storage",
         status: "live",
         description: "Uploaded-media storage per workspace.",
     },
-    creditsPerMonth: {
-        label: "Monthly AI credits",
+    includedCredits: {
+        label: "Included AI credits",
         status: "live", // spend is enforced by the credit gate, not here
-        description: "AI generation budget per month.",
+        description: "Monthly AI budget the plan covers, before any add-on.",
     },
     maxSectionsPerGeneration: {
         label: "Sections per generation",
@@ -413,10 +459,9 @@ export interface Features {
     earlyAccess: boolean;
     // -1 = unlimited, 0 = none
     maxArtifacts: number;
-    maxMembers: number;
     customDomains: number;
     storageMb: number;
-    creditsPerMonth: number;
+    includedCredits: number;
     maxSectionsPerGeneration: number;
     exportFormats: ExportFormat[];
     textModelTier: ModelTier;
@@ -454,10 +499,9 @@ export function resolveFeatures(planId: PlanId, overrides?: FeatureOverrides): F
         prioritySupport: b("prioritySupport", pf.prioritySupport),
         earlyAccess: b("earlyAccess", pf.earlyAccess),
         maxArtifacts: n("maxArtifacts", p.account.maxArtifacts),
-        maxMembers: n("maxMembers", p.account.maxMembers),
         customDomains: n("customDomains", pf.customDomains),
         storageMb: n("storageMb", p.account.storageMb),
-        creditsPerMonth: n("creditsPerMonth", p.ai.creditsPerMonth),
+        includedCredits: n("includedCredits", p.ai.includedCredits),
         maxSectionsPerGeneration: n("maxSectionsPerGeneration", p.ai.maxSectionsPerGeneration),
         exportFormats: launched("exportFormats")
             ? (overrides?.exportFormats ?? pf.exportFormats)
@@ -484,12 +528,37 @@ export interface PlanBearer {
     featureOverrides?: FeatureOverrides | null;
 }
 
+/** What a workspace bought on top of its plan; both are subscription quantities, never one-off. */
+export interface AddOnBearer {
+    seats: number; // total, including the plan's own
+    creditBlocks: number;
+}
+
+/**
+ * Seats bought beyond the plan's included ones, which is what the seat add-on is billed on. Zero on
+ * a plan that does not sell seats: a workspace whose subscription lapsed keeps its `seats` count
+ * until Stripe's webhook resets it, and must not draw seat credits it is no longer paying for.
+ */
+export const extraSeatsOf = (ws: PlanBearer & { seats: number }): number =>
+    sellsSeats(ws.plan) ? Math.max(0, ws.seats - planFor(ws.plan).billing.includedSeats) : 0;
+
 export function featuresFor(ws: PlanBearer): Features {
     return resolveFeatures((ws.plan ?? "free") as PlanId, ws.featureOverrides ?? undefined);
 }
 
-// creditsPerMonth is per seat on per-seat plans, so the pool scales with purchased seats
-export function creditLimitFor(ws: PlanBearer & { seats: number }): number {
-    const perSeat = featuresFor(ws).creditsPerMonth;
-    return isPerSeat(ws.plan) ? perSeat * Math.max(1, ws.seats) : perSeat;
+/**
+ * The workspace's whole monthly allowance, and the only place add-ons fold in. One number against
+ * one counter (`ai_credits_used`): every credit here arrives monthly and expires with the window, so
+ * there is no second balance to track.
+ */
+export function creditLimitFor(ws: PlanBearer & AddOnBearer): number {
+    return (
+        featuresFor(ws).includedCredits +
+        extraSeatsOf(ws) * ADD_ONS.seat.credits +
+        Math.max(0, ws.creditBlocks) * ADD_ONS.credits.credits
+    );
 }
+
+/** Total seats the subscription pays for: the plan's own plus any seat add-on. */
+export const seatsFor = (planId: string | null | undefined, extraSeats: number): number =>
+    planFor(planId).billing.includedSeats + Math.max(0, extraSeats);

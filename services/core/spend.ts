@@ -109,7 +109,7 @@ export async function reserve(
                     return await run(produced, meter);
                 } finally {
                     const delta = owed(meter.uses, made, meter.extraUsd) - cost;
-                    await settleCredits(ws, entryId, delta, held.fromBonus);
+                    await settleCredits(ws, entryId, delta);
                 }
             }, trace);
         },

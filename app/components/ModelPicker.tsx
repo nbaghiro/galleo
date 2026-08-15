@@ -16,6 +16,7 @@ import {
     type RunRecord,
 } from "@app/stores/model-usage";
 import { overlayThemeVars } from "@app/stores/theme";
+import { UpgradeNotice } from "@app/components/Upgrade";
 import { clearModelOverrides, overrideCount } from "@app/stores/models";
 
 // in the order a generation walks through them
@@ -138,6 +139,16 @@ export const ModelPickerModal: Component = () => {
 
                 <div class="max-h-[58vh] overflow-y-auto">
                     <For each={steps()}>{(step) => <Row step={step} options={options()} />}</For>
+
+                    {/* the list marks locked models but a mark does not say what to do about it */}
+                    <Show when={(info()?.models ?? []).some((m) => m.locked)}>
+                        <div class="mt-3">
+                            <UpgradeNotice title="Premium models">
+                                Models marked “upgrade” sit above your plan’s tier, so a run falls
+                                back to the default.
+                            </UpgradeNotice>
+                        </div>
+                    </Show>
 
                     {/* the client-side answer to "what did that run use", so a comparison does not
                         need the server log */}

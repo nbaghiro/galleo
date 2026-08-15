@@ -1,0 +1,1 @@
+ALTER TABLE "workspaces" DROP COLUMN "ai_credits_bonus";

@@ -137,6 +137,7 @@ pnpm build          # production build → dist/
 pnpm typecheck      pnpm lint      pnpm format
 pnpm test           pnpm test:int  # unit; integration (needs Postgres: docker compose up -d)
 pnpm db:generate    pnpm db:migrate
+pnpm stripe:setup   # create/refresh the Stripe products + prices from model/billing.ts (--dry-run)
 
 # guards — these also run in pre-commit + CI; a rule that can only report violations
 # cannot tell you it has stopped working, so each one is self-verifying

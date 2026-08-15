@@ -1,14 +1,15 @@
 import Stripe from "stripe";
 import { and, desc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
-import type { CreditPackId, Interval, PlanId, ScheduledChange } from "@model/billing";
+import type { AddOnId, Interval, PlanId, ScheduledChange } from "@model/billing";
 import {
-    CREDIT_PACKS,
+    addOnsFor,
     CREDITS_PER_GENERATION,
     creditLimitFor,
+    extraSeatsOf,
     featuresFor,
     limitsFor,
-    packFor,
     planFor,
+    seatsFor,
     visiblePlans,
 } from "@model/billing";
 import { db } from "@services/db/client";
@@ -17,7 +18,7 @@ import { schema } from "@services/db/schema";
 import { appUrl } from "@services/utils/env";
 import type { WorkspaceRow } from "./accounts";
 
-// Plans, subscriptions, credit packs, and the Stripe webhook that keeps the workspace row in step
+// Plans, subscriptions, recurring add-ons, and the Stripe webhook that keeps the workspace row in step
 // with what Stripe believes. api/billing.ts is the HTTP surface; every decision lives here.
 
 // lazy: built on first use so a missing key doesn't crash boot
@@ -57,13 +58,32 @@ export function priceIdFor(plan: PlanId, interval: Interval = "month"): string |
     return interval === "year" ? priceIdFor(plan, "month") : undefined;
 }
 
-const PACK_ENV: Record<CreditPackId, string> = {
-    "pack-1k": "STRIPE_PRICE_PACK_1K",
-    "pack-5k": "STRIPE_PRICE_PACK_5K",
-};
+function addOnEnvKey(id: AddOnId, interval: Interval): string {
+    const base = id === "seat" ? "STRIPE_PRICE_SEAT" : "STRIPE_PRICE_CREDITS";
+    return interval === "year" ? `${base}_YEAR` : `${base}_MONTH`;
+}
 
-export function packPriceId(pack: CreditPackId): string | undefined {
-    return process.env[PACK_ENV[pack]] || undefined;
+// No monthly fallback for the annual key, unlike the plan prices: Stripe rejects a subscription
+// whose items disagree on interval, so an unconfigured annual add-on drops its line instead.
+export function addOnPriceId(id: AddOnId, interval: Interval = "month"): string | undefined {
+    return process.env[addOnEnvKey(id, interval)] || undefined;
+}
+
+function addOnMap(): Array<{ id: string; addOn: AddOnId }> {
+    const rows: Array<[AddOnId, Interval]> = [
+        ["seat", "month"],
+        ["seat", "year"],
+        ["credits", "month"],
+        ["credits", "year"],
+    ];
+    return rows
+        .map(([addOn, interval]) => ({ id: process.env[addOnEnvKey(addOn, interval)], addOn }))
+        .filter((r): r is { id: string; addOn: AddOnId } => !!r.id);
+}
+
+export function addOnForPrice(priceId: string | undefined | null): AddOnId | null {
+    if (!priceId) return null;
+    return addOnMap().find((a) => a.id === priceId)?.addOn ?? null;
 }
 
 function priceMap(): Array<{ id: string; plan: PlanId; interval: Interval }> {
@@ -76,6 +96,54 @@ function priceMap(): Array<{ id: string; plan: PlanId; interval: Interval }> {
     return rows
         .filter((r): r is [PlanId, Interval, string] => !!r[2])
         .map(([plan, interval, id]) => ({ id, plan, interval }));
+}
+
+/**
+ * A subscription is one plan item plus optional add-on items, so seats and credit blocks are read
+ * off their own quantities rather than the plan item's. Anything unrecognised is ignored, which
+ * keeps a manually-added Stripe line from being mistaken for an add-on.
+ */
+export interface SubShape {
+    plan: PlanId;
+    interval: Interval;
+    extraSeats: number;
+    creditBlocks: number;
+    planItemId: string | null;
+    seatItemId: string | null;
+    creditItemId: string | null;
+    planPriceId: string | null;
+}
+
+export function readSub(sub: Stripe.Subscription): SubShape {
+    const out: SubShape = {
+        plan: "free",
+        interval: "month",
+        extraSeats: 0,
+        creditBlocks: 0,
+        planItemId: null,
+        seatItemId: null,
+        creditItemId: null,
+        planPriceId: null,
+    };
+    for (const item of sub.items.data) {
+        const plan = planForPrice(item.price.id);
+        if (plan) {
+            out.plan = plan;
+            out.interval = intervalForPrice(item.price.id) ?? "month";
+            out.planItemId = item.id;
+            out.planPriceId = item.price.id;
+            continue;
+        }
+        const addOn = addOnForPrice(item.price.id);
+        if (addOn === "seat") {
+            out.extraSeats = item.quantity ?? 0;
+            out.seatItemId = item.id;
+        } else if (addOn === "credits") {
+            out.creditBlocks = item.quantity ?? 0;
+            out.creditItemId = item.id;
+        }
+    }
+    return out;
 }
 
 export function planForPrice(priceId: string | undefined | null): PlanId | null {
@@ -137,14 +205,13 @@ export async function billingSummary(ws: WorkspaceRow, userId: string) {
         credits: {
             used: ws.aiCreditsUsed,
             limit: creditLimitFor(ws),
-            bonus: ws.aiCreditsBonus,
             perGeneration: CREDITS_PER_GENERATION,
             resetAt: ws.creditsResetAt,
             mySpend,
         },
-        topUps: planFor(ws.plan).ai.creditTopUpsAllowed
-            ? CREDIT_PACKS.filter((p) => !!packPriceId(p.id))
-            : [],
+        // only what is actually purchasable: the plan must allow it and the price must be configured
+        addOns: addOnsFor(ws.plan).filter((a) => !!addOnPriceId(a.id)),
+        addOnQuantities: { seat: extraSeatsOf(ws), credits: ws.creditBlocks },
         usage: {
             artifacts: Number(artifactCount?.n ?? 0),
             maxArtifacts: limits.maxArtifacts,
@@ -152,6 +219,7 @@ export async function billingSummary(ws: WorkspaceRow, userId: string) {
             maxStorageMb: capMb,
         },
         seats: ws.seats,
+        includedSeats: planFor(ws.plan).billing.includedSeats,
         scheduledChange: ws.scheduledChange ?? null,
         catalog: visiblePlans(),
         stripeReady: stripeReady(),
@@ -175,24 +243,56 @@ async function ensureCustomer(
     return customer.id;
 }
 
+/** What a caller asked for. Seats are total (plan's own included), blocks are the add-on quantity. */
+export interface Wanted {
+    plan?: PlanId;
+    interval?: Interval;
+    seats?: number;
+    creditBlocks?: number;
+}
+
+const wantedExtraSeats = (plan: PlanId, want: Wanted): number =>
+    Math.max(
+        0,
+        (want.seats ?? planFor(plan).billing.includedSeats) - planFor(plan).billing.includedSeats,
+    );
+
+const wantedBlocks = (want: Wanted): number => Math.max(0, want.creditBlocks ?? 0);
+
+/** Add-on line items, omitting any at quantity zero so a subscription carries no empty lines. */
+function addOnLines(
+    plan: PlanId,
+    interval: Interval,
+    want: Wanted,
+): Array<{ price: string; quantity: number }> {
+    const sold = new Set(addOnsFor(plan).map((a) => a.id));
+    const lines: Array<{ price: string; quantity: number }> = [];
+    const seats = wantedExtraSeats(plan, want);
+    const seatPrice = addOnPriceId("seat", interval);
+    if (sold.has("seat") && seats > 0 && seatPrice)
+        lines.push({ price: seatPrice, quantity: seats });
+    const blocks = wantedBlocks(want);
+    const creditPrice = addOnPriceId("credits", interval);
+    if (sold.has("credits") && blocks > 0 && creditPrice)
+        lines.push({ price: creditPrice, quantity: blocks });
+    return lines;
+}
+
 export async function checkoutUrl(
     ws: WorkspaceRow,
     email: string,
-    want: { plan?: PlanId; interval?: Interval; seats?: number },
+    want: Wanted,
 ): Promise<string | null | { error: "invalid-plan" }> {
     if (!want.plan || want.plan === "free") return { error: "invalid-plan" };
-    const price = priceIdFor(want.plan, want.interval ?? "month");
+    const interval = want.interval ?? "month";
+    const price = priceIdFor(want.plan, interval);
     if (!price) return { error: "invalid-plan" };
     const p = planFor(want.plan);
-    const quantity =
-        p.billing.model === "per_seat"
-            ? Math.max(want.seats ?? p.billing.minSeats, p.billing.minSeats)
-            : 1;
     const customerId = await ensureCustomer(ws, email);
     const session = await stripe().checkout.sessions.create({
         mode: "subscription",
         customer: customerId,
-        line_items: [{ price, quantity }],
+        line_items: [{ price, quantity: 1 }, ...addOnLines(want.plan, interval, want)],
         client_reference_id: ws.id,
         subscription_data: {
             metadata: { workspaceId: ws.id },
@@ -209,34 +309,6 @@ export async function checkoutUrl(
     return session.url;
 }
 
-export type TopupResult =
-    | { error: "invalid-pack" }
-    | { error: "not-configured" }
-    | { url: string | null };
-
-// Payment-mode Checkout; the webhook grants the credits on completion.
-export async function topupUrl(
-    ws: WorkspaceRow,
-    email: string,
-    packId: CreditPackId | undefined,
-): Promise<TopupResult> {
-    const pack = packFor(packId);
-    if (!pack) return { error: "invalid-pack" };
-    const price = packPriceId(pack.id);
-    if (!price) return { error: "not-configured" };
-    const customerId = await ensureCustomer(ws, email);
-    const session = await stripe().checkout.sessions.create({
-        mode: "payment",
-        customer: customerId,
-        line_items: [{ price, quantity: 1 }],
-        client_reference_id: ws.id,
-        metadata: { workspaceId: ws.id, pack: pack.id },
-        success_url: appUrl("/pricing?status=topup-success"),
-        cancel_url: appUrl("/pricing?status=cancel"),
-    });
-    return { url: session.url };
-}
-
 export async function portalUrl(customerId: string): Promise<string | null> {
     const session = await stripe().billingPortal.sessions.create({
         customer: customerId,
@@ -246,6 +318,33 @@ export async function portalUrl(customerId: string): Promise<string | null> {
             : {}),
     });
     return session.url;
+}
+
+/**
+ * Item updates for the add-ons: change the quantity where the item exists, add it where it doesn't,
+ * and delete it when the quantity falls to zero, since Stripe bills a zero-quantity line as a line.
+ */
+function addOnItemUpdates(
+    cur: SubShape,
+    plan: PlanId,
+    interval: Interval,
+    extraSeats: number,
+    blocks: number,
+): Stripe.SubscriptionUpdateParams.Item[] {
+    const sold = new Set(addOnsFor(plan).map((a) => a.id));
+    const out: Stripe.SubscriptionUpdateParams.Item[] = [];
+    const reconcile = (id: AddOnId, itemId: string | null, quantity: number): void => {
+        const want = sold.has(id) ? Math.max(0, quantity) : 0;
+        if (itemId) {
+            out.push(want > 0 ? { id: itemId, quantity: want } : { id: itemId, deleted: true });
+            return;
+        }
+        const price = want > 0 ? addOnPriceId(id, interval) : undefined;
+        if (price) out.push({ price, quantity: want });
+    };
+    reconcile("seat", cur.seatItemId, extraSeats);
+    reconcile("credits", cur.creditItemId, blocks);
+    return out;
 }
 
 export type ChangePlanResult =
@@ -258,7 +357,7 @@ export type ChangePlanResult =
 export async function changePlan(
     ws: WorkspaceRow,
     subscriptionId: string,
-    want: { plan?: PlanId; interval?: Interval; seats?: number },
+    want: Wanted,
 ): Promise<ChangePlanResult> {
     if (want.plan === "free") {
         await stripe().subscriptions.update(subscriptionId, { cancel_at_period_end: true });
@@ -271,22 +370,22 @@ export async function changePlan(
     }
 
     const sub = await stripe().subscriptions.retrieve(subscriptionId);
-    const item = sub.items.data[0];
-    if (!item) return { error: "no-item" };
-    const curPlan = planForPrice(item.price.id) ?? ((ws.plan ?? "free") as PlanId);
-    const curInterval = intervalForPrice(item.price.id) ?? "month";
-    const curSeats = item.quantity ?? 1;
+    const cur = readSub(sub);
+    if (!cur.planItemId || !cur.planPriceId) return { error: "no-item" };
+    const curPlan = cur.plan === "free" ? ((ws.plan ?? "free") as PlanId) : cur.plan;
+    const curSeats = seatsFor(curPlan, cur.extraSeats);
 
     const targetPlan = want.plan ?? curPlan;
-    const targetInterval = want.interval ?? curInterval;
+    const targetInterval = want.interval ?? cur.interval;
     const tp = planFor(targetPlan);
-    const targetSeats =
-        tp.billing.model === "per_seat" ? Math.max(want.seats ?? curSeats, tp.billing.minSeats) : 1;
+    const targetSeats = Math.max(want.seats ?? curSeats, tp.billing.includedSeats);
+    const targetExtraSeats = tp.billing.sellsSeats ? targetSeats - tp.billing.includedSeats : 0;
+    const targetBlocks = tp.billing.sellsCredits ? (want.creditBlocks ?? cur.creditBlocks) : 0;
     const newPrice = priceIdFor(targetPlan, targetInterval);
     if (!newPrice) return { error: "invalid-plan" };
 
     // seats can't drop below the people using or holding them — an unexpired invite reserves its seat
-    if (tp.billing.model === "per_seat" && targetSeats < curSeats) {
+    if (targetSeats < curSeats) {
         const [memberRows, invites] = await Promise.all([
             db
                 .select({ userId: schema.members.userId })
@@ -307,9 +406,12 @@ export async function changePlan(
         if (targetSeats < held) return { error: "seats-below-members", members: held };
     }
 
-    // What you paid for, you keep: a lower tier or fewer seats waits for the period boundary via a
-    // subscription schedule; more capability (or an interval switch alone) applies now, prorated.
-    const downgrade = RANK[targetPlan] < RANK[curPlan] || targetSeats < curSeats;
+    // What you paid for, you keep: a lower tier, fewer seats, or fewer credit blocks waits for the
+    // period boundary via a subscription schedule; more of anything applies now, prorated.
+    const downgrade =
+        RANK[targetPlan] < RANK[curPlan] ||
+        targetSeats < curSeats ||
+        targetBlocks < cur.creditBlocks;
     if (downgrade) {
         const at = subPeriodEnd(sub);
         const schedule =
@@ -320,16 +422,31 @@ export async function changePlan(
             end_behavior: "release",
             phases: [
                 {
-                    items: [{ price: item.price.id, quantity: curSeats }],
+                    items: [
+                        { price: cur.planPriceId, quantity: 1 },
+                        ...addOnLines(curPlan, cur.interval, {
+                            seats: curSeats,
+                            creditBlocks: cur.creditBlocks,
+                        }),
+                    ],
                     end_date: Math.floor(at.getTime() / 1000),
                 },
-                { items: [{ price: newPrice, quantity: targetSeats }] },
+                {
+                    items: [
+                        { price: newPrice, quantity: 1 },
+                        ...addOnLines(targetPlan, targetInterval, {
+                            seats: targetSeats,
+                            creditBlocks: targetBlocks,
+                        }),
+                    ],
+                },
             ],
         });
         const scheduledChange: ScheduledChange = {
             plan: targetPlan,
             interval: targetInterval,
             seats: targetSeats,
+            creditBlocks: targetBlocks,
             at: at.toISOString(),
         };
         await db
@@ -339,9 +456,15 @@ export async function changePlan(
         return { effect: "scheduled", at: scheduledChange.at };
     }
 
-    const upgrading = RANK[targetPlan] > RANK[curPlan] || targetSeats > curSeats;
+    const upgrading =
+        RANK[targetPlan] > RANK[curPlan] ||
+        targetSeats > curSeats ||
+        targetBlocks > cur.creditBlocks;
     await stripe().subscriptions.update(subscriptionId, {
-        items: [{ id: item.id, price: newPrice, quantity: targetSeats }],
+        items: [
+            { id: cur.planItemId, price: newPrice, quantity: 1 },
+            ...addOnItemUpdates(cur, targetPlan, targetInterval, targetExtraSeats, targetBlocks),
+        ],
         cancel_at_period_end: false,
         proration_behavior: upgrading ? "always_invoice" : "create_prorations",
     });
@@ -496,7 +619,12 @@ async function workspaceByCustomer(tx: Tx, customerId: string) {
     return ws ?? null;
 }
 
-const seatsOf = (sub: Stripe.Subscription): number => sub.items.data[0]?.quantity ?? 1;
+// seats and blocks come off their own add-on items, so the plan item's quantity is always 1
+const seatsOf = (sub: Stripe.Subscription): number => {
+    const shape = readSub(sub);
+    return seatsFor(shape.plan, shape.extraSeats);
+};
+const blocksOf = (sub: Stripe.Subscription): number => readSub(sub).creditBlocks;
 const invCustomer = (inv: Stripe.Invoice): string | null =>
     typeof inv.customer === "string" ? inv.customer : (inv.customer?.id ?? null);
 
@@ -510,32 +638,10 @@ async function handleEvent(
         const s = event.data.object as Stripe.Checkout.Session;
         const wsId = s.client_reference_id ?? s.metadata?.workspaceId;
         const customerId = typeof s.customer === "string" ? s.customer : (s.customer?.id ?? null);
-        if (s.mode === "payment") {
-            // Re-derive the grant from the catalog — never trust a stale metadata credit count.
-            const pack = packFor(s.metadata?.pack);
-            if (!wsId || !pack) return;
-            const [after] = await tx
-                .update(schema.workspaces)
-                .set({
-                    aiCreditsBonus: sql`${schema.workspaces.aiCreditsBonus} + ${pack.credits}`,
-                })
-                .where(eq(schema.workspaces.id, wsId))
-                .returning();
-            if (after)
-                await tx.insert(schema.credits).values({
-                    workspaceId: wsId,
-                    delta: pack.credits,
-                    reason: `topup:${pack.id}`,
-                    balanceAfter:
-                        Math.max(0, creditLimitFor(after) - after.aiCreditsUsed) +
-                        after.aiCreditsBonus,
-                });
-            return;
-        }
         if (!wsId || !checkoutSub) return;
         const sub = checkoutSub;
-        const plan = planForPrice(sub.items.data[0]?.price.id);
-        if (!plan) return;
+        const plan = readSub(sub).plan;
+        if (plan === "free") return;
         const [before] = await tx
             .select()
             .from(schema.workspaces)
@@ -550,6 +656,7 @@ async function handleEvent(
                 stripeCustomerId: customerId ?? undefined,
                 stripeSubscriptionId: sub.id,
                 seats: seatsOf(sub),
+                creditBlocks: blocksOf(sub),
                 planPeriodEnd: subPeriodEnd(sub),
                 cancelAtPeriodEnd: sub.cancel_at_period_end,
                 aiCreditsUsed: 0,
@@ -564,9 +671,12 @@ async function handleEvent(
                 workspaceId: wsId,
                 delta: before.aiCreditsUsed,
                 reason: "upgrade-reset",
-                balanceAfter:
-                    creditLimitFor({ ...before, plan, seats: seatsOf(sub) }) +
-                    before.aiCreditsBonus,
+                balanceAfter: creditLimitFor({
+                    ...before,
+                    plan,
+                    seats: seatsOf(sub),
+                    creditBlocks: blocksOf(sub),
+                }),
             });
     } else if (event.type === "customer.subscription.updated") {
         const sub = event.data.object as Stripe.Subscription;
@@ -584,7 +694,11 @@ async function handleEvent(
         const plan = planForPrice(sub.items.data[0]?.price.id);
         // a scheduled downgrade has landed once the sub matches what was parked
         const sc = ws.scheduledChange;
-        const scheduleDone = !!sc && sc.plan === plan && sc.seats === seatsOf(sub);
+        const scheduleDone =
+            !!sc &&
+            sc.plan === plan &&
+            sc.seats === seatsOf(sub) &&
+            sc.creditBlocks === blocksOf(sub);
         await tx
             .update(schema.workspaces)
             .set({
@@ -592,6 +706,7 @@ async function handleEvent(
                 planStatus: activeStatus(sub.status),
                 stripeSubscriptionId: sub.id,
                 seats: seatsOf(sub),
+                creditBlocks: blocksOf(sub),
                 planPeriodEnd: subPeriodEnd(sub),
                 cancelAtPeriodEnd: sub.cancel_at_period_end,
                 ...(scheduleDone ? { scheduledChange: null } : {}),
@@ -608,7 +723,9 @@ async function handleEvent(
                 plan: "free",
                 planStatus: "canceled",
                 stripeSubscriptionId: null,
+                // add-ons die with the subscription; the members stay and simply sit over the cap
                 seats: 1,
+                creditBlocks: 0,
                 planPeriodEnd: null,
                 cancelAtPeriodEnd: false,
                 scheduledChange: null,
@@ -643,7 +760,7 @@ async function handleEvent(
                     workspaceId: ws.id,
                     delta: ws.aiCreditsUsed,
                     reason: "renewal-reset",
-                    balanceAfter: creditLimitFor(ws) + ws.aiCreditsBonus,
+                    balanceAfter: creditLimitFor(ws),
                 });
         } else if (ws.planStatus === "past_due") {
             await tx

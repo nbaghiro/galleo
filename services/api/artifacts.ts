@@ -1,9 +1,10 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import type { ArtifactInput, ArtifactPage, ContentPatch } from "@model/artifact";
 import { featuresFor, isUnlimited, limit } from "@model/billing";
 import { TEMPLATE_INDEX } from "@model/templates";
-import { readJson } from "@services/utils/http";
-import { currentWorkspace } from "@services/core/accounts";
+import { checkLimit, readJson } from "@services/utils/http";
+import { currentWorkspace, type WorkspaceRow } from "@services/core/accounts";
 import { recordArtifactVisit, recordTemplateUse } from "@services/core/visits";
 import {
     applyContentOps,
@@ -46,17 +47,30 @@ artifacts.get("/artifacts", requireUser, async (c) => {
     );
 });
 
+/**
+ * The artifact cap, applied wherever a live artifact appears rather than only where one is inserted:
+ * restoring from Trash raises the live count just as creating does, and without this a workspace at
+ * the cap could trash one, create one, and restore the first. Counting is skipped on an unlimited
+ * plan so the common path does not pay for a COUNT.
+ */
+async function overArtifactCap(
+    c: Context<WorkspaceEnv>,
+    ws: WorkspaceRow,
+): Promise<Response | null> {
+    if (isUnlimited(limit(featuresFor(ws), "maxArtifacts"))) return null;
+    return checkLimit(
+        c,
+        ws,
+        "maxArtifacts",
+        await liveArtifactCount(ws.id),
+        (cap) => `Your plan is limited to ${cap} artifacts — upgrade for unlimited.`,
+    );
+}
+
 artifacts.post("/artifacts", requireWorkspace, async (c) => {
     const ws = c.get("ws");
-    const cap = limit(featuresFor(ws), "maxArtifacts");
-    if (!isUnlimited(cap) && (await liveArtifactCount(ws.id)) >= cap)
-        return c.json(
-            {
-                error: `Your plan is limited to ${cap} artifacts — upgrade for unlimited.`,
-                upgrade: true,
-            },
-            402,
-        );
+    const denied = await overArtifactCap(c, ws);
+    if (denied) return denied;
     const body = await readJson<ArtifactInput>(c);
     const id = await createArtifact(ws.id, c.get("user").id, body);
     // popularity is measured from these events; never let the tally break a create
@@ -110,7 +124,10 @@ artifacts.post("/artifacts/:id/trash", requireWorkspace, async (c) => {
 });
 
 artifacts.post("/artifacts/:id/restore", requireWorkspace, async (c) => {
-    await setTrashed(c.get("ws").id, c.req.param("id"), null);
+    const ws = c.get("ws");
+    const denied = await overArtifactCap(c, ws);
+    if (denied) return denied;
+    await setTrashed(ws.id, c.req.param("id"), null);
     return c.json({ ok: true });
 });
 

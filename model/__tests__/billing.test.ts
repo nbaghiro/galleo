@@ -1,12 +1,20 @@
 import { describe, expect, it } from "vitest";
+import { CREDIT_USD } from "@model/credits";
+import type { AddOn, PlanId } from "@model/billing";
 import {
     CREDITS_PER_GENERATION,
+    ADD_ONS,
+    ADD_ON_IDS,
+    addOnFor,
     PLANS,
+    PLAN_ORDER,
     can,
+    canTopUp,
+    canUpgradeFrom,
     creditLimitFor,
     featureStatus,
     featuresFor,
-    isPerSeat,
+    sellsSeats,
     limit,
     limitsFor,
     planFor,
@@ -34,11 +42,12 @@ describe("limitsFor", () => {
     });
 });
 
-describe("isPerSeat", () => {
-    it("is false for Free / null and true for Pro", () => {
-        expect(isPerSeat("free")).toBe(false);
-        expect(isPerSeat(null)).toBe(false);
-        expect(isPerSeat("pro")).toBe(true);
+describe("sellsSeats", () => {
+    it("is true only for the plan that holds a team", () => {
+        expect(sellsSeats("free")).toBe(false);
+        expect(sellsSeats(null)).toBe(false);
+        expect(sellsSeats("pro")).toBe(false);
+        expect(sellsSeats("premium")).toBe(true);
     });
 });
 
@@ -101,29 +110,52 @@ describe("enforcement accessors", () => {
 });
 
 describe("creditLimitFor", () => {
-    it("flat plans ignore seats", () => {
-        expect(creditLimitFor({ plan: "free", seats: 5 })).toBe(PLANS.free.ai.creditsPerMonth);
+    const ws = (plan: string | null, seats: number, creditBlocks = 0) => ({
+        plan,
+        seats,
+        creditBlocks,
     });
 
-    it("per-seat plans scale the pool by purchased seats", () => {
-        expect(creditLimitFor({ plan: "pro", seats: 3 })).toBe(PLANS.pro.ai.creditsPerMonth * 3);
-        expect(creditLimitFor({ plan: "premium", seats: 2 })).toBe(
-            PLANS.premium.ai.creditsPerMonth * 2,
+    it("is the plan's own allowance when nothing is bought on top", () => {
+        expect(creditLimitFor(ws("free", 1))).toBe(PLANS.free.ai.includedCredits);
+        expect(creditLimitFor(ws("pro", 1))).toBe(PLANS.pro.ai.includedCredits);
+        expect(creditLimitFor(ws("premium", PLANS.premium.billing.includedSeats))).toBe(
+            PLANS.premium.ai.includedCredits,
         );
     });
 
-    it("clamps seats to at least 1", () => {
-        expect(creditLimitFor({ plan: "pro", seats: 0 })).toBe(PLANS.pro.ai.creditsPerMonth);
+    // the included seats are already paid for by the base price, so they add nothing on top
+    it("only counts seats beyond the plan's included ones", () => {
+        const incl = PLANS.premium.billing.includedSeats;
+        expect(creditLimitFor(ws("premium", incl + 2))).toBe(
+            PLANS.premium.ai.includedCredits + 2 * ADD_ONS.seat.credits,
+        );
+        expect(creditLimitFor(ws("premium", incl - 1))).toBe(PLANS.premium.ai.includedCredits);
+    });
+
+    it("adds a credit block's credits per block", () => {
+        expect(creditLimitFor(ws("pro", 1, 3))).toBe(
+            PLANS.pro.ai.includedCredits + 3 * ADD_ONS.credits.credits,
+        );
+    });
+
+    it("ignores negative quantities rather than subtracting", () => {
+        expect(creditLimitFor(ws("pro", 0, -5))).toBe(PLANS.pro.ai.includedCredits);
     });
 
     it("defaults unknown/null plans to free", () => {
-        expect(creditLimitFor({ plan: null, seats: 4 })).toBe(PLANS.free.ai.creditsPerMonth);
+        expect(creditLimitFor(ws(null, 4))).toBe(PLANS.free.ai.includedCredits);
     });
 
-    it("applies a creditsPerMonth override to the per-seat base", () => {
+    it("applies an includedCredits override to the plan's own part only", () => {
         expect(
-            creditLimitFor({ plan: "pro", seats: 2, featureOverrides: { creditsPerMonth: 100 } }),
-        ).toBe(200);
+            creditLimitFor({
+                plan: "premium",
+                seats: PLANS.premium.billing.includedSeats + 1,
+                creditBlocks: 0,
+                featureOverrides: { includedCredits: 100 },
+            }),
+        ).toBe(100 + ADD_ONS.seat.credits);
     });
 });
 
@@ -133,5 +165,87 @@ describe("featuresFor", () => {
         expect(
             featuresFor({ plan: "free", featureOverrides: { customThemes: true } }).customThemes,
         ).toBe(true);
+    });
+});
+
+describe("credit remedies", () => {
+    it("offers an upgrade from every plan but the top one", () => {
+        expect(canUpgradeFrom("free")).toBe(true);
+        expect(canUpgradeFrom("pro")).toBe(true);
+        expect(canUpgradeFrom("premium")).toBe(false);
+    });
+
+    it("allows packs only on the paid plans, so the top plan still has a remedy", () => {
+        expect(canTopUp("free")).toBe(false);
+        expect(canTopUp("pro")).toBe(true);
+        expect(canTopUp("premium")).toBe(true);
+    });
+
+    it("leaves no plan without a remedy when it runs dry", () => {
+        for (const id of PLAN_ORDER) expect(canUpgradeFrom(id) || canTopUp(id)).toBe(true);
+    });
+});
+
+describe("add-on pricing", () => {
+    // per-credit rate of the plan itself, which an add-on must never undercut
+    const planRate = (id: PlanId): number =>
+        PLANS[id].billing.priceMonthly / PLANS[id].ai.includedCredits;
+
+    // a bare credit must never be cheaper than one that arrives with a colleague attached
+    it("prices a credit block above a seat's per-credit rate", () => {
+        const rate = (a: AddOn): number => a.priceUsd / a.credits;
+        expect(rate(ADD_ONS.credits)).toBeGreaterThan(rate(ADD_ONS.seat));
+    });
+
+    it("keeps every add-on above the cheapest plan's own per-credit rate", () => {
+        const cheapest = Math.min(
+            ...PLAN_ORDER.filter((id) => PLANS[id].billing.priceMonthly > 0).map(planRate),
+        );
+        for (const id of ADD_ON_IDS)
+            expect(ADD_ONS[id].priceUsd / ADD_ONS[id].credits).toBeGreaterThan(cheapest);
+    });
+
+    it("sells every add-on above what its credits cost us", () => {
+        for (const id of ADD_ON_IDS)
+            expect(ADD_ONS[id].priceUsd).toBeGreaterThan(ADD_ONS[id].credits * CREDIT_USD);
+    });
+
+    it("gives a seat its own credits, and a credit block no seat", () => {
+        expect(ADD_ONS.seat.seats).toBe(1);
+        expect(ADD_ONS.seat.credits).toBeGreaterThan(0);
+        expect(ADD_ONS.credits.seats).toBe(0);
+    });
+
+    it("resolves an add-on by id and rejects anything else", () => {
+        expect(addOnFor("seat")).toBe(ADD_ONS.seat);
+        expect(addOnFor("pack-500")).toBeNull();
+        expect(addOnFor(null)).toBeNull();
+    });
+});
+
+describe("plan credit allowances", () => {
+    // the failure this guards: an allowance worth more in provider spend than the plan is paid
+    it("keeps a fully-used plan well under what it charges", () => {
+        for (const id of PLAN_ORDER) {
+            const p = PLANS[id];
+            if (!p.billing.priceMonthly) continue;
+            const worstCase = p.ai.includedCredits * CREDIT_USD;
+            expect(worstCase).toBeLessThan(p.billing.priceMonthly * 0.6);
+        }
+    });
+
+    it("does not give a dearer plan thinner margin than a cheaper one", () => {
+        const share = (id: PlanId): number =>
+            (PLANS[id].ai.includedCredits * CREDIT_USD) / PLANS[id].billing.priceMonthly;
+        expect(share("premium")).toBeLessThanOrEqual(share("pro"));
+    });
+
+    it("keeps a seat add-on profitable on its own", () => {
+        expect(ADD_ONS.seat.credits * CREDIT_USD).toBeLessThan(ADD_ONS.seat.priceUsd * 0.6);
+    });
+
+    // only Premium holds a team, so a seat add-on has exactly one plan to attach to
+    it("sells seats on exactly one plan", () => {
+        expect(PLAN_ORDER.filter(sellsSeats)).toEqual(["premium"]);
     });
 });

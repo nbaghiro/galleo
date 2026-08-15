@@ -11,11 +11,12 @@ const wsRow = async (id: string) => {
     return row!;
 };
 
-const setCredits = (id: string, used: number, bonus: number) =>
-    db
-        .update(schema.workspaces)
-        .set({ aiCreditsUsed: used, aiCreditsBonus: bonus })
-        .where(eq(schema.workspaces.id, id));
+const setUsed = (id: string, used: number) =>
+    db.update(schema.workspaces).set({ aiCreditsUsed: used }).where(eq(schema.workspaces.id, id));
+
+/** Credit blocks are the only way a Pro workspace's limit moves, so tests widen it that way. */
+const setBlocks = (id: string, blocks: number) =>
+    db.update(schema.workspaces).set({ creditBlocks: blocks }).where(eq(schema.workspaces.id, id));
 
 const ledgerOf = (id: string) =>
     db
@@ -24,71 +25,61 @@ const ledgerOf = (id: string) =>
         .where(eq(schema.credits.workspaceId, id))
         .orderBy(desc(schema.credits.createdAt));
 
-describe("bonus-aware refunds", () => {
-    it("reports how much of a charge bonus covered", async () => {
+describe("chargeCredits", () => {
+    it("refuses a charge the allowance cannot cover, and writes no row", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
-        const ws = await wsRow(workspaceId);
-        const limit = creditLimitFor(ws);
-        await setCredits(workspaceId, limit - 10, 50); // 10 pool room + 50 bonus
+        const limit = creditLimitFor(await wsRow(workspaceId));
+        await setUsed(workspaceId, limit - 5);
 
         const spend = await chargeCredits(await wsRow(workspaceId), 30, "test");
+        expect(spend.ok).toBe(false);
+        expect(spend.remaining).toBe(5);
+        expect(spend.entryId).toBeNull();
+        expect(await ledgerOf(workspaceId)).toHaveLength(0);
+    });
+
+    it("counts a credit block toward the same single allowance", async () => {
+        const { workspaceId } = await seedUser({ plan: "pro" });
+        const base = creditLimitFor(await wsRow(workspaceId));
+        await setBlocks(workspaceId, 2);
+        const widened = creditLimitFor(await wsRow(workspaceId));
+        expect(widened).toBeGreaterThan(base);
+
+        await setUsed(workspaceId, base);
+        // would have been refused before the blocks were bought
+        const spend = await chargeCredits(await wsRow(workspaceId), 10, "test");
         expect(spend.ok).toBe(true);
-        expect(spend.fromBonus).toBe(20); // 10 from pool, the rest from bonus
+        expect(spend.remaining).toBe(widened - base - 10);
     });
 
-    it("a refund restores bonus before pool, in reverse spend order", async () => {
+    it("a refund puts the credits straight back, since there is only one pool", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
-        const ws = await wsRow(workspaceId);
-        const limit = creditLimitFor(ws);
-        await setCredits(workspaceId, limit - 10, 50);
+        await setUsed(workspaceId, 0);
+        const spend = await chargeCredits(await wsRow(workspaceId), 40, "test");
+        expect((await wsRow(workspaceId)).aiCreditsUsed).toBe(40);
 
-        const spend = await chargeCredits(await wsRow(workspaceId), 30, "test");
-        await settleCredits(await wsRow(workspaceId), spend.entryId!, -30, spend.fromBonus);
-
-        const after = await wsRow(workspaceId);
-        expect(after.aiCreditsBonus).toBe(50); // paid credits fully restored
-        expect(after.aiCreditsUsed).toBe(limit - 10); // and the pool part too
+        await settleCredits(await wsRow(workspaceId), spend.entryId!, -30);
+        expect((await wsRow(workspaceId)).aiCreditsUsed).toBe(10);
     });
 
-    it("a fully bonus-funded charge refunds only bonus", async () => {
+    it("never drives usage below zero on an over-refund", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
-        const ws = await wsRow(workspaceId);
-        const limit = creditLimitFor(ws);
-        await setCredits(workspaceId, limit, 100); // pool exhausted
-
-        const spend = await chargeCredits(await wsRow(workspaceId), 60, "test");
-        expect(spend.fromBonus).toBe(60);
-        await settleCredits(await wsRow(workspaceId), spend.entryId!, -60, spend.fromBonus);
-
-        const after = await wsRow(workspaceId);
-        expect(after.aiCreditsBonus).toBe(100);
-        expect(after.aiCreditsUsed).toBe(limit); // the pool never sees a phantom credit
-    });
-
-    it("a partial refund spills to the pool only after bonus is made whole", async () => {
-        const { workspaceId } = await seedUser({ plan: "pro" });
-        const ws = await wsRow(workspaceId);
-        const limit = creditLimitFor(ws);
-        await setCredits(workspaceId, limit - 10, 50);
-
-        const spend = await chargeCredits(await wsRow(workspaceId), 30, "test"); // 10 pool + 20 bonus
-        await settleCredits(await wsRow(workspaceId), spend.entryId!, -25, spend.fromBonus);
-
-        const after = await wsRow(workspaceId);
-        expect(after.aiCreditsBonus).toBe(50); // all 20 bonus back
-        expect(after.aiCreditsUsed).toBe(limit - 5); // 5 of the 10 pool back
+        await setUsed(workspaceId, 0);
+        const spend = await chargeCredits(await wsRow(workspaceId), 10, "test");
+        await settleCredits(await wsRow(workspaceId), spend.entryId!, -999);
+        expect((await wsRow(workspaceId)).aiCreditsUsed).toBe(0);
     });
 
     it("a settled charge stays one ledger row, rewritten in place", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
         const ws = await wsRow(workspaceId);
         const limit = creditLimitFor(ws);
-        await setCredits(workspaceId, limit, 40);
+        await setUsed(workspaceId, limit - 40);
 
         const spend = await chargeCredits(await wsRow(workspaceId), 40, "test");
         expect((await ledgerOf(workspaceId))[0]!.balanceAfter).toBe(0);
 
-        await settleCredits(await wsRow(workspaceId), spend.entryId!, -40, spend.fromBonus);
+        await settleCredits(await wsRow(workspaceId), spend.entryId!, -40);
         const rows = await ledgerOf(workspaceId);
         expect(rows).toHaveLength(1);
         expect(rows[0]!.id).toBe(spend.entryId);
@@ -113,10 +104,10 @@ describe("bonus-aware refunds", () => {
 
     it("a settle that bills beyond the reserve deepens the same row", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
-        await setCredits(workspaceId, 0, 0);
+        await setUsed(workspaceId, 0);
 
         const spend = await chargeCredits(await wsRow(workspaceId), 10, "ask-assistant");
-        await settleCredits(await wsRow(workspaceId), spend.entryId!, 15, spend.fromBonus);
+        await settleCredits(await wsRow(workspaceId), spend.entryId!, 15);
         const rows = await ledgerOf(workspaceId);
         expect(rows).toHaveLength(1);
         expect(rows[0]!.delta).toBe(-25); // reserved 10, really cost 25
@@ -156,13 +147,14 @@ describe("rollCreditWindow", () => {
         expect(await rollCreditWindow(await wsRow(workspaceId))).toBeNull();
     });
 
-    it("includes bonus in the reset row's balance", async () => {
+    // every credit is monthly now, so the roll restores the whole limit including the add-ons
+    it("restores the full limit, add-ons included, in the reset row's balance", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
         await db
             .update(schema.workspaces)
             .set({
                 aiCreditsUsed: 100,
-                aiCreditsBonus: 500,
+                creditBlocks: 3,
                 creditsResetAt: new Date(Date.now() - 1000),
             })
             .where(eq(schema.workspaces.id, workspaceId));
@@ -170,6 +162,7 @@ describe("rollCreditWindow", () => {
         await rollCreditWindow(ws);
         const [reset] = await ledgerOf(workspaceId);
         expect(reset!.reason).toBe("monthly-reset");
-        expect(reset!.balanceAfter).toBe(creditLimitFor(ws) + 500);
+        expect(reset!.balanceAfter).toBe(creditLimitFor(ws));
+        expect((await wsRow(workspaceId)).aiCreditsUsed).toBe(0);
     });
 });

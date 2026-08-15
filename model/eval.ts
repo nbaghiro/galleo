@@ -101,7 +101,10 @@ export type EvalRunSummary = Omit<EvalRun, "spans" | "checks" | "content" | "jud
     lead: Section[];
 };
 
-/** How many sections a list row may paint. The row shows as many as fit and counts the rest. */
+/**
+ * How many real sections a list row carries. The row paints all of them in a strip that scrolls, so
+ * this bounds the list payload (each is a full section tree), not the layout.
+ */
 export const LEAD_SECTIONS = 12;
 
 /** A section reduced to what a list row can show: how it scored and whether anything failed on it. */

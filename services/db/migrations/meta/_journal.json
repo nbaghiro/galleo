@@ -141,6 +141,20 @@
             "when": 1786718077727,
             "tag": "0019_old_mentor",
             "breakpoints": true
+        },
+        {
+            "idx": 20,
+            "version": "7",
+            "when": 1786811625222,
+            "tag": "0020_premium_lily_hollister",
+            "breakpoints": true
+        },
+        {
+            "idx": 21,
+            "version": "7",
+            "when": 1786811633994,
+            "tag": "0021_stiff_katie_power",
+            "breakpoints": true
         }
     ]
 }

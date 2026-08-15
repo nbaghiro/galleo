@@ -81,9 +81,10 @@ export const workspaces = pgTable("workspaces", {
     planStatus: text("plan_status").notNull().default("active"), // active | past_due | canceled
     planPeriodEnd: timestamp("plan_period_end"),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false), // scheduled downgrade to Free at planPeriodEnd
-    seats: integer("seats").notNull().default(1), // subscription quantity; synced from Stripe
+    seats: integer("seats").notNull().default(1), // plan's included seats + the seat add-on's quantity
+    creditBlocks: integer("credit_blocks").notNull().default(0), // the credit add-on's quantity
+    // the only credit counter: every credit is monthly, so this is all of it
     aiCreditsUsed: integer("ai_credits_used").notNull().default(0),
-    aiCreditsBonus: integer("ai_credits_bonus").notNull().default(0), // purchased top-ups; spent after the pool, never reset
     creditsResetAt: timestamp("credits_reset_at").notNull().defaultNow(),
     // when the current credit window opened; every writer of credits_reset_at sets both
     creditsStartedAt: timestamp("credits_started_at").notNull().defaultNow(),

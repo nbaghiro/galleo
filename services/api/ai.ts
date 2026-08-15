@@ -128,7 +128,7 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
         ratesFor(ws, overrides),
         traced,
     );
-    if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
+    if (!held.ok) return c.json(OUT_OF_CREDITS(ws, held.remaining), 402);
 
     // AI images are counted so the settle can reconcile the estimate to the real count; stock is free.
     const imageSource =
@@ -293,7 +293,7 @@ ai.post("/ai/brief", requireWorkspace, async (c) => {
         ratesFor(ws, overridesFrom(c)),
         traced,
     );
-    if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
+    if (!held.ok) return c.json(OUT_OF_CREDITS(ws, held.remaining), 402);
 
     return held.settle(async (_produced, meter) => {
         const startedAt = Date.now();
@@ -373,7 +373,7 @@ ai.post("/ai/element", requireWorkspace, async (c) => {
         {},
         ratesFor(ws, overridesFrom(c)),
     );
-    if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
+    if (!held.ok) return c.json(OUT_OF_CREDITS(ws, held.remaining), 402);
 
     return held.settle(async () => {
         try {
@@ -417,7 +417,7 @@ ai.post("/ai/text", requireWorkspace, async (c) => {
     const source = body.text;
     const tool = body.op === "translate" ? "translate-text" : "rewrite-text";
     const held = await reserve(ws, c.get("user").id, tool, {}, ratesFor(ws, overridesFrom(c)));
-    if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
+    if (!held.ok) return c.json(OUT_OF_CREDITS(ws, held.remaining), 402);
 
     return held.settle(async () => {
         try {
@@ -461,7 +461,7 @@ ai.post("/ai/refine", requireWorkspace, async (c) => {
         {},
         ratesFor(ws, overridesFrom(c)),
     );
-    if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
+    if (!held.ok) return c.json(OUT_OF_CREDITS(ws, held.remaining), 402);
 
     return held.settle(async () => {
         try {
@@ -508,7 +508,7 @@ ai.post("/ai/theme", requireWorkspace, async (c) => {
         {},
         ratesFor(ws, overridesFrom(c)),
     );
-    if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
+    if (!held.ok) return c.json(OUT_OF_CREDITS(ws, held.remaining), 402);
 
     return held.settle(async () => {
         try {

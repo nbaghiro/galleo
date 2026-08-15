@@ -9,6 +9,8 @@ import {
     createEffect,
 } from "solid-js";
 import type { Section, ArtifactContent, Cover, PageSize, SectionSummary } from "@model/artifact";
+import { sectionRegionId } from "@model/artifact";
+import type { Rect } from "@engine/node";
 import { profileFor } from "@engine/profile";
 import { resolveTheme, type Tokens } from "@themes";
 import { appTheme } from "@app/stores/theme";
@@ -264,6 +266,13 @@ const SETTLE_MS = 700;
 export const PreviewCanvas: Component<{
     content: ArtifactContent;
     format: () => string;
+    /**
+     * Overrides the artifact's own theme. Pass the app's when the preview sits inside our chrome
+     * rather than standing in for the artifact, the way the list's SectionThumbs already do: two
+     * palettes in one pane read as a bug. Defaults to the artifact's, which is right when the
+     * preview IS the artifact (a template card, a shared piece).
+     */
+    themeId?: string;
     // Optional selection layer. The stack painter already returns each section's top and height, so
     // hit areas, the scroll-into-view and the corner marks all read those rather than measuring
     // anything themselves.
@@ -278,7 +287,14 @@ export const PreviewCanvas: Component<{
     let stage: HTMLDivElement | null = null;
     const cache = createSectionStackCache();
     let lastWindow: StackWindow | null = null;
-    const [boxes, setBoxes] = createSignal<{ id: string; top: number; height: number }[]>([]);
+    // `top`/`height` are the section's band in the stack and exist for every section, which is what
+    // the scroll spy reads. `card` is the painted card inside that band, which is narrower than the
+    // pane whenever the format centres its page, and is what selection outlines. It comes from the
+    // painter's own regions (the same ones the editor selects with), so it carries the radius the
+    // card actually painted and is absent for a section the window has not painted.
+    const [boxes, setBoxes] = createSignal<
+        { id: string; top: number; height: number; card: Rect & { radius: number } }[]
+    >([]);
     // Two guards keep scrolling and selection from driving each other in a loop: `settleTo` mutes
     // the spy while our own scroll is in flight, and `reported` stops the follow-effect from
     // re-centring a selection the spy itself just produced.
@@ -288,7 +304,7 @@ export const PreviewCanvas: Component<{
 
     const render = (): void => {
         if (!host) return;
-        const tk = resolveTheme(props.content.theme).tokens;
+        const tk = resolveTheme(props.themeId ?? props.content.theme).tokens;
         // props.format may preview the content as a different format; its own page size still applies
         const profile = profileFor({ format: props.format(), page: props.content.page });
         const gap = profile.kind === "continuous" ? 0 : SECTION_GAP;
@@ -302,7 +318,7 @@ export const PreviewCanvas: Component<{
         const viewH = host.clientHeight || 800;
         const win = stackWindow(host.scrollTop, viewH);
         lastWindow = win;
-        const { height, tops, heights } = paintSectionStack(
+        const { height, tops, heights, regions } = paintSectionStack(
             stage,
             props.content.sections,
             profile,
@@ -311,16 +327,25 @@ export const PreviewCanvas: Component<{
         );
         stage.style.height = `${height - gap + PAD}px`;
         setBoxes(
-            props.content.sections.map((s, i) => ({
-                id: s.id,
-                top: tops[i] ?? 0,
-                height: heights[i] ?? 0,
-            })),
+            props.content.sections.map((s, i) => {
+                const top = tops[i] ?? 0;
+                const h = heights[i] ?? 0;
+                const region = regions.find((r) => r.id === sectionRegionId(s.id));
+                return {
+                    id: s.id,
+                    top,
+                    height: h,
+                    card: region
+                        ? { ...region.box, radius: region.radius ?? 0 }
+                        : { x: 0, y: top, w: fullW, h, radius: 0 },
+                };
+            }),
         );
     };
 
     createEffect(() => {
         props.format();
+        void props.themeId; // a theme switch repaints from scratch, like a format change
         void props.content; // track the artifact too: a different one starts a fresh stage
         stage = null;
         cache.entries.clear();
@@ -384,12 +409,24 @@ export const PreviewCanvas: Component<{
                             const tone = (): "fail" | "warn" | null => props.mark?.(b.id) ?? null;
                             const active = (): boolean => props.selected === b.id;
                             return (
+                                // the painted card, not the full-width band: a centred format leaves
+                                // backdrop either side, and an outline out there frames nothing
                                 <div
-                                    class="absolute left-0 w-full"
-                                    style={{ top: `${b.top}px`, height: `${b.height}px` }}
+                                    class="absolute"
+                                    style={{
+                                        left: `${b.card.x}px`,
+                                        top: `${b.card.y}px`,
+                                        width: `${b.card.w}px`,
+                                        height: `${b.card.h}px`,
+                                    }}
                                 >
+                                    {/* a border, not a ring: a ring draws outside the box, so at the
+                                        pane's edge its outer edges fall outside the scroll clip */}
                                     <Show when={active()}>
-                                        <div class="absolute inset-0 rounded-[var(--radius)] ring-2 ring-accent" />
+                                        <div
+                                            class="absolute inset-0 border-2 border-accent"
+                                            style={{ "border-radius": `${b.card.radius}px` }}
+                                        />
                                     </Show>
                                     {/* the dot, not the section body, is the hit area: the preview
                                         stays scrollable and its text selectable */}

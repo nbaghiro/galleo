@@ -1,0 +1,1 @@
+ALTER TABLE "workspaces" ADD COLUMN "credit_blocks" integer DEFAULT 0 NOT NULL;

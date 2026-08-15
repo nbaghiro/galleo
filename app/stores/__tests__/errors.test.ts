@@ -7,11 +7,35 @@ describe("describeError", () => {
         expect(describeError(new DOMException("aborted", "AbortError"), "Planning")).toBeNull();
     });
 
-    it("names the plan limit and offers the upgrade route", () => {
-        const d = describeError(new ApiError(402, "out of AI credits"), "Planning");
+    it("names the plan limit and carries the remedies the server offered", () => {
+        const d = describeError(
+            new ApiError(402, "out of AI credits", { upgrade: true, topUp: true }),
+            "Planning",
+        );
         expect(d?.title).toBe("Out of credits");
         expect(d?.upgrade).toBe(true);
+        expect(d?.topUp).toBe(true);
         expect(d?.detail).toBe("out of AI credits");
+    });
+
+    // the bug this replaced: a 402 always claimed "upgrade", so the top plan was told to do the one
+    // thing it cannot
+    it("offers only the pack when there is no higher plan", () => {
+        const d = describeError(
+            new ApiError(402, "out of AI credits", { upgrade: false, topUp: true }),
+            "Planning",
+        );
+        expect(d?.upgrade).toBe(false);
+        expect(d?.topUp).toBe(true);
+        expect(d?.hint).toBe("Buy a credit pack to keep generating.");
+    });
+
+    it("offers only the upgrade on a plan that may not buy packs", () => {
+        const d = describeError(
+            new ApiError(402, "out of AI credits", { upgrade: true, topUp: false }),
+            "Planning",
+        );
+        expect(d?.hint).toBe("Upgrade to keep generating.");
     });
 
     it("does not repeat the server's words when they match the title", () => {

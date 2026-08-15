@@ -93,7 +93,7 @@ media.post("/media/generate", requireWorkspace, async (c) => {
     if (await storageFull(ws)) return c.json(STORAGE_FULL, 402);
     const want = Math.max(1, Math.min(4, n ?? 1));
     const held = await reserve(ws, c.get("user").id, "generate-image", { variations: want });
-    if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
+    if (!held.ok) return c.json(OUT_OF_CREDITS(ws, held.remaining), 402);
 
     return streamSSE(c, (stream) =>
         held.settle(async (billed) => {
@@ -136,7 +136,7 @@ media.post("/media/generate-video", requireWorkspace, async (c) => {
 
     if (await storageFull(ws)) return c.json(STORAGE_FULL, 402);
     const held = await reserve(ws, c.get("user").id, "generate-video");
-    if (!held.ok) return c.json(OUT_OF_CREDITS(held.remaining), 402);
+    if (!held.ok) return c.json(OUT_OF_CREDITS(ws, held.remaining), 402);
 
     return streamSSE(c, (stream) =>
         held.settle(async (billed) => {

@@ -285,11 +285,7 @@ export const WorkspaceSettingsView: Component = () => {
                                             }}
                                             caption={`of ${(b()?.credits.limit ?? 0).toLocaleString()} · you used ${(
                                                 b()?.credits.mySpend ?? 0
-                                            ).toLocaleString()} this cycle${
-                                                (b()?.credits.bonus ?? 0) > 0
-                                                    ? ` · +${b()!.credits.bonus.toLocaleString()} bonus`
-                                                    : ""
-                                            }`}
+                                            ).toLocaleString()} this cycle`}
                                         />
                                         <StatCard
                                             label="Seats"

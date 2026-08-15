@@ -2,41 +2,29 @@ import "dotenv/config";
 import { createHash } from "node:crypto";
 import { and, eq, inArray, notInArray } from "drizzle-orm";
 import type { ArtifactContent, GenMeta } from "@model/artifact";
-import { creditLimitFor, packFor } from "@model/billing";
+import { creditLimitFor, planFor } from "@model/billing";
 import { TEMPLATE_INDEX } from "@model/templates";
 import { THEMES } from "@themes";
 import { assertDatabaseUrl, db } from "./client";
-import { tokensOf } from "@model/eval";
 import { schema } from "./schema";
 import { contentWrite } from "./derived";
-import { hashPassword } from "../utils/auth";
-import { appUrl, out as log, warn } from "../utils/env";
-import { createWorkspaceForUser, type WorkspaceRow } from "../core/accounts";
-import { addArtifactItem, addTextItem, createContext } from "../core/context";
-import { embeddingReady } from "../core/ai/provider";
-import { modelFor } from "../core/models";
-import { templateBody } from "../core/templates";
+import { hashPassword } from "@services/utils/auth";
+import { appUrl, out as log, warn } from "@services/utils/env";
+import { createWorkspaceForUser, type WorkspaceRow } from "@services/core/accounts";
+import { addArtifactItem, addTextItem, createContext } from "@services/core/context";
+import { embeddingReady } from "@services/core/ai/provider";
+import { modelFor } from "@services/core/models";
+import { templateBody } from "@services/core/templates";
 import { DEMO_CONTEXTS } from "./seed-contexts";
-import { runChecks } from "../core/ai/eval/checks";
-import { EVAL_RUNS } from "./seed-eval-data";
-import { dealEvalRuns, spansOf } from "./seed-evals";
 import type { DocEntry, DocRef, Person, WorkspaceSpec } from "./seed-workspaces";
-import {
-    DEMO_EMAIL,
-    DEMO_PASSWORD,
-    PEOPLE,
-    WORKSPACES,
-    refKey,
-    evalTargets,
-    seededUserIds,
-} from "./seed-workspaces";
-import { aria } from "../core/ai/corpus/aria";
-import { fieldnotes } from "../core/ai/corpus/fieldnotes";
-import { galleo } from "../core/ai/corpus/galleo";
-import { helios } from "../core/ai/corpus/helios";
-import { lumen } from "../core/ai/corpus/lumen";
-import { slowweb } from "../core/ai/corpus/slowweb";
-import { terra } from "../core/ai/corpus/terra";
+import { DEMO_EMAIL, DEMO_PASSWORD, PEOPLE, WORKSPACES, refKey } from "./seed-workspaces";
+import { aria } from "@services/core/ai/corpus/aria";
+import { fieldnotes } from "@services/core/ai/corpus/fieldnotes";
+import { galleo } from "@services/core/ai/corpus/galleo";
+import { helios } from "@services/core/ai/corpus/helios";
+import { lumen } from "@services/core/ai/corpus/lumen";
+import { slowweb } from "@services/core/ai/corpus/slowweb";
+import { terra } from "@services/core/ai/corpus/terra";
 
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
@@ -147,7 +135,8 @@ async function upsertWorkspace(spec: WorkspaceSpec, ownerId: string): Promise<Wo
             name: spec.name,
             ownerId,
             plan: spec.plan,
-            seats: spec.seats,
+            seats: Math.max(spec.seats, planFor(spec.plan).billing.includedSeats),
+            creditBlocks: spec.creditBlocks ?? 0,
             planStatus: spec.planStatus ?? "active",
             planPeriodEnd: periodEnd,
             cancelAtPeriodEnd: spec.cancelAtPeriodEnd ?? false,
@@ -157,7 +146,6 @@ async function upsertWorkspace(spec: WorkspaceSpec, ownerId: string): Promise<Wo
                     : null,
             featureOverrides: spec.featureOverrides ?? null,
             aiCreditsUsed: 0,
-            aiCreditsBonus: 0,
             creditsStartedAt: startedAt,
             creditsResetAt: new Date(startedAt.getTime() + WINDOW_MS),
         })
@@ -391,46 +379,39 @@ async function seedLinks(spec: WorkspaceSpec, docs: SeededDocs): Promise<string[
 }
 
 /**
- * Replays the spec's charges oldest-first with the same pool-then-bonus arithmetic as
- * chargeCredits, so balance_after, ai_credits_used and ai_credits_bonus cannot disagree with the
- * history. A monthly-reset row takes its delta from the replay (what was returned) and is skipped
- * when nothing was spent, matching rollCreditWindow.
+ * Replays the spec's charges oldest-first with the same arithmetic as chargeCredits, so
+ * balance_after and ai_credits_used cannot disagree with the history. A monthly-reset row takes its
+ * delta from the replay (what was returned) and is skipped when nothing was spent, matching
+ * rollCreditWindow.
  */
 async function seedLedger(
     ws: WorkspaceRow,
     spec: WorkspaceSpec,
     ids: Map<string, string>,
-): Promise<{ used: number; bonus: number }> {
+): Promise<{ used: number }> {
     const limit = creditLimitFor(ws);
     let used = 0;
-    let bonus = 0;
     const rows: (typeof schema.credits.$inferInsert)[] = [];
     for (const c of [...(spec.ledger ?? [])].sort((a, b) => b.at - a.at)) {
         const createdAt = ago(c.at);
         if (c.kind === "spend") {
             const userId = ids.get(c.by);
             if (!userId) throw new Error(`no seeded user "${c.by}"`);
-            const fromPool = Math.min(c.credits, Math.max(0, limit - used));
-            used += fromPool;
-            bonus -= c.credits - fromPool;
+            // the real gate refuses a charge it can't cover, so a spec that outspends its plan is a
+            // spec bug rather than something to silently clamp
+            if (used + c.credits > limit)
+                throw new Error(
+                    `"${spec.slug}": ledger overspends by ${used + c.credits - limit} credits ` +
+                        `(limit ${limit}); lower the charges or raise the plan`,
+                );
+            used += c.credits;
             rows.push({
                 workspaceId: ws.id,
                 userId,
                 delta: -c.credits,
                 reason: c.tool,
                 usage: c.usage,
-                balanceAfter: Math.max(0, limit - used) + bonus,
-                createdAt,
-            });
-        } else if (c.kind === "topup") {
-            const pack = packFor(c.pack);
-            if (!pack) throw new Error(`no credit pack "${c.pack}"`);
-            bonus += pack.credits;
-            rows.push({
-                workspaceId: ws.id,
-                delta: pack.credits,
-                reason: `topup:${pack.id}`,
-                balanceAfter: Math.max(0, limit - used) + bonus,
+                balanceAfter: limit - used,
                 createdAt,
             });
         } else if (used > 0) {
@@ -438,7 +419,7 @@ async function seedLedger(
                 workspaceId: ws.id,
                 delta: used,
                 reason: "monthly-reset",
-                balanceAfter: limit + bonus,
+                balanceAfter: limit,
                 createdAt,
             });
             used = 0;
@@ -447,9 +428,9 @@ async function seedLedger(
     if (rows.length) await db.insert(schema.credits).values(rows);
     await db
         .update(schema.workspaces)
-        .set({ aiCreditsUsed: used, aiCreditsBonus: bonus })
+        .set({ aiCreditsUsed: used })
         .where(eq(schema.workspaces.id, ws.id));
-    return { used, bonus };
+    return { used };
 }
 
 async function seedThemes(wsId: string, spec: WorkspaceSpec): Promise<void> {
@@ -636,17 +617,19 @@ async function seed(): Promise<void> {
         await seedVisits(spec, docs, userIds);
         if (spec.assets) await seedAssets(ws.id);
         if (spec.contexts && embed) await seedContexts(ws.id, ownerId, docs);
-        const { used, bonus } = await seedLedger(ws, spec, userIds);
+        const { used } = await seedLedger(ws, spec, userIds);
 
         const live = (spec.folders ?? []).reduce((n, g) => n + g.docs.length, 0);
         const role =
             spec.ownerEmail === DEMO_EMAIL
                 ? "owner"
                 : (spec.members.find((m) => m.email === DEMO_EMAIL)?.role ?? "—");
+        const extra = ws.seats - planFor(spec.plan).billing.includedSeats;
         log(
             `• ${spec.name} (${spec.plan}, demo is ${role}) — ${live} artifacts, ` +
-                `${spec.members.length + 1} members, ${used}/${creditLimitFor(ws)} credits` +
-                `${bonus ? ` +${bonus} bonus` : ""}`,
+                `${spec.members.length + 1} members, ${used}/${creditLimitFor(ws)} credits, ` +
+                `${ws.seats} seats${extra > 0 ? ` (+${extra})` : ""}` +
+                `${ws.creditBlocks ? ` +${ws.creditBlocks} credit block(s)` : ""}`,
         );
     }
 
@@ -668,56 +651,9 @@ async function seed(): Promise<void> {
                 .where(eq(schema.users.id, userId));
     }
 
-    await seedEvalRuns();
-
     log(`\nLog in with:  ${DEMO_EMAIL}  /  ${DEMO_PASSWORD}`);
     if (invites.length) log(`Pending invites:\n  ${invites.join("\n  ")}`);
     if (links.length) log(`Published links:\n  ${links.join("\n  ")}`);
-}
-
-/**
- * Traced runs for the playground. Checks and token totals are recomputed rather than stored: a check
- * is a pure function of the content, so a stored one could contradict the artifact beside it.
- */
-async function seedEvalRuns(): Promise<void> {
-    const targets = await evalTargets();
-    const users = await seededUserIds();
-    const demoId = users.get(DEMO_EMAIL);
-    if (!targets.length || !demoId) return warn("• no workspace eligible for eval runs");
-    for (const t of targets)
-        await db.delete(schema.evalRuns).where(eq(schema.evalRuns.workspaceId, t.id));
-    const deals = dealEvalRuns(
-        targets.map((t) => ({ workspaceId: t.id, userId: demoId, plan: t.plan })),
-        EVAL_RUNS,
-    );
-    for (const { target, run } of deals) {
-        const spans = spansOf(run);
-        const { input, output } = tokensOf(spans);
-        const meta = run.config.meta;
-        await db.insert(schema.evalRuns).values({
-            workspaceId: target.workspaceId,
-            userId: target.userId,
-            sessionId: `seed-${run.id}`,
-            artifactId: null,
-            config: run.config,
-            spans,
-            checks: run.content
-                ? runChecks(run.content, { surface: meta.surface, length: meta.length })
-                : [],
-            judgements: run.judgements,
-            content: run.content,
-            status: run.status,
-            error: run.error,
-            tokensIn: input,
-            tokensOut: output,
-            credits: run.credits,
-            ms: run.ms,
-            createdAt: new Date(Date.now() - run.minutesAgo * 60_000),
-        });
-    }
-    log(
-        `• ${deals.length} eval runs across ${new Set(deals.map((d) => d.target.workspaceId)).size} workspaces`,
-    );
 }
 
 seed()

@@ -18,6 +18,7 @@ import { links, loadLinks } from "@app/stores/links";
 import { fetchHits } from "@app/stores/search";
 import { featuresState, loadFeatures } from "@app/stores/features";
 import { openShare, shareRequest } from "@app/stores/share";
+import { UpgradeNotice } from "@app/components/Upgrade";
 import {
     ArrowUpRightIcon,
     CheckIcon,
@@ -571,7 +572,6 @@ const InsightsModal: Component<{
     copied: string | null;
     onClose: () => void;
 }> = (p) => {
-    const navigate = useNavigate();
     // null = entitlements not loaded yet; never show a premature upsell
     const entitled = (): boolean | null => featuresState()?.features.analytics ?? null;
     const [sel, setSel] = createSignal<string>(p.focus ?? "all");
@@ -721,19 +721,13 @@ const InsightsModal: Component<{
                         <Show
                             when={entitled() !== false}
                             fallback={
-                                <div class="flex items-center gap-3 rounded-lg border border-dashed border-line px-3 py-3">
-                                    <span class="flex-1 text-[11.5px] text-muted">
-                                        Views over time, top sources, and read-depth are included
-                                        with Premium.
-                                    </span>
-                                    <Button
-                                        variant="tool"
-                                        size="sm"
-                                        onClick={() => (p.onClose(), navigate("/pricing"))}
-                                    >
-                                        See plans
-                                    </Button>
-                                </div>
+                                <UpgradeNotice
+                                    feature="analytics"
+                                    title="Analytics"
+                                    onBefore={p.onClose}
+                                >
+                                    Views over time, top sources, and read-depth.
+                                </UpgradeNotice>
                             }
                         >
                             <Show

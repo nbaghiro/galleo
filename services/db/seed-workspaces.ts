@@ -1,14 +1,14 @@
 import { inArray } from "drizzle-orm";
-import type { CreditPackId, FeatureOverrides, PlanId, ScheduledChange } from "@model/billing";
+import type { FeatureOverrides, PlanId, ScheduledChange } from "@model/billing";
 import type { Usage } from "@model/credits";
 import type { ToolId } from "@model/tools";
 import { db } from "./client";
 import { schema } from "./schema";
 
 // The demo universe as data: who exists, which workspaces they hold, and in what state. Separate
-// from seed.ts so a second seeder (the eval runs) can address the same workspaces without importing
-// an entry point that would run the seed on import. This sits in db/ and so may not reach into
-// core/: documents are named here and resolved to content by seed.ts.
+// from seed.ts so the specs can be read without importing an entry point that would run the seed on
+// import. This sits in db/ and so may not reach into core/: documents are named here and resolved
+// to content by seed.ts.
 
 export const DEMO_EMAIL = "demo@galleo.app";
 export const DEMO_PASSWORD = "galleo-demo-2026";
@@ -87,7 +87,6 @@ export interface ThemeSpec {
 // `at` is days ago; fractions are fine (0.25 = six hours)
 export type Charge =
     | { at: number; kind: "spend"; tool: ToolId; credits: number; usage: Usage; by: string }
-    | { at: number; kind: "topup"; pack: CreditPackId }
     | { at: number; kind: "reset" };
 
 export interface WorkspaceSpec {
@@ -95,7 +94,8 @@ export interface WorkspaceSpec {
     name: string;
     plan: PlanId;
     ownerEmail: string;
-    seats: number;
+    seats: number; // total, including the plan's own included seats
+    creditBlocks?: number; // the credit add-on's quantity
     members: MemberSpec[]; // never includes the owner
     invites?: InviteSpec[];
     planStatus?: "active" | "past_due" | "canceled";
@@ -113,18 +113,18 @@ export interface WorkspaceSpec {
     assets?: boolean;
     visits?: DocRef[]; // what the demo user has opened
     templateUses?: { templateId: string; by: string; uses: number }[];
-    evalWeight?: number; // overrides EVAL_WEIGHT_BY_PLAN
 }
 
-// demo@galleo.app is a member of every one of these: /eval reads the CALLER'S workspace, and every
-// other surface resolves through `members`, so a workspace they can't switch into is dead data.
+// demo@galleo.app is a member of every one of these: every surface resolves through `members`, so a
+// workspace they can't switch into is dead data.
 export const WORKSPACES: WorkspaceSpec[] = [
     {
         slug: "demo",
         name: "Northwind Studio",
         plan: "premium",
         ownerEmail: DEMO_EMAIL, // the one they own: member management is the owner-only surface that works without Stripe
-        seats: 8,
+        seats: 8, // 3 the plan includes + 5 bought as the seat add-on
+        creditBlocks: 2,
         members: [
             { email: "priya.raman@galleo.app", role: "admin" },
             { email: "marcus.oyelaran@galleo.app", role: "member" },
@@ -296,7 +296,6 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 usage: { text: 2 },
                 by: DEMO_EMAIL,
             },
-            { at: 6, kind: "topup", pack: "pack-1k" },
             {
                 at: 5,
                 kind: "spend",
@@ -358,19 +357,19 @@ export const WORKSPACES: WorkspaceSpec[] = [
     {
         slug: "ridgeline",
         name: "Ridgeline Partners",
-        plan: "pro",
+        plan: "premium",
         ownerEmail: "priya.raman@galleo.app",
-        seats: 3, // owner + 2 members = full, so an invite takes the no-seats 402
+        seats: 3, // exactly the plan's included seats, all taken, so an invite takes the no-seats 402
         members: [
             { email: DEMO_EMAIL, role: "admin" },
             { email: "marcus.oyelaran@galleo.app", role: "member" },
         ],
         planStatus: "active",
         periodEndInDays: 9,
-        scheduledChange: { plan: "free", interval: "month", seats: 1 },
-        // analytics widens what Pro sells; creditsPerMonth narrows the pool so the meter is readable
-        // without ~170 fabricated rows. The only place a plan number is deliberately not the plan's.
-        featureOverrides: { analytics: true, creditsPerMonth: 280 },
+        scheduledChange: { plan: "pro", interval: "month", seats: 1, creditBlocks: 0 },
+        // a narrower artifact cap than Premium grants, so the override path is exercised in the
+        // restricting direction too
+        featureOverrides: { maxArtifacts: 40 },
         windowStartedDaysAgo: 20,
         folders: [
             {
@@ -598,22 +597,23 @@ export const WORKSPACES: WorkspaceSpec[] = [
             { ref: { template: "trends-report" }, daysAgo: 20 },
         ],
         visits: [{ corpus: "fieldnotes" }, { corpus: "slowweb" }],
-        // lands at 146 of 150: rewrite-text (1) still passes, ask-assistant (holds 10) and
-        // generate-artifact (holds ~42) both take the 402 branch
+        // Lands at 95 of 100: rewrite-text (1) still passes, ask-assistant and generate-artifact
+        // both take the 402 branch. Free runs basic models, so each charge is exactly costOf(usage),
+        // and no generation exceeds the plan's 10-section cap.
         ledger: [
             {
                 at: 21,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 41,
-                usage: { plan: 1, section: 12, image: 2 },
+                credits: 31,
+                usage: { plan: 1, section: 9, image: 2 },
                 by: DEMO_EMAIL,
             },
             {
                 at: 17,
                 kind: "spend",
                 tool: "ask-assistant",
-                credits: 9,
+                credits: 2,
                 usage: { reply: 1 },
                 by: "marcus.oyelaran@galleo.app",
             },
@@ -622,31 +622,31 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 5,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 44,
-                usage: { plan: 1, section: 12, image: 3 },
+                credits: 29,
+                usage: { plan: 1, section: 8, image: 2 },
                 by: DEMO_EMAIL,
             },
             {
                 at: 4,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 37,
-                usage: { plan: 1, section: 10, image: 2 },
+                credits: 20,
+                usage: { plan: 1, section: 6, image: 1 },
                 by: "marcus.oyelaran@galleo.app",
             },
             {
                 at: 3,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 29,
-                usage: { plan: 1, section: 9 },
+                credits: 17,
+                usage: { plan: 1, section: 7 },
                 by: DEMO_EMAIL,
             },
             {
                 at: 2,
                 kind: "spend",
                 tool: "ask-assistant",
-                credits: 12,
+                credits: 2,
                 usage: { reply: 1 },
                 by: DEMO_EMAIL,
             },
@@ -654,15 +654,15 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 1.5,
                 kind: "spend",
                 tool: "generate-image",
-                credits: 15,
-                usage: { image: 3 },
+                credits: 20,
+                usage: { image: 4 },
                 by: "marcus.oyelaran@galleo.app",
             },
             {
                 at: 1,
                 kind: "spend",
                 tool: "rewrite-section",
-                credits: 3,
+                credits: 2,
                 usage: { section: 1 },
                 by: DEMO_EMAIL,
             },
@@ -670,7 +670,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 0.5,
                 kind: "spend",
                 tool: "generate-theme",
-                credits: 5,
+                credits: 4,
                 usage: { theme: 1 },
                 by: DEMO_EMAIL,
             },
@@ -688,15 +688,14 @@ export const WORKSPACES: WorkspaceSpec[] = [
         slug: "weekend",
         name: "Weekend Ideas",
         plan: "pro",
-        ownerEmail: "tomas.vidal@galleo.app",
-        // Pro rather than Free so it can be both empty AND shared: a never-subscribed Free workspace
-        // can only hold one member, because acceptInvite refuses at members.length >= seats
-        seats: 2,
-        members: [{ email: DEMO_EMAIL, role: "member" }],
+        ownerEmail: DEMO_EMAIL,
+        // the Pro fixture, and the empty state: Pro is single-seat, so demo has to own it. Being a
+        // plain member of someone else's workspace is covered by helios-climate.
+        seats: 1,
+        members: [],
         planStatus: "active",
         periodEndInDays: 27,
         windowStartedDaysAgo: 1,
-        evalWeight: 0, // kept pristine: this is the empty-state workspace
     },
     {
         slug: "helios-climate",
@@ -825,27 +824,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
     },
 ];
 
-// eval runs are partitioned by plan; a Free workspace gets none
-export const EVAL_WEIGHT_BY_PLAN: Record<PlanId, number> = { free: 0, pro: 2, premium: 3 };
-
-export const evalWeightOf = (spec: WorkspaceSpec): number =>
-    spec.evalWeight ?? EVAL_WEIGHT_BY_PLAN[spec.plan];
-
 const NOT_SEEDED = "run `pnpm seed` first";
-
-/** slug → workspace id, for a second seeder that needs to write into these workspaces. */
-export async function seededWorkspaceIds(): Promise<Map<string, string>> {
-    const slugs = WORKSPACES.map((w) => w.slug);
-    const rows = await db
-        .select({ id: schema.workspaces.id, slug: schema.workspaces.slug })
-        .from(schema.workspaces)
-        .where(inArray(schema.workspaces.slug, slugs));
-    const found = new Map(rows.map((r) => [r.slug, r.id]));
-    const missing = slugs.filter((s) => !found.has(s));
-    if (missing.length)
-        throw new Error(`workspaces not seeded: ${missing.join(", ")} — ${NOT_SEEDED}`);
-    return found;
-}
 
 /** email → user id, over the seeded cast. */
 export async function seededUserIds(): Promise<Map<string, string>> {
@@ -858,27 +837,4 @@ export async function seededUserIds(): Promise<Map<string, string>> {
     const missing = emails.filter((e) => !found.has(e));
     if (missing.length) throw new Error(`users not seeded: ${missing.join(", ")} — ${NOT_SEEDED}`);
     return found;
-}
-
-export interface EvalTarget {
-    id: string;
-    slug: string;
-    plan: PlanId;
-    weight: number;
-}
-
-/**
- * Where eval runs may be written, with the share each workspace should get. Only workspaces the demo
- * user can switch into are listed, because /eval reads the caller's current workspace: a run written
- * anywhere else is unreachable.
- */
-export async function evalTargets(): Promise<EvalTarget[]> {
-    const ids = await seededWorkspaceIds();
-    const targets: EvalTarget[] = [];
-    for (const w of WORKSPACES) {
-        const id = ids.get(w.slug);
-        const weight = evalWeightOf(w);
-        if (id && weight > 0) targets.push({ id, slug: w.slug, plan: w.plan, weight });
-    }
-    return targets;
 }

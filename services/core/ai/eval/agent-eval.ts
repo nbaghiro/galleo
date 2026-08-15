@@ -69,7 +69,7 @@ async function loadEnv(): Promise<Env> {
         recent: rows.slice(0, 6).map((r) => ({ title: r.title, format: fmtLabel(r.formatId) })),
         folders: flds,
     };
-    const limit = limitsFor(ws.plan).aiCreditsPerMonth;
+    const limit = limitsFor(ws.plan).includedCredits;
     const sample = (rows.find((r) => r.formatId === "deck") ?? rows[0]!)
         .draftContent as ArtifactContent;
     return {

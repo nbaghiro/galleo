@@ -53,10 +53,10 @@ one code path rather than a personal one and a team one.
 | `plan_status`                                   | `active` \| `past_due` \| `canceled`, written by the webhook and read only for display                          |
 | `plan_period_end`                               | the current Stripe period end, for display and for dating a scheduled change                                    |
 | `cancel_at_period_end`                          | a plain cancel is parked here; the plan itself does not change until Stripe deletes the subscription            |
-| `seats`                                         | the subscription quantity, cached from Stripe; this is the real member cap                                      |
+| `seats`                                         | the plan's included seats plus the seat add-on's quantity, from Stripe; the real member cap                     |
 | `stripe_customer_id` / `stripe_subscription_id` | created lazily on first checkout; the customer id survives cancellation so a re-subscribe reuses it             |
 | `ai_credits_used`                               | spend against the monthly pool, reset to 0 when the window rolls                                                |
-| `ai_credits_bonus`                              | purchased top-ups; spent after the pool and never reset                                                         |
+| `credit_blocks`                                 | the credit add-on's quantity, synced from Stripe; folds into the monthly limit                                  |
 | `credits_started_at` / `credits_reset_at`       | the bounds of the current window; every writer of one sets both                                                 |
 | `scheduled_change` (jsonb)                      | a `ScheduledChange` (plan, interval, seats, ISO date) parked on a Stripe subscription schedule                  |
 | `feature_overrides` (jsonb)                     | a per-workspace `FeatureOverrides` patch merged over the plan by the resolver                                   |
@@ -94,12 +94,16 @@ the cheap way to invalidate all of them. `leaveWorkspace` reloads for the same r
 ### The catalog
 
 `PLANS` is one record keyed by `PlanId` (`free` | `pro` | `premium`), and every lever is a field:
-`billing` (model, prices, seat bounds, `trialDays`), `ai` (credits per month, section cap, model
-tiers, whether top-ups are allowed), `account` (`maxArtifacts`, `maxMembers`, `storageMb`), and
-`features` (the boolean and enum gates). Free is `flat` with `maxSeats: 1`; Pro and Premium are
-`per_seat` with no upper bound. `isPerSeat(planId)` reads `billing.model`, and it is what decides
-whether the credit pool multiplies by seats. Stripe price ids are never in this file: they resolve
-from env by `STRIPE_PRICE_{PLAN}_{INTERVAL}`.
+`billing` (prices, `includedSeats`, which add-ons the plan sells, `trialDays`), `ai`
+(`includedCredits`, section cap, model tiers), `account` (`maxArtifacts`, `storageMb`), and
+`features` (the boolean and enum gates).
+
+The base price is the whole subscription rather than a per-seat rate, and it buys `includedSeats`
+seats and `includedCredits` credits a month. Free and Pro are solo (one included seat, no seat
+add-on); Premium is the team plan and the only one where `sellsSeats` is true. `sellsCredits` is
+separate, so Pro can buy capacity without buying colleagues. Stripe price ids are never in this
+file: plans resolve from `STRIPE_PRICE_{PLAN}_{INTERVAL}`, add-ons from
+`STRIPE_PRICE_{SEAT,CREDITS}_{INTERVAL}`.
 
 `limitsFor(planId)` projects a legacy flat `PlanLimits` (`maxArtifacts`, `aiCreditsPerMonth`,
 `customThemes`, `exportFormats`, `removeBranding`, `maxMembers`, `publicLinks`, `workspaceThemes`,
@@ -143,21 +147,20 @@ instead: those need a hono `Context`, which `@model` must not know about.
 
 ### Which limits are real gates
 
-| Key                                                                     | Enforced at                                                                                                                                   | Effect                                                                |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `maxArtifacts`                                                          | `POST /artifacts` (`services/api/artifacts.ts`); `liveArtifactCount` filters `trashed_at IS NULL`, so Trash does not count                    | 402 with `upgrade: true`                                              |
-| `storageMb`                                                             | `storageFull()` (`services/core/media.ts`), called from three `services/api/media.ts` routes                                                  | 402; only stored bytes count, stock URLs are free                     |
-| `customThemes`                                                          | `requireFeature` on `POST /themes`                                                                                                            | 402                                                                   |
-| `publicLinks`                                                           | `requireFeature` on `POST /artifacts/:id/links`, **and** re-resolved from the owner workspace on every public read (`services/core/links.ts`) | 402 on create, 404 on read, so a downgrade deactivates existing links |
-| `analytics`                                                             | `requireFeature` on the two analytics routes in `services/api/links.ts`                                                                       | 402                                                                   |
-| `removeBranding`                                                        | server-side for published links (`branded: !owner.removeBranding`); client-side in the editor's export modal                                  | watermark on or off                                                   |
-| `exportFormats`                                                         | client-side only (`editor/panels/ExportModal.tsx`), because rendering happens in the browser                                                  | destinations greyed out                                               |
-| `creditsPerMonth`                                                       | `creditLimitFor` → `chargeCredits`                                                                                                            | 402 `OUT_OF_CREDITS`                                                  |
-| `maxSectionsPerGeneration`                                              | `services/api/ai.ts` (both the meter and the run context), then the prompt's hard limit and a slice in `tools/plan.ts`                        | outline truncated, and billed at the truncated size                   |
-| `textModelTier` / `imageModelTier`                                      | `modelFor` / `tierAllows` (`services/core/models.ts`); `modelCatalogue` marks locked ids                                                      | an out-of-tier override falls back to the default                     |
-| `maxMembers`                                                            | nowhere                                                                                                                                       | none, see below                                                       |
-| `customDomains`                                                         | nowhere (`planned`, so it resolves to `0` on every plan)                                                                                      | none                                                                  |
-| `workspaceThemes`, `apiAccess`, `sso`, `prioritySupport`, `earlyAccess` | nowhere (`planned`)                                                                                                                           | always false                                                          |
+| Key                                                                     | Enforced at                                                                                                                                                        | Effect                                                                |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| `maxArtifacts`                                                          | `POST /artifacts` **and** `POST /artifacts/:id/restore`, both through `overArtifactCap`; `liveArtifactCount` filters `trashed_at IS NULL`, so Trash does not count | 402 with `upgrade: true`                                              |
+| `storageMb`                                                             | `storageFull()` (`services/core/media.ts`), called from three `services/api/media.ts` routes                                                                       | 402; only stored bytes count, stock URLs are free                     |
+| `customThemes`                                                          | `requireFeature` on `POST /themes`                                                                                                                                 | 402                                                                   |
+| `publicLinks`                                                           | `requireFeature` on `POST /artifacts/:id/links`, **and** re-resolved from the owner workspace on every public read (`services/core/links.ts`)                      | 402 on create, 404 on read, so a downgrade deactivates existing links |
+| `analytics`                                                             | `requireFeature` on the two analytics routes in `services/api/links.ts`                                                                                            | 402                                                                   |
+| `removeBranding`                                                        | server-side for published links (`branded: !owner.removeBranding`); client-side in the editor's export modal                                                       | watermark on or off                                                   |
+| `exportFormats`                                                         | client-side only (`editor/panels/ExportModal.tsx`), because rendering happens in the browser and there is no server export route                                   | destinations greyed out                                               |
+| `includedCredits`                                                       | `creditLimitFor` (with the add-ons) → `chargeCredits`                                                                                                              | 402 `OUT_OF_CREDITS`                                                  |
+| `maxSectionsPerGeneration`                                              | `services/api/ai.ts` (both the meter and the run context), then the prompt's hard limit and a slice in `tools/plan.ts`                                             | outline truncated, and billed at the truncated size                   |
+| `textModelTier` / `imageModelTier`                                      | `modelFor` / `tierAllows` (`services/core/models.ts`); `modelCatalogue` marks locked ids                                                                           | an out-of-tier override falls back to the default                     |
+| `customDomains`                                                         | nowhere (`planned`, so it resolves to `0` on every plan)                                                                                                           | none                                                                  |
+| `workspaceThemes`, `apiAccess`, `sso`, `prioritySupport`, `earlyAccess` | nowhere (`planned`)                                                                                                                                                | always false                                                          |
 
 Two things in that table are easy to misread.
 
@@ -204,14 +207,14 @@ because billing is the one surface where admin is not enough. `GET /billing` and
 are readable by any member.
 
 ```
-GET  /billing            plan · status · periodEnd · cancelAtPeriodEnd · credits{used,limit,bonus,
+GET  /billing            plan · status · periodEnd · cancelAtPeriodEnd · credits{used,limit,
                          perGeneration,resetAt,mySpend} · usage{artifacts,storage} · seats ·
-                         scheduledChange · catalog · topUps · stripeReady
+                         includedSeats · scheduledChange · catalog · addOns ·
+                         addOnQuantities · stripeReady
 POST /billing/checkout   subscription-mode Checkout. 409 when stripeSubscriptionId is already set,
                          since a second checkout would double-bill.
-POST /billing/topup      payment-mode Checkout for a credit pack; 402 unless the plan allows top-ups.
 POST /billing/portal     the Stripe customer portal.
-POST /billing/change-plan up / down / seats / interval, in one route.
+POST /billing/change-plan up / down / seats / credit blocks / interval, in one route.
 POST /billing/resume     clears both a pending cancel and a scheduled change.
 GET  /billing/ledger     keyset-paginated credit history, 30 per page.
 POST /billing/webhook    unauthenticated, signature-verified, raw body.
@@ -253,14 +256,13 @@ One network call happens before the transaction on purpose: a `checkout.session.
 the subscription (and looks up whether it superseded an older one) outside the claim, so no database
 connection is held across a round trip to Stripe.
 
-| Event                                            | What it does                                                                                                                                                                                                                                                                                                     |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `checkout.session.completed` (payment mode)      | Re-derives the pack from `CREDIT_PACKS` by id rather than trusting a credit count in metadata, adds `pack.credits` to `ai_credits_bonus`, and writes a `topup:<pack>` ledger row.                                                                                                                                |
-| `checkout.session.completed` (subscription mode) | Locks the row, writes plan, status, customer, subscription, seats, period end, `cancel_at_period_end`, and **opens a fresh credit window** (`aiCreditsUsed: 0`, new start and reset). Non-zero prior usage leaves an `upgrade-reset` ledger row.                                                                 |
-| `customer.subscription.updated`                  | Syncs plan, status, seats, period end, and cancel flag. When the sub has no workspace, it may adopt one via `metadata.workspaceId`, but only if that workspace has **no** current subscription, so a stale event cannot hijack a newer one. Clears `scheduled_change` once the live sub matches what was parked. |
-| `customer.subscription.deleted`                  | Back to Free: `plan: "free"`, `planStatus: "canceled"`, `stripeSubscriptionId: null`, `seats: 1`, `planPeriodEnd: null`, both parking fields cleared.                                                                                                                                                            |
-| `invoice.payment_failed`                         | `planStatus: "past_due"` for the workspace matching the invoice customer.                                                                                                                                                                                                                                        |
-| `invoice.paid`                                   | A `subscription_cycle` invoice re-anchors the credit window (usage to 0, new 30-day bounds) and logs a `renewal-reset` row. Any other paid invoice only clears `past_due`.                                                                                                                                       |
+| Event                           | What it does                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `checkout.session.completed`    | Locks the row, writes plan, status, customer, subscription, seats, credit blocks, period end, `cancel_at_period_end`, and **opens a fresh credit window** (`aiCreditsUsed: 0`, new start and reset). Non-zero prior usage leaves an `upgrade-reset` ledger row.                                                                 |
+| `customer.subscription.updated` | Syncs plan, status, seats, credit blocks, period end, and cancel flag. When the sub has no workspace, it may adopt one via `metadata.workspaceId`, but only if that workspace has **no** current subscription, so a stale event cannot hijack a newer one. Clears `scheduled_change` once the live sub matches what was parked. |
+| `customer.subscription.deleted` | Back to Free: `plan: "free"`, `planStatus: "canceled"`, `stripeSubscriptionId: null`, `seats: 1`, `creditBlocks: 0`, `planPeriodEnd: null`, both parking fields cleared.                                                                                                                                                        |
+| `invoice.payment_failed`        | `planStatus: "past_due"` for the workspace matching the invoice customer.                                                                                                                                                                                                                                                       |
+| `invoice.paid`                  | A `subscription_cycle` invoice re-anchors the credit window (usage to 0, new 30-day bounds) and logs a `renewal-reset` row. Any other paid invoice only clears `past_due`.                                                                                                                                                      |
 
 A checkout that replaced a live subscription leaves the old one billing with nothing attached, so the
 superseded subscription is cancelled after the transaction commits, best effort: a failure there is
@@ -282,9 +284,53 @@ gate. What a turn actually buys, how the runtime meters it, and the route-level 
 
 ### The pool
 
-`creditLimitFor(ws)` = resolved `creditsPerMonth` × `max(1, seats)` on a per-seat plan, or the flat
-value on Free. The available balance at any moment is `max(0, limit - ai_credits_used) + ai_credits_bonus`.
-Bonus credits come from top-up packs, sit outside the monthly window, and are never reset.
+`creditLimitFor(ws)` is the whole monthly allowance and the only place the add-ons fold in:
+
+```
+limit = includedCredits                 the plan's own, after feature overrides
+      + extraSeats  × ADD_ONS.seat.credits      seats beyond the plan's included ones
+      + creditBlocks × ADD_ONS.credits.credits  the credit add-on's quantity
+```
+
+The available balance at any moment is `max(0, limit - ai_credits_used)`. There is one counter,
+because every credit arrives monthly and expires with the window: a bought credit is a recurring
+subscription item, not a one-off purchase, so nothing has to outlive the reset. That is what removed
+the second balance the earlier design carried, along with its spend ordering and its asymmetric
+refunds.
+
+`extraSeatsOf` returns zero on a plan that does not sell seats. This matters on a lapse: a workspace
+keeps its `seats` count until the `customer.subscription.deleted` webhook resets it, and must not
+draw seat credits it has stopped paying for.
+
+### Add-ons
+
+Two, both recurring, declared in `ADD_ONS`:
+
+| Add-on    | Unit              | Sold on         |
+| --------- | ----------------- | --------------- |
+| `seat`    | +1 seat, +credits | Premium only    |
+| `credits` | +credits, no seat | Pro and Premium |
+
+A subscription is therefore one plan item at quantity 1 plus up to two add-on items carrying their
+own quantities. `readSub` classifies the items by price id, which is why `seats` is read off the seat
+item rather than the plan item's quantity, and why anything unrecognised is ignored rather than
+guessed at. `addOnItemUpdates` reconciles them on a change: update where the item exists, add where it
+does not, and delete when the quantity falls to zero, since Stripe bills a zero-quantity line as a
+line.
+
+`pnpm stripe:setup` creates every product and price from this catalog and prints the env block that
+wires them up. It matches on a `galleo_*` lookup key rather than on name, so it is safe to re-run and
+safe against a fresh account: repricing creates a new Stripe price (they are immutable), transfers
+the lookup key to it, and archives the old one, leaving existing subscriptions billing where they
+were until they are next changed.
+
+Pricing holds two invariants, both asserted in `model/__tests__/billing.test.ts`: every add-on sells
+well above `CREDIT_USD`, and a bare credit costs more per credit than one bundled with a seat, so
+buying capacity never beats buying a colleague.
+
+Because add-ons are subscription quantities, buying one is a `POST /billing/change-plan`, not a
+separate purchase route, and it prorates and takes effect immediately like any other increase. A
+reduction parks at period end with the rest.
 
 ### The window
 
@@ -314,13 +360,13 @@ read would roll it", because a fixture that rolls itself on first page load is n
 
 `chargeCredits(ws, cost, reason, userId?, usage?)` opens a transaction, locks the workspace row
 `FOR UPDATE` so concurrent spends serialize and none passes a near-limit gate twice, refuses when
-`cost > available`, then drains the **monthly pool first and bonus second**. It reports `fromBonus` (how
-much of this charge bonus covered) and `entryId` (the ledger row it wrote).
+`cost > available`, and otherwise adds the cost to `ai_credits_used`. It reports `entryId`, the ledger
+row it wrote.
 
-`settleCredits(ws, entryId, delta, bonusFirst)` reconciles against the **live** row, so a spend that
-landed mid-turn survives and extra spend can push `ai_credits_used` past the cap. A refund
-(`delta < 0`) unwinds in reverse: it restores up to `bonusFirst` to bonus before touching the pool,
-because bonus is money the customer paid.
+`settleCredits(ws, entryId, delta)` reconciles against the **live** row, so a spend that landed
+mid-turn survives and extra spend can push `ai_credits_used` past the cap. A refund (`delta < 0`)
+simply subtracts, floored at zero. With one pool there is no ordering to preserve and no share of the
+charge to remember, which is what made the earlier `fromBonus` / `bonusFirst` pair necessary.
 
 The part that surprises people reading the `credits` table: a settle **rewrites the charge's own row**
 (`UPDATE credits SET delta = delta - $delta, balance_after = … WHERE id = $entryId`) instead of
@@ -442,21 +488,20 @@ Immediately after `createWorkspaceForUser`:
 - `plan: "free"` unless a plan was passed, `plan_status: "active"`, `seats: 1`;
 - no Stripe customer and no subscription, `scheduled_change` and `feature_overrides` null,
   `cancel_at_period_end` false, `plan_period_end` null;
-- `ai_credits_used: 0`, `ai_credits_bonus: 0`, and a 30-day window from now;
+- `ai_credits_used: 0`, `credit_blocks: 0`, and a 30-day window from now;
 - exactly one `members` row, the owner;
 - nothing else: no folders, no artifacts, no themes, no assets, no contexts.
 
-Resolved that way, a fresh workspace can hold 10 artifacts, 500 MB of stored media, 150 credits a month,
+Resolved that way, a fresh workspace can hold 10 artifacts, 500 MB of stored media, 100 credits a month,
 generations capped at 10 sections on basic models, PNG and PDF export with the Galleo mark, no custom
 themes, and no public links.
 
 ## The seeded demo workspaces (`pnpm seed`)
 
 `services/db/seed-workspaces.ts` declares the demo universe as data (six people, five workspaces, their
-folders, links, themes, ledgers), and `services/db/seed.ts` writes it. The split exists so a second
-seeder (the eval runs) can address the same workspaces without importing an entry point that would run
-the seed on import, and because `db/` may not reach into `core/`: documents are named in the spec and
-resolved to content by `seed.ts`.
+folders, links, themes, ledgers), and `services/db/seed.ts` writes it. The split exists so the specs can
+be read without importing an entry point that would run the seed on import, and because `db/` may not
+reach into `core/`: documents are named in the spec and resolved to content by `seed.ts`.
 
 Two properties are worth knowing before reading the fixtures. A workspace is found by slug and then
 **every column the spec owns is rewritten**, so a workspace that has been clicked around in converges
@@ -464,46 +509,63 @@ back onto the spec rather than keeping its drifted plan and counters. And `syncM
 rather than wipes, so `members.created_at` (the "joined" column, and the fallback ordering in
 `currentWorkspace`) stays stable across reseeds.
 
-`demo@galleo.app` is a member of all five, because `/eval` reads the caller's current workspace and
-every other surface resolves through `members`, so a workspace they cannot switch into would be dead
-data.
+`demo@galleo.app` is a member of all five, because every surface resolves through `members`, so a
+workspace they cannot switch into would be dead data.
 
-| Slug             | Plan · status      | Demo's role | Seats vs people                | What it exercises                                                                                                                                                                                                                        |
-| ---------------- | ------------------ | ----------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `demo`           | premium · active   | owner       | 8 seats, 4 members + 2 invites | the healthy team: member management (the owner-only surface that works without Stripe), a topped-up ledger (1,000 bonus credits and a 100-credit video), pinned share links, contexts, assets                                            |
-| `ridgeline`      | pro · active       | admin       | 3 seats, 3 members (full)      | a scheduled downgrade to Free parked at period end, an `analytics: true` override widening Pro, a `creditsPerMonth: 280` override narrowing the pool so the meter is readable, and a full seat table so an invite takes the no-seats 402 |
-| `harbor`         | free · canceled    | admin       | 1 seat, 2 members (over)       | the churned workspace: exactly 10 live artifacts (at the Free cap, so `POST /artifacts` 402s), a `storageMb: 1` override to make the storage wall reachable, and a ledger landing at 146 of 150 credits                                  |
-| `weekend`        | pro · active       | member      | 2 seats, 2 members             | the empty state, and a plain member's view. Pro rather than Free precisely because a never-subscribed Free workspace can only hold one member, since `acceptInvite` refuses at `members.length >= ws.seats`                              |
-| `helios-climate` | premium · past_due | member      | 6 seats, 6 members             | dunning: a failed renewal with a period end three days in the past, driving the banner in Pricing and Settings                                                                                                                           |
+| Slug             | Plan · status      | Demo's role | Seats vs people                               | What it exercises                                                                                                                                                                      |
+| ---------------- | ------------------ | ----------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `demo`           | premium · active   | owner       | 8 seats (3 + 5 add-on), 4 members + 2 invites | the healthy team: member management (the owner-only surface that works without Stripe), both add-ons in play (5 extra seats and 2 credit blocks), pinned share links, contexts, assets |
+| `ridgeline`      | premium · active   | admin       | 3 seats (all included), 3 members (full)      | a scheduled downgrade to Pro parked at period end, a `maxArtifacts: 40` override narrowing Premium, and a full seat table so an invite takes the no-seats 402                          |
+| `harbor`         | free · canceled    | admin       | 1 seat, 2 members (over)                      | the churned workspace: exactly 10 live artifacts (at the Free cap, so `POST /artifacts` 402s), a `storageMb: 1` override to make the storage wall reachable, and a ledger at 95 of 100 |
+| `weekend`        | pro · active       | owner       | 1 seat, 1 member                              | the Pro fixture and the empty state. Pro is single-seat, so the demo user owns it; being a plain member of someone else's workspace is covered by `helios-climate`                     |
+| `helios-climate` | premium · past_due | member      | 6 seats (3 + 3 add-on), 6 members             | dunning: a failed renewal with a period end three days in the past, driving the banner in Pricing and Settings                                                                         |
 
-`harbor` is the worked example for the credit gate. At 146 of 150 used and no bonus, `rewrite-text`
-(1 credit) still passes, while `ask-assistant` (holds 10 through its ceiling) and `generate-artifact`
-(holds roughly 40) both take the 402 branch, so one workspace demonstrates the gate without being
-uniformly dead.
+`harbor` is the worked example for the credit gate. At 95 of 100 used, `rewrite-text` (1 credit) still
+passes, while `ask-assistant` (holds 10 through its ceiling) and `generate-artifact` (holds roughly 40)
+both take the 402 branch, so one workspace demonstrates the gate without being uniformly dead.
 
-`seedLedger` replays each spec's charges oldest-first with the same pool-then-bonus arithmetic as
-`chargeCredits`, so `balance_after`, `ai_credits_used`, and `ai_credits_bonus` cannot disagree with the
-history above them; a `monthly-reset` row takes its delta from the replay and is skipped when nothing
-was spent, matching `rollCreditWindow`. Invite tokens are derived (`<slug>-<handle>-demo`) rather than
+`seedLedger` replays each spec's charges oldest-first with the same arithmetic as `chargeCredits`, so
+`balance_after` and `ai_credits_used` cannot disagree with the history above them, and it throws on a
+spec that outspends its plan rather than clamping into a state no request path can reach. A
+`monthly-reset` row takes its delta from the replay and is skipped when nothing was spent, matching
+`rollCreditWindow`. Invite tokens are derived (`<slug>-<handle>-demo`) rather than
 random, so an accept URL survives a reseed and can be pasted into `/invite/:token`.
 
-Verified against the live seeded database (container `galleo-pg`): `demo` is premium with 8 seats,
-291 used against a 48,000 pool plus 1,000 bonus; `ridgeline` is pro with 3 seats and 737 used against
-the overridden 280 × 3 = 840 pool, carrying a `scheduled_change` to free; `harbor` is free/canceled with
-1 seat, 2 members, 10 live artifacts, and 146 used of 150; `weekend` holds zero artifacts;
-`helios-climate` is premium/past_due with 6 members. The ledger's `balance_after` column tracks the
-replay exactly (48,885 immediately after the 1,000-credit top-up, 48,709 at the end).
+Verified against the live seeded database (container `galleo-pg`): `demo` is premium with 8 seats and
+2 credit blocks, 291 used against a 7,400 limit (2,400 + 5 × 800 + 2 × 500); `ridgeline` is premium at
+its 3 included seats with 737 used of 2,400, carrying a `scheduled_change` to Pro; `harbor` is
+free/canceled with 1 seat, 2 members, 10 live artifacts, and 95 used of 100; `weekend` is Pro with one
+seat and zero artifacts; `helios-climate` is premium/past_due with 6 seats and 4,800 credits. The
+ledger's `balance_after` column tracks the replay exactly, ending at 7,109.
+
+### Walls in the UI
+
+A 402 is the server's answer; the client's answer is one pair in `app/components/Upgrade.tsx`.
+`UpgradeButton` is the CTA and `UpgradeNotice` is the blocked-feature block (`inline` inside a pane,
+`block` centred in an empty one). Both derive the tier they name from `upgradeFor(key, currentPlan)`
+in `@model/billing`, which walks the visible plans and reads the **resolved** set, so an unbuilt
+feature has no upgrade target and the copy says "coming soon" instead of selling a plan that would
+not deliver it. Nothing writes "available on Pro" by hand.
+
+Every wall routes to `/pricing`, where `UpgradePageContent` (`app/components/UpgradePlans.tsx`)
+renders the plan grid and owns the flow: free → paid opens Checkout, paid → paid is an in-app
+`change-plan`, and → free cancels at period end. `PricingView` is that component plus the usage
+cards, the tool-price table, and the ledger, so a second entry point to the same grid costs one
+import rather than a second implementation.
+
+The rule of thumb is to render a wall rather than hide the control: a surface the user can reach and
+read beats one that silently is not there. The editor is the exception by layering, since `editor/`
+may not import `app/`; it receives an `onUpgrade` callback from `EditorView` instead.
+
+Both cap checks route through `checkLimit`, and both feature reads on the client route through the
+resolved set (`can` / `exportFormatsOf` in `app/stores/features.ts`) rather than `limitsFor(planId)`,
+which sees only the plan and would silently ignore a workspace's `featureOverrides`.
 
 ## Known gaps
 
-- `checkLimit` is defined and unit-tested but unused; `POST /artifacts` open-codes the same 402.
-- `plan.ai.creditsRollover` is a catalog field no code reads. Unused credits are dropped at the roll.
-- `account.maxMembers` is meaningless as written (1 everywhere, enforced nowhere) and invites the wrong
-  conclusion when read through `Features`.
-- The editor's export gate reads `limitsFor(plan)`, so `feature_overrides` do not reach it, unlike every
-  other gate.
-- `plan_status` gates nothing. A `past_due` workspace keeps full entitlements until Stripe deletes the
-  subscription.
+- Unused credits are dropped at the roll; there is no rollover, and no field claiming otherwise.
+- `plan_status` gates nothing: a `past_due` workspace keeps full entitlements until Stripe deletes the
+  subscription. That reads as a deliberate dunning grace period, but nothing records the decision.
 - Unknown price ids in webhooks are claimed and skipped silently, since there is no ops or logging story
   yet and `console` is banned in app code.
 - `POST /billing/portal` does not check `stripeReady()`, so it can reach `stripe()` and throw where its

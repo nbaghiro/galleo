@@ -89,6 +89,55 @@ describe("artifact routes", () => {
         expect(body.upgrade).toBe(true);
     });
 
+    // the hole this closes: trash one, create one, restore the first, and you are over the cap
+    it("restoring from Trash is capped too, not just creating", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "free" });
+        const [trashed] = await db
+            .insert(schema.artifacts)
+            .values({
+                workspaceId,
+                formatId: "deck",
+                themeId: "studio",
+                trashedAt: new Date(),
+            })
+            .returning();
+        await db.insert(schema.artifacts).values(
+            Array.from({ length: 10 }, () => ({
+                workspaceId,
+                formatId: "deck",
+                themeId: "studio",
+            })),
+        );
+        const res = await authed(userId, `/artifacts/${trashed!.id}/restore`, jsonInit("POST", {}));
+        expect(res.status).toBe(402);
+        expect(((await res.json()) as { upgrade?: boolean }).upgrade).toBe(true);
+        const [still] = await db
+            .select({ trashedAt: schema.artifacts.trashedAt })
+            .from(schema.artifacts)
+            .where(eq(schema.artifacts.id, trashed!.id));
+        expect(still!.trashedAt).not.toBeNull(); // refused, not silently restored
+    });
+
+    it("restores freely while the workspace is under the cap", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "free" });
+        const [trashed] = await db
+            .insert(schema.artifacts)
+            .values({
+                workspaceId,
+                formatId: "deck",
+                themeId: "studio",
+                trashedAt: new Date(),
+            })
+            .returning();
+        const res = await authed(userId, `/artifacts/${trashed!.id}/restore`, jsonInit("POST", {}));
+        expect(res.status).toBe(200);
+        const [row] = await db
+            .select({ trashedAt: schema.artifacts.trashedAt })
+            .from(schema.artifacts)
+            .where(eq(schema.artifacts.id, trashed!.id));
+        expect(row!.trashedAt).toBeNull();
+    });
+
     it("the cap counts only LIVE artifacts — a trashed one leaves a slot free", async () => {
         const { userId, workspaceId } = await seedUser({ plan: "free" });
         // 9 live + 1 trashed = 10 rows, but only 9 count against the cap.

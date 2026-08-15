@@ -2,15 +2,22 @@ import type { Context, MiddlewareHandler } from "hono";
 import { setCookie, deleteCookie } from "hono/cookie";
 import { getConnInfo } from "@hono/node-server/conninfo";
 import type { BoolFeature, NumFeature, PlanBearer } from "@model/billing";
-import { can, featuresFor, limit, withinLimit } from "@model/billing";
+import { can, canTopUp, canUpgradeFrom, featuresFor, limit, withinLimit } from "@model/billing";
 import { makeSession, SESSION_COOKIE, SESSION_TTL_SECONDS } from "./auth";
 
 // The HTTP toolkit: everything here is database-free, so it stays unit-testable. Anything that
 // reads a row lives in domain/ (see domain/accounts.ts for the session/workspace readers).
 
-// the one 402 body every metered route returns, so the client's upgrade prompt has a single shape
-export const OUT_OF_CREDITS = (remaining: number) =>
-    ({ error: "out of AI credits", upgrade: true, remaining }) as const;
+// The one 402 body every metered route returns. Which remedies apply depends on the plan and both
+// can be false-y at once in neither direction: Premium has nothing above it to upgrade to, and Free
+// may not buy packs, so a body that always said "upgrade" told a Premium workspace to do the one
+// thing it cannot.
+export const OUT_OF_CREDITS = (ws: PlanBearer, remaining: number) => ({
+    error: "out of AI credits",
+    remaining,
+    upgrade: canUpgradeFrom(ws.plan),
+    topUp: canTopUp(ws.plan),
+});
 
 // Defaults to {} on missing/malformed body, so field checks see undefined.
 export async function readJson<T>(c: Context): Promise<T> {

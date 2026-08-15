@@ -1,23 +1,14 @@
 import type { Component } from "solid-js";
 import { createMemo, createResource, createSignal, For, onMount, Show } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
-import type { Interval, Plan, PlanId } from "@model/billing";
+import type { PlanId } from "@model/billing";
 import { PRICED_TOOLS, costRange, isMetered, typicalCost } from "@model/tools";
-import { CheckIcon } from "@ui/icons";
-import { Badge, Eyebrow, Spinner } from "@ui/button";
-import { TextField } from "@ui/inputs";
+import { Badge, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { Meter } from "@ui/status";
 import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
+import { UpgradePageContent } from "@app/components/UpgradePlans";
 import { api } from "@app/api";
-import {
-    billing,
-    changePlan,
-    loadBilling,
-    openPortal,
-    resumePlan,
-    startCheckout,
-    startTopUp,
-} from "@app/stores/billing";
+import { billing, changePlan, loadBilling, openPortal, resumePlan } from "@app/stores/billing";
 
 export const PricingView: Component = () => {
     const [params] = useSearchParams();
@@ -50,13 +41,6 @@ export const PricingView: Component = () => {
         return limit > 0 ? Math.floor(limit / cost) : null;
     };
 
-    const [interval, setInterval] = createSignal<Interval>("month");
-    const [seats, setSeats] = createSignal(1);
-    const RANK: Record<PlanId, number> = { free: 0, pro: 1, premium: 2 };
-    const perSeat = (plan: Plan): boolean => plan.billing.model === "per_seat";
-    const unitPrice = (plan: Plan): number =>
-        interval() === "year" ? plan.billing.priceAnnualMonthly : plan.billing.priceMonthly;
-    const seatsFor = (plan: Plan): number => Math.max(seats(), plan.billing.minSeats);
     const overLimit = (): boolean => {
         const u = b()?.usage;
         return !!u && u.maxArtifacts >= 0 && u.artifacts > u.maxArtifacts;
@@ -79,30 +63,6 @@ export const PricingView: Component = () => {
         }
     };
 
-    const pick = (plan: Plan): void => {
-        if (plan.id === current()) return;
-        if (plan.id === "free") {
-            void run(plan.id, () => changePlan({ plan: "free" })); // cancel at period end
-            return;
-        }
-        const opts = {
-            plan: plan.id,
-            interval: interval(),
-            seats: perSeat(plan) ? seatsFor(plan) : undefined,
-        };
-        // free → paid needs Checkout (collect a payment method); paid → paid is an in-app change.
-        void run(plan.id, () => (current() === "free" ? startCheckout(opts) : changePlan(opts)));
-    };
-
-    const ctaLabel = (plan: Plan): string => {
-        if (plan.id === current()) return "Current plan";
-        if (plan.id === "free") return "Downgrade to Free";
-        if (current() === "free") return `Upgrade to ${plan.name}`;
-        return RANK[plan.id] > RANK[current()]
-            ? `Upgrade to ${plan.name}`
-            : `Switch to ${plan.name}`;
-    };
-
     return (
         <div class="flex h-dvh bg-canvas text-ink">
             <Sidebar />
@@ -120,12 +80,6 @@ export const PricingView: Component = () => {
                         <div class="mb-5 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-[13px] text-ink">
                             🎉 Payment received — your plan updates the moment Stripe confirms it
                             (usually a second or two). Refresh if it still shows the old tier.
-                        </div>
-                    </Show>
-                    <Show when={params.status === "topup-success"}>
-                        <div class="mb-5 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-[13px] text-ink">
-                            🎉 Credits purchased — they land in your bonus balance the moment Stripe
-                            confirms the payment (usually a second or two).
                         </div>
                     </Show>
                     <Show when={params.status === "cancel"}>
@@ -212,7 +166,11 @@ export const PricingView: Component = () => {
                     <Show when={b()}>
                         {(state) => (
                             <div class="mb-8 grid grid-cols-2 gap-3 sm:max-w-130">
-                                <div class="rounded-xl border border-line bg-panel px-4 py-3">
+                                {/* the out-of-credits modal links straight here */}
+                                <div
+                                    id="credits"
+                                    class="scroll-mt-6 rounded-xl border border-line bg-panel px-4 py-3"
+                                >
                                     <Eyebrow as="div">AI credits left</Eyebrow>
                                     <div class="mt-1 flex items-baseline gap-1.5 tabular-nums">
                                         <span class="text-[20px] font-bold">
@@ -221,11 +179,6 @@ export const PricingView: Component = () => {
                                         <span class="text-[13px] text-muted">
                                             of {state().credits.limit.toLocaleString()}
                                         </span>
-                                        <Show when={state().credits.bonus > 0}>
-                                            <span class="text-[12px] font-semibold text-accent">
-                                                +{state().credits.bonus} bonus
-                                            </span>
-                                        </Show>
                                     </div>
                                     <Meter
                                         value={creditsLeft()}
@@ -237,26 +190,70 @@ export const PricingView: Component = () => {
                                         resets{" "}
                                         {new Date(state().credits.resetAt).toLocaleDateString()}
                                     </div>
-                                    <Show when={state().topUps.length > 0 && ready()}>
-                                        <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
-                                            <For each={state().topUps}>
-                                                {(pack) => (
-                                                    <button
-                                                        class="inline-flex items-center gap-1 rounded-md border border-line bg-canvas px-2 py-1 text-[11.5px] font-semibold hover:border-accent disabled:opacity-60"
-                                                        disabled={anyBusy()}
-                                                        onClick={() =>
-                                                            void run(`topup:${pack.id}`, () =>
-                                                                startTopUp(pack.id),
-                                                            )
-                                                        }
-                                                    >
-                                                        <Show when={busy(`topup:${pack.id}`)}>
-                                                            <Spinner size={11} tone="current" />
-                                                        </Show>
-                                                        +{pack.credits.toLocaleString()} · $
-                                                        {pack.priceUsd}
-                                                    </button>
-                                                )}
+                                    {/* add-ons are subscription quantities, so they go through
+                                        change-plan the same way a seat change does */}
+                                    <Show when={state().addOns.length > 0 && ready()}>
+                                        <div class="mt-2.5 flex flex-col gap-1.5">
+                                            <For each={state().addOns}>
+                                                {(addOn) => {
+                                                    const qty = (): number =>
+                                                        state().addOnQuantities[addOn.id] ?? 0;
+                                                    const key = `addon:${addOn.id}`;
+                                                    const set = (n: number): void => {
+                                                        void run(key, () =>
+                                                            changePlan(
+                                                                addOn.id === "seat"
+                                                                    ? {
+                                                                          seats:
+                                                                              state()
+                                                                                  .includedSeats +
+                                                                              Math.max(0, n),
+                                                                      }
+                                                                    : {
+                                                                          creditBlocks: Math.max(
+                                                                              0,
+                                                                              n,
+                                                                          ),
+                                                                      },
+                                                            ),
+                                                        );
+                                                    };
+                                                    return (
+                                                        <div class="flex items-center gap-1.5 text-[11.5px]">
+                                                            <span class="flex-1 truncate text-soft">
+                                                                {addOn.label} · +
+                                                                {addOn.credits.toLocaleString()} cr
+                                                                · ${addOn.priceUsd}/mo
+                                                            </span>
+                                                            <Show when={busy(key)}>
+                                                                <Spinner size={11} tone="current" />
+                                                            </Show>
+                                                            <IconButton
+                                                                size="xs"
+                                                                rounded="md"
+                                                                bordered
+                                                                disabled={anyBusy() || qty() === 0}
+                                                                onClick={() => set(qty() - 1)}
+                                                                title={`One fewer ${addOn.label}`}
+                                                            >
+                                                                −
+                                                            </IconButton>
+                                                            <span class="w-4 text-center font-semibold tabular-nums">
+                                                                {qty()}
+                                                            </span>
+                                                            <IconButton
+                                                                size="xs"
+                                                                rounded="md"
+                                                                bordered
+                                                                disabled={anyBusy()}
+                                                                onClick={() => set(qty() + 1)}
+                                                                title={`One more ${addOn.label}`}
+                                                            >
+                                                                +
+                                                            </IconButton>
+                                                        </div>
+                                                    );
+                                                }}
                                             </For>
                                         </div>
                                     </Show>
@@ -301,123 +298,7 @@ export const PricingView: Component = () => {
                         )}
                     </Show>
 
-                    <div class="mb-4 flex flex-wrap items-center gap-3">
-                        <div class="inline-flex rounded-lg border border-line bg-panel p-0.5 text-[12px] font-semibold">
-                            <button
-                                class={`rounded-md px-3 py-1 ${interval() === "month" ? "bg-canvas text-ink shadow-sm" : "text-muted"}`}
-                                onClick={() => setInterval("month")}
-                            >
-                                Monthly
-                            </button>
-                            <button
-                                class={`rounded-md px-3 py-1 ${interval() === "year" ? "bg-canvas text-ink shadow-sm" : "text-muted"}`}
-                                onClick={() => setInterval("year")}
-                            >
-                                Annual <span class="text-accent">· save ~2 mo</span>
-                            </button>
-                        </div>
-                        <label class="inline-flex items-center gap-2 text-[12px] text-muted">
-                            Seats
-                            <TextField
-                                type="number"
-                                min={1}
-                                value={String(seats())}
-                                onChange={(v) => setSeats(Math.max(1, Math.floor(Number(v) || 1)))}
-                                class="w-16"
-                            />
-                            <span class="text-[11px]">for per-seat plans</span>
-                        </label>
-                    </div>
-
-                    <div class="grid gap-4 md:grid-cols-3">
-                        <For each={b()?.catalog ?? []}>
-                            {(plan) => {
-                                const isCurrent = (): boolean => plan.id === current();
-                                // paying users see THEIR tier featured; Pro is the upsell card only for free
-                                const featured = (): boolean =>
-                                    plan.id === (current() === "free" ? "pro" : current());
-                                return (
-                                    <div
-                                        class={`flex flex-col rounded-2xl border p-5 ${
-                                            featured()
-                                                ? "border-accent shadow-lg"
-                                                : "border-line bg-panel"
-                                        }`}
-                                    >
-                                        <div class="flex items-center justify-between">
-                                            <span class="text-[15px] font-bold">{plan.name}</span>
-                                            <Show
-                                                when={isCurrent()}
-                                                fallback={
-                                                    <Show when={plan.badge && current() === "free"}>
-                                                        <Badge tone="accentSolid">
-                                                            {plan.badge}
-                                                        </Badge>
-                                                    </Show>
-                                                }
-                                            >
-                                                <Badge tone="accentSolid">Your plan</Badge>
-                                            </Show>
-                                        </div>
-                                        <p class="mt-0.5 text-[12.5px] text-muted">
-                                            {plan.tagline}
-                                        </p>
-                                        <div class="mt-3 flex items-baseline gap-1">
-                                            <span class="text-[30px] font-bold tracking-[-0.02em]">
-                                                ${unitPrice(plan)}
-                                            </span>
-                                            <span class="text-[13px] text-muted">
-                                                {perSeat(plan) ? "/ seat / mo" : "/ mo"}
-                                            </span>
-                                        </div>
-                                        <div class="mt-0.5 min-h-4 text-[11.5px] text-muted">
-                                            <Show
-                                                when={interval() === "year" && unitPrice(plan) > 0}
-                                            >
-                                                billed annually
-                                            </Show>
-                                            <Show when={perSeat(plan) && seats() > 1}>
-                                                {" · "}${unitPrice(plan) * seatsFor(plan)}/mo ×{" "}
-                                                {seatsFor(plan)} seats
-                                            </Show>
-                                        </div>
-                                        <ul class="mt-4 flex flex-1 flex-col gap-2">
-                                            <For each={plan.highlights}>
-                                                {(h) => (
-                                                    <li class="flex items-start gap-2 text-[13px] text-soft">
-                                                        <span class="mt-0.5 flex-none text-accent">
-                                                            <CheckIcon size={14} />
-                                                        </span>
-                                                        {h}
-                                                    </li>
-                                                )}
-                                            </For>
-                                        </ul>
-                                        <button
-                                            class={`mt-5 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors disabled:opacity-50 ${
-                                                isCurrent()
-                                                    ? "border border-line text-soft"
-                                                    : featured()
-                                                      ? "bg-accent text-onaccent hover:opacity-90"
-                                                      : "border border-line text-ink hover:border-accent"
-                                            }`}
-                                            disabled={
-                                                isCurrent() ||
-                                                (plan.id !== "free" && !ready()) ||
-                                                anyBusy()
-                                            }
-                                            onClick={() => pick(plan)}
-                                        >
-                                            <Show when={busy(plan.id)}>
-                                                <Spinner size={14} tone="current" />
-                                            </Show>
-                                            {busy(plan.id) ? "Processing…" : ctaLabel(plan)}
-                                        </button>
-                                    </div>
-                                );
-                            }}
-                        </For>
-                    </div>
+                    <UpgradePageContent />
 
                     <section class="mt-12">
                         <h2 class="text-[16px] font-bold tracking-[-0.01em]">

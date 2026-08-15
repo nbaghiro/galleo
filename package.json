@@ -11,7 +11,6 @@
         "check:models": "node scripts/check-models.mjs",
         "check:elements": "tsx scripts/check-elements.ts",
         "eval:diagrams": "vitest run canvas/elements/diagram/__tests__/visual-invariants.test.ts",
-        "eval:capture": "tsx scripts/capture-eval-fixtures.ts",
         "check:boundaries": "node scripts/check-boundaries.mjs",
         "test": "vitest run",
         "test:watch": "vitest",
@@ -32,6 +31,7 @@
         "ai:eval": "tsx services/core/ai/eval/harness.ts",
         "ai:probe": "tsx services/core/ai/eval/probe.ts",
         "db:push": "drizzle-kit push",
+        "stripe:setup": "tsx scripts/stripe-setup.ts",
         "db:generate": "drizzle-kit generate",
         "db:migrate": "drizzle-kit migrate"
     },

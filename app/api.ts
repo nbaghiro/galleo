@@ -16,8 +16,8 @@ import type { Folder, User, WorkspaceRole } from "@model/workspace";
 import type { Template } from "@model/templates";
 import type { ThemeSummary as Theme, ThemeInput, Tokens } from "@themes";
 import type {
-    CreditPack,
-    CreditPackId,
+    AddOn,
+    AddOnId,
     Interval,
     Plan,
     PlanId,
@@ -53,8 +53,7 @@ export interface BillingState {
     cancelAtPeriodEnd: boolean;
     credits: {
         used: number;
-        limit: number;
-        bonus: number;
+        limit: number; // the whole monthly allowance: plan + seat add-on + credit blocks
         perGeneration: number;
         resetAt: string;
         mySpend: number; // the caller's own spend this cycle
@@ -62,8 +61,10 @@ export interface BillingState {
     usage: { artifacts: number; maxArtifacts: number; storageMb: number; maxStorageMb: number };
     scheduledChange: ScheduledChange | null; // a downgrade parked at period end
     seats: number;
+    includedSeats: number; // what the plan covers; anything above is the seat add-on
     catalog: Plan[];
-    topUps: CreditPack[];
+    addOns: AddOn[]; // purchasable here, so an unconfigured price is already filtered out
+    addOnQuantities: Record<AddOnId, number>;
     stripeReady: boolean;
 }
 
@@ -274,10 +275,20 @@ export type { ThemeSummary as ApiTheme } from "@themes";
 
 import { modelHeaders } from "./stores/models";
 
+/** The remedies a 402 body offers; absent on every other failure. */
+export interface ErrorRemedies {
+    upgrade?: boolean;
+    topUp?: boolean;
+    remaining?: number;
+}
+
 export class ApiError extends Error {
     constructor(
         public status: number,
         message: string,
+        // carried through so the client offers what the server says applies, rather than guessing
+        // from the status: which remedy is available depends on the workspace's plan
+        public remedies: ErrorRemedies = {},
     ) {
         super(message);
     }
@@ -297,10 +308,14 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
         // non-JSON body — don't surface a parse error
     }
     if (!res.ok) {
+        const body = data as { error?: string } & ErrorRemedies;
         const msg =
-            (data as { error?: string }).error ??
-            (res.status >= 500 ? "Server error — please try again" : res.statusText);
-        throw new ApiError(res.status, msg);
+            body.error ?? (res.status >= 500 ? "Server error — please try again" : res.statusText);
+        throw new ApiError(res.status, msg, {
+            upgrade: body.upgrade,
+            topUp: body.topUp,
+            remaining: body.remaining,
+        });
     }
     return data as T;
 }
@@ -517,12 +532,22 @@ export const api = {
         }),
     getBilling: () => req<BillingState>("/billing"),
     getFeatures: () => req<FeaturesState>("/features"),
-    checkout: (opts: { plan: PlanId; interval?: Interval; seats?: number }) =>
+    checkout: (opts: {
+        plan: PlanId;
+        interval?: Interval;
+        seats?: number;
+        creditBlocks?: number;
+    }) =>
         req<{ url: string }>("/billing/checkout", {
             method: "POST",
             body: JSON.stringify(opts),
         }),
-    changePlan: (opts: { plan?: PlanId; interval?: Interval; seats?: number }) =>
+    changePlan: (opts: {
+        plan?: PlanId;
+        interval?: Interval;
+        seats?: number;
+        creditBlocks?: number;
+    }) =>
         req<{ ok?: boolean; effect?: string }>("/billing/change-plan", {
             method: "POST",
             body: JSON.stringify(opts),
@@ -530,8 +555,6 @@ export const api = {
     resumePlan: () => req<{ ok?: boolean }>("/billing/resume", { method: "POST" }),
     getLedger: (cursor?: string | null) =>
         req<LedgerPage>(`/billing/ledger${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
-    topUp: (pack: CreditPackId) =>
-        req<{ url: string }>("/billing/topup", { method: "POST", body: JSON.stringify({ pack }) }),
     getWorkspace: () => req<WorkspaceState>("/workspace"),
 
     // the eval playground; 404s for anyone who is not an eval admin

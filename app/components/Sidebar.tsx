@@ -485,11 +485,6 @@ const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }>
                 </span>
                 <span>resets in {resetsIn()}d</span>
             </div>
-            <Show when={props.b.credits.bonus > 0}>
-                <div class="mt-0.5 text-[10.5px] tabular-nums text-muted">
-                    +{props.b.credits.bonus.toLocaleString()} bonus, never expires
-                </div>
-            </Show>
             <a
                 class={`mt-1.5 block cursor-pointer text-[11.5px] font-semibold ${pastDue() ? "text-accent" : "text-accent"}`}
                 onClick={() => props.navigate("/pricing")}

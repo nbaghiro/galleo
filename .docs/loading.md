@@ -173,6 +173,12 @@ viewport already accounts for the strip's horizontal clipping, so one observer c
 neither needs tile geometry. Requests split into batches of 8 rather than truncating, and sections are
 held per artifact in an LRU of 30 cards, so scrolling a long library does not accumulate it.
 
+The eval list row borrows the strip's layout but not its loading. It renders `run.lead`, whole
+sections the list response already carries, so there is nothing to observe and no stand-in to paint;
+`LEAD_SECTIONS` bounds that payload rather than the layout. Both strips scroll sideways and show every
+tile they hold rather than measuring how many fit and counting the remainder, so a row reads the same
+at any width.
+
 The same window drives the continuous Present surface (and therefore the public viewer) and the preview
 canvas in the templates and share modals. Present's paged mode no longer lays out every section just to
 compute the slide total: it counts up to one section ahead of the viewer and treats the rest as one

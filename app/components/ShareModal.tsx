@@ -1,11 +1,11 @@
 import type { Component } from "solid-js";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import { useNavigate } from "@solidjs/router";
 import { api, type LinkState, type ShareRecipient, type Visibility } from "@app/api";
 import { closeShare, shareRequest, type ShareRequest } from "@app/stores/share";
 import { flushAutosave } from "@app/stores/save";
-import { can, isComingSoon, loadFeatures } from "@app/stores/features";
+import { can, loadFeatures } from "@app/stores/features";
+import { UpgradeNotice } from "@app/components/Upgrade";
 import { relativeTime } from "@app/stores/library";
 import { overlayThemeVars } from "@app/stores/theme";
 import {
@@ -54,7 +54,6 @@ export const ShareModal: Component = () => (
 );
 
 const SharePanel: Component<{ req: ShareRequest }> = (props) => {
-    const navigate = useNavigate();
     const vars = overlayThemeVars(); // stamp the editor theme at open
 
     const [links, setLinks] = createSignal<LinkState[]>([]);
@@ -138,7 +137,19 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
 
             <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
                 <Show when={!loading()} fallback={<Loading />}>
-                    <Show when={!gated()} fallback={<Upgrade onGo={() => navigate("/pricing")} />}>
+                    <Show
+                        when={!gated()}
+                        fallback={
+                            <UpgradeNotice
+                                feature="publicLinks"
+                                title="Publishing is a paid feature"
+                                layout="block"
+                                onBefore={closeShare}
+                            >
+                                Publish your work to a public, protected, or invite-only link.
+                            </UpgradeNotice>
+                        }
+                    >
                         <Show
                             when={links().length}
                             fallback={
@@ -187,7 +198,7 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                         </Show>
 
                         <Show when={err()}>
-                            <p class="mt-3 text-[12px] text-red-500">{err()}</p>
+                            <p class="mt-3 text-[12px] text-fail">{err()}</p>
                         </Show>
 
                         <Show when={links().length}>
@@ -671,23 +682,4 @@ const EmailChips: Component<{
 
 const Loading: Component = () => (
     <div class="grid place-items-center py-10 text-[12px] text-muted">Loading…</div>
-);
-
-const Upgrade: Component<{ onGo: () => void }> = (props) => (
-    <div class="py-4 text-center">
-        <div class="mb-1 text-[14px] font-semibold">
-            {isComingSoon("publicLinks")
-                ? "Public links — coming soon"
-                : "Publishing is a paid feature"}
-        </div>
-        <p class="mx-auto mb-4 max-w-85 text-[12px] leading-relaxed text-muted">
-            Publish your work to a public, protected, or invite-only link. Available on Pro and
-            Premium.
-        </p>
-        <Show when={!isComingSoon("publicLinks")}>
-            <Button variant="primary" onClick={() => (closeShare(), props.onGo())}>
-                See plans
-            </Button>
-        </Show>
-    </div>
 );
