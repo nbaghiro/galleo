@@ -18,6 +18,8 @@ import type { ThemeSummary as Theme, ThemeInput, Tokens } from "@themes";
 import type {
     AddOn,
     AddOnId,
+    CreditPack,
+    CreditPackId,
     Interval,
     Plan,
     PlanId,
@@ -52,8 +54,8 @@ export interface BillingState {
     periodEnd: string | null;
     cancelAtPeriodEnd: boolean;
     credits: {
-        used: number;
-        limit: number; // the whole monthly allowance: plan + seat add-on + credit blocks
+        balance: number; // spendable now; unspent credits carry across the roll
+        monthlyGrant: number; // what the subscription adds at each roll
         perGeneration: number;
         resetAt: string;
         mySpend: number; // the caller's own spend this cycle
@@ -63,8 +65,9 @@ export interface BillingState {
     seats: number;
     includedSeats: number; // what the plan covers; anything above is the seat add-on
     catalog: Plan[];
-    addOns: AddOn[]; // purchasable here, so an unconfigured price is already filtered out
+    addOns: AddOn[]; // recurring, purchasable here (an unconfigured price is already filtered out)
     addOnQuantities: Record<AddOnId, number>;
+    packs: CreditPack[]; // one-off credit purchases
     stripeReady: boolean;
 }
 
@@ -542,12 +545,7 @@ export const api = {
             method: "POST",
             body: JSON.stringify(opts),
         }),
-    changePlan: (opts: {
-        plan?: PlanId;
-        interval?: Interval;
-        seats?: number;
-        creditBlocks?: number;
-    }) =>
+    changePlan: (opts: { plan?: PlanId; interval?: Interval; seats?: number }) =>
         req<{ ok?: boolean; effect?: string }>("/billing/change-plan", {
             method: "POST",
             body: JSON.stringify(opts),
@@ -555,6 +553,8 @@ export const api = {
     resumePlan: () => req<{ ok?: boolean }>("/billing/resume", { method: "POST" }),
     getLedger: (cursor?: string | null) =>
         req<LedgerPage>(`/billing/ledger${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
+    topUp: (pack: CreditPackId) =>
+        req<{ url: string }>("/billing/topup", { method: "POST", body: JSON.stringify({ pack }) }),
     getWorkspace: () => req<WorkspaceState>("/workspace"),
 
     // the eval playground; 404s for anyone who is not an eval admin

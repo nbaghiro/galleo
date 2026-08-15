@@ -3,12 +3,19 @@ import { createMemo, createResource, createSignal, For, onMount, Show } from "so
 import { useSearchParams } from "@solidjs/router";
 import type { PlanId } from "@model/billing";
 import { PRICED_TOOLS, costRange, isMetered, typicalCost } from "@model/tools";
-import { Badge, Eyebrow, IconButton, Spinner } from "@ui/button";
+import { Badge, Button, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { Meter } from "@ui/status";
 import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
 import { UpgradePageContent } from "@app/components/UpgradePlans";
 import { api } from "@app/api";
-import { billing, changePlan, loadBilling, openPortal, resumePlan } from "@app/stores/billing";
+import {
+    billing,
+    changePlan,
+    loadBilling,
+    openPortal,
+    resumePlan,
+    startTopUp,
+} from "@app/stores/billing";
 
 export const PricingView: Component = () => {
     const [params] = useSearchParams();
@@ -30,14 +37,11 @@ export const PricingView: Component = () => {
     // a paid plan set to lapse to Free at period end; it keeps running until then
     const pendingCancel = (): boolean => !!b()?.cancelAtPeriodEnd && current() !== "free";
 
-    const creditsLeft = createMemo(() => {
-        const c = b()?.credits;
-        return c ? Math.max(0, c.limit - c.used) : 0;
-    });
+    const creditsLeft = createMemo(() => b()?.credits.balance ?? 0);
 
     // how many of an action the monthly credit allowance buys
     const perMonth = (cost: number): number | null => {
-        const limit = b()?.credits.limit ?? 0;
+        const limit = b()?.credits.balance ?? 0;
         return limit > 0 ? Math.floor(limit / cost) : null;
     };
 
@@ -176,20 +180,46 @@ export const PricingView: Component = () => {
                                         <span class="text-[20px] font-bold">
                                             {creditsLeft().toLocaleString()}
                                         </span>
-                                        <span class="text-[13px] text-muted">
-                                            of {state().credits.limit.toLocaleString()}
-                                        </span>
+                                        <span class="text-[13px] text-muted">banked</span>
                                     </div>
+                                    {/* the grant is the yardstick, not a cap: a full bar means at
+                                        least a month's worth is banked, which is the useful read */}
                                     <Meter
                                         value={creditsLeft()}
-                                        max={state().credits.limit}
+                                        max={state().credits.monthlyGrant}
                                         trackTone="canvas"
                                         class="mt-2"
                                     />
                                     <div class="mt-1.5 text-[11px] text-muted">
-                                        resets{" "}
-                                        {new Date(state().credits.resetAt).toLocaleDateString()}
+                                        +{state().credits.monthlyGrant.toLocaleString()} on{" "}
+                                        {new Date(state().credits.resetAt).toLocaleDateString()} ·
+                                        unspent credits carry over
                                     </div>
+                                    {/* packs are bought once, so they leave for Checkout rather
+                                        than changing the subscription */}
+                                    <Show when={state().packs.length > 0 && ready()}>
+                                        <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                            <For each={state().packs}>
+                                                {(pack) => (
+                                                    <Button
+                                                        variant="tool"
+                                                        size="sm"
+                                                        disabled={anyBusy()}
+                                                        loading={busy(`pack:${pack.id}`)}
+                                                        onClick={() =>
+                                                            void run(`pack:${pack.id}`, () =>
+                                                                startTopUp(pack.id),
+                                                            )
+                                                        }
+                                                    >
+                                                        +{pack.credits.toLocaleString()} · $
+                                                        {pack.priceUsd}
+                                                    </Button>
+                                                )}
+                                            </For>
+                                        </div>
+                                    </Show>
+
                                     {/* add-ons are subscription quantities, so they go through
                                         change-plan the same way a seat change does */}
                                     <Show when={state().addOns.length > 0 && ready()}>
@@ -201,21 +231,11 @@ export const PricingView: Component = () => {
                                                     const key = `addon:${addOn.id}`;
                                                     const set = (n: number): void => {
                                                         void run(key, () =>
-                                                            changePlan(
-                                                                addOn.id === "seat"
-                                                                    ? {
-                                                                          seats:
-                                                                              state()
-                                                                                  .includedSeats +
-                                                                              Math.max(0, n),
-                                                                      }
-                                                                    : {
-                                                                          creditBlocks: Math.max(
-                                                                              0,
-                                                                              n,
-                                                                          ),
-                                                                      },
-                                                            ),
+                                                            changePlan({
+                                                                seats:
+                                                                    state().includedSeats +
+                                                                    Math.max(0, n),
+                                                            }),
                                                         );
                                                     };
                                                     return (

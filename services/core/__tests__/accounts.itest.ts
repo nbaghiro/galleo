@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { monthlyGrantFor } from "@model/billing";
 import { eq } from "drizzle-orm";
 import { authed, seedUser } from "@services/__tests__/harness";
 import { db } from "@services/db/client";
@@ -7,11 +8,12 @@ import { schema } from "@services/db/schema";
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 
 describe("credit-window rollover (currentWorkspace)", () => {
-    it("zeroes aiCreditsUsed and pushes creditsResetAt ~30 days out once the window has passed", async () => {
+    // the grant adds to what is banked; a lapsed window must not wipe the leftovers
+    it("adds the monthly grant and pushes creditsResetAt ~30 days out once the window has passed", async () => {
         const { userId, workspaceId } = await seedUser();
         await db
             .update(schema.workspaces)
-            .set({ aiCreditsUsed: 99, creditsResetAt: new Date(Date.now() - 60_000) })
+            .set({ aiCreditsBalance: 99, creditsResetAt: new Date(Date.now() - 60_000) })
             .where(eq(schema.workspaces.id, workspaceId));
 
         const before = Date.now();
@@ -22,7 +24,7 @@ describe("credit-window rollover (currentWorkspace)", () => {
             .select()
             .from(schema.workspaces)
             .where(eq(schema.workspaces.id, workspaceId));
-        expect(ws!.aiCreditsUsed).toBe(0);
+        expect(ws!.aiCreditsBalance).toBe(99 + monthlyGrantFor(ws!));
         const reset = ws!.creditsResetAt.getTime();
         expect(reset).toBeGreaterThan(before + THIRTY_DAYS - 60_000);
         expect(reset).toBeLessThan(Date.now() + THIRTY_DAYS + 60_000);
@@ -33,7 +35,7 @@ describe("credit-window rollover (currentWorkspace)", () => {
         const future = new Date(Date.now() + THIRTY_DAYS);
         await db
             .update(schema.workspaces)
-            .set({ aiCreditsUsed: 42, creditsResetAt: future })
+            .set({ aiCreditsBalance: 42, creditsResetAt: future })
             .where(eq(schema.workspaces.id, workspaceId));
 
         const res = await authed(userId, "/features");
@@ -43,7 +45,7 @@ describe("credit-window rollover (currentWorkspace)", () => {
             .select()
             .from(schema.workspaces)
             .where(eq(schema.workspaces.id, workspaceId));
-        expect(ws!.aiCreditsUsed).toBe(42);
+        expect(ws!.aiCreditsBalance).toBe(42);
         expect(ws!.creditsResetAt.getTime()).toBe(future.getTime());
     });
 });

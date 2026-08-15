@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { readJson } from "@services/utils/http";
+import type { CreditPackId } from "@model/billing";
+import { canTopUp } from "@model/billing";
 import type { Wanted } from "@services/core/billing";
 import {
     billingSummary,
@@ -11,6 +13,7 @@ import {
     portalUrl,
     resumeSubscription,
     stripeReady,
+    topupUrl,
 } from "@services/core/billing";
 import { requireWorkspace, type WorkspaceEnv } from "./middleware";
 
@@ -42,6 +45,22 @@ plan.post("/billing/checkout", requireWorkspace, async (c) => {
     if (result && typeof result === "object" && "error" in result)
         return c.json({ error: "invalid plan" }, 400);
     return c.json({ url: result });
+});
+
+plan.post("/billing/topup", requireWorkspace, async (c) => {
+    const [user, ws] = [c.get("user"), c.get("ws")];
+    const denied = notOwner(c, ws, user.id);
+    if (denied) return denied;
+    if (!stripeReady()) return c.json(NOT_CONFIGURED, 503);
+    if (!canTopUp(ws.plan))
+        return c.json({ error: "Credit packs need a paid plan — upgrade.", upgrade: true }, 402);
+    const { pack } = await readJson<{ pack?: CreditPackId }>(c);
+    const result = await topupUrl(ws, user.email, pack);
+    if ("error" in result)
+        return result.error === "invalid-pack"
+            ? c.json({ error: "invalid pack" }, 400)
+            : c.json({ error: "pack not configured" }, 503);
+    return c.json({ url: result.url });
 });
 
 plan.post("/billing/portal", requireWorkspace, async (c) => {

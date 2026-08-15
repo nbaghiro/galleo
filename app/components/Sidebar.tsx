@@ -459,7 +459,7 @@ export const Sidebar: Component = () => {
 // The plan-at-a-glance card: what's left to spend this cycle, and anything that needs attention
 // (failed payment, pending downgrade). Detail lives in settings; this is the glance.
 const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }> = (props) => {
-    const remaining = (): number => Math.max(0, props.b.credits.limit - props.b.credits.used);
+    const remaining = (): number => props.b.credits.balance;
     const resetsIn = (): number =>
         Math.max(
             0,
@@ -477,7 +477,12 @@ const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }>
                     <span class="text-muted">{props.b.seats} seats</span>
                 </Show>
             </div>
-            <Meter value={remaining()} max={props.b.credits.limit} trackTone="line" class="my-2" />
+            <Meter
+                value={remaining()}
+                max={props.b.credits.monthlyGrant}
+                trackTone="line"
+                class="my-2"
+            />
             <div class="flex items-baseline justify-between text-[10.5px] text-muted">
                 <span class="tabular-nums">
                     <span class="font-semibold text-soft">{remaining().toLocaleString()}</span>{" "}

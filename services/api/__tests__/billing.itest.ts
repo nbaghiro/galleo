@@ -143,7 +143,7 @@ describe("GET /billing", () => {
         const body = await res.json();
         expect(body.plan).toBe("free");
         expect(body.status).toBe("active");
-        expect(body.credits.limit).toBe(limitsFor("free").includedCredits);
+        expect(body.credits.monthlyGrant).toBe(limitsFor("free").includedCredits);
         expect(body.credits.perGeneration).toBe(CREDITS_PER_GENERATION);
         expect(body.catalog).toHaveLength(visiblePlans().length);
         expect(body.stripeReady).toBe(true);
@@ -414,20 +414,19 @@ describe("reserving a priced action", () => {
 
     it("prices the named action from the catalog", async () => {
         const { userId, workspaceId } = await seedUser();
-        await setWs(workspaceId, { aiCreditsUsed: 0, creditsResetAt: future() });
+        await setWs(workspaceId, { aiCreditsBalance: 100, creditsResetAt: future() });
         const held = await reserve(await getWs(workspaceId), userId, "generate-theme");
         expect(held.ok).toBe(true);
-        expect((await getWs(workspaceId)).aiCreditsUsed).toBe(4); // generate-theme = 4
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(96); // generate-theme = 4
     });
 
     it("refuses and charges nothing once the monthly allowance is exhausted", async () => {
         const { userId, workspaceId } = await seedUser();
-        const limit = limitsFor("free").includedCredits;
-        await setWs(workspaceId, { aiCreditsUsed: limit, creditsResetAt: future() });
+        await setWs(workspaceId, { aiCreditsBalance: 0, creditsResetAt: future() });
         const held = await reserve(await getWs(workspaceId), userId, "generate-theme");
         expect(held.ok).toBe(false);
         expect(held.ok === false && held.remaining).toBe(0);
-        expect((await getWs(workspaceId)).aiCreditsUsed).toBe(limit);
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(0);
     });
 });
 
@@ -451,7 +450,7 @@ describe("POST /billing/webhook", () => {
 
     it("checkout.session.completed activates the plan and opens a fresh credit window", async () => {
         const { workspaceId } = await seedUser();
-        await setWs(workspaceId, { aiCreditsUsed: 99, cancelAtPeriodEnd: true });
+        await setWs(workspaceId, { aiCreditsBalance: 99, cancelAtPeriodEnd: true });
         stripeMock.subscriptions.retrieve.mockResolvedValue(
             fakeSub({ id: "sub_1", priceId: PRICE.proMonth, quantity: 2, status: "active" }),
         );
@@ -470,8 +469,7 @@ describe("POST /billing/webhook", () => {
             stripeCustomerId: "cus_1",
             stripeSubscriptionId: "sub_1",
             seats: 1, // Pro includes one; the plan item's quantity is not a seat count
-            creditBlocks: 0,
-            aiCreditsUsed: 0,
+            aiCreditsBalance: 99 + PLANS.pro.ai.includedCredits,
             cancelAtPeriodEnd: false,
         });
     });
@@ -579,7 +577,7 @@ describe("credit engine", () => {
         const incl = PLANS.premium.billing.includedSeats;
         await setWs(workspaceId, { seats: incl + 2, creditsResetAt: future() });
         const res = await authed(userId, "/billing");
-        expect((await res.json()).credits.limit).toBe(
+        expect((await res.json()).credits.monthlyGrant).toBe(
             PLANS.premium.ai.includedCredits + 2 * ADD_ONS.seat.credits,
         );
     });
@@ -589,48 +587,34 @@ describe("credit engine", () => {
         const { userId, workspaceId } = await seedUser({ plan: "pro" });
         await setWs(workspaceId, { seats: 9, creditsResetAt: future() });
         const res = await authed(userId, "/billing");
-        expect((await res.json()).credits.limit).toBe(limitsFor("pro").includedCredits);
+        expect((await res.json()).credits.monthlyGrant).toBe(limitsFor("pro").includedCredits);
     });
 
-    it("widens the pool by credit blocks", async () => {
+    // a purchased pack lands in the same balance, so spend can exceed a month's grant
+    it("spends a balance banked above the monthly grant", async () => {
         const { userId, workspaceId } = await seedUser({ plan: "pro" });
-        await setWs(workspaceId, { creditBlocks: 3, creditsResetAt: future() });
-        const res = await authed(userId, "/billing");
-        expect((await res.json()).credits.limit).toBe(
-            limitsFor("pro").includedCredits + 3 * ADD_ONS.credits.credits,
-        );
-    });
-
-    it("gates spend against the widened pool, not the plan's own allowance", async () => {
-        const { userId, workspaceId } = await seedUser({ plan: "pro" });
-        const base = limitsFor("pro").includedCredits;
-        await setWs(workspaceId, {
-            creditBlocks: 1,
-            aiCreditsUsed: base + 100, // past the plan's own allowance, inside the block
-            creditsResetAt: future(),
-        });
+        const banked = limitsFor("pro").includedCredits * 3;
+        await setWs(workspaceId, { aiCreditsBalance: banked, creditsResetAt: future() });
         const held = await reserve(await getWs(workspaceId), userId, "generate-theme");
         expect(held.ok).toBe(true);
-        expect((await getWs(workspaceId)).aiCreditsUsed).toBe(base + 104);
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(banked - 4);
     });
 
     it("exactly one of two concurrent near-limit spends wins", async () => {
         const { userId, workspaceId } = await seedUser();
-        const limit = limitsFor("free").includedCredits;
-        await setWs(workspaceId, { aiCreditsUsed: limit - 50, creditsResetAt: future() });
-        await setWs(workspaceId, { aiCreditsUsed: limit - 4, creditsResetAt: future() });
+        await setWs(workspaceId, { aiCreditsBalance: 4, creditsResetAt: future() });
         const ws = await getWs(workspaceId);
         const [a, b] = await Promise.all([
             reserve(ws, userId, "generate-theme"),
             reserve(ws, userId, "generate-theme"),
         ]);
         expect([a.ok, b.ok].sort()).toEqual([false, true]);
-        expect((await getWs(workspaceId)).aiCreditsUsed).toBe(limit);
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(0);
     });
 
     it("writes a ledger row per charge with the remaining balance", async () => {
         const { userId, workspaceId } = await seedUser();
-        await setWs(workspaceId, { aiCreditsUsed: 0, creditsResetAt: future() });
+        await setWs(workspaceId, { aiCreditsBalance: 100, creditsResetAt: future() });
         await reserve(await getWs(workspaceId), userId, "generate-theme");
         const rows = await db
             .select()
@@ -640,20 +624,20 @@ describe("credit engine", () => {
         expect(rows[0]).toMatchObject({
             delta: -4, // generate-theme = 1 theme unit
             reason: "generate-theme",
-            balanceAfter: limitsFor("free").includedCredits - 4,
+            balanceAfter: 96,
         });
     });
 
     it("settleCredits refunds an over-reserve relative to the live row", async () => {
         const { workspaceId } = await seedUser();
-        await setWs(workspaceId, { aiCreditsUsed: 0, creditsResetAt: future() });
+        await setWs(workspaceId, { aiCreditsBalance: 100, creditsResetAt: future() });
         const ws = await getWs(workspaceId);
         const charged = await chargeCredits(ws, 50, "generate-image");
         expect(charged.ok).toBe(true);
         // a parallel spend lands while the "stream" runs — the settle must not clobber it
         await chargeCredits(ws, 10, "ask-assistant");
         await settleCredits(ws, charged.entryId!, -20);
-        expect((await getWs(workspaceId)).aiCreditsUsed).toBe(40);
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(60);
         const rows = await db
             .select()
             .from(schema.credits)
@@ -662,14 +646,13 @@ describe("credit engine", () => {
         expect(rows.map((r) => r.delta).sort((x, y) => x - y)).toEqual([-30, -10]);
     });
 
-    it("chargeCredits rejects without side effects once the pool is exhausted", async () => {
+    it("chargeCredits rejects without side effects once the balance is exhausted", async () => {
         const { workspaceId } = await seedUser();
-        const limit = limitsFor("free").includedCredits;
-        await setWs(workspaceId, { aiCreditsUsed: limit, creditsResetAt: future() });
+        await setWs(workspaceId, { aiCreditsBalance: 0, creditsResetAt: future() });
         const ws = await getWs(workspaceId);
         const res = await chargeCredits(ws, 1, "ask-assistant");
         expect(res).toMatchObject({ ok: false, remaining: 0 });
-        expect((await getWs(workspaceId)).aiCreditsUsed).toBe(limit);
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(0);
         const rows = await db
             .select()
             .from(schema.credits)
@@ -679,9 +662,9 @@ describe("credit engine", () => {
 });
 
 describe("webhook hardening", () => {
-    it("a cycle-renewal invoice re-anchors the credit window and logs the reset", async () => {
+    it("a cycle-renewal invoice re-anchors the window and grants on top of the balance", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
-        await setWs(workspaceId, { stripeCustomerId: "cus_1", aiCreditsUsed: 999 });
+        await setWs(workspaceId, { stripeCustomerId: "cus_1", aiCreditsBalance: 999 });
         await postWebhook(
             stripeEvent("invoice.paid", {
                 customer: "cus_1",
@@ -689,26 +672,29 @@ describe("webhook hardening", () => {
             }),
         );
         const ws = await getWs(workspaceId);
-        expect(ws.aiCreditsUsed).toBe(0);
+        expect(ws.aiCreditsBalance).toBe(999 + PLANS.pro.ai.includedCredits); // leftovers carry
         expect(ws.planStatus).toBe("active");
         const rows = await db
             .select()
             .from(schema.credits)
             .where(eq(schema.credits.workspaceId, workspaceId));
         expect(rows).toHaveLength(1);
-        expect(rows[0]).toMatchObject({ delta: 999, reason: "renewal-reset" });
+        expect(rows[0]).toMatchObject({
+            delta: PLANS.pro.ai.includedCredits,
+            reason: "renewal-grant",
+        });
     });
 
     it("a non-cycle invoice (proration/one-off) leaves the credit window alone", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
-        await setWs(workspaceId, { stripeCustomerId: "cus_1", aiCreditsUsed: 42 });
+        await setWs(workspaceId, { stripeCustomerId: "cus_1", aiCreditsBalance: 42 });
         await postWebhook(
             stripeEvent("invoice.paid", {
                 customer: "cus_1",
                 billing_reason: "subscription_update",
             }),
         );
-        expect((await getWs(workspaceId)).aiCreditsUsed).toBe(42);
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(42);
     });
 
     it("subscription.updated adopts an unlinked workspace via the metadata backref", async () => {
@@ -847,7 +833,7 @@ describe("GET /billing/ledger", () => {
     it("returns entries newest-first with running balances", async () => {
         const { userId, workspaceId } = await seedUser();
         await setWs(workspaceId, {
-            aiCreditsUsed: 0,
+            aiCreditsBalance: 100,
             creditsResetAt: new Date(Date.now() + 86400_000),
         });
         await reserve(await getWs(workspaceId), userId, "generate-theme");
@@ -864,7 +850,6 @@ describe("GET /billing/ledger", () => {
 describe("recurring add-ons", () => {
     const stubAddOns = (): void => {
         vi.stubEnv("STRIPE_PRICE_SEAT_MONTH", "price_seat_month");
-        vi.stubEnv("STRIPE_PRICE_CREDITS_MONTH", "price_credits_month");
     };
 
     it("offers only the add-ons the plan actually sells", async () => {
@@ -876,8 +861,8 @@ describe("recurring add-ons", () => {
             (await (await authed(u.userId, "/billing")).json()).addOns.map(
                 (a: { id: string }) => a.id,
             );
-        expect(await ids(premium)).toEqual(["seat", "credits"]);
-        expect(await ids(pro)).toEqual(["credits"]); // Pro is solo, so no seat add-on
+        expect(await ids(premium)).toEqual(["seat"]);
+        expect(await ids(pro)).toEqual([]); // Pro is solo, so no seat add-on
         expect(await ids(free)).toEqual([]);
     });
 
@@ -889,7 +874,7 @@ describe("recurring add-ons", () => {
         await authed(
             userId,
             "/billing/checkout",
-            jsonInit("POST", { plan: "premium", seats: incl + 2, creditBlocks: 3 }),
+            jsonInit("POST", { plan: "premium", seats: incl + 2 }),
         );
         expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -897,7 +882,6 @@ describe("recurring add-ons", () => {
                 line_items: [
                     { price: PRICE.premiumMonth, quantity: 1 },
                     { price: "price_seat_month", quantity: 2 },
-                    { price: "price_credits_month", quantity: 3 },
                 ],
             }),
         );
@@ -907,17 +891,10 @@ describe("recurring add-ons", () => {
         stubAddOns();
         const { userId, workspaceId } = await seedUser({ plan: "free" });
         await setWs(workspaceId, { stripeCustomerId: "cus_1" });
-        await authed(
-            userId,
-            "/billing/checkout",
-            jsonInit("POST", { plan: "pro", seats: 5, creditBlocks: 1 }),
-        );
+        await authed(userId, "/billing/checkout", jsonInit("POST", { plan: "pro", seats: 5 }));
         expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
             expect.objectContaining({
-                line_items: [
-                    { price: PRICE.proMonth, quantity: 1 },
-                    { price: "price_credits_month", quantity: 1 },
-                ],
+                line_items: [{ price: PRICE.proMonth, quantity: 1 }],
             }),
         );
     });
@@ -929,10 +906,7 @@ describe("recurring add-ons", () => {
             fakeSub({
                 id: "sub_addons",
                 priceId: PRICE.premiumMonth,
-                addOns: [
-                    { priceId: "price_seat_month", quantity: 4 },
-                    { priceId: "price_credits_month", quantity: 2 },
-                ],
+                addOns: [{ priceId: "price_seat_month", quantity: 4 }],
             }),
         );
         await postWebhook(
@@ -950,7 +924,6 @@ describe("recurring add-ons", () => {
         const ws = await getWs(workspaceId);
         expect(ws.plan).toBe("premium");
         expect(ws.seats).toBe(PLANS.premium.billing.includedSeats + 4);
-        expect(ws.creditBlocks).toBe(2);
     });
 });
 
@@ -1049,9 +1022,9 @@ describe("billing hardening", () => {
         expect((await getWs(workspaceId)).stripeSubscriptionId).toBe("sub_new");
     });
 
-    it("a checkout that wipes usage writes an upgrade-reset audit row", async () => {
+    it("a checkout grants on top of the balance and writes an audit row", async () => {
         const { workspaceId } = await seedUser({ plan: "free" });
-        await setWs(workspaceId, { aiCreditsUsed: 120 });
+        await setWs(workspaceId, { aiCreditsBalance: 120 });
         stripeMock.subscriptions.retrieve.mockResolvedValue(
             fakeSub({ id: "sub_up", priceId: PRICE.proMonth }),
         );
@@ -1071,12 +1044,15 @@ describe("billing hardening", () => {
             .select()
             .from(schema.credits)
             .where(eq(schema.credits.workspaceId, workspaceId));
-        const reset = rows.find((r) => r.reason === "upgrade-reset");
-        expect(reset).toBeTruthy();
-        expect(reset!.delta).toBe(120);
-        expect(reset!.userId).toBeNull();
-        expect(reset!.balanceAfter).toBe(limitsFor("pro").includedCredits);
-        expect((await getWs(workspaceId)).aiCreditsUsed).toBe(0);
+        const grant = rows.find((r) => r.reason === "upgrade-grant");
+        expect(grant).toBeTruthy();
+        expect(grant!.delta).toBe(limitsFor("pro").includedCredits);
+        expect(grant!.userId).toBeNull();
+        // the 120 they already had is kept: subscribing adds, it does not reset
+        expect(grant!.balanceAfter).toBe(120 + limitsFor("pro").includedCredits);
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(
+            120 + limitsFor("pro").includedCredits,
+        );
     });
 
     it("seat reduction counts unexpired invites as held seats", async () => {

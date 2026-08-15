@@ -1,5 +1,5 @@
 import { inArray } from "drizzle-orm";
-import type { FeatureOverrides, PlanId, ScheduledChange } from "@model/billing";
+import type { CreditPackId, FeatureOverrides, PlanId, ScheduledChange } from "@model/billing";
 import type { Usage } from "@model/credits";
 import type { ToolId } from "@model/tools";
 import { db } from "./client";
@@ -87,7 +87,8 @@ export interface ThemeSpec {
 // `at` is days ago; fractions are fine (0.25 = six hours)
 export type Charge =
     | { at: number; kind: "spend"; tool: ToolId; credits: number; usage: Usage; by: string }
-    | { at: number; kind: "reset" };
+    | { at: number; kind: "grant" } // the monthly roll: adds the grant, keeps the leftovers
+    | { at: number; kind: "topup"; pack: CreditPackId };
 
 export interface WorkspaceSpec {
     slug: string;
@@ -95,7 +96,12 @@ export interface WorkspaceSpec {
     plan: PlanId;
     ownerEmail: string;
     seats: number; // total, including the plan's own included seats
-    creditBlocks?: number; // the credit add-on's quantity
+    /**
+     * What the workspace had banked before the ledger below starts. Defaults to one month's grant.
+     * Set it lower to open mid-cycle: with rollover a workspace that opened on a full grant and then
+     * barely spent would bank several months, which reads as a bug rather than as a demo.
+     */
+    openingBalance?: number;
     members: MemberSpec[]; // never includes the owner
     invites?: InviteSpec[];
     planStatus?: "active" | "past_due" | "canceled";
@@ -124,7 +130,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
         plan: "premium",
         ownerEmail: DEMO_EMAIL, // the one they own: member management is the owner-only surface that works without Stripe
         seats: 8, // 3 the plan includes + 5 bought as the seat add-on
-        creditBlocks: 2,
+        openingBalance: 1600, // part-way through the cycle
         members: [
             { email: "priya.raman@galleo.app", role: "admin" },
             { email: "marcus.oyelaran@galleo.app", role: "member" },
@@ -231,6 +237,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
             { templateId: "annual-report", by: "hanna.lindqvist@galleo.app", uses: 1 },
         ],
         ledger: [
+            { at: 9, kind: "topup", pack: "pack-2k" },
             {
                 at: 26,
                 kind: "spend",
@@ -255,7 +262,6 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 usage: { reply: 1 },
                 by: "marcus.oyelaran@galleo.app",
             },
-            { at: 12, kind: "reset" },
             {
                 at: 11,
                 kind: "spend",
@@ -366,10 +372,11 @@ export const WORKSPACES: WorkspaceSpec[] = [
         ],
         planStatus: "active",
         periodEndInDays: 9,
-        scheduledChange: { plan: "pro", interval: "month", seats: 1, creditBlocks: 0 },
+        scheduledChange: { plan: "pro", interval: "month", seats: 1 },
         // a narrower artifact cap than Premium grants, so the override path is exercised in the
         // restricting direction too
         featureOverrides: { maxArtifacts: 40 },
+        openingBalance: 1100, // part-way through the cycle
         windowStartedDaysAgo: 20,
         folders: [
             {
@@ -417,7 +424,6 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 usage: { plan: 1, section: 13, image: 3 },
                 by: "priya.raman@galleo.app",
             },
-            { at: 20, kind: "reset" },
             {
                 at: 18,
                 kind: "spend",
@@ -617,7 +623,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 usage: { reply: 1 },
                 by: "marcus.oyelaran@galleo.app",
             },
-            { at: 6, kind: "reset" },
+            { at: 6, kind: "grant" },
             {
                 at: 5,
                 kind: "spend",
@@ -712,6 +718,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
         ],
         planStatus: "past_due", // a failed renewal: the dunning banner in Pricing + Settings
         periodEndInDays: -3,
+        openingBalance: 900, // part-way through the cycle
         windowStartedDaysAgo: 26,
         folders: [
             {
@@ -755,7 +762,6 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 usage: { plan: 1, section: 15, image: 3 },
                 by: "hanna.lindqvist@galleo.app",
             },
-            { at: 26, kind: "reset" },
             {
                 at: 24,
                 kind: "spend",

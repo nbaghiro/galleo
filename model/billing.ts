@@ -5,7 +5,6 @@ export interface ScheduledChange {
     plan: PlanId;
     interval: Interval;
     seats: number;
-    creditBlocks: number;
     at: string; // ISO date the phase flips
 }
 
@@ -86,34 +85,50 @@ const CREDITS_PER_MONTH: Record<PlanId, number> = { free: 100, pro: 700, premium
 const gens = (n: number): number => Math.round(n / CREDITS_PER_GENERATION);
 
 /**
- * What a workspace can buy on top of its plan. Both are recurring subscription items, never one-off
- * purchases: a credit bought once would have to survive the monthly reset, which is the only reason
- * a second credit balance ever needed to exist. Everything here resets with the plan's own window,
- * so a workspace has exactly one credit counter.
- *
- * Both are priced well above CREDIT_USD (model/credits.ts), what a credit costs us to serve, and a
- * bare credit costs more per credit than one bundled with a seat, so buying capacity never beats
- * buying a colleague.
+ * The seat add-on: a recurring subscription item, because a seat is an ongoing entitlement. It
+ * carries credits because a colleague generates work.
  */
-export type AddOnId = "seat" | "credits";
+export type AddOnId = "seat";
 
 export interface AddOn {
     id: AddOnId;
     label: string;
     priceUsd: number; // per unit, per month
-    seats: number; // seats one unit adds
-    credits: number; // monthly credits one unit adds
+    seats: number;
+    credits: number; // added to the monthly grant
 }
 
 export const ADD_ONS: Record<AddOnId, AddOn> = {
     seat: { id: "seat", label: "Extra seat", priceUsd: 30, seats: 1, credits: 800 },
-    credits: { id: "credits", label: "Credit block", priceUsd: 20, seats: 0, credits: 500 },
 };
 
-export const ADD_ON_IDS: AddOnId[] = ["seat", "credits"];
+export const ADD_ON_IDS: AddOnId[] = ["seat"];
 
 export const addOnFor = (id: string | null | undefined): AddOn | null =>
-    ADD_ON_IDS.includes(id as AddOnId) ? ADD_ONS[id as AddOnId] : null;
+    id === "seat" ? ADD_ONS.seat : null;
+
+/**
+ * Credit packs: bought once, not subscribed to. They can share the single balance because unspent
+ * credits roll over (see rollCreditWindow), so nothing is ever wiped and a purchase needs no pool of
+ * its own. Priced above CREDIT_USD (model/credits.ts) and above every plan's own per-credit rate, so
+ * buying capacity outright never undercuts subscribing to it.
+ */
+export type CreditPackId = "pack-500" | "pack-2k";
+
+export interface CreditPack {
+    id: CreditPackId;
+    label: string;
+    credits: number;
+    priceUsd: number;
+}
+
+export const CREDIT_PACKS: CreditPack[] = [
+    { id: "pack-500", label: "500 credits", credits: 500, priceUsd: 20 },
+    { id: "pack-2k", label: "2,000 credits", credits: 2000, priceUsd: 72 },
+];
+
+export const packFor = (id: string | null | undefined): CreditPack | null =>
+    CREDIT_PACKS.find((p) => p.id === id) ?? null;
 
 export const PLANS: Record<PlanId, Plan> = {
     free: {
@@ -264,13 +279,9 @@ export const canBuyAddOns = (id: string | null | undefined): boolean => {
     return b.sellsSeats || b.sellsCredits;
 };
 
-/** The add-ons this plan may actually buy, in catalog order. */
-export const addOnsFor = (id: string | null | undefined): AddOn[] => {
-    const b = planFor(id).billing;
-    return ADD_ON_IDS.filter((a) => (a === "seat" ? b.sellsSeats : b.sellsCredits)).map(
-        (a) => ADD_ONS[a],
-    );
-};
+/** The recurring add-ons this plan may buy. */
+export const addOnsFor = (id: string | null | undefined): AddOn[] =>
+    planFor(id).billing.sellsSeats ? [ADD_ONS.seat] : [];
 
 /**
  * The cheapest plan on sale above `from` that actually grants `key`, or null when none does. Reads
@@ -290,7 +301,9 @@ export const canUpgradeFrom = (id: string | null | undefined): boolean => {
 };
 
 /** Whether the plan may buy add-ons, the only remedy left once there is nothing above it. */
-export const canTopUp = (id: string | null | undefined): boolean => canBuyAddOns(id);
+/** Whether the plan may buy credit packs, the remedy that works even on the top plan. */
+export const canTopUp = (id: string | null | undefined): boolean =>
+    planFor(id).billing.sellsCredits;
 
 export const isUnlimited = (n: number): boolean => n < 0;
 
@@ -528,10 +541,9 @@ export interface PlanBearer {
     featureOverrides?: FeatureOverrides | null;
 }
 
-/** What a workspace bought on top of its plan; both are subscription quantities, never one-off. */
+/** What the workspace pays for in seats; a credit pack is a purchase, not an entitlement. */
 export interface AddOnBearer {
     seats: number; // total, including the plan's own
-    creditBlocks: number;
 }
 
 /**
@@ -547,16 +559,13 @@ export function featuresFor(ws: PlanBearer): Features {
 }
 
 /**
- * The workspace's whole monthly allowance, and the only place add-ons fold in. One number against
- * one counter (`ai_credits_used`): every credit here arrives monthly and expires with the window, so
- * there is no second balance to track.
+ * What the subscription grants each month: the plan's own allowance plus the seat add-on's credits
+ * for every seat beyond the included ones. Added to `ai_credits_balance` at each roll rather than
+ * replacing it, so leftovers carry. Credit packs are not here; they are a purchase, added to the
+ * balance when Stripe confirms them.
  */
-export function creditLimitFor(ws: PlanBearer & AddOnBearer): number {
-    return (
-        featuresFor(ws).includedCredits +
-        extraSeatsOf(ws) * ADD_ONS.seat.credits +
-        Math.max(0, ws.creditBlocks) * ADD_ONS.credits.credits
-    );
+export function monthlyGrantFor(ws: PlanBearer & AddOnBearer): number {
+    return featuresFor(ws).includedCredits + extraSeatsOf(ws) * ADD_ONS.seat.credits;
 }
 
 /** Total seats the subscription pays for: the plan's own plus any seat add-on. */

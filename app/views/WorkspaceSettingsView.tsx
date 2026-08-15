@@ -76,10 +76,7 @@ export const WorkspaceSettingsView: Component = () => {
     const seats = (): number => st()?.workspace.seats ?? 1;
 
     const b = billing;
-    const creditsLeft = (): number => {
-        const c = b()?.credits;
-        return c ? Math.max(0, c.limit - c.used) : 0;
-    };
+    const creditsLeft = (): number => b()?.credits.balance ?? 0;
     const unlimited = (n: number): boolean => n < 0;
     // "/ ∞" over a bare number, so no cap reads as unlimited rather than as a missing denominator
     const storageValue = (): string => {
@@ -281,9 +278,9 @@ export const WorkspaceSettingsView: Component = () => {
                                             value={creditsLeft().toLocaleString()}
                                             meter={{
                                                 value: creditsLeft(),
-                                                max: b()?.credits.limit ?? 1,
+                                                max: b()?.credits.monthlyGrant ?? 1,
                                             }}
-                                            caption={`of ${(b()?.credits.limit ?? 0).toLocaleString()} · you used ${(
+                                            caption={`+${(b()?.credits.monthlyGrant ?? 0).toLocaleString()} a month · you used ${(
                                                 b()?.credits.mySpend ?? 0
                                             ).toLocaleString()} this cycle`}
                                         />

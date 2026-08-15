@@ -142,7 +142,7 @@ export async function createWorkspaceForUser(
             slug,
             ownerId: userId,
             plan: opts.plan ?? "free",
-            ...freshCreditWindow(),
+            ...freshCreditWindow(opts.plan),
         })
         .returning({ id: schema.workspaces.id, slug: schema.workspaces.slug });
     if (!ws) throw new Error("failed to create workspace");

@@ -1,23 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { CREDIT_USD } from "@model/credits";
-import type { AddOn, PlanId } from "@model/billing";
+import type { PlanId } from "@model/billing";
 import {
-    CREDITS_PER_GENERATION,
     ADD_ONS,
-    ADD_ON_IDS,
-    addOnFor,
+    CREDITS_PER_GENERATION,
+    CREDIT_PACKS,
     PLANS,
     PLAN_ORDER,
     can,
     canTopUp,
     canUpgradeFrom,
-    creditLimitFor,
     featureStatus,
     featuresFor,
-    sellsSeats,
     limit,
     limitsFor,
+    monthlyGrantFor,
+    packFor,
     planFor,
+    sellsSeats,
     resolveFeatures,
     visiblePlans,
     withinLimit,
@@ -109,17 +109,13 @@ describe("enforcement accessors", () => {
     });
 });
 
-describe("creditLimitFor", () => {
-    const ws = (plan: string | null, seats: number, creditBlocks = 0) => ({
-        plan,
-        seats,
-        creditBlocks,
-    });
+describe("monthlyGrantFor", () => {
+    const ws = (plan: string | null, seats: number) => ({ plan, seats });
 
     it("is the plan's own allowance when nothing is bought on top", () => {
-        expect(creditLimitFor(ws("free", 1))).toBe(PLANS.free.ai.includedCredits);
-        expect(creditLimitFor(ws("pro", 1))).toBe(PLANS.pro.ai.includedCredits);
-        expect(creditLimitFor(ws("premium", PLANS.premium.billing.includedSeats))).toBe(
+        expect(monthlyGrantFor(ws("free", 1))).toBe(PLANS.free.ai.includedCredits);
+        expect(monthlyGrantFor(ws("pro", 1))).toBe(PLANS.pro.ai.includedCredits);
+        expect(monthlyGrantFor(ws("premium", PLANS.premium.billing.includedSeats))).toBe(
             PLANS.premium.ai.includedCredits,
         );
     });
@@ -127,32 +123,25 @@ describe("creditLimitFor", () => {
     // the included seats are already paid for by the base price, so they add nothing on top
     it("only counts seats beyond the plan's included ones", () => {
         const incl = PLANS.premium.billing.includedSeats;
-        expect(creditLimitFor(ws("premium", incl + 2))).toBe(
+        expect(monthlyGrantFor(ws("premium", incl + 2))).toBe(
             PLANS.premium.ai.includedCredits + 2 * ADD_ONS.seat.credits,
         );
-        expect(creditLimitFor(ws("premium", incl - 1))).toBe(PLANS.premium.ai.includedCredits);
+        expect(monthlyGrantFor(ws("premium", incl - 1))).toBe(PLANS.premium.ai.includedCredits);
     });
 
-    it("adds a credit block's credits per block", () => {
-        expect(creditLimitFor(ws("pro", 1, 3))).toBe(
-            PLANS.pro.ai.includedCredits + 3 * ADD_ONS.credits.credits,
-        );
-    });
-
-    it("ignores negative quantities rather than subtracting", () => {
-        expect(creditLimitFor(ws("pro", 0, -5))).toBe(PLANS.pro.ai.includedCredits);
+    it("ignores a seat count below the plan's own rather than subtracting", () => {
+        expect(monthlyGrantFor(ws("pro", 0))).toBe(PLANS.pro.ai.includedCredits);
     });
 
     it("defaults unknown/null plans to free", () => {
-        expect(creditLimitFor(ws(null, 4))).toBe(PLANS.free.ai.includedCredits);
+        expect(monthlyGrantFor(ws(null, 4))).toBe(PLANS.free.ai.includedCredits);
     });
 
     it("applies an includedCredits override to the plan's own part only", () => {
         expect(
-            creditLimitFor({
+            monthlyGrantFor({
                 plan: "premium",
                 seats: PLANS.premium.billing.includedSeats + 1,
-                creditBlocks: 0,
                 featureOverrides: { includedCredits: 100 },
             }),
         ).toBe(100 + ADD_ONS.seat.credits);
@@ -186,40 +175,44 @@ describe("credit remedies", () => {
     });
 });
 
-describe("add-on pricing", () => {
-    // per-credit rate of the plan itself, which an add-on must never undercut
+describe("add-on and pack pricing", () => {
+    // per-credit rate of the plan itself, which neither may undercut
     const planRate = (id: PlanId): number =>
         PLANS[id].billing.priceMonthly / PLANS[id].ai.includedCredits;
+    const cheapest = (): number =>
+        Math.min(...PLAN_ORDER.filter((id) => PLANS[id].billing.priceMonthly > 0).map(planRate));
 
-    // a bare credit must never be cheaper than one that arrives with a colleague attached
-    it("prices a credit block above a seat's per-credit rate", () => {
-        const rate = (a: AddOn): number => a.priceUsd / a.credits;
-        expect(rate(ADD_ONS.credits)).toBeGreaterThan(rate(ADD_ONS.seat));
+    it("sells the seat add-on above what its credits cost us", () => {
+        expect(ADD_ONS.seat.priceUsd).toBeGreaterThan(ADD_ONS.seat.credits * CREDIT_USD);
     });
 
-    it("keeps every add-on above the cheapest plan's own per-credit rate", () => {
-        const cheapest = Math.min(
-            ...PLAN_ORDER.filter((id) => PLANS[id].billing.priceMonthly > 0).map(planRate),
-        );
-        for (const id of ADD_ON_IDS)
-            expect(ADD_ONS[id].priceUsd / ADD_ONS[id].credits).toBeGreaterThan(cheapest);
-    });
-
-    it("sells every add-on above what its credits cost us", () => {
-        for (const id of ADD_ON_IDS)
-            expect(ADD_ONS[id].priceUsd).toBeGreaterThan(ADD_ONS[id].credits * CREDIT_USD);
-    });
-
-    it("gives a seat its own credits, and a credit block no seat", () => {
+    it("gives a seat its own credits", () => {
         expect(ADD_ONS.seat.seats).toBe(1);
         expect(ADD_ONS.seat.credits).toBeGreaterThan(0);
-        expect(ADD_ONS.credits.seats).toBe(0);
     });
 
-    it("resolves an add-on by id and rejects anything else", () => {
-        expect(addOnFor("seat")).toBe(ADD_ONS.seat);
-        expect(addOnFor("pack-500")).toBeNull();
-        expect(addOnFor(null)).toBeNull();
+    it("sells every pack above what its credits cost us", () => {
+        for (const pack of CREDIT_PACKS)
+            expect(pack.priceUsd).toBeGreaterThan(pack.credits * CREDIT_USD);
+    });
+
+    // buying credits outright must never beat subscribing for them
+    it("prices every pack above the cheapest plan's own per-credit rate", () => {
+        for (const pack of CREDIT_PACKS)
+            expect(pack.priceUsd / pack.credits).toBeGreaterThan(cheapest());
+    });
+
+    it("gives the larger pack the volume discount", () => {
+        const rate = (p: (typeof CREDIT_PACKS)[number]): number => p.priceUsd / p.credits;
+        const sorted = [...CREDIT_PACKS].sort((a, b) => a.credits - b.credits);
+        for (let i = 1; i < sorted.length; i++)
+            expect(rate(sorted[i]!)).toBeLessThan(rate(sorted[i - 1]!));
+    });
+
+    it("resolves a pack by id and rejects anything else", () => {
+        expect(packFor("pack-500")).toBe(CREDIT_PACKS[0]);
+        expect(packFor("seat")).toBeNull();
+        expect(packFor(null)).toBeNull();
     });
 });
 

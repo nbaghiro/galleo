@@ -82,9 +82,10 @@ export const workspaces = pgTable("workspaces", {
     planPeriodEnd: timestamp("plan_period_end"),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false), // scheduled downgrade to Free at planPeriodEnd
     seats: integer("seats").notNull().default(1), // plan's included seats + the seat add-on's quantity
-    creditBlocks: integer("credit_blocks").notNull().default(0), // the credit add-on's quantity
-    // the only credit counter: every credit is monthly, so this is all of it
-    aiCreditsUsed: integer("ai_credits_used").notNull().default(0),
+    aiCreditsBalance: integer("ai_credits_balance").notNull().default(0),
+    // The only credit counter, and a balance rather than a usage tally: the monthly grant is added
+    // at the roll and unspent credits carry, so a one-off purchase is just another addition and
+    // nothing has to survive a reset that no longer happens.
     creditsResetAt: timestamp("credits_reset_at").notNull().defaultNow(),
     // when the current credit window opened; every writer of credits_reset_at sets both
     creditsStartedAt: timestamp("credits_started_at").notNull().defaultNow(),

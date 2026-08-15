@@ -2,7 +2,7 @@ import "dotenv/config";
 import { createHash } from "node:crypto";
 import { and, eq, inArray, notInArray } from "drizzle-orm";
 import type { ArtifactContent, GenMeta } from "@model/artifact";
-import { creditLimitFor, planFor } from "@model/billing";
+import { monthlyGrantFor, packFor, planFor } from "@model/billing";
 import { TEMPLATE_INDEX } from "@model/templates";
 import { THEMES } from "@themes";
 import { assertDatabaseUrl, db } from "./client";
@@ -136,7 +136,6 @@ async function upsertWorkspace(spec: WorkspaceSpec, ownerId: string): Promise<Wo
             ownerId,
             plan: spec.plan,
             seats: Math.max(spec.seats, planFor(spec.plan).billing.includedSeats),
-            creditBlocks: spec.creditBlocks ?? 0,
             planStatus: spec.planStatus ?? "active",
             planPeriodEnd: periodEnd,
             cancelAtPeriodEnd: spec.cancelAtPeriodEnd ?? false,
@@ -145,7 +144,7 @@ async function upsertWorkspace(spec: WorkspaceSpec, ownerId: string): Promise<Wo
                     ? { ...spec.scheduledChange, at: periodEnd.toISOString() }
                     : null,
             featureOverrides: spec.featureOverrides ?? null,
-            aiCreditsUsed: 0,
+            aiCreditsBalance: 0, // seedLedger replays the real opening balance
             creditsStartedAt: startedAt,
             creditsResetAt: new Date(startedAt.getTime() + WINDOW_MS),
         })
@@ -379,58 +378,67 @@ async function seedLinks(spec: WorkspaceSpec, docs: SeededDocs): Promise<string[
 }
 
 /**
- * Replays the spec's charges oldest-first with the same arithmetic as chargeCredits, so
- * balance_after and ai_credits_used cannot disagree with the history. A monthly-reset row takes its
- * delta from the replay (what was returned) and is skipped when nothing was spent, matching
- * rollCreditWindow.
+ * Replays the spec's history oldest-first with the same arithmetic as the live code: a grant adds,
+ * a pack adds, a charge subtracts, and nothing is ever cleared. So `balance_after` and
+ * `ai_credits_balance` cannot disagree with the rows above them.
  */
 async function seedLedger(
     ws: WorkspaceRow,
     spec: WorkspaceSpec,
     ids: Map<string, string>,
-): Promise<{ used: number }> {
-    const limit = creditLimitFor(ws);
-    let used = 0;
+): Promise<{ balance: number }> {
+    const grant = monthlyGrantFor(ws);
+    let balance = spec.openingBalance ?? grant;
     const rows: (typeof schema.credits.$inferInsert)[] = [];
     for (const c of [...(spec.ledger ?? [])].sort((a, b) => b.at - a.at)) {
         const createdAt = ago(c.at);
         if (c.kind === "spend") {
             const userId = ids.get(c.by);
             if (!userId) throw new Error(`no seeded user "${c.by}"`);
-            // the real gate refuses a charge it can't cover, so a spec that outspends its plan is a
-            // spec bug rather than something to silently clamp
-            if (used + c.credits > limit)
+            // the real gate refuses a charge it can't cover, so a spec that outspends is a spec bug
+            if (c.credits > balance)
                 throw new Error(
-                    `"${spec.slug}": ledger overspends by ${used + c.credits - limit} credits ` +
-                        `(limit ${limit}); lower the charges or raise the plan`,
+                    `"${spec.slug}": ledger overspends by ${c.credits - balance} credits; ` +
+                        `lower the charges, raise the plan, or bank a pack`,
                 );
-            used += c.credits;
+            balance -= c.credits;
             rows.push({
                 workspaceId: ws.id,
                 userId,
                 delta: -c.credits,
                 reason: c.tool,
                 usage: c.usage,
-                balanceAfter: limit - used,
+                balanceAfter: balance,
                 createdAt,
             });
-        } else if (used > 0) {
+        } else if (c.kind === "topup") {
+            const pack = packFor(c.pack);
+            if (!pack) throw new Error(`"${spec.slug}": no credit pack "${c.pack}"`);
+            balance += pack.credits;
             rows.push({
                 workspaceId: ws.id,
-                delta: used,
-                reason: "monthly-reset",
-                balanceAfter: limit,
+                delta: pack.credits,
+                reason: `topup:${pack.id}`,
+                balanceAfter: balance,
                 createdAt,
             });
-            used = 0;
+        } else {
+            balance += grant;
+            rows.push({
+                workspaceId: ws.id,
+                delta: grant,
+                reason: "monthly-grant",
+                balanceAfter: balance,
+                createdAt,
+            });
         }
     }
     if (rows.length) await db.insert(schema.credits).values(rows);
     await db
         .update(schema.workspaces)
-        .set({ aiCreditsUsed: used })
+        .set({ aiCreditsBalance: balance })
         .where(eq(schema.workspaces.id, ws.id));
-    return { used };
+    return { balance };
 }
 
 async function seedThemes(wsId: string, spec: WorkspaceSpec): Promise<void> {
@@ -617,7 +625,7 @@ async function seed(): Promise<void> {
         await seedVisits(spec, docs, userIds);
         if (spec.assets) await seedAssets(ws.id);
         if (spec.contexts && embed) await seedContexts(ws.id, ownerId, docs);
-        const { used } = await seedLedger(ws, spec, userIds);
+        const { balance } = await seedLedger(ws, spec, userIds);
 
         const live = (spec.folders ?? []).reduce((n, g) => n + g.docs.length, 0);
         const role =
@@ -627,9 +635,8 @@ async function seed(): Promise<void> {
         const extra = ws.seats - planFor(spec.plan).billing.includedSeats;
         log(
             `• ${spec.name} (${spec.plan}, demo is ${role}) — ${live} artifacts, ` +
-                `${spec.members.length + 1} members, ${used}/${creditLimitFor(ws)} credits, ` +
-                `${ws.seats} seats${extra > 0 ? ` (+${extra})` : ""}` +
-                `${ws.creditBlocks ? ` +${ws.creditBlocks} credit block(s)` : ""}`,
+                `${spec.members.length + 1} members, ${balance} credits banked ` +
+                `(+${monthlyGrantFor(ws)}/mo), ${ws.seats} seats${extra > 0 ? ` (+${extra})` : ""}`,
         );
     }
 

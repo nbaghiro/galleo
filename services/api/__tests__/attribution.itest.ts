@@ -51,7 +51,7 @@ describe("ledger attribution", () => {
         expect(page.entries[0].user).toMatchObject({ name: "Grace Hopper" });
     });
 
-    it("system rows (monthly reset) carry no user", async () => {
+    it("system rows (the monthly grant) carry no user", async () => {
         const owner = await seedUser({ plan: "pro" });
         await spend(owner.userId, owner.workspaceId, 25);
         // expire the window; the next workspace read rolls it and writes the reset row
@@ -62,10 +62,10 @@ describe("ledger attribution", () => {
         await authed(owner.userId, "/workspace");
 
         const page = await (await authed(owner.userId, "/billing/ledger")).json();
-        const reset = page.entries.find((e: { reason: string }) => e.reason === "monthly-reset");
-        expect(reset).toBeTruthy();
-        expect(reset.user).toBeNull();
-        expect(reset.delta).toBe(25);
+        const grant = page.entries.find((e: { reason: string }) => e.reason === "monthly-grant");
+        expect(grant).toBeTruthy();
+        expect(grant.user).toBeNull();
+        expect(grant.delta).toBeGreaterThan(0); // money in, not a counter being wiped
     });
 
     it("mySpend counts only the caller's own spend this cycle", async () => {
@@ -82,7 +82,8 @@ describe("ledger attribution", () => {
         const theirs = await (await authed(teammate.userId, "/billing")).json();
         expect(mine.credits.mySpend).toBe(30);
         expect(theirs.credits.mySpend).toBe(12);
-        expect(mine.credits.used).toBe(42); // the pool is still shared
+        // one shared balance, so both spends came out of the same number
+        expect(mine.credits.balance).toBe(theirs.credits.balance);
     });
 
     it("mySpend is net of refunds, and forgets spend from before the window rolled", async () => {

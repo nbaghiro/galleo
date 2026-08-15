@@ -55,8 +55,7 @@ one code path rather than a personal one and a team one.
 | `cancel_at_period_end`                          | a plain cancel is parked here; the plan itself does not change until Stripe deletes the subscription            |
 | `seats`                                         | the plan's included seats plus the seat add-on's quantity, from Stripe; the real member cap                     |
 | `stripe_customer_id` / `stripe_subscription_id` | created lazily on first checkout; the customer id survives cancellation so a re-subscribe reuses it             |
-| `ai_credits_used`                               | spend against the monthly pool, reset to 0 when the window rolls                                                |
-| `credit_blocks`                                 | the credit add-on's quantity, synced from Stripe; folds into the monthly limit                                  |
+| `ai_credits_balance`                            | the one credit counter: a balance, added to at each roll and by a pack, never cleared                           |
 | `credits_started_at` / `credits_reset_at`       | the bounds of the current window; every writer of one sets both                                                 |
 | `scheduled_change` (jsonb)                      | a `ScheduledChange` (plan, interval, seats, ISO date) parked on a Stripe subscription schedule                  |
 | `feature_overrides` (jsonb)                     | a per-workspace `FeatureOverrides` patch merged over the plan by the resolver                                   |
@@ -129,8 +128,8 @@ Readers are `can(f, key)`, `limit(f, key)` (`-1` = unlimited), `withinLimit(f, k
 `current < cap`, always true when unlimited), and `featureStatus(key)`.
 
 Two wrappers take a stored row rather than a plan id. `featuresFor(ws)` reads `ws.plan` plus
-`ws.featureOverrides`; `creditLimitFor(ws)` takes the resolved `creditsPerMonth` and multiplies it by
-`Math.max(1, ws.seats)` only when the plan is per-seat. Both take a `PlanBearer`, which is declared
+`ws.featureOverrides`; `monthlyGrantFor(ws)` takes the resolved `includedCredits` and adds the seat
+add-on's credits for every seat beyond the plan's included ones. Both take a `PlanBearer`, declared
 structurally (`{ plan: string | null; featureOverrides?: … }`) precisely so the backend can hand a
 drizzle row straight in without the contract knowing that a database exists.
 
@@ -156,7 +155,7 @@ instead: those need a hono `Context`, which `@model` must not know about.
 | `analytics`                                                             | `requireFeature` on the two analytics routes in `services/api/links.ts`                                                                                            | 402                                                                   |
 | `removeBranding`                                                        | server-side for published links (`branded: !owner.removeBranding`); client-side in the editor's export modal                                                       | watermark on or off                                                   |
 | `exportFormats`                                                         | client-side only (`editor/panels/ExportModal.tsx`), because rendering happens in the browser and there is no server export route                                   | destinations greyed out                                               |
-| `includedCredits`                                                       | `creditLimitFor` (with the add-ons) → `chargeCredits`                                                                                                              | 402 `OUT_OF_CREDITS`                                                  |
+| `includedCredits`                                                       | `monthlyGrantFor` (with the seat add-on) → `chargeCredits`                                                                                                         | 402 `OUT_OF_CREDITS`                                                  |
 | `maxSectionsPerGeneration`                                              | `services/api/ai.ts` (both the meter and the run context), then the prompt's hard limit and a slice in `tools/plan.ts`                                             | outline truncated, and billed at the truncated size                   |
 | `textModelTier` / `imageModelTier`                                      | `modelFor` / `tierAllows` (`services/core/models.ts`); `modelCatalogue` marks locked ids                                                                           | an out-of-tier override falls back to the default                     |
 | `customDomains`                                                         | nowhere (`planned`, so it resolves to `0` on every plan)                                                                                                           | none                                                                  |
@@ -256,13 +255,14 @@ One network call happens before the transaction on purpose: a `checkout.session.
 the subscription (and looks up whether it superseded an older one) outside the claim, so no database
 connection is held across a round trip to Stripe.
 
-| Event                           | What it does                                                                                                                                                                                                                                                                                                                    |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `checkout.session.completed`    | Locks the row, writes plan, status, customer, subscription, seats, credit blocks, period end, `cancel_at_period_end`, and **opens a fresh credit window** (`aiCreditsUsed: 0`, new start and reset). Non-zero prior usage leaves an `upgrade-reset` ledger row.                                                                 |
-| `customer.subscription.updated` | Syncs plan, status, seats, credit blocks, period end, and cancel flag. When the sub has no workspace, it may adopt one via `metadata.workspaceId`, but only if that workspace has **no** current subscription, so a stale event cannot hijack a newer one. Clears `scheduled_change` once the live sub matches what was parked. |
-| `customer.subscription.deleted` | Back to Free: `plan: "free"`, `planStatus: "canceled"`, `stripeSubscriptionId: null`, `seats: 1`, `creditBlocks: 0`, `planPeriodEnd: null`, both parking fields cleared.                                                                                                                                                        |
-| `invoice.payment_failed`        | `planStatus: "past_due"` for the workspace matching the invoice customer.                                                                                                                                                                                                                                                       |
-| `invoice.paid`                  | A `subscription_cycle` invoice re-anchors the credit window (usage to 0, new 30-day bounds) and logs a `renewal-reset` row. Any other paid invoice only clears `past_due`.                                                                                                                                                      |
+| Event                                       | What it does                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `checkout.session.completed` (subscription) | Locks the row, writes plan, status, customer, subscription, seats, period end, `cancel_at_period_end`, opens a fresh window, and **adds** the grant to the balance rather than replacing it, leaving an `upgrade-grant` row.                                                                                                    |
+| `checkout.session.completed` (payment)      | A credit pack: re-derives the credits from `CREDIT_PACKS` by id, adds them to the balance, and writes a `topup:<pack>` row.                                                                                                                                                                                                     |
+| `customer.subscription.updated`             | Syncs plan, status, seats, credit blocks, period end, and cancel flag. When the sub has no workspace, it may adopt one via `metadata.workspaceId`, but only if that workspace has **no** current subscription, so a stale event cannot hijack a newer one. Clears `scheduled_change` once the live sub matches what was parked. |
+| `customer.subscription.deleted`             | Back to Free: `plan: "free"`, `planStatus: "canceled"`, `stripeSubscriptionId: null`, `seats: 1`, `creditBlocks: 0`, `planPeriodEnd: null`, both parking fields cleared.                                                                                                                                                        |
+| `invoice.payment_failed`                    | `planStatus: "past_due"` for the workspace matching the invoice customer.                                                                                                                                                                                                                                                       |
+| `invoice.paid`                              | A `subscription_cycle` invoice re-anchors the window (new 30-day bounds) and adds the grant to the balance, logging a `renewal-grant` row. Any other paid invoice only clears `past_due`.                                                                                                                                       |
 
 A checkout that replaced a live subscription leaves the old one billing with nothing attached, so the
 superseded subscription is cancelled after the transaction commits, best effort: a failure there is
@@ -284,53 +284,45 @@ gate. What a turn actually buys, how the runtime meters it, and the route-level 
 
 ### The pool
 
-`creditLimitFor(ws)` is the whole monthly allowance and the only place the add-ons fold in:
+There is one counter, `ai_credits_balance`, and it is a **balance** rather than a usage tally.
+`monthlyGrantFor(ws)` is what the subscription adds at each roll:
 
 ```
-limit = includedCredits                 the plan's own, after feature overrides
-      + extraSeats  × ADD_ONS.seat.credits      seats beyond the plan's included ones
-      + creditBlocks × ADD_ONS.credits.credits  the credit add-on's quantity
+grant = includedCredits + extraSeats × ADD_ONS.seat.credits
 ```
 
-The available balance at any moment is `max(0, limit - ai_credits_used)`. There is one counter,
-because every credit arrives monthly and expires with the window: a bought credit is a recurring
-subscription item, not a one-off purchase, so nothing has to outlive the reset. That is what removed
-the second balance the earlier design carried, along with its spend ordering and its asymmetric
-refunds.
+The roll adds that grant to whatever is already there instead of clearing it, so **unspent credits
+carry over**: a quiet month funds a busy one. A charge subtracts, a refund adds back, and a purchased
+pack adds. That is the whole model.
+
+Rollover is what makes one counter sufficient. A one-off purchase only ever needed a pool of its own
+because the monthly counter was wiped and would have destroyed it; once nothing is wiped, a bought
+credit and a granted one are the same thing and can share a column. Both of the earlier designs (a
+separate bonus balance, then recurring credit add-ons) existed to work around a reset that no longer
+happens.
 
 `extraSeatsOf` returns zero on a plan that does not sell seats. This matters on a lapse: a workspace
 keeps its `seats` count until the `customer.subscription.deleted` webhook resets it, and must not
 draw seat credits it has stopped paying for.
 
-### Add-ons
+Nothing caps the accumulation today. A workspace that never spends will bank its grant indefinitely,
+which is a real liability at `CREDIT_USD` per credit; if that needs bounding, the cap belongs in
+`rollCreditWindow` and must not clip credits that were bought rather than granted.
 
-Two, both recurring, declared in `ADD_ONS`:
+### Add-ons and packs
 
-| Add-on    | Unit              | Sold on         |
-| --------- | ----------------- | --------------- |
-| `seat`    | +1 seat, +credits | Premium only    |
-| `credits` | +credits, no seat | Pro and Premium |
+|             | Billing                              | Sold on         | Effect                           |
+| ----------- | ------------------------------------ | --------------- | -------------------------------- |
+| Seat add-on | recurring subscription item          | Premium only    | +1 seat, +credits on every grant |
+| Credit pack | one-off Checkout (`mode: "payment"`) | Pro and Premium | +credits once, into the balance  |
 
-A subscription is therefore one plan item at quantity 1 plus up to two add-on items carrying their
-own quantities. `readSub` classifies the items by price id, which is why `seats` is read off the seat
-item rather than the plan item's quantity, and why anything unrecognised is ignored rather than
-guessed at. `addOnItemUpdates` reconciles them on a change: update where the item exists, add where it
-does not, and delete when the quantity falls to zero, since Stripe bills a zero-quantity line as a
-line.
+A seat is an ongoing entitlement, so it is a subscription item and its credits recur. A pack is
+bought once: `POST /billing/topup` opens a payment-mode Checkout, and the webhook re-derives the
+grant from `CREDIT_PACKS` by pack id rather than trusting a count in metadata, then adds it to the
+balance under the `stripe_events` idempotency claim so a redelivery cannot grant twice.
 
-`pnpm stripe:setup` creates every product and price from this catalog and prints the env block that
-wires them up. It matches on a `galleo_*` lookup key rather than on name, so it is safe to re-run and
-safe against a fresh account: repricing creates a new Stripe price (they are immutable), transfers
-the lookup key to it, and archives the old one, leaving existing subscriptions billing where they
-were until they are next changed.
-
-Pricing holds two invariants, both asserted in `model/__tests__/billing.test.ts`: every add-on sells
-well above `CREDIT_USD`, and a bare credit costs more per credit than one bundled with a seat, so
-buying capacity never beats buying a colleague.
-
-Because add-ons are subscription quantities, buying one is a `POST /billing/change-plan`, not a
-separate purchase route, and it prorates and takes effect immediately like any other increase. A
-reduction parks at period end with the rest.
+Packs are priced above every plan's own per-credit rate, so buying capacity outright never beats
+subscribing for it, and both invariants are asserted in `model/__tests__/billing.test.ts`.
 
 ### The window
 
@@ -344,7 +336,7 @@ Two things move it:
 - Otherwise `rollCreditWindow` rolls it lazily. It returns early when the window is still open,
   otherwise opens a transaction, re-selects the row `FOR UPDATE`, re-checks `resetAt` under the lock so
   that the parallel requests of an app boot roll it exactly once, sets `aiCreditsUsed: 0` with new
-  bounds, and writes a `monthly-reset` ledger row **only when usage was non-zero**.
+  bounds, adds the grant to the balance, and writes a `monthly-grant` ledger row.
 
 The trap is that the roll happens on read, from `currentWorkspace`. Any authenticated request that
 resolves a workspace whose `credits_reset_at` has passed will zero its usage and rewrite its window,
@@ -360,13 +352,13 @@ read would roll it", because a fixture that rolls itself on first page load is n
 
 `chargeCredits(ws, cost, reason, userId?, usage?)` opens a transaction, locks the workspace row
 `FOR UPDATE` so concurrent spends serialize and none passes a near-limit gate twice, refuses when
-`cost > available`, and otherwise adds the cost to `ai_credits_used`. It reports `entryId`, the ledger
-row it wrote.
+`cost > balance`, and otherwise subtracts the cost from `ai_credits_balance`. It reports `entryId`,
+the ledger row it wrote.
 
 `settleCredits(ws, entryId, delta)` reconciles against the **live** row, so a spend that landed
-mid-turn survives and extra spend can push `ai_credits_used` past the cap. A refund (`delta < 0`)
-simply subtracts, floored at zero. With one pool there is no ordering to preserve and no share of the
-charge to remember, which is what made the earlier `fromBonus` / `bonusFirst` pair necessary.
+mid-turn survives and extra spend can drive the balance to zero, where it floors. A refund
+(`delta < 0`) simply adds back. With one balance there is no ordering to preserve and no share of the
+charge to remember.
 
 The part that surprises people reading the `credits` table: a settle **rewrites the charge's own row**
 (`UPDATE credits SET delta = delta - $delta, balance_after = … WHERE id = $entryId`) instead of
@@ -399,7 +391,7 @@ zero, which is why `owed()` checks for any produced unit before calling `costOf`
 
 One row per charge, settle target, grant, or reset: `workspace_id`, `user_id` (null = system, used by
 resets and webhook grants), `delta` (negative = spend), `reason` (the `ToolId` for a spend, or
-`monthly-reset` / `renewal-reset` / `upgrade-reset` / `topup:<pack>`), `usage` (jsonb, the `Usage` bag,
+`monthly-grant` / `renewal-grant` / `upgrade-grant` / `topup:<pack>`), `usage` (jsonb, the `Usage` bag,
 so history can say what a charge bought and not only which tool ran; null on grants and resets),
 `balance_after`, `created_at`. Indexed on `(workspace_id, created_at DESC)`.
 
@@ -488,7 +480,7 @@ Immediately after `createWorkspaceForUser`:
 - `plan: "free"` unless a plan was passed, `plan_status: "active"`, `seats: 1`;
 - no Stripe customer and no subscription, `scheduled_change` and `feature_overrides` null,
   `cancel_at_period_end` false, `plan_period_end` null;
-- `ai_credits_used: 0`, `credit_blocks: 0`, and a 30-day window from now;
+- `ai_credits_balance: 0` until the first grant, and a 30-day window from now;
 - exactly one `members` row, the owner;
 - nothing else: no folders, no artifacts, no themes, no assets, no contexts.
 
@@ -525,10 +517,11 @@ passes, while `ask-assistant` (holds 10 through its ceiling) and `generate-artif
 both take the 402 branch, so one workspace demonstrates the gate without being uniformly dead.
 
 `seedLedger` replays each spec's charges oldest-first with the same arithmetic as `chargeCredits`, so
-`balance_after` and `ai_credits_used` cannot disagree with the history above them, and it throws on a
+`balance_after` and `ai_credits_balance` cannot disagree with the history above them, and it throws on a
 spec that outspends its plan rather than clamping into a state no request path can reach. A
-`monthly-reset` row takes its delta from the replay and is skipped when nothing was spent, matching
-`rollCreditWindow`. Invite tokens are derived (`<slug>-<handle>-demo`) rather than
+`monthly-grant` row adds a month's grant, exactly as `rollCreditWindow` does. A spec may set
+`openingBalance` to start mid-cycle: with rollover, a workspace that opened on a full grant and then
+barely spent would bank several months, which reads as a bug rather than as a demo. Invite tokens are derived (`<slug>-<handle>-demo`) rather than
 random, so an accept URL survives a reseed and can be pasted into `/invite/:token`.
 
 Verified against the live seeded database (container `galleo-pg`): `demo` is premium with 8 seats and
@@ -576,10 +569,10 @@ which sees only the plan and would silently ignore a workspace's `featureOverrid
 
 | Area                            | File                                        | Covers                                                                                                                                                                                                                                                                                                                                                                       |
 | ------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Plan catalog + resolver         | `model/__tests__/billing.test.ts`           | plan fallback, `limitsFor`, `isPerSeat`, launch status beating both plan and override, overrides widening a live feature, `withinLimit` against `-1`, `creditLimitFor` scaling by seats and honouring a `creditsPerMonth` override                                                                                                                                           |
+| Plan catalog + resolver         | `model/__tests__/billing.test.ts`           | plan fallback, `limitsFor`, `sellsSeats`, launch status beating both plan and override, overrides widening a live feature, `withinLimit` against `-1`, `monthlyGrantFor` counting only seats beyond the included ones, add-on and pack pricing invariants, and every plan having a remedy when it runs dry                                                                   |
 | Cost units + the ceiling        | `model/__tests__/credits.test.ts`           | `costOf` with and without rates, the one-credit floor, `creditsForUsd`, `unitMultipliers` per task, `estimateCost` scaling by length and section count, `reserveCost` holding the estimate without a ceiling and 10 credits for `ask-assistant` with one, and a free tool reserving 0                                                                                        |
 | 402 guards                      | `services/utils/__tests__/http.test.ts`     | `requireFeature`, `checkLimit` at and below a cap, unlimited, the message builder                                                                                                                                                                                                                                                                                            |
-| Ledger mechanics                | `services/core/__tests__/ledger.itest.ts`   | `fromBonus` reporting, refunds restoring bonus before pool, a settle rewriting one row in place, usage recorded on the charge, a settle beyond the reserve, `rollCreditWindow` rolling once under concurrency and including bonus in the reset row                                                                                                                           |
+| Ledger mechanics                | `services/core/__tests__/ledger.itest.ts`   | refusing a charge the balance cannot cover, spending straight off the balance, a settle rewriting one row in place, a settle beyond the reserve flooring at zero, and `rollCreditWindow` rolling once under concurrency while adding the grant to the leftovers                                                                                                              |
 | Spend policy                    | `services/core/__tests__/spend.test.ts`     | what a run owes: nothing for nothing, provider list price, the credit floor, assets on top, call-site spend folded into one sum                                                                                                                                                                                                                                              |
 | Stripe wiring                   | `services/core/__tests__/stripe.test.ts`    | `stripeReady`, `priceIdFor` including the annual-to-monthly fallback, price-to-plan and price-to-interval round trips                                                                                                                                                                                                                                                        |
 | Billing routes + webhook        | `services/api/__tests__/billing.itest.ts`   | checkout (seats, interval, 503, free rejected), portal, change-plan (immediate upgrade, parked downgrade, cancel-to-free, seat floor, interval switch), resume, webhook idempotency and rollback, subscription adoption and hijack refusal, cycle-invoice re-anchoring, seat-scaled pool, concurrent near-limit spends, top-ups, trials, owner-only mutations, ledger paging |

@@ -77,7 +77,7 @@ async function loadEnv(): Promise<Env> {
         library,
         sample,
         plan: ws.plan,
-        credits: { remaining: Math.max(0, limit - ws.aiCreditsUsed), limit },
+        credits: { remaining: ws.aiCreditsBalance, limit },
         artifactId: (sub) =>
             rows.find((r) => r.title.toLowerCase().includes(sub.toLowerCase()))?.id,
         folderId: (name) => flds.find((f) => f.name.toLowerCase() === name.toLowerCase())?.id,

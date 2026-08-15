@@ -174,8 +174,8 @@ function meta(): Pick<ChatContext, "plan" | "credits"> {
     return {
         plan: b.plan,
         credits: {
-            remaining: Math.max(0, b.credits.limit - b.credits.used),
-            limit: b.credits.limit,
+            remaining: b.credits.balance,
+            limit: b.credits.monthlyGrant,
         },
     };
 }
