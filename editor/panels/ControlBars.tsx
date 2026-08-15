@@ -169,14 +169,15 @@ export const ContextBar: Component = () => {
                     anchor="free"
                     gap="0.5"
                     data-galleo-toolbar="true"
-                    // phone: the same above-the-element anchor as desktop, as a full-width
-                    // scrollable strip (a centered pill can't clamp on a narrow viewport). Content
-                    // coords on purpose: when the keyboard opens the browser scrolls the focused
-                    // element into view and the bar rides along, whereas a `fixed` strip attaches
-                    // to the layout viewport and the keyboard's visual-viewport pan can strand it.
+                    // phone: the same above-the-element anchor as desktop, but centred on the
+                    // viewport (stacked elements are near full-width, so element-centre ≈ middle)
+                    // and capped so a crowded bar scrolls inside itself instead of overflowing.
+                    // Content coords on purpose: when the keyboard opens the browser scrolls the
+                    // focused element into view and the bar rides along, whereas a `fixed` strip
+                    // attaches to the layout viewport and the keyboard's pan can strand it.
                     class={
                         isPhone()
-                            ? "absolute inset-x-2 z-chrome overflow-x-auto"
+                            ? "absolute left-1/2 z-chrome max-w-[calc(100%-16px)] -translate-x-1/2 overflow-x-auto"
                             : "absolute z-chrome -translate-x-1/2"
                     }
                     style={
