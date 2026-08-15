@@ -1,8 +1,27 @@
 import type { ElementSpec, LayoutCtx } from "@elements/spec";
-import type { EngineNode } from "@engine/node";
+import type { DrawContext, DrawStyle, EngineNode, Rect } from "@engine/node";
 import { register } from "@elements/spec";
-import { fit, grow } from "@model/geometry";
+import { fit, fixed, grow } from "@model/geometry";
 import { fontStack } from "@themes";
+
+const GLYPH = 20;
+
+// two interlocking links
+const linkGlyph =
+    (color: string) =>
+    (g: DrawContext, box: Rect): void => {
+        const s = Math.min(box.w, box.h);
+        const x = box.x + (box.w - s) / 2;
+        const y = box.y + (box.h - s) / 2;
+        const line: DrawStyle = {
+            stroke: color,
+            width: Math.max(1.25, s * 0.09),
+            cap: "round",
+            join: "round",
+        };
+        g.rect(x + s * 0.06, y + s * 0.34, s * 0.46, s * 0.32, { ...line, radius: s * 0.16 });
+        g.rect(x + s * 0.48, y + s * 0.34, s * 0.46, s * 0.32, { ...line, radius: s * 0.16 });
+    };
 
 // A link/bookmark card (the static fallback for an iframe/embed).
 interface EmbedData {
@@ -30,16 +49,9 @@ export const embedElement: ElementSpec<EmbedData> = {
         },
         children: [
             {
-                w: fit(),
-                h: fit(),
-                text: {
-                    text: "🔗",
-                    fontId: fontStack("ui", ctx.theme),
-                    size: 20,
-                    color: ctx.theme.muted,
-                    align: "center",
-                    wrap: "none",
-                },
+                w: fixed(GLYPH),
+                h: fixed(GLYPH),
+                surface: { paint: linkGlyph(ctx.theme.muted) },
             },
             {
                 w: grow(),

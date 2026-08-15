@@ -560,7 +560,7 @@ export const MediaPicker: Component = () => {
                                         }
                                     }}
                                 >
-                                    {refItem()?.id === it.id ? "Refining ✓" : "Refine"}
+                                    {refItem()?.id === it.id ? "Refining" : "Refine"}
                                 </span>
                             </Show>
                             <Show when={it.attribution?.author}>

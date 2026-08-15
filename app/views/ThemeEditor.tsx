@@ -13,7 +13,7 @@ import { Dropdown } from "@ui/select";
 import { Button, IconButton, Eyebrow } from "@ui/button";
 import { Slider, Segmented, TextField, TextArea } from "@ui/inputs";
 import { Modal } from "@ui/overlay";
-import { ChevronLeftIcon, CloseIcon, EditIcon, RefreshIcon } from "@ui/icons";
+import { ChevronLeftIcon, CloseIcon, EditIcon, RefreshIcon, SparkleIcon } from "@ui/icons";
 import { SectionThumb } from "@app/components/previews";
 import { api } from "@app/api";
 import {
@@ -722,7 +722,9 @@ const ThemeEditorPanel: Component = () => {
                                         disabled={genBusy() || !genPrompt().trim()}
                                         onClick={runGenerate}
                                     >
-                                        {genBusy() ? "Designing…" : "✨ Generate theme"}
+                                        <Show when={!genBusy()} fallback="Designing…">
+                                            <SparkleIcon size={13} /> Generate theme
+                                        </Show>
                                     </Button>
                                     <Show when={genError()}>
                                         <p class="mt-2 text-[11.5px]" style={{ color: "#C0392B" }}>

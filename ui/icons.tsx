@@ -443,6 +443,13 @@ const PATHS: Record<string, () => JSX.Element> = {
         </>
     ),
     check: () => <path d="M5 12.5 10 17 19 7" />,
+    print: () => (
+        <>
+            <path d="M6.5 9V3.5h11V9" />
+            <path d="M6.5 17.5h-2A1.5 1.5 0 0 1 3 16v-5.5A1.5 1.5 0 0 1 4.5 9h15A1.5 1.5 0 0 1 21 10.5V16a1.5 1.5 0 0 1-1.5 1.5h-2" />
+            <path d="M6.5 14h11v6.5h-11z" />
+        </>
+    ),
     backspace: () => (
         <>
             <path d="M8 6 H19 A2 2 0 0 1 21 8 V16 A2 2 0 0 1 19 18 H8 L3 12 Z" />

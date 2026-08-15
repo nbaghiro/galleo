@@ -13,6 +13,7 @@ import { renderChart } from "@elements/chart/render";
 import { toChartData } from "@elements/chart/utils";
 import { commit, editor, editorTokens } from "@editor/core/store";
 import { Badge, Button, IconButton } from "@ui/button";
+import { Icon } from "@ui/icons";
 import { CellInput } from "@ui/inputs";
 import { Modal } from "@ui/overlay";
 import { SchemaFields } from "./SharedControlFields";
@@ -120,7 +121,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                                     }, "struct")
                                                 }
                                             >
-                                                ✕
+                                                <Icon name="close" size={11} />
                                             </button>
                                         </div>
                                     </th>
@@ -174,7 +175,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                                 }, "struct")
                                             }
                                         >
-                                            ✕
+                                            <Icon name="close" size={11} />
                                         </button>
                                     </td>
                                 </tr>
@@ -230,7 +231,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                                 }, "struct")
                                             }
                                         >
-                                            ✕
+                                            <Icon name="close" size={11} />
                                         </button>
                                     </td>
                                 </tr>
@@ -309,7 +310,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                                 }, "struct")
                                             }
                                         >
-                                            ✕
+                                            <Icon name="close" size={11} />
                                         </button>
                                     </td>
                                 </tr>
@@ -469,7 +470,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                                 }, "struct")
                                             }
                                         >
-                                            ✕
+                                            <Icon name="close" size={11} />
                                         </button>
                                     </td>
                                 </tr>
@@ -536,7 +537,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                                 }, "struct")
                                             }
                                         >
-                                            ✕
+                                            <Icon name="close" size={11} />
                                         </button>
                                     </td>
                                 </tr>
@@ -577,7 +578,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                                     }, "struct")
                                                 }
                                             >
-                                                ✕
+                                                <Icon name="close" size={11} />
                                             </button>
                                         </td>
                                     </tr>
@@ -662,7 +663,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                                     }, "struct")
                                                 }
                                             >
-                                                ✕
+                                                <Icon name="close" size={11} />
                                             </button>
                                         </td>
                                     </tr>
@@ -881,7 +882,7 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
                 </Badge>
                 <div class="flex-1" />
                 <IconButton size="lg" rounded="lg" bordered tone="soft" onClick={close}>
-                    ✕
+                    <Icon name="close" size={11} />
                 </IconButton>
             </div>
 

@@ -2,6 +2,7 @@ import type { Component } from "solid-js";
 import { createSignal, Show } from "solid-js";
 import { user } from "@app/stores/auth";
 import { api } from "@app/api";
+import { Icon } from "@ui/icons";
 
 // OAuth users land verified, so they never see it
 export const VerifyBanner: Component = () => {
@@ -44,7 +45,7 @@ export const VerifyBanner: Component = () => {
                     onClick={() => setDismissed(true)}
                     class="text-muted hover:text-ink"
                 >
-                    ✕
+                    <Icon name="close" size={12} />
                 </button>
             </div>
         </Show>

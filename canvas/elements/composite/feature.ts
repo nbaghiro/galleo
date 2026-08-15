@@ -8,7 +8,6 @@ export const featureElement = composite(
     "Feature",
     () => ({
         children: [
-            t("⚡", "h1"),
             t("Fast by default", "h3"),
             t("Sub-second layout keeps editing fluid at any size.", "body"),
         ],

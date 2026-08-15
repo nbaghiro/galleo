@@ -82,7 +82,7 @@ export const PricingView: Component = () => {
 
                     <Show when={params.status === "success"}>
                         <div class="mb-5 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-[13px] text-ink">
-                            🎉 Payment received. Your plan updates the moment Stripe confirms it
+                            Payment received. Your plan updates the moment Stripe confirms it
                             (usually a second or two). Refresh if it still shows the old tier.
                         </div>
                     </Show>

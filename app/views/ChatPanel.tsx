@@ -102,7 +102,9 @@ const ProposalCard: Component<{
                                 "text-muted": props.applied === "discarded",
                             }}
                         >
-                            {props.applied === "applied" ? "Applied ✓" : "Discarded"}
+                            <Show when={props.applied === "applied"} fallback="Discarded">
+                                <Icon name="check" size={12} /> Applied
+                            </Show>
                         </span>
                     }
                 >
@@ -171,7 +173,9 @@ const ThemeCard: Component<{
                                 "text-muted": props.applied === "discarded",
                             }}
                         >
-                            {props.applied === "applied" ? "Applied ✓" : "Discarded"}
+                            <Show when={props.applied === "applied"} fallback="Discarded">
+                                <Icon name="check" size={12} /> Applied
+                            </Show>
                         </span>
                     }
                 >
@@ -256,7 +260,9 @@ const PlanCard: Component<{
                             "text-muted": props.applied === "discarded",
                         }}
                     >
-                        {props.applied === "applied" ? "Planning ✓" : "Discarded"}
+                        <Show when={props.applied === "applied"} fallback="Discarded">
+                            <Icon name="check" size={12} /> Planning
+                        </Show>
                     </span>
                 }
             >
@@ -311,7 +317,7 @@ const WriteCard: Component<{
                                 "text-muted": props.applied === "discarded",
                             }}
                         >
-                            {props.applied === "applied" ? "Writing ✓" : "Discarded"}
+                            {props.applied === "applied" ? "Writing" : "Discarded"}
                         </span>
                     }
                 >
@@ -382,7 +388,9 @@ const OutlineCardProposal: Component<{
                             "text-muted": props.applied === "discarded",
                         }}
                     >
-                        {props.applied === "applied" ? "Applied ✓" : "Discarded"}
+                        <Show when={props.applied === "applied"} fallback="Discarded">
+                            <Icon name="check" size={12} /> Applied
+                        </Show>
                     </span>
                 }
             >
@@ -531,7 +539,7 @@ const BriefCard: Component<{
                                 ? "Superseded"
                                 : busy()
                                   ? "Generating…"
-                                  : "Generated ✓"}
+                                  : "Generated"}
                         </span>
                     }
                 >
@@ -658,7 +666,7 @@ const ArtifactDraftCard: Component<{ draftId: string }> = (props) => {
                                             "text-muted": draft().state === "discarded",
                                         }}
                                     >
-                                        {draft().state === "opened" ? "Opened ✓" : "Discarded"}
+                                        {draft().state === "opened" ? "Opened" : "Discarded"}
                                     </span>
                                 }
                             >
@@ -747,7 +755,10 @@ const ActionCard: Component<{
                             }}
                         >
                             {actionLabel(props.action)}
-                            {props.state === "done" ? " ✓" : ""}
+                            <Show when={props.state === "done"}>
+                                {" "}
+                                <Icon name="check" size={11} />
+                            </Show>
                         </div>
                     }
                 >

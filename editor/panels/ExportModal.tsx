@@ -39,11 +39,11 @@ const close = (): void => {
 type Dest = Exclude<ExportFormat, "slides">; // the four shipped destinations
 
 // destination brand marks — fixed on purpose, they represent the target apps, not the theme
-const DESTS: { id: Dest; label: string; mark: string; markBg: string }[] = [
+const DESTS: { id: Dest; label: string; mark: string; icon?: string; markBg: string }[] = [
     { id: "pdf", label: "PDF", mark: "PDF", markBg: "#C2402C" },
     { id: "pptx", label: "PowerPoint", mark: "PPT", markBg: "#C75B12" },
     { id: "png", label: "Images", mark: "ZIP", markBg: "#3F6E8F" },
-    { id: "print", label: "Print", mark: "🖨", markBg: "#57544C" },
+    { id: "print", label: "Print", mark: "", icon: "print", markBg: "#57544C" },
 ];
 
 const CTA: Record<Dest, string> = {
@@ -225,7 +225,9 @@ const Body: Component = () => {
                                 class="grid h-4.5 w-4.5 place-items-center rounded font-mono text-[6.5px] font-bold text-white"
                                 style={{ background: d.markBg }}
                             >
-                                {d.mark}
+                                <Show when={d.icon} fallback={d.mark}>
+                                    {(name) => <Icon name={name()} size={11} />}
+                                </Show>
                             </span>
                             {d.label}
                             <Show when={!allowed(d.id)}>
