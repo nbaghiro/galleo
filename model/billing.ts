@@ -134,9 +134,9 @@ export const PLANS: Record<PlanId, Plan> = {
     free: {
         id: "free",
         name: "Free",
-        tagline: "Kick the tires.",
+        tagline: "For trying it out.",
         highlights: [
-            `≈${gens(CREDITS_PER_MONTH.free)} AI generations a month`,
+            `About ${gens(CREDITS_PER_MONTH.free)} AI generations a month`,
             "Up to 10 artifacts",
             "All 52 built-in themes",
             "PNG · PDF export (with a Galleo mark)",
@@ -177,10 +177,10 @@ export const PLANS: Record<PlanId, Plan> = {
     pro: {
         id: "pro",
         name: "Pro",
-        tagline: "For creators who ship — solo or as a team.",
+        tagline: "For creators who ship, solo or as a team.",
         badge: "Most popular",
         highlights: [
-            `≈${gens(CREDITS_PER_MONTH.pro)} AI generations a month`,
+            `About ${gens(CREDITS_PER_MONTH.pro)} AI generations a month`,
             "Unlimited artifacts",
             "Custom themes + every font",
             "Premium AI models · every export format · no watermark",
@@ -223,7 +223,7 @@ export const PLANS: Record<PlanId, Plan> = {
         name: "Premium",
         tagline: "For teams that need control.",
         highlights: [
-            `${PREMIUM_SEATS} seats · ≈${gens(CREDITS_PER_MONTH.premium)} AI generations a month`,
+            `${PREMIUM_SEATS} seats · about ${gens(CREDITS_PER_MONTH.premium)} AI generations a month`,
             "Everything in Pro",
             "Admin controls + shared brand kit",
             "Link analytics: views, referrers, engagement",
