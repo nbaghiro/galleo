@@ -5,6 +5,7 @@ import { elementRegionId } from "@model/artifact";
 import { deleteElement, getElementAt, setElementLayout, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { commit, editor, regions, setSelection } from "@editor/core/store";
+import { paintedLeafFor } from "@editor/core/leaf";
 import { FieldRow, PanelHeader, SchemaFields, SliderRow } from "./SharedControlFields";
 import { dataShapeFor, DATA_KEYS } from "@editor/core/infographic";
 import { openDataEditor } from "./DataEditor";
@@ -85,7 +86,17 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
                     </Show>
                 }
             >
-                <SchemaFields controls={panelControls()} read={(k) => data()[k]} write={set} />
+                <SchemaFields
+                    controls={panelControls()}
+                    read={(k) => data()[k]}
+                    write={set}
+                    // an unset color override inherits the painted leaf's tone; show it as Auto
+                    effective={(k) =>
+                        k === "color" && spec()?.richText
+                            ? paintedLeafFor(props.address)?.color
+                            : undefined
+                    }
+                />
             </Show>
             <Show when={spec()?.frame}>
                 <FieldRow label="Corner radius">

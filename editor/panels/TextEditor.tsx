@@ -1,7 +1,6 @@
 import type { ElementAddress } from "@model/artifact";
 import type { Component, JSX } from "solid-js";
 import { createMemo, onCleanup, onMount, Show } from "solid-js";
-import { composedLeafFor, sectionContentTokens } from "@elements/compose";
 import { getElementAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { elementRegionId } from "@model/artifact";
@@ -16,20 +15,16 @@ import {
     toRuns,
 } from "@model/text";
 import {
-    canvasContentWidth,
     editCaret,
     editing,
     editor,
     editorAccent,
-    editorTokens,
     regions,
     remountEditing,
     setArtifactLive,
     stopEditing,
 } from "@editor/core/store";
-import { profileFor } from "@engine/profile";
-import { ctxFor } from "@canvas/render/commands";
-import { sectionLayoutWidth } from "@canvas/render/backends";
+import { paintedLeafFor } from "@editor/core/leaf";
 import {
     registerTextField,
     registerTextReplace,
@@ -69,24 +64,7 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
     const fields = (): TextFields => (inst()?.data ?? {}) as TextFields;
     const leaf = createMemo(() => {
         const i = inst();
-        const spec = i ? getElement(i.type) : undefined;
-        if (!i || !spec?.richText) return null;
-        // mirrors composeSection's over-image recoloring, so the overlay isn't dark over an image
-        const base = editorTokens();
-        const section = editor.artifact.sections.find((s) => s.id === props.address.section);
-        const tokens = section ? sectionContentTokens(section, base) : base;
-        // containers restyle their text children (a diagram label paints at node size, not body
-        // size), so style from the composed leaf; the spec's own leaf covers a bare element.
-        // Compose at the exact width and profile the canvas painted with — the type ramp makes
-        // font size a function of width, so any other width styles the overlay at the wrong scale.
-        const profile = profileFor(editor.artifact);
-        const w = section
-            ? sectionLayoutWidth(section, profile, canvasContentWidth())
-            : canvasContentWidth();
-        const composed = section
-            ? composedLeafFor(section, props.address, ctxFor(w, base, profile))
-            : null;
-        return composed ?? spec.layout(i.data, ctxFor(w, tokens, profile)).text ?? null;
+        return i && getElement(i.type)?.richText ? paintedLeafFor(props.address) : null;
     });
     const box = createMemo(
         () => regions().find((r) => r.id === elementRegionId(props.address))?.box ?? null,

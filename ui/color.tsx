@@ -123,6 +123,9 @@ export function highlightSwatches(t: Tokens): ColorSwatch[] {
 
 export const ColorPopover: Component<{
     value?: string;
+    // what an unset value resolves to (an inherited tone): shown on the trigger as "Auto" so the
+    // swatch never reads as empty, while the picker itself keeps treating unset as no override
+    effective?: string;
     swatches?: ColorSwatch[];
     onChange: (value: string | undefined) => void;
     clearLabel?: string;
@@ -145,12 +148,12 @@ export const ColorPopover: Component<{
                 <span
                     class="h-4 w-4 flex-none rounded"
                     style={{
-                        background: props.value ?? "transparent",
+                        background: props.value ?? props.effective ?? "transparent",
                         "box-shadow": "inset 0 0 0 1px rgba(0,0,0,.15)",
                     }}
                 />
                 <span class="font-mono text-[10px] text-muted">
-                    {props.value?.toUpperCase() ?? "—"}
+                    {props.value?.toUpperCase() ?? (props.effective ? "Auto" : "—")}
                 </span>
             </button>
             <Popover

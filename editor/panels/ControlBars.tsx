@@ -25,6 +25,7 @@ import {
     editorTokens,
 } from "@editor/core/store";
 import { drag } from "@editor/core/dnd";
+import { paintedLeafFor } from "@editor/core/leaf";
 import { canRegenerate, elementGenBusy, regenerateElement } from "@editor/core/ai";
 import {
     canAssistText,
@@ -89,6 +90,12 @@ export const ContextBar: Component = () => {
         return { left, top: above >= 0 ? above : b.y + b.h + BAR_GAP };
     });
 
+    // an unset color override inherits the painted leaf's tone; show it so the swatch isn't empty
+    const effectiveColor = (key: string): string | undefined => {
+        const a = addr();
+        if (key !== "color" || !a || !spec()?.richText) return undefined;
+        return paintedLeafFor(a)?.color;
+    };
     const setData = (key: string, value: unknown): void => {
         const a = addr();
         if (!a) return;
@@ -196,6 +203,7 @@ export const ContextBar: Component = () => {
                                     value={data()[c.key]}
                                     onChange={(v) => setData(c.key, v)}
                                     onWrite={(k, v) => setData(k, v)}
+                                    effective={effectiveColor(c.key)}
                                 />
                             )}
                         </For>

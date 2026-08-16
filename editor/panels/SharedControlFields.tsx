@@ -39,6 +39,7 @@ export {
 
 export const ColorField: Component<{
     value?: string;
+    effective?: string; // what unset resolves to; the trigger shows it as "Auto"
     onChange: (v: string | undefined) => void;
     allowClear?: boolean;
 }> = (props) => {
@@ -56,6 +57,7 @@ export const ColorField: Component<{
     return (
         <ColorPopover
             value={props.value}
+            effective={props.effective}
             swatches={swatches()}
             onChange={props.onChange}
             clearLabel={props.allowClear ? "Reset" : undefined}
@@ -269,6 +271,7 @@ export const Field: Component<{
     value: unknown;
     onChange: (v: unknown) => void;
     onWrite?: (key: string, value: unknown) => void; // sibling-key writes (media posterKey)
+    effective?: string; // color controls: what an unset value resolves to
     compact?: boolean;
 }> = (props) => {
     const f = (): ControlField => props.field;
@@ -320,7 +323,11 @@ export const Field: Component<{
                 />
             </Match>
             <Match when={f().control === "color"}>
-                <ColorField value={props.value as string | undefined} onChange={props.onChange} />
+                <ColorField
+                    value={props.value as string | undefined}
+                    effective={props.effective}
+                    onChange={props.onChange}
+                />
             </Match>
             <Match when={f().control === "toggle"}>
                 <ToggleSwitch value={!!props.value} onChange={props.onChange} />
@@ -380,6 +387,7 @@ export const SchemaFields: Component<{
     controls: ControlField[];
     read: (key: string) => unknown;
     write: (key: string, value: unknown) => void;
+    effective?: (key: string) => string | undefined; // color controls: unset resolves to this
 }> = (props) => {
     const groups = createMemo(() => {
         const order: string[] = [];
@@ -404,6 +412,7 @@ export const SchemaFields: Component<{
                 value={props.read(c.key)}
                 onChange={(v) => props.write(c.key, v)}
                 onWrite={props.write}
+                effective={props.effective?.(c.key)}
             />
         </Show>
     );
