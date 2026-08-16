@@ -47,6 +47,10 @@ jobs:
             - name: Copy guard
               run: pnpm check:copy
 
+            # The map is where a contributor decides which file a change belongs in.
+            - name: Module-map guard
+              run: pnpm check:modules
+
             - name: Format check
               run: pnpm format:check
 

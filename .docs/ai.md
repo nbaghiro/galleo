@@ -707,7 +707,7 @@ demand.
 
 Reusable, workspace-shared **contexts** ground turns in real material. One ingestion path whatever the
 source (`services/core/context.ts`): extract text → `chunkText` (paragraph-aware, 1200 chars, 200
-overlap; `services/core/context-text.ts`) → embed (`gemini-embedding-001` @ 768 dims,
+overlap; `services/core/context.ts`) → embed (`gemini-embedding-001` @ 768 dims,
 `services/core/ai/embed.ts`) → rows in the unified `chunks` table. The five source kinds and how each
 becomes text: **file** covers plain-text formats (read in the browser, same reader as the intake's
 attachments) plus the binary formats the server extracts via `POST /extract` — PDF text layers

@@ -22,6 +22,9 @@ pnpm check:models
 echo "▸ copy guard"
 pnpm check:copy
 
+echo "▸ module-map guard"
+pnpm check:modules
+
 echo "▸ typecheck"
 pnpm typecheck
 

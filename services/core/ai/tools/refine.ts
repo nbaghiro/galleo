@@ -38,7 +38,8 @@ export async function refinePrompt(
     return refined || prompt; // an empty answer leaves the user's own words alone
 }
 
-export const refinePromptTool = implement("refine-prompt", async function* (input, ctx) {
+// registered for the contract check + the registry; the route calls refinePrompt() directly
+implement("refine-prompt", async function* (input, ctx) {
     return await refinePrompt(input.kind, input.prompt, {
         context: input.context,
         tier: ctx.tier,

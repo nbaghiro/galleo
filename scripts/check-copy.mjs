@@ -21,8 +21,9 @@ import { join } from "node:path";
 const SELF = "scripts/check-copy.mjs";
 const DASH = "—";
 
-// Where a person reads the words. Backend prose is in scope only where it reaches a person:
-// transactional email, the plan catalogue, the template blurbs.
+// Where the words are read: by a person on screen, or by the model, which copies the register it
+// is shown. Backend prose is in scope where it reaches either: transactional email, the plan
+// catalogue, the template blurbs, and every prompt.
 const IN_SCOPE = [
     /^app\//,
     /^website\//,
@@ -31,6 +32,9 @@ const IN_SCOPE = [
     /^publish\//,
     /^model\/(?:billing|templates)\.ts$/,
     /^services\/core\/mail\.ts$/,
+    // The prompts are copy too: the model imitates the register it is shown, and 169 em-dashes in
+    // here were why it wrote them back out. Structural separators in rendered rows use a middot.
+    /^services\/core\/ai\/prompts\//,
 ];
 
 // Not copy: tests, fixtures, and the sample artifacts whose whole job is to look like real

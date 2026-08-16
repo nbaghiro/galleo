@@ -22,4 +22,3 @@ export const exportFormatsOf = (): ExportFormat[] =>
     featuresState()?.features.exportFormats ?? PLANS.free.features.exportFormats;
 export const statusOf = (key: FeatureKey): FeatureStatus =>
     featuresState()?.status[key] ?? featureStatus(key);
-export const isComingSoon = (key: FeatureKey): boolean => statusOf(key) === "planned";

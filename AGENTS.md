@@ -27,12 +27,14 @@ with high-fidelity export. Net-new, TypeScript.
   so a new field is one file's diff: `artifact` (the content tree + tree/path ops + node addressing + REST
   shapes + section-op semantics + the derived digest/search text), `ai` (the streamed turn protocol; the
   LLM-facing catalog lives with its prompt in `services/core/ai/prompts/catalog.ts`), `credits` (metered credits +
-  AI tasks + the tool catalog), `billing` (plans + the entitlement resolver), `workspace`
-  (user/folder + the auth DTOs), `text` (rich-text core + the render-facing `Run`), plus `geometry`
-  (sizing + format profiles), `authoring` (fixture DSL), `elements` (element value-sets + the vector IR), and
+  the AiTask steps), `tools` (the one tool catalog: identity, surfaces, pricing), `billing` (plans, seats,
+  add-ons + the entitlement resolver), `eval` (the traced-run contract the eval playground reads),
+  `workspace` (user/folder + the auth DTOs), `text` (rich-text core + the render-facing `Run`), plus
+  `geometry` (sizing + format profiles), `media` (the picker + asset DTOs), `authoring` (fixture DSL),
+  `elements` (element value-sets + the vector IR), and
   the two curated catalogs that carry their own contract: `theme` (the whole theme contract + library) and
   `templates` (the `Template` DTO + `TEMPLATE_INDEX`, ids/labels/grouping only — the bodies are served from
-  `services/core/templates.ts`, so this stays edge-safe). Twelve files; resist adding a thirteenth for a
+  `services/core/templates.ts`, so this stays edge-safe). Fourteen files; resist adding a fifteenth for a
   handful of types that belong to a concept already here.
 - **`canvas/`** (`@canvas`, `@engine`, `@elements`) — the paint layer: the layout engine + element
   library + DOM / 2D-canvas / PDF backends + present-slide geometry + export. **Pure TS** — framework-
@@ -157,7 +159,9 @@ pnpm check:suppressions   # no eslint-disable / @ts-* / prettier-ignore / covera
 pnpm check:program        # every tracked .ts(x) is actually in the tsc program
 pnpm check:boundaries     # the layering law still reports, not just "no errors"
 pnpm check:models         # every model id is one the installed @ai-sdk provider still declares
-pnpm check:copy           # no em-dashes in user-facing copy (the machine-written tell)
+pnpm check:copy           # no em-dashes in user-facing copy or in the prompts (the machine-written tell)
+pnpm check:elements       # every registered element is reachable and renders
+pnpm check:modules        # the model/ map in this file still matches the directory
 ```
 
 Galleo owns the **86xx** host-port block (runs alongside the sibling apps). See the ports table in
