@@ -1,5 +1,3 @@
-import type { Tokens } from "@themes";
-
 export interface PreviewPalette {
     accent: string;
     ink: string;
@@ -18,18 +16,6 @@ export const CSS_VAR_PALETTE: PreviewPalette = {
     line: "var(--color-line)",
     onaccent: "var(--color-onaccent)",
 };
-
-// concrete colors baked from theme tokens (mirrors themeCssVars' --color-* mapping)
-export function paletteFor(t: Tokens): PreviewPalette {
-    return {
-        accent: t.accent,
-        ink: t.ink,
-        muted: t.muted,
-        surface: t.surface,
-        line: t.line,
-        onaccent: t.onAccent,
-    };
-}
 
 function elementPreviews(c: PreviewPalette): Record<string, string> {
     const { accent, ink, muted, surface, line, onaccent } = c;
@@ -416,10 +402,4 @@ export function previewBody(type: string, c: PreviewPalette = CSS_VAR_PALETTE): 
 // inlined via innerHTML in the palette/insert tiles, where CSS vars recolor live
 export function previewSvg(type: string, c: PreviewPalette = CSS_VAR_PALETTE): string {
     return `<svg viewBox="0 0 140 72" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" fill="none" xmlns="http://www.w3.org/2000/svg">${previewBody(type, c)}</svg>`;
-}
-
-// for an engine image leaf, where CSS vars can't resolve
-export function previewDataUri(type: string, t: Tokens): string {
-    const svg = `<svg viewBox="0 0 140 72" width="140" height="72" fill="none" xmlns="http://www.w3.org/2000/svg">${previewBody(type, paletteFor(t))}</svg>`;
-    return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }

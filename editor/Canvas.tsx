@@ -1,9 +1,9 @@
-import type { Region, Rect } from "@engine/node";
+import type { Rect } from "@engine/node";
 import { embedFor, pickArtifactBackground, type Embed, type PlayerOpts } from "./core/media";
 import type { ElementAddress, Target, ElementInstance, Section } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { getElementAt, moveSection } from "@elements/ops";
+import { getElementAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { profileFor } from "@engine/profile";
 import { elementRegionId, parseTarget, specificity, targetsEqual } from "@model/artifact";
@@ -27,8 +27,17 @@ import {
 } from "@canvas/render/window";
 import { layoutPlaceholder } from "@canvas/render/placeholder";
 import { measureText, layoutSection, layoutSlide } from "@canvas/render/commands";
-import { applyDrop, computeDropTarget, drag, previewDrop, setDrag } from "./core/dnd";
-import { applyLiveEdit, liveEdit, sectionDrop, sectionDragId } from "./panels/Selection";
+import {
+    activeSlot,
+    applyDrop,
+    computeDropSlots,
+    drag,
+    dragSlots,
+    endDrag,
+    setDrag,
+    setDragSlots,
+} from "./core/dnd";
+import { applyLiveEdit, liveEdit } from "./panels/Selection";
 import {
     canvasContentWidth,
     commit,
@@ -57,6 +66,7 @@ import {
     stopEditing,
 } from "./core/store";
 import { EmptyRegionAdd, ContextMenu, openContextMenu } from "./panels/Insert";
+import { DropIndicators, LiftVeil } from "./panels/DropIndicators";
 import { DragHandle, RegionDividers, ResizeHandles } from "./panels/Selection";
 import { ContextBar } from "./panels/ControlBars";
 import { Overlay, SectionActions } from "./panels/Selection";
@@ -76,7 +86,6 @@ export const Canvas: Component = () => {
     let stageEl!: HTMLDivElement;
     let paintHost!: HTMLDivElement;
 
-    let liveRegions: Region[] = [];
     // Precomputed per draw so hover is a numeric box test, not a re-parse of every region id.
     let liveHits: { target: Target; spec: number; box: Rect }[] = [];
     let pending: { target: Target | null; x: number; y: number } | null = null;
@@ -145,7 +154,6 @@ export const Canvas: Component = () => {
         // fetching runs on its own clock (see scheduleFetch): painting must never wait on the network
         if (waiting.size) scheduleFetch(viewH);
         if (!preview || track) {
-            liveRegions = regions;
             setRegions(regions);
             const hits: { target: Target; spec: number; box: Rect }[] = [];
             for (const r of regions) {
@@ -246,7 +254,7 @@ export const Canvas: Component = () => {
     };
 
     const onPointerMove = (e: PointerEvent): void => {
-        if (drag() || editing() || liveEdit() || sectionDrop() !== null) return; // driven by window listeners
+        if (drag() || editing() || liveEdit()) return; // driven by window listeners
         // Moves start only from the DragHandle, so a body drag never becomes an accidental move.
         setHover(hitTest(...point(e)));
     };
@@ -318,29 +326,13 @@ export const Canvas: Component = () => {
         });
     });
 
-    // a move drag previews for the whole gesture; a palette drag only once it has a target
+    // element and section drags never reflow the canvas: the document stays frozen, insertion
+    // indicators mark the slots, and the single mutation happens at drop
     const preview = createMemo<{ sections: Section[]; track: boolean; dimId?: string } | null>(
         () => {
             const edit = liveEdit();
             if (edit)
                 return { sections: applyLiveEdit(editor.artifact, edit).sections, track: true };
-            const d = drag();
-            if (d && (d.payload.kind === "move" || d.target))
-                return {
-                    sections: previewDrop(editor.artifact, d.target, d.payload).sections,
-                    track: false,
-                };
-            // a section reorder previews as a reflow into the slot, not a bare insertion line
-            const sid = sectionDragId();
-            const sd = sectionDrop();
-            if (sid && sd !== null) {
-                const secs = editor.artifact.sections;
-                const i = secs.findIndex((s) => s.id === sid);
-                const delta = (sd > i ? sd - 1 : sd) - i;
-                const sections =
-                    delta !== 0 ? moveSection(editor.artifact, sid, delta).sections : secs;
-                return { sections, track: false, dimId: sid };
-            }
             return null;
         },
     );
@@ -357,30 +349,78 @@ export const Canvas: Component = () => {
         scheduleDraw(p?.sections ?? null, p?.track ?? false, p?.dimId ?? null);
     });
 
+    // Slots enumerate once per gesture (the canvas doesn't reflow during an element drag) and
+    // re-enumerate only when the canvas republishes regions underneath the drag — a scroll
+    // materializing new windowed sections, AI streaming, a collaborative write.
+    createEffect(() => {
+        const d = drag();
+        if (!d) {
+            setDragSlots([]);
+            return;
+        }
+        setDragSlots(computeDropSlots(editor.artifact, regions(), d.payload));
+    });
+
     // the drag cursor can leave the canvas, so track it on the window
     const isDragging = createMemo(() => drag() !== null);
     createEffect(() => {
         if (!isDragging()) return;
-        const move = (e: PointerEvent): void => {
-            const target = computeDropTarget(editor.artifact, liveRegions, ...point(e));
-            // sticky target: over a gutter the last valid one holds, so the preview doesn't flash back
-            setDrag((d) =>
-                d ? { ...d, x: e.clientX, y: e.clientY, target: target ?? d.target } : d,
-            );
+        let clientX = drag()?.x ?? 0;
+        let clientY = drag()?.y ?? 0;
+        const retarget = (): void => {
+            const [px, py] = point({ clientX, clientY });
+            setDrag((d) => {
+                if (!d) return d;
+                const slot = activeSlot(dragSlots(), px, py, d.target);
+                return { ...d, x: clientX, y: clientY, target: slot?.target ?? null };
+            });
         };
+        const move = (e: PointerEvent): void => {
+            clientX = e.clientX;
+            clientY = e.clientY;
+            retarget();
+        };
+        // The canvas is frozen during a drag, so reaching a distant slot means scrolling the
+        // stack under the pointer: holding near the viewport edge scrolls, speed by proximity.
+        // The window effect repaints as the band moves, regions republish, slots re-enumerate.
+        const EDGE_ZONE = 56;
+        const MAX_STEP = 16; // px per frame
+        let scrollRaf = requestAnimationFrame(function autoscroll() {
+            scrollRaf = requestAnimationFrame(autoscroll);
+            const r = scrollEl.getBoundingClientRect();
+            const up = r.top + EDGE_ZONE - clientY;
+            const down = clientY - (r.bottom - EDGE_ZONE);
+            const step =
+                up > 0
+                    ? -Math.min(MAX_STEP, (up / EDGE_ZONE) * MAX_STEP)
+                    : down > 0
+                      ? Math.min(MAX_STEP, (down / EDGE_ZONE) * MAX_STEP)
+                      : 0;
+            if (!step) return;
+            const before = scrollEl.scrollTop;
+            scrollEl.scrollTop += step;
+            if (scrollEl.scrollTop !== before) retarget(); // content moved under the pointer
+        });
         const up = (): void => {
             const d = drag();
-            setDrag(null); // clear first so the redraw effect paints the committed result, not the ghost
+            endDrag(); // clear first so the redraw effect paints the committed result
             if (d?.target) {
                 const res = applyDrop(editor.artifact, d.target, d.payload);
-                commit(res.content);
-                setSelection(res.address ? { kind: "element", address: res.address } : null);
+                if (res.content !== editor.artifact) commit(res.content);
+                setSelection(
+                    d.payload.kind === "section"
+                        ? { kind: "section", section: d.payload.id }
+                        : res.address
+                          ? { kind: "element", address: res.address }
+                          : null,
+                );
                 setHover(null);
             }
         };
         window.addEventListener("pointermove", move);
         window.addEventListener("pointerup", up);
         onCleanup(() => {
+            cancelAnimationFrame(scrollRaf);
             window.removeEventListener("pointermove", move);
             window.removeEventListener("pointerup", up);
         });
@@ -416,6 +456,8 @@ export const Canvas: Component = () => {
                 <div ref={paintHost} class="absolute inset-0" />
                 <VideoEmbeds />
                 <Overlay />
+                <LiftVeil />
+                <DropIndicators />
                 {/* precision-pointer affordances; at phone width the reflowed layout no longer
                     matches the geometry they edit, so the section sheet + presets stand in */}
                 <Show when={!isPhone()}>
