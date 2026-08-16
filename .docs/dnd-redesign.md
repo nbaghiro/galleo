@@ -109,7 +109,7 @@ pattern), positioned from slot geometry; the canvas itself never repaints during
       reduced-motion handling.
 - [x] P4 cleanup: delete ghost machinery per above; DragGhost icon upgrade; update
       .docs/rendering.md section 6 dnd paragraph.
-- [ ] P5 (recommended follow-up, separate commit): unify section reorder onto the same language -
+- [x] P5 (recommended follow-up, separate commit): unify section reorder onto the same language -
       gap indicator + veil-dimmed source, no live stack reflow; minimap reorder untouched.
 
 ## Decisions to confirm

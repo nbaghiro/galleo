@@ -454,8 +454,8 @@ element, then **collapses** only the emptied source column (unrelated empty colu
 **Section-level chrome** (`editor/panels/Selection.tsx`): **`SectionActions`** — one pill straddling a
 section's bottom edge whenever any region inside it is _hovered_ (pinned while its popup is open): reorder
 ↑/↓ · Add section · Generate (AI) · Layout (opens `SectionLayoutPopup`) · background image · duplicate ·
-delete. Sections also reorder by dragging the grip (the stack reflows around the lifted, dimmed section) or
-from the minimap rail.
+delete. Sections also reorder by dragging the grip — a section drag runs through the same slot pipeline
+(gap indicators + veiled source, no reflow; only the stack gaps are offered) — or from the minimap rail.
 
 **Live edits & undo.** Every control write funnels through `commit(op(...))` with an optional `coalesce` key;
 continuous gestures — slider/color scrubs and every handle drag — pass a stable key so the whole gesture folds

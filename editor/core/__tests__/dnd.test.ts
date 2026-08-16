@@ -227,6 +227,59 @@ describe("move exclusions — the source never targets itself", () => {
     });
 });
 
+describe("section drags — reorder through the same gap slots", () => {
+    const threeSections = (): ArtifactContent =>
+        artifactOf([
+            sectionOf(txt("a"), { id: "s1" }),
+            sectionOf(txt("b"), { id: "s2" }),
+            sectionOf(txt("c"), { id: "s3" }),
+        ]);
+    const threeRegions = (): Region[] => [
+        reg("el:s1", 0, 0, 400, 100),
+        reg("el:s2", 0, 200, 400, 100),
+        reg("el:s3", 0, 400, 400, 100),
+    ];
+
+    it("offers only the stack gaps, minus the two flanking the dragged section", () => {
+        const slots = computeDropSlots(threeSections(), threeRegions(), {
+            kind: "section",
+            id: "s2",
+        });
+        expect(slots.every((s) => s.target.op === "newSection")).toBe(true);
+        expect(slots.map((s) => s.target.index)).toEqual([0, 3]); // gaps 1 and 2 flank s2
+    });
+
+    it("applyDrop reorders across the section's own removal and keeps its id", () => {
+        const { content, address } = applyDrop(
+            threeSections(),
+            { section: "", op: "newSection", path: [], index: 3, before: false, direction: "col" },
+            { kind: "section", id: "s1" },
+        );
+        expect(content.sections.map((s) => s.id)).toEqual(["s2", "s3", "s1"]);
+        expect(address).toEqual({ section: "s1", path: [] });
+    });
+
+    it("dropping into an earlier gap moves the section up", () => {
+        const { content } = applyDrop(
+            threeSections(),
+            { section: "", op: "newSection", path: [], index: 0, before: false, direction: "col" },
+            { kind: "section", id: "s3" },
+        );
+        expect(content.sections.map((s) => s.id)).toEqual(["s3", "s1", "s2"]);
+    });
+
+    it("a stale flanking gap resolves as a no-op returning the original content", () => {
+        const art = threeSections();
+        const { content, address } = applyDrop(
+            art,
+            { section: "", op: "newSection", path: [], index: 1, before: false, direction: "col" },
+            { kind: "section", id: "s1" },
+        );
+        expect(content).toBe(art);
+        expect(address).toBeNull();
+    });
+});
+
 describe("activeSlot — priority and hysteresis", () => {
     it("the column band outranks element gaps under the same point", () => {
         // x=200 sits in the column band AND the root row's gap-1 hitbox

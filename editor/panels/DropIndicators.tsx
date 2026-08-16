@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { createMemo, For, Show } from "solid-js";
 import type { Rect } from "@engine/node";
-import { elementRegionId } from "@model/artifact";
+import { elementRegionId, sectionRegionId } from "@model/artifact";
 import { drag, dragSlots, sameTarget, type DropSlot } from "@editor/core/dnd";
 import { editorAccent, editorTokens, regions } from "@editor/core/store";
 
@@ -122,12 +122,14 @@ export const DropIndicators: Component = () => {
     );
 };
 
-// A move drag leaves the source painted in place; this dims it until the drop removes it.
+// A move drag — element or section — leaves the source painted in place; this dims it until the
+// drop relocates it.
 export const LiftVeil: Component = () => {
     const src = createMemo(() => {
         const p = drag()?.payload;
-        if (p?.kind !== "move") return null;
-        return regions().find((r) => r.id === elementRegionId(p.from)) ?? null;
+        if (!p || p.kind === "new") return null;
+        const id = p.kind === "move" ? elementRegionId(p.from) : sectionRegionId(p.id);
+        return regions().find((r) => r.id === id) ?? null;
     });
     return (
         <Show when={src()}>

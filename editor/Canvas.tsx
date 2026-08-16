@@ -3,7 +3,7 @@ import { embedFor, pickArtifactBackground, type Embed, type PlayerOpts } from ".
 import type { ElementAddress, Target, ElementInstance, Section } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { getElementAt, moveSection } from "@elements/ops";
+import { getElementAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { profileFor } from "@engine/profile";
 import { elementRegionId, parseTarget, specificity, targetsEqual } from "@model/artifact";
@@ -37,7 +37,7 @@ import {
     setDrag,
     setDragSlots,
 } from "./core/dnd";
-import { applyLiveEdit, liveEdit, sectionDrop, sectionDragId } from "./panels/Selection";
+import { applyLiveEdit, liveEdit } from "./panels/Selection";
 import {
     canvasContentWidth,
     commit,
@@ -254,7 +254,7 @@ export const Canvas: Component = () => {
     };
 
     const onPointerMove = (e: PointerEvent): void => {
-        if (drag() || editing() || liveEdit() || sectionDrop() !== null) return; // driven by window listeners
+        if (drag() || editing() || liveEdit()) return; // driven by window listeners
         // Moves start only from the DragHandle, so a body drag never becomes an accidental move.
         setHover(hitTest(...point(e)));
     };
@@ -326,24 +326,13 @@ export const Canvas: Component = () => {
         });
     });
 
-    // element drags never reflow the canvas: the document stays frozen, insertion indicators
-    // mark the slots, and the single mutation happens at drop
+    // element and section drags never reflow the canvas: the document stays frozen, insertion
+    // indicators mark the slots, and the single mutation happens at drop
     const preview = createMemo<{ sections: Section[]; track: boolean; dimId?: string } | null>(
         () => {
             const edit = liveEdit();
             if (edit)
                 return { sections: applyLiveEdit(editor.artifact, edit).sections, track: true };
-            // a section reorder previews as a reflow into the slot, not a bare insertion line
-            const sid = sectionDragId();
-            const sd = sectionDrop();
-            if (sid && sd !== null) {
-                const secs = editor.artifact.sections;
-                const i = secs.findIndex((s) => s.id === sid);
-                const delta = (sd > i ? sd - 1 : sd) - i;
-                const sections =
-                    delta !== 0 ? moveSection(editor.artifact, sid, delta).sections : secs;
-                return { sections, track: false, dimId: sid };
-            }
             return null;
         },
     );
@@ -389,8 +378,14 @@ export const Canvas: Component = () => {
             endDrag(); // clear first so the redraw effect paints the committed result
             if (d?.target) {
                 const res = applyDrop(editor.artifact, d.target, d.payload);
-                commit(res.content);
-                setSelection(res.address ? { kind: "element", address: res.address } : null);
+                if (res.content !== editor.artifact) commit(res.content);
+                setSelection(
+                    d.payload.kind === "section"
+                        ? { kind: "section", section: d.payload.id }
+                        : res.address
+                          ? { kind: "element", address: res.address }
+                          : null,
+                );
                 setHover(null);
             }
         };

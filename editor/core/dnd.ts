@@ -7,13 +7,17 @@ import {
     getElementAt,
     insertChild,
     insertSection,
+    moveSection,
     removeAt,
     replaceAt,
     wrapWith,
 } from "@elements/ops";
 import { getElement } from "@elements/spec";
 
-export type DragPayload = { kind: "new"; type: string } | { kind: "move"; from: ElementAddress };
+export type DragPayload =
+    | { kind: "new"; type: string }
+    | { kind: "move"; from: ElementAddress }
+    | { kind: "section"; id: string };
 
 // per op: replace/wrap use path; insert path+index; column/newSection index; before = wrap first
 export interface DropTarget {
@@ -142,30 +146,41 @@ const vLine = (x: number, y: number, length: number): SlotIndicator => ({
     length,
 });
 
-// gaps between sections (and the bands above the first / below the last) make a new section
-function sectionGapSlots(art: ArtifactContent, regions: Region[]): DropSlot[] {
+// gaps between sections (and the bands above the first / below the last) make a new section —
+// or, for a section drag, the place the section lands
+function sectionGapSlots(
+    art: ArtifactContent,
+    regions: Region[],
+    payload: DragPayload,
+): DropSlot[] {
     const boxes = art.sections.map((s) => regions.find((r) => r.id === `el:${s.id}`)?.box ?? null);
     if (!boxes.length || boxes.some((b) => b === null)) return []; // windowed placeholder — skip
+    const src =
+        payload.kind === "section" ? art.sections.findIndex((s) => s.id === payload.id) : -1;
     const bs = boxes as Rect[];
     const left = Math.min(...bs.map((b) => b.x));
     const right = Math.max(...bs.map((b) => b.x + b.w));
     const w = right - left;
-    const slot = (index: number, y0: number, y1: number): DropSlot => ({
-        target: NEW_SECTION(index),
-        priority: 2,
-        indicator: hLine(left, (y0 + y1) / 2, w),
-        hitbox: { x: left, y: y0, w, h: y1 - y0 },
-    });
+    const slot = (index: number, y0: number, y1: number): void => {
+        // reinserting a section beside itself is a no-op
+        if (src >= 0 && (index === src || index === src + 1)) return;
+        out.push({
+            target: NEW_SECTION(index),
+            priority: 2,
+            indicator: hLine(left, (y0 + y1) / 2, w),
+            hitbox: { x: left, y: y0, w, h: y1 - y0 },
+        });
+    };
     const out: DropSlot[] = [];
     const first = bs[0]!;
-    out.push(slot(0, first.y - SECTION_EDGE, first.y));
+    slot(0, first.y - SECTION_EDGE, first.y);
     for (let i = 0; i < bs.length - 1; i++) {
         const y0 = bs[i]!.y + bs[i]!.h;
         const y1 = bs[i + 1]!.y;
-        if (y1 > y0) out.push(slot(i + 1, y0, y1));
+        if (y1 > y0) slot(i + 1, y0, y1);
     }
     const last = bs[bs.length - 1]!;
-    out.push(slot(bs.length, last.y + last.h, last.y + last.h + SECTION_EDGE));
+    slot(bs.length, last.y + last.h, last.y + last.h + SECTION_EDGE);
     return out;
 }
 
@@ -348,11 +363,9 @@ export function computeDropSlots(
     regions: Region[],
     payload: DragPayload,
 ): DropSlot[] {
-    return [
-        ...sectionGapSlots(art, regions),
-        ...columnSlots(art, regions, payload),
-        ...elementSlots(art, regions, payload),
-    ];
+    const gaps = sectionGapSlots(art, regions, payload);
+    if (payload.kind === "section") return gaps; // a section only lands in the stack gaps
+    return [...gaps, ...columnSlots(art, regions, payload), ...elementSlots(art, regions, payload)];
 }
 
 export const sameTarget = (a: DropTarget, b: DropTarget): boolean =>
@@ -531,6 +544,14 @@ function resolveDrop(
     target: DropTarget,
     payload: DragPayload,
 ): { content: ArtifactContent; address: ElementAddress | null } {
+    if (payload.kind === "section") {
+        // a reorder, not a new section: the gap index re-aims across the section's own removal
+        const i = art.sections.findIndex((s) => s.id === payload.id);
+        if (i < 0 || target.op !== "newSection") return result(art, null);
+        const delta = (target.index > i ? target.index - 1 : target.index) - i;
+        if (delta === 0) return result(art, null);
+        return result(moveSection(art, payload.id, delta), { section: payload.id, path: [] });
+    }
     if (payload.kind === "move") {
         const element = getElementAt(art, payload.from);
         if (!element) return result(art, null);

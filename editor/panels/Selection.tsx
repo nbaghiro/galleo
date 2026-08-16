@@ -18,7 +18,6 @@ import {
     editor,
     editorAccent,
     hover,
-    moveSectionTo,
     regions,
     selection,
     setSelection,
@@ -48,45 +47,9 @@ const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.m
 const EDGE = 8; // draggable border thickness
 const DRAG_THRESHOLD = 5; // px of travel before a grip press becomes a drag, not a click
 
-export const [sectionDrop, setSectionDrop] = createSignal<number | null>(null);
-export const [sectionDragId, setSectionDragId] = createSignal<string | null>(null);
-
-// the gap the cursor sits in, against the pre-drag tops
-function sectionTargetAt(clientY: number, tops: number[]): number {
-    const stage = stageEl();
-    if (!stage || !tops.length) return 0;
-    const y = clientY - stage.getBoundingClientRect().top;
-    for (let i = 0; i < tops.length; i++) {
-        const next = tops[i + 1] ?? tops[i]! + 600;
-        if (y < (tops[i]! + next) / 2) return i;
-    }
-    return tops.length;
-}
-
-// targets against a snapshot of the tops, so it stays stable while the stack reorders under the cursor
-export function startSectionDrag(id: string): void {
-    const tops = [...editor.sectionTops];
-    const start = editor.artifact.sections.findIndex((s) => s.id === id);
-    setSectionDragId(id);
-    setSectionDrop(Math.max(0, start)); // dim in place immediately (a no-op reorder) until the first move
-    const move = (e: PointerEvent): void => {
-        setSectionDrop(sectionTargetAt(e.clientY, tops));
-    };
-    const up = (): void => {
-        const target = sectionDrop();
-        setSectionDragId(null);
-        setSectionDrop(null);
-        if (target !== null) moveSectionTo(id, target);
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", up);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-}
-
 export const DragHandle: Component = () => {
     const ctx = createMemo(() => {
-        if (drag() || sectionDragId()) return null;
+        if (drag()) return null;
         const t = hover() ?? selection();
         if (t?.kind === "element") {
             const box = regions().find((r) => r.id === elementRegionId(t.address))?.box;
@@ -115,7 +78,7 @@ export const DragHandle: Component = () => {
                 const label = (inst && getElement(inst.type)?.label) || "Element";
                 startDrag({ kind: "move", from: c.address }, sx, sy, label);
             } else {
-                startSectionDrag(c.section);
+                startDrag({ kind: "section", id: c.section }, sx, sy, "Section");
             }
         };
         const done = (): void => {
@@ -309,7 +272,7 @@ function siblingDividers(sid: string, regs: Region[]): Divider[] {
 export const RegionDividers: Component = () => {
     // hovered section, else the selected one; hidden mid-drag, when the dragged region is stale
     const sid = createMemo<string | null>(() => {
-        if (drag() || sectionDragId()) return null;
+        if (drag()) return null;
         const t = hover() ?? selection();
         if (!t) return null;
         return t.kind === "element" ? t.address.section : t.section;
@@ -428,10 +391,10 @@ const ring = (r: Region, shadow: string) => ({
 });
 
 export const Overlay: Component = () => {
-    // suppressed mid-drag: the painted layout has shifted, so a ring would strand
-    const sel = createMemo(() => (drag() || sectionDragId() ? null : regionFor(selection())));
+    // suppressed mid-drag so the rings don't compete with the drop indicators
+    const sel = createMemo(() => (drag() ? null : regionFor(selection())));
     const hov = createMemo(() => {
-        if (drag() || sectionDragId()) return null;
+        if (drag()) return null;
         const h = hover();
         if (!h) return null;
         const s = selection();
