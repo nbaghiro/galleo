@@ -247,26 +247,34 @@ export function sectionContentTokens(section: Section, theme: Tokens): Tokens {
     return bgIsDark(section.background) ? onDark(theme) : theme;
 }
 
-// The text leaf for an address exactly as the canvas composes it — containers restyle their text
-// children (a diagram cell shrinks its label to node size), so an editor overlay styled from the
-// child's own spec would render at the wrong scale. Pass the BASE theme; the section's own
-// contrast swap applies here as it does in composeSection.
-export function composedLeafFor(
+// The engine subtree for an address exactly as the canvas composes it — token ramp, container
+// restyling and the section's contrast swap included (pass the BASE theme; the swap applies here
+// as it does in composeSection). Lay it out at the address's painted box to reproduce the pixels.
+export function composedNodeFor(
     section: Section,
     address: ElementAddress,
     ctx: LayoutCtx,
-): TextLeaf | null {
+): EngineNode | null {
     const id = elementRegionId(address);
-    const root = composeSection(section, ctx);
-    const find = (n: EngineNode): TextLeaf | null => {
-        if (n.id === id && n.text) return n.text;
+    const find = (n: EngineNode): EngineNode | null => {
+        if (n.id === id) return n;
         for (const c of n.children ?? []) {
             const hit = find(c);
             if (hit) return hit;
         }
         return null;
     };
-    return find(root);
+    return find(composeSection(section, ctx));
+}
+
+// the text leaf at an address; an overlay styled from the child's own spec would render at the
+// wrong scale (a diagram cell shrinks its label to node size)
+export function composedLeafFor(
+    section: Section,
+    address: ElementAddress,
+    ctx: LayoutCtx,
+): TextLeaf | null {
+    return composedNodeFor(section, address, ctx)?.text ?? null;
 }
 
 export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {

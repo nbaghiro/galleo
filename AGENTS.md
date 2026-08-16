@@ -198,3 +198,6 @@ board. The chat rail runs the same agent on a `generate` surface that sees the o
 ## Commits
 
 Single-line, imperative; ticket prefix if the branch has one; **no co-author trailer**.
+
+**Never commit or push without being asked** — each commit/push needs its own explicit request;
+one approval does not carry over. Pushes to `main` auto-deploy production (Render).

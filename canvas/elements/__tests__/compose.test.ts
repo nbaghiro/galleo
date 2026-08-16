@@ -1,7 +1,13 @@
 import "@elements/register";
 import { describe, expect, it } from "vitest";
 import type { EngineNode } from "@engine/node";
-import { GUTTER, composeSection, composedLeafFor, sectionContentTokens } from "@elements/compose";
+import {
+    GUTTER,
+    composeSection,
+    composedLeafFor,
+    composedNodeFor,
+    sectionContentTokens,
+} from "@elements/compose";
 import { emptyRegion, rowGroup } from "@model/artifact";
 import { layout } from "@engine/layout";
 import { resolveProfile } from "@engine/profile";
@@ -58,6 +64,16 @@ describe("composedLeafFor", () => {
     it("returns null for an address with no text", () => {
         const s = sectionOf(inst("image", { src: "x" }), { id: "s1" });
         expect(composedLeafFor(s, { section: "s1", path: [] }, deckCtx)).toBeNull();
+    });
+    it("composedNodeFor returns the tagged subtree an address paints as", () => {
+        const s = sectionOf(rowGroup([inst("text", { text: "L" }), inst("text", { text: "R" })]), {
+            id: "s1",
+        });
+        const root = composedNodeFor(s, { section: "s1", path: [] }, deckCtx)!;
+        expect(root.id).toBe("el:s1");
+        const right = composedNodeFor(s, { section: "s1", path: [1] }, deckCtx)!;
+        expect(right.id).toBe("el:s1:1");
+        expect(right.text?.text ?? right.children?.[0]?.text?.text).toBe("R");
     });
     it("scales leaves with the width ramp — overlay callers must compose at the painted width", () => {
         const s = sectionOf(textRoot(), { id: "s1" });
