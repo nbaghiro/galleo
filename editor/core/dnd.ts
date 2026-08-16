@@ -155,7 +155,15 @@ function sectionGapSlots(
     regions: Region[],
     payload: DragPayload,
 ): DropSlot[] {
-    const boxes = art.sections.map((s) => regions.find((r) => r.id === `el:${s.id}`)?.box ?? null);
+    // the painted card (`section:`), not the content root (`el:`), so lines span the full card
+    // width and the gap band is the true inter-card gap, not the cards' own padding
+    const boxes = art.sections.map(
+        (s) =>
+            (
+                regions.find((r) => r.id === `section:${s.id}`) ??
+                regions.find((r) => r.id === `el:${s.id}`)
+            )?.box ?? null,
+    );
     const present = boxes.filter((b): b is Rect => b !== null);
     if (!present.length) return [];
     const src =
