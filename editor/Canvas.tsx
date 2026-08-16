@@ -365,14 +365,42 @@ export const Canvas: Component = () => {
     const isDragging = createMemo(() => drag() !== null);
     createEffect(() => {
         if (!isDragging()) return;
-        const move = (e: PointerEvent): void => {
-            const [px, py] = point(e);
+        let clientX = drag()?.x ?? 0;
+        let clientY = drag()?.y ?? 0;
+        const retarget = (): void => {
+            const [px, py] = point({ clientX, clientY });
             setDrag((d) => {
                 if (!d) return d;
                 const slot = activeSlot(dragSlots(), px, py, d.target);
-                return { ...d, x: e.clientX, y: e.clientY, target: slot?.target ?? null };
+                return { ...d, x: clientX, y: clientY, target: slot?.target ?? null };
             });
         };
+        const move = (e: PointerEvent): void => {
+            clientX = e.clientX;
+            clientY = e.clientY;
+            retarget();
+        };
+        // The canvas is frozen during a drag, so reaching a distant slot means scrolling the
+        // stack under the pointer: holding near the viewport edge scrolls, speed by proximity.
+        // The window effect repaints as the band moves, regions republish, slots re-enumerate.
+        const EDGE_ZONE = 56;
+        const MAX_STEP = 16; // px per frame
+        let scrollRaf = requestAnimationFrame(function autoscroll() {
+            scrollRaf = requestAnimationFrame(autoscroll);
+            const r = scrollEl.getBoundingClientRect();
+            const up = r.top + EDGE_ZONE - clientY;
+            const down = clientY - (r.bottom - EDGE_ZONE);
+            const step =
+                up > 0
+                    ? -Math.min(MAX_STEP, (up / EDGE_ZONE) * MAX_STEP)
+                    : down > 0
+                      ? Math.min(MAX_STEP, (down / EDGE_ZONE) * MAX_STEP)
+                      : 0;
+            if (!step) return;
+            const before = scrollEl.scrollTop;
+            scrollEl.scrollTop += step;
+            if (scrollEl.scrollTop !== before) retarget(); // content moved under the pointer
+        });
         const up = (): void => {
             const d = drag();
             endDrag(); // clear first so the redraw effect paints the committed result
@@ -392,6 +420,7 @@ export const Canvas: Component = () => {
         window.addEventListener("pointermove", move);
         window.addEventListener("pointerup", up);
         onCleanup(() => {
+            cancelAnimationFrame(scrollRaf);
             window.removeEventListener("pointermove", move);
             window.removeEventListener("pointerup", up);
         });

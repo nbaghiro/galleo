@@ -107,6 +107,19 @@ describe("slot resolution — new section in the inter-section gap", () => {
     it("a point in the side gutter (px beyond the stack) is not a drop", () => {
         expect(targetAt(twoSections(), sectionRegions(), 500, 150)).toBeNull();
     });
+
+    it("a windowed-out section drops only its own gaps, not the whole set", () => {
+        const art = artifactOf([
+            sectionOf(txt("a"), { id: "s1" }),
+            sectionOf(txt("b"), { id: "s2" }),
+            sectionOf(txt("c"), { id: "s3" }), // scrolled out of the window: no region
+        ]);
+        const regions = [reg("el:s1", 0, 0, 400, 100), reg("el:s2", 0, 200, 400, 100)];
+        const gaps = computeDropSlots(art, regions, NEW).filter(
+            (s) => s.target.op === "newSection",
+        );
+        expect(gaps.map((s) => s.target.index)).toEqual([0, 1]);
+    });
 });
 
 describe("slot resolution — column boundary band", () => {

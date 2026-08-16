@@ -146,21 +146,24 @@ const vLine = (x: number, y: number, length: number): SlotIndicator => ({
     length,
 });
 
-// gaps between sections (and the bands above the first / below the last) make a new section —
-// or, for a section drag, the place the section lands
+// Gaps between sections (and the bands above the first / below the last) make a new section —
+// or, for a section drag, the place the section lands. The stack is windowed, so off-screen
+// sections have no regions: each gap needs only its own neighbours materialized, and gaps that
+// are scrolled out of view (both neighbours missing) aren't reachable anyway.
 function sectionGapSlots(
     art: ArtifactContent,
     regions: Region[],
     payload: DragPayload,
 ): DropSlot[] {
     const boxes = art.sections.map((s) => regions.find((r) => r.id === `el:${s.id}`)?.box ?? null);
-    if (!boxes.length || boxes.some((b) => b === null)) return []; // windowed placeholder — skip
+    const present = boxes.filter((b): b is Rect => b !== null);
+    if (!present.length) return [];
     const src =
         payload.kind === "section" ? art.sections.findIndex((s) => s.id === payload.id) : -1;
-    const bs = boxes as Rect[];
-    const left = Math.min(...bs.map((b) => b.x));
-    const right = Math.max(...bs.map((b) => b.x + b.w));
+    const left = Math.min(...present.map((b) => b.x));
+    const right = Math.max(...present.map((b) => b.x + b.w));
     const w = right - left;
+    const out: DropSlot[] = [];
     const slot = (index: number, y0: number, y1: number): void => {
         // reinserting a section beside itself is a no-op
         if (src >= 0 && (index === src || index === src + 1)) return;
@@ -171,16 +174,18 @@ function sectionGapSlots(
             hitbox: { x: left, y: y0, w, h: y1 - y0 },
         });
     };
-    const out: DropSlot[] = [];
-    const first = bs[0]!;
-    slot(0, first.y - SECTION_EDGE, first.y);
-    for (let i = 0; i < bs.length - 1; i++) {
-        const y0 = bs[i]!.y + bs[i]!.h;
-        const y1 = bs[i + 1]!.y;
+    const first = boxes[0];
+    if (first) slot(0, first.y - SECTION_EDGE, first.y);
+    for (let i = 0; i < boxes.length - 1; i++) {
+        const a = boxes[i];
+        const b = boxes[i + 1];
+        if (!a || !b) continue;
+        const y0 = a.y + a.h;
+        const y1 = b.y;
         if (y1 > y0) slot(i + 1, y0, y1);
     }
-    const last = bs[bs.length - 1]!;
-    slot(bs.length, last.y + last.h, last.y + last.h + SECTION_EDGE);
+    const last = boxes[boxes.length - 1];
+    if (last) slot(boxes.length, last.y + last.h, last.y + last.h + SECTION_EDGE);
     return out;
 }
 
