@@ -459,7 +459,7 @@ Two workstreams touch plans, decoupled by the `Plan` object:
 - **Billing owns:** the `Plan` shape + catalog, the **feature resolver** (source of truth for what a
   workspace can do), all non-AI feature/account limits, Stripe wiring, and the up/down/cancel/dunning flows.
 - **AI/credit owns:** the _values_ under `plan.ai.*` (monthly credits, sections-per-generation, model
-  tiers) and the **spend / ledger / refund mechanics** (`services/core/credits.ts`, `POST /billing/spend`,
+  tiers) and the **spend / ledger / refund mechanics** (`services/core/ledger.ts` + `services/core/spend.ts`, `POST /billing/spend`,
   the `credits` table).
 - The contract is the `Plan` object. `ai.maxSectionsPerGeneration` is the one field the generation route
   enforces; neither side edits the other's cells.
