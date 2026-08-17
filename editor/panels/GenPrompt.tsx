@@ -1,5 +1,5 @@
 import type { Component } from "solid-js";
-import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js";
 import { sectionRegionId } from "@model/artifact";
 import { Button, Chip, Eyebrow, Spinner } from "@ui/button";
 import { content, currentArtifactId, regions } from "@editor/core/store";
@@ -40,15 +40,20 @@ export const SectionGenPopup: Component = () => {
         return regions().find((r) => r.id === sectionRegionId(id))?.box ?? null;
     });
 
-    createEffect(() => {
-        if (showing()) {
+    // `on` so the reset depends on the popover opening and nothing else: `refine` is called
+    // synchronously here, so an ordinary effect would also track everything it reads before its
+    // first await (`loading`, `content`, `refined`) while writing `loading` itself, which is a cycle
+    // that never settles and takes the page with it.
+    createEffect(
+        on(showing, (open) => {
+            if (!open) return;
             setText("");
             setChips([]);
             setRefined(false);
             void refine();
             queueMicrotask(() => field?.focus());
-        }
-    });
+        }),
+    );
 
     createEffect(() => {
         if (!showing()) return;
