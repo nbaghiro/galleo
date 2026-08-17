@@ -99,6 +99,31 @@ export type DiagramShape = (typeof DIAGRAM_SHAPES)[number];
 export const DIAGRAM_NUMBERS = ["none", "number", "letter"] as const;
 export type DiagramNumbers = (typeof DIAGRAM_NUMBERS)[number];
 
+// per-item node icons; the glyphs live in @elements/media/vector ICON_LIBRARY, which `satisfies`
+// this set so the two cannot drift
+export const DIAGRAM_ICONS = [
+    "search",
+    "edit",
+    "build",
+    "flask",
+    "rocket",
+    "flag",
+    "sprout",
+    "trend",
+    "expand",
+    "shield",
+    "alert",
+    "idea",
+    "close",
+    "check",
+    "users",
+    "target",
+    "cycle",
+    "layers",
+    "calendar",
+] as const;
+export type DiagramIcon = (typeof DIAGRAM_ICONS)[number];
+
 // outline planning vocabulary; one block leads each column
 export const BLOCK_KINDS = [
     "text",

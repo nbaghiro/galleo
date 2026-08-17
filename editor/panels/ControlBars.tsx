@@ -4,6 +4,7 @@ import type { Component } from "solid-js";
 import { createEffect, createMemo, For, Show, createSignal } from "solid-js";
 import { elementRegionId, parentTarget } from "@model/artifact";
 import { profileFor } from "@engine/profile";
+import { measureText } from "@canvas/render/commands";
 import { isPhone } from "@ui/viewport";
 import {
     duplicateAt,
@@ -131,6 +132,7 @@ export const ContextBar: Component = () => {
             availWidth: 800,
             format: profileFor(editor.artifact),
             theme: editorTokens(),
+            measure: measureText,
         });
         return probe.w.mode !== "grow";
     });

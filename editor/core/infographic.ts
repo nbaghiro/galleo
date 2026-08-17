@@ -1,7 +1,7 @@
 import { normalize as normalizeChart, catList } from "@elements/chart/utils";
 import { formatItems, normalizeDiagram } from "@elements/diagram/utils";
 import { toChartData } from "@elements/chart/utils";
-import { toDiagramData, type DiagItem } from "@elements/diagram/utils";
+import { toDiagramData, type DiagItem, type DiagItemMeta } from "@elements/diagram/utils";
 
 export type Shape =
     | "series"
@@ -49,34 +49,62 @@ export function dataShapeFor(category: string, type: string): Shape | undefined 
     return undefined;
 }
 
+// Each model carries its own `shape`, so DataModel is a discriminated union and serializeModel
+// narrows without asserting. Before this, the shape arrived as a sibling argument and every branch
+// cast: correct only while the caller kept the two in step, which nothing checked.
 // cells stay strings (parsed on serialize) so inputs don't fight numeric coercion mid-keystroke
 export interface SeriesModel {
+    shape: "series";
     categories: string[];
     series: { name: string; values: string[] }[];
 }
 export interface KvModel {
+    shape: "labelValue";
     items: { label: string; value: string }[];
 }
 export interface PointsModel {
+    shape: "points";
     dims: number; // 2 = scatter (X,Y), 3 = bubble (X,Y,Size)
     points: { x: string; y: string; size: string }[];
 }
 export interface MatrixModel {
+    shape: "matrix";
     rows: string[];
     cols: string[];
     cells: string[][];
 }
 export interface ScalarModel {
+    shape: "scalar";
     value: string;
     max: string;
 }
 export interface ListModel {
-    items: { label: string; body: string; value: string }[];
+    shape: "list";
+    // rows carry their styling meta, so grid row ops (insert/remove) can never misalign it
+    items: {
+        label: string;
+        body: string;
+        value: string;
+        icon: string; // ICON_LIBRARY key, "" = none
+        color: string; // hex override, "" = auto ramp
+        emphasis: boolean;
+    }[];
 }
 export interface HierModel {
-    nodes: { label: string; parent: string }[];
+    shape: "hierarchy";
+    // rows mirror ListModel (body/value/meta carried) so a hierarchy edit is lossless too
+    nodes: {
+        label: string;
+        body: string;
+        value: string; // carried through, not surfaced: org reads no item values today
+        parent: string;
+        icon: string;
+        color: string;
+        emphasis: boolean;
+    }[];
 }
 export interface GraphModel {
+    shape: "graph";
     nodes: string[];
     edges: { from: string; to: string; label: string }[];
 }
@@ -98,7 +126,10 @@ export function parseModel(kind: Kind, shape: Shape, data: Record<string, unknow
         const cats = catList(r);
         if (shape === "labelValue") {
             const pts = r.series[0]?.points ?? [];
-            return { items: cats.map((label, i) => ({ label, value: s(pts[i] ?? 0) })) };
+            return {
+                shape: "labelValue",
+                items: cats.map((label, i) => ({ label, value: s(pts[i] ?? 0) })),
+            };
         }
         if (shape === "points") {
             const xs = r.series[0]?.points ?? [];
@@ -106,6 +137,7 @@ export function parseModel(kind: Kind, shape: Shape, data: Record<string, unknow
             const zs = r.series[2]?.points ?? [];
             const n = Math.max(1, xs.length, ys.length);
             return {
+                shape: "points",
                 dims: data.type === "bubble" ? 3 : 2,
                 points: Array.from({ length: n }, (_, i) => ({
                     x: s(xs[i] ?? 0),
@@ -116,6 +148,7 @@ export function parseModel(kind: Kind, shape: Shape, data: Record<string, unknow
         }
         if (shape === "matrix") {
             return {
+                shape: "matrix",
                 rows: r.series.map((x) => x.name),
                 cols: cats,
                 cells: r.series.map((x) => cats.map((_, i) => s(x.points[i] ?? 0))),
@@ -123,9 +156,10 @@ export function parseModel(kind: Kind, shape: Shape, data: Record<string, unknow
         }
         if (shape === "scalar") {
             const p = r.series[0]?.points ?? [];
-            return { value: s(p[0] ?? 0), max: s(p[1] ?? 100) };
+            return { shape: "scalar", value: s(p[0] ?? 0), max: s(p[1] ?? 100) };
         }
         return {
+            shape: "series",
             categories: cats,
             series: r.series.map((x) => ({
                 name: x.name,
@@ -137,86 +171,122 @@ export function parseModel(kind: Kind, shape: Shape, data: Record<string, unknow
     if (shape === "hierarchy") {
         const parentOf: Record<string, string> = {};
         r.edges.forEach((e) => (parentOf[e.to] = e.from));
-        return { nodes: r.nodes.map((n) => ({ label: n.label, parent: parentOf[n.id] ?? "" })) };
+        return {
+            shape: "hierarchy",
+            nodes: r.items.map((i) => ({
+                label: i.label,
+                body: i.body ?? "",
+                value: i.value === undefined ? "" : String(i.value),
+                parent: parentOf[i.label] ?? "",
+                icon: i.icon ?? "",
+                color: i.color ?? "",
+                emphasis: i.emphasis ?? false,
+            })),
+        };
     }
     if (shape === "graph") {
         return {
+            shape: "graph",
             nodes: r.nodes.map((n) => n.label),
             edges: r.edges.map((e) => ({ from: e.from, to: e.to, label: e.label ?? "" })),
         };
     }
     return {
+        shape: "list",
         items: r.items.map((i) => ({
             label: i.label,
             body: i.body ?? "",
             value: i.value === undefined ? "" : String(i.value),
+            icon: i.icon ?? "",
+            color: i.color ?? "",
+            emphasis: i.emphasis ?? false,
         })),
     };
 }
 
-export function serializeModel(kind: Kind, shape: Shape, m: DataModel): Record<string, unknown> {
+export function serializeModel(kind: Kind, m: DataModel): Record<string, unknown> {
     if (kind === "chart") {
-        if (shape === "labelValue") {
-            const x = m as KvModel;
+        if (m.shape === "labelValue") {
             return {
-                values: x.items.map((i) => i.value).join(", "),
-                categories: x.items.map((i) => i.label).join(", "),
+                values: m.items.map((i) => i.value).join(", "),
+                categories: m.items.map((i) => i.label).join(", "),
                 seriesNames: "",
             };
         }
-        if (shape === "points") {
-            const x = m as PointsModel;
-            const rows = [x.points.map((p) => p.x).join(", "), x.points.map((p) => p.y).join(", ")];
-            if (x.dims === 3) rows.push(x.points.map((p) => p.size).join(", "));
+        if (m.shape === "points") {
+            const rows = [m.points.map((p) => p.x).join(", "), m.points.map((p) => p.y).join(", ")];
+            if (m.dims === 3) rows.push(m.points.map((p) => p.size).join(", "));
             return { values: rows.join("\n"), categories: "", seriesNames: "" };
         }
-        if (shape === "matrix") {
-            const x = m as MatrixModel;
+        if (m.shape === "matrix") {
             return {
-                values: x.cells.map((r) => r.join(", ")).join("\n"),
-                categories: x.cols.join(", "),
-                seriesNames: x.rows.join(", "),
+                values: m.cells.map((r) => r.join(", ")).join("\n"),
+                categories: m.cols.join(", "),
+                seriesNames: m.rows.join(", "),
             };
         }
-        if (shape === "scalar") {
-            const x = m as ScalarModel;
-            return { values: `${x.value}, ${x.max}`, categories: "", seriesNames: "" };
+        if (m.shape === "scalar") {
+            return { values: `${m.value}, ${m.max}`, categories: "", seriesNames: "" };
         }
-        const x = m as SeriesModel;
+        if (m.shape !== "series") return {};
         return {
-            values: x.series.map((r) => r.values.join(", ")).join("\n"),
-            categories: x.categories.join(", "),
-            seriesNames: x.series.map((r) => r.name).join(", "),
+            values: m.series.map((r) => r.values.join(", ")).join("\n"),
+            categories: m.categories.join(", "),
+            seriesNames: m.series.map((r) => r.name).join(", "),
         };
     }
-    if (shape === "hierarchy") {
-        const x = m as HierModel;
+    if (m.shape === "hierarchy") {
         return {
-            items: x.nodes.map((n) => n.label).join(", "),
-            links: x.nodes
+            items: formatItems(m.nodes.map(toDiagItem)),
+            links: m.nodes
                 .filter((n) => n.parent)
                 .map((n) => `${n.parent}>${n.label}`)
                 .join(", "),
+            itemsMeta: metaOf(m.nodes),
         };
     }
-    if (shape === "graph") {
-        const x = m as GraphModel;
+    if (m.shape === "graph") {
         return {
-            items: x.nodes.join(", "),
-            links: x.edges
+            items: m.nodes.join(", "),
+            links: m.edges
                 .map((e) => (e.label ? `${e.from}->${e.to}:${e.label}` : `${e.from}->${e.to}`))
                 .join(", "),
         };
     }
-    const items: DiagItem[] = (m as ListModel).items.map((i) => {
-        const n = parseFloat(i.value);
-        return {
-            label: i.label,
-            body: i.body || undefined,
-            value: Number.isFinite(n) ? n : undefined,
-        };
+    if (m.shape !== "list") return {};
+    return { items: formatItems(m.items.map(toDiagItem)), itemsMeta: metaOf(m.items) };
+}
+
+function toDiagItem(row: { label: string; body: string; value: string }): DiagItem {
+    const n = parseFloat(row.value);
+    return {
+        label: row.label,
+        body: row.body || undefined,
+        value: Number.isFinite(n) ? n : undefined,
+    };
+}
+
+// positional meta from grid rows; undefined when nothing is styled — the key is still written, so
+// an all-empty grid clears stale meta instead of leaving it behind
+function metaOf(
+    rows: { icon: string; color: string; emphasis: boolean }[],
+): DiagItemMeta[] | undefined {
+    const meta: DiagItemMeta[] = rows.map((i) => ({
+        ...(i.color ? { color: i.color } : {}),
+        ...(i.emphasis ? { emphasis: true } : {}),
+        ...(i.icon ? { icon: i.icon } : {}),
+    }));
+    return meta.some((x) => Object.keys(x).length > 0) ? meta : undefined;
+}
+
+// removing a node splices it out of the chain: its children report to its parent
+export function removeHierNode(m: HierModel, i: number): void {
+    const removed = m.nodes[i];
+    if (!removed) return;
+    m.nodes.splice(i, 1);
+    m.nodes.forEach((n) => {
+        if (n.parent === removed.label) n.parent = removed.parent;
     });
-    return { items: formatItems(items) };
 }
 
 // the grid owns these; hidden from the inspector so the two don't duplicate

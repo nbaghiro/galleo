@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { LayoutCtx } from "@elements/spec";
 import { resolveProfile } from "@engine/profile";
 import { resolveTheme } from "@themes";
+import { measure } from "@canvas/testkit";
 import { videoElement, videoPoster } from "@elements/media/video";
 
 const ctx: LayoutCtx = {
@@ -10,6 +11,7 @@ const ctx: LayoutCtx = {
     availWidth: 800,
     format: resolveProfile("deck"),
     theme: resolveTheme("studio").tokens,
+    measure,
 };
 
 describe("videoPoster", () => {

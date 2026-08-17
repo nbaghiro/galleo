@@ -7,6 +7,7 @@ import type { DiagramNumbers, DiagramShape, DiagramStyle } from "@model/elements
 import { fontStack, luminance, mix, mixWhite, reachContrast } from "@themes";
 import { bool, num, oneOf, str } from "@elements/coerce";
 import { DIAGRAM_NUMBERS, DIAGRAM_SHAPES, DIAGRAM_STYLES, THEME_ROLES } from "@model/elements";
+import { ICON_LIBRARY, drawIcon } from "@elements/media/vector";
 import { hierarchy, tree, type HierarchyPointNode } from "d3-hierarchy";
 
 // Per-item presentation, positional beside the text encoding of `items` (index i styles item i).
@@ -72,6 +73,8 @@ export interface ResolvedDiagram {
 export interface DiagramType {
     id: string;
     label: string;
+    // per-item icons render in this type's cells; false where the geometry has no room (bands)
+    icons?: false;
     arrange: (
         diagram: ResolvedDiagram,
         ctx: LayoutCtx,
@@ -89,6 +92,10 @@ export function registerDiagram(type: DiagramType): void {
 
 export function getDiagram(id: string): DiagramType | undefined {
     return registry.get(id);
+}
+
+export function diagramSupportsIcons(id: string): boolean {
+    return getDiagram(id)?.icons !== false;
 }
 
 export function diagramTypeOptions(): { label: string; value: string }[] {
@@ -192,6 +199,16 @@ export function formatItems(items: DiagItem[]): string {
 
 export const nodeFont = (t: Tokens): string => fontStack("ui", t);
 
+// single-line label advance width through the engine's own measurer, for sizing cells before layout
+export function labelWidth(ctx: LayoutCtx, text: string, size = NODE_TEXT, weight = 600): number {
+    return ctx.measure({ text, fontId: nodeFont(ctx.theme), size, weight, wrap: "none" }, Infinity)
+        .width;
+}
+
+export function maxLabelWidth(ctx: LayoutCtx, items: DiagItem[]): number {
+    return Math.max(0, ...items.map((i) => labelWidth(ctx, i.label)));
+}
+
 // Diagram fills, always opaque: alpha steps can't be contrast-tested, can't take a gradient, and
 // show through where shapes touch. Solid tints of the accent toward white.
 const RAMP_TINTS = [0, 0.3, 0.52, 0.68, 0.78];
@@ -211,6 +228,7 @@ export interface NodePaint {
     shadow?: DrawStyle["shadow"]; // card treatment elevation
     ink: string; // label color that reads on the resolved fill
     dim: string; // supporting-text color on the same fill
+    iconInk: string; // icon stroke: the item color where the fill leaves room, else the label ink
 }
 
 export interface NodePaintOpts extends Partial<
@@ -239,6 +257,7 @@ export function nodePaint(color: string, theme: Tokens, over?: NodePaintOpts): N
             width: over?.width,
             ink,
             dim: dark ? ink : dimOn(fill, theme),
+            iconInk: color,
         };
     }
     if (!over?.fill && style === "card") {
@@ -249,6 +268,7 @@ export function nodePaint(color: string, theme: Tokens, over?: NodePaintOpts): N
             shadow: { blur: 10, dy: 2, color: "rgba(15,18,20,0.12)" },
             ink: over?.ink ?? theme.ink,
             dim: theme.muted,
+            iconInk: color,
         };
     }
     if (!over?.fill && style === "outline") {
@@ -258,6 +278,7 @@ export function nodePaint(color: string, theme: Tokens, over?: NodePaintOpts): N
             width: over?.width ?? 1.5,
             ink: over?.ink ?? theme.ink,
             dim: theme.muted,
+            iconInk: color,
         };
     }
     const fill = over?.fill ?? color;
@@ -274,6 +295,8 @@ export function nodePaint(color: string, theme: Tokens, over?: NodePaintOpts): N
             : undefined,
         ink,
         dim: dark ? ink : dimOn(fill, theme),
+        // the fill is the item color itself, so the icon differentiates by ink like the label
+        iconInk: ink,
     };
 }
 
@@ -470,6 +493,24 @@ export function badgeText(numbers: DiagramNumbers, i: number): string | undefine
     return undefined;
 }
 
+// an icon in the badge's disc treatment, for markers that live on chrome (a timeline's spine)
+export function drawIconBadge(
+    g: DrawContext,
+    cx: number,
+    cy: number,
+    icon: string,
+    color: string,
+    theme: Tokens,
+): boolean {
+    const glyph = ICON_LIBRARY[icon];
+    if (!glyph) return false;
+    g.circle(cx, cy, BADGE_R + 1, { fill: color, stroke: theme.surface, width: 1.5 });
+    const s = 12;
+    const dark = luminance(color) < 0.5;
+    drawIcon(g, glyph, cx - s / 2, cy - s / 2, s, dark ? theme.onAccent : theme.ink);
+    return true;
+}
+
 export const linkColor = (theme: Tokens): string => theme.muted;
 
 const HEAD_SPREAD = 0.42; // half-angle of the arrowhead barbs, radians
@@ -570,7 +611,12 @@ export interface CellOpts {
     shape?: string;
     cellH?: number; // the fixed node height the shape's inset/radius derive from
     badged?: boolean; // a numbering disc sits inside the leading edge; keep the label clear of it
+    icon?: string; // ICON_LIBRARY key: a leading glyph in paint.iconInk; replaces the number badge
+    iconY?: "center" | "start"; // top-anchored cells (a steps tread) keep the icon with the label
 }
+
+export const ICON_S = 16;
+const ICON_GAP = 6;
 
 const CELL_PAD: BoxInsets = { top: 8, bottom: 8, left: 10, right: 10 };
 
@@ -597,7 +643,12 @@ export function diagramCell(
             pad = { ...base, left: base.left + inset, right: base.right + inset };
         }
     }
-    if (o.badged) {
+    const glyph = o.icon ? ICON_LIBRARY[o.icon] : undefined;
+    if (glyph) {
+        // the icon takes the badge's leading slot, so the two never stack up an inset
+        const base = pad ?? CELL_PAD;
+        pad = { ...base, left: base.left + ICON_S + ICON_GAP };
+    } else if (o.badged) {
         const base = pad ?? CELL_PAD;
         pad = { ...base, left: base.left + BADGE_R * 2 + 2 };
     }
@@ -620,6 +671,16 @@ export function diagramCell(
         detail.w = grow();
         detail.h = fit(14);
         kids.push(detail);
+    }
+    if (glyph) {
+        const ink = paint.iconInk;
+        // floated into the padding band the inset reserved, vertically centred with the text
+        kids.push({
+            w: fixed(ICON_S),
+            h: fixed(ICON_S),
+            float: { x: "start", y: o.iconY ?? "center", dx: -(ICON_S + ICON_GAP) },
+            surface: { paint: (g) => drawIcon(g, glyph, 0, 0, ICON_S, ink) },
+        });
     }
     const node: EngineNode = {
         w: grow(),
@@ -667,6 +728,7 @@ export function bandGeometry(
     W: number,
     H: number,
     narrowTop: boolean,
+    minHalf?: number[], // per-item floor (a value-scaled band never narrower than its own label)
 ): { bands: Band[]; cx: number } {
     const n = items.length;
     const box = { x: 0, y: 0, w: W, h: H };
@@ -677,7 +739,8 @@ export function bandGeometry(
     const vals = items.map((i) => i.value);
     const scaled = !narrowTop && vals.every((v) => v !== undefined && v >= 0);
     const max = scaled ? Math.max(...(vals as number[])) || 1 : 1;
-    const halfFor = (i: number): number => clamp(((vals[i] as number) / max) * wide, narrow, wide);
+    const halfFor = (i: number): number =>
+        clamp(Math.max(((vals[i] as number) / max) * wide, minHalf?.[i] ?? 0), narrow, wide);
     const halfAt = (y: number): number => {
         const t = (y - box.y) / (box.h || 1);
         return narrowTop ? narrow + (wide - narrow) * t : wide - (wide - narrow) * t;
@@ -702,7 +765,9 @@ export function bandsArrange(narrowTop: boolean): DiagramType["arrange"] {
         const n = items.length;
         const cols = itemColors(items, ctx.theme);
         const contentW = Math.max(1, ctx.availWidth - 32);
-        const geo = bandGeometry(items, contentW, height - 32, narrowTop);
+        // label floors are absolute px, so the same array serves arrange and the decorate repaint
+        const minHalf = items.map((i) => (labelWidth(ctx, i.label) + 24) / 2);
+        const geo = bandGeometry(items, contentW, height - 32, narrowTop, minHalf);
         const bandH = (height - 32) / Math.max(1, n);
         return {
             w: grow(),
@@ -732,7 +797,7 @@ export function bandsArrange(narrowTop: boolean): DiagramType["arrange"] {
                     } satisfies EngineNode;
                 }),
                 decorate((g, box) => {
-                    const inner = bandGeometry(items, box.w, box.h, narrowTop);
+                    const inner = bandGeometry(items, box.w, box.h, narrowTop, minHalf);
                     items.forEach((_, i) => {
                         const b = inner.bands[i]!;
                         const paint = nodePaint(cols[i]!, ctx.theme, {

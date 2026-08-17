@@ -1,4 +1,4 @@
-import type { EngineNode, Rect } from "@engine/node";
+import type { EngineNode, MeasureText, Rect } from "@engine/node";
 import type { ElementInstance, Section } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
@@ -33,6 +33,9 @@ export interface LayoutCtx {
     availWidth: number;
     format: FormatDescriptor;
     theme: Tokens;
+    // the engine's own measurement path, for layouts that must size boxes from text before the
+    // solver runs (a diagram's node widths); same source as layout(), so the two can never disagree
+    measure: MeasureText;
     plain?: boolean; // read-only render (previews/thumbnails): no editor-only affordances
 }
 

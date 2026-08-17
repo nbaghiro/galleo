@@ -5,6 +5,7 @@ import {
     CALLOUT_TONES,
     CARD_STYLES,
     CHART_TYPES,
+    DIAGRAM_ICONS,
     DIAGRAM_NUMBERS,
     DIAGRAM_STYLES,
     DIAGRAM_TYPES,
@@ -52,7 +53,7 @@ export const LAYOUTS: readonly LayoutPreset[] = Object.keys(LAYOUT_PRESETS).map(
     return { id, columns: LAYOUT_PRESETS[id]!.length, widths: h.widths, when: h.when };
 });
 
-type FieldType = "string" | "text" | "number" | "boolean" | "enum" | "children";
+type FieldType = "string" | "text" | "number" | "boolean" | "enum" | "children" | "json";
 
 interface FieldSpec {
     key: string;
@@ -322,6 +323,11 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 type: "enum",
                 values: DIAGRAM_NUMBERS,
                 desc: "leading-edge badge on each node, honored by process/steps/cycle/hub/matrix: `number` (1 2 3) for sequences, `letter` (A B C) for peer options. Omit otherwise.",
+            },
+            {
+                key: "itemsMeta",
+                type: "json",
+                desc: `optional per-item styling, positional: entry i styles item i, so give one entry per item ({} for an unstyled one) or omit the field entirely. Each entry may set: icon, one of ${DIAGRAM_ICONS.join(" | ")}, a leading glyph on the node (all types except pyramid/funnel; a timeline renders it as the milestone marker on the line) that replaces that item's number badge; emphasis: true, promoting the node to the solid treatment (the hub centre and org root already have it); color, a hex overriding that item's ramp color. Icons earn their place on peer-value sets (hub spokes, matrix cells, quadrants) and milestones. Never invent an icon key.`,
             },
         ],
     },

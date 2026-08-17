@@ -99,7 +99,13 @@ export const layoutCtx = (
     width = 800,
     format: FormatDescriptor = resolveProfile("deck"),
     theme = tokens,
-): LayoutCtx => ({ box: { x: 0, y: 0, w: width, h: 600 }, availWidth: width, format, theme });
+): LayoutCtx => ({
+    box: { x: 0, y: 0, w: width, h: 600 },
+    availWidth: width,
+    format,
+    theme,
+    measure,
+});
 
 // real DrawContext that records every primitive call; tests assert the call stream, not pixels
 export interface DrawCall {

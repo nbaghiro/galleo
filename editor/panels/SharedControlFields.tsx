@@ -327,6 +327,7 @@ export const Field: Component<{
                     value={props.value as string | undefined}
                     effective={props.effective}
                     onChange={props.onChange}
+                    allowClear
                 />
             </Match>
             <Match when={f().control === "toggle"}>

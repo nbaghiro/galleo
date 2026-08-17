@@ -11,15 +11,18 @@ import { resolveProfile } from "@engine/profile";
 import { measureText } from "@canvas/render/commands";
 import { renderChart } from "@elements/chart/render";
 import { toChartData } from "@elements/chart/utils";
+import { diagramColors, diagramSupportsIcons } from "@elements/diagram/utils";
+import { ICON_LIBRARY } from "@elements/media/vector";
 import { commit, editor, editorTokens } from "@editor/core/store";
 import { Badge, Button, IconButton } from "@ui/button";
 import { Icon } from "@ui/icons";
 import { CellInput } from "@ui/inputs";
 import { Modal } from "@ui/overlay";
-import { SchemaFields } from "./SharedControlFields";
+import { ColorField, SchemaFields } from "./SharedControlFields";
 import {
     dataShapeFor,
     parseModel,
+    removeHierNode,
     serializeModel,
     invalidNumber,
     itemLimit,
@@ -63,8 +66,65 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
 
     const limit = itemLimit(kind, type);
     const valued = usesItemValue(kind, type);
+    const withIcons = kind === "diagram" && diagramSupportsIcons(type);
+    // what the ramp gives row i of n when no override is set; the color swatch shows it as Auto
+    const rampColor = (i: number, n: number): string =>
+        diagramColors(editorTokens(), n)[i] ?? editorTokens().accent;
+
+    interface MetaRow {
+        icon: string;
+        color: string;
+        emphasis: boolean;
+    }
+    const metaHeads = (): JSX.Element => (
+        <>
+            <Show when={withIcons}>
+                <th class={`${TH} min-w-26`}>Icon</th>
+            </Show>
+            <th class={TH}>Color</th>
+            <th class={`${TH} text-center`}>Emphasis</th>
+        </>
+    );
+    const metaCells = (
+        row: () => MetaRow,
+        write: (patch: Partial<MetaRow>, suffix: string) => void,
+        ramp: string,
+    ): JSX.Element => (
+        <>
+            <Show when={withIcons}>
+                <td class={CELL}>
+                    <select
+                        class={`${IN} cursor-pointer`}
+                        value={row().icon}
+                        onChange={(e) => write({ icon: e.currentTarget.value }, "icon")}
+                    >
+                        <option value="">—</option>
+                        <For each={Object.keys(ICON_LIBRARY)}>
+                            {(k) => <option value={k}>{k}</option>}
+                        </For>
+                    </select>
+                </td>
+            </Show>
+            <td class={`${CELL} px-2`}>
+                <ColorField
+                    value={row().color || undefined}
+                    effective={ramp}
+                    onChange={(v) => write({ color: v ?? "" }, "color")}
+                    allowClear
+                />
+            </td>
+            <td class={`${CELL} text-center`}>
+                <input
+                    type="checkbox"
+                    class="size-3.5 accent-accent"
+                    checked={row().emphasis}
+                    onChange={(e) => write({ emphasis: e.currentTarget.checked }, "emph")}
+                />
+            </td>
+        </>
+    );
     const overLimit = (): boolean =>
-        limit !== undefined && shape === "list" && (model as ListModel).items.length >= limit;
+        limit !== undefined && model.shape === "list" && model.items.length >= limit;
 
     const currentData = (): Record<string, unknown> =>
         (getElementAt(editor.artifact, addr)?.data ?? {}) as Record<string, unknown>;
@@ -74,7 +134,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
         commit(
             updateDataAt(editor.artifact, addr, {
                 ...currentData(),
-                ...serializeModel(kind, shape, model),
+                ...serializeModel(kind, model),
             }),
             { coalesce: `data:${elementRegionId(addr)}:${coalesceSuffix}` },
         );
@@ -84,6 +144,42 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
         apply(suffix);
     };
 
+    // produce() hands the mutator the whole union, so each grid branch pairs its mutator with the
+    // variant it edits. The runtime tag check is what makes the narrowing real: the store holds one
+    // variant at a time, and an edit aimed at another one is skipped rather than asserted through.
+    const editSeries = (mut: (m: SeriesModel) => void, suffix: string): void =>
+        edit((d) => {
+            if (d.shape === "series") mut(d);
+        }, suffix);
+    const editKv = (mut: (m: KvModel) => void, suffix: string): void =>
+        edit((d) => {
+            if (d.shape === "labelValue") mut(d);
+        }, suffix);
+    const editPoints = (mut: (m: PointsModel) => void, suffix: string): void =>
+        edit((d) => {
+            if (d.shape === "points") mut(d);
+        }, suffix);
+    const editMatrix = (mut: (m: MatrixModel) => void, suffix: string): void =>
+        edit((d) => {
+            if (d.shape === "matrix") mut(d);
+        }, suffix);
+    const editScalar = (mut: (m: ScalarModel) => void, suffix: string): void =>
+        edit((d) => {
+            if (d.shape === "scalar") mut(d);
+        }, suffix);
+    const editList = (mut: (m: ListModel) => void, suffix: string): void =>
+        edit((d) => {
+            if (d.shape === "list") mut(d);
+        }, suffix);
+    const editHier = (mut: (m: HierModel) => void, suffix: string): void =>
+        edit((d) => {
+            if (d.shape === "hierarchy") mut(d);
+        }, suffix);
+    const editGraph = (mut: (m: GraphModel) => void, suffix: string): void =>
+        edit((d) => {
+            if (d.shape === "graph") mut(d);
+        }, suffix);
+
     const options = (labels: string[]): JSX.Element => (
         <>
             <option value="">— (root)</option>
@@ -92,8 +188,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
     );
 
     const grid = (): JSX.Element => {
-        if (shape === "series") {
-            const m = model as SeriesModel;
+        if (model.shape === "series") {
+            const m = model;
             return (
                 <table class="w-full border-collapse">
                     <thead>
@@ -107,8 +203,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                                 class="font-semibold"
                                                 value={sr().name}
                                                 onChange={(v) =>
-                                                    edit((d) => {
-                                                        (d as SeriesModel).series[si]!.name = v;
+                                                    editSeries((draft) => {
+                                                        draft.series[si]!.name = v;
                                                     }, `sname${si}`)
                                                 }
                                             />
@@ -116,8 +212,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                                 class={DEL}
                                                 title="Remove series"
                                                 onClick={() =>
-                                                    edit((d) => {
-                                                        (d as SeriesModel).series.splice(si, 1);
+                                                    editSeries((draft) => {
+                                                        draft.series.splice(si, 1);
                                                     }, "struct")
                                                 }
                                             >
@@ -139,8 +235,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                             class="font-medium text-soft"
                                             value={cat()}
                                             onChange={(v) =>
-                                                edit((d) => {
-                                                    (d as SeriesModel).categories[ci] = v;
+                                                editSeries((draft) => {
+                                                    draft.categories[ci] = v;
                                                 }, `cat${ci}`)
                                             }
                                         />
@@ -153,10 +249,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                                     class={numRing(m.series[si]!.values[ci] ?? "")}
                                                     value={m.series[si]!.values[ci] ?? ""}
                                                     onChange={(v) =>
-                                                        edit((d) => {
-                                                            (d as SeriesModel).series[si]!.values[
-                                                                ci
-                                                            ] = v;
+                                                        editSeries((draft) => {
+                                                            draft.series[si]!.values[ci] = v;
                                                         }, `v${si}-${ci}`)
                                                     }
                                                 />
@@ -168,8 +262,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                             class={DEL}
                                             title="Remove row"
                                             onClick={() =>
-                                                edit((d) => {
-                                                    const s = d as SeriesModel;
+                                                editSeries((draft) => {
+                                                    const s = draft;
                                                     s.categories.splice(ci, 1);
                                                     s.series.forEach((x) => x.values.splice(ci, 1));
                                                 }, "struct")
@@ -185,8 +279,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                 </table>
             );
         }
-        if (shape === "labelValue") {
-            const m = model as KvModel;
+        if (model.shape === "labelValue") {
+            const m = model;
             return (
                 <table class="w-full border-collapse">
                     <thead>
@@ -204,8 +298,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                         <CellInput
                                             value={it().label}
                                             onChange={(v) =>
-                                                edit((d) => {
-                                                    (d as KvModel).items[i]!.label = v;
+                                                editKv((draft) => {
+                                                    draft.items[i]!.label = v;
                                                 }, `lbl${i}`)
                                             }
                                         />
@@ -216,8 +310,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                             class={numRing(it().value)}
                                             value={it().value}
                                             onChange={(v) =>
-                                                edit((d) => {
-                                                    (d as KvModel).items[i]!.value = v;
+                                                editKv((draft) => {
+                                                    draft.items[i]!.value = v;
                                                 }, `val${i}`)
                                             }
                                         />
@@ -226,8 +320,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                         <button
                                             class={DEL}
                                             onClick={() =>
-                                                edit((d) => {
-                                                    (d as KvModel).items.splice(i, 1);
+                                                editKv((draft) => {
+                                                    draft.items.splice(i, 1);
                                                 }, "struct")
                                             }
                                         >
@@ -241,8 +335,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                 </table>
             );
         }
-        if (shape === "points") {
-            const m = model as PointsModel;
+        if (model.shape === "points") {
+            const m = model;
             return (
                 <table class="w-full border-collapse">
                     <thead>
@@ -269,8 +363,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                             class={numRing(pt().x)}
                                             value={pt().x}
                                             onChange={(v) =>
-                                                edit((d) => {
-                                                    (d as PointsModel).points[i]!.x = v;
+                                                editPoints((draft) => {
+                                                    draft.points[i]!.x = v;
                                                 }, `x${i}`)
                                             }
                                         />
@@ -281,8 +375,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                             class={numRing(pt().y)}
                                             value={pt().y}
                                             onChange={(v) =>
-                                                edit((d) => {
-                                                    (d as PointsModel).points[i]!.y = v;
+                                                editPoints((draft) => {
+                                                    draft.points[i]!.y = v;
                                                 }, `y${i}`)
                                             }
                                         />
@@ -294,8 +388,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                                 class={numRing(pt().size)}
                                                 value={pt().size}
                                                 onChange={(v) =>
-                                                    edit((d) => {
-                                                        (d as PointsModel).points[i]!.size = v;
+                                                    editPoints((draft) => {
+                                                        draft.points[i]!.size = v;
                                                     }, `z${i}`)
                                                 }
                                             />
@@ -305,8 +399,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                         <button
                                             class={DEL}
                                             onClick={() =>
-                                                edit((d) => {
-                                                    (d as PointsModel).points.splice(i, 1);
+                                                editPoints((draft) => {
+                                                    draft.points.splice(i, 1);
                                                 }, "struct")
                                             }
                                         >
@@ -320,8 +414,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                 </table>
             );
         }
-        if (shape === "matrix") {
-            const m = model as MatrixModel;
+        if (model.shape === "matrix") {
+            const m = model;
             return (
                 <table class="w-full border-collapse">
                     <thead>
@@ -334,8 +428,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                             class="font-semibold"
                                             value={col()}
                                             onChange={(v) =>
-                                                edit((d) => {
-                                                    (d as MatrixModel).cols[ci] = v;
+                                                editMatrix((draft) => {
+                                                    draft.cols[ci] = v;
                                                 }, `col${ci}`)
                                             }
                                         />
@@ -353,8 +447,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                             class="font-medium text-soft"
                                             value={row()}
                                             onChange={(v) =>
-                                                edit((d) => {
-                                                    (d as MatrixModel).rows[ri] = v;
+                                                editMatrix((draft) => {
+                                                    draft.rows[ri] = v;
                                                 }, `row${ri}`)
                                             }
                                         />
@@ -367,8 +461,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                                     class={numRing(m.cells[ri]?.[ci] ?? "")}
                                                     value={m.cells[ri]?.[ci] ?? ""}
                                                     onChange={(v) =>
-                                                        edit((d) => {
-                                                            (d as MatrixModel).cells[ri]![ci] = v;
+                                                        editMatrix((draft) => {
+                                                            draft.cells[ri]![ci] = v;
                                                         }, `c${ri}-${ci}`)
                                                     }
                                                 />
@@ -382,8 +476,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                 </table>
             );
         }
-        if (shape === "scalar") {
-            const m = model as ScalarModel;
+        if (model.shape === "scalar") {
+            const m = model;
             const field = (label: string, key: "value" | "max"): JSX.Element => (
                 <label class="flex items-center justify-between gap-3">
                     <span class="text-[13px] text-soft">{label}</span>
@@ -391,8 +485,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                         class={`w-28 rounded-lg border bg-canvas px-3 py-2 text-right font-mono text-[14px] text-ink outline-none focus:border-accent ${invalidNumber(m[key]) ? "border-rose-400/70 ring-1 ring-rose-400/70" : "border-line"}`}
                         value={m[key]}
                         onInput={(e) =>
-                            edit((d) => {
-                                (d as ScalarModel)[key] = e.currentTarget.value;
+                            editScalar((draft) => {
+                                draft[key] = e.currentTarget.value;
                             }, key)
                         }
                     />
@@ -406,8 +500,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                 </div>
             );
         }
-        if (shape === "list") {
-            const m = model as ListModel;
+        if (model.shape === "list") {
+            const m = model;
             return (
                 <table class="w-full border-collapse">
                     <thead>
@@ -418,6 +512,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                             <Show when={valued}>
                                 <th class={`${TH} w-20`}>Value</th>
                             </Show>
+                            {metaHeads()}
                             <th class={TH} />
                         </tr>
                     </thead>
@@ -432,8 +527,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                         <CellInput
                                             value={it().label}
                                             onChange={(v) =>
-                                                edit((d) => {
-                                                    (d as ListModel).items[i]!.label = v;
+                                                editList((draft) => {
+                                                    draft.items[i]!.label = v;
                                                 }, `item${i}`)
                                             }
                                         />
@@ -442,8 +537,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                         <CellInput
                                             value={it().body}
                                             onChange={(v) =>
-                                                edit((d) => {
-                                                    (d as ListModel).items[i]!.body = v;
+                                                editList((draft) => {
+                                                    draft.items[i]!.body = v;
                                                 }, `body${i}`)
                                             }
                                         />
@@ -454,19 +549,27 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                                 class={numRing(it().value)}
                                                 value={it().value}
                                                 onChange={(v) =>
-                                                    edit((d) => {
-                                                        (d as ListModel).items[i]!.value = v;
+                                                    editList((draft) => {
+                                                        draft.items[i]!.value = v;
                                                     }, `value${i}`)
                                                 }
                                             />
                                         </td>
                                     </Show>
+                                    {metaCells(
+                                        it,
+                                        (patch, sfx) =>
+                                            editList((draft) => {
+                                                Object.assign(draft.items[i]!, patch);
+                                            }, `${sfx}${i}`),
+                                        rampColor(i, m.items.length),
+                                    )}
                                     <td class="border-b border-line/50 text-center">
                                         <button
                                             class={DEL}
                                             onClick={() =>
-                                                edit((d) => {
-                                                    (d as ListModel).items.splice(i, 1);
+                                                editList((draft) => {
+                                                    draft.items.splice(i, 1);
                                                 }, "struct")
                                             }
                                         >
@@ -480,14 +583,17 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                 </table>
             );
         }
-        if (shape === "hierarchy") {
-            const m = model as HierModel;
+        if (model.shape === "hierarchy") {
+            const m = model;
             return (
                 <table class="w-full border-collapse">
                     <thead>
                         <tr>
-                            <th class={`${TH} w-full`}>Node</th>
+                            <th class={`${TH} w-8 text-center`}>#</th>
+                            <th class={`${TH} w-2/5`}>Node</th>
+                            <th class={`${TH} w-full`}>Detail</th>
                             <th class={`${TH} min-w-35`}>Reports to</th>
+                            {metaHeads()}
                             <th class={TH} />
                         </tr>
                     </thead>
@@ -495,12 +601,15 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                         <Index each={m.nodes}>
                             {(nd, i) => (
                                 <tr>
+                                    <td class="border-b border-r border-line/50 px-2 text-center font-mono text-[11px] text-muted">
+                                        {i + 1}
+                                    </td>
                                     <td class={CELL}>
                                         <CellInput
                                             value={nd().label}
                                             onChange={(val) =>
-                                                edit((d) => {
-                                                    const h = d as HierModel;
+                                                editHier((draft) => {
+                                                    const h = draft;
                                                     const old = h.nodes[i]!.label;
                                                     h.nodes[i]!.label = val;
                                                     h.nodes.forEach((x) => {
@@ -511,13 +620,22 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                         />
                                     </td>
                                     <td class={CELL}>
+                                        <CellInput
+                                            value={nd().body}
+                                            onChange={(v) =>
+                                                editHier((draft) => {
+                                                    draft.nodes[i]!.body = v;
+                                                }, `body${i}`)
+                                            }
+                                        />
+                                    </td>
+                                    <td class={CELL}>
                                         <select
                                             class={`${IN} cursor-pointer`}
                                             value={nd().parent}
                                             onChange={(e) =>
-                                                edit((d) => {
-                                                    (d as HierModel).nodes[i]!.parent =
-                                                        e.currentTarget.value;
+                                                editHier((draft) => {
+                                                    draft.nodes[i]!.parent = e.currentTarget.value;
                                                 }, `parent${i}`)
                                             }
                                         >
@@ -528,13 +646,22 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                             )}
                                         </select>
                                     </td>
+                                    {metaCells(
+                                        nd,
+                                        (patch, sfx) =>
+                                            editHier((draft) => {
+                                                Object.assign(draft.nodes[i]!, patch);
+                                            }, `${sfx}${i}`),
+                                        rampColor(i, m.nodes.length),
+                                    )}
                                     <td class="border-b border-line/50 text-center">
                                         <button
                                             class={DEL}
                                             onClick={() =>
-                                                edit((d) => {
-                                                    (d as HierModel).nodes.splice(i, 1);
-                                                }, "struct")
+                                                editHier(
+                                                    (draft) => removeHierNode(draft, i),
+                                                    "struct",
+                                                )
                                             }
                                         >
                                             <Icon name="close" size={11} />
@@ -547,7 +674,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                 </table>
             );
         }
-        const m = model as GraphModel;
+        if (model.shape !== "graph") return null;
+        const m = model;
         return (
             <div class="flex flex-col gap-6">
                 <div>
@@ -563,8 +691,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                             <CellInput
                                                 value={nd()}
                                                 onChange={(v) =>
-                                                    edit((d) => {
-                                                        (d as GraphModel).nodes[i] = v;
+                                                    editGraph((draft) => {
+                                                        draft.nodes[i] = v;
                                                     }, `gn${i}`)
                                                 }
                                             />
@@ -573,8 +701,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                             <button
                                                 class={DEL}
                                                 onClick={() =>
-                                                    edit((d) => {
-                                                        (d as GraphModel).nodes.splice(i, 1);
+                                                    editGraph((draft) => {
+                                                        draft.nodes.splice(i, 1);
                                                     }, "struct")
                                                 }
                                             >
@@ -591,8 +719,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                         size="sm"
                         class="mt-2"
                         onClick={() =>
-                            edit((d) => {
-                                (d as GraphModel).nodes.push("New");
+                            editGraph((draft) => {
+                                draft.nodes.push("New");
                             }, "struct")
                         }
                     >
@@ -621,8 +749,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                                 class={`${IN} cursor-pointer`}
                                                 value={eg().from}
                                                 onChange={(e) =>
-                                                    edit((d) => {
-                                                        (d as GraphModel).edges[i]!.from =
+                                                    editGraph((draft) => {
+                                                        draft.edges[i]!.from =
                                                             e.currentTarget.value;
                                                     }, `ef${i}`)
                                                 }
@@ -635,9 +763,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                                 class={`${IN} cursor-pointer`}
                                                 value={eg().to}
                                                 onChange={(e) =>
-                                                    edit((d) => {
-                                                        (d as GraphModel).edges[i]!.to =
-                                                            e.currentTarget.value;
+                                                    editGraph((draft) => {
+                                                        draft.edges[i]!.to = e.currentTarget.value;
                                                     }, `et${i}`)
                                                 }
                                             >
@@ -648,8 +775,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                             <CellInput
                                                 value={eg().label}
                                                 onChange={(v) =>
-                                                    edit((d) => {
-                                                        (d as GraphModel).edges[i]!.label = v;
+                                                    editGraph((draft) => {
+                                                        draft.edges[i]!.label = v;
                                                     }, `el${i}`)
                                                 }
                                             />
@@ -658,8 +785,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                                             <button
                                                 class={DEL}
                                                 onClick={() =>
-                                                    edit((d) => {
-                                                        (d as GraphModel).edges.splice(i, 1);
+                                                    editGraph((draft) => {
+                                                        draft.edges.splice(i, 1);
                                                     }, "struct")
                                                 }
                                             >
@@ -676,8 +803,8 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                         size="sm"
                         class="mt-2"
                         onClick={() =>
-                            edit((d) => {
-                                const g = d as GraphModel;
+                            editGraph((draft) => {
+                                const g = draft;
                                 g.edges.push({
                                     from: g.nodes[0] ?? "",
                                     to: g.nodes[1] ?? "",
@@ -695,38 +822,49 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
 
     const addRow = (): void =>
         edit((d) => {
-            if (shape === "series") {
-                const m = d as SeriesModel;
-                m.categories.push("New");
-                m.series.forEach((x) => x.values.push("0"));
-            } else if (shape === "labelValue")
-                (d as KvModel).items.push({ label: "New", value: "0" });
-            else if (shape === "points")
-                (d as PointsModel).points.push({ x: "0", y: "0", size: "0" });
-            else if (shape === "matrix") {
-                const m = d as MatrixModel;
-                m.rows.push("New");
-                m.cells.push(m.cols.map(() => "0"));
-            } else if (shape === "list") {
-                const items = (d as ListModel).items;
+            if (d.shape === "series") {
+                d.categories.push("New");
+                d.series.forEach((x) => x.values.push("0"));
+            } else if (d.shape === "labelValue") d.items.push({ label: "New", value: "0" });
+            else if (d.shape === "points") d.points.push({ x: "0", y: "0", size: "0" });
+            else if (d.shape === "matrix") {
+                d.rows.push("New");
+                d.cells.push(d.cols.map(() => "0"));
+            } else if (d.shape === "list") {
+                const items = d.items;
                 if (limit === undefined || items.length < limit)
-                    items.push({ label: "New", body: "", value: "" });
-            } else if (shape === "hierarchy") {
-                const m = d as HierModel;
-                m.nodes.push({ label: "New", parent: m.nodes[0]?.label ?? "" });
+                    items.push({
+                        label: "New",
+                        body: "",
+                        value: "",
+                        icon: "",
+                        color: "",
+                        emphasis: false,
+                    });
+            } else if (d.shape === "hierarchy") {
+                const m = d;
+                m.nodes.push({
+                    label: "New",
+                    body: "",
+                    value: "",
+                    parent: m.nodes[0]?.label ?? "",
+                    icon: "",
+                    color: "",
+                    emphasis: false,
+                });
             }
         }, "struct");
     const addSeries = (): void =>
-        edit((d) => {
-            const m = d as SeriesModel;
+        editSeries((draft) => {
+            const m = draft;
             m.series.push({
                 name: `Series ${m.series.length + 1}`,
                 values: m.categories.map(() => "0"),
             });
         }, "struct");
     const addCol = (): void =>
-        edit((d) => {
-            const m = d as MatrixModel;
+        editMatrix((draft) => {
+            const m = draft;
             m.cols.push("New");
             m.cells.forEach((r) => r.push("0"));
         }, "struct");
@@ -830,6 +968,7 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
                     availWidth: W,
                     format: resolveProfile("deck"),
                     theme: tk,
+                    measure: measureText,
                     plain: true,
                 };
                 const kids = dspec

@@ -52,6 +52,7 @@ function renderInto(host: HTMLElement, data: Record<string, unknown>): void {
         availWidth: W,
         format: resolveProfile("deck"),
         theme,
+        measure: measureText,
         plain: true,
     };
     const full = { ...data, height: H };

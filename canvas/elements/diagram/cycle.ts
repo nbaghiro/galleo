@@ -2,6 +2,7 @@ import type { EngineNode } from "@engine/node";
 import type { LayoutCtx } from "@elements/spec";
 import { fixed, grow } from "@model/geometry";
 import {
+    BADGE_R,
     badgeText,
     badgeX,
     clamp,
@@ -10,6 +11,7 @@ import {
     drawLink,
     drawNodeBadge,
     itemColors,
+    maxLabelWidth,
     nodePaint,
     getNodeShape,
     drawShape,
@@ -29,7 +31,14 @@ function arrange(
     const n = diagram.items.length;
     const cols = itemColors(diagram.items, ctx.theme);
     const W = ctx.availWidth;
-    const cellW = clamp(W / Math.max(3, n), 100, 150);
+    const shape = diagram.options.shape ?? "rounded";
+    const painted = !getNodeShape(shape).engineRadius; // decorate paints the silhouette
+    const inset = getNodeShape(shape).insetX(CELL_H);
+    const badged = diagram.options.numbers !== "none";
+    // content-sized under the geometric cap: short labels tighten the ring, long ones wrap
+    const cap = clamp(W / Math.max(3, n), 100, 150);
+    const need = maxLabelWidth(ctx, diagram.items) + 24 + inset * 2 + (badged ? BADGE_R * 2 : 0);
+    const cellW = clamp(need, 84, cap);
     const rx = Math.max(1, W / 2 - cellW / 2 - 16);
     const ry = Math.max(1, height / 2 - CELL_H / 2 - 16);
     const angle = (i: number): number => -Math.PI / 2 + (i * Math.PI * 2) / Math.max(1, n);
@@ -37,10 +46,6 @@ function arrange(
         W / 2 + Math.cos(a) * rx,
         height / 2 + Math.sin(a) * ry,
     ];
-    const shape = diagram.options.shape ?? "rounded";
-    const painted = !getNodeShape(shape).engineRadius; // decorate paints the silhouette
-    const inset = getNodeShape(shape).insetX(CELL_H);
-    const badged = diagram.options.numbers !== "none";
     const cells = diagram.items.map((item, i) => {
         const [x, y] = at(angle(i));
         const paint = nodePaint(cols[i]!, ctx.theme, {
@@ -51,6 +56,7 @@ function arrange(
             shape,
             cellH: CELL_H,
             badged,
+            icon: item.icon,
         });
         cell.w = fixed(cellW);
         cell.h = fixed(CELL_H);
@@ -104,7 +110,7 @@ function arrange(
                                 emphasis: item.emphasis,
                             }),
                         );
-                    const badge = badgeText(diagram.options.numbers, i);
+                    const badge = item.icon ? undefined : badgeText(diagram.options.numbers, i);
                     if (badge) drawNodeBadge(g, badgeX(b.x, inset), y, badge, cols[i]!, ctx.theme);
                 });
             }),

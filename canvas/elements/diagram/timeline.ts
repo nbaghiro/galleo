@@ -5,6 +5,7 @@ import {
     PAD,
     decorate,
     diagramCell,
+    drawIconBadge,
     itemColors,
     registerDiagram,
     type ResolvedDiagram,
@@ -31,6 +32,7 @@ function arrange(
             {
                 ink: ctx.theme.ink,
                 dim: ctx.theme.muted,
+                iconInk: cols[i]!,
             },
             { transparent: true, pad: { top: 4, bottom: 4, left: 4, right: 4 } },
         );
@@ -58,8 +60,11 @@ function arrange(
                 const cy = box.h / 2;
                 g.line(0, cy, box.w, cy, { stroke: ctx.theme.line, width: 2 });
                 const colW = (box.w - GAP * (n - 1)) / n;
-                diagram.items.forEach((_, i) => {
+                diagram.items.forEach((item, i) => {
                     const cx = i * (colW + GAP) + colW / 2;
+                    // an item's icon upgrades its spine dot to a milestone marker
+                    if (item.icon && drawIconBadge(g, cx, cy, item.icon, cols[i]!, ctx.theme))
+                        return;
                     g.circle(cx, cy, DOT_R, {
                         fill: cols[i]!,
                         stroke: ctx.theme.surface,

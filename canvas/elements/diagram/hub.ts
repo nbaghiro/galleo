@@ -2,6 +2,7 @@ import type { EngineNode } from "@engine/node";
 import type { LayoutCtx } from "@elements/spec";
 import { fixed, grow } from "@model/geometry";
 import {
+    BADGE_R,
     badgeText,
     badgeX,
     clamp,
@@ -9,6 +10,8 @@ import {
     diagramCell,
     drawNodeBadge,
     itemColors,
+    labelWidth,
+    maxLabelWidth,
     nodePaint,
     getNodeShape,
     drawShape,
@@ -30,8 +33,16 @@ function arrange(
     const n = spokes.length;
     const cols = itemColors(diagram.items, ctx.theme);
     const W = ctx.availWidth;
-    const cellW = clamp(W / Math.max(3, n), 96, 140);
-    const hubW = clamp(cellW * 1.2, 120, 170);
+    const shape = diagram.options.shape ?? "rounded";
+    const painted = !getNodeShape(shape).engineRadius;
+    const inset = getNodeShape(shape).insetX(CELL_H);
+    const badged = diagram.options.numbers !== "none";
+    if (!centre) return { w: grow(), h: fixed(height) };
+    // spokes size to their own labels under the geometric cap; the hub to the centre label
+    const cap = clamp(W / Math.max(3, n), 96, 140);
+    const need = maxLabelWidth(ctx, spokes) + 24 + inset * 2 + (badged ? BADGE_R * 2 : 0);
+    const cellW = clamp(need, 84, cap);
+    const hubW = clamp(Math.max(labelWidth(ctx, centre.label) + 28, cellW * 1.2), 120, 170);
     const rx = Math.max(1, W / 2 - cellW / 2 - 12);
     const ry = Math.max(1, height / 2 - CELL_H / 2 - 12);
     const angle = (i: number): number => -Math.PI / 2 + (i * Math.PI * 2) / Math.max(1, n);
@@ -39,17 +50,12 @@ function arrange(
         W / 2 + Math.cos(a) * rx,
         height / 2 + Math.sin(a) * ry,
     ];
-    const shape = diagram.options.shape ?? "rounded";
-    const painted = !getNodeShape(shape).engineRadius;
-    const inset = getNodeShape(shape).insetX(CELL_H);
-    const badged = diagram.options.numbers !== "none";
-    if (!centre) return { w: grow(), h: fixed(height) };
 
     const hub = diagramCell(
         kids[0],
         kids[1],
         nodePaint(cols[0]!, ctx.theme, { style: diagram.options.style, emphasis: true }),
-        { radius: HUB_H / 2 },
+        { radius: HUB_H / 2, icon: centre.icon },
     );
     hub.w = fixed(hubW);
     hub.h = fixed(HUB_H);
@@ -66,6 +72,7 @@ function arrange(
             shape,
             cellH: CELL_H,
             badged,
+            icon: item.icon,
         });
         cell.w = fixed(cellW);
         cell.h = fixed(CELL_H);
@@ -128,7 +135,7 @@ function arrange(
                                 emphasis: item.emphasis,
                             }),
                         );
-                    const badge = badgeText(diagram.options.numbers, i);
+                    const badge = item.icon ? undefined : badgeText(diagram.options.numbers, i);
                     if (badge) drawNodeBadge(g, badgeX(b.x, inset), y, badge, cols[i]!, ctx.theme);
                 });
             }),

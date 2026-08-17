@@ -168,6 +168,7 @@ function audit(data: Record<string, unknown>, w: number, h: number): Audit {
             overflow: "paginate",
         },
         theme: tokens,
+        measure,
     };
     const node = type.arrange(diagram, ctx as never, kidsFor(diagram), h);
     const { commands } = layout(node, { x: 0, y: 0, w, h }, measure as never);
@@ -228,6 +229,31 @@ for (const { value: type } of diagramTypeOptions()) {
             MATRIX.push({
                 label: `${type} n=${n} chevron`,
                 data: { type, items, shape: "chevron", numbers: "number" },
+            });
+        // alternating icons over numbering: iconed items drop their badge, the rest keep it
+        MATRIX.push({
+            label: `${type} n=${n} icons`,
+            data: {
+                type,
+                items,
+                numbers: "number",
+                axes: "low end, high end, near, far",
+                itemsMeta: Array.from({ length: n }, (_, i) =>
+                    i % 2 === 0 ? { icon: "rocket", emphasis: i === 0 } : {},
+                ),
+            },
+        });
+        // detail lines exercise the grown-cell path (a wrapped detail must stay inside its fill)
+        if (type === "org")
+            MATRIX.push({
+                label: `org n=${n} detailed`,
+                data: {
+                    type,
+                    items: Array.from(
+                        { length: n },
+                        (_, i) => `Item ${i + 1} | supporting line ${i + 1}`,
+                    ).join("\n"),
+                },
             });
     }
 }
@@ -321,6 +347,9 @@ describe("visual invariants", () => {
                 }
 
                 for (const { surface, ops } of a.chrome) {
+                    // a surface wholly inside a cell is in-cell content (an icon glyph), not
+                    // connector chrome — its strokes belong there
+                    const inCell = a.cellFills.some((f) => within(surface, f, 2));
                     for (const op of ops) {
                         // 1. clip safety: decorate paints must stay inside their surface
                         expect(
@@ -329,7 +358,11 @@ describe("visual invariants", () => {
                         ).toBe(true);
 
                         // 2. connectors live in the gaps, never inside a cell fill
-                        if ((op.kind === "line" || op.kind === "polyline") && op.endpoints) {
+                        if (
+                            !inCell &&
+                            (op.kind === "line" || op.kind === "polyline") &&
+                            op.endpoints
+                        ) {
                             for (const p of op.endpoints)
                                 for (const cell of a.cellFills)
                                     expect(

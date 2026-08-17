@@ -6,6 +6,7 @@ import {
     PAD,
     badgeText,
     badgeX,
+    clamp,
     decorate,
     diagramCell,
     drawLink,
@@ -13,6 +14,7 @@ import {
     drawShape,
     getNodeShape,
     itemColors,
+    maxLabelWidth,
     nodePaint,
     registerDiagram,
     type ResolvedDiagram,
@@ -29,9 +31,9 @@ interface Shape {
     nodeH: number;
     rowGap: number;
 }
-function shape(n: number, W: number, H: number, gap: number): Shape {
+function shape(n: number, W: number, H: number, gap: number, minW: number): Shape {
     const avail = W - PAD * 2;
-    const fits = Math.max(1, Math.min(n, Math.floor((avail + gap) / (96 + gap))));
+    const fits = Math.max(1, Math.min(n, Math.floor((avail + gap) / (minW + gap))));
     // spread evenly once it wraps: 4 steps in a 3-wide row read as 2+2, not 3 and a stranded 1
     const rows = Math.ceil(n / fits);
     const perRow = Math.ceil(n / rows);
@@ -67,7 +69,10 @@ function arrange(
     // a chevron band is its own arrow: cells butt together and the connectors go
     const chevron = nodeShape === "chevron";
     const gap = chevron ? 8 : GAP;
-    const s = shape(n, ctx.availWidth, height, gap);
+    // wrap early enough that the longest label fits a column without squeezing (capped so one
+    // long label can't force one-per-row)
+    const minW = clamp(maxLabelWidth(ctx, diagram.items) + 28, 96, 200);
+    const s = shape(n, ctx.availWidth, height, gap, minW);
     // fixed widths from the same formula the decorate surface uses, so a partial last row keeps
     // uniform node sizes and the connectors stay in the gaps (grow cells would stretch to fill)
     const contentW = ctx.availWidth - PAD * 2;
@@ -92,7 +97,7 @@ function arrange(
                         style: diagram.options.style,
                         emphasis: diagram.items[i]?.emphasis,
                     }),
-                    { shape: nodeShape, cellH: s.nodeH, badged },
+                    { shape: nodeShape, cellH: s.nodeH, badged, icon: diagram.items[i]?.icon },
                 );
                 cell.w = fixed(cellW);
                 return cell;
@@ -123,7 +128,10 @@ function arrange(
                     };
                     if (!chevron)
                         links(g, b, i % s.perRow >= s.perRow - 1 || i >= n - 1, ctx.theme, gap);
-                    const badge = badgeText(diagram.options.numbers, i);
+                    // an item's icon takes the leading slot, so its number stands down
+                    const badge = diagram.items[i]?.icon
+                        ? undefined
+                        : badgeText(diagram.options.numbers, i);
                     if (badge)
                         drawNodeBadge(
                             g,

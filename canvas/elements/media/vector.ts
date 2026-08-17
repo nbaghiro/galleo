@@ -1,7 +1,15 @@
 import type { ControlField, ElementSpec } from "@elements/spec";
 import type { DrawContext, DrawStyle, PathSink, Rect } from "@engine/node";
 import type { Size } from "@model/geometry";
-import type { Paint, ThemeRole, Vector, VNode, VStyle, VTransform } from "@model/elements";
+import type {
+    DiagramIcon,
+    Paint,
+    ThemeRole,
+    Vector,
+    VNode,
+    VStyle,
+    VTransform,
+} from "@model/elements";
 import type { Tokens } from "@themes";
 import { register } from "@elements/spec";
 import { fit, fixed, grow } from "@model/geometry";
@@ -706,7 +714,7 @@ export function shapeVector(kind: ShapeKind, w: number, h: number, o: ShapeOpts)
     return { vb: [0, 0, w, h], nodes };
 }
 
-// stroke glyphs, 24-box; keys stay in sync with the diagram `icons` description in model/ai.ts
+// stroke glyphs, 24-box; keys are the DIAGRAM_ICONS value-set (`satisfies` below keeps them in sync)
 export const ICON_LIBRARY: Record<string, IconGlyph> = {
     search: {
         id: "search",
@@ -795,7 +803,7 @@ export const ICON_LIBRARY: Record<string, IconGlyph> = {
         vb: "0 0 24 24",
         body: `<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>`,
     },
-};
+} satisfies Record<DiagramIcon, IconGlyph>;
 
 const DEFAULT_GLYPH: IconGlyph = {
     id: "lucide:sparkles",

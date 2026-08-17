@@ -50,6 +50,8 @@ function arrange(
                     }),
                     {
                         badged,
+                        icon: item.icon,
+                        iconY: "start",
                         // the label rides the tread, so captions line up with the climb
                         pad: { top: 12, bottom: 8, left: 10, right: 10 },
                     },
@@ -61,8 +63,8 @@ function arrange(
             decorate((g, box) => {
                 if (diagram.options.numbers === "none") return;
                 const stepW = (box.w - GAP * (n - 1)) / n;
-                diagram.items.forEach((_, i) => {
-                    const badge = badgeText(diagram.options.numbers, i);
+                diagram.items.forEach((item, i) => {
+                    const badge = item.icon ? undefined : badgeText(diagram.options.numbers, i);
                     const y = box.h - stepH(i) + BADGE_R + 8;
                     if (badge)
                         drawNodeBadge(

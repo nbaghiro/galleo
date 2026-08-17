@@ -52,7 +52,7 @@ function arrange(
                 style: items[i]?.emphasis ? "solid" : "tinted",
                 emphasis: items[i]?.emphasis,
             }),
-            { radius: 8 },
+            { radius: 8, icon: items[i]?.icon },
         );
     const row = (a: number, b: number): EngineNode => ({
         w: grow(),

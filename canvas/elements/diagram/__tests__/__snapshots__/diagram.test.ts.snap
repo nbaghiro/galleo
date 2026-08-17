@@ -25,8 +25,8 @@ exports[`composed diagrams > cycle keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 46,
-        "w": 150,
-        "x": 245,
+        "w": 104,
+        "x": 268,
         "y": 16,
       },
       "kind": "rect",
@@ -34,17 +34,17 @@ exports[`composed diagrams > cycle keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 130,
-        "x": 255,
+        "w": 84,
+        "x": 278,
         "y": 24,
       },
       "kind": "text",
     },
     {
       "box": {
-        "h": 15,
-        "w": 130,
-        "x": 255,
+        "h": 30,
+        "w": 84,
+        "x": 278,
         "y": 42,
       },
       "kind": "text",
@@ -52,8 +52,8 @@ exports[`composed diagrams > cycle keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 46,
-        "w": 150,
-        "x": 443,
+        "w": 104,
+        "x": 486,
         "y": 153,
       },
       "kind": "rect",
@@ -61,17 +61,17 @@ exports[`composed diagrams > cycle keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 130,
-        "x": 453,
+        "w": 84,
+        "x": 496,
         "y": 161,
       },
       "kind": "text",
     },
     {
       "box": {
-        "h": 15,
-        "w": 130,
-        "x": 453,
+        "h": 30,
+        "w": 84,
+        "x": 496,
         "y": 179,
       },
       "kind": "text",
@@ -79,8 +79,8 @@ exports[`composed diagrams > cycle keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 46,
-        "w": 150,
-        "x": 47,
+        "w": 104,
+        "x": 50,
         "y": 153,
       },
       "kind": "rect",
@@ -88,8 +88,8 @@ exports[`composed diagrams > cycle keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 130,
-        "x": 57,
+        "w": 84,
+        "x": 60,
         "y": 161,
       },
       "kind": "text",
@@ -97,8 +97,8 @@ exports[`composed diagrams > cycle keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 15,
-        "w": 130,
-        "x": 57,
+        "w": 84,
+        "x": 60,
         "y": 179,
       },
       "kind": "text",
@@ -220,8 +220,8 @@ exports[`composed diagrams > hub keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 42,
-        "w": 140,
-        "x": 250,
+        "w": 104,
+        "x": 268,
         "y": 12,
       },
       "kind": "rect",
@@ -229,17 +229,17 @@ exports[`composed diagrams > hub keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 120,
-        "x": 260,
+        "w": 84,
+        "x": 278,
         "y": 20,
       },
       "kind": "text",
     },
     {
       "box": {
-        "h": 15,
-        "w": 120,
-        "x": 260,
+        "h": 30,
+        "w": 84,
+        "x": 278,
         "y": 38,
       },
       "kind": "text",
@@ -247,8 +247,8 @@ exports[`composed diagrams > hub keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 42,
-        "w": 140,
-        "x": 250,
+        "w": 104,
+        "x": 268,
         "y": 206,
       },
       "kind": "rect",
@@ -256,8 +256,8 @@ exports[`composed diagrams > hub keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 120,
-        "x": 260,
+        "w": 84,
+        "x": 278,
         "y": 214,
       },
       "kind": "text",
@@ -265,8 +265,8 @@ exports[`composed diagrams > hub keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 15,
-        "w": 120,
-        "x": 260,
+        "w": 84,
+        "x": 278,
         "y": 232,
       },
       "kind": "text",
@@ -274,8 +274,8 @@ exports[`composed diagrams > hub keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 48,
-        "w": 168,
-        "x": 236,
+        "w": 125,
+        "x": 258,
         "y": 106,
       },
       "kind": "rect",
@@ -283,8 +283,8 @@ exports[`composed diagrams > hub keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 148,
-        "x": 246,
+        "w": 105,
+        "x": 268,
         "y": 114,
       },
       "kind": "text",
@@ -292,8 +292,8 @@ exports[`composed diagrams > hub keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 15,
-        "w": 148,
-        "x": 246,
+        "w": 105,
+        "x": 268,
         "y": 132,
       },
       "kind": "text",
@@ -452,82 +452,82 @@ exports[`composed diagrams > org keeps a stable command profile 1`] = `
     },
     {
       "box": {
-        "h": 40,
-        "w": 170,
-        "x": 235,
-        "y": 34,
+        "h": 64,
+        "w": 104,
+        "x": 268,
+        "y": 16,
       },
       "kind": "rect",
     },
     {
       "box": {
         "h": 16,
-        "w": 150,
-        "x": 245,
+        "w": 84,
+        "x": 278,
+        "y": 24,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 30,
+        "w": 84,
+        "x": 278,
         "y": 42,
       },
       "kind": "text",
     },
     {
       "box": {
-        "h": 15,
-        "w": 150,
-        "x": 245,
-        "y": 60,
-      },
-      "kind": "text",
-    },
-    {
-      "box": {
-        "h": 40,
-        "w": 170,
-        "x": 235,
-        "y": 110,
+        "h": 64,
+        "w": 104,
+        "x": 268,
+        "y": 98,
       },
       "kind": "rect",
     },
     {
       "box": {
         "h": 16,
-        "w": 150,
-        "x": 245,
-        "y": 118,
+        "w": 84,
+        "x": 278,
+        "y": 106,
       },
       "kind": "text",
     },
     {
       "box": {
-        "h": 15,
-        "w": 150,
-        "x": 245,
-        "y": 136,
+        "h": 30,
+        "w": 84,
+        "x": 278,
+        "y": 124,
       },
       "kind": "text",
     },
     {
       "box": {
-        "h": 40,
-        "w": 170,
-        "x": 235,
-        "y": 186,
+        "h": 64,
+        "w": 104,
+        "x": 268,
+        "y": 180,
       },
       "kind": "rect",
     },
     {
       "box": {
         "h": 16,
-        "w": 150,
-        "x": 245,
-        "y": 194,
+        "w": 84,
+        "x": 278,
+        "y": 195,
       },
       "kind": "text",
     },
     {
       "box": {
         "h": 15,
-        "w": 150,
-        "x": 245,
-        "y": 212,
+        "w": 84,
+        "x": 278,
+        "y": 214,
       },
       "kind": "text",
     },

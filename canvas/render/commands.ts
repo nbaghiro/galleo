@@ -20,13 +20,24 @@ import { DEFAULT_THEME, mix } from "@themes";
 
 export const SECTION_GAP = 22;
 
+// `measure` defaults to the canvas-2D measurer; callers that inject one into layout() must pass
+// the same one here, so compose-time sizing (a diagram's node widths) can never disagree with the
+// layout pass
 export function ctxFor(
     width: number,
     theme: Tokens = DEFAULT_THEME.tokens,
     format: FormatDescriptor = DEFAULT_PROFILE,
     plain = false,
+    measure: MeasureText = measureText,
 ): LayoutCtx {
-    return { box: { x: 0, y: 0, w: width, h: 0 }, availWidth: width, format, theme, plain };
+    return {
+        box: { x: 0, y: 0, w: width, h: 0 },
+        availWidth: width,
+        format,
+        theme,
+        measure,
+        plain,
+    };
 }
 
 function bottom(commands: RenderCommand[]): number {
@@ -41,7 +52,7 @@ export function layoutSection(
     format: FormatDescriptor = DEFAULT_PROFILE,
     plain = false,
 ): { commands: RenderCommand[]; regions: Region[]; height: number } {
-    const node = composeSection(section, ctxFor(width, theme, format, plain));
+    const node = composeSection(section, ctxFor(width, theme, format, plain, measure));
     const { commands, regions } = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure);
     return { commands, regions, height: bottom(commands) };
 }
@@ -59,7 +70,7 @@ export function layoutSectionSkeleton(
     format: FormatDescriptor = DEFAULT_PROFILE,
 ): { commands: RenderCommand[]; height: number } {
     const node = skeletonize(
-        composeSection(section, ctxFor(width, theme, format)),
+        composeSection(section, ctxFor(width, theme, format, false, measure)),
         ghostColorsFor(theme),
     );
     const { commands } = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure);
@@ -133,7 +144,7 @@ function prepareSlideNode(
     format: FormatDescriptor,
     plain = false,
 ): { node: EngineNode; targetH: number } {
-    const node = composeSection(section, ctxFor(w, theme, format, plain));
+    const node = composeSection(section, ctxFor(w, theme, format, plain, measure));
     if (node.fill) node.fill = { ...node.fill, radius: 0, border: undefined };
     if (node.image) node.image = { ...node.image, radius: 0 };
     let natural = bottom(layout(node, { x: 0, y: 0, w, h: 100000 }, measure).commands);

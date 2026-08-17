@@ -5,8 +5,10 @@ import { fit, grow } from "@model/geometry";
 import { diagramTypeOptions } from "@elements/diagram/render";
 import { DIAGRAM_SHAPES } from "@model/elements";
 import {
+    ICON_S,
     badgeText,
     buildTree,
+    diagramSupportsIcons,
     drawShape,
     getNodeShape,
     nodeShapeIds,
@@ -311,6 +313,7 @@ const layoutCtx = (w: number): Record<string, unknown> => ({
         overflow: "paginate",
     },
     theme: tokens,
+    measure,
 });
 
 function composed(data: Record<string, unknown>, w = 640, h = 260): RenderCommand[] {
@@ -387,5 +390,156 @@ describe("composed diagrams", () => {
         const texts = commands.filter((c) => c.kind === "text");
         expect(texts.some((c) => c.kind === "text" && c.text.text === "Alpha")).toBe(true);
         expect(texts.some((c) => c.kind === "text" && c.text.text === "detail")).toBe(true);
+    });
+});
+
+// replay every surface's paint and collect the recorded calls
+function chromeCalls(commands: RenderCommand[]): { op: string; [k: string]: unknown }[] {
+    const calls: { op: string; [k: string]: unknown }[] = [];
+    for (const c of commands) {
+        if (c.kind !== "surface") continue;
+        const rec = recordingDrawContext();
+        c.paint(rec.ctx, { x: 0, y: 0, w: c.box.w, h: c.box.h });
+        calls.push(...rec.calls);
+    }
+    return calls;
+}
+
+describe("cell icons", () => {
+    it("iconInk is the item color where the fill leaves room, the label ink on solid", () => {
+        expect(nodePaint("#3366aa", tokens, { style: "tinted" }).iconInk).toBe("#3366aa");
+        expect(nodePaint("#3366aa", tokens, { style: "card" }).iconInk).toBe("#3366aa");
+        expect(nodePaint("#3366aa", tokens, { style: "outline" }).iconInk).toBe("#3366aa");
+        const solid = nodePaint("#3366aa", tokens, { style: "solid" });
+        expect(solid.iconInk).toBe(solid.ink);
+    });
+
+    it("an iconed cell floats a leading glyph surface, inset before the label", () => {
+        const commands = composed({
+            type: "process",
+            items: "Alpha, Beta",
+            itemsMeta: [{ icon: "rocket" }, {}],
+        });
+        const icons = commands.filter(
+            (c) => c.kind === "surface" && c.box.w === ICON_S && c.box.h === ICON_S,
+        );
+        expect(icons.length).toBe(1);
+        const alpha = commands.find((c) => c.kind === "text" && c.text.text === "Alpha")!;
+        expect(icons[0]!.box.x + ICON_S).toBeLessThanOrEqual(alpha.box.x + 1);
+    });
+
+    it("an item's icon replaces its number badge; the rest keep theirs", () => {
+        const badges = chromeCalls(
+            composed({
+                type: "process",
+                items: "Alpha, Beta",
+                numbers: "number",
+                itemsMeta: [{ icon: "rocket" }, {}],
+            }),
+        )
+            .filter((c) => c.op === "text")
+            .map((c) => c.text);
+        expect(badges).toContain("2");
+        expect(badges).not.toContain("1");
+    });
+
+    it("a timeline icon upgrades its spine dot to a milestone marker", () => {
+        const radii = chromeCalls(
+            composed({
+                type: "timeline",
+                items: "A, B, C",
+                itemsMeta: [{}, { icon: "flag" }, {}],
+            }),
+        )
+            .filter((c) => c.op === "circle")
+            .map((c) => c.r);
+        expect(radii.filter((r) => r === 5).length).toBe(2);
+        expect(radii.filter((r) => r === 11).length).toBe(1);
+    });
+
+    it("band types opt out of icons; everything else supports them", () => {
+        expect(diagramSupportsIcons("pyramid")).toBe(false);
+        expect(diagramSupportsIcons("funnel")).toBe(false);
+        expect(diagramSupportsIcons("process")).toBe(true);
+        expect(diagramSupportsIcons("timeline")).toBe(true);
+    });
+});
+
+describe("measured sizing", () => {
+    const cellWidths = (commands: RenderCommand[]): number[] =>
+        commands.filter((c) => c.kind === "rect").map((c) => Math.round(c.box.w));
+
+    it("org sizes cells to the longest label, capped by the per-leaf share", () => {
+        const short = composed({ type: "org", items: "CEO, CTO", links: "CEO>CTO" });
+        const long = composed({
+            type: "org",
+            items: "A remarkably verbose executive title, CTO",
+            links: "A remarkably verbose executive title>CTO",
+        });
+        expect(Math.max(...cellWidths(short))).toBe(90);
+        expect(Math.max(...cellWidths(long))).toBe(170);
+    });
+
+    it("process wraps sooner when labels are long", () => {
+        const items = (label: string): string =>
+            Array.from({ length: 4 }, (_, i) => `${label} ${i}`).join(", ");
+        const rows = (cmds: RenderCommand[]): number =>
+            new Set(cmds.filter((c) => c.kind === "rect").map((c) => Math.round(c.box.y))).size;
+        expect(rows(composed({ type: "process", items: items("Go") }))).toBe(1);
+        expect(
+            rows(composed({ type: "process", items: items("A very long process step label") })),
+        ).toBeGreaterThan(1);
+    });
+
+    it("a value-scaled funnel band never narrows past its own label", () => {
+        const commands = composed({
+            type: "funnel",
+            items: "Big wide audience | | 100\nAn unusually long final stage label | | 1",
+        });
+        const t = commands.find(
+            (c) => c.kind === "text" && c.text.text.startsWith("An unusually"),
+        )!;
+        expect(t.box.w).toBeGreaterThan(150);
+    });
+
+    it("org cells grow to hold a wrapped detail, and the detail stays inside its fill", () => {
+        const bare = composed({ type: "org", items: "CEO, CTO", links: "CEO>CTO" });
+        const detailed = composed({
+            type: "org",
+            items: "CEO | runs the whole company\nCTO | owns the stack",
+            links: "CEO>CTO",
+        });
+        const cellH = (cmds: RenderCommand[]): number =>
+            Math.max(...cmds.filter((c) => c.kind === "rect").map((c) => c.box.h));
+        expect(cellH(bare)).toBe(40);
+        expect(cellH(detailed)).toBeGreaterThan(40);
+        const fills = detailed.filter((c) => c.kind === "rect");
+        for (const t of detailed.filter((c) => c.kind === "text")) {
+            const cx = t.box.x + t.box.w / 2;
+            const cy = t.box.y + t.box.h / 2;
+            const cell = fills.find(
+                (f) =>
+                    cx > f.box.x &&
+                    cx < f.box.x + f.box.w &&
+                    cy > f.box.y &&
+                    cy < f.box.y + f.box.h,
+            );
+            expect(cell, `text ${JSON.stringify(t.box)} outside every cell`).toBeTruthy();
+            expect(t.box.y).toBeGreaterThanOrEqual(cell!.box.y - 1);
+            expect(t.box.y + t.box.h).toBeLessThanOrEqual(cell!.box.y + cell!.box.h + 1);
+        }
+    });
+
+    it("an org detail that cannot fit the capped cell hides instead of spilling", () => {
+        const long = "a supporting sentence far too long to ever fit inside one small node";
+        const commands = composed({
+            type: "org",
+            items: `A | ${long}\nB | short note`,
+            links: "A>B",
+        });
+        const texts = commands.filter((c) => c.kind === "text").map((c) => c.text.text);
+        expect(texts).toContain("A");
+        expect(texts).toContain("short note");
+        expect(texts).not.toContain(long);
     });
 });

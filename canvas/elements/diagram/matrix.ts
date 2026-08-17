@@ -82,7 +82,7 @@ function arrange(
                         style: diagram.options.style,
                         emphasis: diagram.items[i]?.emphasis,
                     }),
-                    { shape: nodeShape, cellH, badged },
+                    { shape: nodeShape, cellH, badged, icon: diagram.items[i]?.icon },
                 );
                 cell.w = fixed(cellW);
                 return cell;
@@ -102,8 +102,8 @@ function arrange(
                 if (diagram.options.numbers === "none") return;
                 const cellW = (box.w - GAP * (ncol - 1)) / ncol;
                 const top = hasHeaders ? HEADER_H + GAP : 0;
-                diagram.items.forEach((_, i) => {
-                    const badge = badgeText(diagram.options.numbers, i);
+                diagram.items.forEach((item, i) => {
+                    const badge = item.icon ? undefined : badgeText(diagram.options.numbers, i);
                     if (!badge) return;
                     const x = badgeX((i % ncol) * (cellW + GAP), inset);
                     const y = top + Math.floor(i / ncol) * (cellH + GAP) + cellH / 2;
