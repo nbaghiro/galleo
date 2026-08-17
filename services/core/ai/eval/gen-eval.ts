@@ -1,3 +1,4 @@
+import { DEMO_EMAIL } from "@services/db/seed-workspaces";
 import { z } from "zod";
 import type { GenerateInput } from "@model/ai";
 import { applyPatch } from "@model/ai";
@@ -25,7 +26,6 @@ const OUT = arg("out", "");
 // adds the checklist verdict, which is what makes the matrix legible
 const SAVE = hasFlag("save");
 const CHECKLIST = hasFlag("judge");
-const DEMO_EMAIL = "demo@galleo.app";
 
 /** The account the playground reads as; runs are written against its workspace. */
 async function demoOwner(): Promise<{ userId: string; workspaceId: string }> {

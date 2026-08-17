@@ -16,16 +16,23 @@ export const DEMO_PASSWORD = "galleo-demo-2026";
 export interface Person {
     email: string;
     name: string;
+    avatar: string; // a real headshot, gender-matched to the name
 }
 
-// every seeded account shares the demo password, so a role can be checked from the other side too
+const portrait = (g: "men" | "women", n: number): string =>
+    `https://randomuser.me/api/portraits/${g}/${n}.jpg`;
+
+// Every seeded account shares the demo password, so a role can be checked from the other side
+// too. Emails are demo+<role>@: the plus tag names the role that login demonstrates (their role in
+// the flagship workspace, or the perspective they exist to show), so the right account to test a
+// role is guessable from memory.
 export const PEOPLE: Person[] = [
-    { email: DEMO_EMAIL, name: "Demo User" },
-    { email: "priya.raman@galleo.app", name: "Priya Raman" },
-    { email: "marcus.oyelaran@galleo.app", name: "Marcus Oyelaran" },
-    { email: "hanna.lindqvist@galleo.app", name: "Hanna Lindqvist" },
-    { email: "tomas.vidal@galleo.app", name: "Tomás Vidal" },
-    { email: "june.park@galleo.app", name: "June Park" },
+    { email: DEMO_EMAIL, name: "Noah Bennett", avatar: portrait("men", 32) },
+    { email: "demo+admin@galleo.app", name: "Priya Raman", avatar: portrait("women", 65) },
+    { email: "demo+member@galleo.app", name: "Marcus Oyelaran", avatar: portrait("men", 22) },
+    { email: "demo+owner@galleo.app", name: "Hanna Lindqvist", avatar: portrait("women", 44) },
+    { email: "demo+invited@galleo.app", name: "Tomás Vidal", avatar: portrait("men", 75) },
+    { email: "demo+invited-admin@galleo.app", name: "June Park", avatar: portrait("women", 17) },
 ];
 
 // a corpus artifact or a template body; seed.ts turns it into content, since both live in core/
@@ -121,7 +128,7 @@ export interface WorkspaceSpec {
     templateUses?: { templateId: string; by: string; uses: number }[];
 }
 
-// demo@galleo.app is a member of every one of these: every surface resolves through `members`, so a
+// the demo login (DEMO_EMAIL) is a member of every one of these: every surface resolves through `members`, so a
 // workspace they can't switch into is dead data.
 export const WORKSPACES: WorkspaceSpec[] = [
     {
@@ -132,13 +139,13 @@ export const WORKSPACES: WorkspaceSpec[] = [
         seats: 8, // 3 the plan includes + 5 bought as the seat add-on
         openingBalance: 1600, // part-way through the cycle
         members: [
-            { email: "priya.raman@galleo.app", role: "admin" },
-            { email: "marcus.oyelaran@galleo.app", role: "member" },
-            { email: "hanna.lindqvist@galleo.app", role: "member" },
+            { email: "demo+admin@galleo.app", role: "admin" },
+            { email: "demo+member@galleo.app", role: "member" },
+            { email: "demo+owner@galleo.app", role: "member" },
         ],
         invites: [
-            { email: "tomas.vidal@galleo.app", role: "member", sentDaysAgo: 2 },
-            { email: "june.park@galleo.app", role: "admin", sentDaysAgo: 9 },
+            { email: "demo+invited@galleo.app", role: "member", sentDaysAgo: 2 },
+            { email: "demo+invited-admin@galleo.app", role: "admin", sentDaysAgo: 9 },
         ],
         planStatus: "active",
         periodEndInDays: 21,
@@ -233,8 +240,8 @@ export const WORKSPACES: WorkspaceSpec[] = [
         visits: [{ corpus: "helios" }, { corpus: "lumen" }, { corpus: "aria" }],
         templateUses: [
             { templateId: "series-a", by: DEMO_EMAIL, uses: 3 },
-            { templateId: "landing-page", by: "priya.raman@galleo.app", uses: 2 },
-            { templateId: "annual-report", by: "hanna.lindqvist@galleo.app", uses: 1 },
+            { templateId: "landing-page", by: "demo+admin@galleo.app", uses: 2 },
+            { templateId: "annual-report", by: "demo+owner@galleo.app", uses: 1 },
         ],
         ledger: [
             { at: 9, kind: "topup", pack: "pack-2k" },
@@ -244,7 +251,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-artifact",
                 credits: 41,
                 usage: { plan: 1, section: 12, image: 2 },
-                by: "priya.raman@galleo.app",
+                by: "demo+admin@galleo.app",
             },
             {
                 at: 22,
@@ -260,7 +267,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "ask-assistant",
                 credits: 12,
                 usage: { reply: 1 },
-                by: "marcus.oyelaran@galleo.app",
+                by: "demo+member@galleo.app",
             },
             {
                 at: 11,
@@ -276,7 +283,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-image",
                 credits: 15,
                 usage: { image: 3 },
-                by: "priya.raman@galleo.app",
+                by: "demo+admin@galleo.app",
             },
             {
                 at: 9,
@@ -284,7 +291,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "ask-assistant",
                 credits: 12,
                 usage: { reply: 1 },
-                by: "marcus.oyelaran@galleo.app",
+                by: "demo+member@galleo.app",
             },
             {
                 at: 8,
@@ -292,7 +299,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-artifact",
                 credits: 39,
                 usage: { plan: 1, section: 11, image: 2 },
-                by: "hanna.lindqvist@galleo.app",
+                by: "demo+owner@galleo.app",
             },
             {
                 at: 7,
@@ -316,7 +323,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "ask-assistant",
                 credits: 14,
                 usage: { reply: 1 },
-                by: "priya.raman@galleo.app",
+                by: "demo+admin@galleo.app",
             },
             {
                 at: 3,
@@ -332,7 +339,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-theme",
                 credits: 5,
                 usage: { theme: 1 },
-                by: "hanna.lindqvist@galleo.app",
+                by: "demo+owner@galleo.app",
             },
             {
                 at: 1,
@@ -340,7 +347,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-artifact",
                 credits: 43,
                 usage: { plan: 1, section: 12, image: 3 },
-                by: "marcus.oyelaran@galleo.app",
+                by: "demo+member@galleo.app",
             },
             {
                 at: 0.5,
@@ -364,11 +371,11 @@ export const WORKSPACES: WorkspaceSpec[] = [
         slug: "ridgeline",
         name: "Ridgeline Partners",
         plan: "premium",
-        ownerEmail: "priya.raman@galleo.app",
+        ownerEmail: "demo+admin@galleo.app",
         seats: 3, // exactly the plan's included seats, all taken, so an invite takes the no-seats 402
         members: [
             { email: DEMO_EMAIL, role: "admin" },
-            { email: "marcus.oyelaran@galleo.app", role: "member" },
+            { email: "demo+member@galleo.app", role: "member" },
         ],
         planStatus: "active",
         periodEndInDays: 9,
@@ -422,7 +429,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-artifact",
                 credits: 45,
                 usage: { plan: 1, section: 13, image: 3 },
-                by: "priya.raman@galleo.app",
+                by: "demo+admin@galleo.app",
             },
             {
                 at: 18,
@@ -430,7 +437,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-artifact",
                 credits: 44,
                 usage: { plan: 1, section: 12, image: 3 },
-                by: "priya.raman@galleo.app",
+                by: "demo+admin@galleo.app",
             },
             {
                 at: 17,
@@ -446,7 +453,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "ask-assistant",
                 credits: 13,
                 usage: { reply: 1 },
-                by: "marcus.oyelaran@galleo.app",
+                by: "demo+member@galleo.app",
             },
             {
                 at: 14,
@@ -454,7 +461,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-artifact",
                 credits: 63,
                 usage: { plan: 1, section: 18, image: 4 },
-                by: "priya.raman@galleo.app",
+                by: "demo+admin@galleo.app",
             },
             {
                 at: 12,
@@ -470,7 +477,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-artifact",
                 credits: 58,
                 usage: { plan: 1, section: 16, image: 4 },
-                by: "marcus.oyelaran@galleo.app",
+                by: "demo+member@galleo.app",
             },
             {
                 at: 10,
@@ -486,7 +493,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-artifact",
                 credits: 76,
                 usage: { plan: 1, section: 20, image: 6 },
-                by: "priya.raman@galleo.app",
+                by: "demo+admin@galleo.app",
             },
             {
                 at: 8,
@@ -494,7 +501,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "ask-assistant",
                 credits: 24,
                 usage: { reply: 1 },
-                by: "priya.raman@galleo.app",
+                by: "demo+admin@galleo.app",
             },
             {
                 at: 7,
@@ -510,7 +517,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "ask-assistant",
                 credits: 14,
                 usage: { reply: 1 },
-                by: "marcus.oyelaran@galleo.app",
+                by: "demo+member@galleo.app",
             },
             {
                 at: 5,
@@ -518,7 +525,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-artifact",
                 credits: 81,
                 usage: { plan: 1, section: 22, image: 6 },
-                by: "priya.raman@galleo.app",
+                by: "demo+admin@galleo.app",
             },
             {
                 at: 4,
@@ -534,7 +541,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-artifact",
                 credits: 74,
                 usage: { plan: 1, section: 20, image: 5 },
-                by: "marcus.oyelaran@galleo.app",
+                by: "demo+member@galleo.app",
             },
             {
                 at: 2,
@@ -542,7 +549,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "ask-assistant",
                 credits: 31,
                 usage: { reply: 1 },
-                by: "priya.raman@galleo.app",
+                by: "demo+admin@galleo.app",
             },
             {
                 at: 1,
@@ -566,7 +573,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
         slug: "harbor",
         name: "Harbor & Vine",
         plan: "free",
-        ownerEmail: "marcus.oyelaran@galleo.app",
+        ownerEmail: "demo+member@galleo.app",
         // a lapsed subscription: customer.subscription.deleted writes free + canceled + seats 1 and
         // keeps the members, so two members over one seat is the real shape of a churned workspace
         seats: 1,
@@ -621,7 +628,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "ask-assistant",
                 credits: 2,
                 usage: { reply: 1 },
-                by: "marcus.oyelaran@galleo.app",
+                by: "demo+member@galleo.app",
             },
             { at: 6, kind: "grant" },
             {
@@ -638,7 +645,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-artifact",
                 credits: 20,
                 usage: { plan: 1, section: 6, image: 1 },
-                by: "marcus.oyelaran@galleo.app",
+                by: "demo+member@galleo.app",
             },
             {
                 at: 3,
@@ -662,7 +669,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-image",
                 credits: 20,
                 usage: { image: 4 },
-                by: "marcus.oyelaran@galleo.app",
+                by: "demo+member@galleo.app",
             },
             {
                 at: 1,
@@ -707,14 +714,14 @@ export const WORKSPACES: WorkspaceSpec[] = [
         slug: "helios-climate",
         name: "Helios Climate",
         plan: "premium",
-        ownerEmail: "hanna.lindqvist@galleo.app",
+        ownerEmail: "demo+owner@galleo.app",
         seats: 6,
         members: [
-            { email: "marcus.oyelaran@galleo.app", role: "admin" },
+            { email: "demo+member@galleo.app", role: "admin" },
             { email: DEMO_EMAIL, role: "member" },
-            { email: "priya.raman@galleo.app", role: "member" },
-            { email: "tomas.vidal@galleo.app", role: "member" },
-            { email: "june.park@galleo.app", role: "member" },
+            { email: "demo+admin@galleo.app", role: "member" },
+            { email: "demo+invited@galleo.app", role: "member" },
+            { email: "demo+invited-admin@galleo.app", role: "member" },
         ],
         planStatus: "past_due", // a failed renewal: the dunning banner in Pricing + Settings
         periodEndInDays: -3,
@@ -760,7 +767,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-artifact",
                 credits: 52,
                 usage: { plan: 1, section: 15, image: 3 },
-                by: "hanna.lindqvist@galleo.app",
+                by: "demo+owner@galleo.app",
             },
             {
                 at: 24,
@@ -768,7 +775,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-artifact",
                 credits: 58,
                 usage: { plan: 1, section: 16, image: 4 },
-                by: "hanna.lindqvist@galleo.app",
+                by: "demo+owner@galleo.app",
             },
             {
                 at: 21,
@@ -776,7 +783,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "ask-assistant",
                 credits: 22,
                 usage: { reply: 1 },
-                by: "marcus.oyelaran@galleo.app",
+                by: "demo+member@galleo.app",
             },
             {
                 at: 18,
@@ -784,7 +791,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-image",
                 credits: 25,
                 usage: { image: 5 },
-                by: "june.park@galleo.app",
+                by: "demo+invited-admin@galleo.app",
             },
             {
                 at: 15,
@@ -792,7 +799,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "ask-assistant",
                 credits: 12,
                 usage: { reply: 1 },
-                by: "tomas.vidal@galleo.app",
+                by: "demo+invited@galleo.app",
             },
             {
                 at: 12,
@@ -800,7 +807,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-artifact",
                 credits: 47,
                 usage: { plan: 1, section: 13, image: 3 },
-                by: "priya.raman@galleo.app",
+                by: "demo+admin@galleo.app",
             },
             {
                 at: 8,
@@ -808,7 +815,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "rewrite-section",
                 credits: 3,
                 usage: { section: 1 },
-                by: "hanna.lindqvist@galleo.app",
+                by: "demo+owner@galleo.app",
             },
             {
                 at: 4,
@@ -824,7 +831,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "rewrite-section",
                 credits: 2,
                 usage: { section: 1 },
-                by: "marcus.oyelaran@galleo.app",
+                by: "demo+member@galleo.app",
             },
         ],
     },

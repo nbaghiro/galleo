@@ -86,7 +86,7 @@ function genMetaFor(entry: DocEntry, doc: Doc): GenMeta | null {
 async function upsertUser(p: Person): Promise<string> {
     const patch = {
         name: p.name,
-        avatarUrl: `https://picsum.photos/seed/${handle(p.email)}/128/128`,
+        avatarUrl: p.avatar,
         passwordHash: hashPassword(DEMO_PASSWORD),
         emailVerifiedAt: new Date(),
     };

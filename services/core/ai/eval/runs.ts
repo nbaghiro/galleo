@@ -1,3 +1,4 @@
+import { DEMO_EMAIL } from "@services/db/seed-workspaces";
 import type { ModelSpan } from "@model/ai";
 import type { ArtifactContent } from "@model/artifact";
 import type { EvalJudgement } from "@model/eval";
@@ -11,7 +12,7 @@ import { schema } from "@services/db/schema";
 // Who can reach the playground. A single seeded account rather than a role or an env var: there is
 // no staff concept in @model/workspace, and the eval tools are not something a customer should be
 // able to switch on. Every eval route 404s for anyone else.
-const EVAL_ACCOUNT = "demo@galleo.app";
+const EVAL_ACCOUNT = DEMO_EMAIL;
 
 export const isEvalAdmin = (user: { email: string }): boolean =>
     user.email.toLowerCase() === EVAL_ACCOUNT;

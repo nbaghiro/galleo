@@ -1,10 +1,11 @@
+import { DEMO_EMAIL } from "@services/db/seed-workspaces";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import type { ChatBlock, ChatContext, ChatInput, ChatLibrary, ChatTurnRef } from "@model/ai";
 import { applyPatch } from "@model/ai";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
-import { limitsFor } from "@model/billing";
 import { asContent } from "@model/artifact";
+import { limitsFor } from "@model/billing";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { makeWorkspaceReader } from "@services/core/ai/reader";
@@ -12,7 +13,6 @@ import { runChat } from "@services/core/ai/chat";
 import { EVAL_CASES, type EvalCase, type Step } from "./cases";
 import { arg, avg, hasFlag, int, judge, list, log, pct, pool, reporter, shortModel } from "./kit";
 
-const DEMO_EMAIL = "demo@galleo.app";
 const RUNS = int("runs", 3);
 const MODELS = list("models", "google:gemini-2.5-pro,google:gemini-3.5-flash");
 const FILTER = arg("filter", "");
