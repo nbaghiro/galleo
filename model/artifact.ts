@@ -50,6 +50,23 @@ export interface ArtifactContent extends ArtifactShell {
     sections: Section[];
 }
 
+// The one way to read stored content. `draft_content` is jsonb, so what comes back is unknown:
+// a row written by an older shape, or by hand, is not an ArtifactContent just because the column
+// says so. Asserting the type is how a missing `sections` reaches the renderer as a crash instead
+// of an empty deck, so every read goes through here and gets the defaults instead.
+//
+// The section-ops write puts this result back, so an unlisted field is dropped from the row.
+export const asContent = (draft: unknown): ArtifactContent => {
+    const d = (draft ?? {}) as Partial<ArtifactContent>;
+    return {
+        format: d.format ?? "deck",
+        theme: d.theme ?? "studio",
+        sections: Array.isArray(d.sections) ? d.sections : [],
+        ...(d.background ? { background: d.background } : {}),
+        ...(d.page ? { page: d.page } : {}),
+    };
+};
+
 // column fractions per named starter layout
 export const LAYOUT_PRESETS: Record<string, number[]> = {
     full: [1],

@@ -1,4 +1,4 @@
-import type { ArtifactContent } from "@model/artifact";
+import { asContent } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createResource, Show } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
@@ -22,7 +22,7 @@ export const PresentView: Component = () => {
         >
             {(a) => (
                 <PresentSurface
-                    artifact={a().draftContent as ArtifactContent}
+                    artifact={asContent(a().draftContent)}
                     autoFullscreen={canEditHere()}
                     viewOnly={!canEditHere()}
                     // exiting to /edit would bounce straight back here, since that route redirects

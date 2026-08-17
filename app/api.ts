@@ -10,6 +10,7 @@ import type {
     SearchResponse,
     Section,
 } from "@model/artifact";
+import { asContent } from "@model/artifact";
 import type { Usage } from "@model/credits";
 import type { EvalCheck, EvalJudgement, EvalRun, EvalRunSummary, Rubric } from "@model/eval";
 import type { Folder, User, WorkspaceRole } from "@model/workspace";
@@ -214,15 +215,15 @@ export interface PublicContent {
     branded: boolean;
     customTheme: CustomThemeRecord | null;
 }
-// an unauthenticated raw body, so the shape is checked here; `content` stays one assertion, since
-// the renderer validates it
+// an unauthenticated raw body, so the shape is checked here; asContent() fills the shell defaults
+// rather than trusting the payload to be an ArtifactContent because the column said so
 function readPublicContent(d: Record<string, unknown>): PublicContent | null {
     if (typeof d.title !== "string" || typeof d.content !== "object" || d.content === null) {
         return null;
     }
     return {
         title: d.title,
-        content: d.content as ArtifactContent,
+        content: asContent(d.content),
         branded: d.branded === true,
         customTheme: (d.customTheme as CustomThemeRecord | null | undefined) ?? null,
     };

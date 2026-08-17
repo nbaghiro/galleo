@@ -4,6 +4,7 @@ import type { ChatBlock, ChatContext, ChatInput, ChatLibrary, ChatTurnRef } from
 import { applyPatch } from "@model/ai";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import { limitsFor } from "@model/billing";
+import { asContent } from "@model/artifact";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { makeWorkspaceReader } from "@services/core/ai/reader";
@@ -70,8 +71,7 @@ async function loadEnv(): Promise<Env> {
         folders: flds,
     };
     const limit = limitsFor(ws.plan).includedCredits;
-    const sample = (rows.find((r) => r.formatId === "deck") ?? rows[0]!)
-        .draftContent as ArtifactContent;
+    const sample = asContent((rows.find((r) => r.formatId === "deck") ?? rows[0]!).draftContent);
     return {
         workspace: makeWorkspaceReader(ws.id),
         library,

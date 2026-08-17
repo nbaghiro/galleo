@@ -1,5 +1,6 @@
 import { and, desc, eq, ilike, isNull } from "drizzle-orm";
 import type { ArtifactContent } from "@model/artifact";
+import { asContent } from "@model/artifact";
 import type { ArtifactRef } from "@model/ai";
 import type { WorkspaceReader } from "./tools";
 import { db } from "@services/db/client";
@@ -52,7 +53,7 @@ export function makeWorkspaceReader(workspaceId: string): WorkspaceReader {
                     and(eq(schema.artifacts.id, id), eq(schema.artifacts.workspaceId, workspaceId)),
                 );
             if (!a || a.trashedAt) return null;
-            return { ref: toRef(a), content: a.draftContent as ArtifactContent };
+            return { ref: toRef(a), content: asContent(a.draftContent) };
         },
     };
 }

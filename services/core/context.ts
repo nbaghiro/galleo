@@ -1,5 +1,5 @@
 import { and, cosineDistance, desc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
-import type { ArtifactContent } from "@model/artifact";
+import { asContent } from "@model/artifact";
 import { TEMPLATE_INDEX } from "@model/templates";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
@@ -381,7 +381,7 @@ async function artifactBody(
             ),
         );
     if (!row) throw new Error("no such artifact in this workspace");
-    const body = extractArtifactText(row.draftContent as ArtifactContent);
+    const body = extractArtifactText(asContent(row.draftContent));
     return { title: row.title, body: `${row.title}\n\n${body}` };
 }
 

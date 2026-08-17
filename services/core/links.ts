@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { ArtifactContent } from "@model/artifact";
+import { asContent } from "@model/artifact";
 import type { PlanId } from "@model/billing";
 import { resolveFeatures } from "@model/billing";
 import { db } from "@services/db/client";
@@ -583,7 +584,7 @@ export async function publicRead(
     if (!owner.publicLinks) return { status: 404 };
 
     // Resolved up front so the protected password page can be shown in the artifact's theme.
-    const content = artifact.draftContent as ArtifactContent;
+    const content = asContent(artifact.draftContent);
     const themeId = typeof content.theme === "string" ? content.theme : "studio";
     const format = typeof content.format === "string" ? content.format : undefined;
     const customTheme = await customThemeRecord(themeId, artifact.workspaceId);
