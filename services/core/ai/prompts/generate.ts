@@ -254,6 +254,53 @@ export function editSectionParts(
     };
 }
 
+// every string a re-layout must carry through unchanged: copy plus the images already placed
+export function sectionCopyInventory(section: Section): { text: string[]; images: string[] } {
+    const text: string[] = [];
+    const images: string[] = [];
+    const walk = (el: ElementInstance): void => {
+        const d = el.data as Record<string, unknown>;
+        if (typeof d.text === "string" && d.text.trim()) text.push(d.text);
+        if (typeof d.items === "string" && d.items.trim()) text.push(d.items);
+        if (typeof d.src === "string" && d.src.trim()) images.push(d.src);
+        if (Array.isArray(d.children)) for (const c of d.children as ElementInstance[]) walk(c);
+    };
+    walk(section.root);
+    return { text, images };
+}
+
+export function relayoutSectionParts(
+    content: ArtifactContent,
+    section: Section,
+    brief: string,
+    direction?: string,
+): PromptParts {
+    const inv = sectionCopyInventory(section);
+    return {
+        system: sectionSystem(surfaceOf(content.format), content.theme),
+        prompt: stack(
+            heading(
+                "What to do",
+                "Re-lay-out this section: keep WHAT it says, change HOW it is arranged. This is a layout pass, not a rewrite.",
+            ),
+            heading(
+                "Arrangement direction",
+                direction?.trim() ? `${brief}\nThe user adds: ${direction.trim()}` : brief,
+            ),
+            neighbors(content, section.id),
+            heading("The section as it is now", "```json\n" + JSON.stringify(section) + "\n```"),
+            heading(
+                "Copy inventory: reuse verbatim",
+                inv.text.map((t) => `- ${JSON.stringify(t)}`).join("\n") +
+                    (inv.images.length
+                        ? `\n\nImages you may use (no new ones):\n${inv.images.map((s) => `- ${s}`).join("\n")}`
+                        : "\n\nThis section has no images; do not add any."),
+            ),
+            `Return the full section as JSON with id "${section.id}". Every string in the copy inventory appears verbatim in your output: regroup, reorder or re-emphasize them across different elements, but never reword, trim, or invent copy.`,
+        ),
+    };
+}
+
 const ELEMENT_OUTPUT = `## Output, return ONE JSON object and nothing else
 No prose, no explanation, no markdown fences. A single element in this exact shape:
 { "type": "<the SAME type as the original element>", "data": { /* the fields the catalog lists for that type */ } }

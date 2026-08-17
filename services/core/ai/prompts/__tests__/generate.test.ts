@@ -7,7 +7,9 @@ import {
     editSectionParts,
     insertSectionParts,
     outlineParts,
+    relayoutSectionParts,
     reviseElementParts,
+    sectionCopyInventory,
     sectionParts,
     sectionPlanParts,
     surfaceOf,
@@ -217,5 +219,49 @@ describe("reviseElementParts", () => {
         const out = reviseElementParts(content, content.sections[1]!, el);
         expect(out.prompt).toContain('"type":"stat"');
         expect(out.system).toContain('Keep "type" identical to the original');
+    });
+});
+
+describe("sectionCopyInventory", () => {
+    it("collects text, items and image srcs through nested children", () => {
+        const section: Section = {
+            id: "s9",
+            root: {
+                type: "group",
+                data: {
+                    children: [
+                        txt("Headline"),
+                        { type: "image", data: { src: "https://x/a.jpg" } },
+                        {
+                            type: "card",
+                            data: {
+                                children: [
+                                    txt("Nested copy"),
+                                    { type: "diagram", data: { type: "process", items: "A, B" } },
+                                ],
+                            },
+                        },
+                    ],
+                },
+            },
+        };
+        const inv = sectionCopyInventory(section);
+        expect(inv.text).toEqual(["Headline", "Nested copy", "A, B"]);
+        expect(inv.images).toEqual(["https://x/a.jpg"]);
+    });
+});
+
+describe("relayoutSectionParts", () => {
+    it("carries every copy string verbatim, pins the id, and forbids new images", () => {
+        const out = relayoutSectionParts(content, content.sections[1]!, "Grid: parallel cards.");
+        expect(out.prompt).toContain("Grid: parallel cards.");
+        expect(out.prompt).toContain('- "Thesis"');
+        expect(out.prompt).toContain('id "s2"');
+        expect(out.prompt).toContain("never reword, trim, or invent copy");
+        expect(out.prompt).toContain("no images; do not add any");
+    });
+    it("folds the user's direction into the arrangement block", () => {
+        const out = relayoutSectionParts(content, content.sections[0]!, "Typographic.", "more air");
+        expect(out.prompt).toContain("The user adds: more air");
     });
 });

@@ -6,6 +6,7 @@ import "./section";
 import "./element";
 import "./text";
 import "./refine";
+import "./relayout";
 import "./suggest";
 import "./inspect";
 import "./library";

@@ -223,6 +223,7 @@ describe("the credits table", () => {
             "rewrite-passage",
             "rewrite-section",
             "rewrite-text",
+            "suggest-section-layouts",
             "translate-text",
         ]);
     });

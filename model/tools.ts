@@ -16,6 +16,7 @@ export type ToolId =
     | "revise-artifact"
     | "add-section"
     | "rewrite-section"
+    | "suggest-section-layouts"
     | "edit-artifact"
     | "reorder-section"
     | "remove-section"
@@ -172,6 +173,19 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "composite",
         AGENT_DIRECT,
         { category: "edit", live: true, usage: { section: 1 } },
+    ),
+    "suggest-section-layouts": meta(
+        "suggest-section-layouts",
+        "Suggest layouts",
+        "Propose alternative arrangements of one section, keeping its copy",
+        "composite",
+        AGENT_DIRECT,
+        {
+            category: "edit",
+            live: true,
+            usage: { section: 3 },
+            meter: (m) => ({ section: Math.max(2, Math.min(4, m.variations ?? 3)) }),
+        },
     ),
     "edit-artifact": meta(
         "edit-artifact",
@@ -1026,6 +1040,24 @@ export const TOOL_SPEC = {
         describe:
             "Propose 3–6 short section ideas that would strengthen the open artifact. Use when the user asks what to add, or for ideas.",
         input: z.object({}),
+    },
+    "suggest-section-layouts": {
+        describe:
+            "Generate 2–4 alternative LAYOUTS of one existing section: the same copy and images, arranged differently. Use when the user wants layout options or a different look for a section — NOT for changing what it says (that is rewrite-section).",
+        input: z.object({
+            sectionId: z.string().describe("the section to re-lay out"),
+            count: z
+                .number()
+                .int()
+                .min(2)
+                .max(4)
+                .optional()
+                .describe("how many alternatives (default 3)"),
+            direction: z
+                .string()
+                .optional()
+                .describe("optional styling steer, e.g. 'more visual' or 'lead with the stat'"),
+        }),
     },
     "translate-text": {
         describe:

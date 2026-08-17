@@ -13,6 +13,7 @@ import type { Tool } from "./tools";
 import { showSectionsTool } from "./tools/inspect";
 import { findArtifactsTool, findTemplatesTool, readArtifactTool } from "./tools/library";
 import { addSectionTool, editArtifactTool, rewriteSectionTool } from "./tools/section";
+import { suggestSectionLayoutsTool } from "./tools/relayout";
 import { rewritePassageTool, rewriteTextTool, translateTextTool } from "./tools/text";
 import { generateThemeTool } from "./tools/theme";
 import { reviseElementTool } from "./tools/element";
@@ -97,7 +98,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
     const wrap = <I, R>(
         t: Tool<I, R>,
         title: string,
-        present: (result: R, input: I) => ChatBlock | null,
+        present: (result: R, input: I) => ChatBlock | ChatBlock[] | null,
         note: (result: R, input: I) => string,
     ) =>
         tool({
@@ -112,8 +113,10 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
                         ch.push({ type: "chat.nested", blockId: toolCallId, event: step.value });
                         step = await gen.next();
                     }
-                    const block = present(step.value, input);
-                    if (block) ch.push({ type: "chat.block", blockId: toolCallId, block });
+                    const out = present(step.value, input);
+                    const blocks = Array.isArray(out) ? out : out ? [out] : [];
+                    for (const block of blocks)
+                        ch.push({ type: "chat.block", blockId: toolCallId, block });
                     return note(step.value, input);
                 } catch (e) {
                     ch.push({
@@ -386,6 +389,19 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
                       preview: section,
                   }),
                   (_section, input) => `Proposed a rewrite of section ${input.sectionId}.`,
+              ),
+              "suggest-section-layouts": wrap(
+                  suggestSectionLayoutsTool,
+                  "Layout options",
+                  (sections, input) =>
+                      sections.map((section, i) => ({
+                          type: "proposal" as const,
+                          summary: `Layout option ${i + 1} of ${sections.length}`,
+                          patch: [{ op: "replaceSection" as const, id: input.sectionId, section }],
+                          preview: section,
+                      })),
+                  (sections, input) =>
+                      `Proposed ${sections.length} layout options for ${input.sectionId}; the copy is unchanged in each, and the user applies at most one.`,
               ),
               "show-sections": wrap(
                   showSectionsTool,

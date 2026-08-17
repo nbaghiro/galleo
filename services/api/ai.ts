@@ -56,7 +56,17 @@ function modelMap(overrides: ModelOverrides, tier: ModelTier): Record<string, st
     return models;
 }
 
-function configOf(req: TurnRequest, overrides: ModelOverrides, tier: ModelTier): EvalConfig {
+/**
+ * `beats` is the outline's own reading of the arc, and it only exists once the plan step has run, so
+ * the caller folds it in from the stream. Without it a visual check cannot ask what a section's
+ * position was supposed to do, which is most of what makes a section right or wrong.
+ */
+function configOf(
+    req: TurnRequest,
+    overrides: ModelOverrides,
+    tier: ModelTier,
+    beats?: Beat[],
+): EvalConfig {
     const models = modelMap(overrides, tier);
     const input = req.kind === "build" ? req.input.brief : "input" in req ? req.input : undefined;
     const g = input as Partial<GenerateInput> | undefined;
@@ -74,6 +84,9 @@ function configOf(req: TurnRequest, overrides: ModelOverrides, tier: ModelTier):
             audience: g?.audience,
             tone: g?.tone,
             mustInclude: g?.mustInclude,
+            ...(beats?.length
+                ? { beats: beats.map((b) => ({ id: b.id, label: b.label, role: b.role })) }
+                : {}),
         },
     };
 }
@@ -90,19 +103,6 @@ const seedContent = (req: TurnRequest): ArtifactContent => {
 
 export const ai = new Hono<WorkspaceEnv>();
 
-ai.post("/ai/turn", requireWorkspace, async (c) => {
-    const ws = c.get("ws");
-    if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
-    const req = await readJson(c, zTurn);
-    if (!req || !isKind(req.kind)) return c.json({ error: "a valid turn kind is required" }, 400);
-    if (!IMPLEMENTED.includes(req.kind))
-        return c.json({ error: `${req.kind} turns aren’t available yet` }, 501);
-    if ((req.kind === "generate" || req.kind === "plan") && !req.input?.prompt?.trim())
-        return c.json({ error: "a prompt is required" }, 400);
-    if (req.kind === "section" && (!req.input?.instruction?.trim() || !req.input?.content))
-        return c.json({ error: "an instruction and the current artifact are required" }, 400);
-    if (req.kind === "chat" && !req.input?.message?.trim())
-        return c.json({ error: "a message is required" }, 400);
 // The turn union and its per-kind inputs live in @model/ai; restating them here would be a second
 // copy to keep in sync, and every route below narrows what it reads anyway. z.custom validates
 // without rebuilding, so nothing the client sent is dropped on the way through.
@@ -141,6 +141,19 @@ const zRefine = z.object({
 });
 const zThemeGen = z.object({ prompt: z.string().optional(), isDark: z.boolean().optional() });
 
+ai.post("/ai/turn", requireWorkspace, async (c) => {
+    const ws = c.get("ws");
+    if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
+    const req = await readJson(c, zTurn);
+    if (!req || !isKind(req.kind)) return c.json({ error: "a valid turn kind is required" }, 400);
+    if (!IMPLEMENTED.includes(req.kind))
+        return c.json({ error: `${req.kind} turns aren’t available yet` }, 501);
+    if ((req.kind === "generate" || req.kind === "plan") && !req.input?.prompt?.trim())
+        return c.json({ error: "a prompt is required" }, 400);
+    if (req.kind === "section" && (!req.input?.instruction?.trim() || !req.input?.content))
+        return c.json({ error: "an instruction and the current artifact are required" }, 400);
+    if (req.kind === "chat" && !req.input?.message?.trim())
+        return c.json({ error: "a message is required" }, 400);
     if (
         req.kind === "build" &&
         (!req.input?.brief?.prompt?.trim() ||
@@ -236,6 +249,7 @@ const zThemeGen = z.object({ prompt: z.string().optional(), isDark: z.boolean().
             let status: EvalStatus = "ok";
             let failure: string | undefined;
             let built: ArtifactContent | undefined;
+            let beats: Beat[] | undefined;
             let seq = 0;
             const send = (event: TurnEvent): Promise<void> =>
                 stream.writeSSE({ data: JSON.stringify({ seq: seq++, event }) });
@@ -259,6 +273,7 @@ const zThemeGen = z.object({ prompt: z.string().optional(), isDark: z.boolean().
                     // the run's own copy of the result, so checks do not depend on the client
                     if (traced && ev.type === "patch")
                         built = applyPatch(built ?? seedContent(req), ev.ops);
+                    if (traced && ev.type === "plan") beats = ev.beats;
                     await send(ev);
                 }
                 // memory is best-effort: a failed write must never fail the turn it remembers
@@ -286,7 +301,7 @@ const zThemeGen = z.object({ prompt: z.string().optional(), isDark: z.boolean().
                             workspaceId: ws.id,
                             userId: c.get("user").id,
                             sessionId: req.traceSession ?? null,
-                            config: configOf(req, overrides, feats.textModelTier),
+                            config: configOf(req, overrides, feats.textModelTier, beats),
                             spans: meter.uses,
                             content: built ?? null,
                             checks: built
