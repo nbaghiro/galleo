@@ -7,6 +7,7 @@ import type { PromptPart } from "@model/ai";
 import type { LanguageModelMiddleware } from "ai";
 import { wrapLanguageModel } from "ai";
 import { partsOf, record, recordTokens, tracing } from "./meter";
+import { fakeAiActive, fakeModel } from "./fake";
 
 // what `providerOptions` accepts: one JSON bag per provider name (the SDK's SharedV4ProviderOptions)
 type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
@@ -32,6 +33,7 @@ function requireKey(provider: Provider): string {
 }
 
 export function providerReady(provider: Provider): boolean {
+    if (fakeAiActive()) return true; // the scripted model stands in for every provider
     return !!keyFor(provider);
 }
 
@@ -186,7 +188,8 @@ function metering(id: string): LanguageModelMiddleware {
 // private on purpose: reach a model through modelCall, which carries the provider
 // options a bare model would silently drop
 function resolveModel(id: string): LanguageModel {
-    return wrapLanguageModel({ model: rawModel(id), middleware: metering(id) });
+    const model = fakeAiActive() ? fakeModel() : rawModel(id);
+    return wrapLanguageModel({ model, middleware: metering(id) });
 }
 
 function rawModel(id: string) {
