@@ -125,6 +125,16 @@ with high-fidelity export. Net-new, TypeScript.
   `pnpm check:copy` over `app`/`website`/`ui`/`editor`/`publish` plus `model/billing.ts`,
   `model/templates.ts`, and `services/core/mail.ts`; a genuine exception goes in that script's `ALLOW`
   with a reason. Both pre-commit and CI run it.
+- **Request bodies are untrusted — state the shape, never cast.** A route reads its body with
+  `await readJson(c, zThing)`, which returns `null` when the body does not match so the route can
+  answer 400; the schema lives next to the route in the `services/api/` file that owns it. The old
+  `readJson<T>(c)` handed back a fully-typed object that had never been checked, which is how an
+  `insert` op with no `index` reached `splice` as `NaN` and silently prepended a section. **A schema
+  that carries stored content must not rebuild it:** a plain `z.object` strips unknown keys, so on a
+  write path use `z.looseObject`, or `z.custom<T>(guard)` when a guard already exists
+  (`isArtifactContent`, `isSectionOp` in `services/core/artifacts.ts`) — otherwise fields this layer
+  does not enumerate (`Section.frame`) are dropped on the way to the row. Enforced by
+  `pnpm check:validation`, which also fails a `c.req.json()` that routes around the helper.
 - **Boundaries** (ESLint, linear `model ← canvas ← ui ← editor ← app`): model ⇏ canvas/ui/editor/services/app;
   canvas ⇏ ui/editor/services/app; **ui ⇏ editor/services/app** (shared UI depends only on model + canvas +
   `@themes`); editor ⇏ services/app; app ⇏ services (it talks over HTTP); services ⇏ canvas/ui/editor/app.
@@ -162,6 +172,7 @@ pnpm check:models         # every model id is one the installed @ai-sdk provider
 pnpm check:copy           # no em-dashes in user-facing copy or in the prompts (the machine-written tell)
 pnpm check:elements       # every registered element is reachable and renders
 pnpm check:modules        # the model/ map in this file still matches the directory
+pnpm check:validation     # every request body is read through a schema, never cast
 ```
 
 Galleo owns the **86xx** host-port block (runs alongside the sibling apps). See the ports table in

@@ -51,6 +51,10 @@ jobs:
             - name: Module-map guard
               run: pnpm check:modules
 
+            # A request body is untrusted input, so a route must state the shape it accepts.
+            - name: Body-validation guard
+              run: pnpm check:validation
+
             - name: Format check
               run: pnpm format:check
 

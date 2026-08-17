@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import type { MediaGenStyle, MediaItem, MediaKind, MediaProvider } from "@model/media";
+import type { MediaItem, MediaKind, MediaProvider } from "@model/media";
 import { featuresFor } from "@model/billing";
-import { OUT_OF_CREDITS, readJson } from "@services/utils/http";
+import { z } from "zod";
+import { BAD_BODY, OUT_OF_CREDITS, readJson } from "@services/utils/http";
 import { reserve } from "@services/core/spend";
 import {
     generateVideo,
@@ -68,17 +69,37 @@ media.get("/media/icon", requireWorkspace, async (c) => {
     }
 });
 
+const zGenerate = z.object({
+    prompt: z.string().optional(),
+    aspect: z.string().optional(),
+    n: z.number().optional(),
+    style: z.enum(["photo", "illustration", "3d", "line", "watercolor"]).optional(),
+    refId: z.string().optional(),
+});
+const zGenerateVideo = z.object({ prompt: z.string().optional(), aspect: z.string().optional() });
+const zUpload = z.object({
+    data: z.string().optional(),
+    mime: z.string().optional(),
+    name: z.string().optional(),
+    width: z.number().optional(),
+    height: z.number().optional(),
+});
+// an item round-trips back to the picker, so it keeps whatever attribution it arrived with
+const zUse = z.object({
+    item: z
+        .custom<MediaItem>(
+            (v) => !!v && typeof v === "object" && typeof (v as MediaItem).url === "string",
+        )
+        .optional(),
+});
+
 // Metered per image: reserved up front, reconciled down so failed variations aren't charged.
 media.post("/media/generate", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     if (!imageGenReady()) return c.json({ error: "image generation not configured" }, 503);
-    const { prompt, aspect, n, style, refId } = await readJson<{
-        prompt?: string;
-        aspect?: string;
-        n?: number;
-        style?: MediaGenStyle;
-        refId?: string;
-    }>(c);
+    const body = await readJson(c, zGenerate);
+    if (!body) return c.json(BAD_BODY, 400);
+    const { prompt, aspect, n, style, refId } = body;
     if (!prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
     const p = prompt.trim();
 
@@ -129,7 +150,9 @@ media.post("/media/generate", requireWorkspace, async (c) => {
 media.post("/media/generate-video", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     if (!videoGenReady()) return c.json({ error: "video generation not configured" }, 503);
-    const { prompt, aspect } = await readJson<{ prompt?: string; aspect?: string }>(c);
+    const body = await readJson(c, zGenerateVideo);
+    if (!body) return c.json(BAD_BODY, 400);
+    const { prompt, aspect } = body;
     if (!prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
     const p = prompt.trim();
     const ar = aspect === "9:16" ? "9:16" : "16:9";
@@ -164,14 +187,8 @@ media.post("/media/generate-video", requireWorkspace, async (c) => {
 
 media.post("/media/upload", requireWorkspace, async (c) => {
     const ws = c.get("ws");
-    const body = await readJson<{
-        data?: string;
-        mime?: string;
-        name?: string;
-        width?: number;
-        height?: number;
-    }>(c);
-    if (!body.data || !body.mime) return c.json({ error: "data and mime are required" }, 400);
+    const body = await readJson(c, zUpload);
+    if (!body?.data || !body.mime) return c.json({ error: "data and mime are required" }, 400);
     const bytes = Buffer.from(body.data, "base64").length;
     if (await storageFull(ws, bytes)) return c.json(STORAGE_FULL, 402);
     return c.json({
@@ -180,7 +197,8 @@ media.post("/media/upload", requireWorkspace, async (c) => {
 });
 
 media.post("/media/use", requireWorkspace, async (c) => {
-    const { item } = await readJson<{ item?: MediaItem }>(c);
+    const body = await readJson(c, zUse);
+    const item = body?.item;
     if (!item?.url) return c.json({ error: "item required" }, 400);
     await useItem(c.get("ws").id, item);
     return c.json({ item });

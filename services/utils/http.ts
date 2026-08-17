@@ -1,4 +1,5 @@
 import type { Context, MiddlewareHandler } from "hono";
+import type { ZodType } from "zod";
 import { setCookie, deleteCookie } from "hono/cookie";
 import { getConnInfo } from "@hono/node-server/conninfo";
 import type { BoolFeature, NumFeature, PlanBearer } from "@model/billing";
@@ -19,10 +20,30 @@ export const OUT_OF_CREDITS = (ws: PlanBearer, remaining: number) => ({
     topUp: canTopUp(ws.plan),
 });
 
-// Defaults to {} on missing/malformed body, so field checks see undefined.
-export async function readJson<T>(c: Context): Promise<T> {
-    return (await c.req.json().catch(() => ({}))) as T;
+// A body is untrusted input, so a route states the shape it accepts and gets null when the body
+// does not match. Null rather than a throw keeps the 400 in the route, beside its other failures.
+//
+// Schemas that carry stored content must not drop fields the route never enumerates, so use
+// z.looseObject (or a guard via z.custom) there: a plain z.object strips unknown keys, which on a
+// write path is silent data loss rather than validation.
+// An absent body reads as {}, so a route whose fields are all optional still works when called with
+// no body at all (POST /workspace/leave). The raw text is read first because c.req.json() fails the
+// same way for "nothing was sent" and "what was sent is not JSON", and only the second is a 400.
+export async function readJson<T>(c: Context, schema: ZodType<T>): Promise<T | null> {
+    const raw = await c.req.text().catch(() => "");
+    let value: unknown = {};
+    if (raw.trim() !== "") {
+        try {
+            value = JSON.parse(raw);
+        } catch {
+            return null;
+        }
+    }
+    const parsed = schema.safeParse(value);
+    return parsed.success ? parsed.data : null;
 }
+
+export const BAD_BODY = { error: "invalid request body" } as const;
 
 // One place for the policy: SameSite=Lax lets the cookie ride the OAuth top-level redirect back, and
 // secure is prod-only because dev is http.

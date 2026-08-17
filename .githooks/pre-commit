@@ -25,6 +25,9 @@ pnpm check:copy
 echo "▸ module-map guard"
 pnpm check:modules
 
+echo "▸ body-validation guard"
+pnpm check:validation
+
 echo "▸ typecheck"
 pnpm typecheck
 

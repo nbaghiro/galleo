@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { getCookie } from "hono/cookie";
 import { SESSION_COOKIE } from "@services/utils/auth";
-import { readJson, requireFeature } from "@services/utils/http";
+import { z } from "zod";
+import { BAD_BODY, readJson, requireFeature } from "@services/utils/http";
 import { currentUser, currentWorkspace } from "@services/core/accounts";
 import {
     addRecipients,
@@ -25,7 +26,6 @@ import {
     recordView,
     updateLink,
     VISIBILITIES,
-    type LinkBody,
     type RecipientView,
     type ViewerContext,
 } from "@services/core/links";
@@ -42,6 +42,17 @@ const viewerOf = (c: Context): ViewerContext => ({
     country: c.req.header("cf-ipcountry") ?? c.req.header("x-vercel-ip-country") ?? null,
 });
 
+// recipients stays unknown: cleanEmails() is the one place that decides what a valid list is
+const zLinkBody = z.object({
+    name: z.string().nullish(),
+    visibility: z.string().optional(),
+    password: z.string().nullish(),
+    recipients: z.unknown().optional(),
+    message: z.string().nullish(),
+});
+const zRecipients = z.object({ emails: z.unknown().optional(), message: z.string().nullish() });
+const zPing = z.object({ u: z.number().optional(), t: z.number().optional() });
+
 links.post("/artifacts/:id/links", requireWorkspace, async (c) => {
     const [user, ws] = [c.get("user"), c.get("ws")];
     const denied = requireFeature(
@@ -56,7 +67,8 @@ links.post("/artifacts/:id/links", requireWorkspace, async (c) => {
     const title = await artifactTitleIn(ws.id, artifactId);
     if (title === null) return c.json({ error: "not found" }, 404);
 
-    const body = await readJson<LinkBody>(c);
+    const body = await readJson(c, zLinkBody);
+    if (!body) return c.json(BAD_BODY, 400);
     const visibility =
         body.visibility && VISIBILITIES.has(body.visibility) ? body.visibility : "public";
     if (visibility === "protected" && !body.password)
@@ -95,7 +107,8 @@ links.get("/links", requireUser, async (c) => {
 links.patch("/links/:id", requireWorkspace, async (c) => {
     const link = await ownedLink(c.req.param("id"), c.get("ws").id);
     if (!link) return c.json({ error: "not found" }, 404);
-    const body = await readJson<LinkBody>(c);
+    const body = await readJson(c, zLinkBody);
+    if (!body) return c.json(BAD_BODY, 400);
     const visibility =
         body.visibility && VISIBILITIES.has(body.visibility) ? body.visibility : link.visibility;
     if (visibility === "protected" && !body.password && !link.password)
@@ -139,7 +152,8 @@ links.post("/links/:id/recipients", requireWorkspace, async (c) => {
     const [user, ws] = [c.get("user"), c.get("ws")];
     const link = await ownedLink(c.req.param("id"), ws.id);
     if (!link) return c.json({ error: "not found" }, 404);
-    const body = await readJson<{ emails?: unknown; message?: string | null }>(c);
+    const body = await readJson(c, zRecipients);
+    if (!body) return c.json(BAD_BODY, 400);
     const emails = cleanEmails(body.emails);
     if (!emails.length) return c.json({ error: "No valid email addresses." }, 400);
     const added = await addRecipients(link, emails, body.message ?? null, {
@@ -193,7 +207,8 @@ links.get("/p/:slug/content", async (c) => {
 links.post("/p/:slug/ping", async (c) => {
     const linkId = await linkIdForSlug(c.req.param("slug"));
     if (!linkId) return c.json({ ok: true });
-    const body = await readJson<{ u?: number; t?: number }>(c);
+    const body = await readJson(c, zPing);
+    if (!body) return c.json({ ok: true });
     const unit =
         typeof body.u === "number" && Number.isInteger(body.u) && body.u >= 0
             ? Math.min(body.u, 999)

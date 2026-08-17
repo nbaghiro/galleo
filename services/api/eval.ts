@@ -13,8 +13,8 @@ import { RUBRIC } from "@services/core/ai/eval/rubric";
 import { galleo } from "@services/core/ai/corpus/galleo";
 import { helios } from "@services/core/ai/corpus/helios";
 import { aiReady } from "@services/core/ai/provider";
-import type { EvalCheck } from "@model/eval";
-import { readJson } from "@services/utils/http";
+import { z } from "zod";
+import { BAD_BODY, readJson } from "@services/utils/http";
 
 export const evals = new Hono<WorkspaceEnv>();
 
@@ -39,8 +39,29 @@ evals.get("/eval/runs/:id", requireWorkspace, async (c) => {
 // The app posts layout-derived checks here; they cannot be computed server-side because the layout
 // engine lives in canvas, which services may not import.
 evals.post("/eval/runs/:id/checks", requireWorkspace, async (c) => {
+const zChecks = z.object({
+    checks: z
+        .array(
+            z.object({
+                id: z.string(),
+                dimension: z.enum(["content", "structure", "variety", "layout"]),
+                target: z.string(),
+                pass: z.boolean(),
+                detail: z.string().optional(),
+            }),
+        )
+        .optional(),
+});
+
+const zJudgeVisual = z.object({
+    images: z
+        .array(z.object({ id: z.string().optional(), dataUrl: z.string().optional() }))
+        .optional(),
+});
+
     if (!gate(c.get("user"))) return c.json({ error: "not found" }, 404);
-    const body = await readJson<{ checks?: EvalCheck[] }>(c);
+    const body = await readJson(c, zChecks);
+    if (!body) return c.json(BAD_BODY, 400);
     if (!Array.isArray(body.checks)) return c.json({ error: "checks are required" }, 400);
     const ok = await mergeChecks(c.get("ws").id, c.req.param("id"), body.checks);
     return ok ? c.json({ ok: true }) : c.json({ error: "no such run" }, 404);
@@ -67,6 +88,39 @@ evals.post("/eval/runs/:id/judge", requireWorkspace, async (c) => {
 });
 
 evals.post("/eval/prune", requireWorkspace, async (c) => {
+/**
+ * The visual verdict. Images come from the client because rendering needs the engine, which services
+ * may not import; the same reason `fitChecks` is computed there. Bodies are large, so the cap is on
+ * how many sections may be judged rather than on how many may be sent.
+ */
+evals.post("/eval/runs/:id/judge-visual", requireWorkspace, async (c) => {
+    if (!gate(c.get("user"))) return c.json({ error: "not found" }, 404);
+    if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
+    const run = await getRun(c.get("ws").id, c.req.param("id"));
+    if (!run) return c.json({ error: "no such run" }, 404);
+    const body = await readJson(c, zJudgeVisual);
+    if (!body) return c.json(BAD_BODY, 400);
+    const images = (body.images ?? []).flatMap((i) => {
+        const png = pngFromDataUrl(i.dataUrl);
+        return i.id && png ? [{ id: i.id, png }] : [];
+    });
+    if (!images.length) return c.json({ error: "no rendered sections to judge" }, 400);
+    const judgements = await judgeVisuals(images);
+    await saveJudgements(c.get("ws").id, run.id, judgements);
+    return c.json({ judgements });
+});
+
+/** Only PNG, and only base64: anything else is a caller error rather than something to coerce. */
+function pngFromDataUrl(url: string | undefined): Uint8Array | null {
+    const m = url?.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
+    if (!m?.[1]) return null;
+    try {
+        return new Uint8Array(Buffer.from(m[1], "base64"));
+    } catch {
+        return null;
+    }
+}
+
     if (!gate(c.get("user"))) return c.json({ error: "not found" }, 404);
     await pruneRuns(c.get("ws").id);
     return c.json({ ok: true });

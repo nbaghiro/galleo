@@ -1,7 +1,13 @@
 import { Hono } from "hono";
-import type { LoginBody, SignupBody, ForgotBody, ResetBody } from "@model/workspace";
+import { z } from "zod";
 import { appUrl } from "@services/utils/env";
-import { readJson, setSessionCookie, clearSessionCookie, rateLimit } from "@services/utils/http";
+import {
+    BAD_BODY,
+    readJson,
+    setSessionCookie,
+    clearSessionCookie,
+    rateLimit,
+} from "@services/utils/http";
 import {
     authenticate,
     consumeAuthToken,
@@ -27,7 +33,20 @@ const resetLimiter = rateLimit({ name: "reset", limit: 10, windowMs: 15 * 60_000
 const resendLimiter = rateLimit({ name: "resend", limit: 5, windowMs: 15 * 60_000 });
 
 session.post("/auth/signup", signupLimiter, async (c) => {
-    const { email, password, name } = await readJson<SignupBody>(c);
+// Fields stay optional so a well-formed body missing one still gets the route's own message; the
+// schema is here to reject a body that is not an object, or a field that is not a string.
+const zSignup = z.object({
+    email: z.string().optional(),
+    password: z.string().optional(),
+    name: z.string().optional(),
+});
+const zLogin = z.object({ email: z.string().optional(), password: z.string().optional() });
+const zForgot = z.object({ email: z.string().optional() });
+const zReset = z.object({ token: z.string().optional(), password: z.string().optional() });
+
+    const body = await readJson(c, zSignup);
+    if (!body) return c.json(BAD_BODY, 400);
+    const { email, password, name } = body;
     const cleanEmail = (email ?? "").trim().toLowerCase();
     if (!cleanEmail || !password) return c.json({ error: "email and password are required" }, 400);
     if (!isEmail(cleanEmail)) return c.json({ error: "enter a valid email address" }, 400);
@@ -49,7 +68,9 @@ session.post("/auth/signup", signupLimiter, async (c) => {
 });
 
 session.post("/auth/login", loginLimiter, async (c) => {
-    const { email, password } = await readJson<LoginBody>(c);
+    const body = await readJson(c, zLogin);
+    if (!body) return c.json(BAD_BODY, 400);
+    const { email, password } = body;
     if (!email || !password) return c.json({ error: "email and password are required" }, 400);
     // cap before scrypt: an over-cap password can't match any stored hash, so reject without hashing
     if (overPasswordCap(password)) return c.json({ error: "invalid email or password" }, 401);
@@ -66,14 +87,18 @@ session.post("/auth/logout", (c) => {
 
 // Always returns ok, never revealing whether the email exists.
 session.post("/auth/forgot", forgotLimiter, async (c) => {
-    const { email } = await readJson<ForgotBody>(c);
+    const body = await readJson(c, zForgot);
+    if (!body) return c.json(BAD_BODY, 400);
+    const { email } = body;
     const clean = (email ?? "").trim().toLowerCase();
     if (clean) await sendResetEmail(clean);
     return c.json({ ok: true });
 });
 
 session.post("/auth/reset", resetLimiter, async (c) => {
-    const { token, password } = await readJson<ResetBody>(c);
+    const body = await readJson(c, zReset);
+    if (!body) return c.json(BAD_BODY, 400);
+    const { token, password } = body;
     if (!token || !password) return c.json({ error: "token and password are required" }, 400);
     const pwErr = passwordError(password);
     if (pwErr) return c.json({ error: pwErr }, 400);

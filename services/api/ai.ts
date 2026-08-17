@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { getCookie } from "hono/cookie";
-import type { GenerateInput, Surface, TurnEvent, TurnRequest } from "@model/ai";
+import type { Beat, GenerateInput, TurnEvent, TurnRequest } from "@model/ai";
 import { applyPatch, isKind } from "@model/ai";
 import { overridesFrom, requireWorkspace, type WorkspaceEnv } from "./middleware";
 import type { ModelOverrides } from "@services/core/models";
@@ -10,6 +10,8 @@ import type { ModelTier } from "@model/billing";
 import { featuresFor } from "@model/billing";
 import { currentUser } from "@services/core/accounts";
 import { SESSION_COOKIE } from "@services/utils/auth";
+import { z } from "zod";
+import { isArtifactContent } from "@services/core/artifacts";
 import { OUT_OF_CREDITS, rateLimit, readJson } from "@services/utils/http";
 import { warn } from "@services/utils/env";
 import { ACTION_FOR, IMPLEMENTED, meterFor, ratesFor, reserve } from "@services/core/spend";
@@ -91,7 +93,7 @@ export const ai = new Hono<WorkspaceEnv>();
 ai.post("/ai/turn", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
-    const req = await readJson<TurnRequest>(c);
+    const req = await readJson(c, zTurn);
     if (!req || !isKind(req.kind)) return c.json({ error: "a valid turn kind is required" }, 400);
     if (!IMPLEMENTED.includes(req.kind))
         return c.json({ error: `${req.kind} turns aren’t available yet` }, 501);
@@ -101,6 +103,44 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
         return c.json({ error: "an instruction and the current artifact are required" }, 400);
     if (req.kind === "chat" && !req.input?.message?.trim())
         return c.json({ error: "a message is required" }, 400);
+// The turn union and its per-kind inputs live in @model/ai; restating them here would be a second
+// copy to keep in sync, and every route below narrows what it reads anyway. z.custom validates
+// without rebuilding, so nothing the client sent is dropped on the way through.
+const isObject = (v: unknown): boolean => !!v && typeof v === "object";
+const zTurn = z.custom<TurnRequest>(isObject);
+const zArtifactContent = z.custom<ArtifactContent>(isArtifactContent);
+const zElement = z.custom<ElementInstance>(
+    (v) => isObject(v) && typeof (v as { type?: unknown }).type === "string",
+);
+
+const zBrief = z.looseObject({
+    prompt: z.string().optional(),
+    surface: z.enum(["deck", "doc", "web"]).optional(),
+    previous: z.custom<BriefRead>(isObject).optional(),
+    trace: z.boolean().optional(),
+    traceSession: z.string().optional(),
+});
+const zSuggest = z.object({ content: zArtifactContent.optional() });
+const zElementEdit = z.object({
+    content: zArtifactContent.optional(),
+    sectionId: z.string().optional(),
+    element: zElement.optional(),
+    instruction: z.string().optional(),
+});
+const zText = z.object({
+    op: z.enum(["rewrite", "translate"]).optional(),
+    text: z.string().optional(),
+    instruction: z.string().optional(),
+    language: z.string().optional(),
+    context: z.string().optional(),
+});
+const zRefine = z.object({
+    prompt: z.string().optional(),
+    kind: z.string().optional(),
+    context: z.string().optional(),
+});
+const zThemeGen = z.object({ prompt: z.string().optional(), isDark: z.boolean().optional() });
+
     if (
         req.kind === "build" &&
         (!req.input?.brief?.prompt?.trim() ||
@@ -274,13 +314,7 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
 ai.post("/ai/brief", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     if (!aiReady()) return c.json({ brief: null });
-    const body = await readJson<{
-        prompt?: string;
-        surface?: Surface;
-        previous?: BriefRead;
-        trace?: boolean;
-        traceSession?: string;
-    }>(c);
+    const body = await readJson(c, zBrief);
     if (!body?.prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
     const prompt = body.prompt.trim();
     const traced = !!body.trace && isEvalAdmin(c.get("user"));
@@ -341,7 +375,7 @@ ai.post("/ai/suggest", async (c) => {
     const u = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!u) return c.json({ error: "unauthorized" }, 401);
     if (!aiReady()) return c.json({ suggestions: [] });
-    const body = await readJson<{ content?: ArtifactContent }>(c);
+    const body = await readJson(c, zSuggest);
     if (!body?.content?.sections?.length) return c.json({ suggestions: [] });
     try {
         return c.json({
@@ -356,12 +390,7 @@ ai.post("/ai/suggest", async (c) => {
 ai.post("/ai/element", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
-    const body = await readJson<{
-        content?: ArtifactContent;
-        sectionId?: string;
-        element?: ElementInstance;
-        instruction?: string;
-    }>(c);
+    const body = await readJson(c, zElementEdit);
     if (!body?.content?.sections?.length || !body.sectionId || !body.element?.type)
         return c.json({ error: "content, sectionId, and element are required" }, 400);
     const { content, sectionId, element: target } = body;
@@ -398,13 +427,7 @@ ai.post("/ai/element", requireWorkspace, async (c) => {
 ai.post("/ai/text", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
-    const body = await readJson<{
-        op?: "rewrite" | "translate";
-        text?: string;
-        instruction?: string;
-        language?: string;
-        context?: string;
-    }>(c);
+    const body = await readJson(c, zText);
     if (!body?.text?.trim() || (body.op !== "rewrite" && body.op !== "translate"))
         return c.json({ error: "op ('rewrite' | 'translate') and text are required" }, 400);
     if (body.op === "rewrite" && !body.instruction?.trim())
@@ -448,7 +471,7 @@ const REFINE_KINDS = ["image", "video", "theme"] as const;
 ai.post("/ai/refine", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
-    const body = await readJson<{ prompt?: string; kind?: string; context?: string }>(c);
+    const body = await readJson(c, zRefine);
     const prompt = body?.prompt?.trim() ?? "";
     const kind = body?.kind as RefineKind | undefined;
     if (!prompt || !kind || !REFINE_KINDS.includes(kind))
@@ -497,7 +520,7 @@ ai.post("/ai/voice-token", requireWorkspace, voiceLimiter, async (c) => {
 ai.post("/ai/theme", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
-    const body = await readJson<{ prompt?: string; isDark?: boolean }>(c);
+    const body = await readJson(c, zThemeGen);
     if (!body?.prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
     const wanted = body.prompt.trim();
 

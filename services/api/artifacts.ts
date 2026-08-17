@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import type { ArtifactInput, ArtifactPage, ContentPatch } from "@model/artifact";
+import type { ArtifactContent, ArtifactPage, GenMeta } from "@model/artifact";
 import { featuresFor, isUnlimited, limit } from "@model/billing";
 import { TEMPLATE_INDEX } from "@model/templates";
-import { checkLimit, readJson } from "@services/utils/http";
+import { z } from "zod";
+import { BAD_BODY, checkLimit, readJson } from "@services/utils/http";
 import { currentWorkspace, type WorkspaceRow } from "@services/core/accounts";
 import { recordArtifactVisit, recordTemplateUse } from "@services/core/visits";
 import {
@@ -12,6 +13,7 @@ import {
     decodeCursor,
     deleteArtifact,
     emptyTrash,
+    isArtifactContent,
     isSectionOp,
     listArtifacts,
     liveArtifactCount,
@@ -67,11 +69,34 @@ async function overArtifactCap(
     );
 }
 
+// z.custom validates without rebuilding, so stored content and provenance keep every field they
+// arrived with; a z.object here would strip whatever this file does not enumerate.
+const zContent = z.custom<ArtifactContent>(isArtifactContent);
+// nothing reads aiMeta back at render time, so the shape check stops at "is an object"
+const zGenMeta = z.custom<GenMeta>((v) => !!v && typeof v === "object");
+
+const zArtifactInput = z.object({
+    title: z.string().optional(),
+    themeId: z.string().optional(),
+    formatId: z.string().optional(),
+    draftContent: zContent.optional(),
+    folderId: z.string().nullish(),
+    aiMeta: zGenMeta.optional(),
+    templateId: z.string().optional(),
+});
+
+const zContentPatch = z.object({
+    ops: z.array(z.unknown()).optional(),
+    themeId: z.string().optional(),
+    formatId: z.string().optional(),
+});
+
 artifacts.post("/artifacts", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     const denied = await overArtifactCap(c, ws);
     if (denied) return denied;
-    const body = await readJson<ArtifactInput>(c);
+    const body = await readJson(c, zArtifactInput);
+    if (!body) return c.json(BAD_BODY, 400);
     const id = await createArtifact(ws.id, c.get("user").id, body);
     // popularity is measured from these events; never let the tally break a create
     if (id && body?.templateId && TEMPLATE_INDEX.some((t) => t.id === body.templateId))
@@ -142,8 +167,9 @@ artifacts.delete("/trash", requireWorkspace, async (c) => {
 });
 
 artifacts.patch("/artifacts/:id/content", requireWorkspace, async (c) => {
-    const body = await readJson<ContentPatch>(c);
-    const ops = Array.isArray(body.ops) ? body.ops.filter(isSectionOp) : [];
+    const body = await readJson(c, zContentPatch);
+    if (!body) return c.json(BAD_BODY, 400);
+    const ops = (body.ops ?? []).filter(isSectionOp);
     if (!ops.length) return c.json({ error: "no ops" }, 400);
     const result = await applyContentOps(c.get("ws").id, c.req.param("id"), ops, {
         themeId: body.themeId,
@@ -154,7 +180,8 @@ artifacts.patch("/artifacts/:id/content", requireWorkspace, async (c) => {
 });
 
 artifacts.patch("/artifacts/:id", requireWorkspace, async (c) => {
-    const body = await readJson<ArtifactInput>(c);
+    const body = await readJson(c, zArtifactInput);
+    if (!body) return c.json(BAD_BODY, 400);
     const a = await updateArtifact(c.get("ws").id, c.req.param("id"), body);
     return a ? c.json({ ok: true, updatedAt: a.updatedAt }) : c.json({ error: "not found" }, 404);
 });

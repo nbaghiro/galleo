@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import type { ThemeInput } from "@themes";
+import type { ThemeInput, Tokens } from "@themes";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 
@@ -22,9 +22,11 @@ export function listThemes(workspaceId: string): Promise<CustomTheme[]> {
         .where(eq(schema.themes.workspaceId, workspaceId));
 }
 
+// Only the palette is required; every other field defaults below, so the signature says so rather
+// than making the caller invent a name and a mood to satisfy the type.
 export async function createTheme(
     workspaceId: string,
-    input: ThemeInput,
+    input: Partial<ThemeInput> & { tokens: Tokens },
 ): Promise<CustomTheme | undefined> {
     const [t] = await db
         .insert(schema.themes)

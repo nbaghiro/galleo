@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import type { PlanBearer } from "@model/billing";
-import { checkLimit, requireFeature } from "@services/utils/http";
+import { z } from "zod";
+import { BAD_BODY, checkLimit, readJson, requireFeature } from "@services/utils/http";
 
 describe("plan guards", () => {
     // Hono seals its matcher on the first request, so every probe route is registered up front.
@@ -57,5 +58,56 @@ describe("plan guards", () => {
             error: "Free tops out at 10.",
             upgrade: true,
         });
+    });
+});
+
+describe("readJson", () => {
+    const zBody = z.object({ name: z.string().optional(), n: z.number().optional() });
+    const app = new Hono();
+    app.post("/echo", async (c) => {
+        const body = await readJson(c, zBody);
+        return body ? c.json({ ok: true, body }) : c.json(BAD_BODY, 400);
+    });
+    app.post("/strict", async (c) => {
+        const body = await readJson(c, z.object({ id: z.string() }));
+        return body ? c.json({ ok: true }) : c.json(BAD_BODY, 400);
+    });
+
+    const post = async (path: string, init?: RequestInit): Promise<Response> =>
+        await app.request(path, { method: "POST", ...init });
+    const json = (v: unknown): RequestInit => ({
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(v),
+    });
+
+    it("accepts a matching body", async () => {
+        const res = await post("/echo", json({ name: "a", n: 1 }));
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ ok: true, body: { name: "a", n: 1 } });
+    });
+
+    // POST /workspace/leave is called with no body and relies on the all-optional fallback
+    it("reads an absent body as {} so all-optional routes still work", async () => {
+        expect((await post("/echo")).status).toBe(200);
+    });
+
+    it("rejects an absent body when a field is required", async () => {
+        expect((await post("/strict")).status).toBe(400);
+    });
+
+    it("rejects a body whose field has the wrong type", async () => {
+        expect((await post("/echo", json({ n: "not a number" }))).status).toBe(400);
+    });
+
+    it("rejects malformed json and non-object bodies", async () => {
+        expect(
+            (
+                await post("/echo", {
+                    headers: { "content-type": "application/json" },
+                    body: "{oops",
+                })
+            ).status,
+        ).toBe(400);
+        expect((await post("/echo", json("a string"))).status).toBe(400);
     });
 });

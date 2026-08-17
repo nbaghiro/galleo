@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { asRole } from "@model/workspace";
-import { readJson } from "@services/utils/http";
+import { z } from "zod";
+import { BAD_BODY, readJson } from "@services/utils/http";
 import {
     acceptInvite,
     inviteByToken,
@@ -46,7 +47,16 @@ workspace.get("/workspace", requireWorkspace, async (c) => {
 });
 
 workspace.patch("/workspace", requireWorkspace, requireRole("admin"), async (c) => {
-    const { name } = await readJson<{ name?: string }>(c);
+const zName = z.object({ name: z.string().optional() });
+const zInvite = z.object({ email: z.string().optional(), role: z.string().optional() });
+const zToken = z.object({ token: z.string().optional() });
+const zRole = z.object({ role: z.string().optional() });
+const zWorkspaceId = z.object({ workspaceId: z.string().optional() });
+const zUserId = z.object({ userId: z.string().optional() });
+
+    const body = await readJson(c, zName);
+    if (!body) return c.json(BAD_BODY, 400);
+    const { name } = body;
     const trimmed = name?.trim();
     if (!trimmed) return c.json({ error: "a name is required" }, 400);
     await renameWorkspace(c.get("ws").id, trimmed.slice(0, 80));
@@ -55,7 +65,9 @@ workspace.patch("/workspace", requireWorkspace, requireRole("admin"), async (c) 
 
 workspace.post("/workspace/invites", requireWorkspace, requireRole("admin"), async (c) => {
     const [user, ws] = [c.get("user"), c.get("ws")];
-    const { email, role } = await readJson<{ email?: string; role?: string }>(c);
+    const body = await readJson(c, zInvite);
+    if (!body) return c.json(BAD_BODY, 400);
+    const { email, role } = body;
     const target = email?.trim().toLowerCase();
     if (!target || !EMAIL_RE.test(target))
         return c.json({ error: "a valid email is required" }, 400);
@@ -65,7 +77,7 @@ workspace.post("/workspace/invites", requireWorkspace, requireRole("admin"), asy
         if (result.error === "already-member") return c.json({ error: "already a member" }, 409);
         return c.json(
             {
-                error: `All ${result.seats} seats are taken — add seats to invite more people.`,
+                error: `All ${result.seats} seats are taken. Add seats to invite more people.`,
                 upgrade: true,
             },
             402,
@@ -87,7 +99,9 @@ workspace.get("/invites/:token", requireUser, async (c) => {
 });
 
 workspace.post("/invites/accept", requireUser, async (c) => {
-    const { token } = await readJson<{ token?: string }>(c);
+    const body = await readJson(c, zToken);
+    if (!body) return c.json(BAD_BODY, 400);
+    const { token } = body;
     if (!token) return c.json({ error: "token required" }, 400);
     const result = await acceptInvite(token, c.get("user").id);
     if (!result) return c.json({ error: "invite not found or expired" }, 404);
@@ -116,8 +130,13 @@ workspace.patch("/workspace/members/:userId", requireWorkspace, requireRole("own
     const ws = c.get("ws");
     const target = c.req.param("userId");
     if (target === ws.ownerId)
-        return c.json({ error: "the owner's role can't be changed — transfer instead" }, 400);
-    const { role } = await readJson<{ role?: string }>(c);
+        return c.json(
+            { error: "the owner's role can't be changed, transfer ownership instead" },
+            400,
+        );
+    const body = await readJson(c, zRole);
+    if (!body) return c.json(BAD_BODY, 400);
+    const { role } = body;
     if (!grantable(role)) return c.json({ error: "role must be admin or member" }, 400);
     const ok = await setMemberRole(ws.id, target, role);
     return ok ? c.json({ ok: true }) : c.json({ error: "not a member" }, 404);
@@ -125,14 +144,20 @@ workspace.patch("/workspace/members/:userId", requireWorkspace, requireRole("own
 
 workspace.post("/workspace/leave", requireWorkspace, async (c) => {
     const [user, ws] = [c.get("user"), c.get("ws")];
-    if (ws.ownerId === user.id)
-        return c.json({ error: "the owner can't leave — transfer ownership first" }, 400);
-    await removeMember(ws.id, user.id);
+    const body = await readJson(c, zWorkspaceId);
+    if (!body) return c.json(BAD_BODY, 400);
+    const { workspaceId } = body;
+    const result = await leaveWorkspace(user.id, workspaceId ?? ws.id);
+    if (result === "not-member") return c.json({ error: "not a member of that workspace" }, 403);
+    if (result === "owner")
+        return c.json({ error: "the owner can't leave, transfer ownership first" }, 400);
     return c.json({ ok: true });
 });
 
 workspace.post("/workspace/transfer", requireWorkspace, requireRole("owner"), async (c) => {
-    const { userId } = await readJson<{ userId?: string }>(c);
+    const body = await readJson(c, zUserId);
+    if (!body) return c.json(BAD_BODY, 400);
+    const { userId } = body;
     if (!userId) return c.json({ error: "userId required" }, 400);
     const ok = await transferOwnership(c.get("ws"), userId);
     return ok
@@ -141,7 +166,9 @@ workspace.post("/workspace/transfer", requireWorkspace, requireRole("owner"), as
 });
 
 workspace.post("/workspace/switch", requireUser, async (c) => {
-    const { workspaceId } = await readJson<{ workspaceId?: string }>(c);
+    const body = await readJson(c, zWorkspaceId);
+    if (!body) return c.json(BAD_BODY, 400);
+    const { workspaceId } = body;
     if (!workspaceId) return c.json({ error: "workspaceId required" }, 400);
     const ok = await switchWorkspace(c.get("user").id, workspaceId);
     return ok ? c.json({ ok: true }) : c.json({ error: "not a member of that workspace" }, 403);

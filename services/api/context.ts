@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { requireWorkspace, type WorkspaceEnv } from "./middleware";
+import { z } from "zod";
 import { rateLimit, readJson } from "@services/utils/http";
 import { fetchWebpage } from "@services/utils/webpage";
 import { embeddingReady } from "@services/core/ai/provider";
@@ -34,8 +35,29 @@ const gate = (ready: boolean): string | null =>
 const webpageLimiter = rateLimit({ name: "webpage", limit: 20, windowMs: 60_000 });
 const PAGE_CAP = 200_000;
 
+const zWebpage = z.object({ url: z.string().optional() });
+const zExtract = z.object({
+    name: z.string().optional(),
+    mime: z.string().optional(),
+    data: z.string().optional(),
+});
+const zNewContext = z.object({ name: z.string().optional(), description: z.string().optional() });
+const zContextPatch = z.object({
+    name: z.string().optional(),
+    description: z.string().nullish(),
+});
+const zNewItem = z.object({
+    kind: z.enum(["file", "text", "link", "artifact", "template"]).optional(),
+    title: z.string().optional(),
+    body: z.string().optional(),
+    url: z.string().optional(),
+    artifactId: z.string().optional(),
+    templateId: z.string().optional(),
+    original: z.object({ data: z.string().optional(), mime: z.string().optional() }).optional(),
+});
+
 context.post("/webpage", requireWorkspace, webpageLimiter, async (c) => {
-    const body = await readJson<{ url?: string }>(c);
+    const body = await readJson(c, zWebpage);
     if (!body?.url?.trim()) return c.json({ error: "a url is required" }, 400);
     try {
         const page = await fetchWebpage(body.url);
@@ -56,7 +78,7 @@ const extractLimiter = rateLimit({ name: "extract", limit: 20, windowMs: 60_000 
 const extractBody = bodyLimit({ maxSize: 32 * 1024 * 1024 });
 
 context.post("/extract", requireWorkspace, extractLimiter, extractBody, async (c) => {
-    const body = await readJson<{ name?: string; mime?: string; data?: string }>(c);
+    const body = await readJson(c, zExtract);
     if (!body?.name || !body.data) return c.json({ error: "a file is required" }, 400);
     try {
         const out = await extractUpload({
@@ -77,7 +99,7 @@ context.get("/contexts", requireWorkspace, async (c) => {
 });
 
 context.post("/contexts", requireWorkspace, async (c) => {
-    const body = await readJson<{ name?: string; description?: string }>(c);
+    const body = await readJson(c, zNewContext);
     const name = body?.name?.trim();
     if (!name) return c.json({ error: "a name is required" }, 400);
     const { id } = await createContext(
@@ -99,7 +121,7 @@ context.get("/contexts/:id", requireWorkspace, async (c) => {
 });
 
 context.patch("/contexts/:id", requireWorkspace, async (c) => {
-    const body = await readJson<{ name?: string; description?: string | null }>(c);
+    const body = await readJson(c, zContextPatch);
     if (!body || (body.name === undefined && body.description === undefined))
         return c.json({ error: "nothing to change" }, 400);
     try {
@@ -119,24 +141,13 @@ context.delete("/contexts/:id", requireWorkspace, async (c) => {
     }
 });
 
-interface NewItemBody {
-    kind?: "file" | "text" | "link" | "artifact" | "template";
-    title?: string;
-    body?: string;
-    url?: string;
-    artifactId?: string;
-    templateId?: string;
-    // server-extracted uploads pass their original along, so the inspector can render the file
-    original?: { data?: string; mime?: string };
-}
-
 context.post("/contexts/:id/items", requireWorkspace, extractBody, async (c) => {
     const blocked = gate(embeddingReady());
     if (blocked) return c.json({ error: blocked }, 503);
     const ws = c.get("ws");
     const user = c.get("user");
     const contextId = c.req.param("id");
-    const body = await readJson<NewItemBody>(c);
+    const body = await readJson(c, zNewItem);
     if (!body?.kind) return c.json({ error: "an item kind is required" }, 400);
     try {
         if (body.kind === "file" || body.kind === "text") {

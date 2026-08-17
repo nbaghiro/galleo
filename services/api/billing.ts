@@ -1,9 +1,8 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { readJson } from "@services/utils/http";
-import type { CreditPackId } from "@model/billing";
+import { z } from "zod";
+import { BAD_BODY, readJson } from "@services/utils/http";
 import { canTopUp } from "@model/billing";
-import type { Wanted } from "@services/core/billing";
 import {
     billingSummary,
     changePlan,
@@ -28,6 +27,14 @@ const notOwner = (c: Context, ws: { ownerId: string }, userId: string): Response
 
 const NOT_CONFIGURED = { error: "billing not configured" } as const;
 
+const zWanted = z.object({
+    plan: z.enum(["free", "pro", "premium"]).optional(),
+    interval: z.enum(["month", "year"]).optional(),
+    seats: z.number().int().positive().optional(),
+});
+
+const zTopup = z.object({ pack: z.enum(["pack-500", "pack-2k"]).optional() });
+
 plan.get("/billing", requireWorkspace, async (c) =>
     c.json(await billingSummary(c.get("ws"), c.get("user").id)),
 );
@@ -40,7 +47,8 @@ plan.post("/billing/checkout", requireWorkspace, async (c) => {
     // a live subscription changes through change-plan; a second checkout would double-bill
     if (ws.stripeSubscriptionId)
         return c.json({ error: "already subscribed", useChangePlan: true }, 409);
-    const want = await readJson<Wanted>(c);
+    const want = await readJson(c, zWanted);
+    if (!want) return c.json(BAD_BODY, 400);
     const result = await checkoutUrl(ws, user.email, want);
     if (result && typeof result === "object" && "error" in result)
         return c.json({ error: "invalid plan" }, 400);
@@ -53,9 +61,13 @@ plan.post("/billing/topup", requireWorkspace, async (c) => {
     if (denied) return denied;
     if (!stripeReady()) return c.json(NOT_CONFIGURED, 503);
     if (!canTopUp(ws.plan))
-        return c.json({ error: "Credit packs need a paid plan — upgrade.", upgrade: true }, 402);
-    const { pack } = await readJson<{ pack?: CreditPackId }>(c);
-    const result = await topupUrl(ws, user.email, pack);
+        return c.json(
+            { error: "Credit packs need a paid plan. Upgrade to buy one.", upgrade: true },
+            402,
+        );
+    const body = await readJson(c, zTopup);
+    if (!body) return c.json(BAD_BODY, 400);
+    const result = await topupUrl(ws, user.email, body.pack);
     if ("error" in result)
         return result.error === "invalid-pack"
             ? c.json({ error: "invalid pack" }, 400)
@@ -78,14 +90,15 @@ plan.post("/billing/change-plan", requireWorkspace, async (c) => {
     if (!ws.stripeSubscriptionId)
         return c.json({ error: "no active subscription", useCheckout: true }, 400);
     if (!stripeReady()) return c.json(NOT_CONFIGURED, 503);
-    const want = await readJson<Wanted>(c);
+    const want = await readJson(c, zWanted);
+    if (!want) return c.json(BAD_BODY, 400);
     const result = await changePlan(ws, ws.stripeSubscriptionId, want);
     if ("error" in result) {
         if (result.error === "no-item") return c.json({ error: "no subscription item" }, 400);
         if (result.error === "invalid-plan") return c.json({ error: "invalid plan" }, 400);
         return c.json(
             {
-                error: `Your workspace has ${result.members} members — remove members before reducing seats.`,
+                error: `Your workspace has ${result.members} members. Remove some before reducing seats.`,
             },
             400,
         );
