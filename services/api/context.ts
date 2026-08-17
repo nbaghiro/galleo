@@ -185,7 +185,10 @@ context.post("/contexts/:id/items", requireWorkspace, extractBody, async (c) => 
         }
         return c.json({ error: "unknown item kind" }, 400);
     } catch (e) {
-        return c.json({ error: e instanceof Error ? e.message : "couldn't add that" }, 400);
+        const msg = e instanceof Error ? e.message : "";
+        // a missing/foreign context is a 404 here like on every sibling route
+        if (msg === "no such context") return c.json({ error: msg }, 404);
+        return c.json({ error: msg || "couldn't add that" }, 400);
     }
 });
 
