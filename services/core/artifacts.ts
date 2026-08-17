@@ -4,10 +4,11 @@ import type {
     ArtifactInput,
     ArtifactPage,
     ArtifactWindow,
+    ElementInstance,
     Section,
     SectionOp,
 } from "@model/artifact";
-import { applySectionOps, artifactDigest } from "@model/artifact";
+import { applySectionOps, artifactDigest, asContent } from "@model/artifact";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { contentWrite } from "@services/db/derived";
@@ -42,18 +43,6 @@ export function pageLimit(raw: string | undefined, fallback: number, max: number
     return Math.min(max, n);
 }
 
-// The section-ops write puts this result back, so an unlisted field is dropped from the row.
-export const asContent = (draft: unknown): ArtifactContent => {
-    const d = (draft ?? {}) as Partial<ArtifactContent>;
-    return {
-        format: d.format ?? "deck",
-        theme: d.theme ?? "studio",
-        sections: Array.isArray(d.sections) ? d.sections : [],
-        ...(d.background ? { background: d.background } : {}),
-        ...(d.page ? { page: d.page } : {}),
-    };
-};
-
 // "from:count"; anything malformed means "no window", i.e. the whole artifact
 export function parseWindow(raw: string | undefined): { from: number; count: number } | null {
     if (!raw) return null;
@@ -64,11 +53,36 @@ export function parseWindow(raw: string | undefined): { from: number; count: num
     return { from, count: Math.min(count, 200) };
 }
 
+// A section with no root has no content tree, so it would reach the renderer as a hole; the check
+// stops at `root.type` because the element tree below it is the element registry's contract.
+const isElementInstance = (v: unknown): v is ElementInstance =>
+    !!v && typeof v === "object" && typeof (v as { type?: unknown }).type === "string";
+
+export const isSection = (v: unknown): v is Section => {
+    if (!v || typeof v !== "object") return false;
+    const { id, root } = v as Record<string, unknown>;
+    return typeof id === "string" && isElementInstance(root);
+};
+
+// Shell fields are not required: asContent() fills format/theme from defaults, so a body that
+// carries only sections is a legitimate write rather than a malformed one.
+export const isArtifactContent = (v: unknown): v is ArtifactContent => {
+    if (!v || typeof v !== "object") return false;
+    const { format, theme, sections } = v as Record<string, unknown>;
+    if (format !== undefined && typeof format !== "string") return false;
+    if (theme !== undefined && typeof theme !== "string") return false;
+    return Array.isArray(sections) && sections.every(isSection);
+};
+
+// A guard, not a parse: it must not rebuild the op, or optional fields the wire carries but this
+// file does not enumerate (Section.frame) would be silently dropped on the way to the database.
 export const isSectionOp = (op: unknown): op is SectionOp => {
     if (!op || typeof op !== "object") return false;
-    const { kind, section, id, ids, shell } = op as Record<string, unknown>;
-    if (kind === "set" || kind === "insert")
-        return !!section && typeof (section as Section).id === "string";
+    const { kind, section, id, ids, index, shell } = op as Record<string, unknown>;
+    if (kind === "set") return isSection(section);
+    // a missing index reaches Math.trunc as NaN, which splice coerces to 0, so an unindexed
+    // insert would silently prepend instead of being rejected
+    if (kind === "insert") return isSection(section) && Number.isFinite(index);
     if (kind === "remove") return typeof id === "string";
     if (kind === "order") return Array.isArray(ids) && ids.every((x) => typeof x === "string");
     if (kind === "shell") return !!shell && typeof shell === "object";
