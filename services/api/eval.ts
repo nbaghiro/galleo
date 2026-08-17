@@ -9,6 +9,7 @@ import {
     saveJudgements,
 } from "@services/core/ai/eval/runs";
 import { judgeRun } from "@services/core/ai/eval/judge";
+import { judgeVisuals } from "@services/core/ai/eval/visual-judge";
 import { RUBRIC } from "@services/core/ai/eval/rubric";
 import { galleo } from "@services/core/ai/corpus/galleo";
 import { helios } from "@services/core/ai/corpus/helios";
@@ -38,7 +39,6 @@ evals.get("/eval/runs/:id", requireWorkspace, async (c) => {
 
 // The app posts layout-derived checks here; they cannot be computed server-side because the layout
 // engine lives in canvas, which services may not import.
-evals.post("/eval/runs/:id/checks", requireWorkspace, async (c) => {
 const zChecks = z.object({
     checks: z
         .array(
@@ -59,6 +59,7 @@ const zJudgeVisual = z.object({
         .optional(),
 });
 
+evals.post("/eval/runs/:id/checks", requireWorkspace, async (c) => {
     if (!gate(c.get("user"))) return c.json({ error: "not found" }, 404);
     const body = await readJson(c, zChecks);
     if (!body) return c.json(BAD_BODY, 400);
@@ -87,7 +88,6 @@ evals.post("/eval/runs/:id/judge", requireWorkspace, async (c) => {
     return c.json({ judgements });
 });
 
-evals.post("/eval/prune", requireWorkspace, async (c) => {
 /**
  * The visual verdict. Images come from the client because rendering needs the engine, which services
  * may not import; the same reason `fitChecks` is computed there. Bodies are large, so the cap is on
@@ -121,6 +121,7 @@ function pngFromDataUrl(url: string | undefined): Uint8Array | null {
     }
 }
 
+evals.post("/eval/prune", requireWorkspace, async (c) => {
     if (!gate(c.get("user"))) return c.json({ error: "not found" }, 404);
     await pruneRuns(c.get("ws").id);
     return c.json({ ok: true });

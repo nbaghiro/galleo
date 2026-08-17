@@ -21,7 +21,8 @@ import { useNavigate, useParams } from "@solidjs/router";
 import { api, setTraceTurns, traceTurns } from "@app/api";
 import { generateOpen, openGenerate } from "@app/stores/generate";
 import { appTheme } from "@app/stores/theme";
-import { fitChecks } from "@app/stores/eval-fit";
+import { fitChecks } from "@canvas/render/fit-checks";
+import { renderShots } from "@app/stores/eval-shots";
 
 // A pipeline inspector: every call the run made down the left, the exact bytes of the selected call
 // in the middle, its verdict on the right. The system prompt is shown as the fragments it was
@@ -35,6 +36,9 @@ const tok = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : St
 
 // below this a judged target is called out rather than merely reported
 const WEAK = 0.5;
+
+/** Visual verdicts are filed under a prefixed target so they never overwrite the text one. */
+const VISUAL = "visual:";
 
 type Tab = "system" | "user" | "output";
 type Pane = "trace" | "artifact";
@@ -829,6 +833,10 @@ const Verdict: Component<{ run: EvalRun; rubric: Rubric; target: string }> = (pr
     const v = createMemo((): EvalJudgement | undefined =>
         props.run.judgements.find((j) => j.target === props.target),
     );
+    // the visual verdict on the same target, filed under the prefix so the two never collide
+    const vis = createMemo((): EvalJudgement | undefined =>
+        props.run.judgements.find((j) => j.target === `${VISUAL}${props.target}`),
+    );
     const failedChecks = createMemo((): EvalCheck[] =>
         props.run.checks.filter((c) => c.target === props.target && !c.pass),
     );
@@ -857,6 +865,41 @@ const Verdict: Component<{ run: EvalRun; rubric: Rubric; target: string }> = (pr
                             )}
                         </For>
                     </div>
+                </Show>
+
+                <Show when={vis()}>
+                    {(j) => (
+                        <div class="border-b border-line px-3 py-2">
+                            <div class="mb-1.5 flex items-center gap-2">
+                                <Eyebrow as="div">Visual</Eyebrow>
+                                <Meter
+                                    value={scoreOf(j()) * 100}
+                                    tone={scoreOf(j()) < WEAK ? "fail" : "accent"}
+                                    trackTone="canvas"
+                                    class="flex-1"
+                                />
+                                <span class="font-mono text-[11px] tabular-nums text-ink">
+                                    {pct(scoreOf(j()))}
+                                </span>
+                            </div>
+                            <For each={j().answers.filter((a) => !a.yes)}>
+                                {(a) => (
+                                    <div class="py-1">
+                                        <span class="font-mono text-[11px] font-semibold text-fail">
+                                            N
+                                        </span>{" "}
+                                        <span class="font-mono text-[11px] text-soft">{a.id}</span>
+                                        <p class="mt-0.5 text-[11.5px] text-muted">{a.why}</p>
+                                    </div>
+                                )}
+                            </For>
+                            <Show when={j().answers.every((a) => a.yes)}>
+                                <p class="text-[11.5px] text-muted">
+                                    Nothing flagged in the render.
+                                </p>
+                            </Show>
+                        </div>
+                    )}
                 </Show>
 
                 <Show
@@ -917,13 +960,14 @@ const RunDetail: Component<{ id: string; onClose: () => void }> = (props) => {
     const [run, setRun] = createSignal<EvalRun | null>(null);
     const [step, setStep] = createSignal<string | null>(null);
     const [judging, setJudging] = createSignal(false);
+    const [judgingVisual, setJudgingVisual] = createSignal(false);
 
     // layout checks need the engine, which services may not import, so they are computed here once
     const load = async (id: string): Promise<void> => {
         const r = (await api.getEvalRun(id)).run;
         setRun(r);
         if (!r.content || r.checks.some((c) => c.dimension === "layout")) return;
-        const fits = fitChecks(r.content);
+        const fits = fitChecks(r.content, r.config.meta);
         if (!fits.length) return;
         await api.postEvalChecks(id, fits).catch(() => undefined);
         setRun((prev) =>
@@ -939,6 +983,25 @@ const RunDetail: Component<{ id: string; onClose: () => void }> = (props) => {
             setRun((prev) => (prev && prev.id === r.id ? { ...prev, judgements } : prev));
         } finally {
             setJudging(false);
+        }
+    };
+
+    // Rendering happens here rather than on the server, which may not import the engine. The judge
+    // sees pixels; everything describable in words is already settled by a deterministic check.
+    const judgeVisual = async (r: EvalRun): Promise<void> => {
+        if (judgingVisual() || !r.content) return;
+        setJudgingVisual(true);
+        try {
+            const shots = await renderShots(r.content);
+            if (!shots.length) return;
+            const { judgements } = await api.judgeEvalVisuals(r.id, shots);
+            setRun((prev) =>
+                prev && prev.id === r.id
+                    ? { ...prev, judgements: [...prev.judgements, ...judgements] }
+                    : prev,
+            );
+        } finally {
+            setJudgingVisual(false);
         }
     };
 
@@ -970,7 +1033,7 @@ const RunDetail: Component<{ id: string; onClose: () => void }> = (props) => {
                         <span class="min-w-0 flex-1 truncate text-[13px] text-soft">
                             {r().config.meta.prompt || "(no prompt)"}
                         </span>
-                        <Show when={!r().judgements.length}>
+                        <Show when={!r().judgements.some((j) => !j.target.startsWith(VISUAL))}>
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -978,6 +1041,21 @@ const RunDetail: Component<{ id: string; onClose: () => void }> = (props) => {
                                 onClick={() => void judge(r())}
                             >
                                 Run the judge
+                            </Button>
+                        </Show>
+                        <Show
+                            when={
+                                r().content?.sections.length &&
+                                !r().judgements.some((j) => j.target.startsWith(VISUAL))
+                            }
+                        >
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                loading={judgingVisual()}
+                                onClick={() => void judgeVisual(r())}
+                            >
+                                Run the visual judge
                             </Button>
                         </Show>
                     </div>

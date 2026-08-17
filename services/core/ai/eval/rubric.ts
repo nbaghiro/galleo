@@ -6,6 +6,10 @@ import type { Rubric } from "@model/eval";
 //
 // Every question is phrased so that YES is good. Editing this file is a rubric change, so bump the
 // version: a score is only comparable to another score from the same version.
+//
+// A few carry a `gate`: a floor below which CI fails. Only questions measured as saturated get one,
+// because the aggregate score wobbles by about 18 points between identical runs and would gate on
+// noise. The mid-range questions (0.49-0.73) are reported as a trend and never fail a build.
 
 export const RUBRIC: Rubric = {
     version: "r1",
@@ -77,18 +81,21 @@ export const RUBRIC: Rubric = {
         },
         {
             id: "no-filler",
+            gate: 0.85, // measured at 0.96 across runs; near-zero variance, so it can only fall
             dimension: "voice",
             scope: "section",
             ask: "Is the copy free of filler openings such as 'in today's world', 'it is important to note', or 'as we all know'?",
         },
         {
             id: "no-ai-tells",
+            gate: 0.8, // measured at 0.91 across runs; near-zero variance, so it can only fall
             dimension: "voice",
             scope: "section",
             ask: "Is the copy free of the words delve, leverage, robust, seamless, tapestry, and landscape used figuratively?",
         },
         {
             id: "consistent-voice",
+            gate: 0.9, // measured at 1.00 across runs; near-zero variance, so it can only fall
             dimension: "voice",
             scope: "section",
             ask: "Does this section read as though written by the same person as the rest of the piece?",

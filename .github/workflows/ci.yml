@@ -64,6 +64,51 @@ jobs:
             - name: Build
               run: pnpm build
 
+    # The layout engine's only automated guard. Real Chromium because ~70 webfonts drive
+    # measureText, measureText drives the solver, and the solver decides every box: measure with a
+    # fallback face and you are checking a layout nobody sees. Free, ~10s, and deterministic, so
+    # unlike the LLM judges it can gate every push.
+    visual:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: pnpm/action-setup@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: pnpm
+
+            - name: Install
+              run: pnpm install --frozen-lockfile
+
+            # ~150MB; without this it downloads on every run
+            - name: Cache Chromium
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+            - name: Install Chromium
+              run: npx playwright install --with-deps chromium
+
+            # excluded from `pnpm test` because a real browser per worker contends and flakes
+            - name: Capture tests
+              run: pnpm test:browser
+
+            # fails loudly if the font CDN is unreachable rather than measuring Times
+            - name: Visual checks over the corpus
+              run: pnpm eval:shots
+
+            - name: Upload the failing renders
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: visual-failures
+                  path: shots/
+                  if-no-files-found: ignore
+
     integration:
         runs-on: ubuntu-latest
         services:

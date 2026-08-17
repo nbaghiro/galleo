@@ -1,0 +1,90 @@
+name: Eval
+
+# Tier 2: generate artifacts and hold them to every check we have. This is the only tier that can
+# catch a PROMPT regression, because the per-push `visual` job in ci.yml renders fixed corpus content
+# and so can only ever catch the engine.
+#
+# Not on push: at roughly $0.29 a case with both judges, ten merges a day would be real money for a
+# signal that rarely moves between commits. Weekly, plus on demand.
+
+on:
+    workflow_dispatch:
+        inputs:
+            cases:
+                description: "How many generation cases (max 12)"
+                default: "3"
+            runs:
+                description: "Runs per case; >1 only to measure variance (max 3)"
+                default: "1"
+            judge:
+                description: "Which judges to run"
+                type: choice
+                default: both
+                options: [none, text, visual, both]
+            model:
+                description: "Override the generation model (blank = the plan's default)"
+                default: ""
+    schedule:
+        # Mondays 06:00 UTC. Text judge only: the visual one roughly doubles the bill and, being
+        # stochastic, can only ever report rather than gate.
+        - cron: "0 6 * * 1"
+
+jobs:
+    eval:
+        runs-on: ubuntu-latest
+        timeout-minutes: 45
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: pnpm/action-setup@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: pnpm
+
+            - name: Install
+              run: pnpm install --frozen-lockfile
+
+            - name: Cache Chromium
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+            - name: Install Chromium
+              run: npx playwright install --with-deps chromium
+
+            # Deterministic checks fail this job; judged questions only where the rubric set a gate,
+            # which is only on questions measured as saturated. A model error is reported, not fatal.
+            - name: Generate and evaluate
+              env:
+                  GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+              run: |
+                  pnpm eval:ci \
+                    --cases "${{ inputs.cases || '7' }}" \
+                    --runs "${{ inputs.runs || '1' }}" \
+                    --judge "${{ inputs.judge || 'text' }}" \
+                    --model "${{ inputs.model }}" \
+                    --out eval-out \
+                    | tee eval.log
+
+            # the renders and the JSON are what make a red run inspectable, which is the whole
+            # difference between this and reading a check id out of a log
+            - name: Upload renders and summary
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: eval-${{ github.run_id }}
+                  path: eval-out/
+                  if-no-files-found: warn
+
+            - name: Job summary
+              if: always()
+              run: |
+                  {
+                    echo '## Eval run'
+                    echo '```'
+                    cat eval.log || echo 'no output'
+                    echo '```'
+                  } >> "$GITHUB_STEP_SUMMARY"
