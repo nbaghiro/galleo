@@ -119,6 +119,7 @@ function clientIp(c: Context): string {
 
 export function rateLimit(options: RateLimitOptions): MiddlewareHandler {
     const buckets = new Map<string, RateWindow>();
+    let sweepAt = 0; // next full sweep; once per window keeps the map bounded at O(live windows)
 
     return async (c, next) => {
         const now = Date.now();
@@ -130,8 +131,10 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler {
         }
         w.count++;
 
-        // opportunistic sweep so the map doesn't grow unbounded across many distinct client IPs
-        if (buckets.size > 5000) {
+        // periodic sweep so the map doesn't grow unbounded across many distinct client IPs
+        // (a size trigger would turn into an every-request O(n) scan once past its threshold)
+        if (now >= sweepAt) {
+            sweepAt = now + options.windowMs;
             for (const [k, v] of buckets) if (now >= v.resetAt) buckets.delete(k);
         }
 
