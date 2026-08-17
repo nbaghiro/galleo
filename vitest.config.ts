@@ -20,7 +20,9 @@ export default defineConfig({
     test: {
         environment: "node",
         include: ["**/*.test.ts"],
-        exclude: ["**/node_modules/**", "**/dist/**"],
+        // `.browser.test.ts` launches real Chromium: too heavy for the unit run, where launching one
+        // per worker contends and flakes. The `visual` CI job runs them explicitly instead.
+        exclude: ["**/node_modules/**", "**/dist/**", "**/*.browser.test.ts"],
         coverage: {
             provider: "v8",
             reporter: ["text", "html"],

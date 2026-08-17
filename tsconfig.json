@@ -28,7 +28,8 @@
             "@ui/*": ["ui/*"],
             "@editor/*": ["editor/*"],
             "@app/*": ["app/*"],
-            "@services/*": ["services/*"]
+            "@services/*": ["services/*"],
+            "@e2e/*": ["e2e/*"]
         }
     },
     "include": [
@@ -40,6 +41,7 @@
         "app",
         "publish",
         "website",
+        "e2e",
         "scripts",
         "*.ts"
     ]

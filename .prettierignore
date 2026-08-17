@@ -6,3 +6,6 @@ pnpm-lock.yaml
 .claude/
 services/migrations/
 
+e2e/.state/
+test-results/
+playwright-report/

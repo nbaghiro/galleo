@@ -261,6 +261,7 @@ export const DragGhost: Component = () => {
             when={moveSrc()}
             fallback={
                 <div
+                    data-testid="drag-ghost"
                     class="pointer-events-none fixed z-overlay flex items-center gap-2 rounded-full border border-line bg-panel/95 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-lg backdrop-blur-md"
                     style={{
                         display: drag() ? "flex" : "none",
@@ -282,6 +283,7 @@ export const DragGhost: Component = () => {
         >
             {(src) => (
                 <div
+                    data-testid="drag-ghost"
                     class="pointer-events-none fixed z-overlay opacity-55"
                     style={{
                         left: `${(drag()?.x ?? 0) + 10}px`,

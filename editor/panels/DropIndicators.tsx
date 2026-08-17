@@ -68,6 +68,7 @@ export const DropIndicators: Component = () => {
                         }
                     >
                         <div
+                            data-testid="drop-candidate"
                             class="pointer-events-none absolute rounded-full opacity-40"
                             style={{ ...lineStyle(s, 1.5), background: editorTokens().line }}
                         />
@@ -78,6 +79,7 @@ export const DropIndicators: Component = () => {
             <Show when={activeLine()}>
                 {(s) => (
                     <div
+                        data-testid="drop-active"
                         class="pointer-events-none absolute z-raised rounded-full transition-all duration-100 motion-reduce:transition-none"
                         style={{ ...lineStyle(s(), 3), background: editorAccent() }}
                     >
@@ -109,6 +111,7 @@ export const DropIndicators: Component = () => {
             <Show when={activeRegion()}>
                 {(s) => (
                     <div
+                        data-testid="drop-active-region"
                         class="pointer-events-none absolute z-raised rounded-lg border-2 transition-all duration-100 motion-reduce:transition-none"
                         style={{
                             ...boxStyle((s().indicator as { box: Rect }).box),
@@ -135,6 +138,7 @@ export const LiftVeil: Component = () => {
         <Show when={src()}>
             {(r) => (
                 <div
+                    data-testid="lift-veil"
                     class="pointer-events-none absolute opacity-65"
                     style={{
                         ...boxStyle(r().box),

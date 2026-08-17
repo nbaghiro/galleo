@@ -199,6 +199,7 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
     return (
         <div
             ref={el}
+            data-testid="text-editor"
             contentEditable={true}
             spellcheck={false}
             class="absolute z-10 outline-none"

@@ -15,3 +15,6 @@ canvas/boundary-check-*/
 
 # local PDF exports of the .docs markdown (generated, never the source of truth)
 .docs/*.pdf
+e2e/.state/
+test-results/
+playwright-report/
