@@ -47,6 +47,19 @@ const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.m
 const EDGE = 8; // draggable border thickness
 const DRAG_THRESHOLD = 5; // px of travel before a grip press becomes a drag, not a click
 
+const GRIP_W = 16; // the visible pill (w-4)
+const GRIP_GAP = 10; // breathing room between the pill and the box it belongs to
+// A bleed section starts at 0, and the canvas is a scroll container, so anything left of its content
+// origin is unreachable and never paints. Clamping keeps that grip just inside instead of vanishing;
+// every other box has room outside itself and is unaffected.
+const GRIP_MIN_X = 6;
+
+const gripX = (box: { x: number }): number => Math.max(GRIP_MIN_X, box.x - (GRIP_W + GRIP_GAP));
+
+// Reaches from the pill to the box's own left edge so the two stay contiguous and crossing between
+// them never drops the hover; just the pill when the clamp already put it on the box.
+const gripW = (box: { x: number }): number => Math.max(GRIP_W, box.x - gripX(box));
+
 export const DragHandle: Component = () => {
     const ctx = createMemo(() => {
         if (drag()) return null;
@@ -104,21 +117,25 @@ export const DragHandle: Component = () => {
     return (
         <Show when={ctx()}>
             {(c) => (
-                // flush to the element's left edge, so crossing onto it keeps the region hovered
+                // A hover bridge, not a target: it runs from the pill to the box's own left edge so
+                // crossing between them never leaves the region and drops the hover. Only the pill
+                // takes the press, or a wide board's margin would swallow every backdrop click.
                 <div
-                    class="absolute z-menu flex cursor-grab items-center active:cursor-grabbing"
+                    class="absolute z-menu flex items-start"
                     style={{
-                        left: `${c().box.x - 26}px`,
+                        left: `${gripX(c().box)}px`,
                         top: `${c().box.y}px`,
-                        width: "26px",
+                        width: `${gripW(c().box)}px`,
                         height: "26px",
-                        "touch-action": "none",
                     }}
-                    title="Drag to move"
-                    onPointerDown={onDown}
                     onPointerMove={(e) => e.stopPropagation()}
                 >
-                    <div class="pointer-events-none flex h-5 w-4 items-center justify-center rounded-md border border-line bg-panel/90 text-muted shadow-sm backdrop-blur-md">
+                    <div
+                        class="flex h-5 w-4 cursor-grab items-center justify-center rounded-md border border-line bg-panel/90 text-muted shadow-sm backdrop-blur-md active:cursor-grabbing"
+                        style={{ "touch-action": "none" }}
+                        title="Drag to move"
+                        onPointerDown={onDown}
+                    >
                         <Icon name="grip" size={12} />
                     </div>
                 </div>
