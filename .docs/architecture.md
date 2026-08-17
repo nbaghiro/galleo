@@ -85,7 +85,7 @@ elements.ts    the element value-sets (the enumerable option sets elements + the
 ai.ts          the AI turn PROTOCOL only: turns · patches · events · applyPatch. The LLM-facing element/layout CATALOG lives with the prompt that renders it (services/core/ai/prompts/catalog.ts) — it is server-only, and keeping it here shipped it to the browser
 credits.ts     what an AI capability is and what it costs: the metered-credit engine (Usage bag + costOf) · the AiTask steps a run is made of + their per-model rate multipliers · the ONE tool catalog (every capability's identity/tier/surfaces + its pricing: usage · meter · live)
 billing.ts     the plan catalog (plans · packs · PlanLimits) AND the entitlement resolver over it (FEATURES launch registry · resolveFeatures · can/limit/withinLimit) — read together at every call site
-workspace.ts   User · Folder · Template + their create/update DTOs (LoginBody · FolderInput)
+workspace.ts   the person, as opposed to the tenant: User (incl. hasPassword + UserPrefs) · Folder · WorkspaceRole/asRole · Membership · AccountConnection + the auth/account DTOs (LoginBody · ProfileBody · PasswordBody · FolderInput) and the readers both sides share (readUserPrefs · mergeUserPrefs · cleanDisplayName)
 text.ts        rich-text core — marks/runs + selection math + the render-facing Run type (canvas re-exports Run for its backends)
 media.ts       MediaKind + IconPick + the media descriptors the picker and image elements exchange
 geometry.ts    the dimensional contract: Size (+ fit/grow/percent/fixed constructors), box insets, per-instance ElementLayout, and the deck/doc/web format profiles
@@ -315,7 +315,7 @@ embedded in the artifact's `draft_content` JSON.
 
 | Table              | Purpose                                       | Key columns                                                                                                                                                                                                                                                                                                                           |
 | ------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **users**          | a person / login                              | `email` (unique), `name`, `avatar_url`, `password_hash` (null = OAuth-only), `active_workspace_id` (the membership the app opens)                                                                                                                                                                                                     |
+| **users**          | a person / login                              | `email` (unique), `name`, `avatar_url`, `password_hash` (null = OAuth-only), `active_workspace_id` (the membership the app opens), `prefs` jsonb (per-account settings, normalized on every read by `readUserPrefs`)                                                                                                                  |
 | **workspaces**     | the tenant that owns content + billing entity | `name`, `slug` (unique), `owner_id→users`, `plan` (text, default `free`), `seats` (int, default 1), `stripe_customer_id`, `stripe_subscription_id`, `plan_status`, `plan_period_end`, `cancel_at_period_end`, `ai_credits_balance` (the only credit counter, a balance that carries), `credits_reset_at`, `feature_overrides` (jsonb) |
 | **members**        | user ↔ workspace + role (join, composite pk)  | `workspace_id`, `user_id`, `role`                                                                                                                                                                                                                                                                                                     |
 | **invites**        | pending workspace invitations                 | `workspace_id`, `email` (unique per workspace), `role`, `token_hash` (raw token only in the emailed link), `invited_by`, `expires_at`, `accepted_at`                                                                                                                                                                                  |
@@ -702,7 +702,10 @@ the SDK `apiVersion`, and the routes cover checkout (incl. `trial_period_days` w
 `spend`, and the transactional idempotent `webhook`. Billing mutations are **owner-only**. **Teams are
 usable**: `services/api/workspace.ts` covers invite (hashed possession tokens, seat-capped, emailed) /
 accept / revoke / remove / switch, `users.active_workspace_id` picks the working membership, and the
-`MembersView` + sidebar switcher drive it. The pricing page (`PricingView`) adds per-button busy states,
+`MembersView` + sidebar switcher drive it. **Accounts are self-serve**: `services/api/account.ts` owns
+`/me` (profile, password change or first-set for an OAuth-only account, linked providers, preferences in
+the `users.prefs` jsonb, and the memberships list), `AccountSettingsView` at `/account` is its surface,
+and `?link=1` gives OAuth a session-bound link path distinct from its sign-in path. The pricing page (`PricingView`) adds per-button busy states,
 top-up buttons, and the recent-activity ledger. Remaining work is in **Planned / deferred**.
 
 ---

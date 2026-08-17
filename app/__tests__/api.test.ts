@@ -207,6 +207,92 @@ describe("representative methods (method · path · mapping)", () => {
     });
 });
 
+describe("account methods (method · path · body)", () => {
+    const user = {
+        id: "u1",
+        email: "a@b.c",
+        name: "Ada",
+        avatarUrl: null,
+        emailVerified: true,
+        hasPassword: true,
+        prefs: {},
+    };
+
+    it("updateProfile PATCHes /me with the name", async () => {
+        const calls = stubFetch(jsonResponse({ user }));
+        const result = await api.updateProfile("Ada");
+
+        const call = firstCall(calls);
+        expect(call.url).toBe("/api/me");
+        expect(call.init?.method).toBe("PATCH");
+        expect(bodyOf(call)).toEqual({ name: "Ada" });
+        expect(result).toEqual({ user });
+    });
+
+    it("updateProfile sends an explicit null to clear the name", async () => {
+        const calls = stubFetch(jsonResponse({ user }));
+        await api.updateProfile(null);
+        expect(bodyOf(firstCall(calls))).toEqual({ name: null });
+    });
+
+    it("changePassword carries the current password when one is given", async () => {
+        const calls = stubFetch(jsonResponse({ user }));
+        await api.changePassword("new-password", "old-password");
+
+        const call = firstCall(calls);
+        expect(call.url).toBe("/api/me/password");
+        expect(call.init?.method).toBe("POST");
+        expect(bodyOf(call)).toEqual({ current: "old-password", password: "new-password" });
+    });
+
+    it("changePassword omits current when setting a first password", async () => {
+        const calls = stubFetch(jsonResponse({ user }));
+        await api.changePassword("first-password");
+        expect(bodyOf(firstCall(calls))).toEqual({ password: "first-password" });
+    });
+
+    it("updatePrefs PATCHes only the keys it was handed", async () => {
+        const calls = stubFetch(jsonResponse({ user }));
+        await api.updatePrefs({ appTheme: "midnight" });
+
+        const call = firstCall(calls);
+        expect(call.url).toBe("/api/me/prefs");
+        expect(call.init?.method).toBe("PATCH");
+        expect(bodyOf(call)).toEqual({ appTheme: "midnight" });
+    });
+
+    it("getConnections and getMemberships are plain GETs", async () => {
+        const calls = stubFetch(jsonResponse({ connections: [] }));
+        await api.getConnections();
+        expect(firstCall(calls).url).toBe("/api/me/connections");
+        expect(firstCall(calls).init?.method).toBeUndefined();
+
+        const more = stubFetch(jsonResponse({ memberships: [] }));
+        await api.getMemberships();
+        expect(firstCall(more).url).toBe("/api/me/workspaces");
+    });
+
+    it("unlinkConnection DELETEs the encoded provider", async () => {
+        const calls = stubFetch(jsonResponse({ ok: true }));
+        await api.unlinkConnection("google");
+
+        const call = firstCall(calls);
+        expect(call.url).toBe("/api/me/connections/google");
+        expect(call.init?.method).toBe("DELETE");
+    });
+
+    it("leaveWorkspace names a workspace only when one is given", async () => {
+        const named = stubFetch(jsonResponse({ ok: true }));
+        await api.leaveWorkspace("ws_2");
+        expect(firstCall(named).url).toBe("/api/workspace/leave");
+        expect(bodyOf(firstCall(named))).toEqual({ workspaceId: "ws_2" });
+
+        const active = stubFetch(jsonResponse({ ok: true }));
+        await api.leaveWorkspace();
+        expect(bodyOf(firstCall(active))).toEqual({});
+    });
+});
+
 describe("searchMedia — query-string encoding", () => {
     it("encodes q, sets page + kind, and appends orientation when provided", async () => {
         const calls = stubFetch(jsonResponse({ items: [], total: 0 }));

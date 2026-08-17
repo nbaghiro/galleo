@@ -13,7 +13,15 @@ import type {
 import { asContent } from "@model/artifact";
 import type { Usage } from "@model/credits";
 import type { EvalCheck, EvalJudgement, EvalRun, EvalRunSummary, Rubric } from "@model/eval";
-import type { Folder, User, WorkspaceRole } from "@model/workspace";
+import type {
+    AccountConnection,
+    AuthProvider,
+    Folder,
+    Membership,
+    User,
+    UserPrefs,
+    WorkspaceRole,
+} from "@model/workspace";
 import type { Template } from "@model/templates";
 import type { ThemeSummary as Theme, ThemeInput, Tokens } from "@themes";
 import type {
@@ -110,7 +118,7 @@ export interface WorkspaceState {
     role: WorkspaceRole;
     members: WorkspaceMember[];
     invites: WorkspaceInvite[];
-    memberships: { id: string; name: string; active: boolean }[];
+    memberships: Membership[];
 }
 
 // GET /features — resolved capabilities + each feature's launch status
@@ -243,7 +251,14 @@ export type PublicResult =
 
 // typed client over /api/* (dev proxy → :8601); cookies carry the session
 export type { ArtifactSummary, SearchHit } from "@model/artifact";
-export type { User as ApiUser, Folder as ApiFolder } from "@model/workspace";
+export type {
+    User as ApiUser,
+    Folder as ApiFolder,
+    AccountConnection,
+    AuthProvider,
+    Membership,
+    UserPrefs,
+} from "@model/workspace";
 export type { Template as ApiTemplate } from "@model/templates";
 
 // the context library's wire shapes (server: services/api/context.ts)
@@ -346,6 +361,21 @@ export const api = {
         }),
     resendVerification: () => req<{ ok: true }>("/auth/resend-verification", { method: "POST" }),
     logout: () => req<{ ok: true }>("/auth/logout", { method: "POST" }),
+
+    // the account surface; every writer answers with the whole user, so the store adopts one shape
+    updateProfile: (name: string | null) =>
+        req<{ user: User }>("/me", { method: "PATCH", body: JSON.stringify({ name }) }),
+    changePassword: (password: string, current?: string) =>
+        req<{ user: User }>("/me/password", {
+            method: "POST",
+            body: JSON.stringify(current ? { current, password } : { password }),
+        }),
+    updatePrefs: (patch: Partial<Record<keyof UserPrefs, string | null>>) =>
+        req<{ user: User }>("/me/prefs", { method: "PATCH", body: JSON.stringify(patch) }),
+    getConnections: () => req<{ connections: AccountConnection[] }>("/me/connections"),
+    unlinkConnection: (provider: AuthProvider) =>
+        req<{ ok: true }>(`/me/connections/${encodeURIComponent(provider)}`, { method: "DELETE" }),
+    getMemberships: () => req<{ memberships: Membership[] }>("/me/workspaces"),
     // `qs` carries the page's filters + cursor; the server owns folder/format/sort so pages stay coherent
     listArtifacts: (qs = "") => req<ArtifactPage>(`/artifacts${qs ? `?${qs}` : ""}`),
     listTemplates: () => req<{ templates: Template[]; uses: Record<string, number> }>("/templates"),
@@ -567,6 +597,11 @@ export const api = {
     getEvalRubric: () => req<{ rubric: Rubric }>("/eval/rubric"),
     judgeEvalRun: (id: string) =>
         req<{ judgements: EvalJudgement[] }>(`/eval/runs/${id}/judge`, { method: "POST" }),
+    judgeEvalVisuals: (id: string, images: { id: string; dataUrl: string }[]) =>
+        req<{ judgements: EvalJudgement[] }>(`/eval/runs/${id}/judge-visual`, {
+            method: "POST",
+            body: JSON.stringify({ images }),
+        }),
     postEvalChecks: (id: string, checks: EvalCheck[]) =>
         req<{ ok: true }>(`/eval/runs/${id}/checks`, {
             method: "POST",
@@ -584,7 +619,12 @@ export const api = {
             method: "PATCH",
             body: JSON.stringify({ role }),
         }),
-    leaveWorkspace: () => req<{ ok: true }>("/workspace/leave", { method: "POST" }),
+    // omitting the id leaves the active workspace, which is what the workspace settings page means
+    leaveWorkspace: (workspaceId?: string) =>
+        req<{ ok: true }>("/workspace/leave", {
+            method: "POST",
+            body: JSON.stringify(workspaceId ? { workspaceId } : {}),
+        }),
     transferOwnership: (userId: string) =>
         req<{ ok: true }>("/workspace/transfer", {
             method: "POST",

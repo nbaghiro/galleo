@@ -20,6 +20,7 @@ import type { FeatureOverrides, ScheduledChange } from "@model/billing";
 import type { Usage } from "@model/credits";
 import type { ArtifactContent } from "@model/artifact";
 import type { EvalCheck, EvalConfig, EvalJudgement, EvalStatus } from "@model/eval";
+import type { UserPrefs } from "@model/workspace";
 
 // Drizzle has no tsvector type; the column is generated from title + search_text, never written by hand
 const tsvector = customType<{ data: string; driverData: string }>({
@@ -37,6 +38,8 @@ export const users = pgTable("users", {
     passwordChangedAt: timestamp("password_changed_at"),
     // which membership the app opens (no FK — workspaces is declared below; validated on read)
     activeWorkspaceId: uuid("active_workspace_id"),
+    // per-account settings; client-written, so every read normalizes through readUserPrefs
+    prefs: jsonb("prefs").$type<UserPrefs>(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -29,7 +29,8 @@ with high-fidelity export. Net-new, TypeScript.
   LLM-facing catalog lives with its prompt in `services/core/ai/prompts/catalog.ts`), `credits` (metered credits +
   the AiTask steps), `tools` (the one tool catalog: identity, surfaces, pricing), `billing` (plans, seats,
   add-ons + the entitlement resolver), `eval` (the traced-run contract the eval playground reads),
-  `workspace` (user/folder + the auth DTOs), `text` (rich-text core + the render-facing `Run`), plus
+  `workspace` (the person, not the tenant: user + prefs + memberships + folder + the auth/account DTOs),
+  `text` (rich-text core + the render-facing `Run`), plus
   `geometry` (sizing + format profiles), `media` (the picker + asset DTOs), `authoring` (fixture DSL),
   `elements` (element value-sets + the vector IR), and
   the two curated catalogs that carry their own contract: `theme` (the whole theme contract + library) and
@@ -193,7 +194,9 @@ has a structural ghost (`skeletonize` in `@elements/spec`). **58 palette element
 (`@engine/profile` + `fragment`) is built, so one artifact renders as deck / doc / web.
 
 The product SPA (`app/`, served at `/app`) wraps the studio: library / templates / trash / shared /
-editor views, a backend (`services/` Hono + Postgres/Drizzle; artifact content lives in the
+editor views, the two settings surfaces (`/settings` for the workspace, `/account` for the person, over
+`services/api/account.ts` + `users.prefs` — see `.docs/workspaces.md`),
+a backend (`services/` Hono + Postgres/Drizzle; artifact content lives in the
 `draft_content` jsonb, with a write-time `digest` + `search_text` feeding a generated `search_tsv` that
 ⌘K and the library search field query over — see `.docs/search.md`), a singular theme editor
 (`app/views/ThemeEditor.tsx`), and a **real** streamed

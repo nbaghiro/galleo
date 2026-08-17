@@ -6,6 +6,7 @@ import {
     acceptInvite,
     inviteByToken,
     inviteMember,
+    leaveWorkspace,
     liveMembers,
     membershipsOf,
     pendingInvites,
@@ -46,7 +47,6 @@ workspace.get("/workspace", requireWorkspace, async (c) => {
     });
 });
 
-workspace.patch("/workspace", requireWorkspace, requireRole("admin"), async (c) => {
 const zName = z.object({ name: z.string().optional() });
 const zInvite = z.object({ email: z.string().optional(), role: z.string().optional() });
 const zToken = z.object({ token: z.string().optional() });
@@ -54,6 +54,7 @@ const zRole = z.object({ role: z.string().optional() });
 const zWorkspaceId = z.object({ workspaceId: z.string().optional() });
 const zUserId = z.object({ userId: z.string().optional() });
 
+workspace.patch("/workspace", requireWorkspace, requireRole("admin"), async (c) => {
     const body = await readJson(c, zName);
     if (!body) return c.json(BAD_BODY, 400);
     const { name } = body;
@@ -142,6 +143,7 @@ workspace.patch("/workspace/members/:userId", requireWorkspace, requireRole("own
     return ok ? c.json({ ok: true }) : c.json({ error: "not a member" }, 404);
 });
 
+// Defaults to the active workspace; the account page passes an id to leave one it isn't working in.
 workspace.post("/workspace/leave", requireWorkspace, async (c) => {
     const [user, ws] = [c.get("user"), c.get("ws")];
     const body = await readJson(c, zWorkspaceId);

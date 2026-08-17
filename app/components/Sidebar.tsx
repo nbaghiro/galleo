@@ -430,16 +430,33 @@ export const Sidebar: Component = () => {
                 </div>
 
                 <Show when={billing()}>{(b) => <CreditsCard b={b()} navigate={navigate} />}</Show>
-                <div class="mt-3 flex items-center gap-2.5 border-t border-line pt-3">
-                    <span class="grid h-8 w-8 flex-none place-items-center rounded-lg bg-accent text-[12px] font-bold text-onaccent">
-                        {(user()?.name ?? user()?.email ?? "U").charAt(0).toUpperCase()}
-                    </span>
-                    <div class="min-w-0 flex-1">
-                        <div class="truncate text-[12.5px] font-semibold text-ink">
-                            {user()?.name ?? "Signed in"}
-                        </div>
-                        <div class="truncate text-[10.5px] text-muted">{user()?.email}</div>
-                    </div>
+                <div class="mt-3 flex items-center gap-1 border-t border-line pt-3">
+                    <button
+                        class={`flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1 py-1 text-left transition-colors hover:bg-canvas ${
+                            route() === "/account" ? "bg-accent/10" : ""
+                        }`}
+                        title="Account settings"
+                        onClick={() => navigate("/account")}
+                    >
+                        <span class="grid h-8 w-8 flex-none place-items-center overflow-hidden rounded-lg bg-accent text-[12px] font-bold text-onaccent">
+                            <Show
+                                when={user()?.avatarUrl}
+                                fallback={(user()?.name ?? user()?.email ?? "U")
+                                    .charAt(0)
+                                    .toUpperCase()}
+                            >
+                                {(url) => <img src={url()} alt="" class="size-full object-cover" />}
+                            </Show>
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block truncate text-[12.5px] font-semibold text-ink">
+                                {user()?.name ?? "Signed in"}
+                            </span>
+                            <span class="block truncate text-[10.5px] text-muted">
+                                {user()?.email}
+                            </span>
+                        </span>
+                    </button>
                     <ThemePicker />
                     <IconButton
                         size="lg"

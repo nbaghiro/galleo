@@ -7,6 +7,7 @@ import { readSession, SESSION_COOKIE } from "./utils/auth";
 import { assertDatabaseUrl } from "./db/client";
 import { out } from "./utils/env";
 import { session } from "./api/session";
+import { account } from "./api/account";
 import { oauth } from "./api/oauth";
 import { artifacts } from "./api/artifacts";
 import { folders } from "./api/folders";
@@ -37,6 +38,7 @@ app.get("/health", (c) => c.json({ ok: true }));
 // rewrite) and prod share one route map. Mounted one by one rather than over an array: each router
 // declares its own context variables, so an array of them has no single element type.
 app.route("/api", session);
+app.route("/api", account);
 app.route("/api", oauth);
 app.route("/api", artifacts);
 app.route("/api", folders);

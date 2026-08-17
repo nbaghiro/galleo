@@ -2,7 +2,8 @@ import { randomBytes, createHash } from "node:crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { Google } from "arctic";
 
-import type { User } from "@model/workspace";
+import type { AccountConnection, AuthProvider, User, UserPrefs } from "@model/workspace";
+import { mergeUserPrefs, readUserPrefs } from "@model/workspace";
 import { db } from "@services/db/client";
 import { freshCreditWindow, rollCreditWindow } from "./ledger";
 import { schema } from "@services/db/schema";
@@ -15,13 +16,16 @@ import { sendEmail } from "./mail";
 
 export type WorkspaceRow = typeof schema.workspaces.$inferSelect;
 
-// Single-sourced so currentUser and the auth routes project identically.
+// Single-sourced so currentUser and the auth routes project identically. The hash never leaves this
+// function: the DTO carries only whether one exists, which is what the password form branches on.
 export function toUser(u: {
     id: string;
     email: string;
     name: string | null;
     avatarUrl: string | null;
     emailVerifiedAt: Date | null;
+    passwordHash: string | null;
+    prefs: unknown;
 }): User {
     return {
         id: u.id,
@@ -29,6 +33,8 @@ export function toUser(u: {
         name: u.name,
         avatarUrl: u.avatarUrl,
         emailVerified: u.emailVerifiedAt !== null,
+        hasPassword: u.passwordHash !== null,
+        prefs: readUserPrefs(u.prefs),
     };
 }
 
@@ -43,6 +49,8 @@ export async function currentUser(token: string | undefined): Promise<User | nul
             avatarUrl: schema.users.avatarUrl,
             emailVerifiedAt: schema.users.emailVerifiedAt,
             passwordChangedAt: schema.users.passwordChangedAt,
+            passwordHash: schema.users.passwordHash,
+            prefs: schema.users.prefs,
         })
         .from(schema.users)
         .where(eq(schema.users.id, payload.uid));
@@ -89,6 +97,9 @@ export interface ProvisionedUser {
     email: string;
     name: string | null;
     avatarUrl: string | null;
+    emailVerifiedAt: Date | null;
+    passwordHash: string | null;
+    prefs: UserPrefs | null;
 }
 
 const SLUG_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -167,6 +178,9 @@ export async function provisionUser(input: ProvisionInput): Promise<ProvisionedU
             email: schema.users.email,
             name: schema.users.name,
             avatarUrl: schema.users.avatarUrl,
+            emailVerifiedAt: schema.users.emailVerifiedAt,
+            passwordHash: schema.users.passwordHash,
+            prefs: schema.users.prefs,
         });
     if (!user) throw new Error("failed to create user");
     await createWorkspaceForUser(user.id, {
@@ -349,6 +363,137 @@ export async function markEmailVerified(userId: string): Promise<void> {
         .update(schema.users)
         .set({ emailVerifiedAt: new Date() })
         .where(eq(schema.users.id, userId));
+}
+
+// The account surface: profile, password, linked providers, preferences. Every writer returns the
+// re-read User, so a route answers with the same shape /me does and the client never re-fetches.
+
+const USER_COLS = {
+    id: schema.users.id,
+    email: schema.users.email,
+    name: schema.users.name,
+    avatarUrl: schema.users.avatarUrl,
+    emailVerifiedAt: schema.users.emailVerifiedAt,
+    passwordHash: schema.users.passwordHash,
+    prefs: schema.users.prefs,
+};
+
+export async function updateProfile(userId: string, name: string | null): Promise<User | null> {
+    const [u] = await db
+        .update(schema.users)
+        .set({ name })
+        .where(eq(schema.users.id, userId))
+        .returning(USER_COLS);
+    return u ? toUser(u) : null;
+}
+
+export type PasswordChange =
+    | { error: "no-account" }
+    | { error: "wrong-password" }
+    | { error: "current-required" }
+    | { user: User };
+
+// Setting the first password on an OAuth-only account takes no current one, since there is nothing
+// to prove. Either way passwordChangedAt moves, which drops every session minted before now: the
+// caller's own cookie has to be reissued by the route.
+export async function changePassword(
+    userId: string,
+    current: string | undefined,
+    next: string,
+): Promise<PasswordChange> {
+    const [existing] = await db
+        .select({ passwordHash: schema.users.passwordHash })
+        .from(schema.users)
+        .where(eq(schema.users.id, userId));
+    if (!existing) return { error: "no-account" };
+    if (existing.passwordHash) {
+        if (!current) return { error: "current-required" };
+        if (!verifyPassword(current, existing.passwordHash)) return { error: "wrong-password" };
+    }
+    const [u] = await db
+        .update(schema.users)
+        .set({ passwordHash: hashPassword(next), passwordChangedAt: new Date() })
+        .where(eq(schema.users.id, userId))
+        .returning(USER_COLS);
+    return u ? { user: toUser(u) } : { error: "no-account" };
+}
+
+export async function connectionsOf(userId: string): Promise<AccountConnection[]> {
+    const rows = await db
+        .select({
+            provider: schema.oauthAccounts.provider,
+            createdAt: schema.oauthAccounts.createdAt,
+        })
+        .from(schema.oauthAccounts)
+        .where(eq(schema.oauthAccounts.userId, userId))
+        .orderBy(schema.oauthAccounts.createdAt);
+    return rows.map((r) => ({
+        provider: r.provider as AuthProvider,
+        linkedAt: r.createdAt.toISOString(),
+    }));
+}
+
+export type LinkResult = "ok" | "already-linked" | "linked-elsewhere";
+
+// The signed-in link path, as opposed to linkOAuthAccount's sign-in path: the session names the
+// account, so the provider's email is free to differ from it and can never redirect the link
+// somewhere else.
+export async function linkProviderToUser(
+    userId: string,
+    provider: string,
+    providerAccountId: string,
+): Promise<LinkResult> {
+    const [existing] = await db
+        .select({ userId: schema.oauthAccounts.userId })
+        .from(schema.oauthAccounts)
+        .where(
+            and(
+                eq(schema.oauthAccounts.provider, provider),
+                eq(schema.oauthAccounts.providerAccountId, providerAccountId),
+            ),
+        );
+    if (existing) return existing.userId === userId ? "already-linked" : "linked-elsewhere";
+    await db.insert(schema.oauthAccounts).values({ provider, providerAccountId, userId });
+    return "ok";
+}
+
+export type UnlinkResult = "ok" | "not-linked" | "last-credential";
+
+// Refuses the unlink that would lock the account out: with no password and no second provider, the
+// link being dropped is the only way back in.
+export async function unlinkProvider(userId: string, provider: string): Promise<UnlinkResult> {
+    const [[account], links] = await Promise.all([
+        db
+            .select({ passwordHash: schema.users.passwordHash })
+            .from(schema.users)
+            .where(eq(schema.users.id, userId)),
+        connectionsOf(userId),
+    ]);
+    if (!links.some((l) => l.provider === provider)) return "not-linked";
+    if (!account?.passwordHash && links.length < 2) return "last-credential";
+    await db
+        .delete(schema.oauthAccounts)
+        .where(
+            and(
+                eq(schema.oauthAccounts.userId, userId),
+                eq(schema.oauthAccounts.provider, provider),
+            ),
+        );
+    return "ok";
+}
+
+export async function updatePrefs(userId: string, patch: unknown): Promise<User | null> {
+    const [existing] = await db
+        .select({ prefs: schema.users.prefs })
+        .from(schema.users)
+        .where(eq(schema.users.id, userId));
+    if (!existing) return null;
+    const [u] = await db
+        .update(schema.users)
+        .set({ prefs: mergeUserPrefs(readUserPrefs(existing.prefs), patch) })
+        .where(eq(schema.users.id, userId))
+        .returning(USER_COLS);
+    return u ? toUser(u) : null;
 }
 
 export async function signUp(

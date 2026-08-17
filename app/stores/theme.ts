@@ -2,12 +2,14 @@ import { createSignal } from "solid-js";
 import { resolveTheme, registerThemes, themeCssVars } from "@themes";
 import type { JSX } from "solid-js";
 import type { Theme, Tokens } from "@themes";
-import { api, type ApiTheme } from "@app/api";
+import { api, type ApiTheme, type UserPrefs } from "@app/api";
 import { useLocation } from "@solidjs/router";
 import { editorTokens } from "@editor/core/store";
 import type { ElementInstance, Section } from "@model/artifact";
 
-// app-chrome theme (distinct from a deck's artifact theme); persisted so it survives logout
+// app-chrome theme (distinct from a deck's artifact theme). The account row is the source of truth,
+// so the choice follows the user to another browser; localStorage is a cache that paints the right
+// theme on the first frame, before /me answers.
 const KEY = "galleo:app-theme";
 const DEFAULT = "studio";
 
@@ -21,13 +23,26 @@ try {
 
 export const [appTheme, setAppThemeSignal] = createSignal(stored || DEFAULT);
 
-export function setAppTheme(id: string): void {
+function cacheAppTheme(id: string): void {
     setAppThemeSignal(id);
     try {
         localStorage.setItem(KEY, id);
     } catch {
         /* storage unavailable */
     }
+}
+
+export function setAppTheme(id: string): void {
+    if (id === appTheme()) return;
+    cacheAppTheme(id);
+    // signed out (the auth screen themes itself) this 401s, which is not worth surfacing
+    void api.updatePrefs({ appTheme: id }).catch(() => {});
+}
+
+// The account's stored choice, applied at whatever point the user becomes known. Local-only, so a
+// login on a second browser adopts the account theme without echoing it straight back.
+export function adoptUserPrefs(prefs: UserPrefs): void {
+    if (prefs.appTheme && prefs.appTheme !== appTheme()) cacheAppTheme(prefs.appTheme);
 }
 
 // live, non-persisted: the theme editor's draft recolors the app behind the modal

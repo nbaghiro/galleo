@@ -33,8 +33,9 @@ export async function setMemberRole(userId: string, role: "admin" | "member"): P
 }
 
 // Full reload, like a switch: every store must re-fetch under whatever workspace comes next.
-export async function leaveWorkspace(): Promise<void> {
-    await api.leaveWorkspace();
+// No id means the active one, which is what workspace settings offers.
+export async function leaveWorkspace(workspaceId?: string): Promise<void> {
+    await api.leaveWorkspace(workspaceId);
     window.location.href = "/";
 }
 

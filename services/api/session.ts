@@ -20,6 +20,7 @@ import {
     sendResetEmail,
     sendVerifyEmail,
     signUp,
+    toUser,
 } from "@services/core/accounts";
 import { requireUser, type AuthedEnv } from "./middleware";
 
@@ -32,7 +33,6 @@ const forgotLimiter = rateLimit({ name: "forgot", limit: 5, windowMs: 15 * 60_00
 const resetLimiter = rateLimit({ name: "reset", limit: 10, windowMs: 15 * 60_000 });
 const resendLimiter = rateLimit({ name: "resend", limit: 5, windowMs: 15 * 60_000 });
 
-session.post("/auth/signup", signupLimiter, async (c) => {
 // Fields stay optional so a well-formed body missing one still gets the route's own message; the
 // schema is here to reject a body that is not an object, or a field that is not a string.
 const zSignup = z.object({
@@ -44,6 +44,7 @@ const zLogin = z.object({ email: z.string().optional(), password: z.string().opt
 const zForgot = z.object({ email: z.string().optional() });
 const zReset = z.object({ token: z.string().optional(), password: z.string().optional() });
 
+session.post("/auth/signup", signupLimiter, async (c) => {
     const body = await readJson(c, zSignup);
     if (!body) return c.json(BAD_BODY, 400);
     const { email, password, name } = body;
@@ -64,7 +65,7 @@ const zReset = z.object({ token: z.string().optional(), password: z.string().opt
     }
     setSessionCookie(c, user.id);
     await sendVerifyEmail(user.id, user.email).catch(() => {});
-    return c.json({ user: { ...user, emailVerified: false } });
+    return c.json({ user: toUser(user) });
 });
 
 session.post("/auth/login", loginLimiter, async (c) => {
@@ -123,5 +124,3 @@ session.post("/auth/resend-verification", resendLimiter, requireUser, async (c) 
     if (!u.emailVerified) await sendVerifyEmail(u.id, u.email).catch(() => {});
     return c.json({ ok: true });
 });
-
-session.get("/me", requireUser, (c) => c.json({ user: c.get("user") }));

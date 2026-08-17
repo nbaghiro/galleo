@@ -1,9 +1,16 @@
 import { createSignal } from "solid-js";
-import { api, type ApiUser } from "@app/api";
-import { clearCustomThemes } from "./theme";
+import { api, type AccountConnection, type ApiUser, type AuthProvider } from "@app/api";
+import { adoptUserPrefs, clearCustomThemes } from "./theme";
 
 export const [user, setUser] = createSignal<ApiUser | null>(null);
 export const [authReady, setAuthReady] = createSignal(false);
+
+// Every path that produces a user runs through here, so the account's stored preferences reach the
+// app the same way whether they arrived from a session probe, a login, or a preference write.
+function adopt(u: ApiUser): void {
+    setUser(u);
+    adoptUserPrefs(u.prefs);
+}
 
 export async function bootstrap(): Promise<void> {
     // /login exists to create a session: probing /me there just prints a 401 in the console for
@@ -16,7 +23,7 @@ export async function bootstrap(): Promise<void> {
     }
     try {
         const { user: u } = await api.me();
-        setUser(u);
+        adopt(u);
     } catch {
         setUser(null);
     }
@@ -25,18 +32,39 @@ export async function bootstrap(): Promise<void> {
 
 export async function login(email: string, password: string): Promise<void> {
     const { user: u } = await api.login(email, password);
-    setUser(u);
+    adopt(u);
 }
 
 export async function signup(email: string, password: string, name: string): Promise<void> {
     const { user: u } = await api.signup(email, password, name || undefined);
-    setUser(u);
+    adopt(u);
 }
 
 // the backend signs the user in as part of the reset, so adopt the returned user as login does
 export async function resetPassword(token: string, password: string): Promise<void> {
     const { user: u } = await api.resetPassword(token, password);
-    setUser(u);
+    adopt(u);
+}
+
+export async function updateProfile(name: string | null): Promise<void> {
+    const { user: u } = await api.updateProfile(name);
+    adopt(u);
+}
+
+// The server reissues the session cookie, so the caller stays signed in here while every other
+// session this account had is dropped.
+export async function changePassword(password: string, current?: string): Promise<void> {
+    const { user: u } = await api.changePassword(password, current);
+    adopt(u);
+}
+
+export async function loadConnections(): Promise<AccountConnection[]> {
+    const { connections } = await api.getConnections();
+    return connections;
+}
+
+export async function unlinkConnection(provider: AuthProvider): Promise<void> {
+    await api.unlinkConnection(provider);
 }
 
 export async function logout(): Promise<void> {

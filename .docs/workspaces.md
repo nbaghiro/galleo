@@ -21,26 +21,28 @@ one code path rather than a personal one and a team one.
 
 ## The pieces
 
-| Concern                                              | File                                                                                                     |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| The row, its columns and indexes                     | `services/db/schema.ts`                                                                                  |
-| Plan catalog, feature registry, entitlement resolver | `model/billing.ts`                                                                                       |
-| Cost units, the credit/USD anchor, `costOf`          | `model/credits.ts`                                                                                       |
-| Tool catalog, `estimateCost` / `reserveCost`         | `model/tools.ts`                                                                                         |
-| Roles + the auth DTOs                                | `model/workspace.ts`                                                                                     |
-| Create a workspace, resolve the current one          | `services/core/accounts.ts`                                                                              |
-| Members, invites, seats, ownership                   | `services/core/workspaces.ts`                                                                            |
-| Balances, ledger rows, the monthly window            | `services/core/ledger.ts`                                                                                |
-| AI spend policy (reserve, meter, settle)             | `services/core/spend.ts`                                                                                 |
-| Plans, Stripe, the webhook, ledger paging            | `services/core/billing.ts`                                                                               |
-| The 402 guards (`requireFeature` / `checkLimit`)     | `services/utils/http.ts`                                                                                 |
-| `requireUser` / `requireWorkspace` / `requireRole`   | `services/api/middleware.ts`                                                                             |
-| `/billing/*`                                         | `services/api/billing.ts`                                                                                |
-| `/workspace/*`, `/invites/*`                         | `services/api/workspace.ts`                                                                              |
-| `/features`                                          | `services/api/features.ts`                                                                               |
-| Client stores                                        | `app/stores/workspace.ts`, `app/stores/billing.ts`, `app/stores/features.ts`                             |
-| Surfaces                                             | `app/views/WorkspaceSettingsView.tsx`, `PricingView.tsx`, `InviteView.tsx`, `app/components/Sidebar.tsx` |
-| The demo universe                                    | `services/db/seed-workspaces.ts` (data), `services/db/seed.ts` (the writer)                              |
+| Concern                                              | File                                                                                                                                |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| The row, its columns and indexes                     | `services/db/schema.ts`                                                                                                             |
+| Plan catalog, feature registry, entitlement resolver | `model/billing.ts`                                                                                                                  |
+| Cost units, the credit/USD anchor, `costOf`          | `model/credits.ts`                                                                                                                  |
+| Tool catalog, `estimateCost` / `reserveCost`         | `model/tools.ts`                                                                                                                    |
+| Roles, the auth DTOs, `UserPrefs`                    | `model/workspace.ts`                                                                                                                |
+| Create a workspace, resolve the current one          | `services/core/accounts.ts`                                                                                                         |
+| The account itself (profile, password, links, prefs) | `services/core/accounts.ts`, `services/api/account.ts`                                                                              |
+| Members, invites, seats, ownership                   | `services/core/workspaces.ts`                                                                                                       |
+| Balances, ledger rows, the monthly window            | `services/core/ledger.ts`                                                                                                           |
+| AI spend policy (reserve, meter, settle)             | `services/core/spend.ts`                                                                                                            |
+| Plans, Stripe, the webhook, ledger paging            | `services/core/billing.ts`                                                                                                          |
+| The 402 guards (`requireFeature` / `checkLimit`)     | `services/utils/http.ts`                                                                                                            |
+| `requireUser` / `requireWorkspace` / `requireRole`   | `services/api/middleware.ts`                                                                                                        |
+| `/billing/*`                                         | `services/api/billing.ts`                                                                                                           |
+| `/workspace/*`, `/invites/*`                         | `services/api/workspace.ts`                                                                                                         |
+| `/features`                                          | `services/api/features.ts`                                                                                                          |
+| `/me/*`                                              | `services/api/account.ts`                                                                                                           |
+| Client stores                                        | `app/stores/workspace.ts`, `app/stores/billing.ts`, `app/stores/features.ts`, `app/stores/auth.ts`                                  |
+| Surfaces                                             | `app/views/WorkspaceSettingsView.tsx`, `AccountSettingsView.tsx`, `PricingView.tsx`, `InviteView.tsx`, `app/components/Sidebar.tsx` |
+| The demo universe                                    | `services/db/seed-workspaces.ts` (data), `services/db/seed.ts` (the writer)                                                         |
 
 ## The row (`workspaces`)
 
@@ -472,11 +474,69 @@ their `active_workspace_id` so `currentWorkspace` drops them back to their own o
 route refuses to remove the owner at all, and refuses to let an admin remove a fellow admin (that is an
 owner call).
 
-`leaveWorkspace` is `removeMember` on yourself; the owner cannot, and is told to transfer first.
+`leaveWorkspace(userId, workspaceId)` is `removeMember` on yourself; the owner cannot, and is told to
+transfer first. It names its workspace rather than assuming the active one, because the account page lists
+every membership and offers to leave any of them; `POST /workspace/leave` with no body still means the
+active workspace, which is what workspace settings sends.
 
 `transferOwnership` requires the target to already be a member, then in one transaction sets
 `workspaces.owner_id` and demotes the previous owner's members row to `admin`. The new owner's own
 members row is left as it was, which is harmless because ownership is read from `owner_id`.
+
+## The account (`users`)
+
+The workspace is the tenant; the account is the person, and it owns the handful of settings that should
+follow someone between workspaces and between browsers. Everything under `/me` lives in
+`services/api/account.ts`, which is deliberately separate from `services/api/session.ts`: that file owns the
+session lifecycle (`/auth/signup`, `/auth/login`, `/auth/logout`, `/auth/forgot`, `/auth/reset`,
+`/auth/verify`, `/auth/resend-verification`), this one owns the account behind it.
+
+| Route                              | Does                                                                         |
+| ---------------------------------- | ---------------------------------------------------------------------------- |
+| `GET /me`                          | the boot probe: the `User` DTO, including `hasPassword` and `prefs`          |
+| `PATCH /me`                        | display name, trimmed and capped at 80 by `cleanDisplayName`                 |
+| `POST /me/password`                | change it, or set a first one on an OAuth-only account                       |
+| `GET /me/connections`              | linked OAuth providers with their link dates                                 |
+| `DELETE /me/connections/:provider` | unlink, refused when it is the last way in                                   |
+| `PATCH /me/prefs`                  | merge a patch into `users.prefs`                                             |
+| `GET /me/workspaces`               | every membership with the caller's role, independent of the active workspace |
+
+Each writer answers with the whole re-read `User`, so the client adopts one shape and never re-fetches.
+
+**Password.** `changePassword` takes the current password only when one is stored; an OAuth-only account
+(`password_hash` null) is setting a first password and has nothing to prove. Either way the write moves
+`password_changed_at`, and `currentUser` rejects any session minted before that instant, so a change signs
+out every other device. That includes the cookie that authorized the request, which is why the route calls
+`setSessionCookie` on its way out: without it a user would be signed out by their own password change.
+
+**Preferences.** `users.prefs` is one nullable jsonb column, so a new preference is a field on `UserPrefs`
+rather than a migration. It is client-written, so every read goes through `readUserPrefs`, which drops
+unknown keys and wrong types, and every write through `mergeUserPrefs`, which applies only the keys a patch
+carries and treats an explicit `null` as "clear this one". Both live in `@model/workspace` because the
+server and the client need the same reading of the column. Today it holds `appTheme`. On the client the
+account row is the source of truth and `localStorage` is a cache that paints the right theme on the first
+frame, before `/me` answers: `setAppTheme` writes both, `adoptUserPrefs` applies the server's value without
+echoing it back.
+
+**Connections.** There are two distinct OAuth paths and they must not be confused. `linkOAuthAccount` is the
+**sign-in** path: it resolves an identity to an account by provider id, then by verified email, and issues a
+session for whatever account that lands on. `linkProviderToUser` is the **link** path: the session names the
+account, so the provider's address is free to differ from the account's own and can never redirect the link
+elsewhere. `/auth/google?link=1` sets a short-lived `oauth_intent` cookie beside the state and verifier, and
+the callback takes the link path only when that cookie and a live session are both present; a session that
+expired mid-consent degrades to a plain sign-in rather than silently attaching the identity to whoever the
+email resolves to. Link outcomes report back to `/account?linked=…` or `/account?authError=…`, sign-in
+outcomes to `/login?authError=…`.
+
+`unlinkProvider` refuses the unlink that would lock the account out: with no password and no second
+provider, the link being dropped is the only way back in. The account page disables the button in that case
+and says why, so the 409 is an invariant rather than the user's first hint.
+
+**Surface.** `app/views/AccountSettingsView.tsx` at `/account`, reached from the sidebar account row (which
+was previously inert), from `⌘K` (`account.settings`), and from the OAuth link redirect. Five sections:
+profile (avatar, name, email with its verified state and resend), password, connected accounts, preferences
+(app theme, AI model overrides), and the account's workspaces (role, switch, leave). Members, plan, and
+billing stay in workspace settings; the two pages cross-link.
 
 ## What a new workspace starts with
 
@@ -569,6 +629,14 @@ which sees only the plan and would silently ignore a workspace's `featureOverrid
 - `POST /billing/portal` does not check `stripeReady()`, so it can reach `stripe()` and throw where its
   siblings 503.
 - Per-artifact permissions do not exist. Role is workspace-wide, and a member sees everything in it.
+- There is no way to create a workspace from the app. `createWorkspaceForUser` runs at signup and in the
+  seed, so a second membership can only arrive through an invite.
+- The account has no delete. It needs a decision about workspaces the user owns with other members in
+  them (block and require a transfer, or cascade), and nothing records that decision yet.
+- Avatars are read-only, taken from the OAuth profile at link time. There is no upload, so a
+  password-only account never has one.
+- Model overrides stay in `localStorage` rather than `users.prefs`: they pin a step to a specific model
+  for debugging, which is a property of the browser session, not of the account.
 
 ## Tests
 
@@ -586,3 +654,6 @@ which sees only the plan and would silently ignore a workspace's `featureOverrid
 | The role matrix                 | `services/api/__tests__/roles.itest.ts`     | legacy `editor` rows reading as member, invites hidden from members, who may invite/rename/remove, admin-cannot-remove-admin, owner-only role changes, an invite carrying a role, leave, transfer demoting the old owner                                                                                                                                                     |
 | The lazy window roll on read    | `services/core/__tests__/accounts.itest.ts` | `currentWorkspace` zeroing `aiCreditsUsed` and pushing `creditsResetAt` about 30 days out once the window has passed, and leaving an unexpired window alone                                                                                                                                                                                                                  |
 | Provisioning                    | `services/api/__tests__/session.itest.ts`   | signup and login, and the workspace created alongside a user                                                                                                                                                                                                                                                                                                                 |
+| The account surface             | `services/api/__tests__/account.itest.ts`   | `/me` carrying `hasPassword` + `prefs`, rename (trim, cap, clear), password change and first-set, wrong/missing/over-cap current, the `password_changed_at` stamp and the reissued cookie, connections list, unlink with a password or a second provider, the last-credential 409, prefs merge/clear/normalize, memberships with roles, and leaving a named workspace        |
+| The OAuth link path             | `services/api/__tests__/oauth.itest.ts`     | the intent cookie only on `?link=1`, linking to the session's account when the provider's email belongs to someone else, refusing an identity linked elsewhere, idempotent relink, the expired-session fallback to sign-in, and failures reporting to `/account` when linking and `/login` when signing in                                                                   |
+| Prefs + name normalization      | `model/__tests__/workspace.test.ts`         | `asRole` legacy mapping, `readUserPrefs` dropping unknown keys, wrong types and oversized ids, `mergeUserPrefs` patching, clearing, and refusing to mutate its input, `cleanDisplayName` trimming before capping                                                                                                                                                             |

@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, isNull, gt, sql } from "drizzle-orm";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
-import { asRole, type WorkspaceRole } from "@model/workspace";
+import { asRole, type Membership, type WorkspaceRole } from "@model/workspace";
 import { appUrl } from "@services/utils/env";
 import { sendWorkspaceInvite } from "./mail";
 import type { WorkspaceRow } from "./accounts";
@@ -100,13 +100,39 @@ export function pendingInvites(workspaceId: string) {
         .orderBy(schema.invites.createdAt);
 }
 
-export function membershipsOf(userId: string) {
-    return db
-        .select({ id: schema.workspaces.id, name: schema.workspaces.name })
+export async function membershipsOf(userId: string): Promise<Membership[]> {
+    const rows = await db
+        .select({
+            id: schema.workspaces.id,
+            name: schema.workspaces.name,
+            ownerId: schema.workspaces.ownerId,
+            role: schema.members.role,
+        })
         .from(schema.members)
         .innerJoin(schema.workspaces, eq(schema.members.workspaceId, schema.workspaces.id))
         .where(eq(schema.members.userId, userId))
         .orderBy(schema.members.createdAt);
+    return rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        role: r.ownerId === userId ? "owner" : asRole(r.role),
+    }));
+}
+
+export type LeaveResult = "ok" | "not-member" | "owner";
+
+// Leaving is an account action, so it names its workspace rather than assuming the active one: the
+// account page lists every membership, including the ones the user is not currently working in.
+export async function leaveWorkspace(userId: string, workspaceId: string): Promise<LeaveResult> {
+    const [row] = await db
+        .select({ ownerId: schema.workspaces.ownerId })
+        .from(schema.members)
+        .innerJoin(schema.workspaces, eq(schema.members.workspaceId, schema.workspaces.id))
+        .where(and(eq(schema.members.userId, userId), eq(schema.members.workspaceId, workspaceId)));
+    if (!row) return "not-member";
+    if (row.ownerId === userId) return "owner";
+    await removeMember(workspaceId, userId);
+    return "ok";
 }
 
 export type InviteResult =

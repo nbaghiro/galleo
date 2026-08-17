@@ -5,6 +5,8 @@ import { schema } from "@services/db/schema";
 export { resetDb } from "./reset-db";
 import { SESSION_COOKIE, hashPassword, makeSession } from "@services/utils/auth";
 import { session } from "@services/api/session";
+import { account } from "@services/api/account";
+import { oauth } from "@services/api/oauth";
 import { workspace } from "@services/api/workspace";
 import { artifacts } from "@services/api/artifacts";
 import { folders } from "@services/api/folders";
@@ -21,6 +23,8 @@ import { context } from "@services/api/context";
 // Kept in sync with server.ts's router list by hand.
 export const app = new Hono();
 app.route("/", session);
+app.route("/", account);
+app.route("/", oauth);
 app.route("/", artifacts);
 app.route("/", folders);
 app.route("/", themes);
