@@ -136,6 +136,77 @@ export function mix(a: string, b: string, t: number): string {
     return `#${c(ar, br)}${c(ag, bg)}${c(ab, bb)}`;
 }
 
+const HEX6 = /^#[0-9a-fA-F]{6}$/;
+
+// rgb (0..255) → hsl (h degrees, s/l 0..1)
+export function rgb2hsl(r: number, g: number, b: number): [number, number, number] {
+    r /= 255;
+    g /= 255;
+    b /= 255;
+    const mx = Math.max(r, g, b);
+    const mn = Math.min(r, g, b);
+    const l = (mx + mn) / 2;
+    if (mx === mn) return [0, 0, l];
+    const d = mx - mn;
+    const s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+    const h =
+        mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [(h / 6) * 360, s, l];
+}
+
+export function hsl2hex(h: number, s: number, l: number): string {
+    const hh = ((((h % 360) + 360) % 360) / 360) * 12;
+    const chan = (n: number): string => {
+        const k = (n + hh) % 12;
+        const a = s * Math.min(l, 1 - l);
+        const c = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+        return Math.round(c * 255)
+            .toString(16)
+            .padStart(2, "0");
+    };
+    return `#${chan(0)}${chan(8)}${chan(4)}`;
+}
+
+// Where a receding mark recedes to: white on a light page (the shipped tint look), the page itself
+// on a dark one — tinting dark-theme marks toward white collapses every step into the same pale
+// card (a near-white accent like carbon's disappears entirely). The bg can be a translucent wash
+// (the dark-section token swap); a light ink then means a dark page.
+function pageTarget(t: Tokens): string {
+    const darkPage = HEX6.test(t.bg) ? luminance(t.bg) < 0.5 : luminance(t.ink) >= 0.5;
+    return darkPage ? (HEX6.test(t.bg) ? t.bg : "#101010") : "#ffffff";
+}
+
+// mix a mark color toward the page by f; the page-aware form of mixWhite
+export function pageMix(color: string, t: Tokens, f: number): string {
+    return mix(color, pageTarget(t), f);
+}
+
+// The accent → mark-color ramp, page-aware and always opaque: index 0 is the accent itself, later
+// steps recede toward the page.
+const RAMP_STEPS = [0, 0.3, 0.52, 0.68, 0.78];
+export function accentRamp(t: Tokens, n: number): string[] {
+    return Array.from({ length: Math.max(1, n) }, (_, i) =>
+        pageMix(t.accent, t, RAMP_STEPS[i] ?? Math.min(0.84, 0.78 + (i - 4) * 0.02)),
+    );
+}
+
+// Label ink for an arbitrary mark fill, by measured contrast: the theme's own inks where one
+// clears AA, else whichever candidate reads best. Never assumes `ink` is dark — on a dark theme
+// it is not.
+export function inkOn(fill: string, t: Tokens): string {
+    let best = t.ink;
+    let bestRatio = 0;
+    for (const c of [t.ink, t.onAccent, "#111111", "#ffffff"]) {
+        const r = contrastRatio(c, fill);
+        if (r >= 4.5) return c;
+        if (r > bestRatio) {
+            bestRatio = r;
+            best = c;
+        }
+    }
+    return best;
+}
+
 // hex → rgba() with alpha a; non-6-digit → unchanged
 export function hexA(hex: string, a: number): string {
     // an rgba input keeps its channels and scales the alpha it already carries

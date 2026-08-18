@@ -3,7 +3,7 @@ import type { EngineNode, PathSink, Rect, RenderCommand } from "@engine/node";
 import { layout } from "@engine/layout";
 import { fit, grow } from "@model/geometry";
 import { diagramTypeOptions } from "@elements/diagram/render";
-import { contrastRatio } from "@themes";
+import { contrastRatio, resolveTheme } from "@themes";
 import {
     BADGE_R,
     getDiagram,
@@ -151,7 +151,7 @@ interface Audit {
     texts: Extract<RenderCommand, { kind: "text" }>[];
 }
 
-function audit(data: Record<string, unknown>, w: number, h: number): Audit {
+function audit(data: Record<string, unknown>, w: number, h: number, theme = tokens): Audit {
     const diagram = normalizeDiagram(toDiagramData(data));
     const type = getDiagram(diagram.type)!;
     const ctx = {
@@ -167,7 +167,7 @@ function audit(data: Record<string, unknown>, w: number, h: number): Audit {
             splitMinWidth: 520,
             overflow: "paginate",
         },
-        theme: tokens,
+        theme,
         measure,
     };
     const node = type.arrange(diagram, ctx as never, kidsFor(diagram), h);
@@ -243,6 +243,19 @@ for (const { value: type } of diagramTypeOptions()) {
                 ),
             },
         });
+        // uneven weights: connectors, badges, and silhouettes must track the resized cells
+        if (type === "process")
+            MATRIX.push({
+                label: `process n=${n} weighted`,
+                data: {
+                    type,
+                    items,
+                    numbers: "number",
+                    itemsMeta: Array.from({ length: n }, (_, i) =>
+                        i === 0 ? { weight: 2.4 } : i === 1 ? { weight: 0.6 } : {},
+                    ),
+                },
+            });
         // detail lines exercise the grown-cell path (a wrapped detail must stay inside its fill)
         if (type === "org")
             MATRIX.push({
@@ -258,14 +271,21 @@ for (const { value: type } of diagramTypeOptions()) {
     }
 }
 
-describe("visual invariants", () => {
+// carbon is the adversarial theme: a dark page AND a near-neutral accent, so both lightness and
+// hue differentiation must come from the page-aware ramp; studio covers the shipped light look
+const THEME_CASES = [
+    ["studio", tokens],
+    ["carbon", resolveTheme("carbon").tokens],
+] as const;
+
+describe.each(THEME_CASES)("visual invariants (%s)", (_themeName, themeTokens) => {
     for (const { label, data } of MATRIX) {
         for (const [w, h] of [
             [560, 240],
             [360, 200],
         ] as const) {
             it(`${label} at ${w}x${h}`, () => {
-                const a = audit(data, w, h);
+                const a = audit(data, w, h, themeTokens);
 
                 // 5. shape proportion: engine pill fills and painted silhouettes stay within the
                 // shape's declared max aspect

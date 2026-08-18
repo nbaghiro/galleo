@@ -26,6 +26,8 @@ import {
     type ResolvedDiagram,
 } from "@elements/diagram/utils";
 import { DIAGRAM_TYPES } from "@model/elements";
+import { contrastRatio, luminance, resolveTheme } from "@themes";
+import { getElement } from "@elements/spec";
 import "@elements/register";
 import { recordingDrawContext, tokens } from "@canvas/testkit";
 
@@ -145,6 +147,15 @@ describe("nodePaint treatments", () => {
         const p = nodePaint("#3366aa", tokens, { style: "outline", emphasis: true });
         expect(p.fill).toBe("#3366aa");
         expect(p.gradient).toBeTruthy();
+    });
+
+    it("dark theme: ink is measured, the tinted wash recedes to the page instead of white", () => {
+        const carbon = resolveTheme("carbon").tokens;
+        const solid = nodePaint(carbon.accent, carbon, { style: "solid" });
+        expect(contrastRatio(solid.ink, solid.fill!)).toBeGreaterThanOrEqual(4.5);
+        const tinted = nodePaint(carbon.accent, carbon, { style: "tinted" });
+        expect(luminance(tinted.fill!)).toBeLessThan(0.5);
+        expect(contrastRatio(tinted.ink, tinted.fill!)).toBeGreaterThanOrEqual(4.5);
     });
 });
 
@@ -489,6 +500,57 @@ describe("measured sizing", () => {
         expect(
             rows(composed({ type: "process", items: items("A very long process step label") })),
         ).toBeGreaterThan(1);
+    });
+
+    it("process splits a row by item weights; unweighted stays uniform", () => {
+        const widths = (cmds: RenderCommand[]): number[] =>
+            cmds
+                .filter((c) => c.kind === "rect")
+                .sort((a, b) => a.box.x - b.box.x)
+                .map((c) => Math.round(c.box.w));
+        const even = widths(composed({ type: "process", items: "A, B, C" }));
+        expect(new Set(even).size).toBe(1);
+        const weighted = widths(
+            composed({
+                type: "process",
+                items: "A, B, C",
+                itemsMeta: [{ weight: 2 }, {}, {}],
+            }),
+        );
+        expect(weighted[0]!).toBeGreaterThan(weighted[1]! * 1.8);
+        expect(weighted[1]).toBe(weighted[2]);
+        // total row width is conserved: weights redistribute, never grow the row
+        const sum = (xs: number[]): number => xs.reduce((a, b) => a + b, 0);
+        expect(Math.abs(sum(weighted) - sum(even))).toBeLessThanOrEqual(2);
+    });
+
+    it("the slots facet resizes a pair conserving its combined weight", () => {
+        const spec = getElement("processDiagram")!;
+        const d = { type: "process", items: "A, B, C" };
+        const slots = spec.container!.slots!(d)!;
+        expect(slots.of(0)).toBe(0);
+        expect(slots.of(3)).toBe(1);
+        const out = slots.resize([
+            { slot: 0, pct: 44 },
+            { slot: 1, pct: 22 },
+        ]) as { itemsMeta?: { weight?: number }[] };
+        const w0 = out.itemsMeta?.[0]?.weight ?? 1;
+        const w1 = out.itemsMeta?.[1]?.weight ?? 1;
+        expect(w0 / w1).toBeCloseTo(2, 1);
+        expect(w0 + w1).toBeCloseTo(2, 1);
+        // an even re-split leaves no weight residue in the stored meta
+        const back = slots.resize([
+            { slot: 0, pct: 33 },
+            { slot: 1, pct: 33 },
+        ]) as { itemsMeta?: unknown };
+        expect(back.itemsMeta).toBeUndefined();
+    });
+
+    it("positioned types opt out of the divider gesture", () => {
+        const spec = getElement("diagram")!;
+        expect(spec.container!.slots!({ type: "cycle", items: "A, B" })).toBeNull();
+        expect(spec.container!.slots!({ type: "org", items: "A, B" })).toBeNull();
+        expect(spec.container!.slots!({ type: "process", items: "A, B" })).not.toBeNull();
     });
 
     it("a value-scaled funnel band never narrows past its own label", () => {

@@ -4,7 +4,7 @@ import type { BoxInsets } from "@model/geometry";
 import { fit, fixed, grow, percent } from "@model/geometry";
 import type { Tokens } from "@themes";
 import type { DiagramNumbers, DiagramShape, DiagramStyle } from "@model/elements";
-import { fontStack, luminance, mix, mixWhite, reachContrast } from "@themes";
+import { accentRamp, fontStack, inkOn, luminance, mix, pageMix, reachContrast } from "@themes";
 import { bool, num, oneOf, str } from "@elements/coerce";
 import { DIAGRAM_NUMBERS, DIAGRAM_SHAPES, DIAGRAM_STYLES, THEME_ROLES } from "@model/elements";
 import { ICON_LIBRARY, drawIcon } from "@elements/media/vector";
@@ -17,6 +17,7 @@ export interface DiagItemMeta {
     color?: string; // hex, or a theme color role name ("accent", "ink", ...)
     emphasis?: boolean; // promote this item's node to the solid treatment
     icon?: string; // ICON_LIBRARY key, rendered by types that support node icons
+    weight?: number; // width ratio vs row siblings (1 = equal), honored by `weights` types
 }
 
 // Authored/persisted diagram data (artifact JSONB).
@@ -24,7 +25,7 @@ export interface DiagramData {
     type?: string; // registered diagram id; one of the renderers in @elements/diagram/
     items: string; // one entry per line (or comma-separated): "Label | detail | value"
     itemsMeta?: DiagItemMeta[]; // positional per-item styling
-    links?: string; // edges: "A->B, B->C" (flow) or "Parent>Child" (tree/org/mindmap)
+    links?: string; // "Parent>Child" edges building the org hierarchy (the one graph type)
     axes?: string; // quadrant/matrix axis captions: "x low, x high, y low, y high"
     style?: DiagramStyle; // node treatment: solid | tinted | card | outline
     shape?: DiagramShape; // node silhouette for the node-row types
@@ -39,7 +40,12 @@ export interface DiagItem {
     color?: string; // resolved per-item override (from itemsMeta)
     emphasis?: boolean;
     icon?: string;
+    weight?: number;
 }
+
+// a usable weight is finite and positive; anything else means "equal share"
+export const itemWeight = (it: DiagItem | undefined): number =>
+    it?.weight !== undefined && Number.isFinite(it.weight) && it.weight > 0 ? it.weight : 1;
 
 export interface DiagNode {
     id: string;
@@ -75,6 +81,8 @@ export interface DiagramType {
     label: string;
     // per-item icons render in this type's cells; false where the geometry has no room (bands)
     icons?: false;
+    // this type distributes row width by item weight, so the divider gesture can resize its cells
+    weights?: true;
     arrange: (
         diagram: ResolvedDiagram,
         ctx: LayoutCtx,
@@ -133,7 +141,12 @@ function toItemMeta(raw: unknown): DiagItemMeta[] | undefined {
     if (!Array.isArray(raw)) return undefined;
     return raw.map((entry) => {
         const m = (entry ?? {}) as Record<string, unknown>;
-        return { color: str(m.color), emphasis: bool(m.emphasis), icon: str(m.icon) };
+        return {
+            color: str(m.color),
+            emphasis: bool(m.emphasis),
+            icon: str(m.icon),
+            weight: num(m.weight),
+        };
     });
 }
 
@@ -169,6 +182,8 @@ export function normalizeDiagram(d: DiagramData): ResolvedDiagram {
         if (m.color) it.color = m.color;
         if (m.emphasis !== undefined) it.emphasis = m.emphasis;
         if (m.icon) it.icon = m.icon;
+        if (m.weight !== undefined && Number.isFinite(m.weight) && m.weight > 0)
+            it.weight = m.weight;
     });
     return {
         type,
@@ -209,15 +224,9 @@ export function maxLabelWidth(ctx: LayoutCtx, items: DiagItem[]): number {
     return Math.max(0, ...items.map((i) => labelWidth(ctx, i.label)));
 }
 
-// Diagram fills, always opaque: alpha steps can't be contrast-tested, can't take a gradient, and
-// show through where shapes touch. Solid tints of the accent toward white.
-const RAMP_TINTS = [0, 0.3, 0.52, 0.68, 0.78];
-
+// Diagram fills: the shared page-aware opaque ramp (charts use the same one via seriesColors)
 export function diagramColors(theme: Tokens, n: number): string[] {
-    const count = Math.max(1, n);
-    return Array.from({ length: count }, (_, i) =>
-        mixWhite(theme.accent, RAMP_TINTS[i] ?? Math.min(0.84, 0.78 + (i - 4) * 0.02)),
-    );
+    return accentRamp(theme, Math.max(1, n));
 }
 
 export interface NodePaint {
@@ -248,15 +257,15 @@ const isHexColor = (c: string): boolean => /^#[0-9a-fA-F]{6}$/.test(c);
 export function nodePaint(color: string, theme: Tokens, over?: NodePaintOpts): NodePaint {
     const style: DiagramStyle = over?.emphasis ? "solid" : (over?.style ?? "solid");
     if (!over?.fill && style === "tinted") {
-        const fill = isHexColor(color) ? mixWhite(color, 0.78) : color;
-        const dark = luminance(fill) < 0.5;
-        const ink = over?.ink ?? (dark ? theme.onAccent : theme.ink);
+        // wash toward the page, not toward white: a white wash on a dark theme is a solid card
+        const fill = isHexColor(color) ? pageMix(color, theme, 0.78) : color;
+        const ink = over?.ink ?? inkOn(fill, theme);
         return {
             fill,
             stroke: over?.stroke,
             width: over?.width,
             ink,
-            dim: dark ? ink : dimOn(fill, theme),
+            dim: dimFor(ink, fill, theme),
             iconInk: color,
         };
     }
@@ -282,9 +291,7 @@ export function nodePaint(color: string, theme: Tokens, over?: NodePaintOpts): N
         };
     }
     const fill = over?.fill ?? color;
-    const dark = luminance(fill) < 0.5;
-    const ink = over?.ink ?? (dark ? theme.onAccent : theme.ink);
-    // no softer on-accent token exists, so a dark fill differentiates by size/weight (as treemap does)
+    const ink = over?.ink ?? inkOn(fill, theme);
     return {
         fill,
         stroke: over?.stroke,
@@ -294,18 +301,18 @@ export function nodePaint(color: string, theme: Tokens, over?: NodePaintOpts): N
             ? { from: fill, to: mix(fill, "#000000", 0.1), angle: 180 }
             : undefined,
         ink,
-        dim: dark ? ink : dimOn(fill, theme),
+        dim: dimFor(ink, fill, theme),
         // the fill is the item color itself, so the icon differentiates by ink like the label
         iconInk: ink,
     };
 }
 
-// supporting-text ink for an arbitrary band fill: the theme's muted where it already reads,
-// stepped darker until it clears 3:1 (theme.muted is calibrated against the surface, not a
-// mid-ramp tint — the washed-detail bug the contrast invariant catches)
-function dimOn(fill: string, theme: Tokens): string {
+// supporting-text ink beside `ink` on `fill`: the theme's muted where it already reads, stepped
+// toward the label ink's pole until it clears 3:1 (theme.muted is calibrated against the surface,
+// not a mid-ramp tint — the washed-detail bug the contrast invariant catches)
+function dimFor(ink: string, fill: string, theme: Tokens): string {
     if (!isHexColor(fill)) return theme.muted;
-    const toward = luminance(fill) < 0.5 ? "#ffffff" : "#000000";
+    const toward = luminance(ink) < 0.5 ? "#000000" : "#ffffff";
     return reachContrast(theme.muted, fill, 3, toward);
 }
 
@@ -475,9 +482,8 @@ export function drawNodeBadge(
     theme: Tokens,
 ): void {
     g.circle(cx, cy, BADGE_R, { fill: color, stroke: theme.surface, width: 1.5 });
-    const dark = luminance(color) < 0.5;
     g.text(text, cx, cy, {
-        fill: dark ? theme.onAccent : theme.ink,
+        fill: inkOn(color, theme),
         size: 10.5,
         weight: 700,
         font: nodeFont(theme),
@@ -506,8 +512,7 @@ export function drawIconBadge(
     if (!glyph) return false;
     g.circle(cx, cy, BADGE_R + 1, { fill: color, stroke: theme.surface, width: 1.5 });
     const s = 12;
-    const dark = luminance(color) < 0.5;
-    drawIcon(g, glyph, cx - s / 2, cy - s / 2, s, dark ? theme.onAccent : theme.ink);
+    drawIcon(g, glyph, cx - s / 2, cy - s / 2, s, inkOn(color, theme));
     return true;
 }
 

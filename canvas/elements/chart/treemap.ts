@@ -1,4 +1,5 @@
 import type { DrawTextStyle } from "@engine/node";
+import { inkOn } from "@themes";
 import { hierarchy, treemap } from "d3-hierarchy";
 import { registerChart, catList, fmt, uiFont } from "./utils";
 import type { PlotCtx, ResolvedChart } from "./utils";
@@ -28,7 +29,7 @@ function drawTreemap(chart: ResolvedChart, ctx: PlotCtx): void {
         g.rect(leaf.x0, leaf.y0, w, h, { fill: cols[i]!, radius: 3 });
         if (w < 46 || h < 24) return;
         const style: DrawTextStyle = {
-            fill: theme.onAccent,
+            fill: inkOn(cols[i]!, theme),
             size: 11,
             weight: 600,
             font: uiFont(theme),

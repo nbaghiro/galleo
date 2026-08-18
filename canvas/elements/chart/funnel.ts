@@ -1,4 +1,4 @@
-import { luminance } from "@themes";
+import { inkOn } from "@themes";
 import { registerChart, catList, fmt, uiFont } from "./utils";
 import type { PlotCtx, ResolvedChart } from "./utils";
 
@@ -29,7 +29,7 @@ function drawFunnel(chart: ResolvedChart, ctx: PlotCtx): void {
             { fill: cols[i]! },
         );
         g.text(`${cats[i] ?? `#${i + 1}`} · ${fmt(v)}`, cx, top + bandH / 2, {
-            fill: luminance(cols[i]!) < 0.5 ? theme.onAccent : theme.ink,
+            fill: inkOn(cols[i]!, theme),
             size: 11,
             weight: 600,
             font: uiFont(theme),

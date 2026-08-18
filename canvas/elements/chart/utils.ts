@@ -1,6 +1,6 @@
 import type { DrawContext, DrawTextStyle, Rect } from "@engine/node";
 import type { Tokens } from "@themes";
-import { fontStack, hexA, mix } from "@themes";
+import { accentRamp, fontStack, mix } from "@themes";
 import { scaleBand, scaleLinear, scalePoint } from "d3-scale";
 import { curveCatmullRom, curveLinear } from "d3-shape";
 import type { CurveFactory } from "d3-shape";
@@ -126,13 +126,11 @@ export function catList(chart: ResolvedChart): string[] {
     return Array.from({ length: n }, (_, i) => String(i + 1));
 }
 
-// the accent at stepped alpha; series beyond the table keep fading toward 0.16
+// the shared page-aware accent ramp: opaque, so marks can be contrast-tested and take gradients,
+// and it recedes toward the page rather than toward white (alpha-fade read as gray mud on a dark
+// theme, and vanished entirely for a near-white accent like carbon's)
 export function seriesColors(theme: Tokens, n: number): string[] {
-    const count = Math.max(1, n);
-    const steps = [1, 0.7, 0.48, 0.32, 0.22];
-    return Array.from({ length: count }, (_, i) =>
-        hexA(theme.accent, steps[i] ?? Math.max(0.16, 1 - i * 0.15)),
-    );
+    return accentRamp(theme, Math.max(1, n));
 }
 
 export const uiFont = (t: Tokens): string => fontStack("ui", t);

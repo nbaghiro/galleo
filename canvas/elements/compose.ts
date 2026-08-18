@@ -9,7 +9,7 @@ import { scaleDrawContext } from "@engine/drawscale";
 import { rampScale } from "@engine/profile";
 import type { ElementLayout, Size } from "@model/geometry";
 import { fit, fixed, grow, percent } from "@model/geometry";
-import { fontStack, luminance, mixWhite } from "@themes";
+import { fontStack, hexToRgb, hsl2hex, luminance, rgb2hsl } from "@themes";
 
 const card = (title: string, body: string): ElementInstance => ({
     type: "card",
@@ -207,14 +207,23 @@ function composeElement(inst: ElementInstance, ctx: LayoutCtx, addr: ElementAddr
     return applyLayout(node, inst.layout);
 }
 
-// lift a too-dark accent toward a legible luminance (keeping hue) so it reads on a dark/scrimmed bg
+// lift a too-dark accent to a legible luminance so it reads on a dark/scrimmed bg — by raising
+// HSL lightness, which keeps the hue: a channel-space mix toward white washes the color out, and
+// everything downstream (the accent ramp, tinted washes) then degrades to gray
 const ACCENT_DARK_TRIGGER = 0.45;
 const ACCENT_LIFT_TARGET = 0.62;
 function readableAccentOnDark(hex: string): string {
     if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return hex;
-    const l = luminance(hex);
-    if (l >= ACCENT_DARK_TRIGGER) return hex;
-    return mixWhite(hex, Math.min(1, Math.max(0, (ACCENT_LIFT_TARGET - l) / (1 - l))));
+    if (luminance(hex) >= ACCENT_DARK_TRIGGER) return hex;
+    const [h, s, l] = rgb2hsl(...hexToRgb(hex));
+    let lift = Math.max(l, 0.62);
+    let out = hsl2hex(h, s, lift);
+    // a saturated blue is dim at any mid lightness; step until the perceived target is reached
+    while (luminance(out) < ACCENT_LIFT_TARGET && lift < 0.9) {
+        lift += 0.05;
+        out = hsl2hex(h, s, lift);
+    }
+    return out;
 }
 
 function bgIsDark(bg: SectionBackground | undefined): boolean {

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+    accentRamp,
     contrastRatio,
     DEFAULT_THEME,
     finalizeTheme,
@@ -7,10 +8,12 @@ import {
     hexA,
     hexToOklch,
     hexToRgb,
+    inkOn,
     luminance,
     mix,
     mixWhite,
     oklchToHex,
+    pageMix,
     registerThemes,
     relLuminance,
     resolveTheme,
@@ -121,6 +124,53 @@ describe("hexA", () => {
     });
     it("returns <6-digit input unchanged", () => {
         expect(hexA("#fff", 0.5)).toBe("#fff");
+    });
+});
+
+describe("accentRamp / pageMix", () => {
+    const studio = resolveTheme("studio").tokens;
+    const carbon = resolveTheme("carbon").tokens;
+
+    it("tints toward white on a light page — the shipped ramp, byte for byte", () => {
+        const ramp = accentRamp(studio, 5);
+        expect(ramp).toEqual([0, 0.3, 0.52, 0.68, 0.78].map((f) => mixWhite(studio.accent, f)));
+    });
+
+    it("recedes toward the page on a dark theme instead of collapsing to white", () => {
+        const ramp = accentRamp(carbon, 5);
+        expect(ramp[0]!.toLowerCase()).toBe(carbon.accent.toLowerCase());
+        expect(new Set(ramp.map((c) => c.toLowerCase())).size).toBe(5);
+        // later steps get darker (closer to the near-black page), never lighter
+        const lums = ramp.map(luminance);
+        for (let i = 1; i < lums.length; i++) expect(lums[i]!).toBeLessThan(lums[i - 1]!);
+    });
+
+    it("treats a translucent bg (the dark-section token swap) as a dark page via the ink", () => {
+        const swapped = { ...studio, bg: "rgba(255,255,255,0.06)", ink: "#ffffff" };
+        const ramp = accentRamp(swapped, 3);
+        const lums = ramp.map(luminance);
+        expect(lums[1]!).toBeLessThan(lums[0]!);
+        expect(pageMix(swapped.accent, swapped, 1)).toBe("#101010");
+    });
+});
+
+describe("inkOn", () => {
+    const studio = resolveTheme("studio").tokens;
+    const carbon = resolveTheme("carbon").tokens;
+
+    it("never assumes the theme ink is dark: a light fill on a dark theme gets a dark ink", () => {
+        expect(contrastRatio(inkOn("#fafafa", carbon), "#fafafa")).toBeGreaterThanOrEqual(4.5);
+        expect(inkOn("#fafafa", carbon)).toBe(carbon.onAccent);
+    });
+
+    it("prefers the theme's own inks when they read", () => {
+        expect(inkOn("#ffffff", studio)).toBe(studio.ink);
+        expect(inkOn(studio.accent, studio)).toBe(studio.onAccent);
+    });
+
+    it("falls back to the best candidate when nothing clears AA", () => {
+        const gray = inkOn("#808080", carbon);
+        expect(contrastRatio(gray, "#808080")).toBeGreaterThanOrEqual(3);
     });
 });
 
