@@ -1,7 +1,10 @@
+import "@elements/register"; // the predicate reads element specs, so the registry has to be up
 import "@editor/core/commands"; // side-effect: register editor commands + keymap
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { allCommands, bindingLabel, GROUP_ORDER, resolveChord, type KeyCtx } from "@ui/keys";
-import { commit, editor } from "@editor/core/store";
+import type { ArtifactContent, ElementInstance } from "@model/artifact";
+import { commit, editor, loadArtifactContent, setSelection } from "@editor/core/store";
+import { onCommentCreate } from "@editor/core/comments";
 
 describe("editor command registry", () => {
     const cmds = allCommands();
@@ -81,7 +84,8 @@ describe("migrated editor keymap", () => {
     });
 
     it("undo resolves on the canvas but not while inline-editing text", () => {
-        commit(editor.artifact); // push one history entry so canUndo() is true
+        // a real change, so the commit records an entry and canUndo() is true
+        commit({ ...editor.artifact, theme: "aurora" });
         expect(resolveChord("mod+z", ctx(["editor"]))?.id).toBe("edit.undo");
         expect(resolveChord("mod+z", ctx(["editor", "editor.textEditing"]))).toBeNull();
     });
@@ -111,5 +115,49 @@ describe("migrated editor keymap", () => {
         expect(resolveChord("mod+x", el)?.id).toBe("edit.cut");
         const typing = ctx(["editor", "editor.hasSelection", "editor.element"], true);
         expect(resolveChord("mod+c", typing)).toBeNull();
+    });
+});
+
+// The comment chord follows the same rule the chip does: a part of a composite is not a block, so
+// there is nothing for a comment to hang on there.
+describe("comment.add follows what is commentable", () => {
+    const el = (type: string, kids?: ElementInstance[]): ElementInstance => ({
+        type,
+        ...(kids ? { data: { children: kids } } : { data: { text: "words" } }),
+    });
+    const doc: ArtifactContent = {
+        format: "deck",
+        theme: "studio",
+        sections: [
+            {
+                id: "s1",
+                root: {
+                    type: "group",
+                    data: { direction: "col", children: [el("text"), el("card", [el("text")])] },
+                },
+            },
+        ],
+    };
+    const chord = (): string | null | undefined =>
+        resolveChord("mod+alt+m", ctx(["editor", "editor.element"], true))?.id;
+
+    beforeEach(() => {
+        onCommentCreate(() => Promise.resolve(null)); // a host is what makes commenting available
+        loadArtifactContent("cmd", doc);
+    });
+
+    it("resolves on a standalone block", () => {
+        setSelection({ kind: "element", address: { section: "s1", path: [0] } });
+        expect(chord()).toBe("comment.add");
+    });
+
+    it("resolves on the composite itself", () => {
+        setSelection({ kind: "element", address: { section: "s1", path: [1] } });
+        expect(chord()).toBe("comment.add");
+    });
+
+    it("goes quiet on a part of the composite", () => {
+        setSelection({ kind: "element", address: { section: "s1", path: [1, 0] } });
+        expect(chord()).toBeUndefined();
     });
 });

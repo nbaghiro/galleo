@@ -11,7 +11,10 @@ export interface Run {
     highlight?: string; // background color (hex)
 }
 
-export type MarkType = "b" | "i" | "u" | "s" | "code" | "link" | "color" | "hl";
+// "cm" carries a comment thread's root id over the range it was written on. It stamps no Run field
+// on purpose: paint and every export must be byte-identical with and without one, so the tint over
+// commented text is drawn by the editor as an overlay instead.
+export type MarkType = "b" | "i" | "u" | "s" | "code" | "link" | "color" | "hl" | "cm";
 
 export interface Mark {
     from: number;
@@ -54,6 +57,8 @@ function stamp(run: Run, m: Mark): void {
         case "hl":
             if (m.value) run.highlight = m.value;
             break;
+        case "cm":
+            break; // invisible by design: see MarkType
     }
 }
 
@@ -229,6 +234,48 @@ export function spliceText(
     }
     for (const c of cover) out.push({ from: a, to: newTo, type: c.type, value: c.value });
     return { text: nextText, marks: normalizeMarks(out) };
+}
+
+export const marksWithValue = (marks: Mark[], type: MarkType, value: string): Mark[] =>
+    marks.filter((m) => m.type === type && m.value === value);
+
+export const withoutMarkValue = (marks: Mark[], type: MarkType, value: string): Mark[] =>
+    marks.filter((m) => !(m.type === type && m.value === value));
+
+/** The single replaced span between two versions of a string: common prefix in, common suffix out. */
+export function diffRange(
+    before: string,
+    after: string,
+): {
+    from: number;
+    to: number;
+    insert: string;
+} {
+    const max = Math.min(before.length, after.length);
+    let prefix = 0;
+    while (prefix < max && before[prefix] === after[prefix]) prefix++;
+    let suffix = 0;
+    while (
+        suffix < max - prefix &&
+        before[before.length - 1 - suffix] === after[after.length - 1 - suffix]
+    )
+        suffix++;
+    return {
+        from: prefix,
+        to: before.length - suffix,
+        insert: after.slice(prefix, after.length - suffix),
+    };
+}
+
+/**
+ * Carries marks the rendered text does not represent (cm) across an edit made somewhere else. The
+ * contenteditable round-trip can only give back what it drew, so an invisible mark has to ride the
+ * same splice the text took, or it would be dropped on the next keystroke.
+ */
+export function rebaseMarks(marks: Mark[], before: string, after: string): Mark[] {
+    if (before === after || marks.length === 0) return marks;
+    const { from, to, insert } = diffRange(before, after);
+    return spliceText(before, marks, from, to, insert).marks;
 }
 
 export interface Point {

@@ -12,6 +12,7 @@ import {
     endThemePreview,
     keepPreviewedTheme,
     loadArtifactWindow,
+    setEditAccess,
     onHome,
     onLoadSections,
     onMediaPicker,
@@ -29,7 +30,26 @@ import {
     setFeatures,
     startThemePreview,
 } from "@editor/core/store";
+import {
+    clearCommentHandlers,
+    onCommentCreate,
+    onCommentDelete,
+    onCommentEdit,
+    onCommentReply,
+    onCommentResolve,
+} from "@editor/core/comments";
+import { clearCollabHandlers } from "@editor/core/collab";
 import { api, streamTurn } from "@app/api";
+import { closeCollab, openCollab } from "@app/stores/collab";
+import {
+    closeComments,
+    createComment,
+    deleteComment,
+    editComment,
+    openComments,
+    replyToComment,
+    resolveComment,
+} from "@app/stores/comments";
 import { openMediaPicker } from "@app/stores/media";
 import { openShare } from "@app/stores/share";
 import { can, exportFormatsOf, loadFeatures } from "@app/stores/features";
@@ -38,7 +58,7 @@ import { recordVisit } from "@app/stores/search";
 import { loadBilling } from "@app/stores/billing";
 import { setEditorActive } from "@app/stores/chat";
 import { appTheme, loadCustomThemes, setFaviconOverride, openThemeEditor } from "@app/stores/theme";
-import { flushAutosave, installAutosave } from "@app/stores/save";
+import { flushAutosave, installAutosave, noteSavedContent } from "@app/stores/save";
 
 // Above what a normal deck or doc holds, so windowing only engages for the long ones.
 const FIRST_WINDOW = 24;
@@ -75,7 +95,15 @@ export const EditorView: Component = () => {
         setError("");
         try {
             const { artifact } = await api.getArtifactWindow(id, 0, FIRST_WINDOW);
+            // before the content, so the first paint of a view-only artifact is already gated
+            setEditAccess(artifact.access ?? "edit");
             loadArtifactWindow(artifact.id, artifact.shell, artifact.index, artifact.sections);
+            // what the server holds, as of now: a re-read of the same artifact builds new section
+            // objects, and a diff against the previous read's would resend the whole document
+            noteSavedContent(editor.artifact);
+            openComments(id); // threads are per artifact, so a switch reloads them with the content
+            // the room is per artifact too; a gap it cannot replay reloads the window from here
+            openCollab(id, artifact.seq ?? 0, () => void loadId(id));
             recordVisit(id); // every open path lands here, so this is the one read-clock write
             // "view in app theme" → preview without touching the saved theme
             if (searchParams.as === "app") startThemePreview(appTheme());
@@ -116,6 +144,17 @@ export const EditorView: Component = () => {
             const text = await api.assistText(r);
             void loadBilling();
             return text;
+        });
+        onCommentCreate((input) => createComment(input));
+        onCommentReply((root, body) => replyToComment(root, body));
+        onCommentResolve((id, resolved) => resolveComment(id, resolved));
+        onCommentEdit((id, body) => editComment(id, body));
+        onCommentDelete((id) => deleteComment(id));
+        onCleanup(() => {
+            closeComments();
+            clearCommentHandlers();
+            closeCollab();
+            clearCollabHandlers();
         });
         void loadBilling();
         void loadFeatures(); // self-heals a failed boot-time fetch

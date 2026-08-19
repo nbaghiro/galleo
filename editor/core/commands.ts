@@ -8,7 +8,8 @@ import {
     getElementAt,
     setArtifactFormat,
 } from "@elements/ops";
-import { parentTarget } from "@model/artifact";
+import type { ElementAddress } from "@model/artifact";
+import { parentTarget, type Target } from "@model/artifact";
 import {
     addSectionAfter,
     canRedo,
@@ -29,15 +30,26 @@ import {
     setSelection,
     undo,
 } from "./store";
+import { leaseHolder, say } from "./collab";
+import { movable, movableAncestor } from "./dnd";
 import { clipboardEl, copyToClipboard, hasClipboard, pasteElement } from "./clipboard";
 import { canRegenerate, regenerateElement } from "./ai";
+import { captureAnchor, commentableAt, commentsAvailable, startCommentDraft } from "./comments";
 import { openSectionPrompt } from "./ai";
-import { toggleTextMark } from "./text";
+import { textSelection, toggleTextMark } from "./text";
 
 // active only when mounted and not presenting (present has its own keymap)
 const inEditor = (c: KeyCtx): boolean => c.has("editor") && !c.has("present");
 const notTyping = (c: KeyCtx): boolean => !c.has("editor.textEditing");
 const editing_ = (c: KeyCtx): boolean => c.has("editor.textEditing");
+
+// The element a comment would hang on: the one being edited, else the selected one, and only when
+// it is a block of its own. A part of a composite is not commentable, so the command goes with it.
+function commentTarget(): ElementAddress | null {
+    const s = selection();
+    const at = editing() ?? (s?.kind === "element" ? s.address : null);
+    return at && commentableAt(editor.artifact, at) ? at : null;
+}
 
 function currentSectionId(): string | null {
     const s = selection();
@@ -73,6 +85,18 @@ registerCommands([
             const s = selection();
             if (!s) return;
             if (s.kind === "element") {
+                // a closed container's child has no independent existence to delete
+                if (!movable(editor.artifact, s.address)) {
+                    say("This is part of its element; edit it in place");
+                    return;
+                }
+                // Courtesy only: the server never refuses a structural op for lease reasons, so a
+                // deletion still wins if it happens anyway. This just stops the obvious accident.
+                const holder = leaseHolder(s.address);
+                if (holder) {
+                    say(`${holder.user.name || "Someone"} is editing this`);
+                    return;
+                }
                 commit(deleteElement(editor.artifact, s.address));
                 setSelection(null);
             } else removeSectionAt(s.section);
@@ -88,6 +112,10 @@ registerCommands([
             const s = selection();
             if (!s) return;
             if (s.kind === "element") {
+                if (!movable(editor.artifact, s.address)) {
+                    say("This is part of its element; edit it in place");
+                    return;
+                }
                 commit(duplicateAt(editor.artifact, s.address));
                 setSelection({ kind: "element", address: duplicatedAddr(s.address) });
             } else duplicateSectionAt(s.section);
@@ -115,6 +143,10 @@ registerCommands([
         run: () => {
             const s = selection();
             if (s?.kind !== "element") return;
+            if (!movable(editor.artifact, s.address)) {
+                say("This is part of its element; edit it in place");
+                return;
+            }
             const el = getElementAt(editor.artifact, s.address);
             if (!el) return;
             copyToClipboard(el);
@@ -132,11 +164,34 @@ registerCommands([
             const s = selection();
             const clip = clipboardEl();
             if (!s || !clip) return;
-            const res = pasteElement(editor.artifact, clip, s);
+            // a paste anchored inside a closed container lands beside the container itself
+            const anchor: Target =
+                s.kind === "element"
+                    ? { kind: "element", address: movableAncestor(editor.artifact, s.address) }
+                    : s;
+            const res = pasteElement(editor.artifact, clip, anchor);
             if (res) {
                 commit(res.content);
                 setSelection({ kind: "element", address: res.address });
             }
+        },
+    },
+
+    {
+        id: "comment.add",
+        title: "Comment on the selection",
+        group: "edit",
+        icon: "comment",
+        when: (c) =>
+            inEditor(c) &&
+            commentsAvailable() &&
+            (c.has("editor.element") || c.has("editor.textEditing")) &&
+            !!commentTarget(),
+        run: () => {
+            const address = commentTarget();
+            if (!address) return;
+            const draft = captureAnchor(address, textSelection());
+            if (draft) startCommentDraft(draft);
         },
     },
 
@@ -311,6 +366,7 @@ registerBindings([
     { chord: "mod+b", command: "format.bold", when: "editor.textEditing", allowInInput: true },
     { chord: "mod+i", command: "format.italic", when: "editor.textEditing", allowInInput: true },
     { chord: "mod+u", command: "format.underline", when: "editor.textEditing", allowInInput: true },
+    { chord: "mod+alt+m", command: "comment.add", when: "editor", allowInInput: true },
     { chord: "mod+shift+enter", command: "present.start", when: "editor" },
 ]);
 

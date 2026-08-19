@@ -3,14 +3,18 @@ import {
     activeMarks,
     applyMark,
     comparePoints,
+    diffRange,
     isCollapsed,
+    marksWithValue,
     normalizeMarks,
     offsetRange,
     orderedPoints,
+    rebaseMarks,
     removeMark,
     spliceText,
     toggleMark,
     toRuns,
+    withoutMarkValue,
 } from "@model/text";
 import type { Mark, Selection } from "@model/text";
 
@@ -205,5 +209,87 @@ describe("selection helpers", () => {
 
     it("offsetRange is undefined when the selection spans paragraphs", () => {
         expect(offsetRange(sel(0, 1, 1, 3), 0)).toBeUndefined();
+    });
+});
+
+// A comment mark carries a thread id over a range and paints nothing: the editor draws the tint as
+// an overlay, so the runs the engine and every exporter see must be identical either way.
+describe("cm marks", () => {
+    const cm = (from: number, to: number, value: string): Mark => ({ from, to, type: "cm", value });
+
+    it("changes no run the renderer sees", () => {
+        const text = "Run the kitchen well";
+        const styled: Mark[] = [{ from: 0, to: 3, type: "b" }];
+        expect(toRuns(text, [...styled, cm(4, 14, "t-1")])).toEqual(toRuns(text, styled));
+        expect(toRuns(text, [cm(0, 20, "t-1")])).toEqual([{ text }]);
+    });
+
+    it("keeps two threads on the same words apart", () => {
+        const marks = normalizeMarks([cm(0, 5, "t-1"), cm(0, 5, "t-2")]);
+        expect(marks).toHaveLength(2);
+        expect(marksWithValue(marks, "cm", "t-1")).toHaveLength(1);
+    });
+
+    it("still merges the same thread's touching ranges", () => {
+        expect(normalizeMarks([cm(0, 5, "t-1"), cm(5, 9, "t-1")])).toEqual([cm(0, 9, "t-1")]);
+    });
+
+    it("shifts when text before it changes", () => {
+        const { marks } = spliceText("hello world", [cm(6, 11, "t-1")], 0, 0, ">> ");
+        expect(marksWithValue(marks, "cm", "t-1")).toEqual([cm(9, 14, "t-1")]);
+    });
+
+    it("splits when text inside it is replaced by something outside it", () => {
+        // deleting the middle of a commented range keeps the two surviving halves marked
+        const { text, marks } = spliceText("abcdefgh", [cm(1, 7, "t-1")], 3, 5, "");
+        expect(text).toBe("abcfgh");
+        expect(marksWithValue(marks, "cm", "t-1")).toEqual([cm(1, 5, "t-1")]);
+    });
+
+    it("disappears once its whole range is deleted", () => {
+        const { marks } = spliceText("abcdef", [cm(2, 4, "t-1")], 2, 4, "");
+        expect(marksWithValue(marks, "cm", "t-1")).toEqual([]);
+    });
+
+    it("survives an add / remove round-trip by value", () => {
+        const added = applyMark([], 2, 6, "cm", "t-1");
+        expect(added).toEqual([cm(2, 6, "t-1")]);
+        expect(withoutMarkValue(added, "cm", "t-1")).toEqual([]);
+        expect(withoutMarkValue(added, "cm", "t-2")).toEqual(added);
+    });
+});
+
+describe("diffRange", () => {
+    it("names the inserted span", () => {
+        expect(diffRange("hello", "heXYllo")).toEqual({ from: 2, to: 2, insert: "XY" });
+    });
+
+    it("names the deleted span", () => {
+        expect(diffRange("hello", "hlo")).toEqual({ from: 1, to: 3, insert: "" });
+    });
+
+    it("names a replacement", () => {
+        expect(diffRange("hello", "hey")).toEqual({ from: 2, to: 5, insert: "y" });
+    });
+
+    it("is empty when nothing moved", () => {
+        expect(diffRange("same", "same")).toEqual({ from: 4, to: 4, insert: "" });
+    });
+});
+
+describe("rebaseMarks", () => {
+    const cm = (from: number, to: number): Mark => ({ from, to, type: "cm", value: "t-1" });
+
+    it("carries an invisible mark across an edit the DOM did report", () => {
+        expect(rebaseMarks([cm(6, 11)], "hello world", ">> hello world")).toEqual([cm(9, 14)]);
+    });
+
+    it("grows the mark when text is typed inside it", () => {
+        expect(rebaseMarks([cm(0, 5)], "hello", "heXllo")).toEqual([cm(0, 6)]);
+    });
+
+    it("returns the same list when the text did not change", () => {
+        const marks = [cm(0, 5)];
+        expect(rebaseMarks(marks, "hello", "hello")).toBe(marks);
     });
 });

@@ -11,6 +11,7 @@ import {
     removeMark,
     toggleMark,
     normalizeMarks,
+    rebaseMarks,
     spliceText,
     toRuns,
 } from "@model/text";
@@ -167,8 +168,19 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
     const onInput = (): void => {
         const i = inst();
         if (!i) return;
+        const data = fields();
         const { text, marks } = readMarks(el);
-        setArtifactLive(updateDataAt(editor.artifact, props.address, { ...fields(), text, marks }));
+        // cm marks are deliberately invisible, so the DOM never carried them: they ride the same
+        // splice the text just took instead of being read back
+        const hidden = rebaseMarks(
+            (data.marks ?? []).filter((m) => m.type === "cm"),
+            data.text ?? "",
+            text,
+        );
+        const next = hidden.length ? normalizeMarks([...marks, ...hidden]) : marks;
+        setArtifactLive(
+            updateDataAt(editor.artifact, props.address, { ...data, text, marks: next }),
+        );
     };
 
     const onKeyDown = (e: KeyboardEvent): void => {

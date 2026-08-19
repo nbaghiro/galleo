@@ -19,12 +19,19 @@ import {
     moveSectionBy,
     removeSectionAt,
 } from "@editor/core/store";
+import { leaseHolder, say } from "@editor/core/collab";
 import { Icon } from "@ui/icons";
 import { FloatingPanel, Popover } from "@ui/overlay";
 import { PRESETS } from "@elements/compose";
 import { getElement } from "@elements/spec";
 import { previewSvg } from "@elements/previews";
 import { startDrag, drag } from "@editor/core/dnd";
+import {
+    captureAnchor,
+    commentableAt,
+    commentsAvailable,
+    startCommentDraft,
+} from "@editor/core/comments";
 
 export const EmptyRegionAdd: Component = () => {
     const [open, setOpen] = createSignal(false);
@@ -162,6 +169,21 @@ interface Item {
     danger?: boolean;
 }
 
+// Element targets only: a comment always hangs on an element, never on a whole section, and never
+// on a part of a composite (the comment belongs to the card, not to a line inside it).
+const commentItem = (address: ElementAddress): Item[] => {
+    if (!commentsAvailable() || !commentableAt(editor.artifact, address)) return [];
+    return [
+        {
+            label: "Add comment",
+            run: () => {
+                const draft = captureAnchor(address);
+                if (draft) startCommentDraft(draft);
+            },
+        },
+    ];
+};
+
 function itemsFor(t: Target | null): Item[] {
     if (t?.kind === "element") {
         return [
@@ -172,10 +194,18 @@ function itemsFor(t: Target | null): Item[] {
                     setSelection({ kind: "element", address: duplicatedAddr(t.address) });
                 },
             },
+            ...commentItem(t.address),
             {
                 label: "Delete",
                 danger: true,
                 run: () => {
+                    // courtesy: the server never refuses a delete for lease reasons, this only
+                    // stops the accidental one while someone is visibly typing in it
+                    const holder = leaseHolder(t.address);
+                    if (holder) {
+                        say(`${holder.user.name || "Someone"} is editing this`);
+                        return;
+                    }
                     commit(deleteElement(editor.artifact, t.address));
                     setSelection(null);
                 },
