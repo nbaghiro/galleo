@@ -44,7 +44,7 @@ inspector can render the real file** (browser PDF viewer in an iframe, `<img>` f
 - **Serving:** `GET /api/contexts/:id/items/:itemId/original` (`services/api/context.ts`) →
   `getItemOriginal` (workspace-scoped) → decodes base64, streams with `Content-Type` +
   `Cache-Control: private`. 404 when no original is stored.
-- **Client:** `readAttachment` (`app/views/generate/context.ts`) keeps the base64 it produced for
+- **Client:** `readAttachment` (`app/components/attachments.ts`) keeps the base64 it produced for
   `POST /api/extract` and passes it as `original: { data, mime }` when the contexts pane attaches
   the item (`POST /contexts/:id/items`, capped by hono `bodyLimit` 32 MB). The inspector
   (`app/views/generate/ContextsPane.tsx`, `fetchSnapshot` → the `pdf` / `image` snapshot views)
@@ -56,7 +56,7 @@ inspector can render the real file** (browser PDF viewer in an iframe, `<img>` f
   `assets.data`, served at `GET /media/asset/:id` (`services/core/media.ts` `storeUpload`,
   `services/api/media.ts`). The plan's storage cap sums `assets.bytes` (`storageFull`).
 - **Dev server quirk already fixed, don't regress it:** the SPA fallback in `vite.config.ts`
-  excludes `/api/` — iframes send `Accept: text/html`, and without the exclusion the PDF iframe
+  excludes `/api/`, because iframes send `Accept: text/html` and without the exclusion the PDF iframe
   renders the app shell instead of the file.
 
 This works and is the deliberate simple choice at today's scale. The job now is to move the bytes
@@ -65,9 +65,9 @@ serving endpoint is the seam.
 
 ## Goal
 
-1. Original context-item files live in object storage — **Cloudflare R2** in prod, **MinIO** in
+1. Original context-item files live in object storage: **Cloudflare R2** in prod, **MinIO** in
    dev (host ports **8604** S3 API / **8605** console; the ports table in `architecture.md`
-   reserves exactly these — flip them from `reserved` to `active` when you wire them).
+   reserves exactly these, so flip them from `reserved` to `active` when you wire them).
 2. The serving endpoint keeps its URL and auth, and becomes: workspace check → **302 redirect to a
    short-lived presigned GET** (~5 min). URL fragments (`#toolbar=0…`) survive redirects, so the
    PDF viewer params keep working.
@@ -77,10 +77,10 @@ serving endpoint is the seam.
    to the legacy DB column; a backfill command moves old rows; a **later, separate** migration
    drops the columns only after prod backfill is verified.
 
-## Design decisions (already made — implement, don't relitigate)
+## Design decisions (already made; implement, do not relitigate)
 
 - **HTTP client: `aws4fetch`** (tiny SigV4 signer over global fetch; works with R2 and MinIO).
-  The repo prizes dependency minimalism — do not pull `@aws-sdk/client-s3`'s tree for four verbs.
+  The repo prizes dependency minimalism, so do not pull `@aws-sdk/client-s3`'s tree for four verbs.
   If `aws4fetch` proves genuinely unfit for streaming puts of ≤20 MB bodies, document why and fall
   back to the SDK.
 - **`services/utils/objectstore.ts`** (db-free, network via fetch only):
@@ -90,9 +90,9 @@ serving endpoint is the seam.
       narrow `getObject` (backfill verification). Path-style URLs for MinIO compatibility.
 - **The injectable seam:** define `ObjectStore` (the four functions) in the utils module; core
   functions that touch originals take `store: ObjectStore = realStore` as a trailing param, the
-  `Embedder` pattern exactly. Integration tests use an in-memory Map-backed fake — the S3 API is
+  `Embedder` pattern exactly. Integration tests use an in-memory Map-backed fake: the S3 API is
   the external oracle; everything else runs real.
-- **Keys:** `contexts/{workspaceId}/{itemId}` — the workspace prefix makes per-workspace purge and
+- **Keys:** `contexts/{workspaceId}/{itemId}`, where the workspace prefix makes per-workspace purge and
   lifecycle rules possible later. No extension in the key; mime lives in metadata/column.
 - **Schema:** append a migration adding `context_items.original_key text`. Keep the existing
   `original` column for dual-read; **do not** drop it in this pass.
@@ -103,13 +103,13 @@ serving endpoint is the seam.
   else legacy `original` column → stream as today; else 404. `ContextItemMeta.original` becomes
   `(original_key is not null or original is not null)`.
 - **Deletes:** `removeItem` and `deleteContext` best-effort `deleteObject` the keys (collect keys
-  before deleting rows). A failed object delete must not fail the user's action — warn and move on
+  before deleting rows). A failed object delete must not fail the user's action: warn and move on
   (orphans are acceptable; a lifecycle rule can sweep them).
 - **docker-compose:** add `minio` (image `minio/minio`, `server /data --console-address :9001`,
   ports 8604:9000 / 8605:9001, credentials `galleo`/`galleo-minio`) plus a one-shot `mc` service
   that creates the bucket. Document the dev `.env` block in the compose comments and in
   `architecture.md`'s ports table.
-- **Phase 2 (do only if phase 1 lands clean, same rules):** migrate `assets.data` the same way —
+- **Phase 2 (do only if phase 1 lands clean, same rules):** migrate `assets.data` the same way,
   keys `media/{workspaceId}/{assetId}`, same dual-read on `GET /media/asset/:id`. Keep
   `assets.bytes` authoritative for the storage cap; the cap's meaning doesn't change.
 - **Explicitly out of scope:** presigned direct-from-browser uploads (would change request shapes
@@ -122,32 +122,35 @@ serving endpoint is the seam.
    `original_key`, no base64; inspector iframe follows the 302 and renders; kill MinIO → legacy
    items still render (dual-read), new uploads fall back to DB with a warning.
 3. Backfill entry point `services/db/backfill-originals.ts` (register as `pnpm backfill:originals`
-   in package.json — entry points are the layering exemption, like `seed.ts`): batches rows where
+   in package.json, since entry points are the layering exemption, like `seed.ts`): batches rows where
    `original is not null`, puts each object, verifies with a ranged get, sets `original_key`,
    nulls `original`. Idempotent; safe to re-run; prints a summary via `out()`.
-4. Prod: user creates the R2 bucket + API token and sets env on Render (the agent cannot do this —
+4. Prod: user creates the R2 bucket + API token and sets env on Render (the agent cannot do this, so
    stop and ask). Deploy, run the backfill via a Render shell, verify a legacy item serves via
    redirect.
-5. **Later, separate change:** migration dropping `original` (keep `original_mime` — the presign
+5. **Later, separate change:** migration dropping `original` (keep `original_mime`, since the presign
    response type still needs it unless you store mime as object metadata and read it back; pick
    one and be consistent). Only after prod backfill is confirmed.
 
 ## Tests
 
-- `services/utils/__tests__/objectstore.test.ts`: key building, env gating, presign URL shape —
+- `services/utils/__tests__/objectstore.test.ts`: key building, env gating, and presign URL shape,
   with an injected fake fetch capturing requests (assert SigV4 headers exist, not their values).
-- Extend `services/core/__tests__/context.itest.ts` (or the extract itest, wherever originals are
-  covered — find the existing original round-trip test and grow it): with a Map-backed fake
-  `ObjectStore` — new item writes key not blob; route 302s to the fake's presigned URL; legacy
-  blob row still streams (dual-read); removeItem deletes the key.
-- Do not write tests that silently skip when MinIO is absent — a test that can lie about coverage
+- Extend the two integration files that already cover the original round trip rather than starting a
+  third: `services/api/__tests__/context-routes.itest.ts` (serves the stored original byte-for-byte,
+  404s an item with none, refuses a foreign workspace) and
+  `services/api/__tests__/extract.itest.ts` (stores the original alongside the extracted text and
+  serves it back). With a Map-backed fake `ObjectStore`: a new item writes the key and not the blob;
+  the route 302s to the fake's presigned URL; a legacy blob row still streams (dual-read);
+  `removeItem` deletes the key; and the cross-workspace refusal still happens **before** the presign,
+  so a 302 is never handed to a caller who should get a 404.
+- Do not write tests that silently skip when MinIO is absent: a test that can lie about coverage
   is worse than none. Real-MinIO verification is the manual checklist above.
 
 ## Done means
 
-All gates green (`typecheck · lint · test · test:int · build · check:suppressions ·
-check:program · check:boundaries`), docs updated (`architecture.md` data-model + ports table,
+Every gate in the Shared context section green, docs updated (`architecture.md` data-model + ports table,
 `ai.md` §10.5 "keeps the original bytes" sentence now naming object storage with DB fallback),
 the dev checklist in the runbook performed and true, and a single focused commit per repo
 convention (single-line imperative, no co-author). If another session is active in the same
-working tree, coordinate before staging — the index is shared.
+working tree, coordinate before staging, since the index is shared.
