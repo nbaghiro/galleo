@@ -1,9 +1,10 @@
 import type { Component, JSX } from "solid-js";
-import { createEffect, createMemo, onMount, Show } from "solid-js";
+import { createEffect, createMemo, on, onMount, Show } from "solid-js";
 import { Navigate, Route, Router, useLocation, useNavigate } from "@solidjs/router";
 import { resolveTheme } from "@themes";
 import { authReady, bootstrap, user } from "./stores/auth";
 import { loadFeatures } from "./stores/features";
+import { checklistVisible, loadOnboarding, onboardingNeeded } from "@app/stores/onboarding";
 import { customThemes, loadCustomThemes } from "./stores/theme";
 import {
     faviconOverride,
@@ -17,6 +18,7 @@ import { EditorView } from "./views/EditorView";
 import { ChatPanel } from "./views/ChatPanel";
 import { GenerateStudio } from "./views/generate/Mission";
 import { LibraryView } from "./views/LibraryView";
+import { OnboardingView } from "@app/views/OnboardingView";
 import { PresentView } from "./views/PresentView";
 import { PricingView } from "./views/PricingView";
 import { SharedView } from "./views/SharedView";
@@ -32,6 +34,7 @@ import { WorkspaceSettingsView } from "./views/WorkspaceSettingsView";
 import { AccountSettingsView } from "./views/AccountSettingsView";
 import { EvalView } from "./views/EvalView";
 import { InviteView } from "./views/InviteView";
+import { CollabInviteView } from "./views/CollabInviteView";
 import { UiThemeProvider } from "@ui/icons";
 import { Spinner } from "@ui/button";
 import { CommandPalette } from "@ui/CommandPalette";
@@ -50,6 +53,24 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => {
     setNavigate((p) => navigate(p));
     onMount(() => installKeyDispatcher());
     createEffect(() => publishRoute(location.pathname));
+    // A first session starts on the format question. Only from the library, so a deep link into an
+    // artifact or an invite still lands where it was pointed, and `needed` is server-derived, so an
+    // account with any content never sees it.
+    createEffect(() => {
+        if (onboardingNeeded() && location.pathname === "/")
+            navigate("/welcome", { replace: true });
+    });
+    // The steps are derived, so the only way to notice one landed is to re-read, and a navigation is
+    // when that has usually just happened. `on` so the route is the only dependency: the body both
+    // reads and writes the onboarding signal, which as a plain effect would be a cycle.
+    createEffect(
+        on(
+            () => location.pathname,
+            () => {
+                if (checklistVisible()) void loadOnboarding();
+            },
+        ),
+    );
     return (
         <>
             {props.children}
@@ -84,6 +105,7 @@ export const App: Component = () => {
         loadedFor = id;
         void loadFeatures();
         void loadCustomThemes();
+        void loadOnboarding();
     });
 
     // customThemes() is read so the favicon re-resolves once they load
@@ -121,6 +143,7 @@ export const App: Component = () => {
                 >
                     <Show when={user() && !isResetDeepLink} fallback={<AuthPage />}>
                         <Router base="/" root={AppShell}>
+                            <Route path="/welcome" component={OnboardingView} />
                             <Route path="/" component={LibraryView} />
                             <Route path="/folder/:id" component={LibraryView} />
                             <Route path="/templates" component={TemplatesView} />
@@ -133,6 +156,7 @@ export const App: Component = () => {
                             {/* a run is linkable: the detail page is a route, not a signal */}
                             <Route path="/eval/:id" component={EvalView} />
                             <Route path="/invite/:token" component={InviteView} />
+                            <Route path="/collab/:token" component={CollabInviteView} />
                             <Route path="/edit/:id" component={EditorView} />
                             <Route path="/present/:id" component={PresentView} />
                             {/* /login and unknowns: when already authed, land on the library */}

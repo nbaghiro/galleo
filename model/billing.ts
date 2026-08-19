@@ -82,6 +82,18 @@ const PREMIUM_SEATS = 3;
 
 const CREDITS_PER_MONTH: Record<PlanId, number> = { free: 100, pro: 700, premium: 2400 };
 
+/**
+ * A one-time grant on top of the first monthly allowance, so exploring in the first session does not
+ * spend the first month. Free is 100 credits and a generation costs ~42, which is 2.4 generations: a
+ * new account cannot try the product twice and still have room after a bad result. This lifts month
+ * one to roughly seven.
+ *
+ * It is a customer-acquisition cost, not a product cost: at CREDIT_USD it is real provider spend per
+ * signup, so review it against conversion rather than against the plan's own margin. Released once,
+ * on email verification, on a user's first workspace only (services/core/onboarding.ts).
+ */
+export const SIGNUP_GRANT_CREDITS = 200;
+
 /** What the allowance buys, for the pricing card. */
 const gens = (n: number): number => Math.round(n / CREDITS_PER_GENERATION);
 

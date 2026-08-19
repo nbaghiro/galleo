@@ -18,6 +18,7 @@ import { api, setTraceSession, streamTurn } from "@app/api";
 import { loadBilling } from "./billing";
 import { bindChatTarget } from "./chat";
 import { appTheme } from "./theme";
+import { preferredFormat } from "@app/stores/onboarding";
 import { reportError } from "./errors";
 import {
     attachArtifact,
@@ -178,7 +179,11 @@ export { generateOpen };
 export function openGenerate(prompt?: string): void {
     resetSession();
     // the studio is stamped with the session's theme, so the intake starts in the user's, not the default
-    setGen({ stage: "intake", content: { format: "deck", theme: appTheme(), sections: [] } });
+    // the format the first session asked for, so the studio opens on what they said they were making
+    setGen({
+        stage: "intake",
+        content: { format: preferredFormat() ?? "deck", theme: appTheme(), sections: [] },
+    });
     if (prompt) setGen("brief", "prompt", prompt);
     setTraceSession(crypto.randomUUID());
     setGenerateOpen(true);

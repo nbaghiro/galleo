@@ -30,7 +30,9 @@ import {
     TrashIcon,
 } from "@ui/icons";
 import { openThemeEditor } from "@app/stores/theme";
+import { OnboardingChecklist } from "@app/components/OnboardingChecklist";
 import { openGenerate } from "@app/stores/generate";
+import { Avatar } from "@ui/avatar";
 import { Button, Eyebrow, IconButton } from "@ui/button";
 import { TextField } from "@ui/inputs";
 import { Meter } from "@ui/status";
@@ -406,6 +408,8 @@ export const Sidebar: Component = () => {
                     {navItem(<TrashIcon />, "Trash", "/trash", route() === "/trash")}
                 </nav>
 
+                <OnboardingChecklist />
+
                 <div class="mt-4 flex items-center justify-between px-2.5 pb-1">
                     <Eyebrow tracking="wider">Folders</Eyebrow>
                     <IconButton
@@ -438,16 +442,13 @@ export const Sidebar: Component = () => {
                         title="Account settings"
                         onClick={() => navigate("/account")}
                     >
-                        <span class="grid h-8 w-8 flex-none place-items-center overflow-hidden rounded-lg bg-accent text-[12px] font-bold text-onaccent">
-                            <Show
-                                when={user()?.avatarUrl}
-                                fallback={(user()?.name ?? user()?.email ?? "U")
-                                    .charAt(0)
-                                    .toUpperCase()}
-                            >
-                                {(url) => <img src={url()} alt="" class="size-full object-cover" />}
-                            </Show>
-                        </span>
+                        <Avatar
+                            src={user()?.avatarUrl}
+                            name={user()?.name}
+                            email={user()?.email}
+                            tone="solid"
+                            rounded="lg"
+                        />
                         <span class="min-w-0 flex-1">
                             <span class="block truncate text-[12.5px] font-semibold text-ink">
                                 {user()?.name ?? "Signed in"}
