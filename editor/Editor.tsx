@@ -5,6 +5,7 @@ import {
     createSignal,
     For,
     Match,
+    onCleanup,
     onMount,
     Show,
     Switch,
@@ -12,13 +13,17 @@ import {
 import type { Tokens } from "@themes";
 import { themeCssVars } from "@themes";
 import type { ElementAddress, SectionBackground } from "@model/artifact";
+import type { Peer } from "@model/collab";
+import { cursorSection } from "@model/collab";
 import { setArtifactFormat, getElementAt } from "@elements/ops";
 import { getElement, listElements } from "@elements/spec";
 import { installKeyDispatcher } from "@ui/keys";
-import { Button, Eyebrow, IconButton } from "@ui/button";
+import { Badge, Button, Eyebrow, IconButton } from "@ui/button";
+import { Avatar } from "@ui/avatar";
 import { Icon, UiThemeProvider } from "@ui/icons";
 import { TextField, FormatSwitcher } from "@ui/inputs";
 import { FloatingPanel, Sheet } from "@ui/overlay";
+import { dismissalFor } from "@ui/gesture";
 import { isPhone } from "@ui/viewport";
 import { resolveProfile } from "@engine/profile";
 import { Canvas, Thumb } from "./Canvas";
@@ -27,6 +32,9 @@ import { DataEditor } from "./panels/DataEditor";
 import { ExportModal, openExportModal } from "./panels/ExportModal";
 import { DragGhost, PaletteItem } from "./panels/Insert";
 import { ElementInspector } from "./panels/RightPanel";
+import { CommentSheets } from "./panels/Comments";
+import { collabActive, otherPeers } from "./core/collab";
+import { drag } from "./core/dnd";
 import { pickArtifactBackground } from "./core/media";
 import { setSectionBackground, clearBackgroundImage } from "@elements/ops";
 import { SectionLayoutPopup } from "./panels/SectionLayoutPopup";
@@ -46,6 +54,7 @@ import {
     editorTokens,
     ensureAllSections,
     features,
+    jumpToSection,
     leftOpen,
     moveSectionBy,
     present,
@@ -62,6 +71,8 @@ import {
     setSlideFrame,
     slideFrame,
     undo,
+    canComment,
+    canEdit,
 } from "./core/store";
 
 export const Editor: Component = () => {
@@ -311,6 +322,46 @@ const TopbarMore: Component = () => {
     );
 };
 
+// The one place the editor says out loud that this artifact is not editable here. The commit gate is
+// what actually enforces it; this stops the canvas from looking merely broken.
+const AccessBadge: Component = () => (
+    <Show when={!canEdit()}>
+        <Badge tone="muted" size="xs" weight="medium">
+            {canComment() ? "Comment only" : "View only"}
+        </Badge>
+    </Show>
+);
+
+// Who else is in the room, in join order, coloured to match their cursor. Clicking one jumps to the
+// section they are working in, which is the only navigation collaboration needs.
+const PeerStack: Component = () => {
+    const jumpTo = (peer: Peer): void => {
+        const at = peer.state.editing ?? peer.state.selection;
+        const sectionId = at?.sectionId ?? (peer.state.cursor && cursorSection(peer.state.cursor));
+        if (!sectionId) return;
+        const i = editor.artifact.sections.findIndex((s) => s.id === sectionId);
+        if (i >= 0) jumpToSection(i);
+    };
+    return (
+        <Show when={collabActive() && otherPeers().length}>
+            <div class="flex items-center -space-x-1.5 pr-1">
+                <For each={otherPeers()}>
+                    {(peer) => (
+                        <button
+                            class="cursor-pointer rounded-full ring-2 transition-transform hover:-translate-y-0.5"
+                            style={{ "--tw-ring-color": peer.color }}
+                            title={`${peer.user.name || "Someone"} is here`}
+                            onClick={() => jumpTo(peer)}
+                        >
+                            <Avatar size="sm" src={peer.user.avatarUrl} name={peer.user.name} />
+                        </button>
+                    )}
+                </For>
+            </div>
+        </Show>
+    );
+};
+
 const Topbar: Component = () => (
     <header class="relative z-menu flex items-center gap-2 border-b border-line bg-panel px-3 md:gap-3.5 md:px-4.5">
         <button
@@ -321,14 +372,20 @@ const Topbar: Component = () => (
             GALLEO
         </button>
         <ArtifactName />
-        <HistoryButtons />
+        <AccessBadge />
+        <Show when={canEdit()}>
+            <HistoryButtons />
+        </Show>
         <span class="flex-1" />
+        <PeerStack />
         <div class="hidden items-center gap-3.5 md:flex">
-            <FormatSwitcher
-                value={editor.artifact.format}
-                onChange={(v) => commit(setArtifactFormat(editor.artifact, v))}
-            />
-            <ThemeMenu />
+            <Show when={canEdit()}>
+                <FormatSwitcher
+                    value={editor.artifact.format}
+                    onChange={(v) => commit(setArtifactFormat(editor.artifact, v))}
+                />
+                <ThemeMenu />
+            </Show>
             <ShareButton />
             <ExportButton />
         </div>
@@ -537,11 +594,58 @@ const useInspectorAutoOpen = (): void => {
     });
 };
 
+/**
+ * The flyout closes on a press anywhere but itself and the icon rail, so it stops covering the
+ * canvas. Nothing is swallowed: no backdrop, nothing stopped, so the press still does its job.
+ *
+ * A press on the canvas is deferred rather than acted on, because the selection it is about to make
+ * may auto-open the inspector (useInspectorAutoOpen), and closing first would blink the panel shut
+ * and straight back open. The deferred answer is read after the selection has settled, which is why
+ * it hangs off pointerup: the canvas selects there, and Solid runs the effect before this listener.
+ */
+function dismissFlyoutOnOutside(rail: () => HTMLElement | undefined): void {
+    createEffect(() => {
+        if (!rightTab()) return;
+        const onDown = (e: PointerEvent): void => {
+            const el = rail();
+            const inside = e.composedPath().some((n) => n === el);
+            const onCanvas = e
+                .composedPath()
+                .some((n) => n instanceof Element && n.tagName === "MAIN");
+            const next = dismissalFor(
+                { inside, onCanvas },
+                { dragging: !!drag(), deferOnCanvas: true },
+            );
+            if (next === "keep") return;
+            if (next === "close") {
+                setRightTab(null);
+                return;
+            }
+            // the selection the press makes decides: the inspector it opens is allowed to stay
+            const settle = (): void => {
+                const s = selection();
+                if (!(s?.kind === "element" && !selectedInline())) setRightTab(null);
+            };
+            window.addEventListener("pointerup", settle, { once: true });
+            // a press that never lifts here (it left the window) must not leave the hook armed
+            window.addEventListener(
+                "pointercancel",
+                () => window.removeEventListener("pointerup", settle),
+                { once: true },
+            );
+        };
+        window.addEventListener("pointerdown", onDown, true);
+        onCleanup(() => window.removeEventListener("pointerdown", onDown, true));
+    });
+}
+
 const Panel: Component = () => {
     const [q, setQ] = createSignal("");
     const all = listElements().filter((s) => !HIDDEN.has(s.type));
     const cats = createMemo(() => CAT_ORDER.filter((c) => all.some((s) => s.category === c)));
+    let rail: HTMLDivElement | undefined;
     useInspectorAutoOpen();
+    dismissFlyoutOnOutside(() => rail);
 
     const items = createMemo(() => {
         const query = q().trim().toLowerCase();
@@ -568,7 +672,10 @@ const Panel: Component = () => {
     );
 
     return (
-        <div class="absolute right-3 top-1/2 z-chrome flex -translate-y-1/2 items-stretch gap-2">
+        <div
+            ref={rail}
+            class="absolute right-3 top-1/2 z-chrome flex -translate-y-1/2 items-stretch gap-2"
+        >
             <Show when={rightTab()}>
                 {(tab) => (
                     <FloatingPanel
@@ -577,8 +684,7 @@ const Panel: Component = () => {
                         shadow="panel"
                         class="flex max-h-[calc(100dvh-120px)] w-60 flex-col overflow-y-auto lg:w-71"
                     >
-                        <Show
-                            when={tab() === "inspector"}
+                        <Switch
                             fallback={
                                 <>
                                     <Eyebrow as="div" mono={false} weight="semibold" class="mb-3">
@@ -604,18 +710,20 @@ const Panel: Component = () => {
                                 </>
                             }
                         >
-                            <Switch
-                                fallback={
-                                    <p class="text-[13px] text-muted">
-                                        Select something to edit it.
-                                    </p>
-                                }
-                            >
-                                <Match when={!selectedInline() && selectedElementAddr()}>
-                                    {(a) => <ElementInspector address={a()} />}
-                                </Match>
-                            </Switch>
-                        </Show>
+                            <Match when={tab() === "inspector"}>
+                                <Switch
+                                    fallback={
+                                        <p class="text-[13px] text-muted">
+                                            Select something to edit it.
+                                        </p>
+                                    }
+                                >
+                                    <Match when={!selectedInline() && selectedElementAddr()}>
+                                        {(a) => <ElementInspector address={a()} />}
+                                    </Match>
+                                </Switch>
+                            </Match>
+                        </Switch>
                     </FloatingPanel>
                 )}
             </Show>
@@ -709,6 +817,7 @@ const PhoneChrome: Component = () => {
                     {(a) => <ElementInspector address={a()} />}
                 </Show>
             </Sheet>
+            <CommentSheets />
             <Sheet
                 open={rightTab() === "section" && !!selectedSectionId()}
                 title="Section"

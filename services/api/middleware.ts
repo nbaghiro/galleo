@@ -1,9 +1,11 @@
-import type { Context, MiddlewareHandler } from "hono";
+import type { Context, Env, MiddlewareHandler } from "hono";
 import { getCookie } from "hono/cookie";
 import type { User, WorkspaceRole } from "@model/workspace";
+import type { ArtifactAccess } from "@model/artifact";
+import { atLeast } from "@model/artifact";
 import { SESSION_COOKIE } from "@services/utils/auth";
-import { currentUser, currentWorkspace, type WorkspaceRow } from "@services/core/accounts";
-import { roleOf } from "@services/core/workspaces";
+import { currentMembership, currentUser, type WorkspaceRow } from "@services/core/accounts";
+import { artifactStanding, type ArtifactStanding } from "@services/core/collaborators";
 import { MODEL_HEADER, parseOverrides, type ModelOverrides } from "@services/core/models";
 
 // The api layer's shared guard: the only non-resource file here. It exists because the gate needs
@@ -51,6 +53,52 @@ export const requireRole =
             );
         return next();
     };
+
+// 404 for an artifact the caller cannot see at all, so a locked one is indistinguishable from a
+// missing one; 403 only once they can see it but not do this.
+//
+// Workspace-scoped on purpose: an artifact the caller reaches only through a collaborator grant is
+// simply not here, which is what keeps trash, publishing, and AI turns with the owning workspace.
+export async function gateArtifact(
+    c: Context<WorkspaceEnv>,
+    id: string,
+    need: ArtifactAccess,
+): Promise<ArtifactStanding | Response> {
+    const standing = await artifactStanding(c.get("user").id, id);
+    if (!standing || standing.ws.id !== c.get("ws").id || standing.access === "none")
+        return c.json({ error: "not found" }, 404);
+    if (!atLeast(standing.access, need))
+        return c.json({ error: DENIED[need] ?? "You don't have access to that." }, 403);
+    return standing;
+}
+
+const DENIED: Partial<Record<ArtifactAccess, string>> = {
+    edit: "You have view access to this artifact, so you can't change it.",
+    comment: "You have view access to this artifact, so you can't comment on it.",
+};
+
+/**
+ * The artifact-scoped gate: resolves the workspace FROM THE ARTIFACT ROW and takes collaborator
+ * grants into account, so someone invited into a workspace they are not a member of can still open
+ * the artifact. Every handler behind it must scope its queries on `gate.ws`, never `c.get("ws")` —
+ * the latter is the caller's own workspace and would 404 a collaborator out of their invitation.
+ *
+ * `gateArtifact` above stays the right gate for anything that belongs to the owning workspace
+ * (trash, publishing, AI turns): those are deliberately members-only.
+ */
+export async function gateShared<E extends Env & AuthedEnv>(
+    c: Context<E>,
+    id: string,
+    need: ArtifactAccess,
+): Promise<ArtifactStanding | Response> {
+    const standing = await artifactStanding(c.get("user").id, id);
+    if (!standing || standing.access === "none") return c.json({ error: "not found" }, 404);
+    if (!atLeast(standing.access, need))
+        return c.json({ error: DENIED[need] ?? "You don't have access to that." }, 403);
+    return standing;
+}
+
+export const isResponse = (v: unknown): v is Response => v instanceof Response;
 
 // The client may pin any step to a specific model; the registry decides which ids survive.
 export const overridesFrom = (c: Context): ModelOverrides =>

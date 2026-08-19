@@ -3,11 +3,18 @@ import { embedFor, pickArtifactBackground, type Embed, type PlayerOpts } from ".
 import type { ElementAddress, Target, ElementInstance, Section } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { getElementAt } from "@elements/ops";
+import { getElementAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { profileFor } from "@engine/profile";
-import { elementRegionId, parseTarget, specificity, targetsEqual } from "@model/artifact";
-import { isPhone } from "@ui/viewport";
+import {
+    elementRegionId,
+    parseHitRegion,
+    parseTarget,
+    specificity,
+    targetsEqual,
+} from "@model/artifact";
+import { isCoarsePointer, isPhone } from "@ui/viewport";
+import type { CollabCursor, ElementRef } from "@model/collab";
 import {
     backdropCss,
     createSectionStackCache,
@@ -74,6 +81,9 @@ import { SectionGenPopup } from "./panels/GenPrompt";
 import { SectionGenStage } from "./panels/GenOverlays";
 import { ElementGenStage } from "./panels/GenOverlays";
 import { TextEditor } from "./panels/TextEditor";
+import { CommentLayer } from "./panels/Comments";
+import { CollabLayer } from "./panels/Collab";
+import { collabActive, cursorForPoint, elementRefFor, sendPresence } from "./core/collab";
 
 const RAIL_GAP = 28;
 const PANEL_L = 200;
@@ -88,7 +98,10 @@ export const Canvas: Component = () => {
 
     // Precomputed per draw so hover is a numeric box test, not a re-parse of every region id.
     let liveHits: { target: Target; spec: number; box: Rect }[] = [];
+    let affordances: { action: string; address: ElementAddress; box: Rect }[] = [];
     let pending: { target: Target | null; x: number; y: number } | null = null;
+    // an affordance press (a checklist's checkbox) acts on release and never becomes a selection
+    let pendingAffordance: { action: string; address: ElementAddress; box: Rect } | null = null;
 
     // so a frame re-lays-out only the changed section (see paintSectionStack)
     const stackCache = createSectionStackCache();
@@ -156,11 +169,15 @@ export const Canvas: Component = () => {
         if (!preview || track) {
             setRegions(regions);
             const hits: { target: Target; spec: number; box: Rect }[] = [];
+            const aff: { action: string; address: ElementAddress; box: Rect }[] = [];
             for (const r of regions) {
                 const t = parseTarget(r.id);
                 if (t) hits.push({ target: t, spec: specificity(t), box: r.box });
+                const h = parseHitRegion(r.id);
+                if (h) aff.push({ ...h, box: r.box });
             }
             liveHits = hits;
+            affordances = aff;
         }
     };
 
@@ -247,19 +264,87 @@ export const Canvas: Component = () => {
         return best;
     };
 
+    const affordanceAt = (
+        px: number,
+        py: number,
+    ): { action: string; address: ElementAddress; box: Rect } | null =>
+        affordances.find(
+            (a) =>
+                px >= a.box.x &&
+                px <= a.box.x + a.box.w &&
+                py >= a.box.y &&
+                py <= a.box.y + a.box.h,
+        ) ?? null;
+
+    // today the one action is the checklist checkbox: flip `checked` on the addressed child
+    const runAffordance = (a: { action: string; address: ElementAddress }): void => {
+        if (a.action !== "checkbox") return;
+        const inst = getElementAt(editor.artifact, a.address);
+        if (!inst) return;
+        const data = inst.data as Record<string, unknown>;
+        commit(
+            updateDataAt(editor.artifact, a.address, { ...data, checked: data.checked !== true }),
+        );
+    };
+
     const onPointerDown = (e: PointerEvent): void => {
         // a pointerdown reaching here while editing is an outside click; in-editor ones are stopped
         if (drag() || liveEdit()) return;
+        pendingAffordance = affordanceAt(...point(e));
+        if (pendingAffordance) {
+            pending = null;
+            return;
+        }
         pending = { target: hitTest(...point(e)), x: e.clientX, y: e.clientY };
     };
 
+    // Presence, in content terms: the room is told which element the pointer is over and how far
+    // across it, never where it is on this screen. A coarse pointer has no meaningful hover
+    // position, so those clients render remote cursors without ever sending one.
+    let lastCursor: CollabCursor | null = null;
+    const refOf = (t: Target | null): ElementRef | null =>
+        t?.kind === "element" ? elementRefFor(t.address) : null;
+    const publishPresence = (): void => {
+        if (!collabActive()) return;
+        sendPresence({
+            cursor: lastCursor,
+            selection: refOf(selection()),
+            editing: refOf(editing() ? { kind: "element", address: editing()! } : null),
+        });
+    };
+    createEffect(() => {
+        selection();
+        editing();
+        publishPresence();
+    });
+
     const onPointerMove = (e: PointerEvent): void => {
+        if (collabActive() && !isCoarsePointer()) {
+            const [px, py] = point(e);
+            lastCursor = cursorForPoint({ x: px, y: py }, hitTest(px, py));
+            publishPresence();
+        }
         if (drag() || editing() || liveEdit()) return; // driven by window listeners
         // Moves start only from the DragHandle, so a body drag never becomes an accidental move.
-        setHover(hitTest(...point(e)));
+        const [hx, hy] = point(e);
+        setHover(hitTest(hx, hy));
+        scrollEl.style.cursor = affordanceAt(hx, hy) ? "pointer" : "";
+    };
+
+    const onPointerLeaveCanvas = (): void => {
+        if (!drag()) setHover(null);
+        if (lastCursor === null) return;
+        lastCursor = null;
+        publishPresence();
     };
 
     const onPointerUp = (): void => {
+        if (pendingAffordance) {
+            const a = pendingAffordance;
+            pendingAffordance = null;
+            if (!drag() && !liveEdit()) runAffordance(a);
+            return;
+        }
         if (drag() || liveEdit() || !pending) return;
         const t = pending.target;
         const caret = { x: pending.x, y: pending.y };
@@ -450,7 +535,7 @@ export const Canvas: Component = () => {
             onPointerUp={onPointerUp}
             onDblClick={onBackdropDblClick}
             onContextMenu={onContextMenu}
-            onPointerLeave={() => !drag() && setHover(null)}
+            onPointerLeave={onPointerLeaveCanvas}
         >
             <div ref={stageEl} class="relative w-full">
                 <div ref={paintHost} class="absolute inset-0" />
@@ -470,6 +555,8 @@ export const Canvas: Component = () => {
                 <SectionGenPopup />
                 <ElementGenStage />
                 <ContextBar />
+                <CommentLayer />
+                <CollabLayer />
                 <EmptyRegionAdd />
                 <TextEditor />
             </div>

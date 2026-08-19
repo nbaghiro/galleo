@@ -1,12 +1,21 @@
 import type { Component } from "solid-js";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import { api, type LinkState, type ShareRecipient, type Visibility } from "@app/api";
+import {
+    api,
+    type Collaborator,
+    type LinkState,
+    type ShareRecipient,
+    type Visibility,
+} from "@app/api";
 import { closeShare, shareRequest, type ShareRequest } from "@app/stores/share";
 import { flushAutosave } from "@app/stores/save";
+import { artifacts, setArtifactAccessLocal } from "@app/stores/library";
+import type { ArtifactAccess } from "@model/artifact";
+import { Dropdown } from "@ui/select";
 import { can, loadFeatures } from "@app/stores/features";
 import { UpgradeNotice } from "@app/components/Upgrade";
-import { relativeTime } from "@app/stores/library";
+import { relativeTime } from "@ui/time";
 import { overlayThemeVars } from "@app/stores/theme";
 import {
     ArrowUpRightIcon,
@@ -137,6 +146,8 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
 
             <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
                 <Show when={!loading()} fallback={<Loading />}>
+                    <WorkspaceAccess artifactId={props.req.artifactId} />
+                    <Collaborators artifactId={props.req.artifactId} title={props.req.title} />
                     <Show
                         when={!gated()}
                         fallback={
@@ -223,6 +234,240 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                 </Show>
             </div>
         </Modal>
+    );
+};
+
+// Who else in the workspace may open this, as opposed to the public links below it. Sits above them
+// because it is the question people ask first, and because a link cannot be narrower than this.
+const WorkspaceAccess: Component<{ artifactId: string }> = (props) => {
+    const [level, setLevel] = createSignal<ArtifactAccess | "inherit">("inherit");
+    const [busy, setBusy] = createSignal(false);
+    const [failed, setFailed] = createSignal(false);
+
+    onMount(() => {
+        const found = artifacts().find((a) => a.id === props.artifactId);
+        setLevel(found?.access ?? "inherit");
+    });
+
+    const choose = async (next: string): Promise<void> => {
+        const before = level();
+        setLevel(next as ArtifactAccess | "inherit");
+        setBusy(true);
+        setFailed(false);
+        try {
+            const level = next === "inherit" ? null : (next as ArtifactAccess);
+            await api.setArtifactAccess(props.artifactId, level);
+            setArtifactAccessLocal(props.artifactId, level);
+        } catch {
+            setLevel(before); // the server refused, so the control must not claim it changed
+            setFailed(true);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div class="mb-4 border-b border-line pb-4">
+            <div class="mb-1.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted">
+                People in this workspace
+            </div>
+            <Dropdown
+                value={level()}
+                disabled={busy()}
+                options={[
+                    { label: "Use the workspace default", value: "inherit" },
+                    { label: "Can edit", value: "edit" },
+                    { label: "Can comment", value: "comment" },
+                    { label: "Can view", value: "view" },
+                    { label: "No access", value: "none" },
+                ]}
+                onChange={(v) => void choose(v)}
+            />
+            <p class="mt-1.5 text-[11px] text-muted">
+                Admins and whoever made this always keep full access.
+            </p>
+            <Show when={failed()}>
+                <p class="mt-1.5 text-[11px] text-accent">
+                    That did not save. You may not have permission to change it.
+                </p>
+            </Show>
+        </div>
+    );
+};
+
+// People invited to this one artifact by email, whether or not they are in the workspace. Sits
+// between the workspace level above and the public links below: it is the middle circle.
+const GRANT_LEVELS = [
+    { label: "Can edit", value: "edit" },
+    { label: "Can comment", value: "comment" },
+    { label: "Can view", value: "view" },
+];
+
+const ACCESS_LABEL: Record<ArtifactAccess, string> = {
+    none: "no access",
+    view: "view only",
+    comment: "comment",
+    edit: "edit",
+};
+
+const Collaborators: Component<{ artifactId: string; title: string }> = (props) => {
+    const [people, setPeople] = createSignal<Collaborator[]>([]);
+    const [members, setMembers] = createSignal<Collaborator[]>([]);
+    const [email, setEmail] = createSignal("");
+    const [level, setLevel] = createSignal<ArtifactAccess>("edit");
+    const [busy, setBusy] = createSignal(false);
+    const [error, setError] = createSignal("");
+
+    onMount(async () => {
+        try {
+            const list = await api.listCollaborators(props.artifactId);
+            setPeople(list.collaborators);
+            setMembers(list.members);
+        } catch {
+            // a caller who may only view still sees the rest of the modal
+        }
+    });
+
+    // A grant on someone who is already in the workspace is an explicit per-person level, so it can
+    // narrow them as well as widen them. Say what they have now, so a demotion is a deliberate act.
+    const matchedMember = (): Collaborator | undefined => {
+        const to = email().trim().toLowerCase();
+        return to ? members().find((m) => m.email.toLowerCase() === to) : undefined;
+    };
+    const wouldNarrow = (): boolean => {
+        const m = matchedMember();
+        return !!m && m.access !== level() && !people().some((p) => p.id === m.id);
+    };
+
+    const invite = async (): Promise<void> => {
+        const to = email().trim().toLowerCase();
+        if (!isEmail(to) || busy()) return;
+        setBusy(true);
+        setError("");
+        try {
+            const { collaborator } = await api.inviteCollaborator(props.artifactId, to, level());
+            setPeople([...people().filter((p) => p.email !== collaborator.email), collaborator]);
+            setEmail("");
+        } catch (e) {
+            setError(errText(e));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const change = async (person: Collaborator, next: string): Promise<void> => {
+        const before = person.access;
+        setPeople(
+            people().map((p) =>
+                p.id === person.id ? { ...p, access: next as ArtifactAccess } : p,
+            ),
+        );
+        try {
+            await api.setCollaboratorAccess(props.artifactId, person.id, next as ArtifactAccess);
+        } catch (e) {
+            setPeople(people().map((p) => (p.id === person.id ? { ...p, access: before } : p)));
+            setError(errText(e));
+        }
+    };
+
+    const revoke = async (person: Collaborator): Promise<void> => {
+        const before = people();
+        setPeople(before.filter((p) => p.id !== person.id));
+        try {
+            await api.revokeCollaborator(props.artifactId, person.id);
+        } catch (e) {
+            setPeople(before);
+            setError(errText(e));
+        }
+    };
+
+    return (
+        <div class="mb-4 border-b border-line pb-4">
+            <div class="mb-1.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted">
+                Invite people to edit
+            </div>
+            <div class="flex items-center gap-1.5">
+                <TextField
+                    class="min-w-0 flex-1"
+                    type="email"
+                    placeholder="name@company.com"
+                    value={email()}
+                    onChange={setEmail}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter") void invite();
+                    }}
+                />
+                <div class="w-33 flex-none">
+                    <Dropdown
+                        value={level()}
+                        options={GRANT_LEVELS}
+                        onChange={(v) => setLevel(v as ArtifactAccess)}
+                    />
+                </div>
+                <Button
+                    variant="primary"
+                    size="sm"
+                    class="flex-none"
+                    disabled={busy() || !isEmail(email())}
+                    onClick={() => void invite()}
+                >
+                    Invite
+                </Button>
+            </div>
+            <Show
+                when={wouldNarrow()}
+                fallback={
+                    <p class="mt-1.5 text-[11px] text-muted">
+                        They open it in the editor and work alongside you. AI stays with the
+                        workspace, so invited people cannot run it here.
+                    </p>
+                }
+            >
+                <p class="mt-1.5 text-[11px] text-muted">
+                    {matchedMember()?.name || matchedMember()?.email} is in this workspace and can{" "}
+                    {ACCESS_LABEL[matchedMember()?.access ?? "view"]} today. Inviting them sets
+                    their level on this artifact to {ACCESS_LABEL[level()]}.
+                </p>
+            </Show>
+            <Show when={people().length}>
+                <div class="mt-2.5 flex flex-col gap-1.5">
+                    <For each={people()}>
+                        {(person) => (
+                            <div class="flex items-center gap-2 rounded-lg border border-line bg-canvas px-2.5 py-1.5">
+                                <div class="min-w-0 flex-1">
+                                    <div class="truncate text-[12px] text-ink">
+                                        {person.name || person.email}
+                                    </div>
+                                    <div class="truncate text-[11px] text-muted">
+                                        {person.name ? `${person.email} · ` : ""}
+                                        {person.acceptedAt ? "joined" : "invited"}
+                                        {person.member ? " · workspace member" : ""}
+                                    </div>
+                                </div>
+                                <div class="w-33 flex-none">
+                                    <Dropdown
+                                        value={person.access}
+                                        options={GRANT_LEVELS}
+                                        onChange={(v) => void change(person, v)}
+                                    />
+                                </div>
+                                <IconButton
+                                    size="lg"
+                                    tone="muted"
+                                    title="Remove access"
+                                    onClick={() => void revoke(person)}
+                                >
+                                    <CloseIcon size={13} />
+                                </IconButton>
+                            </div>
+                        )}
+                    </For>
+                </div>
+            </Show>
+            <Show when={error()}>
+                <p class="mt-1.5 text-[11px] text-fail">{error()}</p>
+            </Show>
+        </div>
     );
 };
 

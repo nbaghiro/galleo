@@ -11,6 +11,9 @@ import { session } from "./api/session";
 import { account } from "./api/account";
 import { oauth } from "./api/oauth";
 import { artifacts } from "./api/artifacts";
+import { comments } from "./api/comments";
+import { collaborators } from "./api/collaborators";
+import { collabRouter } from "./api/collab";
 import { folders } from "./api/folders";
 import { themes } from "./api/themes";
 import { templates } from "./api/templates";
@@ -35,6 +38,9 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const app = new Hono();
+// The live-collaboration socket runs in this process, on this app: rooms are in-memory, so a second
+// instance would not share them. Fanning out across instances is the Redis step (port 8603).
+const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
 app.get("/health", (c) => c.json({ ok: true }));
 // routers carry their own full paths and mount under /api, so dev (Vite proxies /api here, no
 // rewrite) and prod share one route map. Mounted one by one rather than over an array: each router
@@ -43,6 +49,9 @@ app.route("/api", session);
 app.route("/api", account);
 app.route("/api", oauth);
 app.route("/api", artifacts);
+app.route("/api", comments);
+app.route("/api", collaborators);
+app.route("/api", collabRouter(upgradeWebSocket));
 app.route("/api", folders);
 app.route("/api", themes);
 app.route("/api", templates);

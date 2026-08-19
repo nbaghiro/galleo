@@ -18,7 +18,11 @@ with high-fidelity export. Net-new, TypeScript.
   source registry.
 - `.docs/loading.md` — how much loads at once: list pagination, windowed artifact reads + section-op
   writes, and paint windowing for the section stack.
+- `.docs/collab.md` — live collaboration: grants, the room protocol, presence + cursors, per-key
+  op sync, the edit lease, and the engine invariant that keeps all of it overlay-only.
 - `.docs/testing.md` — the test philosophy, the mocking contract, and the coverage map.
+- `.docs/onboarding.md` — the first session: the signup grant, the template-first path, the checklist.
+  **Planned, not built** — read it as the plan, not as current behaviour.
 
 ## Structure (model · canvas · ui · editor · app)
 
@@ -30,12 +34,15 @@ with high-fidelity export. Net-new, TypeScript.
   the AiTask steps), `tools` (the one tool catalog: identity, surfaces, pricing), `billing` (plans, seats,
   add-ons + the entitlement resolver), `eval` (the traced-run contract the eval playground reads),
   `workspace` (the person, not the tenant: user + prefs + memberships + folder + the auth/account DTOs),
-  `text` (rich-text core + the render-facing `Run`), plus
+  `text` (rich-text core + the render-facing `Run`),
+  `comments` (the anchors, thread DTOs + wire bodies, and the pure anchor-resolution helpers),
+  `collab` (the live-collaboration wire protocol: presence/lease/op messages, their guards, and the
+  content-relative cursor math both ends share), plus
   `geometry` (sizing + format profiles), `media` (the picker + asset DTOs), `authoring` (fixture DSL),
   `elements` (element value-sets + the vector IR), and
   the two curated catalogs that carry their own contract: `theme` (the whole theme contract + library) and
   `templates` (the `Template` DTO + `TEMPLATE_INDEX`, ids/labels/grouping only — the bodies are served from
-  `services/core/templates.ts`, so this stays edge-safe). Fourteen files; resist adding a fifteenth for a
+  `services/core/templates.ts`, so this stays edge-safe). Sixteen files; resist adding a seventeenth for a
   handful of types that belong to a concept already here.
 - **`canvas/`** (`@canvas`, `@engine`, `@elements`) — the paint layer: the layout engine + element
   library + DOM / 2D-canvas / PDF backends + present-slide geometry + export. **Pure TS** — framework-
@@ -192,15 +199,22 @@ The layout engine (`canvas/engine/layout.ts`, Clay-style 3-pass solver) drives a
 state) and inline text editing (`panels/TextEditor.tsx`). State in `core/store.ts` (Solid store); painting
 is the `@canvas` layer — the engine's commands paint into refs (`@canvas/render/backends`, with a
 2D-canvas mirror for Present + PDF/PNG export). Sections compose via `@elements/compose`; every element
-has a structural ghost (`skeletonize` in `@elements/spec`). **58 palette elements** register via
+has a structural ghost (`skeletonize` in `@elements/spec`). **51 palette elements** register via
 `canvas/elements/register.ts`'s side-effect imports (5 text · 7 media · 2 table · 7 composite · 7 basic ·
-13 chart types · 17 diagram types), plus palette-hidden internals (`group`, `avatar`, the
+13 chart types · 10 diagram types), plus palette-hidden internals (`group`, `avatar`, the
 `chart`/`diagram` storage elements, the drop-preview); format-as-view
 (`@engine/profile` + `fragment`) is built, so one artifact renders as deck / doc / web.
 
 The product SPA (`app/`, served at `/app`) wraps the studio: library / templates / trash / shared /
 editor views, the two settings surfaces (`/settings` for the workspace, `/account` for the person, over
-`services/api/account.ts` + `users.prefs` — see `.docs/workspaces.md`),
+`services/api/account.ts` + `users.prefs`), and a per-artifact permission layer (`none`/`view`/`comment`/`edit`
+resolved by `accessFor` in `@model/artifact`, enforced at `gateArtifact` for workspace-scoped routes and
+`gateShared` for artifact-scoped ones) with the workspace policies
+beside it (publish policy, per-member credit cap) — see `.docs/workspaces.md`,
+**live collaboration** on top of it (per-artifact `artifact_grants` for people outside the workspace,
+an in-process room per artifact over a WebSocket in the same Hono server, presence + cursors as overlay
+chrome, per-key LWW `data` ops ordered by `artifacts.seq`, an element-level edit lease, and per-user
+inverse-op undo — see `.docs/collab.md`),
 a backend (`services/` Hono + Postgres/Drizzle; artifact content lives in the
 `draft_content` jsonb, with a write-time `digest` + `search_text` feeding a generated `search_tsv` that
 ⌘K and the library search field query over — see `.docs/search.md`), a singular theme editor

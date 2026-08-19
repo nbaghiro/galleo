@@ -1,16 +1,20 @@
 import type {
     Artifact,
+    ArtifactAccess,
     ArtifactContent,
     ArtifactInput,
     ArtifactPage,
     ArtifactWindow,
+    Collaborator,
     ContentPatch,
     GenMeta,
     ElementInstance,
     SearchResponse,
     Section,
+    SharedArtifact,
 } from "@model/artifact";
 import { asContent } from "@model/artifact";
+import type { CommentCreateBody, CommentDto, CommentEditBody } from "@model/comments";
 import type { Usage } from "@model/credits";
 import type { EvalCheck, EvalJudgement, EvalRun, EvalRunSummary, Rubric } from "@model/eval";
 import type {
@@ -259,11 +263,16 @@ export type PublicResult =
           format?: string;
       };
 
+// names the caller's collaboration connection on a write, so the room can skip its own author
+export const CONN_HEADER = "x-galleo-conn";
+
 // typed client over /api/* (dev proxy → :8601); cookies carry the session
 export type { ArtifactSummary, SearchHit } from "@model/artifact";
+export type { ArtifactAccess, Collaborator, SharedArtifact } from "@model/artifact";
 export type {
     User as ApiUser,
     Folder as ApiFolder,
+    PublishPolicy,
     AccountConnection,
     AuthProvider,
     Membership,
@@ -445,11 +454,17 @@ export const api = {
                 : `/artifacts/${id}/sections?window=${at.from}:${at.count}`,
         ),
     // send what changed, not the whole tree
-    patchContent: (id: string, patch: ContentPatch) =>
-        req<{ ok: true; updatedAt: string; total: number }>(`/artifacts/${id}/content`, {
-            method: "PATCH",
-            body: JSON.stringify(patch),
-        }),
+    // connId names the caller's collaboration socket when it has one, so the room does not send
+    // this write back to the client that just made it
+    patchContent: (id: string, patch: ContentPatch, connId?: string | null) =>
+        req<{ ok: true; updatedAt: string; total: number; seq: number }>(
+            `/artifacts/${id}/content`,
+            {
+                method: "PATCH",
+                body: JSON.stringify(patch),
+                ...(connId ? { headers: { [CONN_HEADER]: connId } } : {}),
+            },
+        ),
     createArtifact: (patch: ArtifactInput) =>
         req<{ id: string }>("/artifacts", { method: "POST", body: JSON.stringify(patch) }),
     getAiMeta: (id: string) =>
@@ -517,6 +532,59 @@ export const api = {
             signal ? { signal } : undefined,
         ),
     recordVisit: (id: string) => req<{ ok: true }>(`/artifacts/${id}/visit`, { method: "POST" }),
+
+    // comments: one flat list per artifact, threads assembled client-side
+    listComments: (id: string) => req<{ comments: CommentDto[] }>(`/artifacts/${id}/comments`),
+    createComment: (id: string, body: CommentCreateBody) =>
+        req<{ comment: CommentDto }>(`/artifacts/${id}/comments`, {
+            method: "POST",
+            body: JSON.stringify(body),
+        }),
+    editComment: (id: string, body: string) =>
+        req<{ comment: CommentDto }>(`/comments/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ body } satisfies CommentEditBody),
+        }),
+    resolveComment: (id: string, resolved: boolean) =>
+        req<{ comment: CommentDto }>(`/comments/${id}/${resolved ? "resolve" : "unresolve"}`, {
+            method: "POST",
+        }),
+    deleteComment: (id: string) => req<{ ok: true }>(`/comments/${id}`, { method: "DELETE" }),
+
+    // collaborator grants: per-person access to one artifact, outside workspace membership
+    // `members` carries the owning workspace's roster with each person's current level on this
+    // artifact, so inviting one of them can show what the grant would change
+    listCollaborators: (id: string) =>
+        req<{ collaborators: Collaborator[]; members: Collaborator[] }>(
+            `/artifacts/${id}/collaborators`,
+        ),
+    inviteCollaborator: (id: string, email: string, access: ArtifactAccess) =>
+        req<{ collaborator: Collaborator; url: string | null; sent: boolean }>(
+            `/artifacts/${id}/collaborators`,
+            { method: "POST", body: JSON.stringify({ email, access }) },
+        ),
+    setCollaboratorAccess: (id: string, grantId: string, access: ArtifactAccess) =>
+        req<{ ok: true }>(`/artifacts/${id}/collaborators/${grantId}`, {
+            method: "PATCH",
+            body: JSON.stringify({ access }),
+        }),
+    revokeCollaborator: (id: string, grantId: string) =>
+        req<{ ok: true }>(`/artifacts/${id}/collaborators/${grantId}`, { method: "DELETE" }),
+    collabInviteInfo: (token: string) =>
+        req<{
+            artifactId: string;
+            title: string;
+            workspaceName: string;
+            email: string;
+            access: ArtifactAccess;
+        }>(`/collab/invites/${encodeURIComponent(token)}`),
+    acceptCollabInvite: (token: string) =>
+        req<{ ok: boolean; artifactId: string }>("/collab/invites/accept", {
+            method: "POST",
+            body: JSON.stringify({ token }),
+        }),
+    sharedWithMe: () => req<{ artifacts: SharedArtifact[] }>("/shared-with-me"),
+
     listTrash: () => req<ArtifactPage>("/artifacts?trashed=1&limit=100"),
     trashArtifact: (id: string) => req<{ ok: true }>(`/artifacts/${id}/trash`, { method: "POST" }),
     restoreArtifact: (id: string) =>

@@ -2,36 +2,69 @@
 
 ## Shared context
 
-You're working in **Galleo** — a TypeScript AI content tool where one engine renders the same block
-tree as a **deck, document, or website**. Read `.docs/architecture.md` and `AGENTS.md` before
-starting; `.docs/ai.md` §10.5 covers the context system this feature serves.
+You are working in **Galleo**, a TypeScript AI content tool where one engine renders the same block
+tree as a **deck, document, or website**. Read `AGENTS.md` first, then `.docs/architecture.md`;
+`.docs/ai.md` §10.5 covers the context system this feature serves.
 
-**Layering law (ESLint-enforced):** `model ← canvas ← ui ← editor ← app`; `services` imports only
-`model`. Inside services: `api → core → db → utils`; **`utils/` may not import `db/`** (that is what
-keeps it unit-testable) and **`core/` may not import hono**. No `index.ts` barrels. No suppressions
-of any kind (`eslint-disable` is inert and fails the build). Comments terse, only for what code
-can't say.
+**Layering law (ESLint-enforced, and `pnpm check:boundaries` plants violations to prove the rules
+still report):** `model ← canvas ← ui ← editor ← app`; `services` imports only `model`. Inside
+services: `api → core → db → utils`; **`utils/` may not import `db/`** (that is what keeps it
+unit-testable) and **`core/` may not import hono**. Entry points compose across layers and are the
+one exemption; there are exactly two today, `services/server.ts` and `services/db/seed.ts`, both
+named in `package.json`, which is the precedent the backfill entry below relies on. Path aliases:
+`@model @themes
+@canvas @engine @elements @ui @editor @app @services`. No `index.ts` barrels; cross-directory
+imports use an alias, same-directory siblings stay relative. No suppressions of any kind
+(`noInlineConfig` makes `eslint-disable` inert and then fails the run for it). Comments terse, only
+for what the code can't say.
 
 **Style:** 4-space indent, double quotes, semicolons, `printWidth` 100, no `any`, no `console`
 (backend output goes through `services/utils/env.ts` `out`/`warn`).
 
-**Run/verify:** `pnpm dev` (SPA :8600, `/api/*` dev-proxied to the backend on :8601), Postgres in
-docker (`docker compose up -d`, pgvector image). Schema: `services/db/schema.ts` with **generated
-migration files** — `pnpm db:generate` then `pnpm db:migrate`. Seed login: `demo@galleo.app` /
-`galleo-demo-2026` (`pnpm seed`). Gates before done: `pnpm typecheck · lint · test · test:int ·
-build · check:suppressions · check:program · check:boundaries · check:models`.
+**Request bodies are untrusted.** A route reads its body with `await readJson(c, zThing)`
+(`services/utils/http.ts`), which returns `null` on a mismatch so the route can answer 400 with
+`BAD_BODY`; the zod schema lives beside the route. A schema carrying stored content uses
+`z.looseObject` or `z.custom<T>(guard)`, since a plain `z.object` strips keys this layer does not
+enumerate. `pnpm check:validation` enforces it and also fails a `c.req.json()` that routes around
+the helper. Relevant here: `POST /contexts/:id/items` already carries the base64 original through
+its schema, so a change to that body shape has to keep passing the guard.
+
+**Copy is plain and never em-dashed** in user-facing strings; `pnpm check:copy` fails the build on
+one. Comments are exempt.
+
+**Run/verify:** `pnpm dev` (SPA :8600, `/api/*` dev-proxied to the backend), `pnpm api` (the Hono
+server on :8601), Postgres in docker (`docker compose up -d`, pgvector image, host port 8602).
+Schema: `services/db/schema.ts` with **generated migration files**: `pnpm db:generate` then
+`pnpm db:migrate`. Seed login: `demo@galleo.app` / `galleo-demo-2026` (`pnpm seed`).
+
+Gates before done, all of them:
+
+```
+pnpm typecheck   pnpm lint   pnpm format:check   pnpm test   pnpm test:int   pnpm build
+pnpm check:suppressions   pnpm check:program   pnpm check:boundaries   pnpm check:models
+pnpm check:copy   pnpm check:elements   pnpm check:modules   pnpm check:validation
+```
 
 > **Migrations are immutable once deployed.** Prod (Render, deploy runs `pnpm db:migrate`) tracks
 > applied migrations by content hash. Never rename, edit, or squash a migration that has reached
-> prod — it re-runs and fails the deploy. Only ever append new files.
+> prod: it re-runs and fails the deploy. Only ever append new files.
 
-**Testing contract** (`.docs/testing.md`): fake only true external oracles, run everything else
-real. The context system's precedent is the `Embedder` seam — every core function takes
+**Testing contract** (`.docs/testing.md`, section 2 is the canonical statement): fake only true
+external oracles, run everything else real. Vitest discovers `**/*.test.ts` for the unit run and
+`**/*.itest.ts` for `pnpm test:int`, never `.tsx`, so logic worth testing belongs in a `.ts` file.
+The context system's precedent is the `Embedder` seam: every core function takes
 `embed: Embedder = embedTexts` as a trailing param so integration tests run real Postgres SQL with
 a deterministic fake instead of a paid API. **This feature must introduce the same kind of seam
 for the object store.**
 
-## What exists today (verify each against the code before building — the repo moves fast)
+## Status
+
+Not started, as of this audit. A grep for `objectstore`, `aws4fetch`, `S3_ENDPOINT`, `minio`, and
+`original_key` across `services/`, `app/`, `model/`, `package.json`, and `docker-compose.yml` returns
+nothing, and ports 8604/8605 are still `reserved` in the ports table. The design below is unchanged
+apart from corrected file paths; verify each "what exists" claim against the code anyway.
+
+## What exists today (verify each against the code before building; the repo moves fast)
 
 The context library ingests files: text is extracted server-side (`services/core/extract.ts` over
 `services/utils/extract.ts`), chunked + embedded into pgvector (`services/core/context.ts`). For

@@ -1,32 +1,45 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import type { ArtifactContent, ArtifactPage, GenMeta } from "@model/artifact";
+import { isAccess } from "@model/artifact";
 import { featuresFor, isUnlimited, limit } from "@model/billing";
 import { TEMPLATE_INDEX } from "@model/templates";
 import { z } from "zod";
 import { BAD_BODY, checkLimit, readJson } from "@services/utils/http";
-import { currentWorkspace, type WorkspaceRow } from "@services/core/accounts";
+import { currentMembership, type WorkspaceRow } from "@services/core/accounts";
 import { recordArtifactVisit, recordTemplateUse } from "@services/core/visits";
+import { markGrantSeen } from "@services/core/collaborators";
+import { CONN_HEADER, openRoom } from "@services/core/collab";
 import {
     applyContentOps,
     createArtifact,
     decodeCursor,
     deleteArtifact,
+    ensureElementIds,
     emptyTrash,
     isArtifactContent,
     isSectionOp,
     listArtifacts,
     liveArtifactCount,
+    setArtifactAccess,
     pageLimit,
     parseWindow,
     readAiMeta,
-    readArtifact,
     readSections,
     setTrashed,
+    stampedContent,
     updateArtifact,
     windowOf,
 } from "@services/core/artifacts";
-import { requireUser, requireWorkspace, type WorkspaceEnv } from "./middleware";
+import {
+    gateArtifact,
+    gateShared,
+    isResponse,
+    requireRole,
+    requireUser,
+    requireWorkspace,
+    type WorkspaceEnv,
+} from "./middleware";
 
 export const artifacts = new Hono<WorkspaceEnv>();
 
@@ -110,11 +123,20 @@ artifacts.post("/artifacts", requireWorkspace, async (c) => {
     return id ? c.json({ id }) : c.json({ error: "create failed" }, 500);
 });
 
-artifacts.get("/artifacts/:id", requireWorkspace, async (c) => {
-    const a = await readArtifact(c.get("ws").id, c.req.param("id"));
-    if (!a) return c.json({ error: "not found" }, 404);
+// Artifact-scoped from here on: the gate resolves the workspace from the artifact row, so an
+// invited collaborator reads their invitation rather than their own workspace's copy of nothing.
+artifacts.get("/artifacts/:id", requireUser, async (c) => {
+    const gate = await gateShared(c, c.req.param("id"), "view");
+    if (isResponse(gate)) return gate;
+    // A row written before element ids existed hands every reader a different client-minted set,
+    // so anything anchored to one (a comment) dies on the next read. Stamp it before answering.
+    const stamped = stampedContent(gate.artifact.draftContent)
+        ? await ensureElementIds(gate.artifact.id)
+        : null;
+    const a = stamped ? { ...gate.artifact, draftContent: stamped } : gate.artifact;
+    if (gate.grant) await markGrantSeen(a.id, c.get("user").id);
     const win = parseWindow(c.req.query("window"));
-    if (win) return c.json({ artifact: windowOf(a, win) });
+    if (win) return c.json({ artifact: { ...windowOf(a, win), access: gate.access } });
     return c.json({
         artifact: {
             id: a.id,
@@ -175,31 +197,66 @@ artifacts.post("/artifacts/:id/restore", requireWorkspace, async (c) => {
 });
 
 artifacts.delete("/artifacts/:id", requireWorkspace, async (c) => {
+    const gate = await gateArtifact(c, c.req.param("id"), "edit");
+    if (isResponse(gate)) return gate;
     await deleteArtifact(c.get("ws").id, c.req.param("id"));
     return c.json({ ok: true });
 });
 
-artifacts.delete("/trash", requireWorkspace, async (c) => {
+// Wipes every member's trashed work at once, not just the caller's, so it is an admin call.
+artifacts.delete("/trash", requireWorkspace, requireRole("admin"), async (c) => {
     await emptyTrash(c.get("ws").id);
     return c.json({ ok: true });
 });
 
-artifacts.patch("/artifacts/:id/content", requireWorkspace, async (c) => {
+// Who in the workspace may do what with this one artifact. Changing it is an edit-level act, so a
+// member who can edit can also lock it; an admin can always undo that.
+artifacts.put("/artifacts/:id/access", requireWorkspace, async (c) => {
+    const gate = await gateArtifact(c, c.req.param("id"), "edit");
+    if (isResponse(gate)) return gate;
+    const body = await readJson(c, zAccess);
+    if (!body) return c.json(BAD_BODY, 400);
+    const access = body.access ?? null;
+    if (access !== null && !isAccess(access))
+        return c.json({ error: "that is not an access level" }, 400);
+    const ok = await setArtifactAccess(c.get("ws").id, c.req.param("id"), access);
+    return ok ? c.json({ ok: true, access }) : c.json({ error: "not found" }, 404);
+});
+
+artifacts.patch("/artifacts/:id/content", requireUser, async (c) => {
+    const gate = await gateShared(c, c.req.param("id"), "edit");
+    if (isResponse(gate)) return gate;
     const body = await readJson(c, zContentPatch);
     if (!body) return c.json(BAD_BODY, 400);
     const ops = (body.ops ?? []).filter(isSectionOp);
     if (!ops.length) return c.json({ error: "no ops" }, 400);
-    const result = await applyContentOps(c.get("ws").id, c.req.param("id"), ops, {
+    const result = await applyContentOps(gate.ws.id, c.req.param("id"), ops, {
         themeId: body.themeId,
         formatId: body.formatId,
     });
     if (result.status !== 200) return c.json({ error: result.error }, result.status);
-    return c.json({ ok: true, updatedAt: result.updatedAt, total: result.total });
+    // An HTTP write still belongs in the room's stream, so everyone else watching sees it land.
+    // The caller names its own socket (when it has one) so the room does not send the write back
+    // to the client that just made it; the room only honours a connection that is actually theirs.
+    openRoom(c.req.param("id"))?.publish(
+        result.seq,
+        { kind: "user", connId: c.req.header(CONN_HEADER) ?? "", userId: c.get("user").id },
+        ops,
+    );
+    return c.json({ ok: true, updatedAt: result.updatedAt, total: result.total, seq: result.seq });
 });
 
-artifacts.patch("/artifacts/:id", requireWorkspace, async (c) => {
+artifacts.patch("/artifacts/:id", requireUser, async (c) => {
+    const gate = await gateShared(c, c.req.param("id"), "edit");
+    if (isResponse(gate)) return gate;
     const body = await readJson(c, zArtifactInput);
     if (!body) return c.json(BAD_BODY, 400);
-    const a = await updateArtifact(c.get("ws").id, c.req.param("id"), body);
-    return a ? c.json({ ok: true, updatedAt: a.updatedAt }) : c.json({ error: "not found" }, 404);
+    // a grantee edits content, never the artifact's place in someone else's library
+    if (!gate.role && body.folderId !== undefined)
+        return c.json({ error: "only the owning workspace can move this artifact" }, 403);
+    const a = await updateArtifact(gate.ws.id, c.req.param("id"), body);
+    if (!a) return c.json({ error: "not found" }, 404);
+    // a whole-document write has no ops to replay, so anyone in the room reloads from the new seq
+    if (body.draftContent !== undefined) openRoom(c.req.param("id"))?.resyncAll(a.seq);
+    return c.json({ ok: true, updatedAt: a.updatedAt, seq: a.seq });
 });

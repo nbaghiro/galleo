@@ -97,6 +97,40 @@ export async function sendShareInvite(invite: ShareInvite): Promise<boolean> {
     return deliver({ to: invite.to, subject, html });
 }
 
+export interface CollabInvite {
+    to: string;
+    artifactTitle: string;
+    workspaceName: string;
+    inviterName?: string | null;
+    access: ArtifactAccess;
+    url: string;
+}
+
+const COLLAB_VERB: Record<ArtifactAccess, string> = {
+    none: "opened",
+    view: "read",
+    comment: "read and comment on",
+    edit: "edit",
+};
+
+export async function sendCollabInvite(invite: CollabInvite): Promise<boolean> {
+    const title = escapeHtml(invite.artifactTitle);
+    const who = escapeHtml(invite.inviterName || invite.workspaceName);
+    const subject = `${who} invited you to ${COLLAB_VERB[invite.access]} “${invite.artifactTitle}”`;
+    const html = `<!doctype html><html><body style="margin:0;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#18181b">
+  <div style="max-width:480px;margin:0 auto;padding:40px 24px">
+    <p style="margin:0 0 8px;font-size:13px;color:#71717a">${who} invited you to ${COLLAB_VERB[invite.access]} a document</p>
+    <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;line-height:1.3">${title}</h1>
+    <a href="${invite.url}" style="display:inline-block;padding:11px 20px;background:#18181b;color:#fff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600">Open document</a>
+    <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa;line-height:1.5">This link is unique to you. Please don't forward it. If the button doesn't work, paste this URL into your browser:<br><span style="color:#71717a;word-break:break-all">${escapeHtml(
+        invite.url,
+    )}</span></p>
+    <p style="margin:28px 0 0;font-size:11px;color:#d4d4d8">Sent via Galleo</p>
+  </div>
+</body></html>`;
+    return deliver({ to: invite.to, subject, html });
+}
+
 export interface WorkspaceInvite {
     to: string;
     workspaceName: string;

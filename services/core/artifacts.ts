@@ -9,10 +9,18 @@ import type {
     Section,
     SectionOp,
 } from "@model/artifact";
-import { applySectionOps, artifactDigest, asContent } from "@model/artifact";
+import {
+    accessFor,
+    applySectionOps,
+    artifactDigest,
+    asContent,
+    contentWithElementIds,
+} from "@model/artifact";
+import type { WorkspaceRole } from "@model/workspace";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { contentWrite } from "@services/db/derived";
+import { grantedTo } from "./collaborators";
 
 // Keyset, not offset: the cursor names the last row seen, so a concurrent edit can't make a row repeat
 // or vanish. A tampered or stale cursor degrades to "start from the beginning" rather than erroring.
@@ -112,6 +120,27 @@ export interface ListOptions {
     format?: string;
     take: number;
     cursor: Cursor | null;
+    viewer: Viewer;
+}
+
+export interface Viewer {
+    userId: string;
+    role: WorkspaceRole;
+    workspaceDefault: ArtifactAccess;
+}
+
+// The rows a viewer may see at all. Built positively rather than as NOT(hidden): `member_access` is
+// nullable, and negating a comparison against NULL yields NULL, which would drop the inheriting
+// rows. A direct grant is one of the positive terms, so an artifact locked to a member but shared
+// with them by name stays in their library rather than being reachable only by URL.
+function visibleTo(v: Viewer) {
+    if (v.role !== "member") return undefined;
+    const mine = eq(schema.artifacts.createdBy, v.userId);
+    const notNone = ne(schema.artifacts.memberAccess, "none");
+    const granted = grantedTo(v.userId, schema.artifacts.id);
+    return v.workspaceDefault === "none"
+        ? or(mine, and(isNotNull(schema.artifacts.memberAccess), notNone), granted)
+        : or(mine, isNull(schema.artifacts.memberAccess), notNone, granted);
 }
 
 // Filters apply server-side: a page is only coherent if both sides agree on what the list contains.
@@ -141,8 +170,20 @@ export async function listArtifacts(workspaceId: string, opts: ListOptions): Pro
             updatedAt: schema.artifacts.updatedAt,
             trashedAt: schema.artifacts.trashedAt,
             digest: schema.artifacts.digest,
+            createdBy: schema.artifacts.createdBy,
+            memberAccess: schema.artifacts.memberAccess,
+            grant: schema.artifactGrants.access,
         })
         .from(schema.artifacts)
+        // a per-user grant is part of the level this row reports, so the badge in the library says
+        // what the artifact will actually let this person do when they open it
+        .leftJoin(
+            schema.artifactGrants,
+            and(
+                eq(schema.artifactGrants.artifactId, schema.artifacts.id),
+                eq(schema.artifactGrants.userId, opts.viewer.userId),
+            ),
+        )
         .where(
             and(
                 eq(schema.artifacts.workspaceId, workspaceId),
@@ -164,14 +205,24 @@ export async function listArtifacts(workspaceId: string, opts: ListOptions): Pro
     const page = rows.slice(0, take);
     const last = page.at(-1);
     // every write derives the digest (db/derived.ts); null only on a row predating it
-    const list = page.map(({ digest, updatedAt, trashedAt, ...meta }) => ({
-        ...meta,
-        updatedAt: updatedAt.toISOString(),
-        trashedAt: trashedAt?.toISOString() ?? null,
-        cover: digest?.cover ?? {},
-        sections: digest?.sections ?? [],
-        ...(digest?.page ? { page: digest.page } : {}),
-    }));
+    const list = page.map(
+        ({ digest, updatedAt, trashedAt, createdBy, memberAccess, grant, ...meta }) => ({
+            ...meta,
+            updatedAt: updatedAt.toISOString(),
+            trashedAt: trashedAt?.toISOString() ?? null,
+            cover: digest?.cover ?? {},
+            sections: digest?.sections ?? [],
+            ...(digest?.page ? { page: digest.page } : {}),
+            access: accessFor({
+                role: opts.viewer.role,
+                userId: opts.viewer.userId,
+                createdBy,
+                memberAccess,
+                workspaceDefault: opts.viewer.workspaceDefault,
+                grant,
+            }),
+        }),
+    );
     return {
         artifacts: list,
         nextCursor:
@@ -224,9 +275,48 @@ export async function createArtifact(
     return a?.id ?? null;
 }
 
-export async function readArtifact(workspaceId: string, id: string) {
+export type ArtifactRow = typeof schema.artifacts.$inferSelect;
+
+export async function readArtifact(workspaceId: string, id: string): Promise<ArtifactRow | null> {
     const [a] = await db.select().from(schema.artifacts).where(owned(id, workspaceId));
     return a ?? null;
+}
+
+/** The stamped tree when this one needed stamping, else null. Identity tells the two apart. */
+export const stampedContent = (draft: unknown): ArtifactContent | null => {
+    const current = asContent(draft);
+    const next = contentWithElementIds(current);
+    return next === current ? null : next;
+};
+
+/**
+ * Element ids are what a comment anchors to, and a client mints its own for any element that
+ * arrives without one. Those ids live in that tab's memory only, so a row written before ids
+ * existed hands every reader a different set and every anchor created against them orphans on the
+ * next read. A read that finds an unstamped row therefore stamps it, once, before answering.
+ *
+ * Under a row lock, and re-checked inside it: two readers arriving together must not mint two
+ * different ids for the same element, and the second one has to return what the first wrote.
+ */
+export async function ensureElementIds(id: string): Promise<ArtifactContent | null> {
+    return db.transaction(async (tx) => {
+        const [row] = await tx
+            .select({ draftContent: schema.artifacts.draftContent })
+            .from(schema.artifacts)
+            .where(eq(schema.artifacts.id, id))
+            .for("update");
+        if (!row) return null;
+        const stamped = stampedContent(row.draftContent);
+        // another reader got there first, so its ids are the ones to serve
+        if (!stamped) return asContent(row.draftContent);
+        // deliberately not updatedAt or seq: stamping is not an edit, and bumping either would
+        // reorder the library and resync every collaborator over a write nobody made
+        await tx
+            .update(schema.artifacts)
+            .set(contentWrite(stamped))
+            .where(eq(schema.artifacts.id, id));
+        return stamped;
+    });
 }
 
 // Only trusts the stored digest's index when it carries section ids: a digest written before

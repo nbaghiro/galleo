@@ -192,6 +192,37 @@ export const artifacts = pgTable(
     ],
 );
 
+// Per-person access to one artifact, independent of workspace membership: this is what lets someone
+// outside the workspace open it at all. Keyed by email rather than user id so an invite can go to an
+// address that has no account yet; user_id binds on acceptance. A grant never lowers a member's
+// level — effective access is the higher of the membership-derived level and this one.
+export const artifactGrants = pgTable(
+    "artifact_grants",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        artifactId: uuid("artifact_id")
+            .notNull()
+            .references(() => artifacts.id, { onDelete: "cascade" }),
+        // the artifact's workspace, denormalized so a "shared with me" list needs no second join
+        workspaceId: uuid("workspace_id")
+            .notNull()
+            .references(() => workspaces.id, { onDelete: "cascade" }),
+        email: text("email").notNull(),
+        userId: uuid("user_id").references(() => users.id), // null until claimed
+        access: text("access").$type<ArtifactAccess>().notNull().default("edit"),
+        invitedBy: uuid("invited_by").references(() => users.id),
+        // only the SHA-256 hash, like invites: the raw token lives in the emailed link
+        tokenHash: text("token_hash"),
+        acceptedAt: timestamp("accepted_at"),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+    },
+    (t) => [
+        unique().on(t.artifactId, t.email),
+        index("artifact_grants_user_idx").on(t.userId),
+        index("artifact_grants_email_idx").on(t.email),
+    ],
+);
+
 // What a user reached for, per (user, kind, ref): artifact opens (the read clock behind "Recent" —
 // updated_at is an edit clock) and template uses (catalog popularity = sum of uses across everyone).
 // ref is an artifacts.id or a template id from the code catalog — no FK since it spans two parents;
@@ -470,7 +501,9 @@ export const schema = {
     invites,
     folders,
     artifacts,
+    artifactGrants,
     visits,
+    comments,
     themes,
     assets,
     links,

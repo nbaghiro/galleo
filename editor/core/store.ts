@@ -1,10 +1,12 @@
 import type { Region } from "@engine/node";
-import type { ElementAddress, Target } from "@model/artifact";
+import type { ArtifactAccess, ElementAddress, Target } from "@model/artifact";
+import { atLeast } from "@model/artifact";
 import type {
     ArtifactContent,
     ArtifactShell,
     ElementInstance,
     Section,
+    SectionOp,
     SectionSummary,
 } from "@model/artifact";
 import type { PlanLimits } from "@model/billing";
@@ -13,7 +15,16 @@ import type { IconPick, MediaItem, MediaKind } from "@model/media";
 import { createSignal } from "solid-js";
 import type { Theme, Tokens } from "@themes";
 import { duplicateSection, insertSection, moveSection, removeSection } from "@elements/ops";
-import { emptyRegion, targetsEqual } from "@model/artifact";
+import {
+    applySectionOps,
+    contentWithElementIds,
+    diffSections,
+    emptyRegion,
+    invertOps,
+    narrowOps,
+    sectionWithElementIds,
+    targetsEqual,
+} from "@model/artifact";
 import { isDesktop } from "@ui/viewport";
 import { resolveTheme } from "@themes";
 
@@ -74,14 +85,54 @@ const [features, setFeatures] = createSignal<ExportFeatures>({
 });
 export { features, setFeatures };
 
-// the title rides in the snapshot, so one undo stack covers content edits and renames
-interface DocSnapshot {
-    content: ArtifactContent;
-    title: string;
+// History is per-user inverse ops, not document snapshots: replaying one person's undo must not roll
+// back what someone else wrote in between. Each entry carries what it did and what puts it back, plus
+// the title change riding along so a rename undoes with the edits around it.
+interface HistoryEntry {
+    forward: SectionOp[];
+    inverse: SectionOp[];
+    title?: { before: string; after: string };
+    // what a remote write had touched when this was recorded; a later remote write on the same
+    // target makes the entry unsafe to replay
+    marks: Map<string, number>;
 }
-const past: DocSnapshot[] = [];
-const future: DocSnapshot[] = [];
+const past: HistoryEntry[] = [];
+const future: HistoryEntry[] = [];
 const HISTORY_CAP = 120;
+
+// Bumped whenever a remote write lands on a target, so undo can tell "still mine" from "someone
+// rewrote this". Keyed the same way pending local writes are: per data key, per section otherwise.
+const remoteMarks = new Map<string, number>();
+let remoteTick = 0;
+
+function writeKeys(ops: SectionOp[]): string[] {
+    const out: string[] = [];
+    for (const op of ops) {
+        if (op.kind === "data")
+            for (const key of Object.keys(op.keys))
+                out.push(`${op.sectionId}|${op.elementId}|${key}`);
+        else if (op.kind === "set") out.push(op.section.id);
+        else if (op.kind === "insert") out.push(op.section.id);
+        else if (op.kind === "remove") out.push(op.id);
+        else out.push("*"); // order and shell are document-wide
+    }
+    return out;
+}
+
+const markRemote = (ops: SectionOp[]): void => {
+    remoteTick += 1;
+    for (const key of writeKeys(ops)) remoteMarks.set(key, remoteTick);
+};
+
+const marksFor = (ops: SectionOp[]): Map<string, number> =>
+    new Map(writeKeys(ops).map((key) => [key, remoteMarks.get(key) ?? 0]));
+
+// A remote write since this entry was recorded means replaying it would clobber someone else's work,
+// so the entry is dropped and undo moves on to the one behind it.
+const stillMine = (entry: HistoryEntry): boolean => {
+    for (const [key, at] of entry.marks) if ((remoteMarks.get(key) ?? 0) !== at) return false;
+    return !entry.marks.has("*") || (remoteMarks.get("*") ?? 0) === entry.marks.get("*");
+};
 
 // bumped when the stacks change, so canUndo/canRedo stay reactive
 const [historyTick, setHistoryTick] = createSignal(0);
@@ -104,8 +155,6 @@ const bumpSeq = (): void => {
     setEditSeq((n) => n + 1);
 };
 
-const snapshot = (): DocSnapshot => ({ content: content(), title: currentTitle() });
-
 // consecutive commits with the same key (within the idle window) fold into one undo step
 let coalesceKey: string | null = null;
 let coalesceTimer = 0;
@@ -117,34 +166,72 @@ const armCoalesce = (key: string): void => {
     }, 500);
 };
 
-function pushPast(s: DocSnapshot): void {
-    past.push(s);
+function pushEntry(entry: HistoryEntry, coalesce = false): void {
+    const last = past.at(-1);
+    if (coalesce && last) {
+        // one interaction, one undo step: the merged entry undoes the whole run at once
+        last.forward = [...last.forward, ...entry.forward];
+        last.inverse = [...entry.inverse, ...last.inverse];
+        if (entry.title)
+            last.title = {
+                before: last.title?.before ?? entry.title.before,
+                after: entry.title.after,
+            };
+        for (const [key, at] of entry.marks) if (!last.marks.has(key)) last.marks.set(key, at);
+        bumpHistory();
+        return;
+    }
+    past.push(entry);
     if (past.length > HISTORY_CAP) past.shift();
     future.length = 0;
-    coalesceKey = null;
     bumpHistory();
 }
 
-export function commit(next: ArtifactContent, opts?: { coalesce?: string }): void {
+// The caller's level on the open artifact, pushed in by the shell (editor/ may not import app/).
+// Every mutation funnels through commit/commitOver, so gating here covers drag-drop, inline text,
+// inspectors, and AI patches alike rather than relying on each surface to hide its own controls.
+export const [editAccess, setEditAccess] = createSignal<ArtifactAccess>("edit");
+export const canEdit = (): boolean => editAccess() === "edit";
+export const canComment = (): boolean => atLeast(editAccess(), "comment");
+
+// Every local write funnels through here: the ops are derived once, narrowed to the finest unit
+// that expresses them, recorded with their inverse for undo, and sent to the room.
+function record(
+    base: ArtifactContent,
+    next: ArtifactContent,
+    opts?: { coalesce?: string; title?: { before: string; after: string } },
+): void {
+    const forward = narrowOps(base, diffSections(base, next));
+    if (!forward.length && !opts?.title) return; // nothing changed by value; keep the painted objects
     const key = opts?.coalesce;
-    if (key && key === coalesceKey) {
-        // same interaction: keep the single history entry
-        setContent(next);
-        bumpSeq();
-        armCoalesce(key);
-        return;
-    }
-    pushPast(snapshot());
-    setContent(next);
-    bumpSeq();
+    const folding = !!key && key === coalesceKey;
+    pushEntry(
+        {
+            forward,
+            inverse: invertOps(base, forward),
+            marks: marksFor(forward),
+            ...(opts?.title ? { title: opts.title } : {}),
+        },
+        folding,
+    );
     if (key) armCoalesce(key);
+    else coalesceKey = null;
+    setContent(next);
+    if (!forward.length) return; // a rename carries no content, so it costs no repaint or write
+    bumpSeq();
+    emitOps(forward);
+}
+
+export function commit(next: ArtifactContent, opts?: { coalesce?: string }): void {
+    if (!canEdit()) return;
+    record(content(), next, opts);
 }
 
 // baselines the undo step on `base`, for when the live tree holds a transient value (a skeleton)
 export function commitOver(base: ArtifactContent, next: ArtifactContent): void {
-    pushPast({ content: base, title: currentTitle() });
-    setContent(next);
-    bumpSeq();
+    if (!canEdit()) return;
+    coalesceKey = null;
+    record(base, next);
 }
 
 // previewing swaps the rendered theme but not the saved one, and skips editSeq, so it never autosaves
@@ -165,8 +252,11 @@ export function keepPreviewedTheme(): void {
     const prevTheme = savedThemeUnderPreview;
     savedThemeUnderPreview = null;
     setPreviewingTheme(false);
-    if (prevTheme !== null && prevTheme !== content().theme)
-        pushPast({ content: { ...content(), theme: prevTheme }, title: currentTitle() });
+    if (prevTheme !== null && prevTheme !== content().theme) {
+        const kept = content();
+        record({ ...kept, theme: prevTheme }, kept);
+        return;
+    }
     bumpSeq();
 }
 
@@ -185,26 +275,56 @@ export function themeForPersist(): string {
     return savedThemeUnderPreview ?? content().theme;
 }
 
-export function undo(): void {
-    const prev = past.pop();
-    if (prev === undefined) return;
+// Replays one recorded batch and emits it like any other write, so undo travels to the room the
+// same way the edit did. Entries whose target someone else has since rewritten are dropped.
+function replay(
+    stack: HistoryEntry[],
+    other: HistoryEntry[],
+    pick: (e: HistoryEntry) => SectionOp[],
+    title: (e: HistoryEntry) => string | undefined,
+): void {
     coalesceKey = null;
-    future.push(snapshot());
-    setContent(hydrate(prev.content));
-    restoreTitle(prev.title);
-    bumpSeq();
-    bumpHistory();
+    for (;;) {
+        const entry = stack.pop();
+        if (!entry) {
+            bumpHistory();
+            return;
+        }
+        if (!stillMine(entry)) continue;
+        const ops = hydrateOps(pick(entry));
+        if (ops.length) {
+            const applied = applySectionOps(content(), ops);
+            if (!applied.ok) continue; // the document moved out from under it
+            setContent(applied.content);
+        }
+        other.push({ ...entry, marks: marksFor(ops) });
+        const t = title(entry);
+        if (t !== undefined) restoreTitle(t);
+        if (ops.length) {
+            bumpSeq();
+            emitOps(ops);
+        }
+        bumpHistory();
+        return;
+    }
+}
+
+export function undo(): void {
+    replay(
+        past,
+        future,
+        (e) => e.inverse,
+        (e) => e.title?.before,
+    );
 }
 
 export function redo(): void {
-    const next = future.pop();
-    if (next === undefined) return;
-    coalesceKey = null;
-    past.push(snapshot());
-    setContent(hydrate(next.content));
-    restoreTitle(next.title);
-    bumpSeq();
-    bumpHistory();
+    replay(
+        future,
+        past,
+        (e) => e.forward,
+        (e) => e.title?.after,
+    );
 }
 
 // live keystrokes update the artifact without touching history; one entry is recorded when it ends
@@ -218,18 +338,37 @@ export { editCaret };
 let editBefore: ArtifactContent | null = null;
 
 export function startEditing(addr: ElementAddress, caret?: { x: number; y: number }): void {
+    // The presence gate: someone else is already in this element, so entering would be co-typing.
+    // Zero latency and it covers every entry point, since they all funnel through here.
+    if (enterEditHandler && !enterEditHandler(addr)) return;
     editBefore = editor.artifact;
+    editingElementId = getElementIdAt(editor.artifact, addr);
     setEditCaret(caret ?? null);
     // hover updates are suppressed while editing, so a stale value would strand the hover chrome
     setHover(null);
     setEditing(addr);
 }
 
+// The collaboration gate around an edit session, registered by the host. `enter` returns false when
+// the element is held by someone else (and says so); returning true claims it. No host = solo.
+type EnterEdit = (addr: ElementAddress) => boolean;
+type LeaveEdit = (addr: ElementAddress) => void;
+let enterEditHandler: EnterEdit | null = null;
+let leaveEditHandler: LeaveEdit | null = null;
+
+export function onEditSession(enter: EnterEdit, leave: LeaveEdit): void {
+    enterEditHandler = enter;
+    leaveEditHandler = leave;
+}
+
 export function stopEditing(): void {
-    if (editBefore && editBefore !== editor.artifact)
-        pushPast({ content: editBefore, title: currentTitle() });
+    const addr = editing();
+    // one entry per session: the keystrokes updated the tree live, this is where they become an edit
+    if (editBefore && editBefore !== editor.artifact) record(editBefore, editor.artifact);
     editBefore = null;
+    editingElementId = undefined;
     setEditing(null);
+    if (addr) leaveEditHandler?.(addr);
 }
 
 // a focused contenteditable won't reliably repaint an in-place change; a fresh mount always paints
@@ -241,6 +380,169 @@ export function setArtifactLive(next: ArtifactContent): void {
     setContent(next);
     bumpSeq();
 }
+
+// ---- collaboration: ops out, ops in ---------------------------------------------------------
+//
+// The room is the persistence driver while it is up, so every local batch goes out here and the
+// server's ack is what advances the saved baseline. Remote batches come back through
+// applyRemoteOps, which runs the same pure ops local editing does but never records history and
+// never re-emits.
+
+type OpsEmitter = (ops: SectionOp[]) => string | null; // the tag, or null when nothing went out
+let opsEmitter: OpsEmitter | null = null;
+
+// (write key -> tag) for everything sent but not yet acked. A remote value for a key we are still
+// waiting on is discarded: unacked local wins, per key, which is what stops a colour and a
+// keystroke on one element from fighting each other on screen.
+const pendingByKey = new Map<string, string>();
+// (tag -> the content that batch produced) so an ack can hand the autosave baseline forward
+const pendingContent = new Map<string, ArtifactContent>();
+
+export function onEmitOps(fn: OpsEmitter): void {
+    opsEmitter = fn;
+}
+
+export function clearEmitOps(): void {
+    opsEmitter = null;
+    pendingByKey.clear();
+    pendingContent.clear();
+}
+
+function emitOps(ops: SectionOp[]): void {
+    if (!ops.length) return;
+    const tag = opsEmitter?.(ops);
+    if (!tag) return;
+    pendingContent.set(tag, content());
+    for (const key of writeKeys(ops)) pendingByKey.set(key, tag);
+}
+
+const clearPending = (tag: string): void => {
+    for (const [key, held] of [...pendingByKey]) if (held === tag) pendingByKey.delete(key);
+    pendingContent.delete(tag);
+};
+
+/** The server holds this batch now; the content it produced is the new save baseline. */
+export function opsAcked(tag: string): ArtifactContent | null {
+    const at = pendingContent.get(tag) ?? null;
+    clearPending(tag);
+    return at;
+}
+
+export function opsRejected(tag: string): void {
+    clearPending(tag);
+}
+
+// Drops what we are still waiting on: a remote `data` op loses only its contested keys, a remote
+// whole-section `set` loses to a pending local one outright. Structural ops are never dropped,
+// because a removal has to land whatever else is in flight.
+function admissible(ops: SectionOp[]): SectionOp[] {
+    const out: SectionOp[] = [];
+    for (const op of ops) {
+        if (op.kind === "data") {
+            if (pending().has(op.sectionId)) continue; // a placeholder refetches the truth anyway
+            const keys: Record<string, unknown> = {};
+            let any = false;
+            for (const [k, v] of Object.entries(op.keys)) {
+                if (pendingByKey.has(`${op.sectionId}|${op.elementId}|${k}`)) continue;
+                keys[k] = v;
+                any = true;
+            }
+            if (any) out.push({ ...op, keys });
+        } else if (op.kind === "set") {
+            if (!pendingByKey.has(op.section.id)) out.push(op);
+        } else {
+            out.push(op);
+        }
+    }
+    return out;
+}
+
+/** False when the batch could not be applied, which is the caller's cue to resync. */
+export function applyRemoteOps(ops: SectionOp[]): boolean {
+    const usable = admissible(ops);
+    markRemote(ops); // even a discarded op means someone else is in here, so undo must know
+    if (!usable.length) return true;
+    const applied = applySectionOps(content(), usable);
+    if (!applied.ok) return false;
+    if (unchanged(content(), applied.content)) return true;
+    setContent(applied.content);
+    // a remote write that fills in a placeholder resolves it, so the window stops asking for it
+    for (const op of usable) {
+        const filled = op.kind === "set" ? op.section : op.kind === "insert" ? op.section : null;
+        if (!filled || !pending().has(filled.id)) continue;
+        resolved.set(filled.id, filled);
+        setPending((p) => {
+            const next = new Map(p);
+            next.delete(filled.id);
+            return next;
+        });
+    }
+    bumpSeq();
+    endSessionIfGone();
+    return true;
+}
+
+// A batch that resolves to the document already on screen must not repaint: the paint cache and the
+// autosave diff both key on identity, so a needless new tree invalidates both for nothing.
+const unchanged = (a: ArtifactContent, b: ArtifactContent): boolean =>
+    a.sections.length === b.sections.length &&
+    a.sections.every((s, i) => s === b.sections[i]) &&
+    a.format === b.format &&
+    a.theme === b.theme &&
+    a.background === b.background &&
+    a.page === b.page;
+
+// Deletion wins: if a remote batch removed the element or section someone is typing in, their
+// session ends rather than writing into a hole.
+let sessionEndedHandler: (() => void) | null = null;
+export function onEditSessionEnded(fn: () => void): void {
+    sessionEndedHandler = fn;
+}
+
+// the id, not the path: a remote write can leave the path valid while the element that was there
+// is gone, and typing into whatever took its place is exactly the surprise this prevents
+let editingElementId: string | undefined;
+
+function getElementIdAt(art: ArtifactContent, addr: ElementAddress): string | undefined {
+    const section = art.sections.find((s) => s.id === addr.section);
+    return section ? getAtPath(section.root, addr.path)?.id : undefined;
+}
+
+function endSessionIfGone(): void {
+    const addr = editing();
+    if (!addr) return;
+    const now = content().sections.find((s) => s.id === addr.section);
+    const here = now ? getAtPath(now.root, addr.path) : undefined;
+    if (here && (editingElementId === undefined || here.id === editingElementId)) return;
+    editBefore = null; // the keystrokes had nowhere to land, so they are not an edit to record
+    editingElementId = undefined;
+    setEditing(null);
+    setSelection(null);
+    sessionEndedHandler?.();
+}
+
+function getAtPath(root: ElementInstance, path: number[]): ElementInstance | undefined {
+    let node: ElementInstance | undefined = root;
+    for (const i of path) {
+        const data = node?.data as { children?: ElementInstance[] } | undefined;
+        const kids: ElementInstance[] | undefined = Array.isArray(data?.children)
+            ? data.children
+            : undefined;
+        node = kids?.[i];
+        if (!node) return undefined;
+    }
+    return node;
+}
+
+// An undo can name a section that was a placeholder when the entry was recorded; the swap keeps
+// the loaded content rather than putting the stub back on screen.
+const hydrateOps = (ops: SectionOp[]): SectionOp[] =>
+    ops.map((op) => {
+        if (op.kind !== "set" && op.kind !== "insert") return op;
+        return stubs.get(op.section.id) === op.section
+            ? { ...op, section: resolved.get(op.section.id) ?? op.section }
+            : op;
+    });
 
 export interface ArtifactSummary {
     id: string;
@@ -274,7 +576,10 @@ function restoreTitle(title: string): void {
 export function renameArtifact(title: string): void {
     const t = title.trim();
     if (!t || t === currentTitle()) return;
-    pushPast(snapshot());
+    const before = currentTitle();
+    const live = content();
+    // a rename carries no content ops, so it is its own history entry rather than a snapshot
+    record(live, live, { title: { before, after: t } });
     setTitleLocal(t);
     const id = currentArtifactId();
     if (id) persistTitleHandler?.(id, t);
@@ -404,7 +709,9 @@ export function loadArtifactContent(id: string, art: ArtifactContent): void {
     resolved.clear();
     requesting.clear();
     measured.clear();
-    setContent(art);
+    // The one client-side stamping pass: everything below works with the tree as loaded, and it is
+    // identity-preserving, so an already-stamped document (every server write stamps) is untouched.
+    setContent(contentWithElementIds(art));
     bumpHistory();
 }
 
@@ -431,19 +738,18 @@ export function loadArtifactWindow(
 ): void {
     const bySid = new Map(have.map((s) => [s.id, s]));
     const missing = new Map<string, SectionSummary>();
-    const nextStubs = new Map<string, Section>();
     const sections = index.map((entry, i) => {
         const sid = entry.id ?? `s-${i}`;
         const real = bySid.get(sid);
         if (real) return real;
-        const stub: Section = { id: sid, root: emptyRegion() };
         missing.set(sid, { ...entry, id: sid });
-        nextStubs.set(sid, stub);
-        return stub;
+        return { id: sid, root: emptyRegion() };
     });
     loadArtifactContent(id, { ...shell, sections });
     stubs.clear();
-    for (const [sid, stub] of nextStubs) stubs.set(sid, stub);
+    // read the placeholders back out of the loaded tree: stamping ids rebuilds a stub, and it is
+    // this object identity that later tells a placeholder from the section that replaced it
+    for (const s of editor.artifact.sections) if (missing.has(s.id)) stubs.set(s.id, s);
     setPending(missing);
 }
 
@@ -457,8 +763,9 @@ export async function requestSections(ids: string[]): Promise<void> {
     const forArtifact = currentArtifactId();
     for (const id of want) requesting.add(id);
     try {
-        const got = await loadSections(want);
-        if (!got.length || currentArtifactId() !== forArtifact) return;
+        const loaded = await loadSections(want);
+        if (!loaded.length || currentArtifactId() !== forArtifact) return;
+        const got = loaded.map(sectionWithElementIds);
         const by = new Map(got.map((s) => [s.id, s]));
         for (const s of got) resolved.set(s.id, s);
         setContent((c) => ({ ...c, sections: c.sections.map((s) => by.get(s.id) ?? s) }));
@@ -495,20 +802,6 @@ export function rememberHeight(id: string, width: number, height: number): void 
 export function knownHeight(id: string, width: number): number | undefined {
     return measured.get(heightKey(id, width));
 }
-
-// undo must not restore a placeholder over loaded content; the identity swap keeps edited sections
-const hydrate = (art: ArtifactContent): ArtifactContent => {
-    if (!resolved.size) return art;
-    let changed = false;
-    const sections = art.sections.map((s) => {
-        if (stubs.get(s.id) !== s) return s;
-        const now = resolved.get(s.id);
-        if (!now) return s;
-        changed = true;
-        return now;
-    });
-    return changed ? { ...art, sections } : art;
-};
 
 function newSectionId(): string {
     return `s-${crypto.randomUUID().slice(0, 8)}`;

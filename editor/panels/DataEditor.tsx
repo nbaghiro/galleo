@@ -5,15 +5,14 @@ import type { ElementAddress } from "@model/artifact";
 import { elementRegionId } from "@model/artifact";
 import { getElementAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
-import { canvasDrawContext, renderToCanvas } from "@canvas/render/backends";
+import { renderToCanvas } from "@canvas/render/backends";
 import { layout } from "@engine/layout";
-import { resolveProfile } from "@engine/profile";
 import { measureText } from "@canvas/render/commands";
-import { renderChart } from "@elements/chart/render";
-import { toChartData } from "@elements/chart/utils";
 import { diagramColors, diagramSupportsIcons } from "@elements/diagram/utils";
 import { ICON_LIBRARY } from "@elements/media/vector";
-import { commit, editor, editorTokens } from "@editor/core/store";
+import { paintedNodeFor } from "@editor/core/leaf";
+import { canvasContentWidth, commit, editor, editorTokens, regions } from "@editor/core/store";
+import { claimLease, elementRefFor, leaseHolder, releaseLease, say } from "@editor/core/collab";
 import { Badge, Button, IconButton } from "@ui/button";
 import { Icon } from "@ui/icons";
 import { CellInput } from "@ui/inputs";
@@ -922,10 +921,21 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
 };
 
 const [target, setTarget] = createSignal<ElementAddress | null>(null);
+// The grid writes the same element a text session would, so it takes the same lease.
 export function openDataEditor(address: ElementAddress): void {
+    const holder = leaseHolder(address);
+    if (holder) {
+        say(`${holder.user.name || "Someone"} is editing this`);
+        return;
+    }
+    const ref = elementRefFor(address);
+    if (ref) claimLease(ref);
     setTarget(address);
 }
 function close(): void {
+    const open = target();
+    const ref = open && elementRefFor(open);
+    if (ref) releaseLease(ref);
     setTarget(null);
 }
 
@@ -939,54 +949,59 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
     const currentData = (): Record<string, unknown> =>
         (getElementAt(editor.artifact, addr)?.data ?? {}) as Record<string, unknown>;
 
-    // the grid commits every keystroke; tracking currentData() keeps the preview live
+    // The grid commits every keystroke, so the artifact already holds the edit: recompose the
+    // element exactly as the canvas paints it (token ramp, container restyling, contrast swap),
+    // lay it out at its painted box, and scale the result to fit — never re-lay-out at the
+    // panel's width, which would wrap a process into a stack the canvas doesn't show.
     function drawPreview(): void {
         if (!cv) return;
-        const W = cv.clientWidth || 280;
-        const H = 168;
+        const pw = cv.clientWidth || 280;
+        const ph = 168;
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        cv.width = Math.round(W * dpr);
-        cv.height = Math.round(H * dpr);
-        cv.style.height = `${H}px`;
+        cv.width = Math.round(pw * dpr);
+        cv.height = Math.round(ph * dpr);
+        cv.style.height = `${ph}px`;
         const cx = cv.getContext("2d");
         if (!cx) return;
-        cx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        const tk = editorTokens();
-        cx.fillStyle = tk.surface;
-        cx.fillRect(0, 0, W, H);
-        const d = currentData();
-        const box = { x: 0, y: 0, w: W, h: H };
+        const sec = editor.artifact.sections.find((x) => x.id === addr.section);
+        // the backdrop the element actually sits on: the section's own background, else the surface
+        const bg =
+            sec?.background?.kind === "color" && sec.background.color
+                ? sec.background.color
+                : sec?.background?.kind === "gradient" && sec.background.gradient
+                  ? sec.background.gradient.from
+                  : sec?.background?.kind === "image"
+                    ? "#141414"
+                    : editorTokens().surface;
         try {
-            if (kind === "chart") {
-                renderChart(canvasDrawContext(cx), box, toChartData(d), tk);
-            } else {
-                // diagrams compose real children; run the element's own container path to commands
-                const dspec = getElement("diagram")!;
-                const data = { ...d, height: H };
-                const lctx = {
-                    box,
-                    availWidth: W,
-                    format: resolveProfile("deck"),
-                    theme: tk,
-                    measure: measureText,
-                    plain: true,
-                };
-                const kids = dspec
-                    .container!.children(data)
-                    .map((child) => getElement(child.type)!.layout(child.data, lctx));
-                const node = dspec.container!.arrange(data, lctx, kids);
-                const { commands } = layout(node, box, measureText);
-                void renderToCanvas(commands, W, H, tk.surface, dpr).then((img) => {
-                    cx.setTransform(1, 0, 0, 1, 0, 0);
-                    cx.drawImage(img, 0, 0, cv!.width, cv!.height);
-                });
-            }
+            const node = paintedNodeFor(addr);
+            if (!node) return;
+            const box = regions().find((r) => r.id === elementRegionId(addr))?.box;
+            const d = currentData();
+            const w = box?.w ?? Math.min(960, canvasContentWidth() || 800);
+            const h =
+                box?.h ?? (typeof d.height === "number" ? d.height : kind === "chart" ? 240 : 260);
+            const { commands } = layout(node, { x: 0, y: 0, w, h }, measureText);
+            const s = Math.min(pw / w, ph / h);
+            void renderToCanvas(commands, w, h, bg, dpr * s).then((img) => {
+                cx.setTransform(1, 0, 0, 1, 0, 0);
+                cx.fillStyle = bg;
+                cx.fillRect(0, 0, cv!.width, cv!.height);
+                cx.drawImage(
+                    img,
+                    (cv!.width - w * s * dpr) / 2,
+                    (cv!.height - h * s * dpr) / 2,
+                    w * s * dpr,
+                    h * s * dpr,
+                );
+            });
         } catch {
             /* malformed intermediate value — skip this frame */
         }
     }
     createEffect(() => {
         currentData();
+        void regions(); // the painted box follows canvas repaints (height drags, column resizes)
         drawPreview();
     });
 

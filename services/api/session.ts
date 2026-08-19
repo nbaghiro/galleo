@@ -22,6 +22,7 @@ import {
     signUp,
     toUser,
 } from "@services/core/accounts";
+import { releaseSignupGrant } from "@services/core/onboarding";
 import { requireUser, type AuthedEnv } from "./middleware";
 
 export const session = new Hono<AuthedEnv>();
@@ -116,6 +117,8 @@ session.get("/auth/verify", async (c) => {
     const userId = await consumeAuthToken(c.req.query("token"), "verify");
     if (!userId) return c.redirect(appUrl("/login?authError=verify_invalid"));
     await markEmailVerified(userId);
+    // the grant is the reason verification is worth doing; grantOnce means a re-used link cannot re-pay
+    await releaseSignupGrant(userId).catch(() => false);
     return c.redirect(appUrl("/login?verified=1"));
 });
 

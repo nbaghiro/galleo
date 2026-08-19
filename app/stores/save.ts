@@ -21,6 +21,26 @@ export async function flushAutosave(): Promise<void> {
     await activeFlush?.();
 }
 
+// One baseline, two drivers, never both at once. While the collaboration socket is up it is the
+// persistence path and its acks move the baseline; the debounced HTTP save stands down. When the
+// socket goes away the HTTP save picks up from the last acked state, which its existing diff
+// already knows how to do.
+//
+// Also how a load re-baselines: re-reading the same artifact rebuilds every section object, and a
+// diff against the objects the previous read produced would resend the whole document for nothing.
+let noteSaved: ((content: ArtifactContent) => void) | null = null;
+export function noteSavedContent(content: ArtifactContent): void {
+    noteSaved?.(content);
+}
+
+// Asked, not imported, so the wire layer depends on this file and not the other way round.
+let socketDriving: () => boolean = () => false;
+let connIdOf: () => string | null = () => null;
+export function onCollabDriving(fn: () => boolean, connId: () => string | null): void {
+    socketDriving = fn;
+    connIdOf = connId;
+}
+
 export function installAutosave(): void {
     let timer = 0;
     let windowStart = 0; // when the current un-saved edit window opened
@@ -41,6 +61,12 @@ export function installAutosave(): void {
     async function flush(): Promise<void> {
         const id = untrack(currentArtifactId);
         if (!id) return;
+        // the socket is persisting; a second writer here would race its own acks
+        if (socketDriving()) {
+            window.clearTimeout(timer);
+            windowStart = 0;
+            return;
+        }
         if (saving) {
             dirtyWhileSaving = true;
             return;
@@ -60,7 +86,7 @@ export function installAutosave(): void {
                 // nothing the server doesn't already have
             } else if (ops) {
                 try {
-                    await api.patchContent(id, { ops, themeId, formatId: art.format });
+                    await api.patchContent(id, { ops, themeId, formatId: art.format }, connIdOf());
                 } catch (e) {
                     // a whole-document client can fall back to replacing it; a windowed one cannot
                     if (windowed) throw e;
@@ -112,6 +138,10 @@ export function installAutosave(): void {
     );
 
     activeFlush = flush;
+    noteSaved = (content) => {
+        savedId = untrack(currentArtifactId);
+        saved = content;
+    };
     const onVisibility = (): void => {
         if (document.visibilityState === "hidden") flush();
     };
@@ -123,6 +153,7 @@ export function installAutosave(): void {
     onCleanup(() => {
         window.clearTimeout(timer);
         if (activeFlush === flush) activeFlush = null;
+        noteSaved = null;
         document.removeEventListener("visibilitychange", onVisibility);
         window.removeEventListener("beforeunload", onUnload);
     });

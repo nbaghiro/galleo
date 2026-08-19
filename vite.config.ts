@@ -55,6 +55,7 @@ export default defineConfig({
             "^/api/": {
                 target: "http://localhost:8601",
                 changeOrigin: true,
+                ws: true, // the collaboration socket upgrades on /api/artifacts/:id/collab
             },
         },
     },
