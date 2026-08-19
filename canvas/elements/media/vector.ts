@@ -721,6 +721,11 @@ export const ICON_LIBRARY: Record<string, IconGlyph> = {
         vb: "0 0 24 24",
         body: `<circle cx="11" cy="11" r="7"/><line x1="16.2" y1="16.2" x2="21" y2="21"/>`,
     },
+    arrow: {
+        id: "arrow",
+        vb: "0 0 24 24",
+        body: `<line x1="4" y1="12" x2="20" y2="12"/><path d="M13 5 20 12 13 19"/>`,
+    },
     edit: {
         id: "edit",
         vb: "0 0 24 24",

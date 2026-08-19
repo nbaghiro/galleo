@@ -7,6 +7,7 @@ import {
     CHART_TYPES,
     DIAGRAM_ICONS,
     DIAGRAM_NUMBERS,
+    DIAGRAM_SHAPES,
     DIAGRAM_STYLES,
     DIAGRAM_TYPES,
     FLEX_DIRECTION,
@@ -124,7 +125,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 type: "enum",
                 values: BULLET_MARKERS,
                 default: "dot",
-                desc: "dot • / number 1. / dash, / check ✓",
+                desc: "dot • / number 1. / dash / check ✓ / arrow → / checkbox (a toggleable checklist: a done item sets checked: true in that child text's data)",
             },
         ],
     },
@@ -266,7 +267,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 key: "values",
                 type: "text",
                 required: true,
-                desc: "one series per line (\\n); points comma-separated within a line. e.g. '48, 62, 55, 71' or two lines for two series. scatter=x row+y row; bubble=x+y+size rows; gauge='value, max'.",
+                desc: "one series per line (\\n); points comma-separated within a line. e.g. '48, 62, 55, 71' or two lines for two series. scatter=x row+y row; bubble=x+y+size rows; gauge='value, max'; heatmap=one row of cells per grid row (categories label the columns, seriesNames the rows).",
             },
             {
                 key: "categories",
@@ -287,14 +288,14 @@ export const ELEMENTS: readonly ElementSchema[] = [
         type: "diagram",
         label: "Diagram",
         category: "data",
-        when: "a relationship or flow, a process, a cycle, a hierarchy, a funnel, a mind map",
+        when: "a relationship the reader should see as structure, a process, a cycle, staged growth, a hierarchy, a timeline, a 2×2",
         fields: [
             {
                 key: "type",
                 type: "enum",
                 required: true,
                 values: DIAGRAM_TYPES,
-                desc: "which diagram. For a LINEAR sequence of steps use `process` (connected steps, reads left-to-right). `steps` = a staircase of escalating stages; `cycle` = a repeating loop; `funnel` = narrowing stages; `pyramid` = layered levels; `timeline` = dated milestones; `matrix`/`quadrant` = a 2×2; `hub` = one centre with satellites (first item is the centre). Reserve `org` for a genuine hierarchy. It requires the `links` field.",
+                desc: "which diagram. For a LINEAR sequence of steps use `process` (connected steps, reads left-to-right). `steps` = a staircase of escalating stages; `cycle` = a repeating loop; `funnel` = narrowing stages; `pyramid` = layered levels; `timeline` = dated milestones; `matrix` = a labeled grid; `quadrant` = a 2×2 that reads exactly 4 items; `hub` = one centre with satellites (first item is the centre). Reserve `org` for a genuine hierarchy. It requires the `links` field.",
             },
             {
                 key: "items",
@@ -305,7 +306,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
             {
                 key: "links",
                 type: "text",
-                desc: "edges for `org` only: 'Parent>Child, Parent>Child' building the hierarchy.",
+                desc: "edges for `org` only: 'Parent>Child, Parent>Child' building the hierarchy. Each name must match an items label exactly; the item no edge points at becomes the root. Omit for every other type.",
             },
             {
                 key: "axes",
@@ -319,6 +320,12 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 desc: "node treatment: `solid` (filled, default) · `tinted` (soft wash of the color) · `card` (paper panels with a hairline and shadow) · `outline` (stroked). Omit unless the design calls for a lighter look.",
             },
             {
+                key: "shape",
+                type: "enum",
+                values: DIAGRAM_SHAPES,
+                desc: "node silhouette, honored by process/cycle/hub/matrix: `chevron` turns a process into arrow bands, `pill` softens peer sets, `hexagon` reads technical. Omit for the default `rounded`.",
+            },
+            {
                 key: "numbers",
                 type: "enum",
                 values: DIAGRAM_NUMBERS,
@@ -327,7 +334,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
             {
                 key: "itemsMeta",
                 type: "json",
-                desc: `optional per-item styling, positional: entry i styles item i, so give one entry per item ({} for an unstyled one) or omit the field entirely. Each entry may set: icon, one of ${DIAGRAM_ICONS.join(" | ")}, a leading glyph on the node (all types except pyramid/funnel; a timeline renders it as the milestone marker on the line) that replaces that item's number badge; emphasis: true, promoting the node to the solid treatment (the hub centre and org root already have it); color, a hex overriding that item's ramp color. Icons earn their place on peer-value sets (hub spokes, matrix cells, quadrants) and milestones. Never invent an icon key.`,
+                desc: `optional per-item styling, positional: entry i styles item i, so give one entry per item ({} for an unstyled one) or omit the field entirely. Each entry may set: icon, one of ${DIAGRAM_ICONS.join(" | ")}, a leading glyph on the node (all types except pyramid/funnel; a timeline renders it as the milestone marker on the line) that replaces that item's number badge; emphasis: true, promoting the node to the solid treatment (the hub centre and org root already have it); color, overriding that item's ramp color with a hex or a theme role name (\`accent\`, \`ink\`, ...), roles staying live when the theme changes. Icons earn their place on peer-value sets (hub spokes, matrix cells, quadrants) and milestones. Never invent an icon key. An entry may also set weight, a positive width ratio vs the item's row siblings (\`process\` only; 1 = equal share); omit it unless the content genuinely wants uneven emphasis.`,
             },
         ],
     },

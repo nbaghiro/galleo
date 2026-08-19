@@ -40,8 +40,9 @@ describe("text", () => {
 });
 
 describe("bullets", () => {
+    // the marker sits inside a first-line-height wrapper that centres it on the text's line box
     const firstMarker = (over: Record<string, unknown>): EngineNode =>
-        kids(kids(nodeOf("bullets", over))[0]!)[0]!;
+        kids(kids(kids(nodeOf("bullets", over))[0]!)[0]!)[0]!;
     it("default marker is an accent dot (a disc, not text)", () => {
         const m = firstMarker({});
         expect(m.fill?.color).toBe(tokens.accent);
@@ -53,8 +54,10 @@ describe("bullets", () => {
         expect(m.text?.text).toBe("1.");
         expect(m.text?.color).toBe(tokens.accent);
     });
-    it("the check marker renders '✓'", () => {
-        expect(firstMarker({ marker: "check" }).text?.text).toBe("✓");
+    it("the check marker is a vector surface, not a theme-font glyph", () => {
+        const m = firstMarker({ marker: "check" });
+        expect(m.surface).toBeTruthy();
+        expect(m.text).toBeUndefined();
     });
 });
 

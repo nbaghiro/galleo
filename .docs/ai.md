@@ -148,7 +148,7 @@ as skeleton hints during planning) live in **`rendering.md`**.
 Two deliberate simplifications keep LLM output reliable:
 
 - **Charts/diagrams are one element type with a `data.type` discriminant** (`{ type:"chart", data:{ type:
-"line", … } }`), not 25 variant element types.
+"line", … } }`), not 23 variant element types.
 - **Images take a description, not a URL.** The model writes `src:"aerial view of a wind farm at dusk"`; the
   runtime resolves it to a real image URL (§6). A genuine `http…` src passes through untouched.
 

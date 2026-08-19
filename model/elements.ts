@@ -13,7 +13,7 @@ export type TextStyle = (typeof TEXT_STYLES)[number];
 export const TEXT_ALIGN = ["start", "center", "end"] as const;
 export type TextAlign = (typeof TEXT_ALIGN)[number];
 
-export const BULLET_MARKERS = ["dot", "number", "dash", "check"] as const;
+export const BULLET_MARKERS = ["dot", "number", "dash", "check", "arrow", "checkbox"] as const;
 export type BulletMarker = (typeof BULLET_MARKERS)[number];
 
 export const CALLOUT_TONES = [
@@ -91,7 +91,7 @@ export const GRAPH_DIAGRAM_TYPES = ["org"] as const;
 export const DIAGRAM_STYLES = ["solid", "tinted", "card", "outline"] as const;
 export type DiagramStyle = (typeof DIAGRAM_STYLES)[number];
 
-// authored node silhouette, honored by the node-row types (steps, cycle, hub, matrix)
+// authored node silhouette, honored by the node-row types (process, cycle, hub, matrix)
 export const DIAGRAM_SHAPES = ["rounded", "pill", "chevron", "hexagon"] as const;
 export type DiagramShape = (typeof DIAGRAM_SHAPES)[number];
 
@@ -103,6 +103,7 @@ export type DiagramNumbers = (typeof DIAGRAM_NUMBERS)[number];
 // this set so the two cannot drift
 export const DIAGRAM_ICONS = [
     "search",
+    "arrow",
     "edit",
     "build",
     "flask",
