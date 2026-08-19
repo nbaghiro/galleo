@@ -9,6 +9,8 @@ import {
     activeSlot,
     applyDrop,
     computeDropSlots,
+    movable,
+    movableAncestor,
     type DragPayload,
     type DropTarget,
 } from "@editor/core/dnd";
@@ -472,5 +474,35 @@ describe("closed containers are leaves for drag-and-drop", () => {
         const t = targetAt(diagramArt(), regionsOf(), 60, 40)!;
         expect(t.path).toEqual([]);
         expect(t.op).toBe("insert");
+    });
+
+    it("a closed container's child is not movable; open-container children are", () => {
+        const art = diagramArt();
+        expect(movable(art, { section: "s1", path: [0, 0] })).toBe(false);
+        expect(movable(art, { section: "s1", path: [0] })).toBe(true); // the diagram itself
+        expect(movable(art, { section: "s1", path: [1] })).toBe(true); // group child
+        expect(movable(art, { section: "s1", path: [] })).toBe(true); // the root
+    });
+
+    it("smart blocks and callouts are units; the freeform card stays open", () => {
+        const artFor = (root: ElementInstance): ArtifactContent => artifactOf([sectionOf(root)]);
+        for (const type of ["callout", "testimonial", "feature", "pricing", "cta", "faq"]) {
+            const art = artFor(inst(type, { children: [txt("inside")] }));
+            expect(movable(art, { section: "s1", path: [0] }), type).toBe(false);
+        }
+        const card = artFor(inst("card", { children: [txt("inside")] }));
+        expect(movable(card, { section: "s1", path: [0] })).toBe(true);
+    });
+
+    it("movableAncestor hoists structural anchors out of the closed container", () => {
+        const art = diagramArt();
+        expect(movableAncestor(art, { section: "s1", path: [0, 3] })).toEqual({
+            section: "s1",
+            path: [0],
+        });
+        expect(movableAncestor(art, { section: "s1", path: [1] })).toEqual({
+            section: "s1",
+            path: [1],
+        });
     });
 });

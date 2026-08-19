@@ -79,6 +79,25 @@ const isContainer = (inst?: ElementInstance): boolean => {
     return !!c && !c.closed;
 };
 
+// The drag-out mirror of that seal: a closed container's children select and edit in place but
+// never move out (a diagram label torn off its cell is a hole in the diagram, not a move). The
+// grip and every move entry point gate on this.
+export function movable(art: ArtifactContent, addr: ElementAddress): boolean {
+    if (addr.path.length === 0) return true;
+    const parent = getElementAt(art, { section: addr.section, path: addr.path.slice(0, -1) });
+    const c = parent ? getElement(parent.type)?.container : undefined;
+    return !c?.closed;
+}
+
+// the nearest self-or-ancestor that structural ops may act on (a paste beside a diagram label
+// lands beside the diagram)
+export function movableAncestor(art: ArtifactContent, addr: ElementAddress): ElementAddress {
+    let out = addr;
+    while (out.path.length > 0 && !movable(art, out))
+        out = { section: out.section, path: out.path.slice(0, -1) };
+    return out;
+}
+
 const childCount = (inst?: ElementInstance): number => {
     if (!inst) return 0;
     const spec = getElement(inst.type);

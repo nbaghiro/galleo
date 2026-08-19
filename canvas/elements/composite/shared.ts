@@ -57,6 +57,9 @@ export function composite(
             children: (d) => d.children,
             arrange,
             withChildren: (d, children) => ({ ...d, children }),
+            // a smart block is a unit: its children edit in place (testimonial/faq even index
+            // into fixed slots), and the block moves whole — unlike the freeform card/group
+            closed: true,
         },
         controls: [],
         ...(skeleton ? { skeleton } : {}),

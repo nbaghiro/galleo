@@ -25,7 +25,7 @@ import {
     stageEl,
     editorTokens,
 } from "@editor/core/store";
-import { drag } from "@editor/core/dnd";
+import { drag, movable } from "@editor/core/dnd";
 import { paintedLeafFor } from "@editor/core/leaf";
 import { canRegenerate, elementGenBusy, regenerateElement } from "@editor/core/ai";
 import {
@@ -150,6 +150,10 @@ export const ContextBar: Component = () => {
         const a = addr();
         return a ? canRegenerate(a) : false;
     });
+    const structural = createMemo((): boolean => {
+        const a = addr();
+        return a ? movable(editor.artifact, a) : false;
+    });
     const regen = (): void => {
         const a = addr();
         if (a) void regenerateElement(a);
@@ -256,19 +260,28 @@ export const ContextBar: Component = () => {
                         </IconButton>
                         <Separator vertical class="mx-0.5" />
                     </Show>
-                    <IconButton size="md" rounded="md" tone="ink" title="Duplicate" onClick={dup}>
-                        <Icon name="duplicate" size={15} />
-                    </IconButton>
-                    <IconButton
-                        size="md"
-                        rounded="md"
-                        tone="ink"
-                        class="hover:text-accent"
-                        title="Delete"
-                        onClick={del}
-                    >
-                        <Icon name="trash" size={15} />
-                    </IconButton>
+                    {/* a closed container's child edits in place: it has no life of its own to duplicate or delete */}
+                    <Show when={structural()}>
+                        <IconButton
+                            size="md"
+                            rounded="md"
+                            tone="ink"
+                            title="Duplicate"
+                            onClick={dup}
+                        >
+                            <Icon name="duplicate" size={15} />
+                        </IconButton>
+                        <IconButton
+                            size="md"
+                            rounded="md"
+                            tone="ink"
+                            class="hover:text-accent"
+                            title="Delete"
+                            onClick={del}
+                        >
+                            <Icon name="trash" size={15} />
+                        </IconButton>
+                    </Show>
                 </FloatingBar>
             )}
         </Show>

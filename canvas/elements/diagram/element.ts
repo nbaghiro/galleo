@@ -4,8 +4,8 @@ import { register } from "@elements/spec";
 import { grow } from "@model/geometry";
 import { GRAPH_DIAGRAM_TYPES } from "@model/elements";
 import { diagramTypeOptions } from "./render";
-import type { DiagramData, DiagItem } from "./utils";
-import { formatItems, getDiagram, normalizeDiagram, toDiagramData } from "./utils";
+import type { DiagramData, DiagItem, DiagItemMeta } from "./utils";
+import { formatItems, getDiagram, itemWeight, normalizeDiagram, toDiagramData } from "./utils";
 import type { ElementInstance } from "@model/artifact";
 
 // Every item becomes two real text children (label + detail, the detail kept even when empty so it
@@ -34,6 +34,36 @@ function diagramWithChildren(d: DiagramData, kids: ElementInstance[]): DiagramDa
         body: textOf(kids[i * 2 + 1]) || undefined,
     }));
     return { ...d, items: formatItems(next) };
+}
+
+// drop the undefined/default noise so stored meta carries only what styles something
+const cleanMeta = (m: DiagItemMeta): DiagItemMeta => ({
+    ...(m.color ? { color: m.color } : {}),
+    ...(m.emphasis ? { emphasis: true } : {}),
+    ...(m.icon ? { icon: m.icon } : {}),
+    ...(m.weight !== undefined ? { weight: m.weight } : {}),
+});
+
+// A divider drag re-splits the dragged pair's combined weight by the new fractions: only the two
+// ratios change, their sum is conserved, so the rest of the row keeps its exact shares.
+function resizeSlots(
+    d: DiagramData,
+    items: DiagItem[],
+    entries: { slot: number; pct: number }[],
+): DiagramData {
+    const [a, b] = entries;
+    if (!a || !b || !items[a.slot] || !items[b.slot]) return d;
+    const combined = itemWeight(items[a.slot]) + itemWeight(items[b.slot]);
+    const fa = a.pct / Math.max(1, a.pct + b.pct);
+    // ≈1 is the default and stays unstored, so an even split leaves no residue behind
+    const store = (v: number): number | undefined =>
+        Math.abs(v - 1) < 0.02 ? undefined : Math.round(v * 100) / 100;
+    const source = toDiagramData(d).itemsMeta;
+    const meta = items.map((_, i) => cleanMeta({ ...(source?.[i] ?? {}) }));
+    meta[a.slot] = cleanMeta({ ...meta[a.slot], weight: store(combined * fa) });
+    meta[b.slot] = cleanMeta({ ...meta[b.slot], weight: store(combined * (1 - fa)) });
+    const any = meta.some((m) => Object.keys(m).length > 0);
+    return { ...d, itemsMeta: any ? meta : undefined };
 }
 
 const GRAPH_TYPES = new Set<string>(GRAPH_DIAGRAM_TYPES);
@@ -146,6 +176,15 @@ function diagramSpec(
             },
             withChildren: diagramWithChildren,
             closed: true,
+            slots: (d) => {
+                const r = resolved(d);
+                if (!getDiagram(r.type)?.weights) return null;
+                return {
+                    // a cell owns two children: item i's label (2i) and detail (2i+1)
+                    of: (i) => Math.floor(i / 2),
+                    resize: (entries) => resizeSlots(d, r.items, entries),
+                };
+            },
         },
         resize: { height: { key: "height", min: 140, max: 480, step: 10 } },
         bar: ["type", "style"],

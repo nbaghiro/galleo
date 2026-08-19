@@ -93,6 +93,8 @@ export const calloutElement: ElementSpec<CalloutData> = {
         children: (d) => d.children,
         arrange: arrangeCallout,
         withChildren: (d, children) => ({ ...d, children }),
+        // the callout is the unit: its body edits in place, the styled wrapper moves whole
+        closed: true,
     },
     bar: ["tone"],
     frame: true,

@@ -102,6 +102,14 @@ export interface ElementSpec<Data = unknown> {
         // children exist to be selected and edited, not rearranged: the element owns its own slots, so
         // it is a leaf to drag-and-drop and never shows the empty-cell placeholder
         closed?: boolean;
+        // A closed container opts the sibling-divider gesture into its own sizing: `of` folds child
+        // indices into resizable slots (a diagram cell owns its label + detail children), `resize`
+        // maps new slot fractions (pct of the shared row, two entries per drag) onto the data.
+        // null = this data doesn't resize (a positioned layout); absent = never resizable.
+        slots?: (data: Data) => {
+            of: (childIndex: number) => number;
+            resize: (entries: { slot: number; pct: number }[]) => Data;
+        } | null;
     };
 }
 

@@ -28,7 +28,7 @@ import {
     moveSectionBy,
     removeSectionAt,
 } from "@editor/core/store";
-import { startDrag, drag } from "@editor/core/dnd";
+import { startDrag, drag, movable } from "@editor/core/dnd";
 import { openSectionPrompt } from "@editor/core/ai";
 import { pickMedia } from "@editor/core/media";
 import { SectionLayoutPopup } from "./SectionLayoutPopup";
@@ -65,6 +65,8 @@ export const DragHandle: Component = () => {
         if (drag()) return null;
         const t = hover() ?? selection();
         if (t?.kind === "element") {
+            // a closed container's child edits in place; there is nothing to move, so no grip
+            if (!movable(editor.artifact, t.address)) return null;
             const box = regions().find((r) => r.id === elementRegionId(t.address))?.box;
             return box ? { kind: "element" as const, box, address: t.address } : null;
         }
@@ -87,6 +89,7 @@ export const DragHandle: Component = () => {
             // a drag lifts the source out of the paint; an open text overlay would strand
             stopEditing();
             if (c.kind === "element") {
+                if (!movable(editor.artifact, c.address)) return;
                 const inst = getElementAt(editor.artifact, c.address);
                 const label = (inst && getElement(inst.type)?.label) || "Element";
                 startDrag({ kind: "move", from: c.address }, sx, sy, label);
@@ -223,6 +226,17 @@ interface Divider {
     apply: (stageX: number) => LiveEdit; // stageX = clientX − stage.left
 }
 
+const union = (a: Rect, b: Rect): Rect => {
+    const x = Math.min(a.x, b.x);
+    const y = Math.min(a.y, b.y);
+    return {
+        x,
+        y,
+        w: Math.max(a.x + a.w, b.x + b.w) - x,
+        h: Math.max(a.y + a.h, b.y + b.h) - y,
+    };
+};
+
 function siblingDividers(sid: string, regs: Region[]): Divider[] {
     // group by parent path: root children (path []) are section columns, deeper groups are nested rows
     const groups = new Map<
@@ -245,6 +259,25 @@ function siblingDividers(sid: string, regs: Region[]): Divider[] {
     }
     const out: Divider[] = [];
     for (const g of groups.values()) {
+        // A closed container owns its slots: its dividers act only through the spec's `slots`
+        // facet — child indices fold into slot unions (a cell's label + detail become one box) and
+        // the drag writes the container's own data. No facet (or null for this data) = no dividers.
+        let slotted = false;
+        const parentAddr: ElementAddress = { section: sid, path: g.parentPath };
+        const parentInst = getElementAt(editor.artifact, parentAddr);
+        const container = parentInst ? getElement(parentInst.type)?.container : undefined;
+        if (container?.closed) {
+            const slots = container.slots?.(parentInst!.data);
+            if (!slots) continue;
+            const bySlot = new Map<number, Rect>();
+            for (const m of g.members) {
+                const s = slots.of(m.index);
+                const prev = bySlot.get(s);
+                bySlot.set(s, prev ? union(prev, m.box) : m.box);
+            }
+            g.members = [...bySlot.entries()].map(([index, box]) => ({ index, box }));
+            slotted = true;
+        }
         if (g.members.length < 2) continue;
         // only siblings sharing a horizontal band; skips column stacks and grids
         const tops = g.members.map((m) => m.box.y);
@@ -271,14 +304,17 @@ function siblingDividers(sid: string, regs: Region[]): Divider[] {
                 h,
                 apply: (stageX) => {
                     const fi = clamp((stageX - rowLeft) / rowWidth - before, 0.1, combined - 0.1);
-                    return {
-                        kind: "siblings",
-                        parent,
-                        entries: [
-                            { index: idxL, pct: Math.round(fi * 100) },
-                            { index: idxR, pct: Math.round((combined - fi) * 100) },
-                        ],
-                    };
+                    const entries = [
+                        { index: idxL, pct: Math.round(fi * 100) },
+                        { index: idxR, pct: Math.round((combined - fi) * 100) },
+                    ];
+                    return slotted
+                        ? {
+                              kind: "slots",
+                              parent,
+                              entries: entries.map((e) => ({ slot: e.index, pct: e.pct })),
+                          }
+                        : { kind: "siblings", parent, entries };
                 },
             });
         }
@@ -353,11 +389,19 @@ export type LiveEdit =
           layoutPatch?: Partial<ElementLayout>;
           dataPatch?: Record<string, unknown>; // height / aspect / gap / padding (element data)
       }
-    | { kind: "siblings"; parent: ElementAddress; entries: { index: number; pct: number }[] };
+    | { kind: "siblings"; parent: ElementAddress; entries: { index: number; pct: number }[] }
+    // a closed container's divider drag: the spec's `slots` facet maps fractions onto its data
+    | { kind: "slots"; parent: ElementAddress; entries: { slot: number; pct: number }[] };
 
 export const [liveEdit, setLiveEdit] = createSignal<LiveEdit | null>(null);
 
 export function applyLiveEdit(art: ArtifactContent, edit: LiveEdit): ArtifactContent {
+    if (edit.kind === "slots") {
+        const inst = getElementAt(art, edit.parent);
+        const slots = inst ? getElement(inst.type)?.container?.slots?.(inst.data) : null;
+        if (!slots) return art;
+        return updateDataAt(art, edit.parent, slots.resize(edit.entries));
+    }
     if (edit.kind === "siblings") {
         let out = art;
         for (const e of edit.entries) {
