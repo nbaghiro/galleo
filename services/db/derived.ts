@@ -1,5 +1,23 @@
-import type { ArtifactDigest } from "@model/artifact";
-import { artifactDigest, artifactSearchText } from "@model/artifact";
+import type { ArtifactContent, ArtifactDigest } from "@model/artifact";
+import { artifactDigest, artifactSearchText, contentWithElementIds } from "@model/artifact";
+
+// A tree reaching a write may have been authored anywhere: an old row, an AI turn, a client that
+// never stamped. Anything shaped like content is stamped here so every stored element carries the
+// id a comment anchors on; the pass is identity-preserving, so an already-stamped tree is untouched.
+const stampable = (v: unknown): v is ArtifactContent => {
+    if (!v || typeof v !== "object") return false;
+    const { sections } = v as { sections?: unknown };
+    return (
+        Array.isArray(sections) &&
+        sections.every(
+            (s) =>
+                !!s &&
+                typeof s === "object" &&
+                !!(s as { root?: unknown }).root &&
+                typeof (s as { root?: unknown }).root === "object",
+        )
+    );
+};
 
 // `digest` and `search_text` are a pure function of `draft_content`, so they are derived here and
 // nowhere else: a write that sets the content without them leaves library covers and the search index
@@ -11,9 +29,10 @@ export function contentWrite(content: unknown): {
     digest: ArtifactDigest;
     searchText: string;
 } {
+    const stamped = stampable(content) ? contentWithElementIds(content) : content;
     return {
-        draftContent: content ?? {},
-        digest: artifactDigest(content),
-        searchText: artifactSearchText(content),
+        draftContent: stamped ?? {},
+        digest: artifactDigest(stamped),
+        searchText: artifactSearchText(stamped),
     };
 }

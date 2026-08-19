@@ -311,6 +311,36 @@ describe("PATCH /artifacts/:id/content — section ops", () => {
         expect(status).toBe(404);
     });
 
+    // every stored element carries the id a comment anchors on, whoever wrote the tree
+    it("stamps element ids on the way into the row", async () => {
+        const { userId, workspaceId } = await seedUser();
+        const id = await seedArtifact(workspaceId, "Doc", { draftContent: content(["a"]) });
+        const { status } = await apply(userId, id, [
+            { kind: "insert", section: section("b", "fresh"), index: 1 },
+        ]);
+        expect(status).toBe(200);
+
+        const [row] = await db.select().from(schema.artifacts).where(eq(schema.artifacts.id, id));
+        const stored = (row!.draftContent as { sections: { root: { id?: string } }[] }).sections;
+        expect(stored).toHaveLength(2);
+        expect(stored.every((s) => /^e-[0-9a-f]{8}$/.test(s.root.id ?? ""))).toBe(true);
+        expect(new Set(stored.map((s) => s.root.id)).size).toBe(2);
+    });
+
+    it("leaves an id the client already minted alone", async () => {
+        const { userId, workspaceId } = await seedUser();
+        const id = await seedArtifact(workspaceId, "Doc", { draftContent: content(["a"]) });
+        const keep: Section = {
+            id: "a",
+            root: { type: "text", data: { style: "body", text: "mine" }, id: "e-deadbeef" },
+        };
+        await apply(userId, id, [{ kind: "set", section: keep }]);
+
+        const [row] = await db.select().from(schema.artifacts).where(eq(schema.artifacts.id, id));
+        const stored = (row!.draftContent as { sections: { root: { id?: string } }[] }).sections;
+        expect(stored[0]!.root.id).toBe("e-deadbeef");
+    });
+
     // this route rewrites the whole content through asContent()
     it("preserves the artifact's page size across a section op", async () => {
         const { userId, workspaceId } = await seedUser();

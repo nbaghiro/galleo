@@ -8,7 +8,14 @@ import type {
 } from "@model/artifact";
 import type { ElementLayout } from "@model/geometry";
 import { getElement } from "@elements/spec";
-import { LAYOUT_PRESETS, colGroup, emptyRegion, rowGroup, withWidth } from "@model/artifact";
+import {
+    LAYOUT_PRESETS,
+    colGroup,
+    emptyRegion,
+    rowGroup,
+    withFreshElementIds,
+    withWidth,
+} from "@model/artifact";
 
 // Elements are addressed by index path into `section.root` (`[]` = the root); every op returns a
 // fresh tree, never mutating the input.
@@ -85,6 +92,23 @@ export function getElementAt(
 ): ElementInstance | undefined {
     const section = art.sections.find((s) => s.id === addr.section);
     return section ? nodeAt(section.root, addr.path) : undefined;
+}
+
+/**
+ * Every stamped element's id to where it currently sits. Registry-aware, so a path here is the same
+ * one compose tags its region with; an id that no longer appears means the element was replaced,
+ * and whatever pointed at it has nothing on the canvas to hang on.
+ */
+export function elementIdMap(art: ArtifactContent): Map<Id, ElementAddress> {
+    const out = new Map<Id, ElementAddress>();
+    const walk = (inst: ElementInstance, addr: ElementAddress): void => {
+        if (inst.id && !out.has(inst.id)) out.set(inst.id, addr);
+        childrenOf(inst)?.forEach((kid, i) =>
+            walk(kid, { section: addr.section, path: [...addr.path, i] }),
+        );
+    };
+    for (const section of art.sections) walk(section.root, { section: section.id, path: [] });
+    return out;
 }
 
 function updateElementAt(
@@ -238,7 +262,8 @@ export function replaceAt(
 export function duplicateAt(art: ArtifactContent, addr: ElementAddress): ArtifactContent {
     const inst = getElementAt(art, addr);
     if (!inst) return art;
-    const clone = structuredClone(inst);
+    // a copy is a new node, so it must not answer to the original's id
+    const clone = withFreshElementIds(structuredClone(inst));
     if (addr.path.length === 0) return putRoot(art, addr.section, colGroup([inst, clone]));
     const idx = addr.path[addr.path.length - 1]!;
     // via insertChild so duplicating a column renormalizes widths instead of over-committing past 100%
@@ -370,7 +395,8 @@ export function moveSection(art: ArtifactContent, id: Id, delta: number): Artifa
 export function duplicateSection(art: ArtifactContent, id: Id, newId: Id): ArtifactContent {
     const i = art.sections.findIndex((s) => s.id === id);
     if (i < 0) return art;
-    const copy: Section = { ...structuredClone(art.sections[i]!), id: newId };
+    const source = structuredClone(art.sections[i]!);
+    const copy: Section = { ...source, id: newId, root: withFreshElementIds(source.root) };
     return insertSection(art, i + 1, copy);
 }
 

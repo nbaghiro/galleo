@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { ArtifactContent, ElementInstance, Section, Target } from "@model/artifact";
+import type { ArtifactContent, ElementInstance, Section, SectionOp, Target } from "@model/artifact";
 import {
     LAYOUT_PRESETS,
     applySectionOps,
+    hitRegionId,
+    parseHitRegion,
+    invertOps,
+    narrowOps,
     artifactDigest,
     artifactSearchText,
     childrenRaw,
@@ -247,6 +251,329 @@ describe("applySectionOps", () => {
         const before = doc("a", "b");
         applySectionOps(before, [{ kind: "remove", id: "a" }]);
         expect(idsOf(before)).toEqual(["a", "b"]);
+    });
+});
+
+// The per-property unit collaboration writes: one element's data keys, merged rather than replaced,
+// so an inspector's colour write and a text session's {text, marks} write never fight.
+const tree = (id: string, data: Record<string, unknown>): ElementInstance => ({
+    type: "text",
+    id,
+    data,
+});
+const nested = (id: string, kids: ElementInstance[]): Section => ({
+    id,
+    root: { type: "group", id: `g-${id}`, data: { direction: "col", children: kids } },
+});
+const dataDoc = (): ArtifactContent => ({
+    format: "deck",
+    theme: "studio",
+    sections: [
+        nested("s1", [tree("e1", { text: "one", color: "red" }), tree("e2", { text: "two" })]),
+        nested("s2", [tree("e3", { text: "three" })]),
+    ],
+});
+const elementById = (c: ArtifactContent, id: string): ElementInstance | undefined => {
+    let found: ElementInstance | undefined;
+    const walk = (el: ElementInstance): void => {
+        if (el.id === id) found = el;
+        for (const kid of (el.data as { children?: ElementInstance[] }).children ?? []) walk(kid);
+    };
+    for (const s of c.sections) walk(s.root);
+    return found;
+};
+
+describe("the data op", () => {
+    it("merges the named keys and leaves the rest of the element alone", () => {
+        const before = dataDoc();
+        const r = applySectionOps(before, [
+            { kind: "data", sectionId: "s1", elementId: "e1", keys: { color: "blue" } },
+        ]);
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(elementById(r.content, "e1")?.data).toEqual({ text: "one", color: "blue" });
+    });
+
+    it("finds the element anywhere in the section tree, not only at the root", () => {
+        const r = applySectionOps(dataDoc(), [
+            { kind: "data", sectionId: "s2", elementId: "e3", keys: { text: "III" } },
+        ]);
+        expect(r.ok && (elementById(r.content, "e3")?.data as { text: string }).text).toBe("III");
+    });
+
+    // The per-section paint cache and the autosave diff both key on object identity, so a remote op
+    // that rebuilt untouched nodes would repaint the whole document and resend it.
+    it("preserves object identity for every untouched section and element", () => {
+        const before = dataDoc();
+        const r = applySectionOps(before, [
+            { kind: "data", sectionId: "s1", elementId: "e1", keys: { color: "blue" } },
+        ]);
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        // the untouched section is the very same object
+        expect(r.content.sections[1]).toBe(before.sections[1]);
+        // so is the untouched sibling inside the section that did change
+        expect(elementById(r.content, "e2")).toBe(elementById(before, "e2"));
+        // and the touched element is a new object, so a paint cache sees the change
+        expect(elementById(r.content, "e1")).not.toBe(elementById(before, "e1"));
+        expect(before.sections[0]!.root).not.toBe(r.content.sections[0]!.root);
+    });
+
+    it("returns the same section object when the keys already hold those values", () => {
+        const before = dataDoc();
+        const r = applySectionOps(before, [
+            { kind: "data", sectionId: "s1", elementId: "e1", keys: { color: "red" } },
+        ]);
+        expect(r.ok && r.content.sections[0]).toBe(before.sections[0]);
+    });
+
+    it("rejects the batch on an unknown element or section, like every other op", () => {
+        expect(
+            applySectionOps(dataDoc(), [
+                { kind: "data", sectionId: "s1", elementId: "ghost", keys: { text: "x" } },
+            ]).ok,
+        ).toBe(false);
+        expect(
+            applySectionOps(dataDoc(), [
+                { kind: "data", sectionId: "ghost", elementId: "e1", keys: { text: "x" } },
+            ]).ok,
+        ).toBe(false);
+    });
+
+    it("leaves the input untouched", () => {
+        const before = dataDoc();
+        applySectionOps(before, [
+            { kind: "data", sectionId: "s1", elementId: "e1", keys: { color: "blue" } },
+        ]);
+        expect((elementById(before, "e1")?.data as { color: string }).color).toBe("red");
+    });
+});
+
+describe("narrowOps", () => {
+    const withText = (doc: ArtifactContent, sectionId: string, i: number, text: string) => {
+        const section = doc.sections.find((s) => s.id === sectionId)!;
+        const kids = (section.root.data as { children: ElementInstance[] }).children;
+        const next = kids.map((k, at) =>
+            at === i ? { ...k, data: { ...(k.data as object), text } } : k,
+        );
+        return {
+            ...section,
+            root: { ...section.root, data: { ...(section.root.data as object), children: next } },
+        };
+    };
+
+    it("rewrites a section set that is nothing but one element's data", () => {
+        const before = dataDoc();
+        const ops = narrowOps(before, [
+            { kind: "set", section: withText(before, "s1", 0, "changed") },
+        ]);
+        expect(ops).toEqual([
+            { kind: "data", sectionId: "s1", elementId: "e1", keys: { text: "changed" } },
+        ]);
+    });
+
+    it("names only the keys that actually changed", () => {
+        const before = dataDoc();
+        const section = before.sections[0]!;
+        const kids = (section.root.data as { children: ElementInstance[] }).children;
+        const next = {
+            ...section,
+            root: {
+                ...section.root,
+                data: {
+                    ...(section.root.data as object),
+                    children: [{ ...kids[0]!, data: { text: "one", color: "blue" } }, kids[1]!],
+                },
+            },
+        };
+        expect(narrowOps(before, [{ kind: "set", section: next }])).toEqual([
+            { kind: "data", sectionId: "s1", elementId: "e1", keys: { color: "blue" } },
+        ]);
+    });
+
+    it("records a removed key as null, which is what the wire can carry", () => {
+        const before = dataDoc();
+        const section = before.sections[0]!;
+        const kids = (section.root.data as { children: ElementInstance[] }).children;
+        const next = {
+            ...section,
+            root: {
+                ...section.root,
+                data: {
+                    ...(section.root.data as object),
+                    children: [{ ...kids[0]!, data: { text: "one" } }, kids[1]!],
+                },
+            },
+        };
+        expect(narrowOps(before, [{ kind: "set", section: next }])).toEqual([
+            { kind: "data", sectionId: "s1", elementId: "e1", keys: { color: null } },
+        ]);
+    });
+
+    it("emits one op per element when two of them changed at once", () => {
+        let next = withText(dataDoc(), "s1", 0, "A");
+        const before = dataDoc();
+        const kids = (next.root.data as { children: ElementInstance[] }).children;
+        next = {
+            ...next,
+            root: {
+                ...next.root,
+                data: {
+                    ...(next.root.data as object),
+                    children: [kids[0]!, { ...kids[1]!, data: { text: "B" } }],
+                },
+            },
+        };
+        const ops = narrowOps(before, [{ kind: "set", section: next }]);
+        expect(ops.map((o) => (o.kind === "data" ? o.elementId : o.kind))).toEqual(["e1", "e2"]);
+    });
+
+    it("leaves a structural change as a whole-section set", () => {
+        const before = dataDoc();
+        const section = before.sections[0]!;
+        const kids = (section.root.data as { children: ElementInstance[] }).children;
+        const added = {
+            ...section,
+            root: {
+                ...section.root,
+                data: {
+                    ...(section.root.data as object),
+                    children: [...kids, { type: "text", id: "e9", data: { text: "new" } }],
+                },
+            },
+        };
+        expect(narrowOps(before, [{ kind: "set", section: added }])[0]?.kind).toBe("set");
+    });
+
+    it("leaves a layout change, a type change, and a section-shell change as sets", () => {
+        const before = dataDoc();
+        const section = before.sections[0]!;
+        const kids = (section.root.data as { children: ElementInstance[] }).children;
+        const swap = (child: ElementInstance) => ({
+            ...section,
+            root: {
+                ...section.root,
+                data: {
+                    ...(section.root.data as object),
+                    children: [child, kids[1]!],
+                },
+            },
+        });
+        const resized = swap({ ...kids[0]!, layout: { width: { pct: 40 } } });
+        const retyped = swap({ ...kids[0]!, type: "quote" });
+        expect(narrowOps(before, [{ kind: "set", section: resized }])[0]?.kind).toBe("set");
+        expect(narrowOps(before, [{ kind: "set", section: retyped }])[0]?.kind).toBe("set");
+        const painted = { ...section, background: { kind: "color" as const, color: "#000" } };
+        expect(narrowOps(before, [{ kind: "set", section: painted }])[0]?.kind).toBe("set");
+    });
+
+    it("keeps a set for an element that has no id to address yet", () => {
+        const before: ArtifactContent = {
+            format: "deck",
+            theme: "studio",
+            sections: [nested("s1", [{ type: "text", data: { text: "one" } }])],
+        };
+        const section = before.sections[0]!;
+        const next = {
+            ...section,
+            root: {
+                ...section.root,
+                data: {
+                    ...(section.root.data as object),
+                    children: [{ type: "text", data: { text: "two" } }],
+                },
+            },
+        };
+        expect(narrowOps(before, [{ kind: "set", section: next }])[0]?.kind).toBe("set");
+    });
+
+    it("drops a set that changed nothing, and passes every other op kind through", () => {
+        const before = dataDoc();
+        expect(narrowOps(before, [{ kind: "set", section: before.sections[0]! }])).toEqual([]);
+        const rest: SectionOp[] = [
+            { kind: "remove", id: "s2" },
+            { kind: "order", ids: ["s2", "s1"] },
+            { kind: "shell", shell: { format: "doc", theme: "studio" } },
+            { kind: "data", sectionId: "s1", elementId: "e1", keys: { text: "x" } },
+        ];
+        expect(narrowOps(before, rest)).toEqual(rest);
+    });
+
+    it("narrows to ops that reproduce the same document", () => {
+        const before = dataDoc();
+        const next = {
+            ...before,
+            sections: [withText(before, "s1", 0, "rewritten"), before.sections[1]!],
+        };
+        const narrowed = narrowOps(before, [{ kind: "set", section: next.sections[0]! }]);
+        const applied = applySectionOps(before, narrowed);
+        expect(applied.ok && elementById(applied.content, "e1")?.data).toEqual({
+            text: "rewritten",
+            color: "red",
+        });
+        // and the untouched section keeps its object, which the whole-section set would not have
+        expect(applied.ok && applied.content.sections[1]).toBe(before.sections[1]);
+    });
+});
+
+describe("invertOps", () => {
+    it("turns a data op into the prior values of exactly the keys it touched", () => {
+        const before = dataDoc();
+        const forward: SectionOp[] = [
+            { kind: "data", sectionId: "s1", elementId: "e1", keys: { color: "blue" } },
+        ];
+        const inverse = invertOps(before, forward);
+        const applied = applySectionOps(before, forward);
+        expect(applied.ok).toBe(true);
+        if (!applied.ok) return;
+        const back = applySectionOps(applied.content, inverse);
+        expect(back.ok && elementById(back.content, "e1")?.data).toEqual({
+            text: "one",
+            color: "red",
+        });
+    });
+
+    it("records undefined for a key the element did not have, so undo removes it", () => {
+        const before = dataDoc();
+        const forward: SectionOp[] = [
+            { kind: "data", sectionId: "s1", elementId: "e2", keys: { color: "green" } },
+        ];
+        const applied = applySectionOps(before, forward);
+        expect(applied.ok).toBe(true);
+        if (!applied.ok) return;
+        const back = applySectionOps(applied.content, invertOps(before, forward));
+        expect(back.ok && elementById(back.content, "e2")?.data).toEqual({ text: "two" });
+    });
+
+    it("inverts set, insert, remove, order, and shell back to the previous document", () => {
+        const before = doc("a", "b", "c");
+        const forward: SectionOp[] = [
+            { kind: "set", section: sec("b", "rewritten") },
+            { kind: "remove", id: "c" },
+            { kind: "insert", section: sec("d"), index: 0 },
+            { kind: "order", ids: ["b", "d", "a"] },
+            { kind: "shell", shell: { format: "doc", theme: "aurora" } },
+        ];
+        const applied = applySectionOps(before, forward);
+        expect(applied.ok).toBe(true);
+        if (!applied.ok) return;
+        const back = applySectionOps(applied.content, invertOps(before, forward));
+        expect(back.ok).toBe(true);
+        if (!back.ok) return;
+        expect(idsOf(back.content)).toEqual(["a", "b", "c"]);
+        expect((back.content.sections[1]!.root.data as { text: string }).text).toBe("b");
+        expect(back.content.format).toBe("deck");
+        expect(back.content.theme).toBe("studio");
+    });
+
+    it("round-trips an op batch that only reorders", () => {
+        const before = doc("a", "b", "c");
+        const forward: SectionOp[] = [{ kind: "order", ids: ["c", "b", "a"] }];
+        const applied = applySectionOps(before, forward);
+        expect(applied.ok).toBe(true);
+        if (!applied.ok) return;
+        const back = applySectionOps(applied.content, invertOps(before, forward));
+        expect(back.ok && idsOf(back.content)).toEqual(["a", "b", "c"]);
     });
 });
 
@@ -502,5 +829,26 @@ describe("artifactSearchText", () => {
     it("is empty for a contentless draft", () => {
         expect(artifactSearchText({})).toBe("");
         expect(artifactSearchText(undefined)).toBe("");
+    });
+});
+
+describe("affordance regions", () => {
+    it("round-trips action + address, root paths included", () => {
+        const addr = { section: "s1", path: [0, 2] };
+        expect(parseHitRegion(hitRegionId("checkbox", addr))).toEqual({
+            action: "checkbox",
+            address: addr,
+        });
+        expect(parseHitRegion(hitRegionId("checkbox", { section: "s1", path: [] }))).toEqual({
+            action: "checkbox",
+            address: { section: "s1", path: [] },
+        });
+    });
+
+    it("is invisible to selection parsing, and vice versa", () => {
+        const id = hitRegionId("checkbox", { section: "s1", path: [1] });
+        expect(parseTarget(id)).toBeNull();
+        expect(parseHitRegion("el:s1:1")).toBeNull();
+        expect(parseHitRegion("section:s1")).toBeNull();
     });
 });

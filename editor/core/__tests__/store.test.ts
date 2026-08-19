@@ -86,8 +86,8 @@ describe("commit / history", () => {
 
     it("folds two commits with the same coalesce key into one undo step", () => {
         inRoot(() => {
-            const base = makeArt(["a"]);
-            loadArtifactContent("doc", base);
+            loadArtifactContent("doc", makeArt(["a"]));
+            const base = editor.artifact;
             const seq0 = editSeq();
 
             const a = makeArt(["a", "1"]);
@@ -100,40 +100,40 @@ describe("commit / history", () => {
             // both bumped the sequence but share ONE history entry
             expect(editSeq()).toBe(seq0 + 2);
             undo();
-            expect(editor.artifact).toBe(base);
+            expect(editor.artifact).toEqual(base);
             expect(canUndo()).toBe(false);
         });
     });
 
     it("pushes a new entry when the coalesce key differs", () => {
         inRoot(() => {
-            const base = makeArt(["a"]);
-            loadArtifactContent("doc", base);
+            loadArtifactContent("doc", makeArt(["a"]));
+            const base = editor.artifact;
             const a = makeArt(["a", "1"]);
             const b = makeArt(["a", "2"]);
             commit(a, { coalesce: "k1" });
             commit(b, { coalesce: "k2" });
 
             undo();
-            expect(editor.artifact).toBe(a);
+            expect(editor.artifact).toEqual(a);
             undo();
-            expect(editor.artifact).toBe(base);
+            expect(editor.artifact).toEqual(base);
         });
     });
 
     it("pushes a new entry when the second commit has no key", () => {
         inRoot(() => {
-            const base = makeArt(["a"]);
-            loadArtifactContent("doc", base);
+            loadArtifactContent("doc", makeArt(["a"]));
+            const base = editor.artifact;
             const a = makeArt(["a", "1"]);
             const b = makeArt(["a", "2"]);
             commit(a, { coalesce: "k" });
             commit(b); // absent key → its own undo step
 
             undo();
-            expect(editor.artifact).toBe(a);
+            expect(editor.artifact).toEqual(a);
             undo();
-            expect(editor.artifact).toBe(base);
+            expect(editor.artifact).toEqual(base);
         });
     });
 });
@@ -141,8 +141,8 @@ describe("commit / history", () => {
 describe("undo / redo", () => {
     it("undo on an empty stack is a no-op", () => {
         inRoot(() => {
-            const base = makeArt(["a", "b"]);
-            loadArtifactContent("doc", base);
+            loadArtifactContent("doc", makeArt(["a", "b"]));
+            const base = editor.artifact;
             const seq0 = editSeq();
             expect(canUndo()).toBe(false);
 
@@ -155,8 +155,8 @@ describe("undo / redo", () => {
 
     it("redo on an empty stack is a no-op", () => {
         inRoot(() => {
-            const base = makeArt(["a", "b"]);
-            loadArtifactContent("doc", base);
+            loadArtifactContent("doc", makeArt(["a", "b"]));
+            const base = editor.artifact;
             const seq0 = editSeq();
             expect(canRedo()).toBe(false);
 
@@ -168,20 +168,20 @@ describe("undo / redo", () => {
 
     it("undo restores prior content into future; redo re-applies", () => {
         inRoot(() => {
-            const base = makeArt(["a"]);
-            loadArtifactContent("doc", base);
+            loadArtifactContent("doc", makeArt(["a"]));
+            const base = editor.artifact;
             const next = makeArt(["a", "b"]);
             commit(next);
             expect(canUndo()).toBe(true);
             expect(canRedo()).toBe(false);
 
             undo();
-            expect(editor.artifact).toBe(base);
+            expect(editor.artifact).toEqual(base);
             expect(canUndo()).toBe(false);
             expect(canRedo()).toBe(true);
 
             redo();
-            expect(editor.artifact).toBe(next);
+            expect(editor.artifact).toEqual(next);
             expect(canUndo()).toBe(true);
             expect(canRedo()).toBe(false);
         });
@@ -203,7 +203,7 @@ describe("commitOver", () => {
             expect(editor.artifact).toBe(next);
 
             undo();
-            expect(editor.artifact).toBe(base); // NOT the transient placeholder tree
+            expect(editor.artifact).toEqual(base); // NOT the transient placeholder tree
             expect(canUndo()).toBe(false);
         });
     });
@@ -221,8 +221,8 @@ describe("section management", () => {
 
     it("moveSectionTo dropping a section just after its own position is delta 0 (no commit)", () => {
         inRoot(() => {
-            const base = makeArt(["a", "b", "c"]);
-            loadArtifactContent("doc", base);
+            loadArtifactContent("doc", makeArt(["a", "b", "c"]));
+            const base = editor.artifact;
             const seq0 = editSeq();
 
             moveSectionTo("b", 2); // i=1, index=2 → delta = (2-1)-1 = 0
@@ -371,10 +371,9 @@ describe("loadArtifactContent", () => {
             expect(canUndo()).toBe(true);
 
             const seq0 = editSeq();
-            const fresh = makeArt(["x", "y"]);
-            loadArtifactContent("doc2", fresh);
+            loadArtifactContent("doc2", makeArt(["x", "y"]));
 
-            expect(editor.artifact).toBe(fresh);
+            expect(sectionIds()).toEqual(["x", "y"]);
             expect(currentArtifactId()).toBe("doc2");
             expect(canUndo()).toBe(false);
             expect(canRedo()).toBe(false);

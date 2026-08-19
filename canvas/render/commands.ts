@@ -254,6 +254,9 @@ function getCtx(): CanvasRenderingContext2D {
     return ctx2d;
 }
 
+/** The shared measuring context, for chrome that must lay runs out exactly as the paint did. */
+export const measureContext = (): CanvasRenderingContext2D => getCtx();
+
 export function runFont(leaf: TextLeaf, run: Run): string {
     const weight = run.bold ? 700 : (leaf.weight ?? 400);
     const style = run.italic ? "italic " : "";

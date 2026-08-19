@@ -7,6 +7,10 @@ export interface ElementInstance {
     type: string;
     data: unknown;
     layout?: ElementLayout;
+    // Stable identity for anything pointing at this node from outside the tree (a comment anchor).
+    // Optional because it is minted lazily: a tree written before ids, or an element the AI just
+    // produced, simply has none until the next stamping pass.
+    id?: Id;
 }
 
 export interface SectionBackground {
@@ -146,6 +150,67 @@ export function removeAtPath(root: ElementInstance, path: number[]): ElementInst
     });
 }
 
+// Element ids: minted here, resolved by @elements/ops (which knows, through the registry, which
+// nested elements are addressable). Stored children only — a diagram builds its child text nodes on
+// the fly, so nothing there can carry an id and an anchor on one degrades to its section.
+const CHILD_KEYS = ["children", "cells"] as const;
+
+export const newElementId = (): Id => `e-${crypto.randomUUID().slice(0, 8)}`;
+
+const asElements = (v: unknown): ElementInstance[] | null =>
+    Array.isArray(v) &&
+    v.every((x) => !!x && typeof x === "object" && typeof (x as ElementInstance).type === "string")
+        ? (v as ElementInstance[])
+        : null;
+
+// Rebuilds only the branches whose children changed. Section object identity drives the paint cache
+// and the autosave diff, so a stamping pass that rebuilt untouched nodes would invalidate both.
+function mapChildren(
+    el: ElementInstance,
+    fn: (child: ElementInstance) => ElementInstance,
+): ElementInstance {
+    const data = el.data;
+    if (!data || typeof data !== "object") return el;
+    const patch: Record<string, unknown> = {};
+    let changed = false;
+    for (const key of CHILD_KEYS) {
+        const kids = asElements((data as Record<string, unknown>)[key]);
+        if (!kids) continue;
+        const mapped = kids.map(fn);
+        if (mapped.some((c, i) => c !== kids[i])) {
+            patch[key] = mapped;
+            changed = true;
+        }
+    }
+    return changed ? { ...el, data: { ...(data as Record<string, unknown>), ...patch } } : el;
+}
+
+/** Fills in a missing id anywhere in the subtree; returns the same object when none was missing. */
+export function withElementIds(el: ElementInstance): ElementInstance {
+    const stamped = mapChildren(el, withElementIds);
+    return stamped.id ? stamped : { ...stamped, id: newElementId() };
+}
+
+/** Every id in the subtree re-minted: what a copy needs, so it never shares an anchor with its source. */
+export function withFreshElementIds(el: ElementInstance): ElementInstance {
+    return { ...mapChildren(el, withFreshElementIds), id: newElementId() };
+}
+
+export function sectionWithElementIds(section: Section): Section {
+    const root = withElementIds(section.root);
+    return root === section.root ? section : { ...section, root };
+}
+
+export function contentWithElementIds(content: ArtifactContent): ArtifactContent {
+    let changed = false;
+    const sections = content.sections.map((s) => {
+        const next = sectionWithElementIds(s);
+        if (next !== s) changed = true;
+        return next;
+    });
+    return changed ? { ...content, sections } : content;
+}
+
 // Pointing at a node: an address is a section id plus the same index path the ops above take.
 // Region ids are the flat-string form of one, because the engine keys every painted node by a single
 // `id` (see Region in @engine/node) — section ids never contain ":", the separator.
@@ -176,6 +241,19 @@ export function parseTarget(id: string): Target | null {
         return { kind: "element", address: { section: p[1], path } };
     }
     return null;
+}
+
+// An affordance region: engine-reported, hit-testable chrome that is not a selection target (a
+// checklist's checkbox). parseTarget ignores the prefix, so selection never sees it; the editor
+// dispatches on `action` and acts on the addressed element's data.
+export const hitRegionId = (action: string, a: ElementAddress): string =>
+    `hit:${action}:${a.section}:${a.path.join(".")}`;
+
+export function parseHitRegion(id: string): { action: string; address: ElementAddress } | null {
+    const p = id.split(":");
+    if (p[0] !== "hit" || !p[1] || !p[2]) return null;
+    const path = p[3] ? p[3].split(".").map(Number) : [];
+    return { action: p[1], address: { section: p[2], path } };
 }
 
 // most specific wins: deeper element > element > section
@@ -282,7 +360,12 @@ export type SectionOp =
     | { kind: "insert"; section: Section; index: number }
     | { kind: "remove"; id: Id }
     | { kind: "order"; ids: Id[] }
-    | { kind: "shell"; shell: ArtifactShell };
+    | { kind: "shell"; shell: ArtifactShell }
+    // The per-property unit two people can write at once: merge these keys into the addressed
+    // element's `data`, leaving the keys nobody named alone. A colour from an inspector and a
+    // {text, marks} write from a typing session are then independent rather than a whole-section
+    // race. Structural edits stay whole-section `set`.
+    | { kind: "data"; sectionId: Id; elementId: Id; keys: Record<string, unknown> };
 
 export interface ContentPatch {
     ops: SectionOp[];
@@ -325,6 +408,44 @@ export interface ArtifactInput {
 
 export type ApplyResult = { ok: true; content: ArtifactContent } | { ok: false; reason: string }; // the whole batch is rejected, never half-applied
 
+// null is the wire's "remove this key": JSON drops an undefined value, so an inverse op restoring an
+// element to not having a key at all could not otherwise cross the socket. Nothing stores a
+// meaningful null, since every element reader treats absent and null alike.
+const isDrop = (v: unknown): boolean => v === undefined || v === null;
+
+// Merges `keys` into the element with this id, rebuilding only the branch that leads to it. Every
+// untouched sibling and every untouched section keeps its object identity, which is what the paint
+// cache and the autosave diff key on: a remote op that rebuilt the tree would repaint and resend the
+// whole document. Returns the same element when nothing actually changed.
+function mergeElementData(
+    el: ElementInstance,
+    elementId: Id,
+    keys: Record<string, unknown>,
+): ElementInstance | null {
+    if (el.id === elementId) {
+        const data = (el.data ?? {}) as Record<string, unknown>;
+        let changed = false;
+        for (const [k, v] of Object.entries(keys))
+            if (isDrop(v) ? Object.hasOwn(data, k) : data[k] !== v) changed = true;
+        if (!changed) return el;
+        const next: Record<string, unknown> = { ...data };
+        for (const [k, v] of Object.entries(keys)) {
+            if (isDrop(v)) delete next[k];
+            else next[k] = v;
+        }
+        return { ...el, data: next };
+    }
+    let hit: ElementInstance | null = null;
+    const mapped = mapChildren(el, (child) => {
+        if (hit) return child; // ids are unique, so stop once one branch matched
+        const next = mergeElementData(child, elementId, keys);
+        if (next === null) return child;
+        hit = next;
+        return next;
+    });
+    return hit === null ? null : mapped;
+}
+
 /** Applied in order to a fresh copy; an unknown section id means client and server disagree. */
 export function applySectionOps(content: ArtifactContent, ops: SectionOp[]): ApplyResult {
     const { sections: current, ...rest } = content;
@@ -332,7 +453,14 @@ export function applySectionOps(content: ArtifactContent, ops: SectionOp[]): App
     // the shell is whatever isn't sections, so a new content field survives an op batch by default
     let shell: ArtifactShell = rest;
     for (const op of ops) {
-        if (op.kind === "set") {
+        if (op.kind === "data") {
+            const at = sections.findIndex((s) => s.id === op.sectionId);
+            if (at < 0) return { ok: false, reason: `unknown section ${op.sectionId}` };
+            const section = sections[at]!;
+            const root = mergeElementData(section.root, op.elementId, op.keys);
+            if (root === null) return { ok: false, reason: `unknown element ${op.elementId}` };
+            if (root !== section.root) sections[at] = { ...section, root };
+        } else if (op.kind === "set") {
             const at = sections.findIndex((s) => s.id === op.section.id);
             if (at < 0) return { ok: false, reason: `unknown section ${op.section.id}` };
             sections[at] = op.section;
@@ -355,6 +483,142 @@ export function applySectionOps(content: ArtifactContent, ops: SectionOp[]): App
         }
     }
     return { ok: true, content: { ...shell, sections } };
+}
+
+// Whole-section `set` ops are correct but coarse: two people editing different elements of one
+// section would overwrite each other wholesale. Where a set turns out to be nothing but element
+// data changes, it is rewritten as one `data` op per element, which is the per-key unit two writers
+// can hold at once. Anything structural (a new child, a resize, a reordered column) stays a `set`.
+
+interface DataChange {
+    elementId: Id;
+    keys: Record<string, unknown>;
+}
+
+// null = the difference is structural, so it cannot be expressed as data ops
+function dataDelta(before: ElementInstance, after: ElementInstance): DataChange[] | null {
+    if (before === after) return [];
+    if (before.type !== after.type || before.id !== after.id) return null;
+    if (before.layout !== after.layout) return null;
+    const b = (before.data ?? {}) as Record<string, unknown>;
+    const a = (after.data ?? {}) as Record<string, unknown>;
+    const out: DataChange[] = [];
+    for (const key of CHILD_KEYS) {
+        const kidsB = asElements(b[key]);
+        const kidsA = asElements(a[key]);
+        if (!kidsB && !kidsA) continue;
+        if (!kidsB || !kidsA || kidsB.length !== kidsA.length) return null;
+        for (let i = 0; i < kidsA.length; i++) {
+            const nested = dataDelta(kidsB[i]!, kidsA[i]!);
+            if (!nested) return null;
+            out.push(...nested);
+        }
+    }
+    const keys: Record<string, unknown> = {};
+    let own = false;
+    for (const key of new Set([...Object.keys(b), ...Object.keys(a)])) {
+        if (CHILD_KEYS.includes(key as (typeof CHILD_KEYS)[number])) continue;
+        if (b[key] === a[key]) continue;
+        keys[key] = Object.hasOwn(a, key) ? a[key] : null; // null removes it, JSON drops undefined
+        own = true;
+    }
+    if (!own) return out;
+    if (!after.id) return null; // nothing to address the change to
+    out.push({ elementId: after.id, keys });
+    return out;
+}
+
+const SECTION_SHELL_EQUAL = (b: Section, a: Section): boolean =>
+    b.background === a.background && b.bleed === a.bleed && b.frame === a.frame;
+
+/** Rewrites the `set` ops that are only element-data changes; everything else passes through. */
+export function narrowOps(before: ArtifactContent, ops: SectionOp[]): SectionOp[] {
+    const had = new Map(before.sections.map((s) => [s.id, s]));
+    const out: SectionOp[] = [];
+    for (const op of ops) {
+        if (op.kind !== "set") {
+            out.push(op);
+            continue;
+        }
+        const prev = had.get(op.section.id);
+        const delta =
+            prev && SECTION_SHELL_EQUAL(prev, op.section)
+                ? dataDelta(prev.root, op.section.root)
+                : null;
+        if (!delta) {
+            out.push(op);
+            continue;
+        }
+        for (const change of delta)
+            out.push({
+                kind: "data",
+                sectionId: op.section.id,
+                elementId: change.elementId,
+                keys: change.keys,
+            });
+    }
+    return out;
+}
+
+/** The element carrying this id anywhere in the subtree, or undefined. */
+function findElement(el: ElementInstance, id: Id): ElementInstance | undefined {
+    if (el.id === id) return el;
+    const data = el.data;
+    if (!data || typeof data !== "object") return undefined;
+    for (const key of CHILD_KEYS) {
+        for (const kid of asElements((data as Record<string, unknown>)[key]) ?? [])
+            if (kid) {
+                const hit = findElement(kid, id);
+                if (hit) return hit;
+            }
+    }
+    return undefined;
+}
+
+// What to replay to put `before` back after `ops` land on it, in the order that undoes them.
+//
+// Undo is per-user inverse ops rather than a document snapshot, so replaying one person's undo
+// cannot roll back what someone else wrote in between. Computed against the tree the ops are about
+// to be applied to, which is the one moment the previous values are in hand.
+export function invertOps(before: ArtifactContent, ops: SectionOp[]): SectionOp[] {
+    const inverse: SectionOp[] = [];
+    let cur = before;
+    for (const op of ops) {
+        if (op.kind === "set") {
+            const prev = cur.sections.find((s) => s.id === op.section.id);
+            if (prev) inverse.push({ kind: "set", section: prev });
+        } else if (op.kind === "insert") {
+            inverse.push({ kind: "remove", id: op.section.id });
+        } else if (op.kind === "remove") {
+            const at = cur.sections.findIndex((s) => s.id === op.id);
+            if (at >= 0) inverse.push({ kind: "insert", section: cur.sections[at]!, index: at });
+        } else if (op.kind === "order") {
+            inverse.push({ kind: "order", ids: cur.sections.map((s) => s.id) });
+        } else if (op.kind === "shell") {
+            const { sections: _sections, ...shell } = cur;
+            inverse.push({ kind: "shell", shell });
+        } else {
+            const section = cur.sections.find((s) => s.id === op.sectionId);
+            const el = section && findElement(section.root, op.elementId);
+            if (el) {
+                const data = (el.data ?? {}) as Record<string, unknown>;
+                const keys: Record<string, unknown> = {};
+                // a key the element did not have inverts to null, the wire's "remove this key"
+                for (const k of Object.keys(op.keys))
+                    keys[k] = Object.hasOwn(data, k) ? data[k] : null;
+                inverse.push({
+                    kind: "data",
+                    sectionId: op.sectionId,
+                    elementId: op.elementId,
+                    keys,
+                });
+            }
+        }
+        const next = applySectionOps(cur, [op]);
+        if (!next.ok) break; // the forward batch will fail the same way; nothing to undo past here
+        cur = next.content;
+    }
+    return inverse.reverse();
 }
 
 /** Diffs by section identity: editor ops preserve it, so an unchanged section is free to detect. */

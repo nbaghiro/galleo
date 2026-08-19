@@ -1,4 +1,5 @@
 import type { ArtifactContent, ElementInstance, ElementAddress, Target } from "@model/artifact";
+import { withFreshElementIds } from "@model/artifact";
 import { createSignal } from "solid-js";
 import { getElementAt, isContainer, stripWidth } from "@elements/ops";
 import { getElement } from "@elements/spec";
@@ -49,7 +50,8 @@ function pasteTarget(art: ArtifactContent, target: Target): DropTarget | null {
         : { section, op: "wrap", path: [], index: 0, before: false, direction: "col" };
 }
 
-// width-stripped so it adopts the new container's sizing (a stale column % would overflow the row)
+// Width-stripped so it adopts the new container's sizing (a stale column % would overflow the row),
+// and re-identified: a paste is a new node, even when the source is still in the document.
 export function pasteElement(
     art: ArtifactContent,
     clip: ElementInstance,
@@ -57,6 +59,6 @@ export function pasteElement(
 ): { content: ArtifactContent; address: ElementAddress } | null {
     const dt = pasteTarget(art, target);
     if (!dt) return null;
-    const placed = place(art, dt, stripWidth(structuredClone(clip)));
+    const placed = place(art, dt, withFreshElementIds(stripWidth(structuredClone(clip))));
     return placed.address ? { content: placed.content, address: placed.address } : null;
 }
