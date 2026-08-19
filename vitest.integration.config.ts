@@ -24,7 +24,9 @@ export default defineConfig({
         setupFiles: ["services/__tests__/setup.ts"],
         fileParallelism: false, // one shared DB — serialize files so truncation can't race
         env: {
-            DATABASE_URL: "postgres://galleo:galleo@localhost:8602/galleo_test",
+            // GALLEO_TEST_DB lets concurrent local runs isolate onto their own database
+            // (global-setup creates it on first use); CI and the default stay galleo_test
+            DATABASE_URL: `postgres://galleo:galleo@localhost:8602/${process.env.GALLEO_TEST_DB ?? "galleo_test"}`,
             SESSION_SECRET: "integration-test-secret",
         },
         hookTimeout: 30000,

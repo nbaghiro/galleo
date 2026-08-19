@@ -2,7 +2,12 @@ import { execSync } from "node:child_process";
 import postgres from "postgres";
 
 export default async function setup(): Promise<void> {
-    const url = process.env.DATABASE_URL ?? "postgres://galleo:galleo@localhost:8602/galleo_test";
+    // Must resolve the same name vitest.integration.config.ts does: globalSetup runs before the
+    // workers and never sees the config's `env`, so reading DATABASE_URL alone would create the
+    // default database while the tests connect to the GALLEO_TEST_DB one and find nothing there.
+    const url =
+        process.env.DATABASE_URL ??
+        `postgres://galleo:galleo@localhost:8602/${process.env.GALLEO_TEST_DB ?? "galleo_test"}`;
     process.env.DATABASE_URL = url;
 
     // CREATE DATABASE can't run in a transaction
@@ -25,7 +30,8 @@ export default async function setup(): Promise<void> {
         await target.end();
     }
 
-    // additive on an empty DB → no prompt
+    // converges the schema on every run; the DB may persist across runs (GALLEO_TEST_DB),
+    // and --force skips the prompt — destructive convergence is fine on a throwaway test DB
     execSync("pnpm exec drizzle-kit push --force", {
         stdio: "inherit",
         env: { ...process.env, DATABASE_URL: url },
