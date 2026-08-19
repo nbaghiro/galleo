@@ -20,6 +20,13 @@ export const OUT_OF_CREDITS = (ws: PlanBearer, remaining: number) => ({
     topUp: canTopUp(ws.plan),
 });
 
+// A member who hit their own ceiling, not the workspace's. Neither remedy applies: the pool may be
+// full, and only an admin can raise the cap, so the body says who to ask instead of offering a sale.
+export const OVER_MEMBER_CAP = (cap: number, remaining: number) => ({
+    error: `You've used your ${cap.toLocaleString()} credit limit for this cycle. A workspace admin can raise it.`,
+    remaining,
+});
+
 // A body is untrusted input, so a route states the shape it accepts and gets null when the body
 // does not match. Null rather than a throw keeps the 400 in the route, beside its other failures.
 //

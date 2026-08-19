@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { monthlyGrantFor } from "@model/billing";
@@ -19,12 +19,68 @@ import type { Usage } from "@model/credits";
 // same row with what the work really cost, so history reads as a list of things the user did rather
 // than a list of accounting steps we took.
 
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Add credits at most once, ever, keyed on `credits.key`. The column is unique, so the insert either
+ * claims the key or finds it taken and does nothing, which makes this safe against a redelivered
+ * Stripe webhook and against two requests racing the same grant. The balance moves only when the row
+ * is claimed, so there is no path where history and the counter disagree.
+ *
+ * Lives here rather than beside its Stripe callers because the balance is this file's concern, and a
+ * second caller (the signup grant) would otherwise have copied it.
+ */
+export async function grantOnce(
+    tx: Tx,
+    ws: { id: string; aiCreditsBalance: number },
+    g: {
+        key: string;
+        delta: number;
+        reason: string;
+        also?: Partial<typeof schema.workspaces.$inferInsert>;
+    },
+): Promise<boolean> {
+    const balanceAfter = ws.aiCreditsBalance + g.delta;
+    const [claimed] = await tx
+        .insert(schema.credits)
+        .values({ workspaceId: ws.id, delta: g.delta, reason: g.reason, key: g.key, balanceAfter })
+        .onConflictDoNothing({ target: schema.credits.key })
+        .returning({ id: schema.credits.id });
+    if (!claimed) return false;
+    await tx
+        .update(schema.workspaces)
+        .set({ ...g.also, aiCreditsBalance: balanceAfter })
+        .where(eq(schema.workspaces.id, ws.id));
+    return true;
+}
+
 export type WorkspaceCreditFields = {
     id: string;
     plan: string | null;
     seats: number;
     featureOverrides?: typeof schema.workspaces.$inferSelect.featureOverrides;
+    creditsStartedAt?: Date;
+    memberCreditCap?: number | null;
 };
+
+// One person's net spend since the window opened: charges minus refunds. Only spends and settles
+// carry a user, so grants and resets (system rows) net out of this by construction.
+export async function spendThisCycle(
+    ws: { id: string; creditsStartedAt: Date },
+    userId: string,
+): Promise<number> {
+    const [row] = await db
+        .select({ total: sql<string>`COALESCE(SUM(-${schema.credits.delta}), 0)` })
+        .from(schema.credits)
+        .where(
+            and(
+                eq(schema.credits.workspaceId, ws.id),
+                eq(schema.credits.userId, userId),
+                gt(schema.credits.createdAt, ws.creditsStartedAt),
+            ),
+        );
+    return Math.max(0, Number(row?.total ?? 0));
+}
 
 interface SpendResult {
     ok: boolean;

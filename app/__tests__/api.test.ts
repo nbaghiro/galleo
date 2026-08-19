@@ -293,6 +293,41 @@ describe("account methods (method · path · body)", () => {
     });
 });
 
+describe("access + workspace policy methods", () => {
+    it("setArtifactAccess PUTs the level", async () => {
+        const calls = stubFetch(jsonResponse({ ok: true, access: "view" }));
+        const result = await api.setArtifactAccess("art_1", "view");
+
+        const call = firstCall(calls);
+        expect(call.url).toBe("/api/artifacts/art_1/access");
+        expect(call.init?.method).toBe("PUT");
+        expect(bodyOf(call)).toEqual({ access: "view" });
+        expect(result).toEqual({ ok: true, access: "view" });
+    });
+
+    it("setArtifactAccess sends an explicit null to fall back to the workspace default", async () => {
+        const calls = stubFetch(jsonResponse({ ok: true, access: null }));
+        await api.setArtifactAccess("art_1", null);
+        expect(bodyOf(firstCall(calls))).toEqual({ access: null });
+    });
+
+    it("updateWorkspaceSettings PATCHes only the keys it was handed", async () => {
+        const calls = stubFetch(jsonResponse({ ok: true }));
+        await api.updateWorkspaceSettings({ publishPolicy: "admins" });
+
+        const call = firstCall(calls);
+        expect(call.url).toBe("/api/workspace");
+        expect(call.init?.method).toBe("PATCH");
+        expect(bodyOf(call)).toEqual({ publishPolicy: "admins" });
+    });
+
+    it("updateWorkspaceSettings sends a null cap to clear the limit", async () => {
+        const calls = stubFetch(jsonResponse({ ok: true }));
+        await api.updateWorkspaceSettings({ memberCreditCap: null });
+        expect(bodyOf(firstCall(calls))).toEqual({ memberCreditCap: null });
+    });
+});
+
 describe("searchMedia — query-string encoding", () => {
     it("encodes q, sets page + kind, and appends orientation when provided", async () => {
         const calls = stubFetch(jsonResponse({ items: [], total: 0 }));

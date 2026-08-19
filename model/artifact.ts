@@ -1,4 +1,5 @@
 import type { ElementLayout } from "@model/geometry";
+import type { WorkspaceRole } from "./workspace";
 
 export type Id = string;
 
@@ -302,10 +303,73 @@ export interface ArtifactSummary {
     cover?: Cover;
     sections?: SectionSummary[];
     page?: PageSize; // so library thumbnails get the true aspect without reading the content
+    access?: ArtifactAccess; // the caller's own level, resolved server-side per request
+}
+
+// What one person may do to one artifact. Ordered: each level contains the ones below it.
+export type ArtifactAccess = "none" | "view" | "comment" | "edit";
+
+export const ACCESS_RANK: Record<ArtifactAccess, number> = {
+    none: 0,
+    view: 1,
+    comment: 2,
+    edit: 3,
+};
+
+export const atLeast = (have: ArtifactAccess, need: ArtifactAccess): boolean =>
+    ACCESS_RANK[have] >= ACCESS_RANK[need];
+
+/** What a per-user grant may carry: a grant is a level, never a way to take access to none. */
+export const isGrantable = (v: unknown): v is ArtifactAccess =>
+    v === "view" || v === "comment" || v === "edit";
+
+// hasOwn, not `in`: the prototype chain would let "toString" through as a level
+export const isAccess = (v: unknown): v is ArtifactAccess =>
+    typeof v === "string" && Object.hasOwn(ACCESS_RANK, v);
+
+export interface AccessInput {
+    role: WorkspaceRole | null; // null = not a member of the artifact's workspace at all
+    userId: string;
+    createdBy?: string | null;
+    memberAccess?: ArtifactAccess | null; // the artifact's own level; null inherits the workspace default
+    workspaceDefault?: ArtifactAccess | null;
+    grant?: ArtifactAccess | null; // an explicit per-user grant on this one artifact
+}
+
+// Most specific wins, in both directions. Precedence: the admin/owner/creator floors, then a
+// per-user grant, then the artifact's own level, then the workspace default. Admins keep edit so a
+// member cannot lock the workspace out of its own content, and the creator keeps edit so nobody can
+// lock themselves out; below those floors an explicit level beats an inherited one rather than being
+// widened by it, which is what makes "everyone can edit, except Sam can only view" expressible.
+// Grants carry view/comment/edit only, so a grant can never take someone to none.
+export function accessFor(input: AccessInput): ArtifactAccess {
+    if (input.role === "owner" || input.role === "admin") return "edit";
+    if (input.role && input.createdBy && input.createdBy === input.userId) return "edit";
+    if (input.grant) return input.grant;
+    if (!input.role) return "none";
+    return input.memberAccess ?? input.workspaceDefault ?? "edit";
 }
 
 export interface Artifact extends ArtifactSummary {
     draftContent: ArtifactContent;
+}
+
+// Collaborator grants: one person's standing access to one artifact, independent of membership.
+
+export interface Collaborator {
+    id: string;
+    email: string;
+    name: string | null;
+    avatarUrl: string | null;
+    access: ArtifactAccess;
+    acceptedAt: string | null; // null = invited, not yet opened
+    member: boolean; // already in the artifact's workspace, so the grant only adds to their level
+}
+
+/** A "Shared with me" row: someone else's artifact, reached through a grant. */
+export interface SharedArtifact extends ArtifactSummary {
+    workspaceName: string;
+    sharedBy?: { name: string | null; avatarUrl: string | null } | null;
 }
 
 // derived on every write and stored alongside the content, so listing a library never reads the trees
@@ -352,6 +416,8 @@ export interface ArtifactWindow {
     index: SectionSummary[]; // one entry per section, in order
     from: number;
     sections: Section[];
+    access?: ArtifactAccess; // the caller's own level, resolved server-side per request
+    seq?: number; // the artifact's revision at this read; the collab baseline the client resumes from
 }
 
 /** PATCH /artifacts/:id/content; applied in order in one transaction, an unknown id fails it. */

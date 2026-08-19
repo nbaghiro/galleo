@@ -21,28 +21,29 @@ one code path rather than a personal one and a team one.
 
 ## The pieces
 
-| Concern                                              | File                                                                                                                                |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| The row, its columns and indexes                     | `services/db/schema.ts`                                                                                                             |
-| Plan catalog, feature registry, entitlement resolver | `model/billing.ts`                                                                                                                  |
-| Cost units, the credit/USD anchor, `costOf`          | `model/credits.ts`                                                                                                                  |
-| Tool catalog, `estimateCost` / `reserveCost`         | `model/tools.ts`                                                                                                                    |
-| Roles, the auth DTOs, `UserPrefs`                    | `model/workspace.ts`                                                                                                                |
-| Create a workspace, resolve the current one          | `services/core/accounts.ts`                                                                                                         |
-| The account itself (profile, password, links, prefs) | `services/core/accounts.ts`, `services/api/account.ts`                                                                              |
-| Members, invites, seats, ownership                   | `services/core/workspaces.ts`                                                                                                       |
-| Balances, ledger rows, the monthly window            | `services/core/ledger.ts`                                                                                                           |
-| AI spend policy (reserve, meter, settle)             | `services/core/spend.ts`                                                                                                            |
-| Plans, Stripe, the webhook, ledger paging            | `services/core/billing.ts`                                                                                                          |
-| The 402 guards (`requireFeature` / `checkLimit`)     | `services/utils/http.ts`                                                                                                            |
-| `requireUser` / `requireWorkspace` / `requireRole`   | `services/api/middleware.ts`                                                                                                        |
-| `/billing/*`                                         | `services/api/billing.ts`                                                                                                           |
-| `/workspace/*`, `/invites/*`                         | `services/api/workspace.ts`                                                                                                         |
-| `/features`                                          | `services/api/features.ts`                                                                                                          |
-| `/me/*`                                              | `services/api/account.ts`                                                                                                           |
-| Client stores                                        | `app/stores/workspace.ts`, `app/stores/billing.ts`, `app/stores/features.ts`, `app/stores/auth.ts`                                  |
-| Surfaces                                             | `app/views/WorkspaceSettingsView.tsx`, `AccountSettingsView.tsx`, `PricingView.tsx`, `InviteView.tsx`, `app/components/Sidebar.tsx` |
-| The demo universe                                    | `services/db/seed-workspaces.ts` (data), `services/db/seed.ts` (the writer)                                                         |
+| Concern                                                             | File                                                                                                                                |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| The row, its columns and indexes                                    | `services/db/schema.ts`                                                                                                             |
+| Plan catalog, feature registry, entitlement resolver                | `model/billing.ts`                                                                                                                  |
+| Cost units, the credit/USD anchor, `costOf`                         | `model/credits.ts`                                                                                                                  |
+| Tool catalog, `estimateCost` / `reserveCost`                        | `model/tools.ts`                                                                                                                    |
+| Artifact access levels + `accessFor`                                | `model/artifact.ts`                                                                                                                 |
+| Roles, publish policy, the auth DTOs, `UserPrefs`                   | `model/workspace.ts`                                                                                                                |
+| Create a workspace, resolve the current one                         | `services/core/accounts.ts`                                                                                                         |
+| The account itself (profile, password, links, prefs)                | `services/core/accounts.ts`, `services/api/account.ts`                                                                              |
+| Members, invites, seats, ownership                                  | `services/core/workspaces.ts`                                                                                                       |
+| Balances, ledger rows, the monthly window                           | `services/core/ledger.ts`                                                                                                           |
+| AI spend policy (reserve, meter, settle)                            | `services/core/spend.ts`                                                                                                            |
+| Plans, Stripe, the webhook, ledger paging                           | `services/core/billing.ts`                                                                                                          |
+| The 402 guards (`requireFeature` / `checkLimit`)                    | `services/utils/http.ts`                                                                                                            |
+| `requireUser` / `requireWorkspace` / `requireRole` / `gateArtifact` | `services/api/middleware.ts`                                                                                                        |
+| `/billing/*`                                                        | `services/api/billing.ts`                                                                                                           |
+| `/workspace/*`, `/invites/*`                                        | `services/api/workspace.ts`                                                                                                         |
+| `/features`                                                         | `services/api/features.ts`                                                                                                          |
+| `/me/*`                                                             | `services/api/account.ts`                                                                                                           |
+| Client stores                                                       | `app/stores/workspace.ts`, `app/stores/billing.ts`, `app/stores/features.ts`, `app/stores/auth.ts`                                  |
+| Surfaces                                                            | `app/views/WorkspaceSettingsView.tsx`, `AccountSettingsView.tsx`, `PricingView.tsx`, `InviteView.tsx`, `app/components/Sidebar.tsx` |
+| The demo universe                                                   | `services/db/seed-workspaces.ts` (data), `services/db/seed.ts` (the writer)                                                         |
 
 ## The row (`workspaces`)
 
@@ -421,20 +422,29 @@ default still declared on the column and the literal `"owner"` the seed writes, 
 safe only because `roleOf` checks `ws.ownerId === userId` first and `GET /workspace` overrides the
 displayed role the same way, so a stale members row cannot grant or lose ownership.
 
-| Action                          | member | admin | owner              |
-| ------------------------------- | ------ | ----- | ------------------ |
-| Edit content, spend credits     | ✓      | ✓     | ✓                  |
-| See pending invites             | —      | ✓     | ✓                  |
-| Invite, revoke, remove a member | —      | ✓     | ✓                  |
-| Rename the workspace            | —      | ✓     | ✓                  |
-| Remove another **admin**        | —      | —     | ✓                  |
-| Change roles                    | —      | —     | ✓                  |
-| Billing mutations               | —      | —     | ✓                  |
-| Transfer ownership              | —      | —     | ✓                  |
-| Leave                           | ✓      | ✓     | — (transfer first) |
+| Action                           | member          | admin | owner              |
+| -------------------------------- | --------------- | ----- | ------------------ |
+| Read and edit an artifact        | per its level   | ✓     | ✓                  |
+| Spend credits                    | up to their cap | ✓     | ✓                  |
+| Publish a public link            | per the policy  | ✓     | ✓                  |
+| Empty the whole trash            | —               | ✓     | ✓                  |
+| See pending invites              | —               | ✓     | ✓                  |
+| Invite, revoke, remove a member  | —               | ✓     | ✓                  |
+| Rename the workspace, set policy | —               | ✓     | ✓                  |
+| Remove another **admin**         | —               | —     | ✓                  |
+| Change roles                     | —               | —     | ✓                  |
+| Billing mutations                | —               | —     | ✓                  |
+| Transfer ownership               | —               | —     | ✓                  |
+| Leave                            | ✓               | ✓     | — (transfer first) |
 
-`requireRole("admin" | "owner")` in `services/api/middleware.ts` mounts after `requireWorkspace` and
-resolves through `roleOf`. Billing does not use it: those routes compare `ws.ownerId` inline.
+The first three rows are the artifact-access layer below; the rest is the role alone. Admin and owner
+are deliberately absolute over content: a member who could lock them out would strand the workspace's
+own work the moment they left.
+
+`requireRole("admin" | "owner")` in `services/api/middleware.ts` mounts after `requireWorkspace`,
+which now publishes the caller's role on the context: `currentMembership` reads it from the members
+join it was already doing, so no route pays a second query for it. Billing does not use `requireRole`:
+those routes compare `ws.ownerId` inline.
 
 ### The seat cap
 
@@ -482,6 +492,110 @@ active workspace, which is what workspace settings sends.
 `transferOwnership` requires the target to already be a member, then in one transaction sets
 `workspaces.owner_id` and demotes the previous owner's members row to `admin`. The new owner's own
 members row is left as it was, which is harmless because ownership is read from `owner_id`.
+
+## Artifact access
+
+Role answers "what may this person do to the workspace". It does not answer "what may this person do
+to _this_ artifact", and until this layer existed the answer was always "anything": every member could
+edit, permanently delete, and publish anything in the workspace.
+
+Four levels, ordered so each contains the ones below it (`model/artifact.ts`):
+
+| Level     | Can                                                         |
+| --------- | ----------------------------------------------------------- |
+| `none`    | nothing; the artifact is absent from the library and search |
+| `view`    | open, read, present, export                                 |
+| `comment` | the above, plus leave, edit, resolve, and delete comments   |
+| `edit`    | everything, including publishing, trashing, and deleting it |
+
+**Resolution** is `accessFor({ role, userId, createdBy, memberAccess, workspaceDefault, grant })`, a
+pure function both sides import:
+
+1. owner and admin always get `edit`;
+2. the artifact's creator always gets `edit` on it;
+3. otherwise a per-user grant on this artifact, if one exists;
+4. otherwise the artifact's own `member_access`, if it sets one;
+5. otherwise the workspace's `default_artifact_access`, which ships as `edit`.
+
+Each step beating the one below it in **both directions** is the deliberate difference from Gamma,
+whose workspace setting is a floor that silently re-opens a locked document (their own help centre has
+to warn users about it). Here the wider setting is a fallback, not a floor, which is Figma's
+inherit-then-override model and the one that matches what people expect a per-document control to
+mean. It is also why a grant can narrow a member as well as widen them: "everyone can edit, except
+Sam is view-only" has to be expressible. Grants carry `view | comment | edit` only, so a grant can
+lift someone out of a lock but never put them into one.
+
+**Enforcement** is two gates in `services/api/middleware.ts`, both over the same resolver.
+`gateShared(c, id, need)` resolves the workspace **from the artifact row** and honours grants, and is
+what artifact-scoped routes use: read, sections, the content patch, the metadata patch, comments, and
+the collaboration socket. `gateArtifact(c, id, need)` additionally requires the artifact to be in the
+caller's active workspace, and is what everything belonging to the owning workspace keeps: trash,
+restore, delete, publishing, analytics, and AI turns. That split is what a grant does and does not
+open. Both read the row An artifact the caller resolves to `none` answers **404, not
+403**, so a locked artifact is indistinguishable from one that does not exist; anything above that
+answers 403 with a message naming the level they have. Reads need `view`; the content patch, metadata
+patch, trash, restore, delete, and publish need `edit`; comment writes need `comment`.
+
+Listing is filtered in SQL rather than after the fact, in three places that must stay in step:
+`visibleTo()` in `core/artifacts.ts` for the library page, `visibleSql()` in `core/search.ts` for ⌘K
+and the search field, and `sharedWithMe()` in `core/collaborators.ts` for the "Shared with me" group.
+All three build the predicate **positively** rather than as `NOT(hidden)`, because `member_access` is
+nullable and negating a comparison against NULL yields NULL, which would silently drop every
+inheriting row. The first two carry the same `grantedTo()` term, so an artifact locked to a member but
+shared with them by name stays in their library rather than being reachable only by URL. Two
+invariants hold: an accessible artifact appears in exactly one of (library, shared-with-me), never
+zero, and anything the resolver puts above `none` is reachable from some list. Without the search
+half, ⌘K would be the way around the permission.
+
+`PUT /artifacts/:id/access` sets or clears one artifact's level and itself needs `edit`, so a member
+who can edit can also lock it; an admin can always undo that.
+
+## Per-user grants
+
+`artifact_grants` is how someone who is not in the workspace gets in at all, and how one person inside
+it gets a level of their own. A row keys on `(artifact_id, email)` and binds `user_id` when the
+invitee already has an account or accepts the emailed token; only the token's SHA-256 hash is stored,
+exactly as workspace invites do it. `POST /artifacts/:id/collaborators` invites, and needs `edit` on
+the artifact **and** membership of the owning workspace: an invited editor may change the document,
+not widen who else can reach it. Invitees see the artifact under "Shared with me" and open it in the
+editor at their granted level.
+
+What a grant does not open: publishing, trashing, permanent deletion, analytics, the member roster,
+and AI turns, all of which stay with the owning workspace. AI in particular is members-only because an
+outsider's turn would spend the host workspace's credits. The live-editing half of this (the room,
+presence, the edit lease) is `.docs/collab.md`.
+
+**Not built, deliberately**: folder-level inheritance. Folders are a light organizer today (an
+artifact can sit at root), and inheritance would put a tree walk on the list query.
+
+## Publishing and destructive actions
+
+Two capabilities have a blast radius wider than the artifact in front of you, so they are gated
+separately from the access level:
+
+- **Publishing** puts an artifact on a public URL, outside the workspace entirely. It needs the
+  `publicLinks` plan feature, `edit` on the artifact, **and** the workspace's `publish_policy`
+  (`members` by default, or `admins`). Unpublishing only needs `edit`: a policy change must never
+  strand a link nobody can take down.
+- **Emptying the trash** deletes every member's trashed work in one call, not just the caller's, so
+  `DELETE /trash` is admin-only. Trashing and permanently deleting a single artifact stay at `edit`.
+
+## The per-member credit cap
+
+The credit pool is shared and only the owner can refill it, so one member could spend the month.
+`workspaces.member_credit_cap` (null = uncapped, the shipped default) bounds what one member spends
+per credit window. It is enforced in `reserve()` (`core/spend.ts`), the single choke point every paid
+action already passes through, and checked **against the estimate before the charge**, so a run that
+would cross the cap never starts rather than being cut off mid-stream. Owners and admins are not
+capped: they run the workspace, and an admin who cannot act is a support ticket.
+
+`spendThisCycle` moved from `core/billing.ts` to `core/ledger.ts` for this, so `core/spend.ts` can
+read a member's spend without importing the Stripe module. A refusal returns `OVER_MEMBER_CAP` rather
+than `OUT_OF_CREDITS`: neither remedy applies, since the pool may be full and only an admin can raise
+the ceiling, so the body says who to ask instead of offering a sale.
+
+The three settings live on the workspace row and are set by any admin through `PATCH /workspace`,
+which validates each one and refuses an empty patch.
 
 ## The account (`users`)
 
@@ -628,7 +742,11 @@ which sees only the plan and would silently ignore a workspace's `featureOverrid
   yet and `console` is banned in app code.
 - `POST /billing/portal` does not check `stripeReady()`, so it can reach `stripe()` and throw where its
   siblings 503.
-- Per-artifact permissions do not exist. Role is workspace-wide, and a member sees everything in it.
+- Per-artifact permissions exist per artifact only. There are no per-user grants ("locked, except
+  Sam") and no folder-level inheritance; both are described under Artifact access above.
+- The credit ledger is still readable by every member, names included. Capping spend made that more
+  defensible (a member can see what their own ceiling is being measured against) but it was never an
+  explicit decision.
 - There is no way to create a workspace from the app. `createWorkspaceForUser` runs at signup and in the
   seed, so a second membership can only arrive through an invite.
 - The account has no delete. It needs a decision about workspaces the user owns with other members in
@@ -640,20 +758,22 @@ which sees only the plan and would silently ignore a workspace's `featureOverrid
 
 ## Tests
 
-| Area                            | File                                        | Covers                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Plan catalog + resolver         | `model/__tests__/billing.test.ts`           | plan fallback, `limitsFor`, `sellsSeats`, launch status beating both plan and override, overrides widening a live feature, `withinLimit` against `-1`, `monthlyGrantFor` counting only seats beyond the included ones, add-on and pack pricing invariants, and every plan having a remedy when it runs dry                                                                   |
-| Cost units + the ceiling        | `model/__tests__/credits.test.ts`           | `costOf` with and without rates, the one-credit floor, `creditsForUsd`, `unitMultipliers` per task, `estimateCost` scaling by length and section count, `reserveCost` holding the estimate without a ceiling and 10 credits for `ask-assistant` with one, and a free tool reserving 0                                                                                        |
-| 402 guards                      | `services/utils/__tests__/http.test.ts`     | `requireFeature`, `checkLimit` at and below a cap, unlimited, the message builder                                                                                                                                                                                                                                                                                            |
-| Ledger mechanics                | `services/core/__tests__/ledger.itest.ts`   | refusing a charge the balance cannot cover, spending straight off the balance, a settle rewriting one row in place, a settle beyond the reserve flooring at zero, and `rollCreditWindow` rolling once under concurrency while adding the grant to the leftovers                                                                                                              |
-| Spend policy                    | `services/core/__tests__/spend.test.ts`     | what a run owes: nothing for nothing, provider list price, the credit floor, assets on top, call-site spend folded into one sum                                                                                                                                                                                                                                              |
-| Stripe wiring                   | `services/core/__tests__/stripe.test.ts`    | `stripeReady`, `priceIdFor` including the annual-to-monthly fallback, price-to-plan and price-to-interval round trips                                                                                                                                                                                                                                                        |
-| Billing routes + webhook        | `services/api/__tests__/billing.itest.ts`   | checkout (seats, interval, 503, free rejected), portal, change-plan (immediate upgrade, parked downgrade, cancel-to-free, seat floor, interval switch), resume, webhook idempotency and rollback, subscription adoption and hijack refusal, cycle-invoice re-anchoring, seat-scaled pool, concurrent near-limit spends, top-ups, trials, owner-only mutations, ledger paging |
-| Resolved features over the wire | `services/api/__tests__/features.itest.ts`  | `GET /features` for a free and an upgraded workspace                                                                                                                                                                                                                                                                                                                         |
-| Members, invites, switching     | `services/api/__tests__/workspace.itest.ts` | invite into a free seat, 402 when full, 409 for an existing member, revoke killing a token, accept joining and switching, expired invite, seats shrinking after an invite went out, switching and the 403 without a membership, removal dropping a user back                                                                                                                 |
-| The role matrix                 | `services/api/__tests__/roles.itest.ts`     | legacy `editor` rows reading as member, invites hidden from members, who may invite/rename/remove, admin-cannot-remove-admin, owner-only role changes, an invite carrying a role, leave, transfer demoting the old owner                                                                                                                                                     |
-| The lazy window roll on read    | `services/core/__tests__/accounts.itest.ts` | `currentWorkspace` zeroing `aiCreditsUsed` and pushing `creditsResetAt` about 30 days out once the window has passed, and leaving an unexpired window alone                                                                                                                                                                                                                  |
-| Provisioning                    | `services/api/__tests__/session.itest.ts`   | signup and login, and the workspace created alongside a user                                                                                                                                                                                                                                                                                                                 |
-| The account surface             | `services/api/__tests__/account.itest.ts`   | `/me` carrying `hasPassword` + `prefs`, rename (trim, cap, clear), password change and first-set, wrong/missing/over-cap current, the `password_changed_at` stamp and the reissued cookie, connections list, unlink with a password or a second provider, the last-credential 409, prefs merge/clear/normalize, memberships with roles, and leaving a named workspace        |
-| The OAuth link path             | `services/api/__tests__/oauth.itest.ts`     | the intent cookie only on `?link=1`, linking to the session's account when the provider's email belongs to someone else, refusing an identity linked elsewhere, idempotent relink, the expired-session fallback to sign-in, and failures reporting to `/account` when linking and `/login` when signing in                                                                   |
-| Prefs + name normalization      | `model/__tests__/workspace.test.ts`         | `asRole` legacy mapping, `readUserPrefs` dropping unknown keys, wrong types and oversized ids, `mergeUserPrefs` patching, clearing, and refusing to mutate its input, `cleanDisplayName` trimming before capping                                                                                                                                                             |
+| Area                            | File                                        | Covers                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Plan catalog + resolver         | `model/__tests__/billing.test.ts`           | plan fallback, `limitsFor`, `sellsSeats`, launch status beating both plan and override, overrides widening a live feature, `withinLimit` against `-1`, `monthlyGrantFor` counting only seats beyond the included ones, add-on and pack pricing invariants, and every plan having a remedy when it runs dry                                                                                                                                                                           |
+| Cost units + the ceiling        | `model/__tests__/credits.test.ts`           | `costOf` with and without rates, the one-credit floor, `creditsForUsd`, `unitMultipliers` per task, `estimateCost` scaling by length and section count, `reserveCost` holding the estimate without a ceiling and 10 credits for `ask-assistant` with one, and a free tool reserving 0                                                                                                                                                                                                |
+| 402 guards                      | `services/utils/__tests__/http.test.ts`     | `requireFeature`, `checkLimit` at and below a cap, unlimited, the message builder                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Ledger mechanics                | `services/core/__tests__/ledger.itest.ts`   | refusing a charge the balance cannot cover, spending straight off the balance, a settle rewriting one row in place, a settle beyond the reserve flooring at zero, and `rollCreditWindow` rolling once under concurrency while adding the grant to the leftovers                                                                                                                                                                                                                      |
+| Spend policy                    | `services/core/__tests__/spend.test.ts`     | what a run owes: nothing for nothing, provider list price, the credit floor, assets on top, call-site spend folded into one sum                                                                                                                                                                                                                                                                                                                                                      |
+| Stripe wiring                   | `services/core/__tests__/stripe.test.ts`    | `stripeReady`, `priceIdFor` including the annual-to-monthly fallback, price-to-plan and price-to-interval round trips                                                                                                                                                                                                                                                                                                                                                                |
+| Billing routes + webhook        | `services/api/__tests__/billing.itest.ts`   | checkout (seats, interval, 503, free rejected), portal, change-plan (immediate upgrade, parked downgrade, cancel-to-free, seat floor, interval switch), resume, webhook idempotency and rollback, subscription adoption and hijack refusal, cycle-invoice re-anchoring, seat-scaled pool, concurrent near-limit spends, top-ups, trials, owner-only mutations, ledger paging                                                                                                         |
+| Resolved features over the wire | `services/api/__tests__/features.itest.ts`  | `GET /features` for a free and an upgraded workspace                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Members, invites, switching     | `services/api/__tests__/workspace.itest.ts` | invite into a free seat, 402 when full, 409 for an existing member, revoke killing a token, accept joining and switching, expired invite, seats shrinking after an invite went out, switching and the 403 without a membership, removal dropping a user back                                                                                                                                                                                                                         |
+| The role matrix                 | `services/api/__tests__/roles.itest.ts`     | legacy `editor` rows reading as member, invites hidden from members, who may invite/rename/remove, admin-cannot-remove-admin, owner-only role changes, an invite carrying a role, leave, transfer demoting the old owner                                                                                                                                                                                                                                                             |
+| The lazy window roll on read    | `services/core/__tests__/accounts.itest.ts` | `currentWorkspace` zeroing `aiCreditsUsed` and pushing `creditsResetAt` about 30 days out once the window has passed, and leaving an unexpired window alone                                                                                                                                                                                                                                                                                                                          |
+| Provisioning                    | `services/api/__tests__/session.itest.ts`   | signup and login, and the workspace created alongside a user                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Artifact access + policies      | `services/api/__tests__/access.itest.ts`    | the level matrix per route (read/patch/content/trash/restore/delete), the 404-not-403 rule for `none`, admin and creator floors, inherit-then-override in both directions, the library and search filters, comments at each level, admin-only trash emptying, the publish policy, `PATCH /workspace` validation, `PUT /artifacts/:id/access`, and the per-member spend cap (exact-boundary refusal, nothing charged, per-member not pooled, admins uncapped, window roll freeing it) |
+| Access resolution               | `model/__tests__/artifact-access.test.ts`   | level ordering, `isAccess` refusing prototype keys, every branch of `accessFor`, and the publish policy helpers                                                                                                                                                                                                                                                                                                                                                                      |
+| The account surface             | `services/api/__tests__/account.itest.ts`   | `/me` carrying `hasPassword` + `prefs`, rename (trim, cap, clear), password change and first-set, wrong/missing/over-cap current, the `password_changed_at` stamp and the reissued cookie, connections list, unlink with a password or a second provider, the last-credential 409, prefs merge/clear/normalize, memberships with roles, and leaving a named workspace                                                                                                                |
+| The OAuth link path             | `services/api/__tests__/oauth.itest.ts`     | the intent cookie only on `?link=1`, linking to the session's account when the provider's email belongs to someone else, refusing an identity linked elsewhere, idempotent relink, the expired-session fallback to sign-in, and failures reporting to `/account` when linking and `/login` when signing in                                                                                                                                                                           |
+| Prefs + name normalization      | `model/__tests__/workspace.test.ts`         | `asRole` legacy mapping, `readUserPrefs` dropping unknown keys, wrong types and oversized ids, `mergeUserPrefs` patching, clearing, and refusing to mutate its input, `cleanDisplayName` trimming before capping                                                                                                                                                                                                                                                                     |

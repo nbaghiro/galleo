@@ -1,4 +1,5 @@
 import type { ModelSpan } from "@model/ai";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import {
     pgTable,
     uuid,
@@ -15,12 +16,13 @@ import {
     vector,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type { GenMeta, ArtifactDigest } from "@model/artifact";
+import type { GenMeta, ArtifactDigest, ArtifactAccess } from "@model/artifact";
+import type { CommentAnchor } from "@model/comments";
 import type { FeatureOverrides, ScheduledChange } from "@model/billing";
 import type { Usage } from "@model/credits";
 import type { ArtifactContent } from "@model/artifact";
 import type { EvalCheck, EvalConfig, EvalJudgement, EvalStatus } from "@model/eval";
-import type { UserPrefs } from "@model/workspace";
+import type { PublishPolicy, UserPrefs } from "@model/workspace";
 
 // Drizzle has no tsvector type; the column is generated from title + search_text, never written by hand
 const tsvector = customType<{ data: string; driverData: string }>({
@@ -96,6 +98,14 @@ export const workspaces = pgTable("workspaces", {
     scheduledChange: jsonb("scheduled_change").$type<ScheduledChange>(),
     // per-workspace grants that override the plan; see @model/billing
     featureOverrides: jsonb("feature_overrides").$type<FeatureOverrides>(),
+    // what a member gets on an artifact that sets no level of its own (@model/artifact accessFor)
+    defaultArtifactAccess: text("default_artifact_access")
+        .$type<ArtifactAccess>()
+        .notNull()
+        .default("edit"),
+    publishPolicy: text("publish_policy").$type<PublishPolicy>().notNull().default("members"),
+    // per member, per credit window; null = uncapped. Owners and admins are never capped.
+    memberCreditCap: integer("member_credit_cap"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -160,6 +170,8 @@ export const artifacts = pgTable(
         status: text("status").notNull().default("draft"),
         trashedAt: timestamp("trashed_at"), // soft delete: null = live, set = in Trash
         createdBy: uuid("created_by").references(() => users.id),
+        // this artifact's own level for plain members; null inherits the workspace default
+        memberAccess: text("member_access").$type<ArtifactAccess>(),
         createdAt: timestamp("created_at").notNull().defaultNow(),
         updatedAt: timestamp("updated_at").notNull().defaultNow(),
         // derived from draft_content on every write (@model/artifact), so lists never read the trees back
@@ -167,6 +179,9 @@ export const artifacts = pgTable(
         searchText: text("search_text"),
         // provenance for AI-generated artifacts: the brief and the model behind each step
         aiMeta: jsonb("ai_meta").$type<GenMeta>(),
+        // monotonic revision counter, bumped inside the transaction of every content write; the
+        // collab room orders its broadcasts by it and a reconnecting client catches up from it
+        seq: bigint("seq", { mode: "number" }).notNull().default(0),
         searchTsv: tsvector("search_tsv").generatedAlwaysAs(
             sql`setweight(to_tsvector('english', coalesce(title, '')), 'A') || setweight(to_tsvector('english', coalesce(search_text, '')), 'B')`,
         ),
@@ -196,6 +211,36 @@ export const visits = pgTable(
         primaryKey({ columns: [t.userId, t.kind, t.ref] }),
         index("visits_kind_ref_idx").on(t.kind, t.ref),
     ],
+);
+
+// A thread is a root comment plus flat replies (parent_id = the root); resolution lives on the root.
+// Comments sit outside the content tree, so undo never creates or destroys one. section_id is a
+// content id, not a row id: it collides across artifacts, so every read also keys on artifact_id.
+// author_id is nullable to leave room for a link recipient authoring one without a user row.
+export const comments = pgTable(
+    "comments",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        workspaceId: uuid("workspace_id")
+            .notNull()
+            .references(() => workspaces.id),
+        artifactId: uuid("artifact_id")
+            .notNull()
+            .references(() => artifacts.id, { onDelete: "cascade" }),
+        sectionId: text("section_id").notNull(),
+        anchor: jsonb("anchor").$type<CommentAnchor>().notNull(),
+        quote: text("quote"), // what the anchor covered when written, for a degraded thread
+        parentId: uuid("parent_id").references((): AnyPgColumn => comments.id, {
+            onDelete: "cascade",
+        }),
+        authorId: uuid("author_id").references(() => users.id),
+        body: text("body").notNull(),
+        resolvedAt: timestamp("resolved_at"),
+        resolvedBy: uuid("resolved_by").references(() => users.id),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+        updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    },
+    (t) => [index("comments_artifact_idx").on(t.artifactId, t.createdAt)],
 );
 
 // custom themes only — the built-in library lives in code (@themes)

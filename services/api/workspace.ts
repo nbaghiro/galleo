@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import { asRole } from "@model/workspace";
+import { asRole, isPublishPolicy } from "@model/workspace";
+import { isAccess } from "@model/artifact";
 import { z } from "zod";
 import { BAD_BODY, readJson } from "@services/utils/http";
 import {
@@ -11,7 +12,8 @@ import {
     membershipsOf,
     pendingInvites,
     removeMember,
-    renameWorkspace,
+    updateWorkspace,
+    type WorkspaceSettingsPatch,
     revokeInvite,
     roleOf,
     setMemberRole,
@@ -27,15 +29,22 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const grantable = (raw: unknown): raw is "admin" | "member" => raw === "admin" || raw === "member";
 
 workspace.get("/workspace", requireWorkspace, async (c) => {
-    const [user, ws] = [c.get("user"), c.get("ws")];
-    const role = (await roleOf(ws, user.id)) ?? "member";
+    const [user, ws, role] = [c.get("user"), c.get("ws"), c.get("role")];
     const [members, invites, memberships] = await Promise.all([
         liveMembers(ws.id),
         role === "member" ? Promise.resolve([]) : pendingInvites(ws.id),
         membershipsOf(user.id),
     ]);
     return c.json({
-        workspace: { id: ws.id, name: ws.name, plan: ws.plan, seats: ws.seats },
+        workspace: {
+            id: ws.id,
+            name: ws.name,
+            plan: ws.plan,
+            seats: ws.seats,
+            defaultArtifactAccess: ws.defaultArtifactAccess,
+            publishPolicy: ws.publishPolicy,
+            memberCreditCap: ws.memberCreditCap,
+        },
         role,
         members: members.map((m) => ({
             ...m,
@@ -47,20 +56,49 @@ workspace.get("/workspace", requireWorkspace, async (c) => {
     });
 });
 
-const zName = z.object({ name: z.string().optional() });
+const zSettings = z.object({
+    name: z.string().optional(),
+    defaultArtifactAccess: z.string().optional(),
+    publishPolicy: z.string().optional(),
+    // null clears the cap back to uncapped, which is why this is nullish rather than optional
+    memberCreditCap: z.number().nullish(),
+});
 const zInvite = z.object({ email: z.string().optional(), role: z.string().optional() });
 const zToken = z.object({ token: z.string().optional() });
 const zRole = z.object({ role: z.string().optional() });
 const zWorkspaceId = z.object({ workspaceId: z.string().optional() });
 const zUserId = z.object({ userId: z.string().optional() });
 
+// One admin-gated patch for the whole workspace: the name and the three policy settings.
 workspace.patch("/workspace", requireWorkspace, requireRole("admin"), async (c) => {
-    const body = await readJson(c, zName);
+    const body = await readJson(c, zSettings);
     if (!body) return c.json(BAD_BODY, 400);
-    const { name } = body;
-    const trimmed = name?.trim();
-    if (!trimmed) return c.json({ error: "a name is required" }, 400);
-    await renameWorkspace(c.get("ws").id, trimmed.slice(0, 80));
+    const patch: WorkspaceSettingsPatch = {};
+
+    if (body.name !== undefined) {
+        const trimmed = body.name.trim();
+        if (!trimmed) return c.json({ error: "a name is required" }, 400);
+        patch.name = trimmed.slice(0, 80);
+    }
+    if (body.defaultArtifactAccess !== undefined) {
+        if (!isAccess(body.defaultArtifactAccess))
+            return c.json({ error: "that is not an access level" }, 400);
+        patch.defaultArtifactAccess = body.defaultArtifactAccess;
+    }
+    if (body.publishPolicy !== undefined) {
+        if (!isPublishPolicy(body.publishPolicy))
+            return c.json({ error: "that is not a publish policy" }, 400);
+        patch.publishPolicy = body.publishPolicy;
+    }
+    if (body.memberCreditCap !== undefined) {
+        const cap = body.memberCreditCap;
+        if (cap !== null && (!Number.isFinite(cap) || cap < 0))
+            return c.json({ error: "a credit cap is a positive number, or none" }, 400);
+        patch.memberCreditCap = cap === null ? null : Math.trunc(cap);
+    }
+
+    if (!Object.keys(patch).length) return c.json({ error: "nothing to update" }, 400);
+    await updateWorkspace(c.get("ws").id, patch);
     return c.json({ ok: true });
 });
 

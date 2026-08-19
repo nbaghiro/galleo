@@ -35,6 +35,8 @@ import {
     setDraggingArtifact,
     type LibraryQuery,
 } from "@app/stores/library";
+import { relativeTime } from "@ui/time";
+import type { ArtifactAccess } from "@model/artifact";
 import { appTheme } from "@app/stores/theme";
 import { openGenerate } from "@app/stores/generate";
 import { folders } from "@app/stores/folders";
@@ -59,6 +61,10 @@ import { SectionThumb } from "@app/components/previews";
 import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
 
 // fills use soft/accent tints, legible on light and dark unlike line
+// only the levels worth saying out loud; edit is the norm and `none` never reaches the client
+const limitedAccess = (access?: ArtifactAccess): string | undefined =>
+    access === "comment" ? "Comment only" : access === "view" ? "View only" : undefined;
+
 const TILE_W = 176;
 const TILE_LEAD = "0px 400px"; // how far beyond the viewport a tile counts as worth loading
 const TILE_SETTLE = 90; // ms of quiet before the visible tiles are asked for
@@ -504,6 +510,14 @@ export const LibraryView: Component = () => {
                                 <span>{secs().length} sections</span>
                                 <span>·</span>
                                 <span>{relativeTime(p.d.updatedAt)}</span>
+                                <Show when={limitedAccess(p.d.access)}>
+                                    {(label) => (
+                                        <>
+                                            <span>·</span>
+                                            <span class="font-semibold text-soft">{label()}</span>
+                                        </>
+                                    )}
+                                </Show>
                             </div>
                         </div>
                         <div class="ml-auto flex-none">

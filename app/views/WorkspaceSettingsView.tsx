@@ -1,8 +1,10 @@
 import type { Component, JSX } from "solid-js";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import type { WorkspaceRole } from "@model/workspace";
+import type { PublishPolicy, WorkspaceRole } from "@model/workspace";
+import type { ArtifactAccess } from "@model/artifact";
 import { describeUsage } from "@model/credits";
+import { Avatar } from "@ui/avatar";
 import { Button, Eyebrow, Spinner } from "@ui/button";
 import { TextField } from "@ui/inputs";
 import { Dropdown } from "@ui/select";
@@ -18,6 +20,7 @@ import {
     removeMember,
     renameWorkspace,
     revokeInvite,
+    updateWorkspaceSettings,
     setMemberRole,
     transferOwnership,
     workspaceState,
@@ -54,8 +57,23 @@ const StatCard: Component<{
     </div>
 );
 
-const initial = (name: string | null, mail: string): string =>
-    (name?.trim()[0] ?? mail[0] ?? "?").toUpperCase();
+const PolicyRow: Component<{ label: string; hint: string; children: JSX.Element }> = (props) => (
+    <div class="flex flex-col gap-2 border-b border-line py-3 last:border-b-0 sm:flex-row sm:items-center sm:gap-4">
+        <div class="min-w-0 flex-1">
+            <div class="text-[13px] font-semibold text-ink">{props.label}</div>
+            <div class="mt-0.5 text-[11.5px] text-muted">{props.hint}</div>
+        </div>
+        <div class="flex-none">{props.children}</div>
+    </div>
+);
+
+// "none" is deliberately not offered as a workspace default: a default that hides every new artifact
+// from everyone reads as broken, and the same effect is available per artifact.
+const ACCESS_OPTIONS = [
+    { label: "Can edit", value: "edit" },
+    { label: "Can comment", value: "comment" },
+    { label: "Can view", value: "view" },
+];
 
 const roleLabel: Record<WorkspaceRole, string> = {
     owner: "Owner",
@@ -92,6 +110,27 @@ export const WorkspaceSettingsView: Component = () => {
         if (unlimited(u.maxArtifacts)) return `${u.artifacts} / ∞ artifacts`;
         const left = Math.max(0, u.maxArtifacts - u.artifacts);
         return `${u.artifacts} / ${u.maxArtifacts} artifacts · ${left} left`;
+    };
+
+    // policies (admin+); the two dropdowns save on change, the cap has a field so it needs a submit
+    const savePolicy = async (patch: Parameters<typeof updateWorkspaceSettings>[0]) => {
+        await updateWorkspaceSettings(patch).catch(() => {});
+    };
+    const [cap, setCap] = createSignal<string | null>(null);
+    const storedCap = (): string => {
+        const n = st()?.workspace.memberCreditCap;
+        return n == null ? "" : String(n);
+    };
+    const capValue = (): string => cap() ?? storedCap();
+    const capDirty = (): boolean => cap() !== null && cap() !== storedCap();
+    const submitCap = async (e: Event): Promise<void> => {
+        e.preventDefault();
+        if (!capDirty()) return;
+        const raw = capValue().trim();
+        const n = Number(raw);
+        if (raw && (!Number.isFinite(n) || n < 0)) return;
+        await savePolicy({ memberCreditCap: raw ? Math.trunc(n) : null });
+        setCap(null);
     };
 
     // rename (admin+)
@@ -241,6 +280,86 @@ export const WorkspaceSettingsView: Component = () => {
                                     </div>
                                 </Section>
 
+                                <Show when={isAdmin()}>
+                                    <Section title="Policies">
+                                        <div class="rounded-xl border border-line bg-panel px-4 py-1">
+                                            <PolicyRow
+                                                label="Default access to new work"
+                                                hint="What everyone else in the workspace gets on an artifact that sets no level of its own. The person who made it, and admins, always keep full access."
+                                            >
+                                                <div class="w-44">
+                                                    <Dropdown
+                                                        // an absent value is the ship default, never
+                                                        // a lock: a missing key must not read as none
+                                                        value={
+                                                            state().workspace
+                                                                .defaultArtifactAccess ?? "edit"
+                                                        }
+                                                        options={ACCESS_OPTIONS}
+                                                        onChange={(v) =>
+                                                            void savePolicy({
+                                                                defaultArtifactAccess:
+                                                                    v as ArtifactAccess,
+                                                            })
+                                                        }
+                                                    />
+                                                </div>
+                                            </PolicyRow>
+                                            <PolicyRow
+                                                label="Who can publish"
+                                                hint="Publishing puts an artifact on a public URL, outside the workspace."
+                                            >
+                                                <div class="w-44">
+                                                    <Dropdown
+                                                        value={state().workspace.publishPolicy}
+                                                        options={[
+                                                            {
+                                                                label: "Everyone",
+                                                                value: "members",
+                                                            },
+                                                            {
+                                                                label: "Admins only",
+                                                                value: "admins",
+                                                            },
+                                                        ]}
+                                                        onChange={(v) =>
+                                                            void savePolicy({
+                                                                publishPolicy: v as PublishPolicy,
+                                                            })
+                                                        }
+                                                    />
+                                                </div>
+                                            </PolicyRow>
+                                            <PolicyRow
+                                                label="Credit limit per member"
+                                                hint="The most one member can spend from the shared pool each cycle. Admins are never limited. Leave it empty for no limit."
+                                            >
+                                                <form
+                                                    class="flex items-center gap-2"
+                                                    onSubmit={submitCap}
+                                                >
+                                                    <TextField
+                                                        type="number"
+                                                        min={0}
+                                                        class="w-28"
+                                                        placeholder="No limit"
+                                                        aria-label="Credit limit per member"
+                                                        value={capValue()}
+                                                        onChange={setCap}
+                                                    />
+                                                    <Button
+                                                        type="submit"
+                                                        variant="outline"
+                                                        disabled={!capDirty()}
+                                                    >
+                                                        Save
+                                                    </Button>
+                                                </form>
+                                            </PolicyRow>
+                                        </div>
+                                    </Section>
+                                </Show>
+
                                 <Section title="Plan & usage">
                                     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                                         <StatCard
@@ -388,18 +507,11 @@ export const WorkspaceSettingsView: Component = () => {
                                         <For each={state().members}>
                                             {(m) => (
                                                 <li class="flex items-center gap-3 px-4 py-3">
-                                                    <span class="flex size-8 flex-none items-center justify-center overflow-hidden rounded-full bg-accent/15 text-[12.5px] font-bold text-accent">
-                                                        <Show
-                                                            when={m.avatarUrl}
-                                                            fallback={initial(m.name, m.email)}
-                                                        >
-                                                            <img
-                                                                src={m.avatarUrl!}
-                                                                alt=""
-                                                                class="size-full object-cover"
-                                                            />
-                                                        </Show>
-                                                    </span>
+                                                    <Avatar
+                                                        src={m.avatarUrl}
+                                                        name={m.name}
+                                                        email={m.email}
+                                                    />
                                                     <span class="min-w-0 flex-1">
                                                         <span class="block truncate text-[13px] font-semibold">
                                                             {m.name ?? m.email}

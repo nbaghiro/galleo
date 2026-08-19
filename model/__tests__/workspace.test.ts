@@ -106,3 +106,87 @@ describe("cleanDisplayName", () => {
         expect(cleanDisplayName(`   ${"n".repeat(80)}   `)).toHaveLength(MAX_NAME_LEN);
     });
 });
+
+describe("readUserPrefs — the onboarding branch", () => {
+    it("reads a whole branch through", () => {
+        expect(
+            readUserPrefs({
+                onboarding: {
+                    format: "deck",
+                    startedAt: "2026-08-17T00:00:00.000Z",
+                    dismissed: true,
+                },
+            }),
+        ).toEqual({
+            onboarding: { format: "deck", startedAt: "2026-08-17T00:00:00.000Z", dismissed: true },
+        });
+    });
+
+    it("keeps a valid field and drops its malformed siblings", () => {
+        expect(
+            readUserPrefs({ onboarding: { format: "web", startedAt: 7, dismissed: "yes" } }),
+        ).toEqual({ onboarding: { format: "web" } });
+    });
+
+    it("drops a format that is not a surface", () => {
+        expect(readUserPrefs({ onboarding: { format: "slides" } })).toEqual({});
+        expect(readUserPrefs({ onboarding: { format: "" } })).toEqual({});
+    });
+
+    // absent rather than {}, so "has this account onboarded" stays a presence test
+    it("omits the branch entirely when nothing in it survives", () => {
+        expect(readUserPrefs({ onboarding: {} })).toEqual({});
+        expect(readUserPrefs({ onboarding: { nope: 1 } })).toEqual({});
+        expect(readUserPrefs({ onboarding: "deck" })).toEqual({});
+        expect(readUserPrefs({ onboarding: null })).toEqual({});
+    });
+
+    it("keeps the two branches independent", () => {
+        expect(readUserPrefs({ appTheme: "studio", onboarding: { format: "doc" } })).toEqual({
+            appTheme: "studio",
+            onboarding: { format: "doc" },
+        });
+    });
+});
+
+describe("mergeUserPrefs — the onboarding branch", () => {
+    // the reason the branch merges field by field: dismissing must not wipe the format answer
+    it("merges into an existing branch rather than replacing it", () => {
+        expect(
+            mergeUserPrefs(
+                { onboarding: { format: "deck", startedAt: "x" } },
+                { onboarding: { dismissed: true } },
+            ),
+        ).toEqual({ onboarding: { format: "deck", startedAt: "x", dismissed: true } });
+    });
+
+    it("overwrites a field the patch carries", () => {
+        expect(
+            mergeUserPrefs({ onboarding: { format: "deck" } }, { onboarding: { format: "web" } }),
+        ).toEqual({ onboarding: { format: "web" } });
+    });
+
+    it("clears the whole branch on an explicit null", () => {
+        expect(
+            mergeUserPrefs(
+                { appTheme: "studio", onboarding: { format: "deck" } },
+                { onboarding: null },
+            ),
+        ).toEqual({ appTheme: "studio" });
+    });
+
+    it("refuses a patch whose branch is entirely malformed", () => {
+        const current = { onboarding: { format: "deck" as const } };
+        expect(mergeUserPrefs(current, { onboarding: { format: "slides" } })).toEqual(current);
+        expect(mergeUserPrefs(current, { onboarding: 7 })).toEqual(current);
+    });
+
+    it("leaves the branch alone when the patch omits it", () => {
+        expect(mergeUserPrefs({ onboarding: { format: "doc" } }, { appTheme: "midnight" })).toEqual(
+            {
+                appTheme: "midnight",
+                onboarding: { format: "doc" },
+            },
+        );
+    });
+});

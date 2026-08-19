@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { SearchResponse } from "@model/artifact";
 import { rateLimit } from "@services/utils/http";
-import { currentWorkspace } from "@services/core/accounts";
+import { currentMembership } from "@services/core/accounts";
 import { recentArtifacts, searchArtifacts } from "@services/core/search";
 import { requireUser, type AuthedEnv } from "./middleware";
 
@@ -15,14 +15,23 @@ const MAX_QUERY = 200; // longer than any real jump-to query; keeps the tsquery 
 // Empty q is the ⌘K landing state (recents), not an error; so is having no workspace yet.
 search.get("/search", searchLimiter, requireUser, async (c) => {
     const user = c.get("user");
-    const ws = await currentWorkspace(user.id);
-    if (!ws) return c.json({ artifacts: [], took: 0 } satisfies SearchResponse);
+    const membership = await currentMembership(user.id);
+    if (!membership) return c.json({ artifacts: [], took: 0 } satisfies SearchResponse);
+    const { ws, role } = membership;
+    const viewer = { userId: user.id, role, workspaceDefault: ws.defaultArtifactAccess };
     const q = (c.req.query("q") ?? "").trim().slice(0, MAX_QUERY);
     const limit = Number(c.req.query("limit"));
     const offset = Number(c.req.query("offset"));
     const started = Date.now();
     const artifacts = q
-        ? await searchArtifacts({ workspaceId: ws.id, userId: user.id, query: q, limit, offset })
-        : await recentArtifacts({ workspaceId: ws.id, userId: user.id, limit });
+        ? await searchArtifacts({
+              workspaceId: ws.id,
+              userId: user.id,
+              query: q,
+              limit,
+              offset,
+              viewer,
+          })
+        : await recentArtifacts({ workspaceId: ws.id, userId: user.id, limit, viewer });
     return c.json({ artifacts, took: Date.now() - started } satisfies SearchResponse);
 });

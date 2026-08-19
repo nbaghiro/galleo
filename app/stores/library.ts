@@ -1,4 +1,10 @@
-import type { ArtifactContent, ElementInstance, Section, GenMeta } from "@model/artifact";
+import type {
+    ArtifactAccess,
+    ArtifactContent,
+    ElementInstance,
+    Section,
+    GenMeta,
+} from "@model/artifact";
 import { emptyRegion } from "@model/artifact";
 import { createSignal } from "solid-js";
 import { api, type ArtifactSummary } from "@app/api";
@@ -189,6 +195,11 @@ export function moveArtifact(id: string, folderId: string | null): void {
 export function renameArtifactById(id: string, title: string): void {
     setArtifacts(artifacts().map((d) => (d.id === id ? { ...d, title } : d)));
     api.saveArtifact(id, { title }).catch(() => {});
+}
+
+// Optimistic like the rest of this file: the modal reverts its own control if the server refuses.
+export function setArtifactAccessLocal(id: string, access: ArtifactAccess | null): void {
+    setArtifacts(artifacts().map((d) => (d.id === id ? { ...d, access: access ?? undefined } : d)));
 }
 
 export function moveArtifacts(ids: string[], folderId: string | null): void {

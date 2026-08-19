@@ -1,5 +1,7 @@
 import { sql } from "drizzle-orm";
 import type { ArtifactDigest, SearchHit, SearchSnippet } from "@model/artifact";
+import type { Viewer } from "./artifacts";
+import { grantedTo } from "./collaborators";
 import { db } from "@services/db/client";
 
 // Searches the FTS columns maintained at write time by db/derived.ts.
@@ -99,10 +101,22 @@ const clampOffset = (n: number | undefined): number =>
     Math.max(0, Math.min(MAX_OFFSET, Math.trunc(n ?? 0) || 0));
 
 /** What this user last opened, falling back to updatedAt so a never-opened artifact still surfaces. */
+// Mirrors visibleTo() in core/artifacts.ts for the raw-SQL side: a locked artifact must not surface
+// through search either, or ⌘K becomes the way around the permission.
+export function visibleSql(v: Viewer) {
+    if (v.role !== "member") return sql`TRUE`;
+    // the same grant term the library list carries, so ⌘K and the library agree on what exists
+    const granted = grantedTo(v.userId, sql`a.id`);
+    return v.workspaceDefault === "none"
+        ? sql`(a.created_by = ${v.userId} OR (a.member_access IS NOT NULL AND a.member_access <> 'none') OR ${granted})`
+        : sql`(a.created_by = ${v.userId} OR a.member_access IS NULL OR a.member_access <> 'none' OR ${granted})`;
+}
+
 export async function recentArtifacts(opts: {
     workspaceId: string;
     userId: string;
     limit?: number;
+    viewer: Viewer;
 }): Promise<SearchHit[]> {
     const rows = await db.execute<Row>(sql`
         SELECT a.id, a.title, a.format_id, a.theme_id, a.folder_id, a.updated_at, a.digest,
@@ -112,6 +126,7 @@ export async function recentArtifacts(opts: {
         LEFT JOIN users u ON u.id = a.created_by
         LEFT JOIN visits v ON v.kind = 'artifact' AND v.ref = a.id::text AND v.user_id = ${opts.userId}
         WHERE a.workspace_id = ${opts.workspaceId} AND a.trashed_at IS NULL
+              AND ${visibleSql(opts.viewer)}
         ORDER BY GREATEST(v.seen_at, a.updated_at) DESC
         LIMIT ${clampLimit(opts.limit)}
     `);
@@ -128,6 +143,7 @@ export async function searchArtifacts(opts: {
     query: string;
     limit?: number;
     offset?: number;
+    viewer: Viewer;
 }): Promise<SearchHit[]> {
     const tsq = toTsQuery(opts.query);
     const contains = `%${likeTerm(opts.query.trim())}%`;
@@ -147,6 +163,7 @@ export async function searchArtifacts(opts: {
                    ${rank} AS rank
             FROM artifacts a
             WHERE a.workspace_id = ${opts.workspaceId} AND a.trashed_at IS NULL AND ${matches}
+                  AND ${visibleSql(opts.viewer)}
             ORDER BY title_prefix DESC, title_hit DESC, rank DESC, a.updated_at DESC
             LIMIT ${clampLimit(opts.limit)} OFFSET ${clampOffset(opts.offset)}
         )

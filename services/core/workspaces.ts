@@ -2,7 +2,12 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, isNull, gt, sql } from "drizzle-orm";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
-import { asRole, type Membership, type WorkspaceRole } from "@model/workspace";
+import {
+    asRole,
+    type Membership,
+    type WorkspaceRole,
+    type WorkspaceSettings,
+} from "@model/workspace";
 import { appUrl } from "@services/utils/env";
 import { sendWorkspaceInvite } from "./mail";
 import type { WorkspaceRow } from "./accounts";
@@ -40,7 +45,16 @@ export async function setMemberRole(
 }
 
 export async function renameWorkspace(workspaceId: string, name: string): Promise<void> {
-    await db.update(schema.workspaces).set({ name }).where(eq(schema.workspaces.id, workspaceId));
+    await updateWorkspace(workspaceId, { name });
+}
+
+export type WorkspaceSettingsPatch = Partial<WorkspaceSettings> & { name?: string };
+
+export async function updateWorkspace(
+    workspaceId: string,
+    patch: WorkspaceSettingsPatch,
+): Promise<void> {
+    await db.update(schema.workspaces).set(patch).where(eq(schema.workspaces.id, workspaceId));
 }
 
 /** Hand the workspace to an existing member; the old owner stays on as an admin. */

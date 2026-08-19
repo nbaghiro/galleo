@@ -3,6 +3,7 @@ import type { Context } from "hono";
 import { getCookie } from "hono/cookie";
 import { SESSION_COOKIE } from "@services/utils/auth";
 import { z } from "zod";
+import { canPublish } from "@model/workspace";
 import { BAD_BODY, readJson, requireFeature } from "@services/utils/http";
 import { currentUser, currentWorkspace } from "@services/core/accounts";
 import {
@@ -29,7 +30,19 @@ import {
     type RecipientView,
     type ViewerContext,
 } from "@services/core/links";
-import { requireUser, requireWorkspace, type WorkspaceEnv } from "./middleware";
+import {
+    gateArtifact,
+    isResponse,
+    requireUser,
+    requireWorkspace,
+    type WorkspaceEnv,
+} from "./middleware";
+
+// The workspace's own policy, on top of the plan gate and the artifact's level.
+const publishBarred = (c: Context<WorkspaceEnv>): Response | null =>
+    canPublish(c.get("role"), c.get("ws").publishPolicy)
+        ? null
+        : c.json({ error: "Only workspace admins can publish in this workspace." }, 403);
 
 export const links = new Hono<WorkspaceEnv>();
 
@@ -62,8 +75,13 @@ links.post("/artifacts/:id/links", requireWorkspace, async (c) => {
         "Public links are a paid feature — upgrade.",
     );
     if (denied) return denied;
+    const barred = publishBarred(c);
+    if (barred) return barred;
 
     const artifactId = c.req.param("id");
+    // publishing puts the artifact outside the workspace, so it takes edit rather than view
+    const gate = await gateArtifact(c, artifactId, "edit");
+    if (isResponse(gate)) return gate;
     const title = await artifactTitleIn(ws.id, artifactId);
     if (title === null) return c.json({ error: "not found" }, 404);
 
@@ -92,6 +110,8 @@ links.post("/artifacts/:id/links", requireWorkspace, async (c) => {
 
 links.get("/artifacts/:id/links", requireWorkspace, async (c) => {
     const artifactId = c.req.param("id");
+    const gate = await gateArtifact(c, artifactId, "view");
+    if (isResponse(gate)) return gate;
     if ((await artifactTitleIn(c.get("ws").id, artifactId)) === null)
         return c.json({ error: "not found" }, 404);
     return c.json({ links: await linksForArtifact(artifactId) });
@@ -105,8 +125,12 @@ links.get("/links", requireUser, async (c) => {
 });
 
 links.patch("/links/:id", requireWorkspace, async (c) => {
+    const barred = publishBarred(c);
+    if (barred) return barred;
     const link = await ownedLink(c.req.param("id"), c.get("ws").id);
     if (!link) return c.json({ error: "not found" }, 404);
+    const gate = await gateArtifact(c, link.artifactId, "edit");
+    if (isResponse(gate)) return gate;
     const body = await readJson(c, zLinkBody);
     if (!body) return c.json(BAD_BODY, 400);
     const visibility =
@@ -119,6 +143,9 @@ links.patch("/links/:id", requireWorkspace, async (c) => {
 links.delete("/links/:id", requireWorkspace, async (c) => {
     const link = await ownedLink(c.req.param("id"), c.get("ws").id);
     if (!link) return c.json({ error: "not found" }, 404);
+    // unpublishing is always allowed to anyone who may edit, even under the admins-only policy
+    const gate = await gateArtifact(c, link.artifactId, "edit");
+    if (isResponse(gate)) return gate;
     await deleteLink(link.id);
     return c.json({ ok: true });
 });
@@ -127,6 +154,8 @@ links.get("/links/:id/analytics", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     const link = await ownedLink(c.req.param("id"), ws.id);
     if (!link) return c.json({ error: "not found" }, 404);
+    const gate = await gateArtifact(c, link.artifactId, "view");
+    if (isResponse(gate)) return gate;
     const denied = requireFeature(c, ws, "analytics", "Analytics is a Premium feature — upgrade.");
     if (denied) return denied;
     return c.json(await analyticsFor([link.id], link.visibility === "private" ? [link.id] : []));
@@ -135,6 +164,8 @@ links.get("/links/:id/analytics", requireWorkspace, async (c) => {
 links.get("/artifacts/:id/analytics", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     const artifactId = c.req.param("id");
+    const gate = await gateArtifact(c, artifactId, "view");
+    if (isResponse(gate)) return gate;
     if ((await artifactTitleIn(ws.id, artifactId)) === null)
         return c.json({ error: "not found" }, 404);
     const denied = requireFeature(c, ws, "analytics", "Analytics is a Premium feature — upgrade.");
@@ -148,10 +179,16 @@ links.get("/artifacts/:id/analytics", requireWorkspace, async (c) => {
     );
 });
 
+// Handing the link to new people is a publishing act, so it takes the same two gates the link's
+// creation did: edit on the artifact, and the workspace's policy.
 links.post("/links/:id/recipients", requireWorkspace, async (c) => {
     const [user, ws] = [c.get("user"), c.get("ws")];
+    const barred = publishBarred(c);
+    if (barred) return barred;
     const link = await ownedLink(c.req.param("id"), ws.id);
     if (!link) return c.json({ error: "not found" }, 404);
+    const gate = await gateArtifact(c, link.artifactId, "edit");
+    if (isResponse(gate)) return gate;
     const body = await readJson(c, zRecipients);
     if (!body) return c.json(BAD_BODY, 400);
     const emails = cleanEmails(body.emails);
@@ -167,6 +204,9 @@ links.post("/links/:id/recipients", requireWorkspace, async (c) => {
 links.delete("/links/:id/recipients/:rid", requireWorkspace, async (c) => {
     const link = await ownedLink(c.req.param("id"), c.get("ws").id);
     if (!link) return c.json({ error: "not found" }, 404);
+    // revoking, like unpublishing, needs only edit: a policy change must not strand a live invite
+    const gate = await gateArtifact(c, link.artifactId, "edit");
+    if (isResponse(gate)) return gate;
     await deleteRecipient(link.id, c.req.param("rid"));
     return c.json({ ok: true });
 });

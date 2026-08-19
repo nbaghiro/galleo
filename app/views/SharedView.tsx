@@ -12,8 +12,16 @@ import {
 import { Dynamic } from "solid-js/web";
 import { useNavigate } from "@solidjs/router";
 import { resolveTheme } from "@themes";
-import { api, type ArtifactSummary, type LinkSummary, type Visibility } from "@app/api";
-import { artifacts, formatLabel, loadLibrary, relativeTime } from "@app/stores/library";
+import {
+    api,
+    type ArtifactAccess,
+    type ArtifactSummary,
+    type LinkSummary,
+    type SharedArtifact,
+    type Visibility,
+} from "@app/api";
+import { artifacts, formatLabel, loadLibrary } from "@app/stores/library";
+import { relativeTime } from "@ui/time";
 import { links, loadLinks } from "@app/stores/links";
 import { fetchHits } from "@app/stores/search";
 import { featuresState, loadFeatures } from "@app/stores/features";
@@ -54,6 +62,12 @@ const AUDIENCE: Record<
         blurb: "Only the people you invite by email.",
         icon: MailIcon,
     },
+};
+const ACCESS_LABEL: Record<ArtifactAccess, string> = {
+    none: "No access",
+    view: "Can view",
+    comment: "Can comment",
+    edit: "Can edit",
 };
 const FILTERS: [string, string][] = [
     ["all", "All"],
@@ -186,10 +200,20 @@ export const SharedView: Component = () => {
     const [insight, setInsight] = createSignal<{ it: Item; focus: string | null } | null>(null);
     const [query, setQuery] = createSignal("");
     const [copied, setCopied] = createSignal<string | null>(null);
+    // artifacts other people invited this account to, which live in their workspace, not this one
+    const [invited, setInvited] = createSignal<SharedArtifact[]>([]);
 
     const refresh = async (): Promise<void> => {
         // entitlements gate the insights pane, so re-pull to self-heal a boot-time failure
-        await Promise.all([loadLinks(), loadLibrary(), loadFeatures()]);
+        await Promise.all([
+            loadLinks(),
+            loadLibrary(),
+            loadFeatures(),
+            api
+                .sharedWithMe()
+                .then((r) => setInvited(r.artifacts))
+                .catch(() => setInvited([])),
+        ]);
     };
     onMount(async () => {
         await refresh();
@@ -493,9 +517,56 @@ export const SharedView: Component = () => {
                         </div>
                     }
                 >
+                    <Show when={invited().length}>
+                        <section class="border-b border-line px-5 py-6 md:px-9">
+                            <div class="font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted">
+                                Shared with me
+                            </div>
+                            <p class="mt-1 text-[12.5px] text-muted">
+                                Artifacts other people invited you to. They stay in their workspace.
+                            </p>
+                            <div
+                                class="mt-4 grid gap-3"
+                                style={{
+                                    "grid-template-columns":
+                                        "repeat(auto-fill, minmax(240px, 1fr))",
+                                }}
+                            >
+                                <For each={invited()}>
+                                    {(a) => (
+                                        <button
+                                            class="flex flex-col items-start gap-1 rounded-xl border border-line bg-panel px-4 py-3 text-left transition-colors hover:border-accent/40"
+                                            onClick={() => navigate(`/edit/${a.id}`)}
+                                        >
+                                            <span class="w-full truncate text-[13px] font-medium text-ink">
+                                                {a.title}
+                                            </span>
+                                            <span class="w-full truncate text-[11.5px] text-muted">
+                                                {a.workspaceName}
+                                                {a.sharedBy?.name ? ` · ${a.sharedBy.name}` : ""}
+                                            </span>
+                                            <span class="mt-1 flex items-center gap-1.5">
+                                                <Badge tone="muted">
+                                                    {ACCESS_LABEL[a.access ?? "view"]}
+                                                </Badge>
+                                                <span class="text-[11px] text-muted">
+                                                    {relativeTime(a.updatedAt)}
+                                                </span>
+                                            </span>
+                                        </button>
+                                    )}
+                                </For>
+                            </div>
+                        </section>
+                    </Show>
+
                     <Show
                         when={items().length}
-                        fallback={<EmptyShared onShare={() => setPicker(true)} />}
+                        fallback={
+                            <Show when={!invited().length}>
+                                <EmptyShared onShare={() => setPicker(true)} />
+                            </Show>
+                        }
                     >
                         <div class="flex flex-wrap gap-2 border-b border-line px-9 py-4">
                             <For each={FILTERS}>

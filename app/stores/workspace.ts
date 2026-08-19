@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import type { WorkspaceState } from "@app/api";
+import type { ArtifactAccess, PublishPolicy, WorkspaceState } from "@app/api";
 import { api } from "@app/api";
 
 const [workspaceState, setWorkspaceState] = createSignal<WorkspaceState | null>(null);
@@ -24,6 +24,15 @@ export async function inviteMember(
 
 export async function renameWorkspace(name: string): Promise<void> {
     await api.renameWorkspace(name);
+    await loadWorkspace();
+}
+
+export async function updateWorkspaceSettings(patch: {
+    defaultArtifactAccess?: ArtifactAccess;
+    publishPolicy?: PublishPolicy;
+    memberCreditCap?: number | null;
+}): Promise<void> {
+    await api.updateWorkspaceSettings(patch);
     await loadWorkspace();
 }
 

@@ -2,12 +2,13 @@ import type { TurnKind, TurnRequest } from "@model/ai";
 import type { CostUnit, UnitRates, Usage } from "@model/credits";
 import type { MeterParams, ToolId } from "@model/tools";
 import type { PlanBearer } from "@model/billing";
+import type { WorkspaceRole } from "@model/workspace";
 import { costOf, creditsForUsd, unitMultipliers } from "@model/credits";
 import { reserveCost, sectionsForLength, usageFor } from "@model/tools";
 import { featuresFor } from "@model/billing";
 import { COST_MULTIPLIERS, modelFor, type ModelOverrides } from "./models";
 import type { WorkspaceCreditFields } from "./ledger";
-import { chargeCredits, settleCredits } from "./ledger";
+import { chargeCredits, settleCredits, spendThisCycle } from "./ledger";
 import type { Meter, TokenUse } from "./ai/meter";
 import { usdOf, withMeter } from "./ai/meter";
 
@@ -57,7 +58,7 @@ export const ratesFor = (ws: PlanBearer, overrides: ModelOverrides): UnitRates =
 type Produced = (units: Usage) => void;
 
 type Reservation =
-    | { ok: false; remaining: number }
+    | { ok: false; remaining: number; capped?: number }
     | {
           ok: true;
           // the meter is handed back so a caller that asked to trace can read the spans it collected
@@ -90,9 +91,23 @@ export async function reserve(
     size: MeterParams = {},
     rates: UnitRates = {},
     trace = false,
+    role: WorkspaceRole = "member",
 ): Promise<Reservation> {
     const cost = reserveCost(tool, size, rates);
     if (cost === 0) return FREE;
+    // The per-member ceiling, checked before the balance: the pool is shared and the owner is the
+    // only one who can refill it, so one member cannot spend the whole month. Admins run the
+    // workspace and are not capped. Checked against the estimate, so a run that would cross the cap
+    // never starts rather than being cut off mid-stream.
+    const cap = ws.memberCreditCap;
+    if (role === "member" && cap != null && cap >= 0 && ws.creditsStartedAt) {
+        const spent = await spendThisCycle(
+            { id: ws.id, creditsStartedAt: ws.creditsStartedAt },
+            userId,
+        );
+        if (spent + cost > cap)
+            return { ok: false, remaining: Math.max(0, cap - spent), capped: cap };
+    }
     const held = await chargeCredits(ws, cost, tool, userId, usageFor(tool, size));
     if (!held.ok || !held.entryId) return { ok: false, remaining: held.remaining };
     const entryId = held.entryId;
