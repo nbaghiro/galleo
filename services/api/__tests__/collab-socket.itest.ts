@@ -17,6 +17,14 @@ let events: WSEvents | null = null;
 // 101 is not constructible through the Response initializer, so the stand-in answers 200 with a
 // marker: what is under test is the route's gate, not the transport's status line.
 const UPGRADED = "x-upgraded";
+
+// Node 22 (what CI and Render both run) has no CloseEvent global; it landed in 23. The handler
+// never reads the event, so a minimal Event subclass carrying the three extra fields stands in.
+class TestCloseEvent extends Event {
+    readonly code = 1000;
+    readonly reason = "";
+    readonly wasClean = true;
+}
 const upgrade = defineWebSocketHelper((_c, evts) => {
     events = evts;
     return new Response(null, { status: 200, headers: { [UPGRADED]: "1" } });
@@ -104,7 +112,7 @@ describe("the collaboration upgrade", () => {
         const welcome = frames.find((f) => f.t === "welcome");
         expect(welcome).toBeDefined();
         expect(welcome?.t === "welcome" && welcome.self.canEdit).toBe(true);
-        events?.onClose?.(new CloseEvent("close"), ws);
+        events?.onClose?.(new TestCloseEvent("close"), ws);
     });
 
     it("upgrades an invited collaborator from another workspace, at their granted level", async () => {
@@ -121,7 +129,7 @@ describe("the collaboration upgrade", () => {
         events?.onOpen?.(new Event("open"), ws);
         const welcome = frames.find((f) => f.t === "welcome");
         expect(welcome?.t === "welcome" && welcome.self.canEdit).toBe(false);
-        events?.onClose?.(new CloseEvent("close"), ws);
+        events?.onClose?.(new TestCloseEvent("close"), ws);
     });
 
     it("ignores a frame that is not JSON, and one the protocol does not know", async () => {
@@ -132,7 +140,7 @@ describe("the collaboration upgrade", () => {
         events?.onMessage?.(new MessageEvent("message", { data: "{{{" }), ws);
         events?.onMessage?.(new MessageEvent("message", { data: '{"t":"nope"}' }), ws);
         expect(frames).toHaveLength(before);
-        events?.onClose?.(new CloseEvent("close"), ws);
+        events?.onClose?.(new TestCloseEvent("close"), ws);
     });
 
     it("applies a real op batch and acks it with the artifact's new seq", async () => {
@@ -174,6 +182,6 @@ describe("the collaboration upgrade", () => {
             .where(eq(schema.artifacts.id, artifactId));
         expect(ack?.t === "ack" && ack.seq).toBe(row!.seq);
         expect(JSON.stringify(row!.draftContent)).toContain("live");
-        events?.onClose?.(new CloseEvent("close"), ws);
+        events?.onClose?.(new TestCloseEvent("close"), ws);
     });
 });
