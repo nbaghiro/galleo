@@ -88,6 +88,7 @@ export interface ListModel {
         icon: string; // ICON_LIBRARY key, "" = none
         color: string; // hex override, "" = auto ramp
         emphasis: boolean;
+        weight?: number; // carried through, authored by the canvas divider drag
     }[];
 }
 export interface HierModel {
@@ -101,6 +102,7 @@ export interface HierModel {
         icon: string;
         color: string;
         emphasis: boolean;
+        weight?: number; // carried through, authored by the canvas divider drag
     }[];
 }
 export interface GraphModel {
@@ -181,6 +183,7 @@ export function parseModel(kind: Kind, shape: Shape, data: Record<string, unknow
                 icon: i.icon ?? "",
                 color: i.color ?? "",
                 emphasis: i.emphasis ?? false,
+                weight: i.weight,
             })),
         };
     }
@@ -200,6 +203,7 @@ export function parseModel(kind: Kind, shape: Shape, data: Record<string, unknow
             icon: i.icon ?? "",
             color: i.color ?? "",
             emphasis: i.emphasis ?? false,
+            weight: i.weight,
         })),
     };
 }
@@ -269,12 +273,13 @@ function toDiagItem(row: { label: string; body: string; value: string }): DiagIt
 // positional meta from grid rows; undefined when nothing is styled — the key is still written, so
 // an all-empty grid clears stale meta instead of leaving it behind
 function metaOf(
-    rows: { icon: string; color: string; emphasis: boolean }[],
+    rows: { icon: string; color: string; emphasis: boolean; weight?: number }[],
 ): DiagItemMeta[] | undefined {
     const meta: DiagItemMeta[] = rows.map((i) => ({
         ...(i.color ? { color: i.color } : {}),
         ...(i.emphasis ? { emphasis: true } : {}),
         ...(i.icon ? { icon: i.icon } : {}),
+        ...(i.weight !== undefined ? { weight: i.weight } : {}),
     }));
     return meta.some((x) => Object.keys(x).length > 0) ? meta : undefined;
 }
@@ -308,7 +313,7 @@ export function limitNote(type: string): string {
     return "";
 }
 
-// list entries here carry a numeric weight (band size, lane span, milestone marker)
-const VALUED = new Set(["funnel", "pyramid"]);
+// only the funnel reads item values (proportional band widths); a pyramid tapers evenly by design
+const VALUED = new Set(["funnel"]);
 export const usesItemValue = (kind: Kind, type: string): boolean =>
     kind === "diagram" && VALUED.has(type);
