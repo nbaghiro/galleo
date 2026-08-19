@@ -4,7 +4,8 @@ import { Button, Chip, Eyebrow } from "@ui/button";
 import { Modal } from "@ui/overlay";
 import { Dropdown, type DropdownOption } from "@ui/select";
 import { featuresState } from "@app/stores/features";
-import { artifacts, relativeTime } from "@app/stores/library";
+import { artifacts } from "@app/stores/library";
+import { relativeTime } from "@ui/time";
 import { ArtifactThumb } from "./previews";
 import {
     chooseModel,

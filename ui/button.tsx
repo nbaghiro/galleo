@@ -227,12 +227,13 @@ export const Badge: Component<{
     size?: BadgeSize;
     uppercase?: boolean;
     weight?: "medium" | "semibold";
+    class?: string;
     children: JSX.Element;
 }> = (props) => (
     <span
         class={`inline-flex items-center rounded-full ${BADGE_SIZE[props.size ?? "sm"]} ${
             props.weight === "medium" ? "font-medium" : "font-semibold"
-        } ${props.uppercase ? "uppercase tracking-[0.1em]" : ""} ${BADGE_TONE[props.tone ?? "accentSoft"]}`}
+        } ${props.uppercase ? "uppercase tracking-[0.1em]" : ""} ${BADGE_TONE[props.tone ?? "accentSoft"]} ${props.class ?? ""}`}
     >
         {props.children}
     </span>

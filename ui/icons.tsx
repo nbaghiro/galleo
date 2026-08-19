@@ -36,6 +36,7 @@ const PATHS: Record<string, () => JSX.Element> = {
             <path d="m3 7 9 6 9-6" />
         </>
     ),
+    comment: () => <path d="M20 15a3 3 0 0 1-3 3H9l-4.5 3.2V6a3 3 0 0 1 3-3h9.5a3 3 0 0 1 3 3Z" />,
     eye: () => (
         <>
             <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />

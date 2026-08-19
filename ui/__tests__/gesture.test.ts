@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { classifySwipe, SWIPE_MAX_MS, SWIPE_MIN_PX, TAP_BACK_FRACTION, tapZone } from "@ui/gesture";
+import {
+    dismissalFor,
+    classifySwipe,
+    SWIPE_MAX_MS,
+    SWIPE_MIN_PX,
+    TAP_BACK_FRACTION,
+    tapZone,
+} from "@ui/gesture";
 
 describe("classifySwipe", () => {
     it("reads a leftward flick as next and a rightward flick as prev", () => {
@@ -42,5 +49,50 @@ describe("tapZone", () => {
 
     it("defaults to next when the width is unknown", () => {
         expect(tapZone(0, 0)).toBe("next");
+    });
+});
+
+// What a pointerdown means for a surface that is already open. The press is never swallowed, so
+// this only decides whether the surface closes, not whether the click happens.
+describe("dismissalFor", () => {
+    const press = (over: Partial<{ inside: boolean; onCanvas: boolean }> = {}) => ({
+        inside: false,
+        onCanvas: false,
+        ...over,
+    });
+    const rules = (over: Partial<{ dragging: boolean; deferOnCanvas: boolean }> = {}) => ({
+        dragging: false,
+        deferOnCanvas: false,
+        ...over,
+    });
+
+    it("closes on a press with nothing to do with the surface", () => {
+        expect(dismissalFor(press(), rules())).toBe("close");
+    });
+
+    it("leaves the surface alone when the press was inside it or on what opened it", () => {
+        expect(dismissalFor(press({ inside: true }), rules())).toBe("keep");
+        expect(dismissalFor(press({ inside: true, onCanvas: true }), rules())).toBe("keep");
+    });
+
+    // a palette tile drag starts inside the flyout and ends on the canvas: closing mid-gesture, or
+    // on the release that drops it, would break the drop before it resolves
+    it("never closes while a gesture owns the pointer", () => {
+        expect(dismissalFor(press(), rules({ dragging: true }))).toBe("keep");
+        expect(dismissalFor(press({ onCanvas: true }), rules({ dragging: true }))).toBe("keep");
+    });
+
+    it("defers a canvas press for a surface a selection can re-open", () => {
+        expect(dismissalFor(press({ onCanvas: true }), rules({ deferOnCanvas: true }))).toBe(
+            "defer",
+        );
+    });
+
+    it("closes on a canvas press for a surface no selection would bring back", () => {
+        expect(dismissalFor(press({ onCanvas: true }), rules())).toBe("close");
+    });
+
+    it("closes on chrome even when canvas presses are deferred", () => {
+        expect(dismissalFor(press(), rules({ deferOnCanvas: true }))).toBe("close");
     });
 });

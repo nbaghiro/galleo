@@ -3,6 +3,7 @@ import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { useNavigate, useSearchParams } from "@solidjs/router";
 import type { WorkspaceRole } from "@model/workspace";
 import { resolveTheme } from "@themes";
+import { Avatar } from "@ui/avatar";
 import { Badge, Button, Eyebrow } from "@ui/button";
 import { TextField } from "@ui/inputs";
 import { ConfirmModal } from "@ui/overlay";
@@ -69,8 +70,6 @@ export const AccountSettingsView: Component = () => {
     const [params, setParams] = useSearchParams();
 
     const me = user;
-    const initial = (): string => (me()?.name?.trim()[0] ?? me()?.email[0] ?? "?").toUpperCase();
-
     // OAuth returns here with an outcome in the query; read it once, then drop it from the URL
     const [linkNotice, setLinkNotice] = createSignal<string | null>(null);
     const [linkError, setLinkError] = createSignal<string | null>(null);
@@ -240,17 +239,12 @@ export const AccountSettingsView: Component = () => {
                     <Section title="Profile">
                         <Card>
                             <div class="flex items-center gap-3 border-b border-line pb-3">
-                                <span class="flex size-11 flex-none items-center justify-center overflow-hidden rounded-full bg-accent/15 text-[15px] font-bold text-accent">
-                                    <Show when={me()?.avatarUrl} fallback={initial()}>
-                                        {(url) => (
-                                            <img
-                                                src={url()}
-                                                alt=""
-                                                class="size-full object-cover"
-                                            />
-                                        )}
-                                    </Show>
-                                </span>
+                                <Avatar
+                                    size="lg"
+                                    src={me()?.avatarUrl}
+                                    name={me()?.name}
+                                    email={me()?.email}
+                                />
                                 <div class="min-w-0 flex-1">
                                     <div class="truncate text-[14px] font-semibold">
                                         {me()?.name ?? me()?.email}

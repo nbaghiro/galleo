@@ -1,7 +1,8 @@
 import type { SearchHit } from "@model/artifact";
 import { rankScored } from "@ui/fuzzy";
 import { api } from "@app/api";
-import { artifacts, artifactsLoaded, formatLabel, relativeTime } from "./library";
+import { artifacts, artifactsLoaded, formatLabel } from "./library";
+import { relativeTime } from "@ui/time";
 
 export const SEARCH_LIMIT = 8; // artifact rows in the palette before "show all results"
 export const LIBRARY_LIMIT = 50; // the library grid shows the long tail, not a top-N

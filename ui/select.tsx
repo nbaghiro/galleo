@@ -47,6 +47,7 @@ export const Dropdown: Component<{
     compact?: boolean;
     placeholder?: string;
     toolbar?: boolean;
+    disabled?: boolean;
 }> = (props) => {
     const [open, setOpen] = createSignal(false);
     const [cursor, setCursor] = createSignal(0);
@@ -101,7 +102,8 @@ export const Dropdown: Component<{
             <button
                 ref={trigger}
                 type="button"
-                class={triggerCls()}
+                class={`${triggerCls()} disabled:pointer-events-none disabled:opacity-60`}
+                disabled={props.disabled}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => (open() ? setOpen(false) : openMenu())}
             >

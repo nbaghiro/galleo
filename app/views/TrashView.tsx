@@ -4,13 +4,13 @@ import { resolveTheme } from "@themes";
 import { type ArtifactSummary } from "@app/api";
 import {
     formatLabel,
-    relativeTime,
     emptyTrash,
     loadTrash,
     purgeArtifact,
     restoreFromTrash,
     trash,
 } from "@app/stores/library";
+import { relativeTime } from "@ui/time";
 import { RestoreIcon, TrashIcon } from "@ui/icons";
 import { ConfirmModal } from "@ui/overlay";
 import { Button, Eyebrow, IconButton } from "@ui/button";

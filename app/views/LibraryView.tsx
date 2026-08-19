@@ -21,7 +21,6 @@ import {
     FORMAT_IDS,
     formatLabel,
     formatLabelPlural,
-    relativeTime,
     artifacts,
     artifactsLoaded,
     duplicateArtifact,

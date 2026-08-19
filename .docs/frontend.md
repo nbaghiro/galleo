@@ -41,6 +41,7 @@ a second module needs them.
 ```
 ui/                     @ui · Solid · imports model + canvas + @themes only
   button.tsx            Button · IconButton · Chip · Badge · Spinner · Eyebrow
+  avatar.tsx            Avatar   (image or initial, three sizes)
   inputs.tsx            TextField · TextArea · CellInput · Toggle · Slider · Segmented · AlignField
                           · FieldRow · Group · PanelHeader · Separator · inputCls
   select.tsx            Dropdown · SelectField
@@ -56,6 +57,7 @@ ui/                     @ui · Solid · imports model + canvas + @themes only
   brand.tsx             Mark   (logo)
   markdown.tsx          Markdown   (chat/AI markdown renderer)
   z.ts                  Z   (the overlay stacking scale; z-* utilities in styles.css mirror it)
+  time.ts               relativeTime   (the coarse "3d ago" stamp every list and thread reads)
   styles.css            shared class tokens + z-index utilities
 
   keys.ts               keyboard core — see Part B
@@ -79,7 +81,8 @@ gained `at`/`align` — additive and backward-compatible.)
 | `Button`     | B   | `variant: primary\|outline\|tool\|ghost\|danger` · `size: sm\|md\|lg` · `rounded?: md\|lg\|xl\|full` · `loading?` · `disabled?` · native attrs                                        |
 | `IconButton` | B   | `size: 2xs\|xs\|sm\|md\|lg\|xl\|touch` (h-3.5/5/6/7/8/9/11; `touch` is the 44px coarse-pointer target) · `rounded?` · `tone: muted\|soft\|onDark` · `active?` · `bordered?` · `title` |
 | `Chip`       | B   | `variant: outline\|solid` · `selected?` · `onClick?`                                                                                                                                  |
-| `Badge`      | B   | `tone: accentSoft\|accentSolid\|muted`                                                                                                                                                |
+| `Badge`      | B   | `tone: accentSoft\|accentSolid\|muted` · `size` · `class`                                                                                                                             |
+| `Avatar`     | B   | `src?, name?, email?` · `size: sm\|md\|lg` · `tone: solid\|soft` · `rounded: lg\|full` (falls back to the initial)                                                                    |
 | `Spinner`    | B   | `size?` · `tone: accent\|current\|line`                                                                                                                                               |
 | `Eyebrow`    | B   | `tracking?: wide\|wider\|widest` · `size?` · `as?`                                                                                                                                    |
 

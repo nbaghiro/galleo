@@ -31,3 +31,28 @@ export function tapZone(x: number, width: number): TapZone {
     if (width <= 0) return "next";
     return x < width * TAP_BACK_FRACTION ? "prev" : "next";
 }
+
+// ---- outside dismissal ------------------------------------------------------------------------
+//
+// What a pointerdown means for a surface that is already open. The caller does the containment test
+// (composedPath against its own element and whatever opened it) and this decides what follows. The
+// press is never swallowed either way: it goes on to select an element or press a button as usual.
+
+export interface PressOn {
+    inside: boolean; // the surface itself, or the control that owns it
+    onCanvas: boolean; // the content stage, where the press is about to change the selection
+}
+
+export type Dismissal = "keep" | "close" | "defer";
+
+export interface DismissRules {
+    dragging: boolean; // a gesture owns the pointer; nothing may close under it
+    // Whether a press on the canvas waits for the selection it makes. A surface that a selection can
+    // re-open (the inspector) has to, or it blinks shut and straight back open.
+    deferOnCanvas: boolean;
+}
+
+export function dismissalFor(press: PressOn, rules: DismissRules): Dismissal {
+    if (rules.dragging || press.inside) return "keep";
+    return press.onCanvas && rules.deferOnCanvas ? "defer" : "close";
+}
