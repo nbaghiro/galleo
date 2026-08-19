@@ -19,6 +19,7 @@ import { ai } from "@services/api/ai";
 import { links } from "@services/api/links";
 import { search } from "@services/api/search";
 import { context } from "@services/api/context";
+import { onboarding } from "@services/api/onboarding";
 
 // Kept in sync with server.ts's router list by hand.
 export const app = new Hono();
@@ -37,6 +38,7 @@ app.route("/", ai);
 app.route("/", links);
 app.route("/", search);
 app.route("/", context);
+app.route("/", onboarding);
 
 export const request = (path: string, init?: RequestInit): Promise<Response> =>
     Promise.resolve(app.request(path, init));

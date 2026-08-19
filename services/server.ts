@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
+import { createNodeWebSocket } from "@hono/node-ws";
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { readSession, SESSION_COOKIE } from "./utils/auth";
@@ -22,6 +23,7 @@ import { links } from "./api/links";
 import { search } from "./api/search";
 import { context } from "./api/context";
 import { evals } from "./api/eval";
+import { onboarding } from "./api/onboarding";
 
 assertDatabaseUrl();
 
@@ -53,6 +55,7 @@ app.route("/api", links);
 app.route("/api", search);
 app.route("/api", context);
 app.route("/api", evals);
+app.route("/api", onboarding);
 
 // an unknown /api path is a 404, never the SPA fallback below
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
@@ -76,5 +79,6 @@ if (process.env.NODE_ENV === "production") {
 
 // Render injects PORT; API_PORT is the local-dev override (8601 default).
 const port = Number(process.env.PORT ?? process.env.API_PORT ?? 8601);
-serve({ fetch: app.fetch, port });
+const server = serve({ fetch: app.fetch, port });
+injectWebSocket(server); // handles the upgrade on the same listener the API uses
 out(`Galleo listening on port ${port}`);

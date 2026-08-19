@@ -3,7 +3,13 @@ import { streamSSE } from "hono/streaming";
 import { getCookie } from "hono/cookie";
 import type { Beat, GenerateInput, TurnEvent, TurnRequest } from "@model/ai";
 import { applyPatch, isKind } from "@model/ai";
-import { overridesFrom, requireWorkspace, type WorkspaceEnv } from "./middleware";
+import {
+    gateArtifact,
+    isResponse,
+    overridesFrom,
+    requireWorkspace,
+    type WorkspaceEnv,
+} from "./middleware";
 import type { ModelOverrides } from "@services/core/models";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import type { ModelTier } from "@model/billing";
@@ -12,7 +18,8 @@ import { currentUser } from "@services/core/accounts";
 import { SESSION_COOKIE } from "@services/utils/auth";
 import { z } from "zod";
 import { isArtifactContent } from "@services/core/artifacts";
-import { OUT_OF_CREDITS, rateLimit, readJson } from "@services/utils/http";
+import { OUT_OF_CREDITS, OVER_MEMBER_CAP, rateLimit, readJson } from "@services/utils/http";
+import type { WorkspaceRow } from "@services/core/accounts";
 import { warn } from "@services/utils/env";
 import { ACTION_FOR, IMPLEMENTED, meterFor, ratesFor, reserve } from "@services/core/spend";
 import {
@@ -103,6 +110,13 @@ const seedContent = (req: TurnRequest): ArtifactContent => {
 
 export const ai = new Hono<WorkspaceEnv>();
 
+// A refused reserve is either the workspace running dry or this member hitting their own ceiling;
+// only the first has an upgrade or a top-up to offer.
+const denied = (ws: WorkspaceRow, held: { remaining: number; capped?: number }) =>
+    held.capped == null
+        ? OUT_OF_CREDITS(ws, held.remaining)
+        : OVER_MEMBER_CAP(held.capped, held.remaining);
+
 // The turn union and its per-kind inputs live in @model/ai; restating them here would be a second
 // copy to keep in sync, and every route below narrows what it reads anyway. z.custom validates
 // without rebuilding, so nothing the client sent is dropped on the way through.
@@ -166,6 +180,13 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
             400,
         );
 
+    // The only turn that names an artifact server-side. The others are content-in/content-out, so
+    // what protects them is the gate on the save plus the per-member spend cap, not a check here.
+    if (req.kind === "chat" && req.input.context.artifactId) {
+        const gate = await gateArtifact(c, req.input.context.artifactId, "view");
+        if (isResponse(gate)) return gate;
+    }
+
     // Reserve before the billable model calls; 402 when spent.
     const feats = featuresFor(ws);
     // a step pinned to a heavier model costs us more, so the reserve and the settle both price the
@@ -180,8 +201,9 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
         meterFor(req, feats.maxSectionsPerGeneration),
         ratesFor(ws, overrides),
         traced,
+        c.get("role"),
     );
-    if (!held.ok) return c.json(OUT_OF_CREDITS(ws, held.remaining), 402);
+    if (!held.ok) return c.json(denied(ws, held), 402);
 
     // AI images are counted so the settle can reconcile the estimate to the real count; stock is free.
     const imageSource =
@@ -341,8 +363,9 @@ ai.post("/ai/brief", requireWorkspace, async (c) => {
         {},
         ratesFor(ws, overridesFrom(c)),
         traced,
+        c.get("role"),
     );
-    if (!held.ok) return c.json(OUT_OF_CREDITS(ws, held.remaining), 402);
+    if (!held.ok) return c.json(denied(ws, held), 402);
 
     return held.settle(async (_produced, meter) => {
         const startedAt = Date.now();
@@ -416,8 +439,10 @@ ai.post("/ai/element", requireWorkspace, async (c) => {
         "revise-element",
         {},
         ratesFor(ws, overridesFrom(c)),
+        false,
+        c.get("role"),
     );
-    if (!held.ok) return c.json(OUT_OF_CREDITS(ws, held.remaining), 402);
+    if (!held.ok) return c.json(denied(ws, held), 402);
 
     return held.settle(async () => {
         try {
@@ -454,8 +479,16 @@ ai.post("/ai/text", requireWorkspace, async (c) => {
 
     const source = body.text;
     const tool = body.op === "translate" ? "translate-text" : "rewrite-text";
-    const held = await reserve(ws, c.get("user").id, tool, {}, ratesFor(ws, overridesFrom(c)));
-    if (!held.ok) return c.json(OUT_OF_CREDITS(ws, held.remaining), 402);
+    const held = await reserve(
+        ws,
+        c.get("user").id,
+        tool,
+        {},
+        ratesFor(ws, overridesFrom(c)),
+        false,
+        c.get("role"),
+    );
+    if (!held.ok) return c.json(denied(ws, held), 402);
 
     return held.settle(async () => {
         try {
@@ -498,8 +531,10 @@ ai.post("/ai/refine", requireWorkspace, async (c) => {
         "refine-prompt",
         {},
         ratesFor(ws, overridesFrom(c)),
+        false,
+        c.get("role"),
     );
-    if (!held.ok) return c.json(OUT_OF_CREDITS(ws, held.remaining), 402);
+    if (!held.ok) return c.json(denied(ws, held), 402);
 
     return held.settle(async () => {
         try {
@@ -545,8 +580,10 @@ ai.post("/ai/theme", requireWorkspace, async (c) => {
         "generate-theme",
         {},
         ratesFor(ws, overridesFrom(c)),
+        false,
+        c.get("role"),
     );
-    if (!held.ok) return c.json(OUT_OF_CREDITS(ws, held.remaining), 402);
+    if (!held.ok) return c.json(denied(ws, held), 402);
 
     return held.settle(async () => {
         try {

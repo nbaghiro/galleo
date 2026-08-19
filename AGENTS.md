@@ -64,6 +64,9 @@ with high-fidelity export. Net-new, TypeScript.
 ## Conventions (enforced)
 
 - **No `index.ts` barrels.** Each concept is a named file (`engine/layout.ts`, `elements/spec.ts`).
+- **One file per concept, in every module folder** (the rule `model/` states for itself, generalized).
+  A concept's types, helpers, and pure math live in its own file; a small sibling helper file split
+  out of one concept is not the pattern. Test files under `__tests__/` may still be split per topic.
 - **Building UI in any module → go through `@ui`** (the layering makes cross-module reuse like
   `app → @editor` illegal, so `@ui` is the only shared home). The recipe, in order: **(1) reuse** the
   existing `@ui` primitive; **(2) extend** it with a prop/variant when it's ~90% there (don't fork the

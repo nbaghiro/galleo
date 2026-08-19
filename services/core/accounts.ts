@@ -2,8 +2,14 @@ import { randomBytes, createHash } from "node:crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { Google } from "arctic";
 
-import type { AccountConnection, AuthProvider, User, UserPrefs } from "@model/workspace";
-import { mergeUserPrefs, readUserPrefs } from "@model/workspace";
+import type {
+    AccountConnection,
+    AuthProvider,
+    User,
+    UserPrefs,
+    WorkspaceRole,
+} from "@model/workspace";
+import { asRole, mergeUserPrefs, readUserPrefs } from "@model/workspace";
 import { db } from "@services/db/client";
 import { freshCreditWindow, rollCreditWindow } from "./ledger";
 import { schema } from "@services/db/schema";
@@ -68,20 +74,31 @@ export async function firstWorkspaceId(userId: string): Promise<string | null> {
 }
 
 // The user's chosen membership when it's still real, else the oldest (their own, created at signup).
-// Also lazily rolls the monthly credit window on read, since there is no cron.
-export async function currentWorkspace(userId: string) {
+// Also lazily rolls the monthly credit window on read, since there is no cron. The role rides along
+// from the join that was already happening, so no route pays a second query to learn it.
+export async function currentMembership(
+    userId: string,
+): Promise<{ ws: WorkspaceRow; role: WorkspaceRole } | null> {
     const rows = await db
-        .select({ ws: schema.workspaces, active: schema.users.activeWorkspaceId })
+        .select({
+            ws: schema.workspaces,
+            active: schema.users.activeWorkspaceId,
+            role: schema.members.role,
+        })
         .from(schema.members)
         .innerJoin(schema.workspaces, eq(schema.members.workspaceId, schema.workspaces.id))
         .innerJoin(schema.users, eq(schema.users.id, schema.members.userId))
         .where(eq(schema.members.userId, userId))
         .orderBy(schema.members.createdAt);
-    const ws = rows.find((r) => r.ws.id === r.active)?.ws ?? rows[0]?.ws;
-    if (!ws) return null;
-    const rolled = await rollCreditWindow(ws);
-    if (rolled) Object.assign(ws, rolled);
-    return ws;
+    const row = rows.find((r) => r.ws.id === r.active) ?? rows[0];
+    if (!row) return null;
+    const rolled = await rollCreditWindow(row.ws);
+    if (rolled) Object.assign(row.ws, rolled);
+    return { ws: row.ws, role: row.ws.ownerId === userId ? "owner" : asRole(row.role) };
+}
+
+export async function currentWorkspace(userId: string): Promise<WorkspaceRow | null> {
+    return (await currentMembership(userId))?.ws ?? null;
 }
 
 export interface ProvisionInput {

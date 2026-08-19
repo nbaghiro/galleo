@@ -1,5 +1,6 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import type {
+    ArtifactAccess,
     ArtifactContent,
     ArtifactInput,
     ArtifactPage,
@@ -78,7 +79,19 @@ export const isArtifactContent = (v: unknown): v is ArtifactContent => {
 // file does not enumerate (Section.frame) would be silently dropped on the way to the database.
 export const isSectionOp = (op: unknown): op is SectionOp => {
     if (!op || typeof op !== "object") return false;
-    const { kind, section, id, ids, index, shell } = op as Record<string, unknown>;
+    const { kind, section, id, ids, index, shell, sectionId, elementId, keys } = op as Record<
+        string,
+        unknown
+    >;
+    // keys stays unknown-valued: what an element's data may hold is the element registry's contract
+    if (kind === "data")
+        return (
+            typeof sectionId === "string" &&
+            typeof elementId === "string" &&
+            !!keys &&
+            typeof keys === "object" &&
+            !Array.isArray(keys)
+        );
     if (kind === "set") return isSection(section);
     // a missing index reaches Math.trunc as NaN, which splice coerces to 0, so an unindexed
     // insert would silently prepend instead of being rejected
@@ -138,6 +151,7 @@ export async function listArtifacts(workspaceId: string, opts: ListOptions): Pro
                     : isNull(schema.artifacts.trashedAt),
                 folder ? eq(schema.artifacts.folderId, folder) : undefined,
                 format ? eq(schema.artifacts.formatId, format) : undefined,
+                visibleTo(opts.viewer),
                 seek,
             ),
         )
@@ -163,6 +177,20 @@ export async function listArtifacts(workspaceId: string, opts: ListOptions): Pro
         nextCursor:
             rows.length > take && last ? encodeCursor({ key: keyOf(last), id: last.id }) : null,
     };
+}
+
+// null clears the artifact back to inheriting the workspace default.
+export async function setArtifactAccess(
+    workspaceId: string,
+    id: string,
+    access: ArtifactAccess | null,
+): Promise<boolean> {
+    const [row] = await db
+        .update(schema.artifacts)
+        .set({ memberAccess: access })
+        .where(owned(id, workspaceId))
+        .returning({ id: schema.artifacts.id });
+    return !!row;
 }
 
 export async function liveArtifactCount(workspaceId: string): Promise<number> {
@@ -225,6 +253,7 @@ export function windowOf(
         index,
         from: win.from,
         sections: sections.slice(win.from, win.from + win.count),
+        seq: a.seq,
     };
 }
 
@@ -293,7 +322,11 @@ export async function emptyTrash(workspaceId: string): Promise<void> {
 export type ContentPatchResult =
     | { status: 404; error: string }
     | { status: 409; error: string }
-    | { status: 200; updatedAt: Date; total: number };
+    | { status: 200; updatedAt: Date; total: number; seq: number };
+
+// Bumped inside the transaction of every content write, so the number a writer gets back is the
+// order the room broadcasts in and a reconnecting client can ask "what have I missed since".
+const nextSeq = sql`${schema.artifacts.seq} + 1`;
 
 /**
  * Read, apply, and re-derive in one transaction; a batch naming a section the server doesn't have is
@@ -322,13 +355,15 @@ export function applyContentOps(
                 ...(shell.themeId !== undefined ? { themeId: shell.themeId } : {}),
                 ...(shell.formatId !== undefined ? { formatId: shell.formatId } : {}),
                 updatedAt: new Date(),
+                seq: nextSeq,
             })
             .where(where)
-            .returning({ updatedAt: schema.artifacts.updatedAt, total: sql<number>`1` });
+            .returning({ updatedAt: schema.artifacts.updatedAt, seq: schema.artifacts.seq });
         return {
             status: 200 as const,
             updatedAt: saved!.updatedAt,
             total: next.content.sections.length,
+            seq: saved!.seq,
         };
     });
 }
@@ -339,7 +374,10 @@ export async function updateArtifact(workspaceId: string, id: string, body: Arti
     if (body.themeId !== undefined) patch.themeId = body.themeId;
     if (body.formatId !== undefined) patch.formatId = body.formatId;
     // re-derived, never trusted from the client
-    if (body.draftContent !== undefined) Object.assign(patch, contentWrite(body.draftContent));
+    if (body.draftContent !== undefined) {
+        Object.assign(patch, contentWrite(body.draftContent));
+        patch.seq = nextSeq; // a whole-document save is a revision too, so the room can order it
+    }
     if (body.folderId !== undefined) patch.folderId = body.folderId;
     // a run saves its content first and its provenance with the same call, so this arrives on PATCH too
     if (body.aiMeta !== undefined) patch.aiMeta = body.aiMeta;
@@ -356,6 +394,10 @@ export async function updateArtifact(workspaceId: string, id: string, body: Arti
         .update(schema.artifacts)
         .set(patch)
         .where(owned(id, workspaceId))
-        .returning({ id: schema.artifacts.id, updatedAt: schema.artifacts.updatedAt });
+        .returning({
+            id: schema.artifacts.id,
+            updatedAt: schema.artifacts.updatedAt,
+            seq: schema.artifacts.seq,
+        });
     return a ?? null;
 }

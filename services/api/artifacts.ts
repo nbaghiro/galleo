@@ -35,8 +35,10 @@ const LIST_MAX = 100;
 
 // A user with no workspace yet sees an empty library, not an error.
 artifacts.get("/artifacts", requireUser, async (c) => {
-    const ws = await currentWorkspace(c.get("user").id);
-    if (!ws) return c.json({ artifacts: [], nextCursor: null } satisfies ArtifactPage);
+    const user = c.get("user");
+    const membership = await currentMembership(user.id);
+    if (!membership) return c.json({ artifacts: [], nextCursor: null } satisfies ArtifactPage);
+    const { ws, role } = membership;
     return c.json(
         await listArtifacts(ws.id, {
             trashed: c.req.query("trashed") === "1",
@@ -45,6 +47,7 @@ artifacts.get("/artifacts", requireUser, async (c) => {
             format: c.req.query("format"),
             take: pageLimit(c.req.query("limit"), LIST_LIMIT, LIST_MAX),
             cursor: decodeCursor(c.req.query("cursor")),
+            viewer: { userId: user.id, role, workspaceDefault: ws.defaultArtifactAccess },
         }),
     );
 });
@@ -85,6 +88,9 @@ const zArtifactInput = z.object({
     templateId: z.string().optional(),
 });
 
+// null is meaningful (inherit the workspace default), so nullish rather than optional
+const zAccess = z.object({ access: z.string().nullish() });
+
 const zContentPatch = z.object({
     ops: z.array(z.unknown()).optional(),
     themeId: z.string().optional(),
@@ -117,17 +123,23 @@ artifacts.get("/artifacts/:id", requireWorkspace, async (c) => {
             formatId: a.formatId,
             draftContent: a.draftContent,
             updatedAt: a.updatedAt,
+            access: gate.access,
+            seq: a.seq,
         },
     });
 });
 
-artifacts.get("/artifacts/:id/ai-meta", requireWorkspace, async (c) => {
-    const meta = await readAiMeta(c.get("ws").id, c.req.param("id"));
+artifacts.get("/artifacts/:id/ai-meta", requireUser, async (c) => {
+    const gate = await gateShared(c, c.req.param("id"), "view");
+    if (isResponse(gate)) return gate;
+    const meta = await readAiMeta(gate.ws.id, c.req.param("id"));
     return meta === undefined ? c.json({ error: "not found" }, 404) : c.json({ meta });
 });
 
-artifacts.get("/artifacts/:id/sections", requireWorkspace, async (c) => {
-    const all = await readSections(c.get("ws").id, c.req.param("id"));
+artifacts.get("/artifacts/:id/sections", requireUser, async (c) => {
+    const gate = await gateShared(c, c.req.param("id"), "view");
+    if (isResponse(gate)) return gate;
+    const all = await readSections(gate.ws.id, c.req.param("id"));
     if (!all) return c.json({ error: "not found" }, 404);
     const ids = c.req.query("ids");
     if (ids) {
@@ -138,18 +150,24 @@ artifacts.get("/artifacts/:id/sections", requireWorkspace, async (c) => {
     return c.json({ sections: all.slice(win.from, win.from + win.count) });
 });
 
-artifacts.post("/artifacts/:id/visit", requireWorkspace, async (c) => {
-    const ok = await recordArtifactVisit(c.get("ws").id, c.req.param("id"), c.get("user").id);
+artifacts.post("/artifacts/:id/visit", requireUser, async (c) => {
+    const gate = await gateShared(c, c.req.param("id"), "view");
+    if (isResponse(gate)) return gate;
+    const ok = await recordArtifactVisit(gate.ws.id, c.req.param("id"), c.get("user").id);
     return ok ? c.json({ ok: true }) : c.json({ error: "not found" }, 404);
 });
 
 artifacts.post("/artifacts/:id/trash", requireWorkspace, async (c) => {
+    const gate = await gateArtifact(c, c.req.param("id"), "edit");
+    if (isResponse(gate)) return gate;
     await setTrashed(c.get("ws").id, c.req.param("id"), new Date());
     return c.json({ ok: true });
 });
 
 artifacts.post("/artifacts/:id/restore", requireWorkspace, async (c) => {
     const ws = c.get("ws");
+    const gate = await gateArtifact(c, c.req.param("id"), "edit");
+    if (isResponse(gate)) return gate;
     const denied = await overArtifactCap(c, ws);
     if (denied) return denied;
     await setTrashed(ws.id, c.req.param("id"), null);

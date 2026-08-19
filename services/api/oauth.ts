@@ -14,6 +14,7 @@ import {
     oauthProvidersReady,
     OAUTH_SCOPES,
 } from "@services/core/accounts";
+import { releaseSignupGrant } from "@services/core/onboarding";
 
 // Failures redirect to /login?authError=<code>, which the auth page explains.
 export const oauth = new Hono();
@@ -128,6 +129,9 @@ async function complete(
     );
     // The provider's (unverified) email already belongs to another account — refuse rather than hijack it.
     if ("error" in result) return fail("oauth_email_taken");
+    // An OAuth account lands verified, so this is its verification moment; grantOnce makes a repeat
+    // sign-in a no-op, and a failure here must not cost the user their session.
+    if (identity.emailVerified) await releaseSignupGrant(result.userId).catch(() => false);
     setSessionCookie(c, result.userId);
     return c.redirect(appUrl("/"));
 }

@@ -19,6 +19,8 @@ import { warn } from "@services/utils/env";
 import { schema } from "@services/db/schema";
 import { appUrl } from "@services/utils/env";
 import type { WorkspaceRow } from "./accounts";
+import { grantOnce, spendThisCycle } from "./ledger";
+import type { Tx } from "./ledger";
 
 // Plans, subscriptions, recurring add-ons, and the Stripe webhook that keeps the workspace row in step
 // with what Stripe believes. api/billing.ts is the HTTP surface; every decision lives here.
@@ -164,22 +166,6 @@ const RANK: Record<PlanId, number> = { free: 0, pro: 1, premium: 2 };
 function subPeriodEnd(sub: Stripe.Subscription): Date {
     const ts = sub.items.data[0]?.current_period_end;
     return ts ? new Date(ts * 1000) : monthOut();
-}
-
-// The caller's net spend since the window opened: charges minus refunds. Only user-attributed rows
-// exist for spends/settles (grants and resets are system rows), so a plain sum nets naturally.
-async function spendThisCycle(ws: WorkspaceRow, userId: string): Promise<number> {
-    const [row] = await db
-        .select({ total: sql<string>`COALESCE(SUM(-${schema.credits.delta}), 0)` })
-        .from(schema.credits)
-        .where(
-            and(
-                eq(schema.credits.workspaceId, ws.id),
-                eq(schema.credits.userId, userId),
-                gt(schema.credits.createdAt, ws.creditsStartedAt),
-            ),
-        );
-    return Math.max(0, Number(row?.total ?? 0));
 }
 
 export async function billingSummary(ws: WorkspaceRow, userId: string) {
@@ -610,8 +596,6 @@ export async function consumeWebhook(
     return { received: true };
 }
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
 const activeStatus = (s: Stripe.Subscription.Status): string =>
     s === "active" || s === "trialing" ? "active" : s === "past_due" ? "past_due" : "canceled";
 
@@ -638,29 +622,6 @@ async function workspaceByCustomer(tx: Tx, customerId: string) {
  * (checkout session, invoice), so a redelivered or duplicated event finds the row and applies
  * nothing — including `also`, the workspace fields that ride along with a first-time grant.
  */
-async function grantOnce(
-    tx: Tx,
-    ws: { id: string; aiCreditsBalance: number },
-    g: {
-        key: string;
-        delta: number;
-        reason: string;
-        also?: Partial<typeof schema.workspaces.$inferInsert>;
-    },
-): Promise<void> {
-    const balanceAfter = ws.aiCreditsBalance + g.delta;
-    const [claimed] = await tx
-        .insert(schema.credits)
-        .values({ workspaceId: ws.id, delta: g.delta, reason: g.reason, key: g.key, balanceAfter })
-        .onConflictDoNothing({ target: schema.credits.key })
-        .returning({ id: schema.credits.id });
-    if (!claimed) return;
-    await tx
-        .update(schema.workspaces)
-        .set({ ...g.also, aiCreditsBalance: balanceAfter })
-        .where(eq(schema.workspaces.id, ws.id));
-}
-
 // seats come off the seat item, so the plan item's quantity is always 1
 const seatsOf = (sub: Stripe.Subscription): number => {
     const shape = readSub(sub);

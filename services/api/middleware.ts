@@ -17,7 +17,7 @@ export interface AuthedEnv {
 }
 
 export interface WorkspaceEnv {
-    Variables: { user: User; ws: WorkspaceRow };
+    Variables: { user: User; ws: WorkspaceRow; role: WorkspaceRole };
 }
 
 export const requireUser: MiddlewareHandler<AuthedEnv> = async (c, next) => {
@@ -30,18 +30,19 @@ export const requireUser: MiddlewareHandler<AuthedEnv> = async (c, next) => {
 export const requireWorkspace: MiddlewareHandler<WorkspaceEnv> = async (c, next) => {
     const user = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!user) return c.json({ error: "unauthorized" }, 401);
-    const ws = await currentWorkspace(user.id);
-    if (!ws) return c.json({ error: "no workspace" }, 400);
+    const membership = await currentMembership(user.id);
+    if (!membership) return c.json({ error: "no workspace" }, 400);
     c.set("user", user);
-    c.set("ws", ws);
+    c.set("ws", membership.ws);
+    c.set("role", membership.role);
     return next();
 };
 
-// Mounted after requireWorkspace. Owner derives from the workspace row; admin from the member row.
+// Mounted after requireWorkspace, which resolved the role from the join it was already doing.
 export const requireRole =
     (min: Exclude<WorkspaceRole, "member">): MiddlewareHandler<WorkspaceEnv> =>
     async (c, next) => {
-        const role = await roleOf(c.get("ws"), c.get("user").id);
+        const role = c.get("role");
         const allowed = role === "owner" || (min === "admin" && role === "admin");
         if (!allowed)
             return c.json(

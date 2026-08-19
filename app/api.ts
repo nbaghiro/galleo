@@ -18,8 +18,10 @@ import type {
     AuthProvider,
     Folder,
     Membership,
+    PublishPolicy,
     User,
     UserPrefs,
+    OnboardingState,
     WorkspaceRole,
 } from "@model/workspace";
 import type { Template } from "@model/templates";
@@ -114,7 +116,15 @@ export interface WorkspaceInvite {
 }
 
 export interface WorkspaceState {
-    workspace: { id: string; name: string; plan: PlanId; seats: number };
+    workspace: {
+        id: string;
+        name: string;
+        plan: PlanId;
+        seats: number;
+        defaultArtifactAccess: ArtifactAccess;
+        publishPolicy: PublishPolicy;
+        memberCreditCap: number | null;
+    };
     role: WorkspaceRole;
     members: WorkspaceMember[];
     invites: WorkspaceInvite[];
@@ -370,8 +380,11 @@ export const api = {
             method: "POST",
             body: JSON.stringify(current ? { current, password } : { password }),
         }),
-    updatePrefs: (patch: Partial<Record<keyof UserPrefs, string | null>>) =>
+    // mergeUserPrefs narrows the patch server-side, so the shape here only has to admit what the
+    // branches accept: a scalar, a nested branch, or null to clear one
+    updatePrefs: (patch: { [K in keyof UserPrefs]?: UserPrefs[K] | null }) =>
         req<{ user: User }>("/me/prefs", { method: "PATCH", body: JSON.stringify(patch) }),
+    getOnboarding: () => req<{ onboarding: OnboardingState }>("/onboarding"),
     getConnections: () => req<{ connections: AccountConnection[] }>("/me/connections"),
     unlinkConnection: (provider: AuthProvider) =>
         req<{ ok: true }>(`/me/connections/${encodeURIComponent(provider)}`, { method: "DELETE" }),
@@ -614,6 +627,18 @@ export const api = {
         }),
     renameWorkspace: (name: string) =>
         req<{ ok: true }>("/workspace", { method: "PATCH", body: JSON.stringify({ name }) }),
+    // one admin-gated patch for the workspace's policy settings; omit a key to leave it alone
+    updateWorkspaceSettings: (patch: {
+        defaultArtifactAccess?: ArtifactAccess;
+        publishPolicy?: PublishPolicy;
+        memberCreditCap?: number | null;
+    }) => req<{ ok: true }>("/workspace", { method: "PATCH", body: JSON.stringify(patch) }),
+    // null clears the artifact back to inheriting the workspace default
+    setArtifactAccess: (id: string, access: ArtifactAccess | null) =>
+        req<{ ok: true; access: ArtifactAccess | null }>(`/artifacts/${id}/access`, {
+            method: "PUT",
+            body: JSON.stringify({ access }),
+        }),
     setMemberRole: (userId: string, role: "admin" | "member") =>
         req<{ ok: true }>(`/workspace/members/${userId}`, {
             method: "PATCH",
