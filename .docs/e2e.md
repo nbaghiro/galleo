@@ -1,8 +1,7 @@
 # e2e.md — the browser suite, as built
 
 Factual map of the Playwright suite, sibling of `.docs/testing.md` (which covers unit +
-integration). The build-out plan and its decision log live in `.docs/e2e-implementation-plan.md`;
-this file describes what runs.
+integration). This file describes what runs.
 
 ## Topology
 

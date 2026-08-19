@@ -1,6 +1,6 @@
 # Galleo — Onboarding: the first session
 
-> The design for what happens between a signup and a user who has understood the product. Covers the
+> What happens between a signup and a user who has understood the product. Covers the
 > one-time signup grant, why the first artifact is a template rather than a generation, the format
 > question, the activation checklist and how its state is derived, the `UserPrefs` schema, and the
 > events we need before any of this is measurable. Companion docs: `workspaces.md` (the credit window
@@ -25,7 +25,7 @@ Built, pending manual QA. What ships:
 | the client store                                                               | `app/stores/onboarding.ts`                               |
 | the studio's format default                                                    | `app/stores/generate.ts`                                 |
 
-Not built: the seven events in the Events section below. `.docs/analytics-events.md` specifies them and
+Not built: the seven events in the Events section below. `.docs/prompts/analytics-events.md` specifies them and
 `.docs/prompts/09-product-analytics.md` is the handoff, so none of this is measurable yet.
 
 ## The constraint everything follows from

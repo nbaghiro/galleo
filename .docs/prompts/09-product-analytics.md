@@ -150,7 +150,7 @@ contract table, and to `.env.example` if one exists.
 
 ## The event taxonomy
 
-**`.docs/analytics-events.md` is the specification. Implement it exactly.** It lists every event, every
+**`.docs/prompts/analytics-events.md` is the specification. Implement it exactly.** It lists every event, every
 property with its type, the super-properties that ride on all of them, and the identify and group traits.
 It also states the eight product questions each event exists to answer, so if you find an event whose
 purpose you cannot place, say so rather than building it on faith.

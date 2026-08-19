@@ -20,9 +20,13 @@ with high-fidelity export. Net-new, TypeScript.
   writes, and paint windowing for the section stack.
 - `.docs/collab.md` — live collaboration: grants, the room protocol, presence + cursors, per-key
   op sync, the edit lease, and the engine invariant that keeps all of it overlay-only.
+- `.docs/comments.md` — threads anchored to elements and text ranges: the `cm` mark, how an anchor
+  degrades when its content changes, the `comment` access level, and the editor seam.
 - `.docs/testing.md` — the test philosophy, the mocking contract, and the coverage map.
+- `.docs/e2e.md` — the Playwright browser suite as built: fixtures, seeded state, what each spec covers.
+- `.docs/hosting.md` — how Galleo ships: Render + Neon, the single-origin topology, the env contract,
+  the deploy pipeline.
 - `.docs/onboarding.md` — the first session: the signup grant, the template-first path, the checklist.
-  **Planned, not built** — read it as the plan, not as current behaviour.
 
 ## Structure (model · canvas · ui · editor · app)
 
