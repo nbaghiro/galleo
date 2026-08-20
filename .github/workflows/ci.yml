@@ -142,3 +142,61 @@ jobs:
 
             - name: Integration tests
               run: pnpm test:int
+
+    # The browser suite (.docs/e2e.md): the built app in production mode against a seeded
+    # database, driven through real Chromium with the scripted AI model. Push-only: at ~37 specs
+    # it is the slowest job, and a PR canary can join later as a --project=smoke variant.
+    e2e:
+        if: github.event_name == 'push'
+        runs-on: ubuntu-latest
+        services:
+            postgres:
+                # pgvector, not plain postgres: chunks.embedding needs the vector type
+                image: pgvector/pgvector:pg16
+                env:
+                    POSTGRES_USER: galleo
+                    POSTGRES_PASSWORD: galleo
+                    POSTGRES_DB: galleo
+                # 8602 matches docker-compose.yml and e2e/env.ts
+                ports:
+                    - 8602:5432
+                options: >-
+                    --health-cmd "pg_isready -U galleo -d galleo"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 10
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: pnpm/action-setup@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: pnpm
+
+            - name: Install
+              run: pnpm install --frozen-lockfile
+
+            - name: Cache Chromium
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+            - name: Install Chromium
+              run: npx playwright install --with-deps chromium
+
+            # global setup creates + seeds galleo_e2e; the webServer builds and boots the real
+            # server on :8611 with GALLEO_FAKE_AI=1 (playwright.config.ts owns that env)
+            - name: E2E
+              run: pnpm test:e2e
+
+            # the trace zips are what make a red run inspectable
+            - name: Upload traces
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: e2e-traces
+                  path: test-results/
+                  if-no-files-found: ignore
