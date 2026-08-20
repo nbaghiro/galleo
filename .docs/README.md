@@ -21,3 +21,5 @@ section for work not yet built.
 | [onboarding.md](onboarding.md)     | The first session: the signup grant · why the first artifact is a template · the format question · the activation checklist · the prefs schema · the events                                        |
 
 Feature backlog and the specs they implement against live in [prompts/](prompts/).
+Design options still being decided live in [planning/](planning/); once a decision ships, it
+moves into the doc that owns the area.
