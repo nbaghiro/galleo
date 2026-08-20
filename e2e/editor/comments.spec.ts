@@ -1,7 +1,8 @@
-import { execSync } from "node:child_process";
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "@e2e/fixtures";
 import { colOf, makeArtifact, paintedText, sec, txt } from "@e2e/helpers";
+import { E2E_DB } from "@e2e/env";
+import postgres from "postgres";
 
 // Commenting is interaction-only chrome (a chip on the selection, a marker in the section's border
 // revealed on hover, a floating thread), so the browser is the only place the whole path can be
@@ -91,10 +92,13 @@ test("a comment on a document written before element ids still resolves after a 
     const id = await makeArtifact(page.request, "e2e legacy anchors", [
         sec("s1", colOf([txt("Legacy headline", "h2"), txt("Legacy body line")])),
     ]);
-    execSync(
-        `docker exec galleo-pg psql -U galleo -d galleo_e2e -c "update artifacts set draft_content = (regexp_replace(draft_content::text, '\\"id\\": ?\\"e-[0-9a-f]+\\", ?', '', 'g'))::jsonb where id = '${id}'"`,
-        { stdio: "pipe" },
-    );
+    // straight to the database, not through a named dev container: CI runs Postgres as a service
+    const sql = postgres(E2E_DB, { max: 1 });
+    try {
+        await sql`update artifacts set draft_content = regexp_replace(draft_content::text, '"id": ?"e-[0-9a-f]+", ?', '', 'g')::jsonb where id = ${id}::uuid`;
+    } finally {
+        await sql.end();
+    }
 
     await page.goto(`/edit/${id}`);
     const headline = paintedText(page, "Legacy headline");
