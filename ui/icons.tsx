@@ -256,7 +256,7 @@ const PATHS: Record<string, () => JSX.Element> = {
     flag: () => <path d="M5 21V4.5M5 5h13l-2.8 4 2.8 4H5" />,
     close: () => <path d="M6 6l12 12M18 6 6 18" />,
     menu: () => <path d="M4 7h16M4 12h16M4 17h16" />,
-    sparkle: () => <path d="M12 4.5 13.5 10l5.5 1.5-5.5 1.5L12 18.5 10.5 13 5 11.5 10.5 10z" />,
+    sparkle: () => <path d="M12 5 13.5 10.5l5.5 1.5-5.5 1.5L12 19 10.5 13.5 5 12l5.5-1.5z" />,
     credit: () => (
         <>
             <circle cx="12" cy="12" r="8.75" />

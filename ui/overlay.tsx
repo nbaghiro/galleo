@@ -235,16 +235,17 @@ export const Modal: Component<{
                 }}
             >
                 {props.children}
-                {/* every modal closes the same way, on every device */}
+                {/* every modal closes the same way, on every device; consumers never add their own */}
                 <IconButton
-                    size={isCoarsePointer() ? "touch" : "md"}
-                    tone="muted"
-                    rounded="md"
+                    size={isCoarsePointer() ? "touch" : "lg"}
+                    tone="soft"
+                    bordered
+                    rounded="lg"
                     class="absolute right-2 top-2 z-20"
                     title="Close"
                     onClick={() => props.onClose()}
                 >
-                    <CloseIcon size={15} />
+                    <CloseIcon size={isCoarsePointer() ? 13 : 11} />
                 </IconButton>
             </div>
         </div>
@@ -300,12 +301,13 @@ const BAR_ROUNDED: Record<BarRounded, string> = {
 type BarShadow = "none" | "lg" | "2xl";
 const BAR_SHADOW: Record<BarShadow, string> = { none: "", lg: "shadow-lg", "2xl": "shadow-2xl" };
 // Content tokens for a FloatingBar's own row: shared by the editor's section pill and the generation
-// studio's outline pill, so the two read as one control surface.
+// studio's outline pill, so the two read as one control surface. The svg nudge drops icons onto the
+// label's optical center — geometric flex centring leaves them ~0.5px high against the x-height band.
 export const barAction =
-    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-canvas disabled:pointer-events-none disabled:opacity-40";
+    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-canvas disabled:pointer-events-none disabled:opacity-40 [&_svg]:translate-y-[0.5px]";
 // the bar's one call to action; same metrics as barAction so it sits level with its neighbours
 export const barPrimaryAction =
-    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-accent px-2.5 py-1 text-[11px] font-semibold text-onaccent hover:opacity-90 disabled:pointer-events-none disabled:opacity-40";
+    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-accent px-2.5 py-1 text-[11px] font-semibold text-onaccent hover:opacity-90 disabled:pointer-events-none disabled:opacity-40 [&_svg]:translate-y-[0.5px]";
 export const barIconAction = "inline-flex items-center rounded-full p-1.5 text-ink hover:bg-canvas";
 // stacked chevrons share one slot, so this stays tight rather than a full icon button
 export const barStepAction =

@@ -13,7 +13,7 @@ import { ICON_LIBRARY } from "@elements/media/vector";
 import { paintedNodeFor } from "@editor/core/leaf";
 import { canvasContentWidth, commit, editor, editorTokens, regions } from "@editor/core/store";
 import { claimLease, elementRefFor, leaseHolder, releaseLease, say } from "@editor/core/collab";
-import { Badge, Button, IconButton } from "@ui/button";
+import { Badge, Button } from "@ui/button";
 import { Icon } from "@ui/icons";
 import { CellInput } from "@ui/inputs";
 import { Modal } from "@ui/overlay";
@@ -1034,10 +1034,6 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
                 <Badge tone="outline" size="md" weight="medium">
                     {spec?.label ?? "Element"}
                 </Badge>
-                <div class="flex-1" />
-                <IconButton size="lg" rounded="lg" bordered tone="soft" onClick={close}>
-                    <Icon name="close" size={11} />
-                </IconButton>
             </div>
 
             <div class="flex min-h-0 flex-1">
