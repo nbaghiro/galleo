@@ -109,9 +109,12 @@ test("a section drag offers only gap lines and reorders on drop", async ({ page 
     await expect(page.getByTestId("drop-active")).toBeVisible();
 
     await page.mouse.up();
-    const topAfter = await boxOf(paintedText(page, "Top section marker"));
-    const bottomAfter = await boxOf(paintedText(page, "Bottom section marker"));
-    expect(topAfter.y).toBeGreaterThan(bottomAfter.y);
+    // poll: the commit repaint lands asynchronously
+    await expect(async () => {
+        const topAfter = await boxOf(paintedText(page, "Top section marker"));
+        const bottomAfter = await boxOf(paintedText(page, "Bottom section marker"));
+        expect(topAfter.y).toBeGreaterThan(bottomAfter.y);
+    }).toPass({ timeout: 5000 });
 });
 
 test("holding a drag at the viewport edge autoscrolls the stack", async ({ page }) => {
