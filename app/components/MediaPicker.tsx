@@ -1,8 +1,10 @@
 import type { Component, JSX } from "solid-js";
 import {
     createEffect,
+    createMemo,
     createSignal,
     For,
+    Index,
     Match,
     on,
     onCleanup,
@@ -10,7 +12,14 @@ import {
     Show,
     Switch,
 } from "solid-js";
-import type { IconItem, MediaGenStyle, MediaItem, MediaKind, MediaProvider } from "@model/media";
+import type {
+    IconItem,
+    MediaGenStyle,
+    MediaItem,
+    MediaKind,
+    MediaProvider,
+    MediaSearchResponse,
+} from "@model/media";
 import { KIND_PROVIDERS, MEDIA_ASPECTS, MEDIA_GEN_STYLES } from "@model/media";
 import { editorTokens } from "@editor/core/store";
 import { api, streamGenerateMedia, streamGenerateVideo, type MediaProvidersState } from "@app/api";
@@ -106,6 +115,10 @@ const STARTER_ICONS = [
     "lucide:music",
     "lucide:code",
 ].map((id) => ({ id }));
+
+// stable identities so <For> reuses shimmer DOM across appends
+const SHIMS: { shim: true }[] = Array.from({ length: 4 }, () => ({ shim: true }));
+type GridTile = MediaItem | { shim: true };
 
 const RailIcon = {
     recent: () => (
@@ -207,6 +220,16 @@ export const MediaPicker: Component = () => {
     let scrollRef!: HTMLDivElement;
     let sentinelEl: HTMLDivElement | undefined;
     let io: IntersectionObserver | undefined;
+    let gridRo: ResizeObserver | undefined;
+    // masonry column count follows the scroll container's width, not the viewport
+    const [gridW, setGridW] = createSignal(0);
+
+    const armScroll = (el: HTMLDivElement): void => {
+        scrollRef = el;
+        gridRo?.disconnect();
+        gridRo = new ResizeObserver((es) => setGridW(es[0]?.contentRect.width ?? el.clientWidth));
+        gridRo.observe(el);
+    };
 
     const armSentinel = (el: HTMLDivElement): void => {
         sentinelEl = el;
@@ -219,9 +242,69 @@ export const MediaPicker: Component = () => {
         );
         io.observe(el);
     };
+
+    const isStock = (s: Source): s is MediaProvider => (STOCK as string[]).includes(s);
+    const themeVars = (): JSX.CSSProperties | undefined => overlayThemeVars();
+    // the rail lists only the providers that can serve the current kind
+    const stockSources = (): MediaProvider[] => KIND_PROVIDERS[kind()];
+
+    // search generation: bumped on every reset so stale responses and prefetches drop out
+    let gen = 0;
+    // the next page, fetched while the current one is browsed, so scrolling appends instantly
+    let ahead: { page: number; res: Promise<MediaSearchResponse | null> } | null = null;
+    const seen = new Set<string>();
+
+    const searchQ = (): string => query().trim() || DEFAULT_QUERY[kind()];
+
+    const fresh = (list: MediaItem[]): MediaItem[] => {
+        const out: MediaItem[] = [];
+        for (const it of list) {
+            if (seen.has(it.id)) continue;
+            seen.add(it.id);
+            out.push(it);
+        }
+        return out;
+    };
+
+    const resetSearch = (): void => {
+        gen++;
+        ahead = null;
+        seen.clear();
+    };
+
+    const prefetchNext = (p: number): void => {
+        const s = source();
+        if (!isStock(s)) return;
+        const g = gen;
+        ahead = {
+            page: p,
+            res: api.searchMedia(s, searchQ(), p, kind()).then(
+                (r) => (g === gen ? r : null),
+                () => null,
+            ),
+        };
+    };
+
     async function loadMore(): Promise<void> {
-        if (!hasMore() || loading() || !isStock(source())) return;
-        await runSearch(false);
+        const s = source();
+        if (!hasMore() || loading() || !isStock(s)) return;
+        const g = gen;
+        const next = page() + 1;
+        const buffered = ahead && ahead.page === next ? ahead.res : null;
+        ahead = null;
+        setLoading(true);
+        let res = buffered ? await buffered : null;
+        if (!res && g === gen) {
+            res = await api.searchMedia(s, searchQ(), next, kind()).catch(() => null);
+        }
+        if (g !== gen) return;
+        setLoading(false);
+        if (!res) return;
+        const add = fresh(res.items);
+        setItems((cur) => [...cur, ...add]);
+        setPage(next);
+        setHasMore(res.hasMore);
+        if (res.hasMore) prefetchNext(next + 1);
         // a short page can leave the sentinel visible with no further scroll — re-observe to re-fire
         if (io && sentinelEl) {
             io.unobserve(sentinelEl);
@@ -229,10 +312,24 @@ export const MediaPicker: Component = () => {
         }
     }
 
-    const isStock = (s: Source): s is MediaProvider => (STOCK as string[]).includes(s);
-    const themeVars = (): JSX.CSSProperties | undefined => overlayThemeVars();
-    // the rail lists only the providers that can serve the current kind
-    const stockSources = (): MediaProvider[] => KIND_PROVIDERS[kind()];
+    // Shortest-column placement is prefix-stable: appending a page never moves an existing tile,
+    // unlike CSS columns, which rebalance the whole flow on every append.
+    const columns = createMemo<GridTile[][]>(() => {
+        const n = gridW() > 0 && gridW() < 560 ? 2 : 3;
+        const [aw, ah] = aspect().split(":").map(Number);
+        const shimRatio = aw && ah ? ah / aw : 1;
+        const cols: GridTile[][] = Array.from({ length: n }, () => []);
+        const heights = new Array<number>(n).fill(0);
+        for (const t of [...items(), ...SHIMS.slice(0, generating())]) {
+            const r =
+                "shim" in t ? shimRatio : t.width > 0 && t.height > 0 ? t.height / t.width : 1.4;
+            let best = 0;
+            for (let i = 1; i < n; i++) if ((heights[i] ?? 0) < (heights[best] ?? 0)) best = i;
+            cols[best]?.push(t);
+            heights[best] = (heights[best] ?? 0) + r + 0.06;
+        }
+        return cols;
+    });
 
     createEffect(
         on(mediaRequest, (req) => {
@@ -243,6 +340,7 @@ export const MediaPicker: Component = () => {
             if (k === "video") setAspect("16:9"); // veo supports 16:9 / 9:16 only
             setQuery(req.query ?? "");
             setError("");
+            resetSearch();
             setItems([]);
             setRefItem(null);
             setIconItems([]);
@@ -260,7 +358,7 @@ export const MediaPicker: Component = () => {
                 loadRecent();
             } else {
                 setSource(KIND_PROVIDERS[k][0] ?? "openverse");
-                runSearch(true);
+                runSearch();
             }
         }),
     );
@@ -299,35 +397,42 @@ export const MediaPicker: Component = () => {
         setLoading(false);
     }
 
-    async function runSearch(reset: boolean): Promise<void> {
+    async function runSearch(): Promise<void> {
         const s = source();
         if (!isStock(s)) return;
-        const q = query().trim() || DEFAULT_QUERY[kind()];
+        const q = searchQ();
         if (!q) return;
-        const p = reset ? 1 : page() + 1;
+        resetSearch();
+        const g = gen;
         setLoading(true);
         setError("");
         try {
-            const res = await api.searchMedia(s, q, p, kind());
-            setItems((cur) => (reset ? res.items : [...cur, ...res.items]));
-            setPage(p);
+            const res = await api.searchMedia(s, q, 1, kind());
+            if (g !== gen) return;
+            // the response carries live key state, so the rail heals itself
+            setProviders((prev) => ({ ...prev, stock: res.providers }));
+            setItems(fresh(res.items));
+            setPage(1);
             setHasMore(res.hasMore);
+            if (res.hasMore) prefetchNext(2);
         } catch (e) {
+            if (g !== gen) return;
             setError(e instanceof Error ? e.message : "Search failed");
         }
-        setLoading(false);
+        if (g === gen) setLoading(false);
     }
 
     const selectSource = (s: Source): void => {
         setSource(s);
         setError("");
+        resetSearch();
         setItems([]);
         setRefItem(null);
         setHasMore(false);
         setPage(1);
         if (s === "recent") loadRecent();
         else if (s === "icons") runIconSearch();
-        else if (isStock(s)) runSearch(true);
+        else if (isStock(s)) runSearch();
     };
 
     const onQuery = (v: string): void => {
@@ -339,7 +444,7 @@ export const MediaPicker: Component = () => {
         }
         if (!isStock(source())) return;
         window.clearTimeout(debounce);
-        debounce = window.setTimeout(() => runSearch(true), 350);
+        debounce = window.setTimeout(() => runSearch(), 350);
     };
 
     async function generate(): Promise<void> {
@@ -451,26 +556,32 @@ export const MediaPicker: Component = () => {
         onCleanup(() => {
             window.removeEventListener("keydown", onKey);
             io?.disconnect();
+            gridRo?.disconnect();
         });
     });
 
+    // disabled is an accessor: <For>'s map runs untracked, so a plain boolean would freeze the
+    // key state at first render, before the providers fetch lands
     const railBtn = (
         id: Source,
         label: string,
         icon: () => JSX.Element,
-        disabled = false,
+        disabled?: () => boolean,
     ): JSX.Element => (
         <button
             class={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] ${
                 source() === id
                     ? "bg-accent/12 font-semibold text-accent"
                     : "text-soft hover:bg-canvas hover:text-ink"
-            } ${disabled ? "opacity-45" : ""}`}
+            }`}
+            classList={{ "opacity-45": disabled?.() ?? false }}
+            disabled={disabled?.() ?? false}
+            title={disabled?.() ? "Needs an API key on the server" : undefined}
             onClick={() => selectSource(id)}
         >
             <span class="grid h-4 w-4 flex-none place-items-center">{icon()}</span>
             <span class="min-w-0 flex-1 truncate">{label}</span>
-            <Show when={disabled}>
+            <Show when={disabled?.()}>
                 <Eyebrow size={8.5} weight="normal">
                     key
                 </Eyebrow>
@@ -482,6 +593,95 @@ export const MediaPicker: Component = () => {
         <Eyebrow as="div" size={9} tracking="wide" class="mb-1.5 mt-3 px-2.5 first:mt-1">
             {label}
         </Eyebrow>
+    );
+
+    const mediaTile = (it: MediaItem): JSX.Element => (
+        <button
+            class="group relative block w-full overflow-hidden rounded-lg border border-line/70 hover:border-accent"
+            classList={{ "mp-pop": it.source === "generated" }}
+            onClick={() => pick(it)}
+        >
+            <Show
+                when={kind() === "video" && it.source === "generated"}
+                fallback={
+                    <img
+                        src={it.thumbUrl}
+                        alt={it.alt ?? ""}
+                        loading="lazy"
+                        class="block w-full bg-canvas object-cover"
+                        style={
+                            it.width > 0 && it.height > 0
+                                ? { "aspect-ratio": `${it.width} / ${it.height}` }
+                                : undefined
+                        }
+                    />
+                }
+            >
+                <video
+                    src={it.url}
+                    muted
+                    loop
+                    autoplay
+                    playsinline
+                    class="pointer-events-none block w-full bg-black"
+                />
+            </Show>
+            <Show when={kind() === "video" && it.source !== "generated"}>
+                <span class="absolute left-1/2 top-1/2 grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-[13px] text-white">
+                    ▶
+                </span>
+            </Show>
+            <Show
+                when={
+                    kind() !== "video" &&
+                    it.source === "generated" &&
+                    (source() === "generate" || source() === "recent")
+                }
+            >
+                <span
+                    role="button"
+                    title="Use this take as the base for the next generation"
+                    class="absolute right-1.5 top-1.5 rounded-full px-2 py-0.5 text-[10.5px] font-semibold text-white transition"
+                    classList={{
+                        "bg-accent opacity-100": refItem()?.id === it.id,
+                        "bg-black/55 opacity-0 group-hover:opacity-100 hover:bg-accent":
+                            refItem()?.id !== it.id,
+                    }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        // from Recent: jump to the generate tab with this take as the base
+                        if (source() === "recent") {
+                            selectSource("generate");
+                            setRefItem(it);
+                        } else {
+                            setRefItem(refItem()?.id === it.id ? null : it);
+                        }
+                    }}
+                >
+                    {refItem()?.id === it.id ? "Refining" : "Refine"}
+                </span>
+            </Show>
+            <Show when={it.attribution?.author}>
+                <span
+                    class="absolute inset-x-0 bottom-0 truncate px-2 pb-1 pt-5 text-left text-[10px] text-white opacity-0 transition group-hover:opacity-100"
+                    style={{ background: "linear-gradient(transparent,#000000b0)" }}
+                >
+                    {it.attribution!.author} · {it.attribution!.provider}
+                </span>
+            </Show>
+        </button>
+    );
+
+    // sized to the chosen aspect so the real image swaps in without a layout jump
+    const shimmerTile = (): JSX.Element => (
+        <div
+            class="mp-shimmer grid w-full place-items-center overflow-hidden rounded-lg border border-line/70"
+            style={{ "aspect-ratio": aspect().replace(":", " / ") }}
+        >
+            <span class="text-muted opacity-40">
+                <SparkleIcon size={18} />
+            </span>
+        </div>
     );
 
     const grid = (): JSX.Element => (
@@ -500,93 +700,16 @@ export const MediaPicker: Component = () => {
                     Popular {KIND_NOUN[kind()]}
                 </Eyebrow>
             </Show>
-            <div class="[column-gap:8px] columns-2 sm:columns-3">
-                <For each={items()}>
-                    {(it) => (
-                        <button
-                            class="group relative mb-2 block w-full overflow-hidden rounded-lg border border-line/70 hover:border-accent"
-                            classList={{ "mp-pop": it.source === "generated" }}
-                            onClick={() => pick(it)}
-                        >
-                            <Show
-                                when={kind() === "video" && it.source === "generated"}
-                                fallback={
-                                    <img
-                                        src={it.thumbUrl}
-                                        alt={it.alt ?? ""}
-                                        loading="lazy"
-                                        class="block w-full bg-canvas"
-                                    />
-                                }
-                            >
-                                <video
-                                    src={it.url}
-                                    muted
-                                    loop
-                                    autoplay
-                                    playsinline
-                                    class="pointer-events-none block w-full bg-black"
-                                />
-                            </Show>
-                            <Show when={kind() === "video" && it.source !== "generated"}>
-                                <span class="absolute left-1/2 top-1/2 grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-[13px] text-white">
-                                    ▶
-                                </span>
-                            </Show>
-                            <Show
-                                when={
-                                    kind() !== "video" &&
-                                    it.source === "generated" &&
-                                    (source() === "generate" || source() === "recent")
-                                }
-                            >
-                                <span
-                                    role="button"
-                                    title="Use this take as the base for the next generation"
-                                    class="absolute right-1.5 top-1.5 rounded-full px-2 py-0.5 text-[10.5px] font-semibold text-white transition"
-                                    classList={{
-                                        "bg-accent opacity-100": refItem()?.id === it.id,
-                                        "bg-black/55 opacity-0 group-hover:opacity-100 hover:bg-accent":
-                                            refItem()?.id !== it.id,
-                                    }}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        // from Recent: jump to the generate tab with this take as the base
-                                        if (source() === "recent") {
-                                            selectSource("generate");
-                                            setRefItem(it);
-                                        } else {
-                                            setRefItem(refItem()?.id === it.id ? null : it);
-                                        }
-                                    }}
-                                >
-                                    {refItem()?.id === it.id ? "Refining" : "Refine"}
-                                </span>
-                            </Show>
-                            <Show when={it.attribution?.author}>
-                                <span
-                                    class="absolute inset-x-0 bottom-0 truncate px-2 pb-1 pt-5 text-left text-[10px] text-white opacity-0 transition group-hover:opacity-100"
-                                    style={{ background: "linear-gradient(transparent,#000000b0)" }}
-                                >
-                                    {it.attribution!.author} · {it.attribution!.provider}
-                                </span>
-                            </Show>
-                        </button>
-                    )}
-                </For>
-                {/* shimmer sized to aspect so real images swap in without a layout jump */}
-                <For each={Array.from({ length: generating() })}>
-                    {() => (
-                        <div
-                            class="mp-shimmer mb-2 grid w-full place-items-center overflow-hidden rounded-lg border border-line/70"
-                            style={{ "aspect-ratio": aspect().replace(":", " / ") }}
-                        >
-                            <span class="text-muted opacity-40">
-                                <SparkleIcon size={18} />
-                            </span>
+            <div class="flex items-start gap-2">
+                <Index each={columns()}>
+                    {(col) => (
+                        <div class="flex min-w-0 flex-1 flex-col gap-2">
+                            <For each={col()}>
+                                {(t) => ("shim" in t ? shimmerTile() : mediaTile(t))}
+                            </For>
                         </div>
                     )}
-                </For>
+                </Index>
             </div>
             <Show when={isStock(source())}>
                 <div ref={armSentinel} class="h-px" />
@@ -701,7 +824,7 @@ export const MediaPicker: Component = () => {
                                         p,
                                         p.charAt(0).toUpperCase() + p.slice(1),
                                         RailIcon.photo,
-                                        !providers().stock[p],
+                                        () => !providers().stock[p],
                                     )
                                 }
                             </For>
@@ -714,9 +837,10 @@ export const MediaPicker: Component = () => {
                                     () => (
                                         <SparkleIcon size={14} />
                                     ),
-                                    kind() === "video"
-                                        ? !providers().generateVideo
-                                        : !providers().generate,
+                                    () =>
+                                        kind() === "video"
+                                            ? !providers().generateVideo
+                                            : !providers().generate,
                                 )}
                             </Show>
                         </Show>
@@ -736,7 +860,7 @@ export const MediaPicker: Component = () => {
                                     onChange={onQuery}
                                     onKeyDown={(e) =>
                                         e.key === "Enter" &&
-                                        (source() === "icons" ? runIconSearch() : runSearch(true))
+                                        (source() === "icons" ? runIconSearch() : runSearch())
                                     }
                                 />
                             </div>
@@ -879,7 +1003,7 @@ export const MediaPicker: Component = () => {
                             </div>
                         </Show>
 
-                        <div ref={scrollRef} class="min-h-0 flex-1 overflow-y-auto p-4">
+                        <div ref={armScroll} class="min-h-0 flex-1 overflow-y-auto p-4">
                             <Switch fallback={grid()}>
                                 <Match when={source() === "icons"}>{iconGrid()}</Match>
                                 <Match when={source() === "upload"}>
