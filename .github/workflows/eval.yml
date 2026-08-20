@@ -60,6 +60,9 @@ jobs:
             - name: Generate and evaluate
               env:
                   GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+              # explicit bash = GitHub's `-eo pipefail` variant; the default `bash -e` takes the
+              # pipeline's exit from `tee`, which is how a missing secret once produced green runs
+              shell: bash
               run: |
                   pnpm eval:ci \
                     --cases "${{ inputs.cases || '7' }}" \
