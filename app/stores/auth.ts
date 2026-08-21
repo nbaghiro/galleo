@@ -1,5 +1,6 @@
 import { createSignal } from "solid-js";
 import { api, type AccountConnection, type ApiUser, type AuthProvider } from "@app/api";
+import { identifyUser, resetAnalytics } from "@ui/analytics";
 import { adoptUserPrefs, clearCustomThemes } from "./theme";
 
 export const [user, setUser] = createSignal<ApiUser | null>(null);
@@ -10,6 +11,12 @@ export const [authReady, setAuthReady] = createSignal(false);
 function adopt(u: ApiUser): void {
     setUser(u);
     adoptUserPrefs(u.prefs);
+    // Keyed by user id, never by email. A session restore identifies the same as a fresh login, so
+    // a returning visitor is not a new anonymous person every time.
+    identifyUser(u.id, {
+        email_verified: u.emailVerified,
+        app_theme: u.prefs.appTheme ?? "default",
+    });
 }
 
 export async function bootstrap(): Promise<void> {
@@ -70,6 +77,8 @@ export async function unlinkConnection(provider: AuthProvider): Promise<void> {
 export async function logout(): Promise<void> {
     await api.logout().catch(() => {});
     clearCustomThemes();
+    // Before the redirect, or the next user on a shared machine inherits this identity.
+    resetAnalytics();
     // the cookie is gone, so "/" would resolve to the marketing site; /login always serves the app
     window.location.assign("/login");
 }

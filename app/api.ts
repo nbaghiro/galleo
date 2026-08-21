@@ -14,6 +14,9 @@ import type {
     SharedArtifact,
 } from "@model/artifact";
 import { asContent } from "@model/artifact";
+import { ACTION_FOR } from "@model/tools";
+import { REQUEST_ID_HEADER } from "@model/analytics";
+import { capture, setRequestId } from "@ui/analytics";
 import type { CommentCreateBody, CommentDto, CommentEditBody } from "@model/comments";
 import type { Usage } from "@model/credits";
 import type { EvalCheck, EvalJudgement, EvalRun, EvalRunSummary, Rubric } from "@model/eval";
@@ -46,6 +49,7 @@ import type {
 import type { BriefDraft, TurnEvent, TurnRequest } from "@model/ai";
 import type {
     IconPick,
+    MediaCredit,
     IconSearchResponse,
     MediaGenerateRequest,
     MediaItem,
@@ -236,6 +240,7 @@ export interface PublicContent {
     content: ArtifactContent;
     branded: boolean;
     customTheme: CustomThemeRecord | null;
+    credits: MediaCredit[];
 }
 // an unauthenticated raw body, so the shape is checked here; asContent() fills the shell defaults
 // rather than trusting the payload to be an ArtifactContent because the column said so
@@ -248,6 +253,7 @@ function readPublicContent(d: Record<string, unknown>): PublicContent | null {
         content: asContent(d.content),
         branded: d.branded === true,
         customTheme: (d.customTheme as CustomThemeRecord | null | undefined) ?? null,
+        credits: Array.isArray(d.credits) ? (d.credits as MediaCredit[]) : [],
     };
 }
 
@@ -336,7 +342,12 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(`/api${path}`, {
         credentials: "same-origin",
         ...init,
-        headers: { "Content-Type": "application/json", ...modelHeaders(), ...init?.headers },
+        headers: {
+            "Content-Type": "application/json",
+            [REQUEST_ID_HEADER]: crypto.randomUUID(),
+            ...modelHeaders(),
+            ...init?.headers,
+        },
     });
     const text = await res.text();
     let data: unknown = {};
@@ -630,7 +641,21 @@ export const api = {
         req<{ item: MediaItem }>("/media/upload", { method: "POST", body: JSON.stringify(body) }),
     useMedia: (item: MediaItem) =>
         req<{ item: MediaItem }>("/media/use", { method: "POST", body: JSON.stringify({ item }) }),
-    recentMedia: () => req<{ items: MediaItem[] }>("/media/recent"),
+    // The workspace library. `link` is excluded by default: template placeholders are media the
+    // user never chose, and they would swamp everything that was.
+    libraryMedia: (opts: { before?: string; kind?: "image" | "video"; q?: string } = {}) =>
+        req<{ items: MediaItem[]; nextBefore: string | null }>(
+            `/media/library?sources=stock,generated,upload` +
+                (opts.kind ? `&kind=${opts.kind}` : "") +
+                (opts.q?.trim() ? `&q=${encodeURIComponent(opts.q.trim())}` : "") +
+                (opts.before ? `&before=${encodeURIComponent(opts.before)}` : ""),
+        ),
+    deleteMedia: (id: string) => req<{ ok: true }>(`/media/asset/${id}`, { method: "DELETE" }),
+    artifactCredits: (id: string) => req<{ credits: MediaCredit[] }>(`/artifacts/${id}/credits`),
+    mediaUsage: (id: string) =>
+        req<{ usedBy: { id: string; title: string }[] }>(`/media/asset/${id}/usage`),
+    adoptLink: (url: string) =>
+        req<{ url: string }>("/media/link", { method: "POST", body: JSON.stringify({ url }) }),
     searchIcons: (q: string, limit = 60) =>
         req<IconSearchResponse>(`/media/icons?q=${encodeURIComponent(q)}&limit=${limit}`),
     getIcon: (id: string) => req<{ icon: IconPick }>(`/media/icon?id=${encodeURIComponent(id)}`),
@@ -843,10 +868,18 @@ export async function streamTurn(
     onEvent: (event: TurnEvent) => void,
     signal?: AbortSignal,
 ): Promise<void> {
+    // Turns run one at a time in the studio, so a single current id is exact rather than a guess:
+    // every client event fired while this turn is open joins to the server events it caused.
+    const requestId = crypto.randomUUID();
+    setRequestId(requestId);
     const res = await fetch("/api/ai/turn", {
         method: "POST",
         credentials: "same-origin",
-        headers: { "Content-Type": "application/json", ...modelHeaders() },
+        headers: {
+            "Content-Type": "application/json",
+            [REQUEST_ID_HEADER]: requestId,
+            ...modelHeaders(),
+        },
         body: JSON.stringify(
             traceTurns()
                 ? { ...request, trace: true, ...(session ? { traceSession: session } : {}) }
@@ -866,27 +899,45 @@ export async function streamTurn(
     }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
+    const startedAt = Date.now();
     let buf = "";
-    for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        let sep: number;
-        while ((sep = buf.indexOf("\n\n")) >= 0) {
-            const frame = buf.slice(0, sep);
-            buf = buf.slice(sep + 2);
-            for (const line of frame.split("\n")) {
-                if (!line.startsWith("data:")) continue;
-                const json = line.slice(5).trim();
-                if (!json) continue;
-                try {
-                    const logged = JSON.parse(json) as { seq: number; event: TurnEvent };
-                    onEvent(logged.event);
-                } catch {
-                    // skip a malformed frame
+    let phase = "start";
+    let finished = false;
+    try {
+        for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            let sep: number;
+            while ((sep = buf.indexOf("\n\n")) >= 0) {
+                const frame = buf.slice(0, sep);
+                buf = buf.slice(sep + 2);
+                for (const line of frame.split("\n")) {
+                    if (!line.startsWith("data:")) continue;
+                    const json = line.slice(5).trim();
+                    if (!json) continue;
+                    try {
+                        const logged = JSON.parse(json) as { seq: number; event: TurnEvent };
+                        if (typeof logged.event.type === "string") phase = logged.event.type;
+                        if (logged.event.type === "turn.done") finished = true;
+                        onEvent(logged.event);
+                    } catch {
+                        // skip a malformed frame
+                    }
                 }
             }
         }
+    } finally {
+        setRequestId(null);
+        // A stream that ends without its terminal frame is a death, not a completion. A cancel is
+        // neither: the studio aborts the controller when the user closes it, and counting that as a
+        // disconnection would make reliability look worse the more people change their minds.
+        if (!finished && !signal?.aborted)
+            capture("stream_disconnected", {
+                tool_id: ACTION_FOR[request.kind],
+                at_phase: phase,
+                ms: Date.now() - startedAt,
+            });
     }
 }
 

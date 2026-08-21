@@ -8,11 +8,13 @@ import { FloatingBar } from "@ui/overlay";
 import { canEditHere } from "@ui/viewport";
 import {
     currentTitle,
+    noteAiAction,
     editor,
     endThemePreview,
     keepPreviewedTheme,
     loadArtifactWindow,
-    setEditAccess,
+    onAdoptLink,
+    onArtifactCredits,
     onHome,
     onLoadSections,
     onMediaPicker,
@@ -24,9 +26,10 @@ import {
     onTextAssist,
     onThemePicker,
     onUpgrade,
-    previewingTheme,
     previewSavedTheme,
+    previewingTheme,
     setArtifacts,
+    setEditAccess,
     setFeatures,
     startThemePreview,
 } from "@editor/core/store";
@@ -40,6 +43,8 @@ import {
 } from "@editor/core/comments";
 import { clearCollabHandlers } from "@editor/core/collab";
 import { api, streamTurn } from "@app/api";
+import { asFormat } from "@model/analytics";
+import { capture, pauseReplay, resumeReplay } from "@ui/analytics";
 import { closeCollab, openCollab } from "@app/stores/collab";
 import {
     closeComments,
@@ -55,7 +60,7 @@ import { openShare } from "@app/stores/share";
 import { can, exportFormatsOf, loadFeatures } from "@app/stores/features";
 import { renameArtifactById } from "@app/stores/library";
 import { recordVisit } from "@app/stores/search";
-import { loadBilling } from "@app/stores/billing";
+import { billing, loadBilling } from "@app/stores/billing";
 import { setEditorActive } from "@app/stores/chat";
 import { appTheme, loadCustomThemes, setFaviconOverride, openThemeEditor } from "@app/stores/theme";
 import { flushAutosave, installAutosave, noteSavedContent } from "@app/stores/save";
@@ -105,6 +110,11 @@ export const EditorView: Component = () => {
             // the room is per artifact too; a gap it cannot replay reloads the window from here
             openCollab(id, artifact.seq ?? 0, () => void loadId(id));
             recordVisit(id); // every open path lands here, so this is the one read-clock write
+            capture("artifact_opened", {
+                format: asFormat(artifact.shell.format),
+                section_count: artifact.total,
+                access: artifact.access ?? "edit",
+            });
             // "view in app theme" → preview without touching the saved theme
             if (searchParams.as === "app") startThemePreview(appTheme());
             setReady(true);
@@ -123,6 +133,8 @@ export const EditorView: Component = () => {
         onHome(() => flushAutosave().then(() => navigate("/")));
         onThemePicker(() => openThemeEditor());
         onMediaPicker((req) => openMediaPicker(req));
+        onAdoptLink(async (url) => (await api.adoptLink(url)).url);
+        onArtifactCredits(async (id) => (await api.artifactCredits(id)).credits);
         onPersistTitle((id, title) => renameArtifactById(id, title));
         onUpgrade(() => navigate("/pricing"));
         onShare(() => {
@@ -136,8 +148,16 @@ export const EditorView: Component = () => {
         // unmetered, so no meter refresh
         onSuggestSections((content) => api.suggestSections(content));
         onReviseElement(async (content, sectionId, element, instruction) => {
+            const before = billing()?.credits.balance ?? 0;
             const el = await api.reviseElement(content, sectionId, element, instruction);
-            void loadBilling();
+            noteAiAction();
+            await loadBilling();
+            // The authoritative charge is on ai_action_completed from the server; this is what the
+            // balance visibly moved by, which is the number the user was shown.
+            capture("element_revised_with_ai", {
+                element_type: element.type,
+                credits_charged: Math.max(0, before - (billing()?.credits.balance ?? before)),
+            });
             return el;
         });
         onTextAssist(async (r) => {
@@ -150,7 +170,11 @@ export const EditorView: Component = () => {
         onCommentResolve((id, resolved) => resolveComment(id, resolved));
         onCommentEdit((id, body) => editComment(id, body));
         onCommentDelete((id) => deleteComment(id));
+        // Replay stays masked everywhere; here it stops entirely, because the section stack repaints
+        // on every layout change and the recording is all noise.
+        pauseReplay();
         onCleanup(() => {
+            resumeReplay();
             closeComments();
             clearCommentHandlers();
             closeCollab();

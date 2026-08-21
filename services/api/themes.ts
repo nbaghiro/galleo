@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { BAD_BODY, readJson, requireFeature } from "@services/utils/http";
+import { capture } from "@services/utils/analytics";
 import { currentWorkspace } from "@services/core/accounts";
 import { createTheme, deleteTheme, listThemes, updateTheme } from "@services/core/themes";
 import { requireUser, requireWorkspace, type WorkspaceEnv } from "./middleware";
@@ -55,7 +56,9 @@ themes.post("/themes", requireWorkspace, async (c) => {
     const body = await readJson(c, zThemeInput);
     if (!body) return c.json(BAD_BODY, 400);
     if (!body.tokens) return c.json({ error: "tokens required" }, 400);
-    return c.json({ theme: await createTheme(ws.id, { ...body, tokens: body.tokens }) });
+    const theme = await createTheme(ws.id, { ...body, tokens: body.tokens });
+    capture({ userId: c.get("user").id, workspaceId: ws.id }, "custom_theme_created", {});
+    return c.json({ theme });
 });
 
 themes.patch("/themes/:id", requireWorkspace, async (c) => {
@@ -67,5 +70,6 @@ themes.patch("/themes/:id", requireWorkspace, async (c) => {
 
 themes.delete("/themes/:id", requireWorkspace, async (c) => {
     await deleteTheme(c.get("ws").id, c.req.param("id"));
+    capture({ userId: c.get("user").id, workspaceId: c.get("ws").id }, "custom_theme_deleted", {});
     return c.json({ ok: true });
 });

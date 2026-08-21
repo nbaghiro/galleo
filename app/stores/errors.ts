@@ -1,5 +1,7 @@
 import { createSignal } from "solid-js";
 import { ApiError } from "@app/api";
+import { areaFor } from "@model/analytics";
+import { capture } from "@ui/analytics";
 
 // One place every failed AI action reports to. The server passes the provider's own message through,
 // which is sometimes plain ("no credits remaining") and sometimes jargon ("Grammar compilation timed
@@ -91,5 +93,12 @@ export function describeError(e: unknown, doing: string): AppError | null {
 
 export function reportError(e: unknown, doing: string): void {
     const described = describeError(e, doing);
-    if (described) setAppError(described);
+    if (!described) return;
+    setAppError(described);
+    // `doing` is our own wording for the action, not the provider's message, so no content travels.
+    capture("error_shown", {
+        code: doing,
+        http_status: e instanceof ApiError ? e.status : 0,
+        surface: areaFor(typeof window === "undefined" ? "/" : window.location.pathname),
+    });
 }

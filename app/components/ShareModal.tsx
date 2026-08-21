@@ -12,6 +12,8 @@ import { closeShare, shareRequest, type ShareRequest } from "@app/stores/share";
 import { flushAutosave } from "@app/stores/save";
 import { artifacts, setArtifactAccessLocal } from "@app/stores/library";
 import type { ArtifactAccess } from "@model/artifact";
+import { asFormat } from "@model/analytics";
+import { capture } from "@ui/analytics";
 import { Dropdown } from "@ui/select";
 import { can, loadFeatures } from "@app/stores/features";
 import { UpgradeNotice } from "@app/components/Upgrade";
@@ -109,6 +111,14 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
         try {
             await flushAutosave(); // push edits still in the autosave debounce before the first view
             const { link } = await api.createLink(props.req.artifactId, body);
+            capture("link_created", {
+                visibility: body.visibility,
+                has_password: !!body.password,
+                recipient_count: body.recipients?.length ?? 0,
+                artifact_format: asFormat(
+                    artifacts().find((a) => a.id === props.req.artifactId)?.formatId,
+                ),
+            });
             setLinks([link, ...links()]);
             setCreating(false);
             setExpanded(null);

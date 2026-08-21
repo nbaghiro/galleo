@@ -1,16 +1,39 @@
 import { createSignal } from "solid-js";
 import type { ArtifactAccess, PublishPolicy, WorkspaceState } from "@app/api";
 import { api } from "@app/api";
+import { identifyUser, register, setWorkspace } from "@ui/analytics";
+import { user } from "./auth";
 
 const [workspaceState, setWorkspaceState] = createSignal<WorkspaceState | null>(null);
 export { workspaceState };
 
 export async function loadWorkspace(): Promise<void> {
     try {
-        setWorkspaceState(await api.getWorkspace());
+        const state = await api.getWorkspace();
+        setWorkspaceState(state);
+        report(state);
     } catch {
         // signed out / no workspace — callers treat null as unknown
     }
+}
+
+// The workspace is the billing entity and the credit pool, so it is the unit almost every business
+// question is really about. Re-reported on every load, since a role or a seat count can move.
+function report(state: WorkspaceState): void {
+    const { workspace, role, members, memberships } = state;
+    register({ workspace_id: workspace.id, plan_id: workspace.plan, workspace_role: role });
+    setWorkspace(workspace.id, {
+        plan_id: workspace.plan,
+        seats_total: workspace.seats,
+        seats_used: members.length,
+        member_count: members.length,
+    });
+    const me = user();
+    if (me)
+        identifyUser(me.id, {
+            workspaces_owned: memberships.filter((m) => m.role === "owner").length,
+            workspaces_member_of: memberships.length,
+        });
 }
 
 export async function inviteMember(
@@ -65,6 +88,8 @@ export async function removeMember(userId: string): Promise<void> {
 
 // Full reload: every store (library, billing, themes…) must re-fetch under the new workspace.
 export async function switchWorkspace(workspaceId: string): Promise<void> {
+    // workspace_switched is emitted server-side: a Membership carries no plan, so the client cannot
+    // name the plan it is switching to, and the reload below would race the send anyway.
     await api.switchWorkspace(workspaceId);
     window.location.href = "/";
 }

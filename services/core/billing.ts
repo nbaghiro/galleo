@@ -16,6 +16,7 @@ import {
 } from "@model/billing";
 import { db } from "@services/db/client";
 import { warn } from "@services/utils/env";
+import { capture, identifyWorkspace } from "@services/utils/analytics";
 import { schema } from "@services/db/schema";
 import { appUrl } from "@services/utils/env";
 import type { WorkspaceRow } from "./accounts";
@@ -270,6 +271,12 @@ export async function checkoutUrl(
     const price = priceIdFor(want.plan, interval);
     if (!price) return { error: "invalid-plan" };
     const p = planFor(want.plan);
+    capture(payer(ws), "checkout_started", {
+        target_plan: want.plan,
+        interval,
+        seats: want.seats ?? 1,
+        addons: want.seats && want.seats > 1 ? ["seat"] : [],
+    });
     const customerId = await ensureCustomer(ws, email);
     const session = await stripe().checkout.sessions.create({
         mode: "subscription",
@@ -450,6 +457,11 @@ export async function changePlan(
             .update(schema.workspaces)
             .set({ scheduledChange, cancelAtPeriodEnd: false })
             .where(eq(schema.workspaces.id, ws.id));
+        capture(payer(ws), "downgrade_scheduled", {
+            from_plan: curPlan,
+            to_plan: targetPlan,
+            effective_at: scheduledChange.at,
+        });
         return { effect: "scheduled", at: scheduledChange.at };
     }
 
@@ -471,6 +483,7 @@ export async function changePlan(
 
 // Resume clears both parking lots: the Free cancellation and any scheduled downgrade.
 export async function resumeSubscription(ws: WorkspaceRow, subscriptionId: string): Promise<void> {
+    capture(payer(ws), "downgrade_cancelled", { plan_id: planFor(ws.plan).id });
     if (ws.scheduledChange) {
         const sub = await stripe().subscriptions.retrieve(subscriptionId);
         if (sub.schedule && typeof sub.schedule === "string")
@@ -631,6 +644,25 @@ const invCustomer = (inv: Stripe.Invoice): string | null =>
     typeof inv.customer === "string" ? inv.customer : (inv.customer?.id ?? null);
 
 // Sub events guard on the workspace whose CURRENT sub this is, so a stale update can't resurrect a plan.
+
+// What the subscription bills per month, from Stripe's own amounts rather than our catalog, so a
+// coupon or a legacy price reports what it really is. Annual is amortised.
+function mrrOf(sub: Stripe.Subscription): number {
+    let cents = 0;
+    for (const item of sub.items.data) {
+        const amount = item.price.unit_amount ?? 0;
+        const qty = item.quantity ?? 1;
+        cents += item.price.recurring?.interval === "year" ? (amount * qty) / 12 : amount * qty;
+    }
+    return Math.round(cents) / 100;
+}
+
+// A plan change has no acting person: it arrives by webhook. The owner is who pays, so it is theirs.
+const payer = (ws: { id: string; ownerId: string }) => ({
+    userId: ws.ownerId,
+    workspaceId: ws.id,
+});
+
 async function handleEvent(
     event: Stripe.Event,
     checkoutSub: Stripe.Subscription | null,
@@ -651,12 +683,18 @@ async function handleEvent(
                 .from(schema.workspaces)
                 .where(eq(schema.workspaces.id, wsId))
                 .for("update");
-            if (ws)
+            if (ws) {
                 await grantOnce(tx, ws, {
                     key: s.id,
                     delta: pack.credits,
                     reason: `topup:${pack.id}`,
                 });
+                capture(payer(ws), "topup_purchased", {
+                    pack_id: pack.id,
+                    credits: pack.credits,
+                    usd: (s.amount_total ?? 0) / 100,
+                });
+            }
             return;
         }
         if (!wsId || !checkoutSub) return;
@@ -687,6 +725,15 @@ async function handleEvent(
                 creditsResetAt: monthOut(),
                 scheduledChange: null,
             },
+        });
+        // The group's own traits, not just the event: a plan change arrives with no client in the
+        // request, so nothing else would refresh them until someone next opened the app.
+        identifyWorkspace(before.id, { plan_id: plan, seats_total: seatsOf(sub) });
+        capture(payer(before), "checkout_completed", {
+            plan_id: plan,
+            interval: intervalForPrice(sub.items.data[0]?.price.id) ?? "month",
+            seats: seatsOf(sub),
+            mrr_usd: mrrOf(sub),
         });
     } else if (
         event.type === "customer.subscription.updated" ||
@@ -722,6 +769,16 @@ async function handleEvent(
                     scheduledChange: null,
                 })
                 .where(eq(schema.workspaces.id, ws.id));
+            const [count] = await tx
+                .select({ n: sql<string>`count(*)` })
+                .from(schema.artifacts)
+                .where(eq(schema.artifacts.workspaceId, ws.id));
+            identifyWorkspace(ws.id, { plan_id: "free", seats_total: 1 });
+            capture(payer(ws), "plan_cancelled", {
+                plan_id: planFor(ws.plan).id,
+                days_active: Math.round((Date.now() - ws.createdAt.getTime()) / (24 * 3_600_000)),
+                artifacts_created: Number(count?.n ?? 0),
+            });
             return;
         }
         const plan = planForPrice(sub.items.data[0]?.price.id);
@@ -740,6 +797,34 @@ async function handleEvent(
                 ...(scheduleDone ? { scheduledChange: null } : {}),
             })
             .where(eq(schema.workspaces.id, ws.id));
+        const from = planFor(ws.plan).id;
+        const to = planFor(plan ?? ws.plan).id;
+        identifyWorkspace(ws.id, { plan_id: to, seats_total: seatsOf(sub) });
+        const toInterval = intervalForPrice(sub.items.data[0]?.price.id) ?? "month";
+        if (from !== to)
+            capture(payer(ws), "plan_changed", {
+                from_plan: from,
+                to_plan: to,
+                // The row does not store the interval, so the side we are leaving is only knowable
+                // when a scheduled change recorded it.
+                from_interval: sc?.interval ?? toInterval,
+                to_interval: toInterval,
+                direction: RANK[to] > RANK[from] ? "upgrade" : "downgrade",
+            });
+        else if (sc?.interval && sc.interval !== toInterval)
+            capture(payer(ws), "plan_changed", {
+                from_plan: from,
+                to_plan: to,
+                from_interval: sc.interval,
+                to_interval: toInterval,
+                direction: "interval",
+            });
+        if (seatsOf(sub) !== ws.seats)
+            capture(payer(ws), "seats_changed", {
+                from: ws.seats,
+                to: seatsOf(sub),
+                direction: seatsOf(sub) > ws.seats ? "up" : "down",
+            });
     } else if (event.type === "invoice.payment_failed") {
         const customerId = invCustomer(event.data.object as Stripe.Invoice);
         const ws = customerId ? await workspaceByCustomer(tx, customerId) : null;

@@ -3,9 +3,12 @@ import type { CostUnit, UnitRates, Usage } from "@model/credits";
 import type { MeterParams, ToolId } from "@model/tools";
 import type { PlanBearer } from "@model/billing";
 import type { WorkspaceRole } from "@model/workspace";
-import { costOf, creditsForUsd, unitMultipliers } from "@model/credits";
-import { reserveCost, sectionsForLength, usageFor } from "@model/tools";
-import { featuresFor } from "@model/billing";
+import { costOf, creditsForUsd, taskForUsage, unitMultipliers } from "@model/credits";
+import { ACTION_FOR, reserveCost, sectionsForLength, TOOLS, usageFor } from "@model/tools";
+export { ACTION_FOR };
+import { canTopUp, canUpgradeFrom, featuresFor, planFor } from "@model/billing";
+import type { AiFailureReason } from "@model/analytics";
+import { capture } from "@services/utils/analytics";
 import { COST_MULTIPLIERS, modelFor, type ModelOverrides } from "./models";
 import type { WorkspaceCreditFields } from "./ledger";
 import { chargeCredits, settleCredits, spendThisCycle } from "./ledger";
@@ -15,16 +18,6 @@ import { usdOf, withMeter } from "./ai/meter";
 // AI spend policy: what a turn or a tool costs, and the reserve-then-settle protocol around it.
 // The balance mechanics underneath are core/ledger.ts; the measurement it settles against is
 // core/ai/meter.ts.
-
-// Which priced tool each turn kind bills as.
-export const ACTION_FOR: Record<TurnKind, ToolId> = {
-    generate: "generate-artifact",
-    edit: "revise-artifact",
-    section: "add-section",
-    chat: "ask-assistant",
-    plan: "plan-outline",
-    build: "add-section",
-};
 
 // Others 501 before any charge (blocking here avoids reserving credits for an unbuildable kind).
 export const IMPLEMENTED: readonly TurnKind[] = ["generate", "section", "chat", "plan", "build"];
@@ -65,13 +58,121 @@ type Reservation =
           settle: <T>(run: (produced: Produced, meter: Meter) => Promise<T>) => Promise<T>;
       };
 
+// Who ran what, so the three ai_action_* events can be attributed without threading a context down.
+interface Runner {
+    ws: WorkspaceCreditFields;
+    userId: string;
+    tool: ToolId;
+}
+
+// The model that did most of the writing. A turn can touch several, and output tokens are what the
+// work actually was, so the biggest producer is the one a latency or failure belongs to.
+const dominantModel = (uses: readonly TokenUse[]): string | undefined =>
+    uses.reduce<TokenUse | undefined>((a, b) => (!a || b.output > a.output ? b : a), undefined)
+        ?.modelId;
+
+// Provider wording is all we get back, so the reason is read off it. Order matters: first match wins.
+const REASONS: [RegExp, AiFailureReason, boolean][] = [
+    [/abort|cancell?ed/i, "aborted", false],
+    [/rate.?limit|429|overloaded|quota exceeded/i, "rate_limited", true],
+    [/timed out|timeout|ETIMEDOUT|deadline/i, "timeout", true],
+    [/did not match schema|no object generated|grammar compilation/i, "invalid_output", true],
+    [/no credits|insufficient[_ ]quota|payment/i, "no_credits", false],
+];
+
+const failure = (e: unknown): [AiFailureReason, boolean] => {
+    const message = e instanceof Error ? e.message : String(e);
+    const hit = REASONS.find(([re]) => re.test(message));
+    return hit ? [hit[1], hit[2]] : ["provider_error", true];
+};
+
+const context = (r: Runner) => ({ userId: r.userId, workspaceId: r.ws.id });
+
+// One of the two places the product tells a user no. A member over their own ceiling is a different
+// wall from an empty pool: neither remedy applies, because the pool may be full and only an admin
+// can raise the cap, so `offer` says whether there is anything to sell.
+function exhausted(r: Runner, remaining: number, offer: boolean): void {
+    const plan = planFor(r.ws.plan).id;
+    capture(context(r), "credits_exhausted", {
+        plan_id: plan,
+        blocked_tool_id: r.tool,
+        upgrade_offered: offer && canUpgradeFrom(plan),
+        topup_offered: offer && canTopUp(plan),
+        credits_remaining: remaining,
+    });
+}
+
+/**
+ * Wrap one metered run so it reports start, completion and failure.
+ *
+ * Every priced action passes through here, including the free ones, so a tool added later is
+ * measured the moment it runs rather than when somebody remembers to instrument it. `charged`
+ * reads the settled cost after the fact, since a run only owes what it really did.
+ */
+async function measured<T>(
+    r: Runner,
+    estimate: number,
+    usage: Usage,
+    body: (meter: Meter) => Promise<T>,
+    meter: Meter,
+    charged: () => number,
+): Promise<T> {
+    const task = taskForUsage(usage);
+    capture(context(r), "ai_action_started", {
+        tool_id: r.tool,
+        tool_surface: TOOLS[r.tool].surfaces[0] ?? "internal",
+        estimated_credits: estimate,
+        ...(task ? { task } : {}),
+    });
+    const startedAt = Date.now();
+    try {
+        const result = await body(meter);
+        const tokens = meter.uses.reduce(
+            (a, u) => ({ input: a.input + u.input, output: a.output + u.output }),
+            { input: 0, output: 0 },
+        );
+        capture(context(r), "ai_action_completed", {
+            tool_id: r.tool,
+            credits_charged: charged(),
+            ms: Date.now() - startedAt,
+            input_tokens: tokens.input,
+            output_tokens: tokens.output,
+            cached: false,
+            ...(task ? { task } : {}),
+            ...(dominantModel(meter.uses) ? { model_id: dominantModel(meter.uses) } : {}),
+        });
+        return result;
+    } catch (e) {
+        const [reason, retryable] = failure(e);
+        capture(context(r), "ai_action_failed", {
+            tool_id: r.tool,
+            ms: Date.now() - startedAt,
+            reason,
+            retryable,
+            ...(task ? { task } : {}),
+            ...(dominantModel(meter.uses) ? { model_id: dominantModel(meter.uses) } : {}),
+        });
+        throw e;
+    }
+}
+
 // A free tool never reaches the ledger: no row to write, no balance to lock, and nothing to settle
 // against, so `owed` must not run either — it would bill the real tokens of a call we chose to give
-// away.
-const FREE: Reservation = {
+// away. It is still measured, because a free action that fails is a reliability question.
+const free = (r: Runner): Reservation => ({
     ok: true,
-    settle: (run) => run(() => {}, { uses: [], extraUsd: 0, parts: new Map(), trace: false }),
-};
+    settle: (run) => {
+        const meter: Meter = { uses: [], extraUsd: 0, parts: new Map(), trace: false };
+        return measured(
+            r,
+            0,
+            {},
+            () => run(() => {}, meter),
+            meter,
+            () => 0,
+        );
+    },
+});
 
 /**
  * Hold the estimated cost of `tool`, then settle it against real usage.
@@ -93,8 +194,10 @@ export async function reserve(
     trace = false,
     role: WorkspaceRole = "member",
 ): Promise<Reservation> {
+    const runner: Runner = { ws, userId, tool };
+    const usage = usageFor(tool, size);
     const cost = reserveCost(tool, size, rates);
-    if (cost === 0) return FREE;
+    if (cost === 0) return free(runner);
     // The per-member ceiling, checked before the balance: the pool is shared and the owner is the
     // only one who can refill it, so one member cannot spend the whole month. Admins run the
     // workspace and are not capped. Checked against the estimate, so a run that would cross the cap
@@ -105,11 +208,17 @@ export async function reserve(
             { id: ws.id, creditsStartedAt: ws.creditsStartedAt },
             userId,
         );
-        if (spent + cost > cap)
-            return { ok: false, remaining: Math.max(0, cap - spent), capped: cap };
+        if (spent + cost > cap) {
+            const remaining = Math.max(0, cap - spent);
+            exhausted(runner, remaining, false);
+            return { ok: false, remaining, capped: cap };
+        }
     }
-    const held = await chargeCredits(ws, cost, tool, userId, usageFor(tool, size));
-    if (!held.ok || !held.entryId) return { ok: false, remaining: held.remaining };
+    const held = await chargeCredits(ws, cost, tool, userId, usage);
+    if (!held.ok || !held.entryId) {
+        exhausted(runner, held.remaining, true);
+        return { ok: false, remaining: held.remaining };
+    }
     const entryId = held.entryId;
     return {
         ok: true,
@@ -119,14 +228,29 @@ export async function reserve(
                 for (const [unit, n] of Object.entries(units) as [CostUnit, number][])
                     made[unit] = (made[unit] ?? 0) + n;
             };
-            return withMeter(async (meter) => {
-                try {
-                    return await run(produced, meter);
-                } finally {
-                    const delta = owed(meter.uses, made, meter.extraUsd) - cost;
-                    await settleCredits(ws, entryId, delta);
-                }
-            }, trace);
+            // What the run really owed, read after the settle rather than recomputed, so analytics
+            // and the ledger cannot disagree and the ledger is the one customers see.
+            let settled = cost;
+            return withMeter(
+                (meter) =>
+                    measured(
+                        runner,
+                        cost,
+                        usage,
+                        async () => {
+                            try {
+                                return await run(produced, meter);
+                            } finally {
+                                const delta = owed(meter.uses, made, meter.extraUsd) - cost;
+                                settled = cost + delta;
+                                await settleCredits(ws, entryId, delta);
+                            }
+                        },
+                        meter,
+                        () => settled,
+                    ),
+                trace,
+            );
         },
     };
 }

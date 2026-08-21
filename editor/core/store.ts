@@ -11,10 +11,18 @@ import type {
 } from "@model/artifact";
 import type { PlanLimits } from "@model/billing";
 import type { TurnEvent, TurnRequest } from "@model/ai";
-import type { IconPick, MediaItem, MediaKind } from "@model/media";
+import type { IconPick, MediaCredit, MediaItem, MediaKind } from "@model/media";
 import { createSignal } from "solid-js";
 import type { Theme, Tokens } from "@themes";
-import { duplicateSection, insertSection, moveSection, removeSection } from "@elements/ops";
+import {
+    childrenOf,
+    duplicateSection,
+    getElementAt,
+    insertSection,
+    moveSection,
+    removeSection,
+    setArtifactFormat,
+} from "@elements/ops";
 import {
     applySectionOps,
     contentWithElementIds,
@@ -26,7 +34,10 @@ import {
     targetsEqual,
 } from "@model/artifact";
 import { isDesktop } from "@ui/viewport";
-import { resolveTheme } from "@themes";
+import { capture } from "@ui/analytics";
+import { asFormat, charsBucket, type ElementCategory } from "@model/analytics";
+import { getElement } from "@elements/spec";
+import { resolveTheme, THEMES } from "@themes";
 
 const EMPTY_ARTIFACT: ArtifactContent = {
     format: "deck",
@@ -205,6 +216,7 @@ function record(
     if (!forward.length && !opts?.title) return; // nothing changed by value; keep the painted objects
     const key = opts?.coalesce;
     const folding = !!key && key === coalesceKey;
+    if (!folding) editCount += 1;
     pushEntry(
         {
             forward,
@@ -254,6 +266,11 @@ export function keepPreviewedTheme(): void {
     setPreviewingTheme(false);
     if (prevTheme !== null && prevTheme !== content().theme) {
         const kept = content();
+        capture("theme_changed", {
+            theme_id: kept.theme,
+            from_theme_id: prevTheme,
+            is_custom: !THEMES[kept.theme],
+        });
         record({ ...kept, theme: prevTheme }, kept);
         return;
     }
@@ -361,10 +378,32 @@ export function onEditSession(enter: EnterEdit, leave: LeaveEdit): void {
     leaveEditHandler = leave;
 }
 
+// Characters under one element, for a bucket. The text itself never leaves the browser.
+function textLength(el: ElementInstance | undefined): number {
+    if (!el) return 0;
+    const own =
+        typeof (el.data as { text?: unknown }).text === "string"
+            ? (el.data as { text: string }).text.length
+            : 0;
+    return (childrenOf(el) ?? []).reduce((n, k) => n + textLength(k), own);
+}
+
 export function stopEditing(): void {
     const addr = editing();
     // one entry per session: the keystrokes updated the tree live, this is where they become an edit
-    if (editBefore && editBefore !== editor.artifact) record(editBefore, editor.artifact);
+    if (editBefore && editBefore !== editor.artifact) {
+        record(editBefore, editor.artifact);
+        // Debounced by construction: a whole typing session is one event, not one per keystroke.
+        if (addr) {
+            const el = getElementAt(editor.artifact, addr);
+            capture("text_edited", {
+                element_type: el?.type ?? "",
+                chars_delta_bucket: charsBucket(
+                    textLength(el) - textLength(getElementAt(editBefore, addr)),
+                ),
+            });
+        }
+    }
     editBefore = null;
     editingElementId = undefined;
     setEditing(null);
@@ -494,6 +533,25 @@ const unchanged = (a: ArtifactContent, b: ArtifactContent): boolean =>
 
 // Deletion wins: if a remote batch removed the element or section someone is typing in, their
 // session ends rather than writing into a hole.
+// The session counters. Reset when an artifact loads, read when it is torn down: this is the only
+// place a session that produced no edits at all is visible. Edits are counted inside `record`, which
+// is where a mutation actually becomes one: it has already dropped no-op commits and folded a
+// coalesced drag into a single entry, so the count is edits rather than callbacks.
+let sessionStartedAt = 0;
+let editCount = 0;
+let aiActionCount = 0;
+let savedCleanly = true;
+
+/** An AI action also produces an edit; `record` counts that half. */
+export function noteAiAction(): void {
+    aiActionCount += 1;
+}
+
+/** The autosave loop's verdict, which is the only place that knows whether the work survived. */
+export function noteSaveState(ok: boolean): void {
+    savedCleanly = ok;
+}
+
 let sessionEndedHandler: (() => void) | null = null;
 export function onEditSessionEnded(fn: () => void): void {
     sessionEndedHandler = fn;
@@ -518,6 +576,19 @@ function endSessionIfGone(): void {
     editingElementId = undefined;
     setEditing(null);
     setSelection(null);
+    if (sessionStartedAt) {
+        // Depends on a page-hide handler and will under-report, so no funnel should use it as a
+        // denominator; it is still the only view of a session that was only a glance.
+        capture("editor_session_ended", {
+            ms: Date.now() - sessionStartedAt,
+            format: asFormat(editor.artifact.format),
+            section_count: editor.artifact.sections.length,
+            edit_count: editCount,
+            ai_action_count: aiActionCount,
+            saved: savedCleanly,
+        });
+        sessionStartedAt = 0;
+    }
     sessionEndedHandler?.();
 }
 
@@ -636,6 +707,26 @@ export function requestMediaPicker(req: MediaPickerRequest): void {
     mediaPickerHandler?.(req);
 }
 
+// app registers the credits reader (GET /artifacts/:id/credits). Provenance lives on the asset row,
+// so the tree cannot answer this and the editor has to ask.
+let creditsReader: ((artifactId: string) => Promise<MediaCredit[]>) | null = null;
+export function onArtifactCredits(fn: (artifactId: string) => Promise<MediaCredit[]>): void {
+    creditsReader = fn;
+}
+export function artifactCredits(artifactId: string): Promise<MediaCredit[]> {
+    return creditsReader?.(artifactId) ?? Promise.resolve([]);
+}
+
+// app registers the url adopter (POST /media/link). A url typed into an inspector becomes an asset
+// like any other picked media, so the workspace library stays complete.
+let linkAdopter: ((url: string) => Promise<string>) | null = null;
+export function onAdoptLink(fn: (url: string) => Promise<string>): void {
+    linkAdopter = fn;
+}
+export function adoptLink(url: string): Promise<string> {
+    return linkAdopter?.(url) ?? Promise.resolve(url);
+}
+
 // app registers the AI turn transport (POST /ai/turn, SSE); injected so the editor stays app-free
 export type SectionStreamer = (
     request: TurnRequest,
@@ -694,6 +785,10 @@ export function getTextAssist(): TextAssistant | null {
 
 // no editSeq bump, so loading never autosaves; the canvas redraws off currentArtifactId
 export function loadArtifactContent(id: string, art: ArtifactContent): void {
+    sessionStartedAt = Date.now();
+    editCount = 0;
+    aiActionCount = 0;
+    savedCleanly = true;
     past.length = 0;
     future.length = 0;
     coalesceKey = null;
@@ -807,21 +902,87 @@ function newSectionId(): string {
     return `s-${crypto.randomUUID().slice(0, 8)}`;
 }
 
+const CATEGORIES: readonly ElementCategory[] = [
+    "text",
+    "media",
+    "table",
+    "composite",
+    "basic",
+    "chart",
+    "diagram",
+];
+
+const isCategory = (v: string): v is ElementCategory => CATEGORIES.includes(v as ElementCategory);
+
+// A spec's category is a free string; anything outside the palette's seven reads as basic.
+const categoryOf = (type: string): ElementCategory => {
+    const c = getElement(type)?.category ?? "";
+    return isCategory(c) ? c : "basic";
+};
+
+/**
+ * Every section that lands reports here, whichever surface put it there.
+ *
+ * `how` covers the three the taxonomy names. Not every one has a surface yet: the AI path reports
+ * from `core/ai.ts`, and there is no template-insert in the editor to report from, so that value
+ * waits for the feature rather than the feature waiting for instrumentation.
+ */
+export function noteSectionAdded(how: "button" | "ai" | "template", atIndex: number): void {
+    capture("section_added", {
+        how,
+        at_index: atIndex,
+        section_count: editor.artifact.sections.length,
+    });
+}
+
+/** Every element that lands in the tree reports here, whichever gesture put it there. */
+export function noteElementAdded(type: string, how: "palette" | "drag" | "paste" | "ai"): void {
+    capture("element_added", { element_type: type, category: categoryOf(type), how });
+}
+
+export function noteElementResized(type: string, kind: "height" | "aspect"): void {
+    capture("element_resized", { element_type: type, kind });
+}
+
+/** `same_section` separates rearranging one section from moving work between them. */
+export function noteElementMoved(type: string, sameSection: boolean): void {
+    capture("element_moved", { element_type: type, same_section: sameSection });
+}
+
+export function noteElementRemoved(type: string): void {
+    capture("element_removed", { element_type: type, category: categoryOf(type) });
+}
+
+/** One artifact rendered three ways is the product's premise, so the switch is worth counting. */
+export function switchFormat(to: string): void {
+    const from = editor.artifact.format;
+    if (from === to) return;
+    commit(setArtifactFormat(editor.artifact, to));
+    capture("format_switched", {
+        from: asFormat(from),
+        to: asFormat(to),
+        section_count: editor.artifact.sections.length,
+    });
+}
+
 export function addSectionAfter(afterId: string | null): void {
     const sec: Section = { id: newSectionId(), root: emptyRegion() };
     const at = afterId
         ? editor.artifact.sections.findIndex((s) => s.id === afterId) + 1
         : editor.artifact.sections.length;
     commit(insertSection(editor.artifact, at, sec));
+    noteSectionAdded("button", at);
     setSelection({ kind: "section", section: sec.id });
 }
 
 export function duplicateSectionAt(id: string): void {
     commit(duplicateSection(editor.artifact, id, newSectionId()));
+    capture("section_duplicated", {});
 }
 
 export function removeSectionAt(id: string): void {
     commit(removeSection(editor.artifact, id));
+    capture("section_removed", { section_count_after: editor.artifact.sections.length });
     setSelection(null);
 }
 
@@ -831,7 +992,10 @@ export function moveSectionBy(id: string, delta: number): void {
     if (i < 0) return;
     // skip a clamped no-op at the ends so it doesn't push a spurious undo entry
     const j = Math.max(0, Math.min(secs.length - 1, i + delta));
-    if (j !== i) commit(moveSection(editor.artifact, id, delta));
+    if (j !== i) {
+        commit(moveSection(editor.artifact, id, delta));
+        capture("section_reordered", { from_index: i, to_index: j });
+    }
 }
 
 // index is 0..n in the pre-move ordering (drag-to-reorder)
@@ -839,21 +1003,42 @@ export function moveSectionTo(id: string, index: number): void {
     const i = editor.artifact.sections.findIndex((s) => s.id === id);
     if (i < 0) return;
     const delta = (index > i ? index - 1 : index) - i;
-    if (delta !== 0) commit(moveSection(editor.artifact, id, delta));
+    if (delta !== 0) {
+        commit(moveSection(editor.artifact, id, delta));
+        capture("section_reordered", { from_index: i, to_index: i + delta });
+    }
 }
 
 export const [presenting, setPresenting] = createSignal(false);
 export const [slideIndex, setSlideIndex] = createSignal(0);
 
+// Presenting is an output, so it counts toward activation the same way an export does.
+let presentStartedAt = 0;
+let slidesAdvanced = 0;
+
 export function present(): void {
     setSlideIndex(0);
+    presentStartedAt = Date.now();
+    slidesAdvanced = 0;
     setPresenting(true);
 }
 export function exitPresent(): void {
+    if (presentStartedAt)
+        capture("presented", {
+            artifact_format: asFormat(editor.artifact.format),
+            section_count: editor.artifact.sections.length,
+            slides_advanced: slidesAdvanced,
+            ms: Date.now() - presentStartedAt,
+        });
+    presentStartedAt = 0;
     setPresenting(false);
 }
 export function nextSlide(): void {
-    setSlideIndex((i) => Math.min(editor.artifact.sections.length - 1, i + 1));
+    setSlideIndex((i) => {
+        const next = Math.min(editor.artifact.sections.length - 1, i + 1);
+        if (next !== i) slidesAdvanced += 1;
+        return next;
+    });
 }
 export function prevSlide(): void {
     setSlideIndex((i) => Math.max(0, i - 1));
@@ -863,6 +1048,21 @@ export function prevSlide(): void {
 export const [leftOpen, setLeftOpen] = createSignal(isDesktop());
 // the open flyout: a category, "search", "inspector", or null
 export const [rightTab, setRightTab] = createSignal<string | null>(null);
+
+/**
+ * A drag closes the flyout so it stops covering the drop targets, and the selection the drop makes
+ * must not spring it back open on top of what was just placed. The flag is consumed by the
+ * auto-open effect on the very next selection change, so it suppresses exactly one.
+ */
+let droppedSelection = false;
+export const noteDropSelection = (): void => {
+    droppedSelection = true;
+};
+export const takeDropSelection = (): boolean => {
+    const was = droppedSelection;
+    droppedSelection = false;
+    return was;
+};
 
 export function jumpToSection(index: number): void {
     const el = canvasEl();

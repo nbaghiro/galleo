@@ -1,3 +1,4 @@
+import { childrenOf } from "@elements/ops";
 import type { ArtifactContent, Section, GenMeta, ElementInstance } from "@model/artifact";
 import type {
     Beat,
@@ -20,6 +21,9 @@ import { bindChatTarget } from "./chat";
 import { appTheme } from "./theme";
 import { preferredFormat } from "@app/stores/onboarding";
 import { reportError } from "./errors";
+import { asBeatRole, asStudioEntry } from "@model/analytics";
+import { capture } from "@ui/analytics";
+import { checklistVisible, onboardingNeeded, sinceStart, stepDone } from "./onboarding";
 import {
     attachArtifact,
     beginRun,
@@ -98,6 +102,11 @@ interface SessionState {
 
 const emptyBrief = (): GenerateInput => ({ prompt: "", surface: "deck", theme: "studio" });
 
+// Asked of the registry rather than read off `data.children`: a grid keeps cells and a diagram keeps
+// nodes, so the raw walk would undercount exactly the sections that have the most in them.
+const countElements = (el: ElementInstance | undefined): number =>
+    el ? 1 + (childrenOf(el) ?? []).reduce((n, k) => n + countElements(k), 0) : 0;
+
 const clip = (s: string, n: number): string =>
     s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s;
 
@@ -142,6 +151,24 @@ const initial = (): SessionState => ({
 
 export const [gen, setGen] = createStore<SessionState>(initial());
 
+// What the funnel needs that the session state does not otherwise keep: when the run started, and
+// the shape it took. Credits here are the client's own committed estimate, which is what the user
+// was shown; the authoritative charge rides ai_action_completed from the server.
+const run = { startedAt: 0, planStartedAt: 0, steers: 0, paused: false, outlineEdited: false };
+
+const resetRun = (): void => {
+    run.startedAt = Date.now();
+    run.planStartedAt = 0;
+    run.steers = 0;
+    run.paused = false;
+    run.outlineEdited = false;
+};
+
+const outlineEdited = (edit: "rename" | "reorder" | "add" | "remove"): void => {
+    run.outlineEdited = true;
+    capture("generation_outline_edited", { edit, beat_count: gen.beats.length });
+};
+
 export const slotSection = (slot: SectionSlot): Section | null =>
     slot.versions[slot.active] ?? null;
 
@@ -176,7 +203,7 @@ const [generateOpen, setGenerateOpen] = createSignal(false);
 export { generateOpen };
 
 // `prompt` seeds the intake, for entry points that already carry an intent (the ⌘K query)
-export function openGenerate(prompt?: string): void {
+export function openGenerate(prompt?: string, from = "library"): void {
     resetSession();
     // the studio is stamped with the session's theme, so the intake starts in the user's, not the default
     // the format the first session asked for, so the studio opens on what they said they were making
@@ -187,8 +214,24 @@ export function openGenerate(prompt?: string): void {
     if (prompt) setGen("brief", "prompt", prompt);
     setTraceSession(crypto.randomUUID());
     setGenerateOpen(true);
+    resetRun();
+    capture("generation_intake_opened", {
+        from,
+        format: preferredFormat() ?? "deck",
+        prefilled: !!prompt,
+    });
+    if (checklistVisible() || onboardingNeeded())
+        capture("onboarding_studio_opened", { from: asStudioEntry(from) });
 }
 export function closeGenerate(): void {
+    // The most important event in this funnel: one that records only successes cannot show where
+    // we lose people. Read before the teardown, which resets the stage.
+    if (gen.stage !== "idle" && gen.stage !== "done")
+        capture("generation_abandoned", {
+            stage: gen.stage,
+            sections_built: builtCount(),
+            ms: Date.now() - run.startedAt,
+        });
     setTraceSession(null);
     cancelSession();
     unbindTarget?.();
@@ -215,6 +258,7 @@ const track = (): AbortController => {
 
 const fail = (stage: Stage, message: string, cause?: unknown): void => {
     setGen({ stage: "error", errorStage: stage, error: message });
+    capture("generation_failed", { stage, reason: message });
     reportError(cause ?? new Error(message), message);
 };
 
@@ -581,10 +625,18 @@ export async function redraftBrief(): Promise<void> {
 export async function startPlan(): Promise<void> {
     setGen({ stage: "planning", planning: true, clarify: null });
     noteStep("outline");
+    run.planStartedAt = Date.now();
     try {
         await runTurnStream({ kind: "plan", input: { ...gen.brief } }, planCost());
         if (gen.stage !== "planning") return; // canceled
         setGen({ planning: false, stage: "outline" });
+        capture("generation_planned", {
+            format: gen.brief.surface,
+            length: gen.brief.length ?? "Standard",
+            beat_count: gen.beats.length,
+            ms: Date.now() - run.planStartedAt,
+            credits_charged: planCost(),
+        });
         nameRun(gen.title);
     } catch (e) {
         if (isAbort(e)) return;
@@ -598,18 +650,22 @@ export function selectBeat(id: string | null): void {
 }
 export function patchBeat(id: string, patch: Partial<Beat>): void {
     setGen("beats", updateBeat(gen.beats, id, patch));
+    if (patch.label !== undefined) outlineEdited("rename");
 }
 export function moveBeatDir(id: string, dir: -1 | 1): void {
     setGen("beats", moveBeat(gen.beats, id, dir));
+    outlineEdited("reorder");
 }
 export function removeBeatById(id: string): void {
     setGen("beats", removeBeat(gen.beats, id));
     if (gen.selectedBeat === id) setGen("selectedBeat", null);
+    outlineEdited("remove");
 }
 export function addBeatAfter(afterId: string | null): string {
     const beat = makeBeat(newBeatId(gen.beats));
     setGen("beats", insertBeatAfter(gen.beats, afterId, beat));
     setGen("selectedBeat", beat.id);
+    outlineEdited("add");
     return beat.id;
 }
 
@@ -648,6 +704,7 @@ function ensureSlots(): void {
 
 export function startBuild(): void {
     if (!gen.beats.length) return;
+    capture("generation_build_started", { mode: "all", beat_count: gen.beats.length });
     setGen({
         stage: "building",
         paused: false,
@@ -662,7 +719,10 @@ export async function buildSectionNow(id: string): Promise<void> {
     const index = gen.beats.findIndex((b) => b.id === id);
     if (index < 0 || gen.activeSection) return;
     // picking one before pressing Build starts the session parked, so the queue doesn't run away
-    if (gen.stage === "outline") setGen({ stage: "building", paused: true });
+    if (gen.stage === "outline") {
+        capture("generation_build_started", { mode: "one", beat_count: gen.beats.length });
+        setGen({ stage: "building", paused: true });
+    }
     ensureSlots();
     const slot = gen.slots.find((s) => s.id === id);
     if (!slot || slot.versions.length > 0 || slot.working) return;
@@ -691,6 +751,7 @@ export async function buildSections(ids: string[]): Promise<void> {
 
 async function buildOne(index: number): Promise<boolean> {
     const beat = gen.beats[index]!;
+    const startedAt = Date.now();
     noteStep("section");
     const anchor =
         index === 0 ? "cover" : index === gen.beats.length - 1 ? ("closer" as const) : undefined;
@@ -710,7 +771,18 @@ async function buildOne(index: number): Promise<boolean> {
         sectionCost(),
     );
     const slot = gen.slots.find((s) => s.id === beat.id);
-    return !!slot && slot.versions.length > 0;
+    const landed = !!slot && slot.versions.length > 0;
+    if (landed) {
+        const section = slotSection(slot);
+        capture("generation_section_built", {
+            index,
+            ms: Date.now() - startedAt,
+            credits_charged: sectionCost(),
+            element_count: section ? countElements(section.root) : 0,
+            ...(asBeatRole(beat.role) ? { beat_role: asBeatRole(beat.role) } : {}),
+        });
+    }
+    return landed;
 }
 
 // a slot caught mid-write goes back to queued, so retry rebuilds it instead of skipping it
@@ -759,11 +831,15 @@ async function buildLoop(): Promise<void> {
 
 export function pauseBuild(): void {
     // takes effect at the next section boundary; writes are atomic
-    if (gen.stage === "building") setGen("paused", true);
+    if (gen.stage !== "building") return;
+    setGen("paused", true);
+    run.paused = true;
+    capture("generation_paused", { at_index: builtCount() });
 }
 export function resumeBuild(): void {
     if (gen.stage !== "building") return;
     setGen("paused", false);
+    capture("generation_resumed", { at_index: builtCount() });
     void buildLoop();
 }
 export function stopHere(): void {
@@ -774,7 +850,15 @@ export function stopHere(): void {
 }
 
 export function setSteer(text: string): void {
+    const had = gen.steer.trim();
     setGen("steer", text);
+    if (text.trim() && text.trim() !== had) {
+        run.steers += 1;
+        capture("generation_steered", {
+            at_index: builtCount(),
+            beat_count: gen.beats.length,
+        });
+    }
 }
 
 export function setActiveVersion(id: string, version: number): void {
@@ -831,6 +915,22 @@ export async function regenerateSection(id: string, note?: string): Promise<bool
 
 export function finishSession(): void {
     setGen({ stage: "done", activeSection: null, paused: false });
+    if (checklistVisible() && !stepDone("ai"))
+        capture("onboarding_first_generation_completed", {
+            format: gen.brief.surface,
+            section_count: builtCount(),
+            credits_charged: gen.spent,
+            ...(sinceStart() === undefined ? {} : { ms_since_signup: sinceStart()! }),
+        });
+    capture("generation_completed", {
+        format: gen.brief.surface,
+        section_count: builtCount(),
+        total_credits: gen.spent,
+        total_ms: Date.now() - run.startedAt,
+        steer_count: run.steers,
+        was_paused: run.paused,
+        outline_edited: run.outlineEdited,
+    });
     void saveGenerated();
 }
 
@@ -871,6 +971,7 @@ export async function saveGenerated(formatId?: string): Promise<string | null> {
         return gen.draftId;
     }
     const id = await persistArtifact(content, gen.title || undefined, null, runMeta());
+    if (id) capture("artifact_created", { source: "generated", format: gen.brief.surface });
     if (id) {
         setGen("draftId", id);
         attachArtifact(id);

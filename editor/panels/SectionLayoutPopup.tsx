@@ -6,6 +6,7 @@ import { SECTION_LAYOUTS, type SectionLayout } from "@elements/layouts";
 import { setSectionBackground, setSectionBleed } from "@elements/ops";
 import { SECTION_CONTROLS } from "@elements/spec";
 import { ScaledSectionCanvas } from "@ui/section";
+import { capture } from "@ui/analytics";
 import { commit, editor, editorTokens } from "@editor/core/store";
 import { SchemaFields, Group } from "./SharedControlFields";
 
@@ -16,13 +17,15 @@ export const SectionLayoutPopup: Component<{ section: string }> = (props) => {
         profile().kind === "continuous" ? "natural" : "slide";
     const applicable = (s: Section): SectionLayout[] => SECTION_LAYOUTS.filter((l) => l.applies(s));
 
-    const apply = (l: SectionLayout): void =>
+    const apply = (l: SectionLayout): void => {
         commit({
             ...editor.artifact,
             sections: editor.artifact.sections.map((s) =>
                 s.id === props.section ? l.transform(s) : s,
             ),
         });
+        capture("section_layout_changed", { preset: l.id });
+    };
 
     const bg = (): SectionBackground => sec()?.background ?? { kind: "none" };
     const grad = (): { from: string; to: string; angle?: number } =>
@@ -37,6 +40,8 @@ export const SectionLayoutPopup: Component<{ section: string }> = (props) => {
             ? `sec:${props.section}:${key}`
             : undefined;
     const setKind = (kind: string): void => {
+        if (kind === "color" || kind === "gradient" || kind === "image")
+            capture("background_set", { kind });
         const t = editorTokens();
         if (kind === "color") setBg({ kind, color: bg().color ?? t.accent });
         else if (kind === "gradient")
@@ -44,12 +49,9 @@ export const SectionLayoutPopup: Component<{ section: string }> = (props) => {
                 kind,
                 gradient: bg().gradient ?? { from: t.accent, to: t.surface, angle: 135 },
             });
+        // no image yet: the field below opens the picker, rather than dropping in a stand-in
         else if (kind === "image")
-            setBg({
-                kind,
-                image: bg().image ?? "https://picsum.photos/seed/galleo-bg/1600/1000",
-                scrim: bg().scrim ?? 0.45,
-            });
+            setBg({ kind, image: bg().image ?? "", scrim: bg().scrim ?? 0.45 });
         else setBg({ kind: "none" });
     };
     const read = (key: string): unknown => {

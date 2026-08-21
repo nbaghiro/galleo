@@ -5,6 +5,8 @@ import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import type { WorkspaceRow } from "./accounts";
 import { roleOf } from "./workspaces";
+import { capture } from "@services/utils/analytics";
+import { asRole } from "@model/workspace";
 
 // Every decision about a comment lives here: who may write it, what it may point at, and how a
 // thread reads back. Rows are workspace-scoped on their own column, so a comment id from another
@@ -101,7 +103,7 @@ export async function createComment(
     body: CommentCreateBody,
 ): Promise<CommentResult> {
     const [a] = await db
-        .select({ digest: schema.artifacts.digest })
+        .select({ digest: schema.artifacts.digest, createdBy: schema.artifacts.createdBy })
         .from(schema.artifacts)
         .where(ownedArtifact(artifactId, ws.id));
     if (!a) return { status: 404, error: "not found" };
@@ -140,6 +142,12 @@ export async function createComment(
         })
         .returning({ id: schema.comments.id });
     if (!made) return { status: 409, error: "could not post that comment" };
+    // The body never travels; who left it and on whose work is the whole question here.
+    capture({ userId, workspaceId: ws.id }, "comment_created", {
+        by_role: asRole((await roleOf(ws, userId)) ?? "member"),
+        on_own_artifact: a.createdBy === userId,
+        is_reply: !!body.parentId,
+    });
     return one(made.id, ws, await viewerOf(ws, userId));
 }
 
@@ -179,11 +187,15 @@ export async function setResolved(
     resolved: boolean,
 ): Promise<CommentResult> {
     const [row] = await db
-        .select({ parentId: schema.comments.parentId })
+        .select({ parentId: schema.comments.parentId, createdAt: schema.comments.createdAt })
         .from(schema.comments)
         .where(owned(id, ws.id));
     if (!row) return { status: 404, error: "not found" };
     if (row.parentId) return { status: 409, error: "only a thread can be resolved" };
+    if (resolved)
+        capture({ userId, workspaceId: ws.id }, "comment_resolved", {
+            hours_open: Math.round((Date.now() - row.createdAt.getTime()) / 3_600_000),
+        });
     await db
         .update(schema.comments)
         .set({

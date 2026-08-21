@@ -3,6 +3,8 @@ import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { resolveTheme } from "@themes";
 import { api, type ApiTemplate } from "@app/api";
+import { asFormat } from "@model/analytics";
+import { capture } from "@ui/analytics";
 import { FORMATS, formatLabel } from "@app/stores/library";
 import { Button } from "@ui/button";
 import { Segmented } from "@ui/inputs";
@@ -16,7 +18,7 @@ import { templatesOnce } from "@app/stores/templates";
 // The template gallery — category rows, live-preview modal, and the use action — shared by the
 // Templates page and the intake's in-place browser. `onCreated` runs before the navigate, so a
 // host inside the studio can close itself.
-export const TemplateGallery: Component<{ onCreated?: () => void }> = (props) => {
+export const TemplateGallery: Component<{ onCreated?: () => void; from?: string }> = (props) => {
     const navigate = useNavigate();
     const [templates, setTemplates] = createSignal<ApiTemplate[]>([]);
     const [loading, setLoading] = createSignal(true);
@@ -27,6 +29,11 @@ export const TemplateGallery: Component<{ onCreated?: () => void }> = (props) =>
     const openPreview = (t: ApiTemplate): void => {
         setPreviewFmt(t.content.format);
         setPreview(t);
+        capture("template_previewed", {
+            template_id: t.id,
+            category: t.category,
+            format: asFormat(t.content.format),
+        });
     };
 
     onMount(() => {
@@ -52,6 +59,17 @@ export const TemplateGallery: Component<{ onCreated?: () => void }> = (props) =>
                 themeId: appTheme(),
                 draftContent: content,
                 templateId: t.id,
+            });
+            capture("artifact_created", {
+                source: "template",
+                format: asFormat(fmt),
+                template_id: t.id,
+            });
+            capture("template_used", {
+                template_id: t.id,
+                category: t.category,
+                format: asFormat(fmt),
+                from: props.from ?? "templates",
             });
             props.onCreated?.();
             navigate(`/edit/${id}`);

@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { randomUUID } from "node:crypto";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { createNodeWebSocket } from "@hono/node-ws";
@@ -7,6 +8,8 @@ import { getCookie } from "hono/cookie";
 import { readSession, SESSION_COOKIE } from "./utils/auth";
 import { assertDatabaseUrl } from "./db/client";
 import { out } from "./utils/env";
+import { initAnalytics, shutdownAnalytics, withRequestId } from "./utils/analytics";
+import { asRequestId, REQUEST_ID_HEADER } from "@model/analytics";
 import { session } from "./api/session";
 import { account } from "./api/account";
 import { oauth } from "./api/oauth";
@@ -27,8 +30,10 @@ import { search } from "./api/search";
 import { context } from "./api/context";
 import { evals } from "./api/eval";
 import { onboarding } from "./api/onboarding";
+import { ingest } from "./api/ingest";
 
 assertDatabaseUrl();
+initAnalytics();
 
 // without a real SESSION_SECRET, sessions sign with the public dev default: anyone could mint a cookie
 if (process.env.NODE_ENV === "production") {
@@ -41,6 +46,14 @@ const app = new Hono();
 // The live-collaboration socket runs in this process, on this app: rooms are in-memory, so a second
 // instance would not share them. Fanning out across instances is the Redis step (port 8603).
 const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
+// Before every route: one id per request, minted by the browser or here, in scope for whatever the
+// request goes on to do. Echoed back so a failure a user reports can be found in the data.
+app.use("*", (c, next) => {
+    const id = asRequestId(c.req.header(REQUEST_ID_HEADER), () => randomUUID());
+    c.header(REQUEST_ID_HEADER, id);
+    return withRequestId(id, next);
+});
+
 app.get("/health", (c) => c.json({ ok: true }));
 // routers carry their own full paths and mount under /api, so dev (Vite proxies /api here, no
 // rewrite) and prod share one route map. Mounted one by one rather than over an array: each router
@@ -65,6 +78,7 @@ app.route("/api", search);
 app.route("/api", context);
 app.route("/api", evals);
 app.route("/api", onboarding);
+app.route("/api", ingest);
 
 // an unknown /api path is a 404, never the SPA fallback below
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
@@ -90,4 +104,11 @@ if (process.env.NODE_ENV === "production") {
 const port = Number(process.env.PORT ?? process.env.API_PORT ?? 8601);
 const server = serve({ fetch: app.fetch, port });
 injectWebSocket(server); // handles the upgrade on the same listener the API uses
+
+// Render sends SIGTERM on every deploy, so drain the analytics queue rather than dropping it.
+const drain = (): void => {
+    void shutdownAnalytics().then(() => process.exit(0));
+};
+process.on("SIGTERM", drain);
+process.on("SIGINT", drain);
 out(`Galleo listening on port ${port}`);

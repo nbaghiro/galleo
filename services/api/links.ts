@@ -5,6 +5,9 @@ import { SESSION_COOKIE } from "@services/utils/auth";
 import { z } from "zod";
 import { canPublish } from "@model/workspace";
 import { BAD_BODY, readJson, requireFeature } from "@services/utils/http";
+import { capture } from "@services/utils/analytics";
+import { asVisibility } from "@model/analytics";
+import { artifactCredits } from "@services/core/media";
 import { currentUser, currentWorkspace } from "@services/core/accounts";
 import {
     addRecipients,
@@ -137,7 +140,13 @@ links.patch("/links/:id", requireWorkspace, async (c) => {
         body.visibility && VISIBILITIES.has(body.visibility) ? body.visibility : link.visibility;
     if (visibility === "protected" && !body.password && !link.password)
         return c.json({ error: "A password is required for a protected link." }, 400);
-    return c.json({ link: await updateLink(link, body, visibility) });
+    const updated = await updateLink(link, body, visibility);
+    capture({ userId: c.get("user").id, workspaceId: c.get("ws").id }, "link_updated", {
+        visibility_from: asVisibility(link.visibility),
+        visibility_to: asVisibility(visibility),
+        has_password: !!(body.password ?? link.password),
+    });
+    return c.json({ link: updated });
 });
 
 links.delete("/links/:id", requireWorkspace, async (c) => {
@@ -146,7 +155,10 @@ links.delete("/links/:id", requireWorkspace, async (c) => {
     // unpublishing is always allowed to anyone who may edit, even under the admins-only policy
     const gate = await gateArtifact(c, link.artifactId, "edit");
     if (isResponse(gate)) return gate;
-    await deleteLink(link.id);
+    const views = await deleteLink(link.id);
+    capture({ userId: c.get("user").id, workspaceId: c.get("ws").id }, "link_deleted", {
+        view_count_at_delete: views,
+    });
     return c.json({ ok: true });
 });
 
@@ -198,6 +210,9 @@ links.post("/links/:id/recipients", requireWorkspace, async (c) => {
         workspaceName: ws.name,
         inviterName: user.name,
     });
+    capture({ userId: user.id, workspaceId: ws.id }, "link_recipients_added", {
+        count: added.length,
+    });
     return c.json({ recipients: added });
 });
 
@@ -230,16 +245,28 @@ links.get("/p/:slug/content", async (c) => {
             read.status,
         );
 
-    // Owner previews don't count as views.
+    // Owner previews don't count as views. The event still fires for them, with by_owner set, so
+    // the funnel can tell a real audience from the author checking their own work.
     const viewer = await currentUser(getCookie(c, SESSION_COOKIE));
     const isOwner = viewer && (await isWorkspaceMember(viewer.id, read.workspaceId));
-    if (!isOwner) await recordView(read.linkId, read.recipientId, viewerOf(c));
+    const recorded = isOwner ? null : await recordView(read.linkId, read.recipientId, viewerOf(c));
+    // A viewer outside the workspace has no account, so the event is attributed to the anonymous
+    // view session rather than minting a person profile for a stranger.
+    capture({ userId: viewer?.id ?? read.linkId, anonymous: !viewer }, "link_viewed", {
+        visibility: asVisibility(read.visibility),
+        by_owner: !!isOwner,
+        referrer_host: recorded?.referrerHost ?? "direct",
+        device_tier: recorded?.device === "mobile" ? "phone" : "desktop",
+        is_first_view: recorded?.first ?? false,
+    });
 
     return c.json({
         title: read.title,
         content: read.content,
         branded: read.branded,
         customTheme: read.customTheme,
+        // Unsplash and Pexels both ask for a visible credit where the picture is shown
+        credits: await artifactCredits(read.artifactId),
     });
 });
 

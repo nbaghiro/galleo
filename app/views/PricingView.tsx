@@ -1,8 +1,10 @@
 import type { Component } from "solid-js";
-import { createMemo, createResource, createSignal, For, onMount, Show } from "solid-js";
+import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import type { PlanId } from "@model/billing";
 import { PRICED_TOOLS, costRange, isMetered, typicalCost } from "@model/tools";
+import { asOrigin } from "@model/analytics";
+import { capture } from "@ui/analytics";
 import { Badge, Button, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { Meter } from "@ui/status";
 import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
@@ -11,6 +13,7 @@ import { api } from "@app/api";
 import {
     billing,
     changePlan,
+    checkoutStarted,
     loadBilling,
     openPortal,
     resumePlan,
@@ -18,8 +21,25 @@ import {
 } from "@app/stores/billing";
 
 export const PricingView: Component = () => {
+    let openedAt = 0;
     const [params] = useSearchParams();
-    onMount(loadBilling);
+    onMount(() => {
+        void loadBilling();
+        openedAt = Date.now();
+        capture("pricing_viewed", {
+            from: asOrigin(params.from),
+            plan_id: billing()?.plan ?? "free",
+        });
+    });
+    // Not a funnel denominator on its own: it needs a page-hide handler and will under-report.
+    onCleanup(() => {
+        if (!checkoutStarted())
+            capture(
+                "checkout_abandoned",
+                { target_plan: billing()?.plan ?? "free", ms_on_page: Date.now() - openedAt },
+                { beacon: true },
+            );
+    });
 
     const [ledger] = createResource(() =>
         api
@@ -106,7 +126,7 @@ export const PricingView: Component = () => {
                             <button
                                 class="flex-none inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel px-3 py-1.5 font-semibold hover:border-accent disabled:opacity-60"
                                 disabled={anyBusy()}
-                                onClick={() => void run("portal", openPortal)}
+                                onClick={() => void run("portal", () => openPortal("pricing"))}
                             >
                                 <Show when={busy("portal")}>
                                     <Spinner size={13} tone="current" />
@@ -420,7 +440,7 @@ export const PricingView: Component = () => {
                         <button
                             class="mt-6 inline-flex items-center gap-1.5 text-[13px] font-medium text-soft underline hover:text-ink disabled:opacity-60"
                             disabled={anyBusy()}
-                            onClick={() => void run("portal", openPortal)}
+                            onClick={() => void run("portal", () => openPortal("pricing"))}
                         >
                             <Show when={busy("portal")}>
                                 <Spinner size={13} tone="line" />

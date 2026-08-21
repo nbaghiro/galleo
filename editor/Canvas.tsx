@@ -1,3 +1,5 @@
+import { asFormat, RENDER_SLOW_MS } from "@model/analytics";
+import { capture } from "@ui/analytics";
 import type { Rect } from "@engine/node";
 import { embedFor, pickArtifactBackground, type Embed, type PlayerOpts } from "./core/media";
 import type { ElementAddress, Target, ElementInstance, Section } from "@model/artifact";
@@ -49,24 +51,28 @@ import {
     canvasContentWidth,
     commit,
     currentArtifactId,
+    editSeq,
     editing,
     editor,
     editorTokens,
-    editSeq,
-    regions,
-    selection,
-    setCanvasContentWidth,
     jumpToSection,
-    leftOpen,
     knownHeight,
+    leftOpen,
+    noteElementAdded,
+    noteElementMoved,
     pending as pendingSections,
+    presenting,
+    regions,
     rememberHeight,
     requestSections,
+    selection,
+    setCanvasContentWidth,
     setCanvasEl,
     setHover,
     setRegions,
     setSectionTops,
     setSelection,
+    noteDropSelection,
     setStageEl,
     slideFrame,
     startEditing,
@@ -127,6 +133,7 @@ export const Canvas: Component = () => {
         lastWindow = win;
         const waiting = pendingSections();
         const beforeTops = editor.sectionTops;
+        const paintStartedAt = performance.now();
         const { tops, heights, regions, height } = paintSectionStack(
             paintHost,
             preview ?? editor.artifact.sections,
@@ -157,6 +164,16 @@ export const Canvas: Component = () => {
                     : undefined,
             },
         );
+        // Above a measured bound, not on every paint: the engine solves layout from text metrics on
+        // every visible section, so a slow one is a real user-visible cost worth knowing about.
+        const paintMs = performance.now() - paintStartedAt;
+        if (paintMs > RENDER_SLOW_MS)
+            capture("render_slow", {
+                ms: Math.round(paintMs),
+                section_count: editor.artifact.sections.length,
+                format: asFormat(editor.artifact.format),
+                where: presenting() ? "present" : "editor",
+            });
         stageEl.style.height = `${height}px`;
         const drawn = preview ?? editor.artifact.sections;
         for (const [i, sec] of drawn.entries())
@@ -490,8 +507,20 @@ export const Canvas: Component = () => {
             const d = drag();
             endDrag(); // clear first so the redraw effect paints the committed result
             if (d?.target) {
-                const res = applyDrop(editor.artifact, d.target, d.payload);
-                if (res.content !== editor.artifact) commit(res.content);
+                const before = editor.artifact;
+                const moving =
+                    d.payload.kind === "move"
+                        ? getElementAt(before, d.payload.from)?.type
+                        : undefined;
+                const fromSection = d.payload.kind === "move" ? d.payload.from.section : null;
+                const res = applyDrop(before, d.target, d.payload);
+                if (res.content !== before) {
+                    commit(res.content);
+                    if (d.payload.kind === "new") noteElementAdded(d.payload.type, "drag");
+                    else if (moving !== undefined)
+                        noteElementMoved(moving, fromSection === d.target.section);
+                }
+                noteDropSelection(); // the flyout must not open over what was just dropped
                 setSelection(
                     d.payload.kind === "section"
                         ? { kind: "section", section: d.payload.id }

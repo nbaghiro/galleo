@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import type { DeviceTier } from "@model/analytics";
 import type { ArtifactContent } from "@model/artifact";
 import { asContent } from "@model/artifact";
 import type { PlanId } from "@model/billing";
@@ -72,6 +73,16 @@ function refHost(raw: string | undefined): string {
 
 const deviceOf = (ua: string | undefined): string =>
     ua && /Mobi|Android|iPhone|iPad/i.test(ua) ? "mobile" : "desktop";
+
+// A finer read than the stored `device` column, which stays two-valued because the customer-facing
+// analytics panel reads it. A public viewer runs no client analytics, so this is the only device
+// signal we get for them, and calling every tablet a phone would waste it.
+const tierOf = (ua: string | undefined): DeviceTier => {
+    if (!ua) return "desktop";
+    if (/iPad|Tablet|PlayBook|Silk/i.test(ua)) return "tablet";
+    if (/Android(?!.*Mobile)/i.test(ua)) return "tablet";
+    return /Mobi|Android|iPhone/i.test(ua) ? "phone" : "desktop";
+};
 
 export async function isWorkspaceMember(userId: string, workspaceId: string): Promise<boolean> {
     const [m] = await db
@@ -379,8 +390,14 @@ export async function updateLink(link: OwnedLink, body: LinkBody, visibility: st
     return linkJson(row!, stats.get(row!.id));
 }
 
-export async function deleteLink(id: string): Promise<void> {
+/** How many views the link had gathered, which is what makes an unpublish readable. */
+export async function deleteLink(id: string): Promise<number> {
+    const [seen] = await db
+        .select({ n: sql<string>`count(*)` })
+        .from(schema.linkViews)
+        .where(eq(schema.linkViews.linkId, id));
     await db.delete(schema.links).where(eq(schema.links.id, id));
+    return Number(seen?.n ?? 0);
 }
 
 export async function deleteRecipient(linkId: string, recipientId: string): Promise<void> {
@@ -539,6 +556,9 @@ export type PublicRead =
           status: 200;
           linkId: string;
           workspaceId: string;
+          artifactId: string;
+          visibility: string;
+          format: string | undefined;
           recipientId: string | null;
           title: string;
           content: ArtifactContent;
@@ -629,7 +649,10 @@ export async function publicRead(
     return {
         status: 200,
         linkId: link.id,
+        artifactId: link.artifactId,
         workspaceId: artifact.workspaceId,
+        visibility: link.visibility,
+        format,
         recipientId,
         title: artifact.title,
         content,
@@ -640,34 +663,61 @@ export async function publicRead(
 
 // One row per viewer session; a same-day reload just bumps last_seen_at. Never throws: analytics
 // must not block the read.
+export interface ViewRecord {
+    referrerHost: string;
+    device: string;
+    tier: DeviceTier;
+    /** sha of day|ip|ua|link: stable per viewer-session, and never the address itself. */
+    sessionKey: string;
+    /** True only when this session had not been seen before, so a reload is not a new view. */
+    first: boolean;
+}
+
 export async function recordView(
     linkId: string,
     recipientId: string | null,
     v: ViewerContext,
-): Promise<void> {
+): Promise<ViewRecord | null> {
+    const now = new Date();
+    const referrerHost = refHost(v.referrer?.slice(0, 300));
+    const device = deviceOf(v.userAgent);
+    const tier = tierOf(v.userAgent);
+    const sessionKey = viewSessionKey(linkId, v);
     try {
-        await db
+        // viewedAt is set rather than defaulted, so the row that comes back says whether this
+        // insert created it: on a conflict the update leaves the original stamp alone.
+        const [row] = await db
             .insert(schema.linkViews)
             .values({
                 linkId,
                 recipientId,
-                sessionKey: viewSessionKey(linkId, v),
-                referrer: refHost(v.referrer?.slice(0, 300)),
-                device: deviceOf(v.userAgent),
+                sessionKey,
+                referrer: referrerHost,
+                device,
                 country: v.country,
-                lastSeenAt: new Date(),
+                viewedAt: now,
+                lastSeenAt: now,
             })
             .onConflictDoUpdate({
                 target: [schema.linkViews.linkId, schema.linkViews.sessionKey],
-                set: { lastSeenAt: new Date() },
-            });
+                set: { lastSeenAt: now },
+            })
+            .returning({ viewedAt: schema.linkViews.viewedAt });
         if (recipientId)
             await db
                 .update(schema.linkRecipients)
-                .set({ lastViewedAt: new Date() })
+                .set({ lastViewedAt: now })
                 .where(eq(schema.linkRecipients.id, recipientId));
+        return {
+            referrerHost,
+            device,
+            tier,
+            sessionKey,
+            first: row?.viewedAt.getTime() === now.getTime(),
+        };
     } catch {
         /* analytics never blocks the read */
+        return null;
     }
 }
 

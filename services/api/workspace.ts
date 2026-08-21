@@ -3,6 +3,7 @@ import { asRole, isPublishPolicy } from "@model/workspace";
 import { isAccess } from "@model/artifact";
 import { z } from "zod";
 import { BAD_BODY, readJson } from "@services/utils/http";
+import { capture } from "@services/utils/analytics";
 import {
     acceptInvite,
     inviteByToken,
@@ -98,7 +99,17 @@ workspace.patch("/workspace", requireWorkspace, requireRole("admin"), async (c) 
     }
 
     if (!Object.keys(patch).length) return c.json({ error: "nothing to update" }, 400);
-    await updateWorkspace(c.get("ws").id, patch);
+    const ws = c.get("ws");
+    await updateWorkspace(ws.id, patch);
+    const who = { userId: c.get("user").id, workspaceId: ws.id };
+    // A rename is its own event; the policies are one event with the setting as a property, so a
+    // policy added later needs no new name. The value never travels, only its kind.
+    if (patch.name !== undefined) capture(who, "workspace_renamed", {});
+    for (const setting of Object.keys(patch).filter((k) => k !== "name"))
+        capture(who, "workspace_setting_changed", {
+            setting,
+            value_kind: typeof patch[setting as keyof typeof patch],
+        });
     return c.json({ ok: true });
 });
 
@@ -122,11 +133,21 @@ workspace.post("/workspace/invites", requireWorkspace, requireRole("admin"), asy
             402,
         );
     }
+    capture({ userId: user.id, workspaceId: ws.id }, "member_invited", {
+        role: asRole(role),
+        seats_used: result.seatsUsed,
+        seats_total: result.seatsTotal,
+        at_seat_limit: result.atSeatLimit,
+    });
     return c.json(result);
 });
 
 workspace.delete("/workspace/invites/:id", requireWorkspace, requireRole("admin"), async (c) => {
-    await revokeInvite(c.get("ws").id, c.req.param("id"));
+    const hours = await revokeInvite(c.get("ws").id, c.req.param("id"));
+    if (hours !== null)
+        capture({ userId: c.get("user").id, workspaceId: c.get("ws").id }, "invite_revoked", {
+            hours_pending: hours,
+        });
     return c.json({ ok: true });
 });
 
@@ -161,6 +182,10 @@ workspace.delete(
         if (targetRole === "admin" && ws.ownerId !== user.id)
             return c.json({ error: "only the workspace owner can remove an admin" }, 403);
         await removeMember(ws.id, target);
+        capture({ userId: user.id, workspaceId: ws.id }, "member_removed", {
+            role: asRole(targetRole ?? "member"),
+            member_count_after: (await liveMembers(ws.id)).length,
+        });
         return c.json({ ok: true });
     },
 );
@@ -177,7 +202,13 @@ workspace.patch("/workspace/members/:userId", requireWorkspace, requireRole("own
     if (!body) return c.json(BAD_BODY, 400);
     const { role } = body;
     if (!grantable(role)) return c.json({ error: "role must be admin or member" }, 400);
+    const before = await roleOf(ws, target);
     const ok = await setMemberRole(ws.id, target, role);
+    if (ok)
+        capture({ userId: c.get("user").id, workspaceId: ws.id }, "member_role_changed", {
+            from_role: asRole(before ?? "member"),
+            to_role: role,
+        });
     return ok ? c.json({ ok: true }) : c.json({ error: "not a member" }, 404);
 });
 
@@ -200,6 +231,12 @@ workspace.post("/workspace/transfer", requireWorkspace, requireRole("owner"), as
     const { userId } = body;
     if (!userId) return c.json({ error: "userId required" }, 400);
     const ok = await transferOwnership(c.get("ws"), userId);
+    if (ok)
+        capture(
+            { userId: c.get("user").id, workspaceId: c.get("ws").id },
+            "ownership_transferred",
+            {},
+        );
     return ok
         ? c.json({ ok: true })
         : c.json({ error: "the new owner must already be a member" }, 400);

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { getCookie } from "hono/cookie";
 import { z } from "zod";
 import { appUrl } from "@services/utils/env";
 import {
@@ -8,6 +9,8 @@ import {
     clearSessionCookie,
     rateLimit,
 } from "@services/utils/http";
+import { capture } from "@services/utils/analytics";
+import { readSession, SESSION_COOKIE } from "@services/utils/auth";
 import {
     authenticate,
     consumeAuthToken,
@@ -79,11 +82,16 @@ session.post("/auth/login", loginLimiter, async (c) => {
     const user = await authenticate(email, password);
     if (!user) return c.json({ error: "invalid email or password" }, 401);
     setSessionCookie(c, user.id);
+    capture({ userId: user.id }, "logged_in", { method: "password" });
     return c.json({ user });
 });
 
 session.post("/auth/logout", (c) => {
+    // Read before clearing: the route has no requireUser, and after the clear there is nobody to
+    // attribute the event to.
+    const userId = readSession(getCookie(c, SESSION_COOKIE));
     clearSessionCookie(c);
+    if (userId) capture({ userId }, "logged_out", {});
     return c.json({ ok: true });
 });
 

@@ -6,9 +6,11 @@ import {
     editor,
     editSeq,
     isWindowed,
+    noteSaveState,
     themeForPersist,
 } from "@editor/core/store";
-import { api } from "@app/api";
+import { api, ApiError } from "@app/api";
+import { capture } from "@ui/analytics";
 
 // sends the difference from what the server is known to hold, so a windowed client can save at all
 const DEBOUNCE_MS = 1200;
@@ -43,6 +45,7 @@ export function onCollabDriving(fn: () => boolean, connId: () => string | null):
 
 export function installAutosave(): void {
     let timer = 0;
+    let retries = 0;
     let windowStart = 0; // when the current un-saved edit window opened
     let saving = false;
     let dirtyWhileSaving = false;
@@ -97,8 +100,17 @@ export function installAutosave(): void {
             }
             saved = persisted;
             savedId = id;
-        } catch {
+            retries = 0;
+            noteSaveState(true);
+        } catch (e) {
             // the baseline is untouched, so the change is still pending; retry on a timer, not at once
+            retries += 1;
+            noteSaveState(false);
+            capture("save_failed", {
+                reason: e instanceof ApiError ? String(e.status) : "network",
+                retry_count: retries,
+                section_count: persisted.sections.length,
+            });
             window.clearTimeout(timer);
             timer = window.setTimeout(() => flush(), RETRY_MS);
         }

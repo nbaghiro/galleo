@@ -9,8 +9,13 @@ import {
     type WorkspaceSettings,
 } from "@model/workspace";
 import { appUrl } from "@services/utils/env";
+import { capture } from "@services/utils/analytics";
+import { planFor } from "@model/billing";
 import { sendWorkspaceInvite } from "./mail";
 import type { WorkspaceRow } from "./accounts";
+
+/** Whole hours between then and now, the unit every "how long did this take" property uses. */
+const hoursSince = (at: Date): number => Math.round((Date.now() - at.getTime()) / 3_600_000);
 
 // Members, seats, and invites. Invite acceptance is possession-based: the raw token lives only in
 // the emailed link, so only its hash is stored.
@@ -139,12 +144,20 @@ export type LeaveResult = "ok" | "not-member" | "owner";
 // account page lists every membership, including the ones the user is not currently working in.
 export async function leaveWorkspace(userId: string, workspaceId: string): Promise<LeaveResult> {
     const [row] = await db
-        .select({ ownerId: schema.workspaces.ownerId })
+        .select({
+            ownerId: schema.workspaces.ownerId,
+            role: schema.members.role,
+            joinedAt: schema.members.createdAt,
+        })
         .from(schema.members)
         .innerJoin(schema.workspaces, eq(schema.members.workspaceId, schema.workspaces.id))
         .where(and(eq(schema.members.userId, userId), eq(schema.members.workspaceId, workspaceId)));
     if (!row) return "not-member";
     if (row.ownerId === userId) return "owner";
+    capture({ userId, workspaceId }, "member_left", {
+        role: asRole(row.role),
+        days_as_member: Math.round(hoursSince(row.joinedAt) / 24),
+    });
     await removeMember(workspaceId, userId);
     return "ok";
 }
@@ -152,7 +165,14 @@ export async function leaveWorkspace(userId: string, workspaceId: string): Promi
 export type InviteResult =
     | { error: "already-member" }
     | { error: "no-seats"; seats: number }
-    | { invite: Awaited<ReturnType<typeof pendingInvites>>[number]; url: string; sent: boolean };
+    | {
+          invite: Awaited<ReturnType<typeof pendingInvites>>[number];
+          url: string;
+          sent: boolean;
+          seatsUsed: number;
+          seatsTotal: number;
+          atSeatLimit: boolean;
+      };
 
 // Returns the accept URL as well as mailing it, so an unconfigured-mail dev setup stays usable.
 export async function inviteMember(
@@ -206,13 +226,23 @@ export async function inviteMember(
         inviterName: inviter.name,
         url,
     });
-    return { invite: invite!, url, sent };
+    return {
+        invite: invite!,
+        url,
+        sent,
+        seatsUsed: members.length,
+        seatsTotal: ws.seats,
+        atSeatLimit: members.length + pending.length + 1 >= ws.seats,
+    };
 }
 
-export async function revokeInvite(workspaceId: string, inviteId: string): Promise<void> {
-    await db
+/** Returns how long the invite had been outstanding, or null when there was nothing to revoke. */
+export async function revokeInvite(workspaceId: string, inviteId: string): Promise<number | null> {
+    const [row] = await db
         .delete(schema.invites)
-        .where(and(eq(schema.invites.id, inviteId), eq(schema.invites.workspaceId, workspaceId)));
+        .where(and(eq(schema.invites.id, inviteId), eq(schema.invites.workspaceId, workspaceId)))
+        .returning({ createdAt: schema.invites.createdAt });
+    return row ? hoursSince(row.createdAt) : null;
 }
 
 export async function inviteByToken(token: string) {
@@ -235,11 +265,16 @@ export async function acceptInvite(token: string, userId: string): Promise<Accep
     const already = members.some((m) => m.userId === userId);
     if (!already && members.length >= row.ws.seats) return { error: "no-seats" };
 
-    if (!already)
+    if (!already) {
         await db
             .insert(schema.members)
             .values({ workspaceId: row.ws.id, userId, role: row.invite.role })
             .onConflictDoNothing();
+        capture({ userId, workspaceId: row.ws.id }, "invite_accepted", {
+            role: asRole(row.invite.role),
+            hours_to_accept: hoursSince(row.invite.createdAt),
+        });
+    }
     await db
         .update(schema.invites)
         .set({ acceptedAt: new Date() })
@@ -263,14 +298,27 @@ export async function removeMember(workspaceId: string, userId: string): Promise
 }
 
 export async function switchWorkspace(userId: string, workspaceId: string): Promise<boolean> {
-    const [membership] = await db
-        .select({ ws: schema.members.workspaceId })
+    // Every membership rather than just the target one, because naming the plan on both sides of
+    // the switch is what makes the event answerable, and a person has a handful of these.
+    const memberships = await db
+        .select({ id: schema.members.workspaceId, plan: schema.workspaces.plan })
         .from(schema.members)
-        .where(and(eq(schema.members.userId, userId), eq(schema.members.workspaceId, workspaceId)));
-    if (!membership) return false;
+        .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.members.workspaceId))
+        .where(eq(schema.members.userId, userId));
+    const target = memberships.find((m) => m.id === workspaceId);
+    if (!target) return false;
+    const [me] = await db
+        .select({ active: schema.users.activeWorkspaceId })
+        .from(schema.users)
+        .where(eq(schema.users.id, userId));
     await db
         .update(schema.users)
         .set({ activeWorkspaceId: workspaceId })
         .where(eq(schema.users.id, userId));
+    capture({ userId, workspaceId }, "workspace_switched", {
+        from_plan: planFor(memberships.find((m) => m.id === me?.active)?.plan).id,
+        to_plan: planFor(target.plan).id,
+        workspaces_available: memberships.length,
+    });
     return true;
 }

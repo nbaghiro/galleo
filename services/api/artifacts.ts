@@ -6,7 +6,10 @@ import { featuresFor, isUnlimited, limit } from "@model/billing";
 import { TEMPLATE_INDEX } from "@model/templates";
 import { z } from "zod";
 import { BAD_BODY, checkLimit, readJson } from "@services/utils/http";
+import { capture } from "@services/utils/analytics";
+import { asFormat } from "@model/analytics";
 import { currentMembership, type WorkspaceRow } from "@services/core/accounts";
+import { artifactCredits } from "@services/core/media";
 import { recordArtifactVisit, recordTemplateUse } from "@services/core/visits";
 import { markGrantSeen } from "@services/core/collaborators";
 import { CONN_HEADER, openRoom } from "@services/core/collab";
@@ -125,6 +128,14 @@ artifacts.post("/artifacts", requireWorkspace, async (c) => {
 
 // Artifact-scoped from here on: the gate resolves the workspace from the artifact row, so an
 // invited collaborator reads their invitation rather than their own workspace's copy of nothing.
+// Who to credit for the pictures in this artifact. Read separately from the content because the
+// content carries asset references, not provenance: the row is the only place that lives.
+artifacts.get("/artifacts/:id/credits", requireUser, async (c) => {
+    const gate = await gateShared(c, c.req.param("id"), "view");
+    if (isResponse(gate)) return gate;
+    return c.json({ credits: await artifactCredits(c.req.param("id")) });
+});
+
 artifacts.get("/artifacts/:id", requireUser, async (c) => {
     const gate = await gateShared(c, c.req.param("id"), "view");
     if (isResponse(gate)) return gate;
@@ -182,7 +193,15 @@ artifacts.post("/artifacts/:id/visit", requireUser, async (c) => {
 artifacts.post("/artifacts/:id/trash", requireWorkspace, async (c) => {
     const gate = await gateArtifact(c, c.req.param("id"), "edit");
     if (isResponse(gate)) return gate;
-    await setTrashed(c.get("ws").id, c.req.param("id"), new Date());
+    const before = await setTrashed(c.get("ws").id, c.req.param("id"), new Date());
+    // age_days and section_count are the difference between a quality signal and housekeeping: one
+    // trashed minutes after generation is not the same act as one trashed after a month.
+    if (before)
+        capture({ userId: c.get("user").id, workspaceId: c.get("ws").id }, "artifact_trashed", {
+            format: asFormat(before.formatId),
+            age_days: Math.round((Date.now() - before.createdAt.getTime()) / (24 * 3_600_000)),
+            section_count: before.sectionCount,
+        });
     return c.json({ ok: true });
 });
 
@@ -192,20 +211,29 @@ artifacts.post("/artifacts/:id/restore", requireWorkspace, async (c) => {
     if (isResponse(gate)) return gate;
     const denied = await overArtifactCap(c, ws);
     if (denied) return denied;
-    await setTrashed(ws.id, c.req.param("id"), null);
+    const before = await setTrashed(ws.id, c.req.param("id"), null);
+    if (before?.trashedAt)
+        capture({ userId: c.get("user").id, workspaceId: ws.id }, "artifact_restored", {
+            days_in_trash: Math.round((Date.now() - before.trashedAt.getTime()) / (24 * 3_600_000)),
+        });
     return c.json({ ok: true });
 });
 
 artifacts.delete("/artifacts/:id", requireWorkspace, async (c) => {
     const gate = await gateArtifact(c, c.req.param("id"), "edit");
     if (isResponse(gate)) return gate;
-    await deleteArtifact(c.get("ws").id, c.req.param("id"));
+    const days = await deleteArtifact(c.get("ws").id, c.req.param("id"));
+    if (days !== null)
+        capture({ userId: c.get("user").id, workspaceId: c.get("ws").id }, "artifact_deleted", {
+            days_in_trash: days,
+        });
     return c.json({ ok: true });
 });
 
 // Wipes every member's trashed work at once, not just the caller's, so it is an admin call.
 artifacts.delete("/trash", requireWorkspace, requireRole("admin"), async (c) => {
-    await emptyTrash(c.get("ws").id);
+    const count = await emptyTrash(c.get("ws").id);
+    capture({ userId: c.get("user").id, workspaceId: c.get("ws").id }, "trash_emptied", { count });
     return c.json({ ok: true });
 });
 
@@ -220,6 +248,12 @@ artifacts.put("/artifacts/:id/access", requireWorkspace, async (c) => {
     if (access !== null && !isAccess(access))
         return c.json({ error: "that is not an access level" }, 400);
     const ok = await setArtifactAccess(c.get("ws").id, c.req.param("id"), access);
+    if (ok)
+        capture(
+            { userId: c.get("user").id, workspaceId: c.get("ws").id },
+            "artifact_access_changed",
+            { to: access ?? "workspace_default" },
+        );
     return ok ? c.json({ ok: true, access }) : c.json({ error: "not found" }, 404);
 });
 
@@ -256,6 +290,11 @@ artifacts.patch("/artifacts/:id", requireUser, async (c) => {
         return c.json({ error: "only the owning workspace can move this artifact" }, 403);
     const a = await updateArtifact(gate.ws.id, c.req.param("id"), body);
     if (!a) return c.json({ error: "not found" }, 404);
+    const who = { userId: c.get("user").id, workspaceId: gate.ws.id };
+    // Title and folder only. A content write is an edit, and the editing-depth events describe it.
+    if (body.title !== undefined) capture(who, "artifact_renamed", {});
+    if (body.folderId !== undefined)
+        capture(who, "artifact_moved", { to_folder: body.folderId !== null });
     // a whole-document write has no ops to replay, so anyone in the room reloads from the new seq
     if (body.draftContent !== undefined) openRoom(c.req.param("id"))?.resyncAll(a.seq);
     return c.json({ ok: true, updatedAt: a.updatedAt, seq: a.seq });

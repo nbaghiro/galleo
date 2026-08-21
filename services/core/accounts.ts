@@ -14,6 +14,7 @@ import { db } from "@services/db/client";
 import { freshCreditWindow, rollCreditWindow } from "./ledger";
 import { schema } from "@services/db/schema";
 import { hashPassword, readSessionPayload, verifyPassword } from "@services/utils/auth";
+import { capture, identify } from "@services/utils/analytics";
 import { appUrl } from "@services/utils/env";
 import { sendEmail } from "./mail";
 
@@ -200,9 +201,29 @@ export async function provisionUser(input: ProvisionInput): Promise<ProvisionedU
             prefs: schema.users.prefs,
         });
     if (!user) throw new Error("failed to create user");
-    await createWorkspaceForUser(user.id, {
+    const ws = await createWorkspaceForUser(user.id, {
         name: workspaceNameFor(input.name, email),
         slugBase: email.split("@")[0] ?? email,
+    });
+    // Every signup path lands here, so this cannot be missed by one of them. An invited person
+    // signs up normally and accepts afterwards, so the invite is a pending row rather than
+    // anything the signup itself carries.
+    const method = input.passwordHash ? "password" : "google";
+    const [pending] = await db
+        .select({ id: schema.invites.id })
+        .from(schema.invites)
+        .where(and(eq(schema.invites.email, email), isNull(schema.invites.acceptedAt)))
+        .limit(1);
+    identify(user.id, {
+        signup_method: method,
+        signup_at: new Date().toISOString(),
+        email_verified: !!input.emailVerified,
+        workspaces_owned: 1,
+        workspaces_member_of: 1,
+    });
+    capture({ userId: user.id, workspaceId: ws.id }, "signed_up", {
+        method,
+        invited: !!pending,
     });
     return user;
 }
@@ -363,6 +384,7 @@ export async function authenticate(email: string, password: string): Promise<Use
 // Bumps passwordChangedAt so sessions minted before now are rejected: a stolen cookie dies here.
 // Consuming the reset token also proves inbox control, so the email is confirmed at the same time.
 export async function resetPassword(userId: string, password: string): Promise<User | null> {
+    capture({ userId }, "password_changed", {});
     await db
         .update(schema.users)
         .set({
@@ -376,10 +398,18 @@ export async function resetPassword(userId: string, password: string): Promise<U
 }
 
 export async function markEmailVerified(userId: string): Promise<void> {
-    await db
+    const [row] = await db
         .update(schema.users)
         .set({ emailVerifiedAt: new Date() })
-        .where(eq(schema.users.id, userId));
+        .where(eq(schema.users.id, userId))
+        .returning({ createdAt: schema.users.createdAt });
+    identify(userId, { email_verified: true });
+    // Whether gating the signup grant on verification costs minutes or days, which is what decides
+    // if that gate is acceptable at all.
+    if (row)
+        capture({ userId }, "email_verified", {
+            hours_since_signup: Math.round((Date.now() - row.createdAt.getTime()) / 3_600_000),
+        });
 }
 
 // The account surface: profile, password, linked providers, preferences. Every writer returns the
@@ -432,6 +462,7 @@ export async function changePassword(
         .set({ passwordHash: hashPassword(next), passwordChangedAt: new Date() })
         .where(eq(schema.users.id, userId))
         .returning(USER_COLS);
+    if (u) capture({ userId }, "password_changed", {});
     return u ? { user: toUser(u) } : { error: "no-account" };
 }
 
@@ -543,6 +574,9 @@ export async function sendResetEmail(email: string): Promise<void> {
         .from(schema.users)
         .where(eq(schema.users.email, email));
     if (!u) return;
+    // Only for an address that exists. The route deliberately answers the same either way, and an
+    // event for an unknown address would be a way to ask whether one is registered.
+    capture({ userId: u.id }, "password_reset_requested", {});
     const raw = await createAuthToken(u.id, "reset", RESET_TTL);
     const url = appUrl(`/login?reset=${raw}`);
     await sendEmail({

@@ -34,6 +34,8 @@ import {
     sourceLength,
     type Attachment,
 } from "@app/components/attachments";
+import { charsBucket } from "@model/analytics";
+import { capture } from "@ui/analytics";
 
 // module-level so the studio shell can size the dialog: the prompt is compact, but "Browse all"
 // and the contexts pane swap in full-height surfaces that want the wide modal
@@ -52,13 +54,24 @@ export const Intake: Component = () => {
     const [fileError, setFileError] = createSignal("");
     const [ctxIds, setCtxIds] = createSignal<string[]>([]);
 
+    // One place every attach path lands, so the event cannot be missed by one of them. The text
+    // never travels: only its kind and a size bucket.
+    const attachItem = (a: Attachment): void => {
+        setItems((cur) => [...cur, a]);
+        capture("generation_context_attached", {
+            kind: a.kind,
+            count: 1,
+            chars_bucket: charsBucket(a.text.length),
+        });
+    };
+
     const addFiles = async (files: FileList | null): Promise<void> => {
         if (!files?.length) return;
         setFileError("");
         for (const file of Array.from(files)) {
             const { attachment, error } = await readAttachment(file);
             if (error) setFileError(error);
-            if (attachment) setItems((cur) => [...cur, attachment]);
+            if (attachment) attachItem(attachment);
         }
     };
 
@@ -67,16 +80,13 @@ export const Intake: Component = () => {
         setFileError("");
         try {
             const page = await api.fetchWebpage(target);
-            setItems((cur) => [
-                ...cur,
-                {
-                    id: nextAttachmentId(),
-                    name: page.title,
-                    kind: "link",
-                    ref: page.url,
-                    text: page.text,
-                },
-            ]);
+            attachItem({
+                id: nextAttachmentId(),
+                name: page.title,
+                kind: "link",
+                ref: page.url,
+                text: page.text,
+            });
             return true;
         } catch (e) {
             setFileError(e instanceof Error ? e.message : "Couldn’t fetch that page.");
@@ -97,10 +107,7 @@ export const Intake: Component = () => {
                 setFileError(`${pick.title} has no text to build from.`);
                 return;
             }
-            setItems((cur) => [
-                ...cur,
-                { id: nextAttachmentId(), name: pick.title, kind: "artifact", text },
-            ]);
+            attachItem({ id: nextAttachmentId(), name: pick.title, kind: "artifact", text });
         } catch {
             setFileError(`Couldn’t read ${pick.title}.`);
         }

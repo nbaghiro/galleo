@@ -1,6 +1,8 @@
 import type { SearchHit } from "@model/artifact";
 import { rankScored } from "@ui/fuzzy";
 import { api } from "@app/api";
+import { queryBucket } from "@model/analytics";
+import { capture } from "@ui/analytics";
 import { artifacts, artifactsLoaded, formatLabel } from "./library";
 import { relativeTime } from "@ui/time";
 
@@ -45,11 +47,19 @@ export async function fetchHits(
     q: string,
     signal?: AbortSignal,
     limit = SEARCH_LIMIT + 1, // one over the display cap, so "show all results" knows there is more
+    via: "field" | "palette" = "field",
 ): Promise<SearchHit[]> {
     const cached = cachedHits(q, limit);
     if (cached) return cached;
     const { artifacts: hits } = await api.search(q, limit, signal);
     putHits(q, limit, hits);
+    // Only on a real fetch: a cache hit means the same query, so this counts distinct searches
+    // rather than keystrokes. The query itself never travels, only how long it was.
+    capture("library_searched", {
+        result_count: hits.length,
+        query_length_bucket: queryBucket(q.length),
+        via,
+    });
     return hits;
 }
 

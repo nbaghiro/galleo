@@ -1,6 +1,8 @@
 import type { Component } from "solid-js";
 import { createMemo, createResource, createSignal, For, Match, Show, Switch } from "solid-js";
 import type { ExportFormat } from "@model/billing";
+import type { ArtifactContent } from "@model/artifact";
+import type { MediaCredit } from "@model/media";
 import { profileFor } from "@engine/profile";
 import { sectionSlides } from "@canvas/render/commands";
 import {
@@ -13,6 +15,8 @@ import {
 } from "@canvas/render/export";
 import { buildPptx } from "@canvas/render/pptx";
 import { Icon } from "@ui/icons";
+import { capture } from "@ui/analytics";
+import { asFormat } from "@model/analytics";
 import { Badge, Button, Spinner } from "@ui/button";
 import { Modal } from "@ui/overlay";
 import { cachedExport } from "@editor/core/exportCache";
@@ -20,6 +24,7 @@ import {
     currentArtifactId,
     editSeq,
     editor,
+    artifactCredits,
     editorTokens,
     ensureAllSections,
     features,
@@ -27,10 +32,47 @@ import {
 } from "@editor/core/store";
 
 const [target, setTarget] = createSignal(false);
+const [credits, setCredits] = createSignal<MediaCredit[]>([]);
 export function openExportModal(): void {
     // export needs the whole document, so a windowed artifact fills in the rest first
     void ensureAllSections();
+    const id = currentArtifactId();
+    setCredits([]);
+    if (id)
+        void artifactCredits(id)
+            .then(setCredits)
+            .catch(() => setCredits([]));
     setTarget(true);
+}
+
+// A deck full of sourced photos leaves the app as a file, so the credit those providers ask for
+// travels with it. Appended as a closing section, which every builder already knows how to render.
+function withCredits(artifact: ArtifactContent, list: MediaCredit[]): ArtifactContent {
+    if (!list.length) return artifact;
+    const line = (c: MediaCredit): string =>
+        c.author && c.provider ? `${c.author} · ${c.provider}` : (c.author ?? c.provider ?? "");
+    return {
+        ...artifact,
+        sections: [
+            ...artifact.sections,
+            {
+                id: "credits",
+                root: {
+                    type: "container",
+                    data: {
+                        direction: "col",
+                        children: [
+                            { type: "text", data: { text: "Images", style: "label" } },
+                            {
+                                type: "text",
+                                data: { text: list.map(line).join(" · "), style: "caption" },
+                            },
+                        ],
+                    },
+                },
+            },
+        ],
+    };
 }
 const close = (): void => {
     setTarget(false);
@@ -80,7 +122,10 @@ const Body: Component = () => {
     const continuous = createMemo(() => profile().kind === "continuous");
     const brand = createMemo(() => !features().removeBranding);
     // one build per destination per artifact state; tab hops and the Export click reuse it
-    const fp = createMemo(() => `${currentArtifactId()}:${editSeq()}:${brand() ? 1 : 0}`);
+    const credited = createMemo(() => withCredits(editor.artifact, credits()));
+    const fp = createMemo(
+        () => `${currentArtifactId()}:${editSeq()}:${brand() ? 1 : 0}:${credits().length}`,
+    );
 
     const nSections = createMemo(() => editor.artifact.sections.length);
     const nSlides = createMemo(() =>
@@ -96,7 +141,7 @@ const Body: Component = () => {
             "pdf",
             fp(),
             async () => {
-                const b = await buildPdfAuto(editor.artifact, editorTokens(), { brand: brand() });
+                const b = await buildPdfAuto(credited(), editorTokens(), { brand: brand() });
                 return { ...b, url: blobUrl(b.bytes, "application/pdf") };
             },
             (v) => URL.revokeObjectURL(v.url),
@@ -108,9 +153,7 @@ const Body: Component = () => {
     const pngZip = (): Promise<Uint8Array> =>
         cachedExport("zip", fp(), async () => buildSectionPngZip(await pngFiles()));
     const pptxBytes = (): Promise<Uint8Array> =>
-        cachedExport("pptx", fp(), () =>
-            buildPptx(editor.artifact, editorTokens(), { brand: brand() }),
-        );
+        cachedExport("pptx", fp(), () => buildPptx(credited(), editorTokens(), { brand: brand() }));
     const pngPreview = (): Promise<Preview> =>
         cachedExport(
             "pngs:preview",
@@ -176,11 +219,15 @@ const Body: Component = () => {
     const allowed = (d: Dest): boolean => features().exportFormats.includes(d);
     const run = async (): Promise<void> => {
         const d = dest();
+        const sections = editor.artifact.sections.length;
         if (!allowed(d)) {
+            // plan_id rides as a super property; the editor layer cannot reach the billing store.
+            capture("paywall_hit", { feature: "exportFormats", upgrade_offered: true });
             requestUpgrade();
             return;
         }
         setBusy(true);
+        const startedAt = Date.now();
         try {
             if (d === "pdf") {
                 const b = await pdfBuild();
@@ -189,7 +236,22 @@ const Body: Component = () => {
             else if (d === "png")
                 downloadBytes(await pngZip(), "galleo-sections.zip", "application/zip");
             else await exportPrint(editor.artifact, editorTokens());
+            // Reaching an output is the activation definition, so this is the denominator for it.
+            capture("exported", {
+                export_format: d,
+                artifact_format: asFormat(editor.artifact.format),
+                section_count: sections,
+                ms: Date.now() - startedAt,
+                branded: !features().removeBranding,
+            });
             close();
+        } catch (e) {
+            capture("export_failed", {
+                export_format: d,
+                reason: e instanceof Error ? e.name : "unknown",
+                section_count: sections,
+            });
+            throw e;
         } finally {
             setBusy(false);
         }

@@ -7,6 +7,7 @@ import type { AuthProvider } from "@model/workspace";
 import { appUrl } from "@services/utils/env";
 import { readSession, SESSION_COOKIE } from "@services/utils/auth";
 import { setSessionCookie } from "@services/utils/http";
+import { capture } from "@services/utils/analytics";
 import {
     googleProvider,
     linkOAuthAccount,
@@ -133,6 +134,7 @@ async function complete(
     // sign-in a no-op, and a failure here must not cost the user their session.
     if (identity.emailVerified) await releaseSignupGrant(result.userId).catch(() => false);
     setSessionCookie(c, result.userId);
+    capture({ userId: result.userId }, "logged_in", { method: provider });
     return c.redirect(appUrl("/"));
 }
 
