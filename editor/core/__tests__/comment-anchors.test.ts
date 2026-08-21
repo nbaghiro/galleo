@@ -28,7 +28,7 @@ const doc = (): ArtifactContent => ({
         {
             id: "s1",
             root: {
-                type: "group",
+                type: "container",
                 data: {
                     direction: "col",
                     children: [text("The second album, twelve tracks"), text("Second body line")],
@@ -169,7 +169,7 @@ describe("commentableAt", () => {
             {
                 id: "s1",
                 root: {
-                    type: "group",
+                    type: "container",
                     data: {
                         direction: "col",
                         children: [
@@ -194,15 +194,17 @@ describe("commentableAt", () => {
         expect(at(1, 0)).toBe(true);
     });
 
-    it("refuses a part of a card", () => {
-        expect(at(2, 0)).toBe(false);
+    // A surfaced container is a styled column, not a unit: its children are droppable and movable
+    // on their own, so they are standalone blocks and take a comment like any other.
+    it("takes a child of a surfaced container, which no longer owns its parts", () => {
+        expect(at(2, 0)).toBe(true);
     });
 
-    it("refuses a card's part however many columns are above it", () => {
-        expect(at(3, 0, 0)).toBe(false);
+    it("takes one however many columns are above it", () => {
+        expect(at(3, 0, 0)).toBe(true);
     });
 
-    it("refuses a part of any container that is not a layout group", () => {
+    it("refuses a part of any unit, which does own its parts", () => {
         expect(at(4, 0)).toBe(false);
     });
 
@@ -232,12 +234,12 @@ describe("a thread already anchored inside a composite", () => {
                 {
                     id: "s1",
                     root: {
-                        type: "group",
+                        type: "container",
                         data: {
                             direction: "col",
                             children: [
                                 {
-                                    type: "card",
+                                    type: "callout",
                                     data: {
                                         children: [{ type: "text", data: { text: "inside" } }],
                                     },

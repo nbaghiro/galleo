@@ -75,7 +75,10 @@ describe("layoutSlide — slide fit", () => {
         const paras = Array.from({ length: 40 }, (_, i) =>
             inst("text", { text: `Paragraph ${i}` }),
         );
-        const section = sectionOf({ type: "group", data: { direction: "col", children: paras } });
+        const section = sectionOf({
+            type: "container",
+            data: { direction: "col", children: paras },
+        });
         expect(layoutSlide(section, 1280, 720, measure).height).toBeGreaterThan(720);
     });
 });

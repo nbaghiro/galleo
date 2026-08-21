@@ -1,4 +1,5 @@
 import type { IconPick, MediaItem, MediaKind } from "@model/media";
+import { assetIdFromUrl, vimeoId, youtubeId } from "@model/media";
 import { clearBackgroundImage } from "@elements/ops";
 import { commit, editor, requestMediaPicker } from "./store";
 
@@ -28,9 +29,7 @@ export function embedFor(
     };
     const u = url.trim();
     if (!u) return null;
-    const yt = u.match(
-        /(?:youtube(?:-nocookie)?\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/,
-    );
+    const yt = youtubeId(u);
     if (yt) {
         const p = new URLSearchParams();
         if (!o.controls) p.set("controls", "0");
@@ -41,16 +40,16 @@ export function embedFor(
         if (o.muted) p.set("mute", "1");
         if (o.loop) {
             p.set("loop", "1");
-            p.set("playlist", yt[1]!); // yt loops only with a playlist of the same id
+            p.set("playlist", yt); // yt loops only with a playlist of the same id
         }
         const qs = p.toString();
         return {
             kind: "iframe",
-            src: `https://www.youtube-nocookie.com/embed/${yt[1]}${qs ? `?${qs}` : ""}`,
+            src: `https://www.youtube-nocookie.com/embed/${yt}${qs ? `?${qs}` : ""}`,
             opts: o,
         };
     }
-    const vm = u.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+    const vm = vimeoId(u);
     if (vm) {
         const p = new URLSearchParams();
         if (!o.controls) p.set("controls", "0");
@@ -60,13 +59,13 @@ export function embedFor(
         const qs = p.toString();
         return {
             kind: "iframe",
-            src: `https://player.vimeo.com/video/${vm[1]}${qs ? `?${qs}` : ""}`,
+            src: `https://player.vimeo.com/video/${vm}${qs ? `?${qs}` : ""}`,
             opts: o,
         };
     }
     if (/\.(mp4|webm|ogg|mov)(\?|#|$)/i.test(u)) return { kind: "file", src: u, opts: o };
-    // generated clips live behind extension-less asset urls; on a video element that's a file source
-    if (/\/api\/media\/asset\//.test(u)) return { kind: "file", src: u, opts: o };
+    // stored clips live behind extension-less asset urls; on a video element that's a file source
+    if (assetIdFromUrl(u)) return { kind: "file", src: u, opts: o };
     return null;
 }
 

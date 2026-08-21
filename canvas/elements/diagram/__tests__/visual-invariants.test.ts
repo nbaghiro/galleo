@@ -256,6 +256,19 @@ for (const { value: type } of diagramTypeOptions()) {
                     ),
                 },
             });
+        // the graph types branch, which is where their layouts actually differ from a chain
+        if (type === "flow" || type === "mindmap" || type === "org") {
+            const kids = Array.from({ length: n - 1 }, (_, i) => `Item ${i + 2}`);
+            const arrow = type === "flow" ? "->" : ">";
+            MATRIX.push({
+                label: `${type} n=${n} branching`,
+                data: {
+                    type,
+                    items,
+                    links: kids.map((k) => `Item 1${arrow}${k}`).join(", "),
+                },
+            });
+        }
         // detail lines exercise the grown-cell path (a wrapped detail must stay inside its fill)
         if (type === "org")
             MATRIX.push({

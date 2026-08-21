@@ -63,10 +63,12 @@ export const CHART_TYPES = [
     "radar",
     "scatter",
     "bubble",
-    "funnel",
     "gauge",
     "heatmap",
     "treemap",
+    "waterfall",
+    "pack",
+    "progress",
 ] as const;
 export type ChartType = (typeof CHART_TYPES)[number];
 
@@ -82,10 +84,16 @@ export const DIAGRAM_TYPES = [
     "matrix",
     "hub",
     "org",
+    "target",
+    "venn",
+    "pictogram",
+    "flow",
+    "mindmap",
+    "roadmap",
 ] as const;
 export type DiagramType = (typeof DIAGRAM_TYPES)[number];
 
-export const GRAPH_DIAGRAM_TYPES = ["org"] as const;
+export const GRAPH_DIAGRAM_TYPES = ["org", "flow", "mindmap"] as const;
 
 // node treatment, artifact-wide per diagram; per-item emphasis promotes a node to solid
 export const DIAGRAM_STYLES = ["solid", "tinted", "card", "outline"] as const;

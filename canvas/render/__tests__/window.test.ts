@@ -13,7 +13,7 @@ import {
 
 const bare = (over: Partial<Section> = {}): Section => ({
     id: "s1",
-    root: { type: "group", data: { children: [] } },
+    root: { type: "container", data: { children: [] } },
     ...over,
 });
 

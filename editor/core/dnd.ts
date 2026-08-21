@@ -13,6 +13,7 @@ import {
     wrapWith,
 } from "@elements/ops";
 import { getElement } from "@elements/spec";
+import { setRightTab } from "./store";
 
 export type DragPayload =
     | { kind: "new"; type: string }
@@ -57,6 +58,8 @@ export const [drag, setDrag] = createSignal<DragState | null>(null);
 export const [dragSlots, setDragSlots] = createSignal<DropSlot[]>([]);
 
 export function startDrag(payload: DragPayload, x: number, y: number, label: string): void {
+    // the flyout sits over the right of the canvas, which is where a drop target often is
+    setRightTab(null);
     setDrag({ payload, x, y, label, target: null });
 }
 
@@ -85,8 +88,10 @@ const isContainer = (inst?: ElementInstance): boolean => {
 export function movable(art: ArtifactContent, addr: ElementAddress): boolean {
     if (addr.path.length === 0) return true;
     const parent = getElementAt(art, { section: addr.section, path: addr.path.slice(0, -1) });
-    const c = parent ? getElement(parent.type)?.container : undefined;
-    return !c?.closed;
+    if (!parent) return true;
+    // only a real layout container hands its children out; a unit owns them, so its parts move with
+    // it rather than on their own
+    return getElement(parent.type)?.tier === "container";
 }
 
 // the nearest self-or-ancestor that structural ops may act on (a paste beside a diagram label
@@ -105,7 +110,7 @@ const childCount = (inst?: ElementInstance): number => {
 };
 
 const groupAxis = (inst?: ElementInstance): "row" | "col" =>
-    inst?.type === "group" && (inst.data as { direction?: string }).direction === "row"
+    inst?.type === "container" && (inst.data as { direction?: string }).direction === "row"
         ? "row"
         : "col";
 
@@ -339,7 +344,9 @@ function elementSlots(art: ArtifactContent, regions: Region[], payload: DragPayl
             const inst = getElementAt(art, { section: sid, path });
             if (!inst) return;
             const spec = getElement(inst.type);
-            const open = !!spec?.container && !spec.container.closed;
+            // tier, not the container facet: a unit (table, bullets, a composite) has children to
+            // organise its own content, which is not an invitation to drop arbitrary elements into it
+            const open = spec?.tier === "container";
             const box = regionBox(regions, sid, path);
             if (!box) return;
 

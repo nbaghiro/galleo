@@ -3,6 +3,7 @@ import type { EngineNode } from "@engine/node";
 import { register } from "@elements/spec";
 import { grow } from "@model/geometry";
 import { GRAPH_DIAGRAM_TYPES } from "@model/elements";
+import { previewSvg } from "@elements/previews";
 import { diagramTypeOptions } from "./render";
 import type { DiagramData, DiagItem, DiagItemMeta } from "./utils";
 import { formatItems, getDiagram, itemWeight, normalizeDiagram, toDiagramData } from "./utils";
@@ -86,7 +87,10 @@ export const DIAGRAM_CONTROLS: ControlField[] = [
         label: "Type",
         control: "select",
         get options() {
-            return diagramTypeOptions();
+            return diagramTypeOptions().map((o) => ({
+                ...o,
+                preview: previewSvg(`${o.value}Diagram`),
+            }));
         },
     },
     {
@@ -110,6 +114,7 @@ export const DIAGRAM_CONTROLS: ControlField[] = [
         "Low effort, High effort, Low impact, High impact",
     ),
     axisField("matrix", "Headers (columns, then rows)", "Helpful, Harmful, Internal, External"),
+    axisField("roadmap", "Columns", "Q1, Q2, Q3, Q4"),
     {
         key: "style",
         label: "Node style",
@@ -156,7 +161,7 @@ function diagramSpec(
         type: typeKey,
         label,
         category: "diagram",
-        tier: "smart",
+        tier: "unit",
         create: (): DiagramData => ({
             type: diagType,
             items: "Discover, Design, Build, Ship",
@@ -273,6 +278,56 @@ const VARIANTS: {
         preset: {
             items: "CEO, CTO, CFO, VP Eng, VP Sales",
             links: "CEO>CTO, CEO>CFO, CTO>VP Eng, CFO>VP Sales",
+        },
+    },
+    {
+        key: "targetDiagram",
+        label: "Target rings",
+        type: "target",
+        preset: {
+            items: "Market | everyone in the category\nSegment | who we serve\nBeachhead | where we start",
+        },
+    },
+    {
+        key: "vennDiagram",
+        label: "Venn",
+        type: "venn",
+        preset: { items: "Desirable, Feasible, Viable, Innovation" },
+    },
+    {
+        key: "pictogramDiagram",
+        label: "Pictogram",
+        type: "pictogram",
+        preset: {
+            items: "Enterprise | | 9\nMid-market | | 6\nStartup | | 3",
+            itemsMeta: [{ icon: "users" }, { icon: "users" }, { icon: "users" }],
+        },
+    },
+    {
+        key: "flowDiagram",
+        label: "Flowchart",
+        type: "flow",
+        preset: {
+            items: "Draft, Review, Ready to ship?, Publish, Revise",
+            links: "Draft->Review, Review->Ready to ship?, Ready to ship?->Publish:yes, Ready to ship?->Revise:no, Revise->Review",
+        },
+    },
+    {
+        key: "mindmapDiagram",
+        label: "Mind map",
+        type: "mindmap",
+        preset: {
+            items: "Launch, Marketing, Engineering, Sales, Support",
+            links: "Launch>Marketing, Launch>Engineering, Launch>Sales, Launch>Support",
+        },
+    },
+    {
+        key: "roadmapDiagram",
+        label: "Roadmap",
+        type: "roadmap",
+        preset: {
+            items: "Discovery | interviews and sizing | 1\nBeta | design partners | 2\nGA | full launch | 1",
+            axes: "Q1, Q2, Q3, Q4",
         },
     },
 ];

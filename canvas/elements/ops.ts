@@ -29,8 +29,13 @@ function mapSection(art: ArtifactContent, id: Id, fn: (s: Section) => Section): 
 const putRoot = (art: ArtifactContent, id: Id, root: ElementInstance): ArtifactContent =>
     mapSection(art, id, (s) => ({ ...s, root }));
 
-// registry-aware mirror of @model/artifact's raw walk
-function childrenOf(inst: ElementInstance): ElementInstance[] | null {
+/**
+ * A container's children, asked of the registry rather than read off `data.children`.
+ *
+ * Not every container stores them under that key: a grid keeps cells, a diagram keeps nodes. The raw
+ * walk in @model/artifact misses both, so anything counting or summing a subtree uses this.
+ */
+export function childrenOf(inst: ElementInstance): ElementInstance[] | null {
     const spec = getElement(inst.type);
     return spec?.container ? spec.container.children(inst.data) : null;
 }
@@ -49,7 +54,7 @@ const isEmptyContainer = (inst: ElementInstance): boolean => {
 };
 
 const isRow = (inst: ElementInstance): boolean =>
-    inst.type === "group" && (inst.data as { direction?: string }).direction === "row";
+    inst.type === "container" && (inst.data as { direction?: string }).direction === "row";
 
 const widthPct = (inst: ElementInstance): number | undefined => {
     const w = inst.layout?.width;
@@ -179,7 +184,7 @@ function renormalizeWidths(children: ElementInstance[]): ElementInstance[] {
 function fixContainer(node: ElementInstance): ElementInstance {
     const kids = childrenOf(node);
     if (!kids) return node;
-    if (node.type === "group" && kids.length === 1) {
+    if (node.type === "container" && kids.length === 1) {
         // the survivor's column width died with its row: full width, or the group's own slot
         const only = stripWidth(kids[0]!);
         const w = node.layout?.width;

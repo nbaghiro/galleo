@@ -4,6 +4,7 @@ import type { CursorBox, Lease, Peer } from "@model/collab";
 import { drag } from "@editor/core/dnd";
 import {
     boxOfElement,
+    clearNotice,
     collabActive,
     leases,
     notice,
@@ -65,46 +66,72 @@ export const CollabLayer: Component = () => {
         return out;
     });
 
-    // hidden during a drag, like every other overlay: the stack is frozen and the boxes are stale
+    // peer chrome is hidden during a drag, like every other overlay: the stack is frozen and the
+    // boxes are stale. The notice is not peer chrome and not placed against the stack, so it sits
+    // outside both gates: a solo session says things too ("this edits in place", "thread resolved").
     return (
-        <Show when={collabActive() && !drag()}>
-            <Show when={notice()}>
-                {(text) => (
-                    <div
-                        data-testid="collab-notice"
-                        class="pointer-events-none fixed bottom-6 left-1/2 z-overlay -translate-x-1/2"
-                    >
-                        <span class="rounded-full bg-panel px-3 py-1.5 text-[12.5px] text-ink shadow-lg">
-                            {text()}
-                        </span>
-                    </div>
-                )}
-            </Show>
-            <For each={[...held(), ...selected()]}>{(o) => <PeerOutline outline={o} />}</For>
-            <For each={remoteCursors()}>
-                {(c) => (
-                    <div
-                        data-testid="peer-cursor"
-                        class="pointer-events-none absolute z-overlay"
-                        style={{
-                            left: `${c.x}px`,
-                            top: `${c.y}px`,
-                            transform: "translate(-1px, -1px)",
-                        }}
-                    >
-                        <PointerGlyph color={c.color} />
-                        <span
-                            class="ml-3 inline-block -translate-y-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[10.5px] font-medium leading-tight text-white"
-                            style={{ background: c.color }}
+        <>
+            <EditorNotice />
+            <Show when={collabActive() && !drag()}>
+                <For each={[...held(), ...selected()]}>{(o) => <PeerOutline outline={o} />}</For>
+                <For each={remoteCursors()}>
+                    {(c) => (
+                        <div
+                            data-testid="peer-cursor"
+                            class="pointer-events-none absolute z-overlay"
+                            style={{
+                                left: `${c.x}px`,
+                                top: `${c.y}px`,
+                                transform: "translate(-1px, -1px)",
+                            }}
                         >
-                            {c.name}
-                        </span>
-                    </div>
-                )}
-            </For>
-        </Show>
+                            <PointerGlyph color={c.color} />
+                            <span
+                                class="ml-3 inline-block -translate-y-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[10.5px] font-medium leading-tight text-white"
+                                style={{ background: c.color }}
+                            >
+                                {c.name}
+                            </span>
+                        </div>
+                    )}
+                </For>
+            </Show>
+        </>
     );
 };
+
+// The editor's one transient line. Fixed to the viewport rather than the stack, so it reads the
+// same whatever is scrolled into view, and it only takes the pointer when it carries a way back.
+const EditorNotice: Component = () => (
+    <Show when={notice()}>
+        {(n) => (
+            <div
+                data-testid="collab-notice"
+                class="fixed bottom-6 left-1/2 z-overlay -translate-x-1/2"
+                classList={{ "pointer-events-none": !n().action }}
+            >
+                <span class="flex items-center gap-2.5 rounded-full bg-panel px-3 py-1.5 text-[12.5px] text-ink shadow-lg">
+                    {n().text}
+                    <Show when={n().action}>
+                        {(action) => (
+                            <button
+                                class="font-semibold text-accent hover:underline"
+                                onClick={() => {
+                                    // read first: clearing unmounts what this is read from
+                                    const run = action().run;
+                                    clearNotice();
+                                    run();
+                                }}
+                            >
+                                {action().label}
+                            </button>
+                        )}
+                    </Show>
+                </span>
+            </div>
+        )}
+    </Show>
+);
 
 const keyOf = (lease: Lease): string =>
     `hold:${lease.element.sectionId}:${lease.element.elementId}:${lease.connId}`;

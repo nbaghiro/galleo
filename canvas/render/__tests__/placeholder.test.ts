@@ -11,7 +11,7 @@ beforeAll(() => installCanvas2D());
 
 const deck = resolveProfile("deck");
 const doc = resolveProfile("doc");
-const section: Section = { id: "s1", root: { type: "group", data: { children: [] } } };
+const section: Section = { id: "s1", root: { type: "container", data: { children: [] } } };
 const summary = (over: Partial<SectionSummary> = {}): SectionSummary => ({
     id: "s1",
     kind: "content",

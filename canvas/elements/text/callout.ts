@@ -67,7 +67,7 @@ export const calloutElement: ElementSpec<CalloutData> = {
     type: "callout",
     label: "Callout",
     category: "text",
-    tier: "smart",
+    tier: "unit",
     create: () => ({
         children: [
             {

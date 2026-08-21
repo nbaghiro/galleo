@@ -37,7 +37,7 @@ const artOf = (root: ElementInstance): ArtifactContent => artifactOf([sectionOf(
 const rootOf = (art: ArtifactContent): ElementInstance => art.sections[0]!.root;
 const at = (path: number[]): { section: string; path: number[] } => ({ section: "s1", path });
 const isEmptyGroup = (i: ElementInstance): boolean =>
-    i.type === "group" && (childrenRaw(i)?.length ?? -1) === 0;
+    i.type === "container" && (childrenRaw(i)?.length ?? -1) === 0;
 
 describe("access + update", () => {
     it("getElementAt resolves a nested element by path, undefined when out of range", () => {
@@ -140,7 +140,7 @@ describe("insertion", () => {
 
     it("wrapWith wraps a leaf and a new element into a group (after → [self, new])", () => {
         const art = wrapWith(artOf(txt("a")), at([]), txt("x"), false, "row");
-        expect(rootOf(art).type).toBe("group");
+        expect(rootOf(art).type).toBe("container");
         expect(childrenRaw(rootOf(art))?.map(textOf)).toEqual(["a", "x"]);
     });
 
@@ -156,7 +156,7 @@ describe("duplicate", () => {
         const row = duplicateAt(artOf(rowGroup([txt("a"), txt("b")])), at([0]));
         expect(childrenRaw(rootOf(row))?.map(textOf)).toEqual(["a", "a", "b"]);
         const root = duplicateAt(artOf(txt("a")), at([]));
-        expect(rootOf(root).type).toBe("group");
+        expect(rootOf(root).type).toBe("container");
         expect(childrenRaw(rootOf(root))?.map(textOf)).toEqual(["a", "a"]);
     });
 

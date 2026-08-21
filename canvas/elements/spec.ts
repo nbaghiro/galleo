@@ -10,8 +10,14 @@ export function register<Data>(spec: ElementSpec<Data>): void {
     registry.set(spec.type, spec as ElementSpec);
 }
 
+// `group` and `card` merged into `container`. Stored artifacts are migrated
+// (scripts/migrate-container.ts), but the LLM is a client we do not control: it will drift back to
+// the old names whatever the prompt says, and an unresolved type paints the pink unknown-element box
+// in a customer's deck. Two entries are far cheaper than that.
+const LEGACY_TYPES: Record<string, string> = { group: "container", card: "container" };
+
 export function getElement(type: string): ElementSpec | undefined {
-    return registry.get(type);
+    return registry.get(type) ?? registry.get(LEGACY_TYPES[type] ?? "");
 }
 
 export function listElements(): ElementSpec[] {
@@ -58,7 +64,8 @@ export interface ControlField {
     key: string;
     label: string;
     control: ControlKind;
-    options?: { label: string; value: string; icon?: string }[]; // select / segmented (icon → shown on the bar)
+    // select / segmented; `icon` shows on the bar, `preview` is inline art for the dropdown row
+    options?: { label: string; value: string; icon?: string; preview?: string }[];
     min?: number;
     max?: number;
     step?: number;
@@ -72,7 +79,7 @@ export interface ControlField {
     visibleWhen?: (data: Record<string, unknown>) => boolean;
 }
 
-export type ElementTier = "primitive" | "smart" | "container" | "interactive";
+export type ElementTier = "primitive" | "unit" | "container" | "interactive";
 
 export interface ElementSpec<Data = unknown> {
     type: string;

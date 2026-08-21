@@ -25,8 +25,8 @@ describe("dataShapeFor", () => {
         expect(dataShapeFor("diagram", "mystery")).toBe("list");
     });
 
-    it("disambiguates the funnel collision by category, and returns undefined for other categories", () => {
-        expect(dataShapeFor("chart", "funnel")).toBe("labelValue");
+    it("routes by category, and returns undefined for other categories", () => {
+        expect(dataShapeFor("chart", "treemap")).toBe("labelValue");
         expect(dataShapeFor("diagram", "funnel")).toBe("list");
         expect(dataShapeFor("text", "callout")).toBeUndefined();
     });

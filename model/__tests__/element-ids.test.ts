@@ -15,7 +15,7 @@ const leaf = (text: string, id?: string): ElementInstance => ({
 });
 
 const group = (children: ElementInstance[], id?: string): ElementInstance => ({
-    type: "group",
+    type: "container",
     data: { direction: "col", children },
     ...(id ? { id } : {}),
 });

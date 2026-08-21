@@ -13,7 +13,7 @@ import type { ArtifactContent, Section } from "@model/artifact";
 
 const section = (aspect?: number): Section => ({
     id: "s",
-    root: { type: "group", data: { children: [] } },
+    root: { type: "container", data: { children: [] } },
     ...(aspect !== undefined ? { frame: { aspect } } : {}),
 });
 

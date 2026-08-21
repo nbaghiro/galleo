@@ -9,21 +9,22 @@ import {
     onMount,
     Show,
     Switch,
+    on,
 } from "solid-js";
 import type { Tokens } from "@themes";
 import { themeCssVars } from "@themes";
 import type { ElementAddress, SectionBackground } from "@model/artifact";
 import type { Peer } from "@model/collab";
 import { cursorSection } from "@model/collab";
-import { setArtifactFormat, getElementAt } from "@elements/ops";
+import { getElementAt } from "@elements/ops";
 import { getElement, listElements } from "@elements/spec";
 import { installKeyDispatcher } from "@ui/keys";
 import { Badge, Button, Eyebrow, IconButton } from "@ui/button";
 import { Avatar } from "@ui/avatar";
 import { Icon, UiThemeProvider } from "@ui/icons";
 import { TextField, FormatSwitcher } from "@ui/inputs";
-import { FloatingPanel, Sheet } from "@ui/overlay";
-import { dismissalFor } from "@ui/gesture";
+import { FloatingPanel, OverlayOwner, Sheet } from "@ui/overlay";
+import { dismissalFor, newOwnerToken, pressInside } from "@ui/gesture";
 import { isPhone } from "@ui/viewport";
 import { resolveProfile } from "@engine/profile";
 import { Canvas, Thumb } from "./Canvas";
@@ -43,12 +44,13 @@ import { pickMedia } from "./core/media";
 import {
     addSectionAfter,
     artifacts,
+    canComment,
+    canEdit,
     canRedo,
     canUndo,
     commit,
-    duplicateSectionAt,
-    removeSectionAt,
     currentArtifactId,
+    duplicateSectionAt,
     editor,
     editorTheme,
     editorTokens,
@@ -59,6 +61,7 @@ import {
     moveSectionBy,
     present,
     redo,
+    removeSectionAt,
     renameArtifact,
     requestHome,
     requestShare,
@@ -68,11 +71,11 @@ import {
     selection,
     setLeftOpen,
     setRightTab,
+    takeDropSelection,
     setSlideFrame,
     slideFrame,
+    switchFormat,
     undo,
-    canComment,
-    canEdit,
 } from "./core/store";
 
 export const Editor: Component = () => {
@@ -304,7 +307,7 @@ const TopbarMore: Component = () => {
                         <span class="text-[12.5px] text-soft">Format</span>
                         <FormatSwitcher
                             value={editor.artifact.format}
-                            onChange={(v) => commit(setArtifactFormat(editor.artifact, v))}
+                            onChange={(v) => switchFormat(v)}
                         />
                     </div>
                     <div class="flex items-center justify-between gap-3">
@@ -380,10 +383,7 @@ const Topbar: Component = () => (
         <PeerStack />
         <div class="hidden items-center gap-3.5 md:flex">
             <Show when={canEdit()}>
-                <FormatSwitcher
-                    value={editor.artifact.format}
-                    onChange={(v) => commit(setArtifactFormat(editor.artifact, v))}
-                />
+                <FormatSwitcher value={editor.artifact.format} onChange={(v) => switchFormat(v)} />
                 <ThemeMenu />
             </Show>
             <ShareButton />
@@ -544,8 +544,10 @@ const Minimap: Component = () => {
     );
 };
 
-// hidden from the palette: internals with no standalone meaning
-const HIDDEN = new Set(["group", "avatar"]);
+// hidden from the palette: the layout container is scaffolding the layout actions create, not
+// something you add by hand, plus internals with no standalone meaning and the two storage elements
+// content is written as (`chart`/`diagram` with a `data.type`) — their variants are the tiles
+const HIDDEN = new Set(["container", "avatar", "chart", "diagram"]);
 const CAT_ORDER = ["text", "media", "table", "composite", "chart", "diagram", "basic"];
 const CAT_LABEL: Record<string, string> = {
     text: "Text",
@@ -584,31 +586,35 @@ const selectedSectionId = (): string | null => {
     return s ? (s.kind === "section" ? s.section : s.address.section) : null;
 };
 
-// a non-inline selection opens the inspector; inline elements and sections are handled elsewhere
+// A non-inline selection opens the inspector; inline elements and sections are handled elsewhere.
+// A selection made by a drop is the exception: the flyout would open straight over the thing that
+// was just placed, so that one is skipped and the panel stays as the drag left it.
 const useInspectorAutoOpen = (): void => {
-    createEffect(() => {
-        const s = selection();
-        const showInspector = s?.kind === "element" && !selectedInline();
-        if (showInspector) setRightTab("inspector");
-        else setRightTab((t) => (t === "inspector" ? null : t));
-    });
+    createEffect(
+        on(selection, (s) => {
+            if (takeDropSelection()) return;
+            const showInspector = s?.kind === "element" && !selectedInline();
+            if (showInspector) setRightTab("inspector");
+            else setRightTab((t) => (t === "inspector" ? null : t));
+        }),
+    );
 };
 
-/**
- * The flyout closes on a press anywhere but itself and the icon rail, so it stops covering the
- * canvas. Nothing is swallowed: no backdrop, nothing stopped, so the press still does its job.
- *
- * A press on the canvas is deferred rather than acted on, because the selection it is about to make
- * may auto-open the inspector (useInspectorAutoOpen), and closing first would blink the panel shut
- * and straight back open. The deferred answer is read after the selection has settled, which is why
- * it hangs off pointerup: the canvas selects there, and Solid runs the effect before this listener.
- */
-function dismissFlyoutOnOutside(rail: () => HTMLElement | undefined): void {
+// The flyout closes on a press anywhere but itself and the icon rail, so it stops covering the
+// canvas. Nothing is swallowed: no backdrop, nothing stopped, so the press still does its job.
+//
+// `owner` is what makes a dropdown or a menu opened from inside the inspector count as inside: it
+// portals to <body>, so the rail element alone can never contain it.
+//
+// A press on the canvas is deferred rather than acted on, because the selection it is about to make
+// may auto-open the inspector (useInspectorAutoOpen), and closing first would blink the panel shut
+// and straight back open. The deferred answer is read after the selection has settled, which is why
+// it hangs off pointerup: the canvas selects there, and Solid runs the effect before this listener.
+function dismissFlyoutOnOutside(rail: () => HTMLElement | undefined, owner: string): void {
     createEffect(() => {
         if (!rightTab()) return;
         const onDown = (e: PointerEvent): void => {
-            const el = rail();
-            const inside = e.composedPath().some((n) => n === el);
+            const inside = pressInside(e.composedPath(), { el: rail(), owner });
             const onCanvas = e
                 .composedPath()
                 .some((n) => n instanceof Element && n.tagName === "MAIN");
@@ -644,8 +650,9 @@ const Panel: Component = () => {
     const all = listElements().filter((s) => !HIDDEN.has(s.type));
     const cats = createMemo(() => CAT_ORDER.filter((c) => all.some((s) => s.category === c)));
     let rail: HTMLDivElement | undefined;
+    const owner = newOwnerToken("flyout");
     useInspectorAutoOpen();
-    dismissFlyoutOnOutside(() => rail);
+    dismissFlyoutOnOutside(() => rail, owner);
 
     const items = createMemo(() => {
         const query = q().trim().toLowerCase();
@@ -672,68 +679,76 @@ const Panel: Component = () => {
     );
 
     return (
-        <div
-            ref={rail}
-            class="absolute right-3 top-1/2 z-chrome flex -translate-y-1/2 items-stretch gap-2"
-        >
-            <Show when={rightTab()}>
-                {(tab) => (
-                    <FloatingPanel
-                        as="aside"
-                        pad="lg"
-                        shadow="panel"
-                        class="flex max-h-[calc(100dvh-120px)] w-60 flex-col overflow-y-auto lg:w-71"
-                    >
-                        <Switch
-                            fallback={
-                                <>
-                                    <Eyebrow as="div" mono={false} weight="semibold" class="mb-3">
-                                        {tab() === "search"
-                                            ? "All elements"
-                                            : (CAT_LABEL[tab()] ?? tab())}
-                                    </Eyebrow>
-                                    <TextField
-                                        type="search"
-                                        value={q()}
-                                        placeholder="Search elements…"
-                                        class="mb-4"
-                                        onChange={setQ}
-                                    />
-                                    <div class="grid grid-cols-2 gap-3">
-                                        <For each={items()}>
-                                            {(s) => <PaletteItem type={s.type} />}
-                                        </For>
-                                    </div>
-                                    <Show when={items().length === 0}>
-                                        <p class="text-[13px] text-muted">No elements match.</p>
-                                    </Show>
-                                </>
-                            }
+        <OverlayOwner token={owner}>
+            <div
+                ref={rail}
+                class="absolute right-3 top-1/2 z-chrome flex -translate-y-1/2 items-stretch gap-2"
+            >
+                <Show when={rightTab()}>
+                    {(tab) => (
+                        <FloatingPanel
+                            as="aside"
+                            data-testid="right-flyout"
+                            pad="lg"
+                            shadow="panel"
+                            class="flex max-h-[calc(100dvh-120px)] w-60 flex-col overflow-y-auto lg:w-71"
                         >
-                            <Match when={tab() === "inspector"}>
-                                <Switch
-                                    fallback={
-                                        <p class="text-[13px] text-muted">
-                                            Select something to edit it.
-                                        </p>
-                                    }
-                                >
-                                    <Match when={!selectedInline() && selectedElementAddr()}>
-                                        {(a) => <ElementInspector address={a()} />}
-                                    </Match>
-                                </Switch>
-                            </Match>
-                        </Switch>
-                    </FloatingPanel>
-                )}
-            </Show>
+                            <Switch
+                                fallback={
+                                    <>
+                                        <Eyebrow
+                                            as="div"
+                                            mono={false}
+                                            weight="semibold"
+                                            class="mb-3"
+                                        >
+                                            {tab() === "search"
+                                                ? "All elements"
+                                                : (CAT_LABEL[tab()] ?? tab())}
+                                        </Eyebrow>
+                                        <TextField
+                                            type="search"
+                                            value={q()}
+                                            placeholder="Search elements…"
+                                            class="mb-4"
+                                            onChange={setQ}
+                                        />
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <For each={items()}>
+                                                {(s) => <PaletteItem type={s.type} />}
+                                            </For>
+                                        </div>
+                                        <Show when={items().length === 0}>
+                                            <p class="text-[13px] text-muted">No elements match.</p>
+                                        </Show>
+                                    </>
+                                }
+                            >
+                                <Match when={tab() === "inspector"}>
+                                    <Switch
+                                        fallback={
+                                            <p class="text-[13px] text-muted">
+                                                Select something to edit it.
+                                            </p>
+                                        }
+                                    >
+                                        <Match when={!selectedInline() && selectedElementAddr()}>
+                                            {(a) => <ElementInspector address={a()} />}
+                                        </Match>
+                                    </Switch>
+                                </Match>
+                            </Switch>
+                        </FloatingPanel>
+                    )}
+                </Show>
 
-            <FloatingPanel pad="sm" shadow="panel" class="flex flex-col gap-1 self-center">
-                <Show when={selectedLabel()}>{(label) => railBtn("inspector", label())}</Show>
-                {railBtn("search", "Search")}
-                <For each={cats()}>{(c) => railBtn(c, CAT_LABEL[c] ?? c)}</For>
-            </FloatingPanel>
-        </div>
+                <FloatingPanel pad="sm" shadow="panel" class="flex flex-col gap-1 self-center">
+                    <Show when={selectedLabel()}>{(label) => railBtn("inspector", label())}</Show>
+                    {railBtn("search", "Search")}
+                    <For each={cats()}>{(c) => railBtn(c, CAT_LABEL[c] ?? c)}</For>
+                </FloatingPanel>
+            </div>
+        </OverlayOwner>
     );
 };
 
@@ -797,11 +812,8 @@ const PhoneChrome: Component = () => {
                     class="mb-4"
                     onChange={setQ}
                 />
-                {/* touching a tile starts its canvas drag; close the sheet so the drop target shows */}
-                <div
-                    class="grid grid-cols-3 gap-3"
-                    onPointerDown={() => queueMicrotask(() => setRightTab(null))}
-                >
+                {/* startDrag closes the flyout itself, so the drop target is never covered */}
+                <div class="grid grid-cols-3 gap-3">
                     <For each={items()}>{(s) => <PaletteItem type={s.type} />}</For>
                 </div>
                 <Show when={items().length === 0}>

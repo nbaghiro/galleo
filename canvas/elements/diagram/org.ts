@@ -2,8 +2,9 @@ import type { EngineNode } from "@engine/node";
 import type { LayoutCtx } from "@elements/spec";
 import { fixed, grow } from "@model/geometry";
 import {
-    ICON_S,
     buildTree,
+    cellChrome,
+    cellHeights,
     clamp,
     decorate,
     diagramCell,
@@ -11,18 +12,14 @@ import {
     itemColors,
     layoutTree,
     maxLabelWidth,
-    nodeFont,
     nodePaint,
     registerDiagram,
     treeLeaves,
-    type DiagItem,
     type ResolvedDiagram,
 } from "./utils";
 
 const MIN_H = 40;
 const MAX_H = 64; // taller cells shrink the tree's level gaps; past this a detail hides instead
-const PAD_Y = 16; // diagramCell's vertical padding
-const GAP = 2; // diagramCell's label/detail gap
 
 // `links` ("Parent>Child") builds the hierarchy; cells sit at d3-tree positions, elbows behind
 function arrange(
@@ -40,32 +37,14 @@ function arrange(
     const perLeaf = clamp((ctx.availWidth - 32) / leaves - 20, 90, 170);
     const nodeW = clamp(maxLabelWidth(ctx, diagram.items) + 24, 90, perLeaf);
 
-    // cells grow to their measured content (a wrapped label, a detail line), uniformly for the
-    // whole tree; a detail that still cannot fit hides rather than spilling the cell
-    const innerW = (it: DiagItem): number => nodeW - 20 - (it.icon ? ICON_S + 6 : 0);
-    const font = nodeFont(ctx.theme);
-    const labelH = (it: DiagItem): number =>
-        ctx.measure(
-            { text: it.label, fontId: font, size: 12, weight: 600, wrap: "words" },
-            innerW(it),
-        ).height;
-    const bodyH = (it: DiagItem): number =>
-        it.body
-            ? ctx.measure(
-                  { text: it.body, fontId: font, size: 11, weight: 500, wrap: "words" },
-                  innerW(it),
-              ).height
-            : 0;
-    const neededFor = (it: DiagItem): number => {
-        const b = bodyH(it);
-        return labelH(it) + (b > 0 ? GAP + b : 0);
-    };
-    const nodeH = clamp(
-        Math.ceil(Math.max(MIN_H - PAD_Y, ...diagram.items.map(neededFor))) + PAD_Y,
-        MIN_H,
-        MAX_H,
+    // cells grow to their measured content, uniformly for the whole tree; a detail that still
+    // cannot fit hides rather than spilling the cell
+    const needs = diagram.items.map((it) =>
+        cellHeights(ctx, it, nodeW - cellChrome(undefined, MAX_H, it.icon)),
     );
-    const detailFits = (it: DiagItem): boolean => neededFor(it) <= nodeH - PAD_Y + 0.5;
+    const nodeH = clamp(Math.max(MIN_H, ...needs.map((m) => m.full)), MIN_H, MAX_H);
+    const detailFits = (i: number): boolean => (needs[i]?.full ?? 0) <= nodeH + 0.5;
+
     const { placed } = layoutTree(data, ctx.availWidth, height, nodeW, nodeH, false);
 
     const cells = placed.map((p) => {
@@ -77,7 +56,7 @@ function arrange(
         const item = i !== undefined ? diagram.items[i] : undefined;
         const cell = diagramCell(
             i !== undefined ? kids[i * 2] : undefined,
-            item && detailFits(item) ? kids[i! * 2 + 1] : undefined,
+            i !== undefined && detailFits(i) ? kids[i * 2 + 1] : undefined,
             paint,
             { icon: item?.icon },
         );

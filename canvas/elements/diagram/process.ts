@@ -1,7 +1,7 @@
 import type { DrawContext, EngineNode, Rect } from "@engine/node";
 import type { LayoutCtx } from "@elements/spec";
 import type { Tokens } from "@themes";
-import { fixed, grow } from "@model/geometry";
+import { fixed, grow, percent } from "@model/geometry";
 import {
     PAD,
     badgeText,
@@ -139,6 +139,9 @@ function arrange(
     // gaps whatever the weights (grow cells would stretch to fill)
     const contentW = ctx.availWidth - PAD * 2;
     const rects = cellRects(diagram.items, s, contentW, gap, floors);
+    // shares, not pixels: the engine resolves them against the row's real width, so the cells stay
+    // inside the element even where compose's availWidth estimate ran wide (a card's padding)
+    const basis = Math.max(1, contentW - gap * (s.perRow - 1));
     const rows: EngineNode[] = [];
     for (let r = 0; r < s.rows; r++) {
         const slice = Array.from({ length: s.perRow }, (_, c) => r * s.perRow + c).filter(
@@ -149,19 +152,26 @@ function arrange(
             h: fixed(s.nodeH),
             direction: "row",
             gap,
-            children: slice.map((i) => {
-                const cell = diagramCell(
-                    kids[i * 2],
-                    kids[i * 2 + 1],
-                    nodePaint(cols[i]!, ctx.theme, {
-                        style: diagram.options.style,
-                        emphasis: diagram.items[i]?.emphasis,
-                    }),
-                    { shape: nodeShape, cellH: s.nodeH, badged, icon: diagram.items[i]?.icon },
-                );
-                cell.w = fixed(rects[i]!.w);
-                return cell;
-            }),
+            children: slice
+                .map((i) => {
+                    const cell = diagramCell(
+                        kids[i * 2],
+                        kids[i * 2 + 1],
+                        nodePaint(cols[i]!, ctx.theme, {
+                            style: diagram.options.style,
+                            emphasis: diagram.items[i]?.emphasis,
+                        }),
+                        { shape: nodeShape, cellH: s.nodeH, badged, icon: diagram.items[i]?.icon },
+                    );
+                    cell.w = percent(rects[i]!.w / basis);
+                    return cell;
+                })
+                .concat(
+                    Array.from(
+                        { length: s.perRow - slice.length },
+                        (): EngineNode => ({ w: percent(1 / s.perRow), h: grow() }),
+                    ),
+                ),
         });
     }
     return {

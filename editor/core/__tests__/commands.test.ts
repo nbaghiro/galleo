@@ -132,8 +132,9 @@ describe("comment.add follows what is commentable", () => {
             {
                 id: "s1",
                 root: {
-                    type: "group",
-                    data: { direction: "col", children: [el("text"), el("card", [el("text")])] },
+                    type: "container",
+                    // a unit owns its parts; a container does not, so the unit is what this asserts on
+                    data: { direction: "col", children: [el("text"), el("callout", [el("text")])] },
                 },
             },
         ],
@@ -151,12 +152,12 @@ describe("comment.add follows what is commentable", () => {
         expect(chord()).toBe("comment.add");
     });
 
-    it("resolves on the composite itself", () => {
+    it("resolves on the unit itself", () => {
         setSelection({ kind: "element", address: { section: "s1", path: [1] } });
         expect(chord()).toBe("comment.add");
     });
 
-    it("goes quiet on a part of the composite", () => {
+    it("goes quiet on a part of the unit", () => {
         setSelection({ kind: "element", address: { section: "s1", path: [1, 0] } });
         expect(chord()).toBeUndefined();
     });

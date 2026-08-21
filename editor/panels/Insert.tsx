@@ -9,15 +9,17 @@ import { paintedNodeFor } from "@editor/core/leaf";
 import { deleteElement, duplicateAt, duplicatedAddr, getElementAt, replaceAt } from "@elements/ops";
 import { elementRegionId } from "@model/artifact";
 import {
+    addSectionAfter,
     commit,
+    duplicateSectionAt,
     editor,
+    moveSectionBy,
+    noteElementAdded,
+    noteElementRemoved,
     regions,
+    removeSectionAt,
     selection,
     setSelection,
-    addSectionAfter,
-    duplicateSectionAt,
-    moveSectionBy,
-    removeSectionAt,
 } from "@editor/core/store";
 import { leaseHolder, say } from "@editor/core/collab";
 import { Icon } from "@ui/icons";
@@ -54,6 +56,7 @@ export const EmptyRegionAdd: Component = () => {
         const a = target();
         if (!a) return;
         commit(replaceAt(editor.artifact, a, inst));
+        noteElementAdded(inst.type, "palette");
         setOpen(false);
         setSelection({ kind: "element", address: a });
     };
@@ -206,6 +209,7 @@ function itemsFor(t: Target | null): Item[] {
                         say(`${holder.user.name || "Someone"} is editing this`);
                         return;
                     }
+                    noteElementRemoved(getElementAt(editor.artifact, t.address)?.type ?? "");
                     commit(deleteElement(editor.artifact, t.address));
                     setSelection(null);
                 },

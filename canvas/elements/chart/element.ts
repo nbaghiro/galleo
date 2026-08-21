@@ -2,6 +2,7 @@ import type { ControlField, ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import { register } from "@elements/spec";
 import { grow } from "@model/geometry";
+import { previewSvg } from "@elements/previews";
 import { renderChart } from "./render";
 import { chartTypeOptions } from "./utils";
 import type { ChartData } from "./utils";
@@ -13,7 +14,10 @@ export const CHART_CONTROLS: ControlField[] = [
         label: "Type",
         control: "select",
         get options() {
-            return chartTypeOptions();
+            return chartTypeOptions().map((o) => ({
+                ...o,
+                preview: previewSvg(`${o.value}Chart`),
+            }));
         },
     },
     {
@@ -73,7 +77,7 @@ function chartSpec(
         type: typeKey,
         label,
         category: "chart",
-        tier: "smart",
+        tier: "unit",
         create: (): ChartData => ({
             type: chartType,
             values: "12, 19, 7, 23, 16",
@@ -108,9 +112,9 @@ const VARIANTS: {
         label: "Bar chart",
         type: "bar",
         preset: {
-            values: "48, 62, 55, 71\n34, 45, 47, 60",
-            categories: "Q1, Q2, Q3, Q4",
-            seriesNames: "2024, 2025",
+            values: "820, 540, 610, 470",
+            categories: "North, South, East, West",
+            seriesNames: "Units",
         },
     },
     {
@@ -118,9 +122,9 @@ const VARIANTS: {
         label: "Column chart",
         type: "column",
         preset: {
-            values: "820, 540, 610, 470",
-            categories: "North, South, East, West",
-            seriesNames: "Units",
+            values: "48, 62, 55, 71\n34, 45, 47, 60",
+            categories: "Q1, Q2, Q3, Q4",
+            seriesNames: "2024, 2025",
         },
     },
     {
@@ -177,15 +181,6 @@ const VARIANTS: {
         preset: { values: "10, 25, 40, 55, 70\n30, 55, 40, 68, 50\n12, 30, 20, 44, 26" },
     },
     {
-        key: "funnelChart",
-        label: "Funnel chart",
-        type: "funnel",
-        preset: {
-            values: "1200, 680, 340, 120",
-            categories: "Visitors, Leads, Trials, Customers",
-        },
-    },
-    {
         key: "gaugeChart",
         label: "Gauge",
         type: "gauge",
@@ -209,6 +204,30 @@ const VARIANTS: {
             values: "420, 260, 180, 140, 90, 60",
             categories: "Search, Direct, Social, Email, Referral, Ads",
         },
+    },
+    {
+        key: "waterfallChart",
+        label: "Waterfall",
+        type: "waterfall",
+        preset: {
+            values: "120, 45, -30, 22, -12",
+            categories: "Start, New, Churn, Expansion, Discount",
+        },
+    },
+    {
+        key: "packChart",
+        label: "Packed circles",
+        type: "pack",
+        preset: {
+            values: "420, 260, 180, 140, 90",
+            categories: "Search, Direct, Social, Email, Ads",
+        },
+    },
+    {
+        key: "progressChart",
+        label: "Progress",
+        type: "progress",
+        preset: { values: "72, 100", categories: "Onboarding complete" },
     },
 ];
 

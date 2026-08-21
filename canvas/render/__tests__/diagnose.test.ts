@@ -9,7 +9,7 @@ const text = (t: string): ElementInstance => ({ type: "text", data: { text: t } 
 
 const section = (id: string, children: ElementInstance[]): Section => ({
     id,
-    root: { type: "group", data: { children } },
+    root: { type: "container", data: { children } },
 });
 
 const DECK = resolveProfile("deck"); // 1280 × 720, a fixed frame

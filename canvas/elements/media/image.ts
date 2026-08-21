@@ -6,7 +6,7 @@ export const imageElement = imageLike({
     type: "image",
     label: "Image",
     kind: "photo",
-    src: "https://picsum.photos/seed/galleo-image/1100/760",
+    src: "", // an inserted element is an empty frame until something is picked
     fit: "cover",
     aspect: 1.5,
 });

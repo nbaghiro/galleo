@@ -305,17 +305,31 @@ export function leaseHolder(address: ElementAddress): Lease | null {
     return held && held.connId !== selfConnId() ? held : null;
 }
 
-// a short line the canvas shows and then drops
-const [notice, setNotice] = createSignal<string | null>(null);
+// A short line the canvas shows and then drops. The action is the way back out of what just
+// happened (reopening a thread that was resolved), so it is the whole message when there is one.
+export interface Notice {
+    text: string;
+    action?: { label: string; run: () => void };
+}
+
+const [notice, setNotice] = createSignal<Notice | null>(null);
 export { notice };
 
 let noticeTimer = 0;
 const NOTICE_MS = 2600;
+// long enough to read the line and then reach for the button
+const NOTICE_ACTION_MS = 6500;
 
-export function say(message: string): void {
-    setNotice(message);
+export function say(text: string, action?: Notice["action"]): void {
+    setNotice(action ? { text, action } : { text });
     window.clearTimeout(noticeTimer);
-    noticeTimer = window.setTimeout(() => setNotice(null), NOTICE_MS);
+    noticeTimer = window.setTimeout(() => setNotice(null), action ? NOTICE_ACTION_MS : NOTICE_MS);
+}
+
+// the undo affordance has done its job the moment it is taken, and a stale one misleads
+export function clearNotice(): void {
+    window.clearTimeout(noticeTimer);
+    setNotice(null);
 }
 
 const nameOf = (holder: Lease): string => holder.user.name || "Someone";

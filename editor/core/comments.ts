@@ -8,6 +8,7 @@ import type { Mark } from "@model/text";
 import { applyMark, marksWithValue, withoutMarkValue } from "@model/text";
 import { elementIdMap, getElementAt, setElementAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
+import { say } from "./collab";
 import { commit, editing, editor, jumpToSection, setArtifactLive, setSelection } from "./store";
 import { setTextMark } from "./text";
 
@@ -29,6 +30,19 @@ export const [activeThreadId, setActiveThreadId] = createSignal<string | null>(n
 // click that was already on its way.
 export const [hoveredSection, setHoveredSection] = createSignal<Id | null>(null);
 export const [heldSection, setHeldSection] = createSignal<Id | null>(null);
+
+// Resolving is meant to take a thread off the margin, so a resolved one is not drawn at all until
+// its section's chip asks for it. Per section, not per document: reading one section's history
+// should not fill the rest of the stack with dimmed markers.
+const [resolvedSections, setResolvedSections] = createSignal<readonly Id[]>([]);
+
+export const resolvedRevealed = (sectionId: Id): boolean => resolvedSections().includes(sectionId);
+
+export function toggleResolvedRevealed(sectionId: Id): void {
+    setResolvedSections((open) =>
+        open.includes(sectionId) ? open.filter((s) => s !== sectionId) : [...open, sectionId],
+    );
+}
 
 /**
  * Whether this section's markers are on screen. `held` is every section something is keeping open
@@ -84,11 +98,14 @@ function ensureElementId(address: ElementAddress): Id | null {
     return id;
 }
 
-// The layout group is the one exemption: columns and wraps hold blocks side by side without owning
-// them. Every other container (a card, a callout, a bullet list, a diagram) owns its children as
-// parts of one block, so a comment there belongs to the block, not to a line inside it.
-const nestsParts = (inst: ElementInstance): boolean =>
-    inst.type !== "group" && !!getElement(inst.type)?.container;
+// The layout container is the one exemption: columns and wraps hold blocks side by side without
+// owning them. Every unit (a callout, a bullet list, a table, a diagram) owns its children as parts
+// of one block, so a comment there belongs to the block, not to a line inside it. Same tier split
+// that decides droppability, and for the same reason.
+const nestsParts = (inst: ElementInstance): boolean => {
+    const spec = getElement(inst.type);
+    return !!spec?.container && spec.tier !== "container";
+};
 
 /**
  * Whether this address is a standalone block, and so somewhere a comment may be created. False for
@@ -258,6 +275,7 @@ export function clearCommentHandlers(): void {
     setComments([]);
     setActiveThreadId(null);
     setCommentDraft(null);
+    setResolvedSections([]);
 }
 
 /** No host (the studio alone) → no comment chrome at all. */
@@ -272,6 +290,21 @@ export const resolveThread = async (id: string, resolved: boolean): Promise<void
 export const editComment = async (id: string, body: string): Promise<void> => rewriter?.(id, body);
 export const deleteComment = async (id: string): Promise<void> => remover?.(id);
 
+// Resolving has to read as something that happened: the panel goes, the marker leaves the margin
+// (resolved threads are hidden until a section's chip asks for them), and the line that says so
+// carries the way back, since the thread is otherwise a click deeper than it was a moment ago.
+// Reopening puts the panel back up, so taking it back lands where the thread was.
+export async function setThreadResolved(thread: CommentThread, resolved: boolean): Promise<void> {
+    const id = thread.root.id;
+    if (resolved) setActiveThreadId(null);
+    await resolveThread(id, resolved);
+    if (!resolved) {
+        setActiveThreadId(id);
+        return;
+    }
+    say("Thread resolved", { label: "Reopen", run: () => void setThreadResolved(thread, false) });
+}
+
 // ---- placement ------------------------------------------------------------------------------
 //
 // Where the margin markers land, in stage coordinates at scale 1. Pure on purpose: the canvas hands
@@ -280,6 +313,8 @@ export const deleteComment = async (id: string): Promise<void> => remover?.(id);
 export const MARKER_SIZE = 28; // the chip itself (size-7)
 export const MARKER_GAP = 12; // between a section's right edge and the chip
 export const MARKER_SPACING = 32; // the least vertical distance two chips may sit at
+// a hoverless tier draws the chip at the 44px tap target (size-11), which the desktop step overlaps
+export const MARKER_SPACING_TOUCH = 48;
 export const PANEL_EDGE = 6; // keep a clamped chip or panel this far inside the stage
 
 // A bleed section runs the full stage width and a narrow deck leaves under a chip's worth of
@@ -323,6 +358,32 @@ export function panelAt(
         x: Math.min(Math.max(x, PANEL_EDGE), lastX),
         y: Math.min(Math.max(anchor.y - 6, PANEL_EDGE), lastY),
     };
+}
+
+// The collapsed chips a section's border can carry, both of them stand-ins for threads that have no
+// marker of their own: the orphans whose element is gone, and the resolved ones that are hidden.
+export type ChipKind = "orphans" | "resolved";
+const CHIP_ORDER: readonly ChipKind[] = ["orphans", "resolved"];
+
+export interface SectionChip {
+    kind: ChipKind;
+    count: number;
+    y: number;
+}
+
+// Both sit at the section's top edge, so they stack in a fixed order and pack: an absent kind
+// leaves no gap, and the one that is there never sits lower than it has to.
+export function sectionChips(
+    counts: Partial<Record<ChipKind, number>>,
+    top: number,
+    step: number,
+): SectionChip[] {
+    const out: SectionChip[] = [];
+    for (const kind of CHIP_ORDER) {
+        const count = counts[kind] ?? 0;
+        if (count > 0) out.push({ kind, count, y: top + out.length * step });
+    }
+    return out;
 }
 
 export interface MarkerRequest {

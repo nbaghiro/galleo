@@ -1,6 +1,6 @@
 import type { EngineNode } from "@engine/node";
 import type { LayoutCtx } from "@elements/spec";
-import { fixed, grow } from "@model/geometry";
+import { fixed, grow, percent } from "@model/geometry";
 import {
     PAD,
     badgeText,
@@ -54,8 +54,6 @@ function arrange(
     const painted = !getNodeShape(nodeShape).engineRadius;
     const inset = getNodeShape(nodeShape).insetX(cellH);
     const badged = diagram.options.numbers !== "none";
-    // fixed widths from the decorate grid's own formula: a partial last row keeps uniform cells
-    const cellW = (ctx.availWidth - PAD * 2 - GAP * (ncol - 1)) / ncol;
     const rows: EngineNode[] = [];
     if (hasHeaders)
         rows.push({
@@ -74,19 +72,28 @@ function arrange(
             h: fixed(cellH),
             direction: "row",
             gap: GAP,
-            children: slice.map((i) => {
-                const cell = diagramCell(
-                    kids[i * 2],
-                    kids[i * 2 + 1],
-                    nodePaint(cols[i]!, ctx.theme, {
-                        style: diagram.options.style,
-                        emphasis: diagram.items[i]?.emphasis,
-                    }),
-                    { shape: nodeShape, cellH, badged, icon: diagram.items[i]?.icon },
-                );
-                cell.w = fixed(cellW);
-                return cell;
-            }),
+            children: slice
+                .map((i) => {
+                    const cell = diagramCell(
+                        kids[i * 2],
+                        kids[i * 2 + 1],
+                        nodePaint(cols[i]!, ctx.theme, {
+                            style: diagram.options.style,
+                            emphasis: diagram.items[i]?.emphasis,
+                        }),
+                        { shape: nodeShape, cellH, badged, icon: diagram.items[i]?.icon },
+                    );
+                    // a share, not a pixel width: the engine divides the row's real width, and
+                    // the padded slots below keep a partial row's gap count equal to a full one's
+                    cell.w = percent(1 / ncol);
+                    return cell;
+                })
+                .concat(
+                    Array.from(
+                        { length: ncol - slice.length },
+                        (): EngineNode => ({ w: percent(1 / ncol), h: grow() }),
+                    ),
+                ),
         });
     }
     return {

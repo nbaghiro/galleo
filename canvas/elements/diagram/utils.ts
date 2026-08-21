@@ -713,6 +713,31 @@ export function diagramCell(
     return node;
 }
 
+export const CELL_PAD_Y = 16; // diagramCell's top + bottom padding
+const CELL_LINE_GAP = 2; // its label/detail gap
+
+// Horizontal space a cell spends before its text: padding, the silhouette's inset at that height,
+// and a leading icon. What is left is the width the label actually wraps at.
+export function cellChrome(shape: string | undefined, cellH: number, icon?: string): number {
+    return 20 + 2 * getNodeShape(shape).insetX(cellH) + (icon ? ICON_S + ICON_GAP : 0);
+}
+
+// Height a cell needs for its label alone, and for label plus detail, measured at that width. The
+// float-positioned types size their cells from this and hide a detail the box cannot hold.
+export function cellHeights(
+    ctx: LayoutCtx,
+    item: DiagItem,
+    innerW: number,
+): { label: number; full: number } {
+    const font = nodeFont(ctx.theme);
+    const w = Math.max(24, innerW);
+    const at = (text: string, size: number, weight: number): number =>
+        ctx.measure({ text, fontId: font, size, weight, wrap: "words" }, w).height;
+    const label = at(item.label, NODE_TEXT, 600) + CELL_PAD_Y;
+    const body = item.body ? at(item.body, 11, 500) : 0;
+    return { label, full: body ? label + CELL_LINE_GAP + body : label };
+}
+
 // chrome behind the composed cells: a full-size float whose surface paints connectors/bands/badges
 // from the same geometry the cells were arranged with
 export function decorate(paint: (g: DrawContext, box: Rect) => void, z = -1): EngineNode {

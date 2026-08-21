@@ -1,13 +1,7 @@
 import { createEffect, createRoot } from "solid-js";
 import { registerBindings, registerCommands, setContext, type KeyCtx } from "@ui/keys";
 import { FORMATS } from "@ui/formats";
-import {
-    deleteElement,
-    duplicateAt,
-    duplicatedAddr,
-    getElementAt,
-    setArtifactFormat,
-} from "@elements/ops";
+import { deleteElement, duplicateAt, duplicatedAddr, getElementAt } from "@elements/ops";
 import type { ElementAddress } from "@model/artifact";
 import { parentTarget, type Target } from "@model/artifact";
 import {
@@ -19,6 +13,8 @@ import {
     editing,
     editor,
     moveSectionBy,
+    noteElementAdded,
+    noteElementRemoved,
     present,
     presenting,
     redo,
@@ -28,6 +24,7 @@ import {
     setLeftOpen,
     setRightTab,
     setSelection,
+    switchFormat,
     undo,
 } from "./store";
 import { leaseHolder, say } from "./collab";
@@ -97,6 +94,7 @@ registerCommands([
                     say(`${holder.user.name || "Someone"} is editing this`);
                     return;
                 }
+                noteElementRemoved(getElementAt(editor.artifact, s.address)?.type ?? "");
                 commit(deleteElement(editor.artifact, s.address));
                 setSelection(null);
             } else removeSectionAt(s.section);
@@ -150,6 +148,7 @@ registerCommands([
             const el = getElementAt(editor.artifact, s.address);
             if (!el) return;
             copyToClipboard(el);
+            noteElementRemoved(getElementAt(editor.artifact, s.address)?.type ?? "");
             commit(deleteElement(editor.artifact, s.address));
             setSelection(null);
         },
@@ -172,6 +171,7 @@ registerCommands([
             const res = pasteElement(editor.artifact, clip, anchor);
             if (res) {
                 commit(res.content);
+                noteElementAdded(clip.type, "paste");
                 setSelection({ kind: "element", address: res.address });
             }
         },
@@ -315,7 +315,7 @@ registerCommands([
                 id: `doc.format.${f.value}`,
                 title: f.label,
                 icon: f.value === "deck" ? "deck" : f.value === "doc" ? "doc" : "site",
-                run: () => commit(setArtifactFormat(editor.artifact, f.value)),
+                run: () => switchFormat(f.value),
             })),
     },
 

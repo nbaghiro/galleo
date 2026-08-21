@@ -141,7 +141,7 @@ export const tableElement: ElementSpec<TableData> = {
     type: "table",
     label: "Table",
     category: "table",
-    tier: "smart",
+    tier: "unit",
     create: () => ({
         cols: 3,
         rows: 4,

@@ -148,7 +148,7 @@ describe("paintSectionStack — slide framing", () => {
     const tall = (): Section[] => [
         sectionOf(
             {
-                type: "group",
+                type: "container",
                 data: {
                     direction: "col",
                     children: Array.from({ length: 40 }, (_, i) =>

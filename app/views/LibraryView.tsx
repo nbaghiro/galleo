@@ -882,7 +882,9 @@ export const LibraryView: Component = () => {
                                 </p>
                             </div>
                         </div>
-                        <div class="flex items-center gap-2">
+                        {/* the layout toggle costs this row ~140px, which is what pushed it past a
+                            phone's width, so below sm the search takes a line of its own */}
+                        <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                             <Segmented
                                 size="md"
                                 value={libraryLayout()}
@@ -891,7 +893,7 @@ export const LibraryView: Component = () => {
                             />
                             <TextField
                                 icon="search"
-                                class={`w-56 ${CONTROL_H}`}
+                                class={`order-last w-full sm:order-none sm:w-56 ${CONTROL_H}`}
                                 placeholder="Search artifacts…"
                                 value={query()}
                                 onChange={(v) => setSearch(v)}
@@ -996,6 +998,7 @@ export const LibraryView: Component = () => {
                             <div class="px-5 py-6 md:px-9">
                                 <div
                                     ref={(el) => measureGrid(el)}
+                                    data-testid="library-grid"
                                     class="grid"
                                     style={{
                                         gap: `${GRID_GAP}px`,

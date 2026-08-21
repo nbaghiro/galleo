@@ -36,7 +36,7 @@ const text = (id: string, value: string): ElementInstance => ({
 });
 const section = (id: string, kids: ElementInstance[]): Section => ({
     id,
-    root: { type: "group", id: `g-${id}`, data: { direction: "col", children: kids } },
+    root: { type: "container", id: `g-${id}`, data: { direction: "col", children: kids } },
 });
 const doc = (): ArtifactContent => ({
     format: "deck",

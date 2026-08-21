@@ -22,12 +22,14 @@ const CHART_SHAPE: Record<string, Shape> = {
     radar: "series",
     pie: "labelValue",
     donut: "labelValue",
-    funnel: "labelValue",
     treemap: "labelValue",
     scatter: "points",
     bubble: "points",
     heatmap: "matrix",
     gauge: "scalar",
+    progress: "scalar",
+    waterfall: "series",
+    pack: "labelValue",
 };
 const DIAGRAM_SHAPE: Record<string, Shape> = {
     process: "list",
@@ -40,9 +42,15 @@ const DIAGRAM_SHAPE: Record<string, Shape> = {
     matrix: "list",
     hub: "list",
     org: "hierarchy",
+    target: "list",
+    venn: "list",
+    pictogram: "list",
+    roadmap: "list",
+    flow: "graph",
+    mindmap: "hierarchy",
 };
 
-// `category` disambiguates the funnel collision (funnel chart = label→value, funnel diagram = list).
+// `category` routes the lookup: the two families name their types independently.
 export function dataShapeFor(category: string, type: string): Shape | undefined {
     if (category === "chart") return CHART_SHAPE[type] ?? "series";
     if (category === "diagram") return DIAGRAM_SHAPE[type] ?? "list";
@@ -313,7 +321,7 @@ export function limitNote(type: string): string {
     return "";
 }
 
-// only the funnel reads item values (proportional band widths); a pyramid tapers evenly by design
-const VALUED = new Set(["funnel"]);
+// types that read a per-item number: funnel band widths, pictogram mark counts, roadmap lane spans
+const VALUED = new Set(["funnel", "pictogram", "roadmap"]);
 export const usesItemValue = (kind: Kind, type: string): boolean =>
     kind === "diagram" && VALUED.has(type);

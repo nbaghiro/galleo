@@ -31,7 +31,10 @@ describe("sectionSlides", () => {
     });
     it("a very tall section paginates into several pages", () => {
         const paras = Array.from({ length: 60 }, (_, i) => inst("text", { text: `Line ${i}` }));
-        const section = sectionOf({ type: "group", data: { direction: "col", children: paras } });
+        const section = sectionOf({
+            type: "container",
+            data: { direction: "col", children: paras },
+        });
         expect(sectionSlides(section, tokens, deck).length).toBeGreaterThan(1);
     });
 });

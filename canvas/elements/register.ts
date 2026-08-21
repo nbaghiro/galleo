@@ -15,14 +15,14 @@ import "@elements/media/avatar";
 import "@elements/table/table";
 import "@elements/table/stat";
 
-import "@elements/composite/card";
-import "@elements/composite/group";
+import "@elements/composite/container";
 import "@elements/composite/feature";
 import "@elements/composite/profile";
 import "@elements/composite/testimonial";
 import "@elements/composite/pricing";
 import "@elements/composite/cta";
 import "@elements/composite/faq";
+import "@elements/composite/comparison";
 
 import "@elements/basic/button";
 import "@elements/basic/badge";

@@ -32,7 +32,7 @@ describe("registry", () => {
     it("listElements returns the registered set", () => {
         const types = listElements().map((s) => s.type);
         expect(types).toContain("text");
-        expect(types).toContain("group");
+        expect(types).toContain("container");
         expect(types.length).toBeGreaterThan(15);
     });
 });
@@ -42,12 +42,12 @@ describe("walkElements", () => {
         const section: Section = {
             id: "s",
             root: {
-                type: "group",
+                type: "container",
                 data: {
                     children: [
                         { type: "text", data: { text: "a" } },
                         {
-                            type: "group",
+                            type: "container",
                             data: { children: [{ type: "text", data: { text: "b" } }] },
                         },
                     ],
@@ -56,7 +56,7 @@ describe("walkElements", () => {
         };
         const seen: string[] = [];
         walkElements(section, (el) => seen.push(el.type));
-        expect(seen).toEqual(["group", "text", "group", "text"]);
+        expect(seen).toEqual(["container", "text", "container", "text"]);
     });
     it("ignores a non-array children field", () => {
         const seen: string[] = [];

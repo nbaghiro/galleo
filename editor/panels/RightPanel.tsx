@@ -4,7 +4,7 @@ import { createMemo, Show } from "solid-js";
 import { elementRegionId } from "@model/artifact";
 import { deleteElement, getElementAt, setElementLayout, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
-import { commit, editor, regions, setSelection } from "@editor/core/store";
+import { commit, editor, noteElementRemoved, regions, setSelection } from "@editor/core/store";
 import { paintedLeafFor } from "@editor/core/leaf";
 import { FieldRow, PanelHeader, SchemaFields, SliderRow } from "./SharedControlFields";
 import { dataShapeFor, DATA_KEYS } from "@editor/core/infographic";
@@ -46,6 +46,7 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
         });
     };
     const del = (): void => {
+        noteElementRemoved(inst()?.type ?? "");
         commit(deleteElement(editor.artifact, props.address));
         setSelection(null);
     };

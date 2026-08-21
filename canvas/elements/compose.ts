@@ -12,9 +12,9 @@ import { fit, fixed, grow, percent } from "@model/geometry";
 import { fontStack, hexToRgb, hsl2hex, luminance, rgb2hsl } from "@themes";
 
 const card = (title: string, body: string): ElementInstance => ({
-    type: "card",
+    type: "container",
     data: {
-        style: "solid",
+        surface: "solid",
         children: [
             { type: "text", data: { text: title, style: "h3" } },
             { type: "text", data: { text: body, style: "body" } },
@@ -35,7 +35,7 @@ export const PRESETS: Preset[] = [
         label: "Cards",
         previewType: "cards",
         build: () => ({
-            type: "group",
+            type: "container",
             data: {
                 direction: "row",
                 children: [
@@ -161,9 +161,13 @@ function applyLayout(node: EngineNode, layout: ElementLayout | undefined): Engin
     return node;
 }
 
+// group/card are pre-migration aliases for container; see scripts/migrate-container.ts
+const STACK_TYPES = new Set(["container", "group", "card"]);
+
 // fraction of the parent's width each child of a row occupies; null when the parent isn't a row
 function rowShares(inst: ElementInstance, kids: ElementInstance[]): number[] | null {
-    const row = inst.type === "group" && (inst.data as { direction?: string }).direction === "row";
+    const row =
+        STACK_TYPES.has(inst.type) && (inst.data as { direction?: string }).direction === "row";
     if (!row || kids.length === 0) return null;
     const pct = kids.map((k) => {
         const w = k.layout?.width;

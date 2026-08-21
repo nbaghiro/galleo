@@ -28,8 +28,17 @@ import {
 import { DIAGRAM_TYPES } from "@model/elements";
 import { contrastRatio, luminance, resolveTheme } from "@themes";
 import { getElement } from "@elements/spec";
+import { composeSection } from "@elements/compose";
+import { colGroup } from "@model/artifact";
 import "@elements/register";
-import { recordingDrawContext, tokens } from "@canvas/testkit";
+import {
+    inst,
+    layoutCtx as tkLayoutCtx,
+    measure as tkMeasure,
+    recordingDrawContext,
+    sectionOf,
+    tokens,
+} from "@canvas/testkit";
 
 describe("normalizeDiagram", () => {
     it("splits a plain list on commas", () => {
@@ -604,4 +613,152 @@ describe("measured sizing", () => {
         expect(texts).toContain("short note");
         expect(texts).not.toContain(long);
     });
+});
+
+describe("target", () => {
+    it("nests one ring per item, outermost first", () => {
+        const radii = chromeCalls(composed({ type: "target", items: "Market, Segment, Core" }))
+            .filter((c) => c.op === "circle")
+            .map((c) => c.r as number);
+        expect(radii).toHaveLength(3);
+        expect(radii[0]!).toBeGreaterThan(radii[1]!);
+        expect(radii[1]!).toBeGreaterThan(radii[2]!);
+    });
+});
+
+describe("venn", () => {
+    const circles = (items: string): number =>
+        chromeCalls(composed({ type: "venn", items })).filter((c) => c.op === "circle").length;
+
+    it("draws one circle per set, capped at three", () => {
+        expect(circles("A, B")).toBe(2);
+        expect(circles("A, B, C")).toBe(3);
+        expect(circles("A, B, C, Overlap")).toBe(3);
+    });
+
+    it("labels the overlap when a fourth item names it", () => {
+        const texts = composed({ type: "venn", items: "A, B, C, Sweet spot" })
+            .filter((c) => c.kind === "text")
+            .map((c) => c.text.text);
+        expect(texts).toContain("Sweet spot");
+    });
+});
+
+describe("pictogram", () => {
+    it("gives every item a row and a mark strip", () => {
+        const commands = composed({
+            type: "pictogram",
+            items: "Enterprise | | 3\nStartup | | 1",
+        });
+        const texts = commands.filter((c) => c.kind === "text").map((c) => c.text.text);
+        expect(texts).toContain("Enterprise");
+        expect(texts).toContain("Startup");
+        expect(commands.filter((c) => c.kind === "surface")).toHaveLength(2);
+    });
+});
+
+describe("roadmap", () => {
+    it("lays phases end to end and wraps to a new lane when the columns run out", () => {
+        const rows = (items: string): number =>
+            new Set(
+                composed({ type: "roadmap", items, axes: "Q1, Q2, Q3, Q4" })
+                    .filter((c) => c.kind === "rect")
+                    .map((c) => Math.round(c.box.y)),
+            ).size;
+        expect(rows("A | | 2\nB | | 2")).toBe(1);
+        expect(rows("A | | 2\nB | | 2\nC | | 2")).toBe(2);
+    });
+});
+
+describe("flow", () => {
+    it("ranks a chain top to bottom", () => {
+        const ys = composed({
+            type: "flow",
+            items: "One, Two, Three",
+            links: "One->Two, Two->Three",
+        })
+            .filter((c) => c.kind === "rect")
+            .map((c) => Math.round(c.box.y))
+            .sort((a, b) => a - b);
+        expect(new Set(ys).size).toBe(3);
+    });
+
+    it("puts a branch's targets on one rank", () => {
+        const ys = new Set(
+            composed({
+                type: "flow",
+                items: "Start, Left, Right",
+                links: "Start->Left, Start->Right",
+            })
+                .filter((c) => c.kind === "rect")
+                .map((c) => Math.round(c.box.y)),
+        );
+        expect(ys.size).toBe(2);
+    });
+
+    it("draws a question as a decision diamond, so its cell is painted not filled", () => {
+        const plain = composed({ type: "flow", items: "One, Two", links: "One->Two" });
+        const decision = composed({ type: "flow", items: "One, Ready?", links: "One->Ready?" });
+        const paths = (cmds: RenderCommand[]): number =>
+            chromeCalls(cmds).filter((c) => c.op === "path").length;
+        expect(paths(decision)).toBeGreaterThan(paths(plain));
+    });
+
+    it("labels an edge with its tail", () => {
+        const chrome = chromeCalls(
+            composed({ type: "flow", items: "Ready?, Ship", links: "Ready?->Ship:yes" }),
+        );
+        expect(chrome.some((c) => c.op === "text" && c.text === "yes")).toBe(true);
+    });
+});
+
+describe("mindmap", () => {
+    it("splits branches either side of a centred root", () => {
+        const rects = composed({
+            type: "mindmap",
+            items: "Core, A, B, C, D",
+            links: "Core>A, Core>B, Core>C, Core>D",
+        }).filter((c) => c.kind === "rect");
+        const centre = 640 / 2;
+        expect(rects.some((c) => c.box.x + c.box.w < centre)).toBe(true);
+        expect(rects.some((c) => c.box.x > centre)).toBe(true);
+    });
+});
+
+// `ctx.availWidth` is an estimate: compose cannot know the padding a container will add, so inside
+// a card it runs 48px wide. A type that turns that estimate into pixel widths overhangs its own
+// box by exactly that much, which is what put a roadmap's last lane outside its selection border.
+// Shares (percent/grow) are resolved by the engine against the real box, so they cannot drift.
+describe("a diagram stays inside its box when availWidth over-estimates", () => {
+    const EXTRA: Record<string, Record<string, unknown>> = {
+        roadmap: { items: "A | a | 1\nB | b | 2\nC | c | 1", axes: "Q1, Q2, Q3, Q4" },
+        flow: { items: "A, B?, C, D", links: "A->B?, B?->C:yes, B?->D:no" },
+        mindmap: { items: "Core, A, B, C, D", links: "Core>A, Core>B, Core>C, Core>D" },
+        org: { items: "CEO, CTO, CFO", links: "CEO>CTO, CEO>CFO" },
+    };
+    for (const { value: type } of diagramTypeOptions()) {
+        it(`${type} fits inside a card`, () => {
+            const d = inst("diagram", {
+                type,
+                items: "Alpha | one | 1\nBeta | two | 2\nGamma | three | 1",
+                axes: "Q1, Q2, Q3, Q4",
+                height: 260,
+                ...EXTRA[type],
+            });
+            const node = composeSection(
+                sectionOf(colGroup([inst("card", { children: [d] })])),
+                tkLayoutCtx(1000),
+            );
+            const { commands, regions } = layout(node, { x: 0, y: 0, w: 1000, h: 900 }, tkMeasure);
+            const box = regions.find((r) => r.id === "el:s1:0.0")!.box;
+            for (const c of commands) {
+                if (c.box.x < box.x - 1 || c.box.y < box.y - 1 || c.box.y > box.y + box.h + 1)
+                    continue;
+                expect(
+                    c.box.x + c.box.w,
+                    `${type} ${c.kind} overhangs its box`,
+                ).toBeLessThanOrEqual(box.x + box.w + 1);
+            }
+        });
+    }
 });

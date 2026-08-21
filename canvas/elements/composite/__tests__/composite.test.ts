@@ -16,55 +16,67 @@ const text = (t: string, align?: string): { type: string; data: unknown } => ({
     data: { text: t, ...(align ? { align } : {}) },
 });
 
-describe("group — cross-axis alignment inference", () => {
+describe("container — bare stack (what `group` was)", () => {
     it("defaults to an empty column with gap 14", () => {
-        const n = nodeOf("group");
+        const n = nodeOf("container");
         expect(n.direction).toBe("col");
         expect(n.gap).toBe(14);
         expect(n.children).toEqual([]);
     });
     it("infers center when all text children are centered", () => {
-        const n = spec("group").layout(
+        const n = spec("container").layout(
             { direction: "col", children: [text("a", "center"), text("b", "center")] },
             ctx,
         );
         expect(n.alignX).toBe("center");
     });
     it("does not infer when the children disagree", () => {
-        const n = spec("group").layout(
+        const n = spec("container").layout(
             { direction: "col", children: [text("a", "center"), text("b", "start")] },
             ctx,
         );
         expect(n.alignX).toBeUndefined();
     });
     it("an explicit align wins over inference", () => {
-        const n = spec("group").layout(
+        const n = spec("container").layout(
             { direction: "col", align: "end", children: [text("a", "center")] },
             ctx,
         );
         expect(n.alignX).toBe("end");
     });
+    it("paints no surface without one, so a bare stack stays bare", () => {
+        expect(nodeOf("container").fill).toBeUndefined();
+    });
 });
 
-describe("card", () => {
-    it("solid default: surface fill, theme radius, hairline border", () => {
-        const n = nodeOf("card");
+describe("container — surfaced (what `card` was)", () => {
+    it("solid: surface fill, theme radius, hairline border", () => {
+        const n = nodeOf("container", { surface: "solid" });
         expect(n.fill?.color).toBe(tokens.surface);
         expect(n.fill?.radius).toBe(tokens.radius);
         expect(n.fill?.border).toEqual({ color: tokens.line, width: 1 });
     });
     it("sharp shape forces radius 2", () => {
-        expect(nodeOf("card", { shape: "sharp" }).fill?.radius).toBe(2);
+        expect(nodeOf("container", { surface: "solid", shape: "sharp" }).fill?.radius).toBe(2);
     });
-    it("outline style: a border and no fill color", () => {
-        const n = nodeOf("card", { style: "outline" });
+    it("outline: a border and no fill color", () => {
+        const n = nodeOf("container", { surface: "outline" });
         expect(n.fill?.color).toBeUndefined();
         expect(n.fill?.border?.width).toBe(1.5);
     });
-    it("throws on an unknown child type", () => {
-        expect(() =>
-            spec("card").layout({ children: [{ type: "does-not-exist", data: {} }] }, ctx),
-        ).toThrow();
+    it("a surface tightens the gap and adds the inset", () => {
+        const n = nodeOf("container", { surface: "solid" });
+        expect(n.gap).toBe(12);
+        expect(n.padding?.top).toBe(24);
+    });
+    // the old `card` threw here and `group` did not; the merge keeps the lenient path, because a
+    // render that throws takes the whole canvas down over one bad child
+    it("falls back for an unknown child type instead of throwing", () => {
+        const n = spec("container").layout(
+            { children: [{ type: "does-not-exist", data: {} }] },
+            ctx,
+        );
+        expect(n.children).toHaveLength(1);
     });
 });
 

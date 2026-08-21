@@ -6,6 +6,7 @@ import type { MeasureText, Rect, RenderCommand } from "@engine/node";
 import { DEFAULT_THEME } from "@themes";
 import { DEFAULT_PROFILE } from "@engine/profile";
 import { layoutSection } from "./commands";
+import { getElement } from "@elements/spec";
 
 // What shape a section takes once it is laid out, judged from geometry rather than from element
 // names. Two sections can reach the same shape with different elements (a "grid" made of cards or of
@@ -21,9 +22,13 @@ const beside = (a: Rect, b: Rect): boolean =>
 
 const area = (r: Rect): number => Math.max(0, r.w) * Math.max(0, r.h);
 
+// A layout container is scaffolding, not content: counting it would make a container wrapping one
+// text read as two leaves, and `isUnit` would then call a single wrapped block a repeated unit.
+const isScaffold = (el: ElementInstance): boolean => getElement(el.type)?.tier === "container";
+
 function collect(el: ElementInstance | undefined, out: string[]): void {
     if (!el) return;
-    if (el.type !== "group") out.push(el.type);
+    if (!isScaffold(el)) out.push(el.type);
     for (const k of childrenOf(el)) collect(k, out);
 }
 

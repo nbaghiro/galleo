@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHART_TYPES } from "@model/elements";
+import { CHART_TYPES, DIAGRAM_TYPES } from "@model/elements";
 import { contrastRatio, resolveTheme } from "@themes";
 import { renderChart, chartTypeOptions } from "@elements/chart/render";
 import { catList, fmt, getChart, normalize, seriesColors, yMax } from "@elements/chart/utils";
@@ -12,6 +12,13 @@ describe("registry", () => {
     it("matches the CHART_TYPES value-set exactly", () => {
         const ids = chartTypeOptions().map((o) => o.value);
         expect([...ids].sort()).toEqual([...CHART_TYPES].sort());
+    });
+
+    // One name, one home. A type present in both families is ambiguous to the LLM (which sees both
+    // enums), to the palette (two tiles), and to dataShapeFor — the funnel taught us all three.
+    it("shares no type name with the diagram family", () => {
+        const both = CHART_TYPES.filter((t) => (DIAGRAM_TYPES as readonly string[]).includes(t));
+        expect(both).toEqual([]);
     });
 });
 
@@ -84,21 +91,22 @@ describe("seriesColors", () => {
         );
     });
 
-    it("funnel labels clear contrast on their band, whatever the theme", () => {
-        const data = { type: "funnel", values: "1200, 680, 340, 120", categories: "A, B, C, D" };
+    it("labels painted on a ramp fill clear contrast on it, whatever the theme", () => {
+        // treemap inks each cell's label against that cell; the call stream pairs them in order
+        const data = { type: "treemap", values: "420, 260, 180, 140", categories: "A, B, C, D" };
         for (const theme of [tokens, carbon]) {
             const { ctx, calls } = recordingDrawContext();
             renderChart(ctx, { x: 0, y: 0, w: 400, h: 300 }, data, theme);
-            const bands = seriesColors(theme, 4);
-            const texts = calls.filter((c) => c.op === "text");
-            expect(texts).toHaveLength(4);
-            texts.forEach((t, i) => {
-                const fill = (t.style as { fill: string }).fill;
-                expect(
-                    contrastRatio(fill, bands[i]!),
-                    `label ${i} ink ${fill} on ${bands[i]}`,
-                ).toBeGreaterThanOrEqual(3);
-            });
+            let cell: string | undefined;
+            let checked = 0;
+            for (const c of calls) {
+                if (c.op === "rect") cell = (c.style as { fill?: string }).fill;
+                if (c.op !== "text" || !cell) continue;
+                const ink = (c.style as { fill: string }).fill;
+                expect(contrastRatio(ink, cell), `ink ${ink} on ${cell}`).toBeGreaterThanOrEqual(3);
+                checked++;
+            }
+            expect(checked).toBeGreaterThan(0);
         }
     });
 });
@@ -132,5 +140,25 @@ describe("renderChart", () => {
         const { ctx, calls } = recordingDrawContext();
         renderChart(ctx, box, { values: "", type: "bar" }, tokens);
         expect(calls).toHaveLength(0);
+    });
+});
+
+describe("waterfall", () => {
+    it("floats each bar between the running totals either side of it", () => {
+        const { ctx, calls } = recordingDrawContext();
+        renderChart(
+            ctx,
+            { x: 0, y: 0, w: 400, h: 300 },
+            { type: "waterfall", values: "100, 50, -30", categories: "A, B, C" },
+            tokens,
+        );
+        const bars = calls.filter((c) => c.op === "rect");
+        expect(bars).toHaveLength(3);
+        const y = bars.map((b) => b.y as number);
+        const h = bars.map((b) => b.h as number);
+        // the second rise stacks above the first, and the fall hangs from the running total
+        expect(y[1]!).toBeLessThan(y[0]!);
+        expect(y[2]!).toBeCloseTo(y[1]!, 1);
+        expect(h[2]!).toBeLessThan(h[1]!);
     });
 });

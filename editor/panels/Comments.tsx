@@ -15,9 +15,9 @@ import { Badge, Button, Eyebrow, IconButton } from "@ui/button";
 import { Icon } from "@ui/icons";
 import { TextArea } from "@ui/inputs";
 import { Menu, MenuItem } from "@ui/menu";
-import { FloatingPanel, Sheet } from "@ui/overlay";
+import { FloatingPanel, OverlayOwner, Sheet } from "@ui/overlay";
 import { relativeTime } from "@ui/time";
-import { dismissalFor } from "@ui/gesture";
+import { dismissalFor, newOwnerToken, pressInside } from "@ui/gesture";
 import { isPhone } from "@ui/viewport";
 import {
     canvasContentWidth,
@@ -47,18 +47,23 @@ import {
     editComment,
     expandThread,
     replyToThread,
-    resolveThread,
+    resolvedRevealed,
     setActiveThreadId,
     setHeldSection,
     setHoveredSection,
+    setThreadResolved,
+    toggleResolvedRevealed,
     heldSection,
     hoveredSection,
     markersRevealed,
     sectionAtY,
+    sectionChips,
     chipAt,
     lineOfOffset,
     lineTop,
     markerX,
+    MARKER_SPACING,
+    MARKER_SPACING_TOUCH,
     panelAt,
     placeMarkers,
     rangeRects,
@@ -109,9 +114,17 @@ export const CommentLayer: Component = () => {
         return (editor.sectionTops[i] ?? 0) + MARKER_INSET;
     };
 
-    // Every thread has a marker now, resolved ones included: the markers only appear on hover, so a
-    // resolved thread costs nothing on screen and there is no rail left to reach it from.
-    const shown = createMemo(() => threads());
+    // Where a thread's chrome belongs: the section its element sits in now, or the one it was
+    // written in once that element is gone. The markers, the chips and the reveal all key on this,
+    // which is what makes the chip that hides a resolved thread the chip that brings it back.
+    const sectionOf = (thread: CommentThread): string =>
+        ids().get(anchorElementId(thread.root.anchor))?.section ?? thread.root.sectionId;
+
+    // What is on the canvas: every unresolved thread, plus the resolved ones whose section has been
+    // asked for. A resolved thread is otherwise reachable only through that section's chip.
+    const shown = createMemo(() =>
+        threads().filter((t) => !isResolved(t) || resolvedRevealed(sectionOf(t))),
+    );
 
     // Threads whose element is gone, by the section they were written in. They have no anchor to sit
     // beside, so the section's border carries one stacked marker for the lot: the data stays reachable.
@@ -124,6 +137,35 @@ export const CommentLayer: Component = () => {
             else out.set(thread.root.sectionId, [thread]);
         }
         return out;
+    });
+
+    // Counted off every thread, not the shown ones: the chip is what says a section has history at
+    // all, so it has to survive that history being hidden.
+    const resolvedCounts = createMemo((): Map<string, number> => {
+        const out = new Map<string, number>();
+        for (const thread of threads())
+            if (isResolved(thread)) {
+                const section = sectionOf(thread);
+                out.set(section, (out.get(section) ?? 0) + 1);
+            }
+        return out;
+    });
+
+    // one row per section carrying either chip, so the two stack instead of landing on each other
+    const chipRows = createMemo(() => {
+        const sections = new Set([...orphans().keys(), ...resolvedCounts().keys()]);
+        return [...sections].map((sectionId) => ({
+            sectionId,
+            list: orphans().get(sectionId) ?? [],
+            chips: sectionChips(
+                {
+                    orphans: orphans().get(sectionId)?.length ?? 0,
+                    resolved: resolvedCounts().get(sectionId) ?? 0,
+                },
+                sectionTop(sectionId),
+                isPhone() ? MARKER_SPACING_TOUCH : MARKER_SPACING,
+            ),
+        }));
     });
 
     const spots = createMemo((): ThreadSpot[] => {
@@ -264,15 +306,31 @@ export const CommentLayer: Component = () => {
                     </Show>
                 )}
             </For>
-            <For each={[...orphans()]}>
-                {([sectionId, list]) => (
-                    <Show when={revealed(sectionId)}>
-                        <OrphanStack
-                            list={list}
-                            x={markerX(sectionRight(sectionId), stageW())}
-                            y={sectionTop(sectionId)}
-                            sectionId={sectionId}
-                        />
+            <For each={chipRows()}>
+                {(row) => (
+                    <Show when={revealed(row.sectionId)}>
+                        <For each={row.chips}>
+                            {(chip) => (
+                                <Show
+                                    when={chip.kind === "orphans"}
+                                    fallback={
+                                        <ResolvedChip
+                                            count={chip.count}
+                                            x={markerX(sectionRight(row.sectionId), stageW())}
+                                            y={chip.y}
+                                            sectionId={row.sectionId}
+                                        />
+                                    }
+                                >
+                                    <OrphanStack
+                                        list={row.list}
+                                        x={markerX(sectionRight(row.sectionId), stageW())}
+                                        y={chip.y}
+                                        sectionId={row.sectionId}
+                                    />
+                                </Show>
+                            )}
+                        </For>
                     </Show>
                 )}
             </For>
@@ -359,10 +417,11 @@ const OrphanStack: Component<{
 }> = (props) => {
     const [open, setOpen] = createSignal(false);
     let popover: HTMLDivElement | undefined;
+    const owner = newOwnerToken("orphans");
     dismissOnOutside(
         () => popover,
         () => setOpen(false),
-        `[data-galleo-orphans="${props.sectionId}"]`,
+        { opener: `[data-galleo-orphans="${props.sectionId}"]`, owner },
     );
     // an open popover holds the section revealed, the same way a hovered marker does
     createEffect(() => {
@@ -393,48 +452,86 @@ const OrphanStack: Component<{
                 </Badge>
             </button>
             <Show when={open()}>
-                <FloatingPanel
-                    ref={popover}
-                    pad="md"
-                    shadow="panel"
-                    class="absolute z-panel flex w-70 flex-col gap-1.5"
-                    style={panelStyle({ x: props.x, y: props.y })}
-                    onPointerDown={(e: PointerEvent) => e.stopPropagation()}
-                >
-                    <Eyebrow as="div" mono={false}>
-                        On removed content
-                    </Eyebrow>
-                    <For each={props.list}>
-                        {(t) => (
-                            <button
-                                class="rounded-lg border border-line px-2.5 py-2 text-left transition-colors hover:border-accent"
-                                classList={{ "border-accent": activeThreadId() === t.root.id }}
-                                onClick={() => expandThread(t)}
-                            >
-                                <span class="flex items-baseline gap-1.5">
-                                    <span class="truncate text-[12px] font-semibold text-ink">
-                                        {authorName(t.root)}
-                                    </span>
-                                    <span class="text-[10.5px] text-muted">
-                                        {relativeTime(t.root.createdAt)}
-                                    </span>
-                                </span>
-                                <Show when={t.root.quote}>
-                                    {(quote) => (
-                                        <span class="mt-0.5 block truncate text-[11px] italic text-muted">
-                                            “{quote()}”
+                <OverlayOwner token={owner}>
+                    <FloatingPanel
+                        ref={popover}
+                        pad="md"
+                        shadow="panel"
+                        class="absolute z-panel flex w-70 flex-col gap-1.5"
+                        style={panelStyle({ x: props.x, y: props.y })}
+                        onPointerDown={(e: PointerEvent) => e.stopPropagation()}
+                    >
+                        <Eyebrow as="div" mono={false}>
+                            On removed content
+                        </Eyebrow>
+                        <For each={props.list}>
+                            {(t) => (
+                                <button
+                                    class="rounded-lg border border-line px-2.5 py-2 text-left transition-colors hover:border-accent"
+                                    classList={{ "border-accent": activeThreadId() === t.root.id }}
+                                    onClick={() => expandThread(t)}
+                                >
+                                    <span class="flex items-baseline gap-1.5">
+                                        <span class="truncate text-[12px] font-semibold text-ink">
+                                            {authorName(t.root)}
                                         </span>
-                                    )}
-                                </Show>
-                                <span class="mt-0.5 line-clamp-2 block text-[12.5px] leading-snug text-soft">
-                                    {t.root.body}
-                                </span>
-                            </button>
-                        )}
-                    </For>
-                </FloatingPanel>
+                                        <span class="text-[10.5px] text-muted">
+                                            {relativeTime(t.root.createdAt)}
+                                        </span>
+                                    </span>
+                                    <Show when={t.root.quote}>
+                                        {(quote) => (
+                                            <span class="mt-0.5 block truncate text-[11px] italic text-muted">
+                                                “{quote()}”
+                                            </span>
+                                        )}
+                                    </Show>
+                                    <span class="mt-0.5 line-clamp-2 block text-[12.5px] leading-snug text-soft">
+                                        {t.root.body}
+                                    </span>
+                                </button>
+                            )}
+                        </For>
+                    </FloatingPanel>
+                </OverlayOwner>
             </Show>
         </>
+    );
+};
+
+// The archive, as one chip in the same family as the orphan stack: resolved threads are off the
+// canvas until this asks for them back, and it is the only way to reach one, so it counts every
+// resolved thread in the section whether or not any of them is currently drawn.
+const ResolvedChip: Component<{
+    count: number;
+    x: number;
+    y: number;
+    sectionId: string;
+}> = (props) => {
+    const open = (): boolean => resolvedRevealed(props.sectionId);
+    return (
+        <button
+            data-galleo-comment="true"
+            data-testid="resolved-chip"
+            class="absolute z-panel grid place-items-center rounded-full border border-line bg-panel/95 text-muted opacity-70 shadow-sm backdrop-blur-md transition-colors hover:border-accent hover:text-accent hover:opacity-100"
+            classList={{
+                "size-11": isPhone(),
+                "size-7": !isPhone(),
+                "border-accent text-accent opacity-100": open(),
+            }}
+            style={{ left: `${props.x}px`, top: `${props.y}px` }}
+            title={open() ? "Hide resolved" : `Show ${props.count} resolved`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerMove={(e) => e.stopPropagation()}
+            onPointerEnter={() => setHeldSection(props.sectionId)}
+            onPointerLeave={() => setHeldSection((s) => (s === props.sectionId ? null : s))}
+            onClick={() => toggleResolvedRevealed(props.sectionId)}
+        >
+            <Icon name="check" size={14} />
+            <Badge tone="muted" size="xs" class="absolute -right-1.5 -top-1.5 tabular-nums">
+                {props.count}
+            </Badge>
+        </button>
     );
 };
 
@@ -534,18 +631,15 @@ const Marker: Component<{
     </button>
 );
 
-/**
- * Esc, or a pointerdown anywhere but the panel and the control that opened it. The press is never
- * swallowed: no backdrop, nothing stopped, so the same click still selects an element or presses a
- * button. `opener` is a selector rather than a ref because the marker is rendered elsewhere.
- *
- * composedPath, not `contains`: a menu inside the panel portals out of it, and a press there is
- * still a press inside as far as dismissal is concerned.
- */
+// Esc, or a pointerdown anywhere but the panel and the control that opened it. The press is never
+// swallowed: no backdrop, nothing stopped, so the same click still selects an element or presses a
+// button. `opener` is a selector rather than a ref because the marker is rendered elsewhere, and
+// `owner` covers what the panel portals away: the overflow menu is not a descendant of the panel,
+// so without it a press on Delete thread read as outside and unmounted the item before the click.
 function dismissOnOutside(
     panel: () => HTMLElement | undefined,
     close: () => void,
-    opener: string,
+    scope: { opener: string; owner: string },
 ): void {
     createEffect(() => {
         const onKey = (e: KeyboardEvent): void => {
@@ -554,14 +648,11 @@ function dismissOnOutside(
             close();
         };
         const onDown = (e: PointerEvent): void => {
-            const el = panel();
-            const inside = e
-                .composedPath()
-                .some(
-                    (n) =>
-                        n === el ||
-                        (n instanceof Element && (n.matches(opener) || !!n.closest(opener))),
-                );
+            const inside = pressInside(e.composedPath(), {
+                el: panel(),
+                owner: scope.owner,
+                opener: scope.opener,
+            });
             if (
                 dismissalFor(
                     { inside, onCanvas: false },
@@ -793,7 +884,7 @@ const ThreadHeader: Component<{ thread: CommentThread }> = (props) => {
                 tone="muted"
                 active={resolved()}
                 title={resolved() ? "Reopen this thread" : "Resolve this thread"}
-                onClick={() => void resolveThread(props.thread.root.id, !resolved())}
+                onClick={() => void setThreadResolved(props.thread, !resolved())}
             >
                 <Icon name="check" size={14} />
             </IconButton>
@@ -819,9 +910,12 @@ const ThreadHeader: Component<{ thread: CommentThread }> = (props) => {
                     <MenuItem
                         tone="danger"
                         onClick={() => {
+                            // read first: closing the panel unmounts what these props are read
+                            // from, and a read after that throws out of the handler
+                            const thread = props.thread;
                             setActiveThreadId(null);
-                            dropCommentMark(props.thread);
-                            void deleteComment(props.thread.root.id);
+                            dropCommentMark(thread);
+                            void deleteComment(thread.root.id);
                         }}
                     >
                         Delete thread
@@ -849,26 +943,30 @@ const ThreadPanel: Component<{
     anchorW?: number;
 }> = (props) => {
     let panel: HTMLDivElement | undefined;
+    const owner = newOwnerToken("thread");
     dismissOnOutside(
         () => panel,
         () => setActiveThreadId(null),
-        `[data-galleo-thread="${props.thread.root.id}"]`,
+        { opener: `[data-galleo-thread="${props.thread.root.id}"]`, owner },
     );
 
     return (
-        <FloatingPanel
-            ref={panel}
-            rounded="2xl"
-            pad="md"
-            data-galleo-toolbar="true"
-            class="absolute z-menu flex max-h-100 w-80 flex-col overflow-y-auto"
-            style={panelStyle({ x: props.x, y: props.y, w: props.anchorW })}
-            onPointerDown={(e) => e.stopPropagation()}
-            onPointerMove={(e) => e.stopPropagation()}
-        >
-            <ThreadHeader thread={props.thread} />
-            <ThreadBody thread={props.thread} degraded={props.degraded} />
-        </FloatingPanel>
+        <OverlayOwner token={owner}>
+            <FloatingPanel
+                ref={panel}
+                rounded="2xl"
+                pad="md"
+                data-galleo-toolbar="true"
+                data-testid="comment-thread"
+                class="absolute z-menu flex max-h-100 w-80 flex-col overflow-y-auto"
+                style={panelStyle({ x: props.x, y: props.y, w: props.anchorW })}
+                onPointerDown={(e) => e.stopPropagation()}
+                onPointerMove={(e) => e.stopPropagation()}
+            >
+                <ThreadHeader thread={props.thread} />
+                <ThreadBody thread={props.thread} degraded={props.degraded} />
+            </FloatingPanel>
+        </OverlayOwner>
     );
 };
 
@@ -889,39 +987,42 @@ async function submitDraft(body: string): Promise<void> {
 
 const DraftPanel: Component<{ x: number; y: number; anchorW?: number }> = (props) => {
     let panel: HTMLDivElement | undefined;
+    const owner = newOwnerToken("draft");
     dismissOnOutside(
         () => panel,
         () => cancelCommentDraft(),
-        "[data-galleo-comment-chip]",
+        { opener: "[data-galleo-comment-chip]", owner },
     );
     return (
-        <FloatingPanel
-            ref={panel}
-            rounded="2xl"
-            pad="md"
-            data-galleo-toolbar="true"
-            class="absolute z-menu w-80"
-            style={panelStyle({ x: props.x, y: props.y, w: props.anchorW })}
-            onPointerDown={(e) => e.stopPropagation()}
-            onPointerMove={(e) => e.stopPropagation()}
-        >
-            <Eyebrow tone="soft" mono={false}>
-                New comment
-            </Eyebrow>
-            <Show when={commentDraft()?.quote}>
-                {(quote) => (
-                    <p class="mt-1.5 truncate text-[11.5px] italic text-muted">“{quote()}”</p>
-                )}
-            </Show>
-            <Composer
-                autofocus
-                placeholder="Leave a comment…"
-                submitLabel="Comment"
-                busyLabel="Posting…"
-                onSubmit={submitDraft}
-                onCancel={() => cancelCommentDraft()}
-            />
-        </FloatingPanel>
+        <OverlayOwner token={owner}>
+            <FloatingPanel
+                ref={panel}
+                rounded="2xl"
+                pad="md"
+                data-galleo-toolbar="true"
+                class="absolute z-menu w-80"
+                style={panelStyle({ x: props.x, y: props.y, w: props.anchorW })}
+                onPointerDown={(e) => e.stopPropagation()}
+                onPointerMove={(e) => e.stopPropagation()}
+            >
+                <Eyebrow tone="soft" mono={false}>
+                    New comment
+                </Eyebrow>
+                <Show when={commentDraft()?.quote}>
+                    {(quote) => (
+                        <p class="mt-1.5 truncate text-[11.5px] italic text-muted">“{quote()}”</p>
+                    )}
+                </Show>
+                <Composer
+                    autofocus
+                    placeholder="Leave a comment…"
+                    submitLabel="Comment"
+                    busyLabel="Posting…"
+                    onSubmit={submitDraft}
+                    onCancel={() => cancelCommentDraft()}
+                />
+            </FloatingPanel>
+        </OverlayOwner>
     );
 };
 

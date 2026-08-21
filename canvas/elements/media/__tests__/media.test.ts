@@ -12,8 +12,15 @@ const nodeOf = (type: string, over: Record<string, unknown> = {}): EngineNode =>
 const kids = (n: EngineNode): EngineNode[] => n.children ?? [];
 
 describe("image / imageLike", () => {
-    it("default photo is cover-fit, radius 14, zoom 1, aspect 1.5", () => {
+    const SRC = "/api/media/asset/00000000-0000-4000-8000-000000000000";
+    it("a freshly inserted element is an empty frame, not a blank image", () => {
         const n = nodeOf("image");
+        expect(n.aspect).toBe(1.5);
+        expect(n.image).toBeUndefined();
+        expect(kids(n)[0]!.surface).toBeDefined(); // the media glyph
+    });
+    it("with a source: cover-fit, radius 14, zoom 1, aspect 1.5", () => {
+        const n = nodeOf("image", { src: SRC });
         expect(n.aspect).toBe(1.5);
         expect(n.image?.fit).toBe("cover");
         expect(n.image?.radius).toBe(14);
@@ -21,12 +28,12 @@ describe("image / imageLike", () => {
         expect(n.w.mode).toBe("grow");
     });
     it("zoom is a percent converted to a fraction", () => {
-        expect(nodeOf("image", { zoom: 150 }).image?.zoom).toBe(1.5);
+        expect(nodeOf("image", { src: SRC, zoom: 150 }).image?.zoom).toBe(1.5);
     });
     it("sticker + illustration default to contain fit", () => {
-        expect(nodeOf("sticker").image?.fit).toBe("contain");
-        expect(nodeOf("sticker").aspect).toBe(1);
-        expect(nodeOf("illustration").image?.fit).toBe("contain");
+        expect(nodeOf("sticker", { src: SRC }).image?.fit).toBe("contain");
+        expect(nodeOf("sticker", { src: SRC }).aspect).toBe(1);
+        expect(nodeOf("illustration", { src: SRC }).image?.fit).toBe("contain");
     });
 });
 

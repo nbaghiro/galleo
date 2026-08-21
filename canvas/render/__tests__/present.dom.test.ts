@@ -14,7 +14,10 @@ describe("sectionSlideCount", () => {
     });
     it("a very tall section paginates into several", () => {
         const paras = Array.from({ length: 60 }, (_, i) => inst("text", { text: `Line ${i}` }));
-        const section = sectionOf({ type: "group", data: { direction: "col", children: paras } });
+        const section = sectionOf({
+            type: "container",
+            data: { direction: "col", children: paras },
+        });
         expect(sectionSlideCount(section, tokens, deck)).toBeGreaterThan(1);
     });
 });

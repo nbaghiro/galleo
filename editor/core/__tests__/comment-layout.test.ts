@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
     MARKER_SIZE,
     MARKER_SPACING,
+    MARKER_SPACING_TOUCH,
     chipAt,
     lineOfOffset,
     lineTop,
@@ -12,7 +13,10 @@ import {
     PANEL_GAP,
     placeMarkers,
     rangeRects,
+    resolvedRevealed,
     sectionAtY,
+    sectionChips,
+    toggleResolvedRevealed,
 } from "@editor/core/comments";
 import type { RunLayout } from "@canvas/render/commands";
 
@@ -285,6 +289,63 @@ describe("markersRevealed", () => {
 
     it("shows every section on a tier with no hover to wait for", () => {
         expect(markersRevealed("s9", state({ hoverless: true }))).toBe(true);
+    });
+});
+
+// Two collapsed chips can share a section's border: the orphans whose element is gone, and the
+// resolved threads that are hidden. They sit at the same top edge, so the stack is what keeps them
+// off each other.
+describe("sectionChips", () => {
+    it("puts a lone chip at the section's top edge whichever kind it is", () => {
+        expect(sectionChips({ orphans: 2 }, 100, MARKER_SPACING)).toEqual([
+            { kind: "orphans", count: 2, y: 100 },
+        ]);
+        expect(sectionChips({ resolved: 3 }, 100, MARKER_SPACING)).toEqual([
+            { kind: "resolved", count: 3, y: 100 },
+        ]);
+    });
+
+    it("stacks the two in a fixed order, clear of each other", () => {
+        const chips = sectionChips({ orphans: 1, resolved: 4 }, 100, MARKER_SPACING);
+        expect(chips.map((c) => c.kind)).toEqual(["orphans", "resolved"]);
+        expect(chips[1]!.y - chips[0]!.y).toBe(MARKER_SPACING);
+        expect(chips[1]!.y - chips[0]!.y).toBeGreaterThanOrEqual(MARKER_SIZE);
+    });
+
+    it("clears the tap target on a tier that draws the bigger chip", () => {
+        const chips = sectionChips({ orphans: 1, resolved: 1 }, 0, MARKER_SPACING_TOUCH);
+        expect(chips[1]!.y - chips[0]!.y).toBe(MARKER_SPACING_TOUCH);
+        expect(MARKER_SPACING_TOUCH).toBeGreaterThanOrEqual(44); // size-11
+    });
+
+    it("has nothing to draw for a section with neither", () => {
+        expect(sectionChips({}, 100, MARKER_SPACING)).toEqual([]);
+        expect(sectionChips({ orphans: 0, resolved: 0 }, 100, MARKER_SPACING)).toEqual([]);
+    });
+});
+
+// Resolving takes a thread off the margin, so the chip above is the only way back to it. The reveal
+// is per section: reading one section's history must not dim markers all down the stack.
+describe("resolvedRevealed", () => {
+    beforeEach(() => {
+        for (const s of ["s1", "s2"]) if (resolvedRevealed(s)) toggleResolvedRevealed(s);
+    });
+
+    it("hides resolved threads until the section asks for them", () => {
+        expect(resolvedRevealed("s1")).toBe(false);
+        toggleResolvedRevealed("s1");
+        expect(resolvedRevealed("s1")).toBe(true);
+    });
+
+    it("toggles back off, so the archive does not stay open by accident", () => {
+        toggleResolvedRevealed("s1");
+        toggleResolvedRevealed("s1");
+        expect(resolvedRevealed("s1")).toBe(false);
+    });
+
+    it("keeps one section's answer to itself", () => {
+        toggleResolvedRevealed("s1");
+        expect(resolvedRevealed("s2")).toBe(false);
     });
 });
 

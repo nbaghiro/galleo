@@ -8,10 +8,12 @@ import "./radar";
 import "./column";
 import "./scatter";
 import "./bubble";
-import "./funnel";
 import "./gauge";
 import "./heatmap";
 import "./treemap";
+import "./waterfall";
+import "./pack";
+import "./progress";
 
 import type { DrawContext, Rect } from "@engine/node";
 import type { Tokens } from "@themes";

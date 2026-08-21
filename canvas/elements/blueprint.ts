@@ -83,17 +83,20 @@ export function placeholderBlock(kind: string): ElementInstance {
             };
         case "cards": {
             const card = (): ElementInstance => ({
-                type: "card",
-                data: { children: [t("Card title", "h3"), t("A short supporting line.", "body")] },
+                type: "container",
+                data: {
+                    surface: "solid",
+                    children: [t("Card title", "h3"), t("A short supporting line.", "body")],
+                },
             });
             return {
-                type: "group",
+                type: "container",
                 data: { direction: "row", children: [card(), card(), card()] },
             };
         }
         default:
             return {
-                type: "group",
+                type: "container",
                 data: {
                     children: [
                         t("Section heading", "h2"),
@@ -146,7 +149,7 @@ export function outlineSection(plan: SectionBlueprint & OutlineCopy): {
     const { kinds, copyAt } = columnPlan(plan);
     const points = plan.points?.length ? plan.points : [""];
     const copy: ElementInstance = {
-        type: "group",
+        type: "container",
         data: {
             children: [
                 t(plan.heading?.trim() || OUTLINE_PLACEHOLDER.heading, "h2"),

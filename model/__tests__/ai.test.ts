@@ -109,7 +109,7 @@ describe("applyPatch · moveSection", () => {
 describe("applyPatch · replaceElement", () => {
     const group = (children: ElementInstance[]): Section => ({
         id: "s",
-        root: { type: "group", data: { children } },
+        root: { type: "container", data: { children } },
     });
     it("sets the element at the path when non-null", () => {
         const out = applyPatch(content([group([leaf("a"), leaf("b")])]), [

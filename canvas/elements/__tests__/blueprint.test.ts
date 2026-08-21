@@ -8,11 +8,11 @@ describe("placeholderBlock", () => {
         expect(placeholderBlock("stat").type).toBe("stat");
         expect(placeholderBlock("chart").type).toBe("chart");
         expect(placeholderBlock("table").type).toBe("table");
-        expect(placeholderBlock("cards").type).toBe("group");
+        expect(placeholderBlock("cards").type).toBe("container");
     });
     it("falls back to a text-block group for an unknown kind", () => {
         const b = placeholderBlock("mystery");
-        expect(b.type).toBe("group");
+        expect(b.type).toBe("container");
         expect(childrenRaw(b)?.every((c) => c.type === "text")).toBe(true);
     });
 });

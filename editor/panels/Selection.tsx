@@ -14,21 +14,22 @@ import {
 import { getElement } from "@elements/spec";
 import { profileFor } from "@engine/profile";
 import {
+    addSectionAfter,
     commit,
+    duplicateSectionAt,
     editor,
     editorAccent,
     hover,
+    moveSectionBy,
+    noteElementResized,
     regions,
+    removeSectionAt,
     selection,
     setSelection,
     stageEl,
     stopEditing,
-    addSectionAfter,
-    duplicateSectionAt,
-    moveSectionBy,
-    removeSectionAt,
 } from "@editor/core/store";
-import { startDrag, drag, movable } from "@editor/core/dnd";
+import { startDrag, drag, movableAncestor } from "@editor/core/dnd";
 import { openSectionPrompt } from "@editor/core/ai";
 import { pickMedia } from "@editor/core/media";
 import { SectionLayoutPopup } from "./SectionLayoutPopup";
@@ -65,10 +66,11 @@ export const DragHandle: Component = () => {
         if (drag()) return null;
         const t = hover() ?? selection();
         if (t?.kind === "element") {
-            // a closed container's child edits in place; there is nothing to move, so no grip
-            if (!movable(editor.artifact, t.address)) return null;
-            const box = regions().find((r) => r.id === elementRegionId(t.address))?.box;
-            return box ? { kind: "element" as const, box, address: t.address } : null;
+            // a unit moves whole: grabbing a table cell or a composite's line drags the unit it
+            // belongs to, so the grip aims at the nearest ancestor a structural op may act on
+            const address = movableAncestor(editor.artifact, t.address);
+            const box = regions().find((r) => r.id === elementRegionId(address))?.box;
+            return box ? { kind: "element" as const, box, address } : null;
         }
         if (t?.kind === "section") {
             const box = regions().find((r) => r.id === sectionRegionId(t.section))?.box;
@@ -89,7 +91,6 @@ export const DragHandle: Component = () => {
             // a drag lifts the source out of the paint; an open text overlay would strand
             stopEditing();
             if (c.kind === "element") {
-                if (!movable(editor.artifact, c.address)) return;
                 const inst = getElementAt(editor.artifact, c.address);
                 const label = (inst && getElement(inst.type)?.label) || "Element";
                 startDrag({ kind: "move", from: c.address }, sx, sy, label);
@@ -185,7 +186,13 @@ export const ResizeHandles: Component = () => {
         const up = (): void => {
             const edit = liveEdit();
             setLiveEdit(null);
-            if (edit) commit(applyLiveEdit(editor.artifact, edit));
+            if (edit) {
+                commit(applyLiveEdit(editor.artifact, edit));
+                noteElementResized(
+                    getElementAt(editor.artifact, c.address)?.type ?? "",
+                    c.hCfg ? "height" : "aspect",
+                );
+            }
             window.removeEventListener("pointermove", move);
             window.removeEventListener("pointerup", up);
         };

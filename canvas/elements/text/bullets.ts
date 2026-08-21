@@ -116,7 +116,7 @@ export const bulletsElement: ElementSpec<BulletsData> = {
     type: "bullets",
     label: "List",
     category: "text",
-    tier: "smart",
+    tier: "unit",
     create: () => ({
         children: [
             { type: "text", data: { text: "First point", style: "body" } },

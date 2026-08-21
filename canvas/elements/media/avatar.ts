@@ -18,7 +18,7 @@ export const avatarElement: ElementSpec<AvatarData> = {
     label: "Avatar",
     category: "media",
     tier: "primitive",
-    create: () => ({ src: AVATAR_DEFAULT, size: 72 }),
+    create: () => ({ src: "", size: 72 }), // the fallback below paints until one is picked
     layout: (d: AvatarData, ctx: LayoutCtx): EngineNode => {
         const size = d.size ?? 72;
         const img: EngineNode = {

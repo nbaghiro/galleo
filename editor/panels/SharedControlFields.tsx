@@ -4,7 +4,7 @@ import type { Vector } from "@model/elements";
 import type { Component, JSX } from "solid-js";
 import { parseSvg } from "@elements/media/vector";
 import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
-import { editorTokens } from "@editor/core/store";
+import { adoptLink, editorTokens } from "@editor/core/store";
 import { pickMedia, pickIcon } from "@editor/core/media";
 import { Icon } from "@ui/icons";
 import { Button } from "@ui/button";
@@ -76,6 +76,12 @@ export const MediaField: Component<{
     const [pasting, setPasting] = createSignal(false);
     const open = (): void =>
         pickMedia((url, item) => props.onChange(url, item), props.kind as MediaKind | undefined);
+
+    // a typed url is adopted like a picked one, so it lands in the library with everything else
+    const commitUrl = async (url: string): Promise<void> => {
+        const v = url.trim();
+        props.onChange(v ? await adoptLink(v).catch(() => v) : v);
+    };
     return (
         <Show
             when={!props.compact}
@@ -121,7 +127,7 @@ export const MediaField: Component<{
                     <TextField
                         value={props.value}
                         placeholder={props.placeholder ?? "https://…"}
-                        onChange={props.onChange}
+                        onChange={(v) => void commitUrl(v)}
                     />
                 </Show>
             </div>

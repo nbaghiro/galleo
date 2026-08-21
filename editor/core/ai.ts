@@ -15,6 +15,7 @@ import {
     getSectionStreamer,
     getSuggestSections,
     getTextAssist,
+    noteSectionAdded,
     setArtifactLive,
     setSelection,
     stopEditing,
@@ -169,7 +170,11 @@ function putPlaceholder(section: Section): void {
             ...c,
             sections: c.sections.map((s) => (s.id === PLACEHOLDER_ID ? section : s)),
         });
-    else setArtifactLive(insertSection(c, indexAfter(c, sectionGen.afterId), section));
+    else {
+        const at = indexAfter(c, sectionGen.afterId);
+        setArtifactLive(insertSection(c, at, section));
+        noteSectionAdded("ai", at);
+    }
 }
 
 export async function runSectionGen(instruction: string): Promise<void> {

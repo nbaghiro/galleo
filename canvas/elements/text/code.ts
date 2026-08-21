@@ -12,7 +12,7 @@ export const codeElement: ElementSpec<CodeData> = {
     type: "code",
     label: "Code",
     category: "text",
-    tier: "smart",
+    tier: "unit",
     create: () => ({ code: "const galleo = createEditor();\ngalleo.render(artifact);" }),
     layout: (d: CodeData, ctx: LayoutCtx): EngineNode => ({
         w: grow(),

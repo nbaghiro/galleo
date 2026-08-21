@@ -27,7 +27,7 @@ export const quoteElement: ElementSpec<QuoteData> = {
     type: "quote",
     label: "Quote",
     category: "text",
-    tier: "smart",
+    tier: "unit",
     create: () => ({
         children: [
             { type: "text", data: { text: "Taste is the only moat left.", style: "h3" } },

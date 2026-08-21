@@ -17,7 +17,7 @@ const rootTarget = (section: string): Target => ({
 const twoKidArtifact = () =>
     artifactOf([
         sectionOf({
-            type: "group",
+            type: "container",
             data: {
                 direction: "col",
                 children: [inst("text", { text: "A" }), inst("text", { text: "B" })],
@@ -82,7 +82,7 @@ describe("pasteElement", () => {
         const art = artifactOf([sectionOf(inst("text", { text: "solo" }))]);
         const res = pasteElement(art, inst("text", { text: "x" }), rootTarget("s1"));
         expect(res).not.toBeNull();
-        expect(getElementAt(res!.content, { section: "s1", path: [] })?.type).toBe("group");
+        expect(getElementAt(res!.content, { section: "s1", path: [] })?.type).toBe("container");
         expect(textOf(getElementAt(res!.content, { section: "s1", path: [0] }))).toBe("solo");
         expect(textOf(getElementAt(res!.content, res!.address))).toBe("x");
     });

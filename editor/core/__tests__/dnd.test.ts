@@ -329,7 +329,10 @@ describe("slot indicators — geometry the overlay draws", () => {
 
     it("an empty region advertises itself as a region highlight", () => {
         const art = artifactOf([
-            sectionOf({ type: "group", data: { direction: "col", children: [] } }, { id: "s1" }),
+            sectionOf(
+                { type: "container", data: { direction: "col", children: [] } },
+                { id: "s1" },
+            ),
         ]);
         const regions = [reg("section:s1", 0, 0, 400, 200), reg("el:s1", 20, 20, 360, 160)];
         const slots = computeDropSlots(art, regions, NEW);
@@ -353,7 +356,7 @@ describe("applyDrop — lands the element and returns the landed address", () =>
         const target = targetAt(leafArt(), leafRegions(), 330, 110)!;
         const { content, address } = applyDrop(leafArt(), target, { kind: "new", type: "text" });
         expect(address).toEqual({ section: "s1", path: [1] });
-        expect(getElementAt(content, { section: "s1", path: [] })?.type).toBe("group");
+        expect(getElementAt(content, { section: "s1", path: [] })?.type).toBe("container");
         expect(textOf(getElementAt(content, { section: "s1", path: [0] }))).toBe("root");
         expect(getElementAt(content, { section: "s1", path: [1] })?.type).toBe("text");
     });
@@ -432,7 +435,7 @@ describe("closed containers are leaves for drag-and-drop", () => {
             {
                 id: "s1",
                 root: {
-                    type: "group",
+                    type: "container",
                     data: {
                         direction: "row",
                         children: [

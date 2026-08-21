@@ -50,7 +50,7 @@ export function composite(
         type,
         label,
         category: "composite",
-        tier: "smart",
+        tier: "unit",
         create,
         layout: (d, ctx) => arrange(d, ctx, composeKids(d.children, ctx)),
         container: {

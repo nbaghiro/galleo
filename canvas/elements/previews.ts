@@ -133,19 +133,19 @@ function elementPreviews(c: PreviewPalette): Record<string, string> {
         <rect x="98" y="50" width="16" height="4.5" rx="2" fill="${muted}" opacity="0.4"/>`,
 
         barChart: `
+        <line x1="22" y1="12" x2="22" y2="60" stroke="${line}" stroke-width="1.5"/>
+        <rect x="24" y="16" width="62" height="8" rx="2.5" fill="${accent}"/>
+        <rect x="24" y="28" width="92" height="8" rx="2.5" fill="${accent}" opacity="0.72"/>
+        <rect x="24" y="40" width="44" height="8" rx="2.5" fill="${accent}" opacity="0.55"/>
+        <rect x="24" y="52" width="74" height="8" rx="2.5" fill="${accent}" opacity="0.62"/>`,
+
+        columnChart: `
         <line x1="14" y1="58" x2="126" y2="58" stroke="${line}" stroke-width="1.5"/>
         <rect x="20" y="40" width="14" height="18" rx="2.5" fill="${accent}" opacity="0.5"/>
         <rect x="42" y="26" width="14" height="32" rx="2.5" fill="${accent}" opacity="0.72"/>
         <rect x="64" y="34" width="14" height="24" rx="2.5" fill="${accent}" opacity="0.6"/>
         <rect x="86" y="18" width="14" height="40" rx="2.5" fill="${accent}"/>
         <rect x="108" y="30" width="14" height="28" rx="2.5" fill="${accent}" opacity="0.82"/>`,
-
-        columnChart: `
-        <line x1="22" y1="12" x2="22" y2="60" stroke="${line}" stroke-width="1.5"/>
-        <rect x="24" y="16" width="62" height="8" rx="2.5" fill="${accent}"/>
-        <rect x="24" y="28" width="92" height="8" rx="2.5" fill="${accent}" opacity="0.72"/>
-        <rect x="24" y="40" width="44" height="8" rx="2.5" fill="${accent}" opacity="0.55"/>
-        <rect x="24" y="52" width="74" height="8" rx="2.5" fill="${accent}" opacity="0.62"/>`,
 
         lineChart: `
         <line x1="14" y1="58" x2="126" y2="58" stroke="${line}" stroke-width="1.5"/>
@@ -190,16 +190,17 @@ function elementPreviews(c: PreviewPalette): Record<string, string> {
         <circle cx="92" cy="40" r="4" fill="${accent}" fill-opacity="0.45" stroke="${accent}" stroke-width="1.3"/>
         <circle cx="112" cy="26" r="6.5" fill="${accent}" fill-opacity="0.45" stroke="${accent}" stroke-width="1.3"/>`,
 
-        funnelChart: `
-        <path d="M26 14 H114 L102 25 H38 Z" fill="${accent}"/>
-        <path d="M39 27 H101 L91 38 H49 Z" fill="${accent}" fill-opacity="0.7"/>
-        <path d="M50 40 H90 L82 51 H58 Z" fill="${accent}" fill-opacity="0.5"/>
-        <path d="M59 53 H81 L75 62 H65 Z" fill="${accent}" fill-opacity="0.35"/>`,
+        graphic: `
+        <path d="M34 46 C34 26 52 14 70 20 C88 26 106 24 106 44 C106 60 86 60 70 56 C54 52 34 62 34 46 Z" fill="${accent}" fill-opacity="0.18" stroke="${accent}" stroke-width="1.5"/>
+        <rect x="30.5" y="42.5" width="7" height="7" rx="1.5" fill="${accent}"/>
+        <rect x="66.5" y="16.5" width="7" height="7" rx="1.5" fill="${accent}"/>
+        <rect x="102.5" y="40.5" width="7" height="7" rx="1.5" fill="${accent}"/>
+        <rect x="66.5" y="52.5" width="7" height="7" rx="1.5" fill="${accent}"/>`,
 
         gaugeChart: `
-        <path d="M28 54 A32 32 0 0 1 112 54" fill="none" stroke="${line}" stroke-width="8" stroke-linecap="round"/>
-        <path d="M28 54 A32 32 0 0 1 96 30" fill="none" stroke="${accent}" stroke-width="8" stroke-linecap="round"/>
-        <circle cx="70" cy="54" r="3.5" fill="${accent}"/>`,
+        <path d="M28 54 A42 42 0 0 1 112 54" fill="none" stroke="${line}" stroke-width="8" stroke-linecap="round"/>
+        <path d="M28 54 A42 42 0 0 1 96.8 21.6" fill="none" stroke="${accent}" stroke-width="8" stroke-linecap="round"/>
+        <rect x="58" y="59" width="24" height="8" rx="4" fill="${accent}" fill-opacity="0.5"/>`,
 
         heatmapChart: `
         <rect x="20" y="16" width="24" height="12" rx="2" fill="${accent}" opacity="0.9"/>
@@ -221,6 +222,83 @@ function elementPreviews(c: PreviewPalette): Record<string, string> {
         <rect x="78" y="16" width="44" height="22" rx="2" fill="${accent}" fill-opacity="0.55"/>
         <rect x="78" y="40" width="26" height="16" rx="2" fill="${accent}" fill-opacity="0.4"/>
         <rect x="106" y="40" width="16" height="16" rx="2" fill="${accent}" fill-opacity="0.28"/>`,
+
+        targetDiagram: `
+        <circle cx="70" cy="37" r="30" fill="${accent}" fill-opacity="0.18"/>
+        <circle cx="70" cy="37" r="20" fill="${accent}" fill-opacity="0.4"/>
+        <circle cx="70" cy="37" r="10" fill="${accent}"/>`,
+
+        vennDiagram: `
+        <circle cx="58" cy="32" r="22" fill="${accent}" fill-opacity="0.35" stroke="${accent}" stroke-width="1.5"/>
+        <circle cx="82" cy="32" r="22" fill="${accent}" fill-opacity="0.35" stroke="${accent}" stroke-width="1.5"/>
+        <circle cx="70" cy="50" r="22" fill="${accent}" fill-opacity="0.35" stroke="${accent}" stroke-width="1.5"/>`,
+
+        pictogramDiagram: `
+        <rect x="14" y="17" width="22" height="6" rx="3" fill="${accent}" fill-opacity="0.5"/>
+        <rect x="14" y="34" width="22" height="6" rx="3" fill="${accent}" fill-opacity="0.5"/>
+        <rect x="14" y="51" width="22" height="6" rx="3" fill="${accent}" fill-opacity="0.5"/>
+        <g fill="${accent}">
+        <circle cx="49" cy="20" r="5"/><circle cx="65" cy="20" r="5"/><circle cx="81" cy="20" r="5"/><circle cx="97" cy="20" r="5"/>
+        <circle cx="49" cy="37" r="5"/><circle cx="65" cy="37" r="5"/><circle cx="81" cy="37" r="5"/>
+        <circle cx="49" cy="54" r="5"/><circle cx="65" cy="54" r="5"/>
+        </g>
+        <g fill="${line}">
+        <circle cx="113" cy="20" r="5"/>
+        <circle cx="97" cy="37" r="5"/><circle cx="113" cy="37" r="5"/>
+        <circle cx="81" cy="54" r="5"/><circle cx="97" cy="54" r="5"/><circle cx="113" cy="54" r="5"/>
+        </g>`,
+
+        flowDiagram: `
+        <rect x="52" y="8" width="36" height="16" rx="8" fill="${accent}"/>
+        <path d="M70 40 L88 52 L70 64 L52 52 Z" fill="${accent}" fill-opacity="0.14" stroke="${accent}" stroke-width="1.5"/>
+        <rect x="12" y="30" width="30" height="14" rx="4" fill="${accent}" fill-opacity="0.14" stroke="${accent}" stroke-width="1.5"/>
+        <rect x="98" y="30" width="30" height="14" rx="4" fill="${accent}" fill-opacity="0.14" stroke="${accent}" stroke-width="1.5"/>
+        <path d="M70 24 V40 M52 52 H27 V44 M88 52 H113 V44" stroke="${accent}" stroke-width="1.5" fill="none"/>`,
+
+        mindmapDiagram: `
+        <rect x="53" y="29" width="34" height="16" rx="5" fill="${accent}"/>
+        <rect x="8" y="12" width="30" height="12" rx="4" fill="${accent}" fill-opacity="0.2"/>
+        <rect x="8" y="50" width="30" height="12" rx="4" fill="${accent}" fill-opacity="0.2"/>
+        <rect x="102" y="12" width="30" height="12" rx="4" fill="${accent}" fill-opacity="0.2"/>
+        <rect x="102" y="50" width="30" height="12" rx="4" fill="${accent}" fill-opacity="0.2"/>
+        <path d="M53 37 H46 V18 H38 M53 37 H46 V56 H38 M87 37 H94 V18 H102 M87 37 H94 V56 H102" stroke="${accent}" stroke-width="1.5" fill="none"/>`,
+
+        roadmapDiagram: `
+        <path d="M42 14 V62 M76 14 V62 M110 14 V62" stroke="${line}" stroke-width="1.5"/>
+        <rect x="12" y="20" width="58" height="12" rx="4" fill="${accent}"/>
+        <rect x="46" y="36" width="58" height="12" rx="4" fill="${accent}" fill-opacity="0.66"/>
+        <rect x="80" y="52" width="46" height="12" rx="4" fill="${accent}" fill-opacity="0.42"/>`,
+
+        waterfallChart: `
+        <line x1="14" y1="58" x2="126" y2="58" stroke="${line}" stroke-width="1.5"/>
+        <rect x="18" y="34" width="16" height="24" rx="2" fill="${accent}"/>
+        <rect x="40" y="22" width="16" height="12" rx="2" fill="${accent}" fill-opacity="0.72"/>
+        <rect x="62" y="22" width="16" height="10" rx="2" fill="${accent}" fill-opacity="0.4"/>
+        <rect x="84" y="14" width="16" height="18" rx="2" fill="${accent}" fill-opacity="0.72"/>
+        <rect x="106" y="14" width="16" height="44" rx="2" fill="${accent}"/>
+        <path d="M34 34 H40 M56 22 H62 M78 32 H84 M100 14 H106" stroke="${line}" stroke-width="1.5" stroke-dasharray="3 3"/>`,
+
+        packChart: `
+        <circle cx="46" cy="38" r="22" fill="${accent}"/>
+        <circle cx="86" cy="28" r="15" fill="${accent}" fill-opacity="0.66"/>
+        <circle cx="92" cy="55" r="10" fill="${accent}" fill-opacity="0.45"/>
+        <circle cx="66" cy="63" r="7" fill="${accent}" fill-opacity="0.3"/>`,
+
+        progressChart: `
+        <rect x="14" y="32" width="112" height="14" rx="7" fill="${line}"/>
+        <rect x="14" y="32" width="78" height="14" rx="7" fill="${accent}"/>
+        <rect x="14" y="18" width="30" height="8" rx="4" fill="${accent}" fill-opacity="0.55"/>
+        <rect x="100" y="52" width="26" height="6" rx="3" fill="${accent}" fill-opacity="0.35"/>`,
+
+        comparison: `
+        <rect x="10" y="12" width="55" height="50" rx="6" fill="none" stroke="${line}" stroke-width="1.5"/>
+        <rect x="75" y="12" width="55" height="50" rx="6" fill="none" stroke="${line}" stroke-width="1.5"/>
+        <rect x="20" y="22" width="26" height="8" rx="4" fill="${accent}"/>
+        <rect x="20" y="36" width="35" height="6" rx="3" fill="${accent}" fill-opacity="0.4"/>
+        <rect x="20" y="46" width="28" height="6" rx="3" fill="${accent}" fill-opacity="0.4"/>
+        <rect x="85" y="22" width="26" height="8" rx="4" fill="${accent}"/>
+        <rect x="85" y="36" width="35" height="6" rx="3" fill="${accent}" fill-opacity="0.4"/>
+        <rect x="85" y="46" width="28" height="6" rx="3" fill="${accent}" fill-opacity="0.4"/>`,
 
         processDiagram: `
         <rect x="14" y="24" width="30" height="24" rx="5" fill="${accent}" fill-opacity="0.12" stroke="${accent}" stroke-width="1.5"/>

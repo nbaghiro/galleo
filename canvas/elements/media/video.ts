@@ -3,6 +3,7 @@ import type { EngineNode } from "@engine/node";
 import { register } from "@elements/spec";
 import { fit, grow } from "@model/geometry";
 import { fontStack } from "@themes";
+import { youtubeId } from "@model/media";
 
 interface VideoData {
     src?: string;
@@ -15,14 +16,10 @@ interface VideoData {
     muted?: boolean;
 }
 
-// keep in sync with embedFor's YouTube matcher (editor/core/media.ts)
-const YT_ID =
-    /(?:youtube(?:-nocookie)?\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/;
-
 export function videoPoster(d: VideoData): string | undefined {
     if (d.poster) return d.poster;
-    const yt = d.src?.match(YT_ID);
-    return yt ? `https://i.ytimg.com/vi/${yt[1]}/hqdefault.jpg` : undefined;
+    const yt = youtubeId(d.src);
+    return yt ? `https://i.ytimg.com/vi/${yt}/hqdefault.jpg` : undefined;
 }
 
 export const videoElement: ElementSpec<VideoData> = {

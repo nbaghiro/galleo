@@ -19,7 +19,7 @@ const roleOf = (inst: ElementInstance): Role =>
 
 // unwrap transparent `group` scaffolding down to real content elements
 function flatten(inst: ElementInstance, out: ElementInstance[]): void {
-    if (inst.type === "group") for (const k of childrenRaw(inst) ?? []) flatten(k, out);
+    if (inst.type === "container") for (const k of childrenRaw(inst) ?? []) flatten(k, out);
     else out.push(inst);
 }
 
@@ -42,7 +42,7 @@ const stack = (kids: ElementInstance[]): ElementInstance =>
     kids.length === 1 ? kids[0]! : colGroup(kids);
 
 const dirOf = (inst: ElementInstance): "row" | "col" | null =>
-    inst.type === "group"
+    inst.type === "container"
         ? (inst.data as { direction?: string }).direction === "row"
             ? "row"
             : "col"
