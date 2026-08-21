@@ -7,7 +7,7 @@ import { chatSystem } from "@services/core/ai/prompts/chat";
 const txt = (text: string): ElementInstance => ({ type: "text", data: { text } });
 const sec = (id: string, title: string): Section => ({
     id,
-    root: { type: "group", data: { children: [txt(title)] } },
+    root: { type: "container", data: { children: [txt(title)] } },
 });
 
 const content: ArtifactContent = {

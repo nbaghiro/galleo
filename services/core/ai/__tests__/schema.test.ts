@@ -53,7 +53,7 @@ describe("zSection", () => {
         const ok = zSection.safeParse({
             id: "s2",
             root: {
-                type: "group",
+                type: "container",
                 data: {
                     direction: "row",
                     children: [
@@ -63,7 +63,7 @@ describe("zSection", () => {
                             layout: { width: { pct: 60 } },
                         },
                         {
-                            type: "group",
+                            type: "container",
                             data: {
                                 children: [
                                     { type: "stat", data: { children: [] } },

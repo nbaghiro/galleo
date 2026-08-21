@@ -1328,7 +1328,7 @@ export const landingPage: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                chart("bar", "11, 9, 4, 2, 1", 240),
+                chart("column", "11, 9, 4, 2, 1", 240),
             ),
         ),
         section(
@@ -3060,7 +3060,7 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
                 group(
-                    chart("bar", "12, 19, 31, 48, 72, 104", 240),
+                    chart("column", "12, 19, 31, 48, 72, 104", 240),
                     t(
                         "US mid-market brands adopting inventory software, 2021–2026 (thousands)",
                         "caption",
@@ -3916,7 +3916,7 @@ export const boardDeck: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                group(chart("bar", "38, 41, 44, 49", 240), t("Headcount by quarter", "caption")),
+                group(chart("column", "38, 41, 44, 49", 240), t("Headcount by quarter", "caption")),
             ),
         ),
         section(
@@ -4054,7 +4054,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
             split(
                 40,
                 group(
-                    chart("bar", "18, 27, 38, 52, 65", 240),
+                    chart("column", "18, 27, 38, 52, 65", 240),
                     t(
                         "Paid attendance by year, in thousands (2018 → 2025). 2025 sold out in nine days.",
                         "caption",
@@ -4530,7 +4530,7 @@ export const annualReport: ArtifactContent = doc(
                 table(
                     "Segment,FY2024,FY2025,Change\nHome solar,$246M,$318M,+29%\nBattery storage,$78M,$142M,+82%\nSoftware & services,$51M,$64M,+25%\nWholesale & financing,$26M,$24M,−8%\nTotal,$401M,$548M,+37%",
                 ),
-                chart("bar", "318, 142, 64, 24", 260),
+                chart("column", "318, 142, 64, 24", 260),
                 t("FY2025 revenue by segment, $M", "caption"),
             ),
         ),
@@ -4958,7 +4958,7 @@ export const researchReport: ArtifactContent = doc(
                         "When people come in, they come in to be together. The share of office time spent in scheduled collaboration jumped sharply, while solo desk work — the thing offices were built for — migrated home. The implication for real estate is stark: companies need less square footage but far more of it configured for groups.",
                         "body",
                     ),
-                    chart("bar", "31, 44, 58, 67", 220),
+                    chart("column", "31, 44, 58, 67", 220),
                     t("Share of office hours spent in collaboration, 2023→2026", "caption"),
                 ),
             ),
@@ -5130,7 +5130,7 @@ export const marketAnalysis: ArtifactContent = doc(
                 table(
                     "Segment,2025 revenue,Share,2025–2032 CAGR\nLevel 2 AC (home),$11.6B,34%,21%\nLevel 2 AC (public/work),$7.2B,21%,18%\nDC fast (50–150kW),$8.1B,24%,26%\nUltra-fast (>150kW),$5.5B,16%,31%\nFleet & depot,$1.8B,5%,29%",
                 ),
-                chart("bar", "11.6, 7.2, 8.1, 5.5, 1.8", 240),
+                chart("column", "11.6, 7.2, 8.1, 5.5, 1.8", 240),
                 t("2025 revenue by segment, $B", "caption"),
             ),
         ),
@@ -5609,7 +5609,7 @@ export const trendsReport: ArtifactContent = doc("mocha", [
                 ),
             ),
             group(
-                chart("bar", "120, 340, 610, 980, 1520", 300),
+                chart("column", "120, 340, 610, 980, 1520", 300),
                 t("RaaS contracts signed per year, 2021–2025", "caption"),
             ),
         ),

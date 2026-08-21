@@ -14,6 +14,8 @@ import type { ModelOverrides } from "@services/core/models";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import type { ModelTier } from "@model/billing";
 import { featuresFor } from "@model/billing";
+import type { MediaItem } from "@model/media";
+import { assetIdFromUrl } from "@model/media";
 import { currentUser } from "@services/core/accounts";
 import { SESSION_COOKIE } from "@services/utils/auth";
 import { z } from "zod";
@@ -23,11 +25,11 @@ import type { WorkspaceRow } from "@services/core/accounts";
 import { warn } from "@services/utils/env";
 import { ACTION_FOR, IMPLEMENTED, meterFor, ratesFor, reserve } from "@services/core/spend";
 import {
-    assetUrl,
     generateImage,
     imageGenReady,
     refImage,
     storeGenerated,
+    useItem,
 } from "@services/core/media";
 import { isEvalAdmin, recordRun } from "@services/core/ai/eval/runs";
 import { runChecks } from "@services/core/ai/eval/checks";
@@ -155,6 +157,13 @@ const zRefine = z.object({
 });
 const zThemeGen = z.object({ prompt: z.string().optional(), isDark: z.boolean().optional() });
 
+// Sourced pictures are adopted at the turn rather than at the write, so the attribution the provider
+// sent survives into the row and the turn streams canonical urls to the client.
+const adoptInto =
+    (wsId: string) =>
+    async (item: MediaItem): Promise<string> =>
+        (await useItem(wsId, item)).url;
+
 ai.post("/ai/turn", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
@@ -216,38 +225,39 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
                 : undefined;
     const wantsAiImages = imageSource === "ai" && imageGenReady();
     let aiImages = 0;
-    const image: ImageOptions = wantsAiImages
-        ? {
-              source: "ai",
-              generate: async (phrase, orientation, refUrl) => {
-                  const aspect =
-                      orientation === "portrait"
-                          ? "3:4"
-                          : orientation === "square"
-                            ? "1:1"
-                            : "16:9";
-                  // a ref only exists for images we generated and stored; a stock url has no asset
-                  const refId = refUrl?.startsWith(ASSET_PREFIX)
-                      ? refUrl.slice(ASSET_PREFIX.length)
-                      : undefined;
-                  const ref = refId ? ((await refImage(ws.id, refId)) ?? undefined) : undefined;
-                  const img = await generateImage(
-                      phrase,
-                      aspect,
-                      "photo",
-                      feats.imageModelTier,
-                      ref,
-                  );
-                  if (!img) return null;
-                  const item = await storeGenerated(ws.id, "image", img, phrase);
-                  aiImages++;
-                  return item.url;
-              },
-          }
-        : {};
-
-    // an asset url is the only ref we can resolve back to bytes
-    const ASSET_PREFIX = assetUrl("");
+    const image: ImageOptions = {
+        adopt: adoptInto(ws.id),
+        ...(wantsAiImages
+            ? {
+                  source: "ai" as const,
+                  generate: async (phrase: string, orientation: string, refUrl?: string) => {
+                      const aspect =
+                          orientation === "portrait"
+                              ? "3:4"
+                              : orientation === "square"
+                                ? "1:1"
+                                : "16:9";
+                      // a ref only resolves for an image we hold bytes for
+                      const refId = assetIdFromUrl(refUrl);
+                      const ref = refId ? ((await refImage(ws.id, refId)) ?? undefined) : undefined;
+                      const img = await generateImage(
+                          phrase,
+                          aspect,
+                          "photo",
+                          feats.imageModelTier,
+                          ref,
+                      );
+                      if (!img) return null;
+                      const item = await storeGenerated(ws.id, "image", img, phrase, {
+                          style: "photo",
+                          ...(refId ? { refId } : {}),
+                      });
+                      aiImages++;
+                      return item.url;
+                  },
+              }
+            : {}),
+    };
 
     // attached context collections ground the turn; absent (or no embedding model) they cost nothing
     const contextIds =
@@ -451,7 +461,7 @@ ai.post("/ai/element", requireWorkspace, async (c) => {
                 sectionId,
                 target,
                 makeContext({
-                    image: {},
+                    image: { adopt: adoptInto(ws.id) },
                     tier: featuresFor(ws).textModelTier,
                     models: overridesFrom(c),
                 }),

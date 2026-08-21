@@ -28,7 +28,7 @@ const outline: Outline = {
 const section = (id: string, texts: string[]): Section => ({
     id,
     root: {
-        type: "group",
+        type: "container",
         data: {
             direction: "col",
             children: texts.map((text) => ({ type: "text", data: { text } })),

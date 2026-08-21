@@ -1,8 +1,12 @@
 import { and, eq, gt, sql } from "drizzle-orm";
 import { db } from "@services/db/client";
+import type { Tx } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { monthlyGrantFor } from "@model/billing";
 import type { Usage } from "@model/credits";
+
+// Re-exported so the ledger's own callers keep one import; the type belongs to the db handle.
+export type { Tx };
 
 // The credit ledger: how a balance moves and what history it leaves. Knows nothing about tools,
 // models, or tokens — what an AI action costs, and when to charge it, is core/spend.ts.
@@ -18,8 +22,6 @@ import type { Usage } from "@model/credits";
 // One action is one ledger row. The charge writes it at its estimate and the settle rewrites that
 // same row with what the work really cost, so history reads as a list of things the user did rather
 // than a list of accounting steps we took.
-
-export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * Add credits at most once, ever, keyed on `credits.key`. The column is unique, so the insert either

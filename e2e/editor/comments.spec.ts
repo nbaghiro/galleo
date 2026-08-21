@@ -210,6 +210,96 @@ test("a press outside the thread popover closes it, and still lands where it was
     await expect(page.getByTestId("text-editor")).toBeVisible();
 });
 
+// Resolving used to leave a dimmed marker sitting exactly where it was, which read as nothing
+// happening. It is an event now: the thread goes, and the section's chip is what holds the archive.
+async function leaveComment(page: Page, on: Locator, body: string): Promise<void> {
+    await on.click();
+    await page.keyboard.press("Escape");
+    await page.getByTitle("Comment on this").click();
+    await page.getByPlaceholder("Leave a comment").fill(body);
+    await page.getByRole("button", { name: "Comment", exact: true }).click();
+    await expect(page.getByText(body)).toBeVisible();
+}
+
+test("resolving clears the margin, and the section's chip is the way back", async ({ page }) => {
+    const id = await makeArtifact(page.request, "e2e resolve", [
+        sec("s1", colOf([txt("Resolve me headline", "h2"), txt("Another line")])),
+    ]);
+    await page.goto(`/edit/${id}`);
+    const head = paintedText(page, "Resolve me headline");
+    await leaveComment(page, head, "Resolve this one");
+
+    await page.getByTestId("comment-thread").getByTitle("Resolve this thread").click();
+
+    // the panel closes, the marker leaves the border, and a line says what happened
+    await expect(page.getByPlaceholder("Reply")).toHaveCount(0);
+    await expect(page.getByTestId("collab-notice")).toContainText("Thread resolved");
+    const marker = page.getByRole("button", { name: /Resolve this one/ });
+    await head.hover();
+    await expect(marker).toHaveCount(0);
+
+    // nothing is unreachable: the chip counts what is hidden and puts it back in place
+    const chip = page.getByTestId("resolved-chip");
+    await expect(chip).toBeVisible();
+    await chip.click();
+    await expect(marker).toBeVisible();
+    await marker.click();
+    await expect(page.getByText("Resolve this one")).toBeVisible();
+    await expect(page.getByPlaceholder("Reply")).toBeVisible();
+
+    // and it toggles back off, so the archive does not stay open behind you
+    await page.keyboard.press("Escape");
+    await chip.click();
+    await head.hover();
+    await expect(marker).toHaveCount(0);
+    await expect(chip).toBeVisible();
+});
+
+test("the resolve notice reopens the thread it just closed", async ({ page }) => {
+    const id = await makeArtifact(page.request, "e2e resolve undo", [
+        sec("s1", colOf([txt("Undo me headline", "h2"), txt("Another line")])),
+    ]);
+    await page.goto(`/edit/${id}`);
+    const head = paintedText(page, "Undo me headline");
+    await leaveComment(page, head, "Undo this resolve");
+
+    await page.getByTestId("comment-thread").getByTitle("Resolve this thread").click();
+    await page.getByRole("button", { name: "Reopen" }).click();
+
+    // back where it was: the thread is open again and the section carries no archive
+    await expect(page.getByPlaceholder("Reply")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await head.hover();
+    await expect(page.getByRole("button", { name: /Undo this resolve/ })).toBeVisible();
+    await expect(page.getByTestId("resolved-chip")).toHaveCount(0);
+});
+
+// The regression this pins: the overflow menu portals out of the panel, so its item was read as an
+// outside press. The panel closed on pointerdown, the item left the DOM, and the click never ran.
+test("delete thread from the overflow menu removes it, and it stays gone", async ({ page }) => {
+    const id = await makeArtifact(page.request, "e2e delete thread", [
+        sec("s1", colOf([txt("Delete me headline", "h2"), txt("Another line")])),
+    ]);
+    await page.goto(`/edit/${id}`);
+    const head = paintedText(page, "Delete me headline");
+    await head.click();
+    await page.keyboard.press("Escape");
+    await page.getByTitle("Comment on this").click();
+    await page.getByPlaceholder("Leave a comment").fill("Delete this thread");
+    await page.getByRole("button", { name: "Comment", exact: true }).click();
+    await expect(page.getByText("Delete this thread")).toBeVisible();
+
+    await page.getByTestId("comment-thread").getByTitle("More").click();
+    await page.getByRole("menuitem", { name: "Delete thread" }).click();
+    await expect(page.getByPlaceholder("Reply")).toHaveCount(0);
+
+    await page.reload();
+    await hoverStack(page, "inside");
+    await expect(page.getByRole("button", { name: /Delete this thread/ })).toHaveCount(0);
+    const listed = await (await page.request.get(`/api/artifacts/${id}/comments`)).json();
+    expect(listed.comments).toEqual([]);
+});
+
 test("the rail flyout closes on a press outside it, and the inspector still auto-opens", async ({
     page,
 }) => {
@@ -238,6 +328,33 @@ test("the rail flyout closes on a press outside it, and the inspector still auto
     await paintedText(page, "Flyout head").click();
     await expect(palette).toHaveCount(0);
     await expect(page.locator("aside")).toBeVisible();
+});
+
+// Same rule as the thread menu above, one surface over: a dropdown opened inside the docked
+// inspector portals to the body, and the flyout has to read that press as its own.
+test("an inspector dropdown applies its option and leaves the flyout open", async ({ page }) => {
+    const id = await makeArtifact(page.request, "e2e inspector dropdown", [
+        sec(
+            "s1",
+            colOf([
+                txt("Loose line", "h3"),
+                { type: "callout", data: { tone: "note", children: [txt("Callout body")] } },
+            ]),
+        ),
+    ]);
+    await page.goto(`/edit/${id}`);
+    // a callout is framed rather than edited in place, so selecting it opens the docked inspector
+    await paintedText(page, "Callout body").click();
+    await page.keyboard.press("Escape"); // out of the text session, onto the line
+    await page.keyboard.press("Escape"); // up to the callout that frames it
+    const flyout = page.getByTestId("right-flyout");
+    await expect(flyout).toContainText("Callout");
+
+    await flyout.getByRole("button", { name: "Note", exact: true }).click();
+    await page.getByRole("button", { name: "Warning", exact: true }).click();
+
+    await expect(flyout).toBeVisible();
+    await expect(flyout.getByRole("button", { name: "Warning", exact: true })).toBeVisible();
 });
 
 // The screenshot case: inline-editing a cell inside a composite floated the chip over the cell,

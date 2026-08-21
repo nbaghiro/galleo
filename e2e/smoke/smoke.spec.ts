@@ -23,12 +23,9 @@ test.describe(() => {
 
     test("a seeded artifact opens in the editor and paints", async ({ page }) => {
         await page.goto("/");
-        // a click on the card's preview tile opens the editor (the title column is rename/etc.)
-        await page
-            .locator("section", { hasText: "Galleo — Seed deck" })
-            .locator('[draggable="true"]')
-            .first()
-            .click();
+        // a click on the card's preview opens the editor (the title column is rename/etc.); the
+        // preview carries the artifact's title in either layout
+        await page.getByTitle("Galleo — Seed deck", { exact: true }).first().click();
         await expect(page).toHaveURL(/\/edit\//);
         // painted canvas text proves compose → engine → paint ran end to end
         await expect(page.getByText("Galleo", { exact: false }).first()).toBeVisible();

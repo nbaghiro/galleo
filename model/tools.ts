@@ -8,8 +8,21 @@ import type { ZodType } from "zod";
 // Input schemas sit in TOOL_INPUT rather than on the definitions, so a client importing this module
 // for a cost estimate tree-shakes zod and all the schemas out of its bundle.
 
+import type { TurnKind } from "./ai";
 import type { UnitRates, Usage } from "./credits";
 import { costOf } from "./credits";
+
+// Which priced tool each turn kind bills as. Here rather than in services because the browser needs
+// it too: a turn that dies mid-stream is reported client-side and has to name the same tool the
+// server's own failure event does.
+export const ACTION_FOR: Record<TurnKind, ToolId> = {
+    generate: "generate-artifact",
+    edit: "revise-artifact",
+    section: "add-section",
+    chat: "ask-assistant",
+    plan: "plan-outline",
+    build: "add-section",
+};
 
 export type ToolId =
     | "generate-artifact"

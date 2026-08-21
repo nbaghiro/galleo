@@ -6,7 +6,7 @@ const txt = (text: string): ElementInstance => ({ type: "text", data: { text } }
 const img = (src: string): ElementInstance => ({ type: "image", data: { src } });
 const sec = (children: ElementInstance[]): Section => ({
     id: "s1",
-    root: { type: "group", data: { children } },
+    root: { type: "container", data: { children } },
 });
 
 describe("arrangementBriefs", () => {

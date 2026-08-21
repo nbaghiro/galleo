@@ -39,7 +39,7 @@ const sectionJson = (id: string, texts: string[]): string =>
     JSON.stringify({
         id,
         root: {
-            type: "group",
+            type: "container",
             data: {
                 direction: "col",
                 children: texts.map((t, i) => ({

@@ -44,7 +44,7 @@ async function demoOwner(): Promise<{ userId: string; workspaceId: string }> {
 
 function collect(el: ElementInstance | undefined, kinds: string[], texts: string[]): void {
     if (!el) return;
-    if (el.type !== "group") kinds.push(el.type);
+    if (el.type !== "container") kinds.push(el.type); // scaffolding names no kind
     const d = el.data as { text?: string; children?: ElementInstance[] };
     if (typeof d.text === "string" && d.text.trim()) texts.push(d.text.trim());
     for (const k of d.children ?? []) collect(k, kinds, texts);

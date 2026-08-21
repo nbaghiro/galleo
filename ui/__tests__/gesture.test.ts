@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment happy-dom
+import { afterEach, describe, expect, it } from "vitest";
 import {
     dismissalFor,
     classifySwipe,
+    newOwnerToken,
+    OWNER_ATTR,
+    pressInside,
     SWIPE_MAX_MS,
     SWIPE_MIN_PX,
     TAP_BACK_FRACTION,
@@ -94,5 +98,94 @@ describe("dismissalFor", () => {
 
     it("closes on chrome even when canvas presses are deferred", () => {
         expect(dismissalFor(press(), rules({ deferOnCanvas: true }))).toBe("close");
+    });
+});
+
+// The containment half of the same decision. A popover portals to <body>, so the surface that owns
+// it cannot contain it: what makes a press on a menu item a press inside the panel that opened it
+// is the token stamped on what was portaled, not the DOM.
+describe("pressInside", () => {
+    afterEach(() => {
+        document.body.innerHTML = "";
+    });
+
+    // a press lands on the deepest node; composedPath carries it and every ancestor
+    const pathTo = (el: Element): EventTarget[] => {
+        const path: EventTarget[] = [];
+        for (let n: Element | null = el; n; n = n.parentElement) path.push(n);
+        return [...path, document, window];
+    };
+
+    const mount = (html: string): HTMLElement => {
+        document.body.innerHTML = html;
+        return document.body.firstElementChild as HTMLElement;
+    };
+
+    it("reads a press on the surface itself as inside", () => {
+        const panel = mount(`<div id="panel"><button id="hit">x</button></div>`);
+        const hit = document.getElementById("hit")!;
+        expect(pressInside(pathTo(hit), { el: panel })).toBe(true);
+    });
+
+    it("reads a press on a portaled node the surface owns as inside", () => {
+        const panel = mount(`<div id="panel"></div>`);
+        document.body.insertAdjacentHTML(
+            "beforeend",
+            `<div ${OWNER_ATTR}="thread-1"><button id="item">Delete</button></div>`,
+        );
+        const item = document.getElementById("item")!;
+        // the point of the whole mechanism: not a descendant, still inside
+        expect(panel.contains(item)).toBe(false);
+        expect(pressInside(pathTo(item), { el: panel, owner: "thread-1" })).toBe(true);
+    });
+
+    it("inherits through a nested portal, so a menu inside a dropdown still answers", () => {
+        mount(
+            `<div ${OWNER_ATTR}="flyout-1"><div ${OWNER_ATTR}="flyout-1"><button id="deep">x</button></div></div>`,
+        );
+        const deep = document.getElementById("deep")!;
+        expect(pressInside(pathTo(deep), { owner: "flyout-1" })).toBe(true);
+    });
+
+    it("reads a press on the control that opened it as inside", () => {
+        mount(`<button data-galleo-thread="t1">marker</button>`);
+        const marker = document.body.firstElementChild!;
+        expect(pressInside(pathTo(marker), { opener: '[data-galleo-thread="t1"]' })).toBe(true);
+    });
+
+    it("keeps another surface's popover outside, so a different thread still closes this one", () => {
+        const panel = mount(`<div id="panel"></div>`);
+        document.body.insertAdjacentHTML(
+            "beforeend",
+            `<div ${OWNER_ATTR}="thread-2"><button id="other">x</button></div>`,
+        );
+        const other = document.getElementById("other")!;
+        expect(
+            pressInside(pathTo(other), {
+                el: panel,
+                owner: "thread-1",
+                opener: '[data-galleo-thread="t1"]',
+            }),
+        ).toBe(false);
+    });
+
+    it("reads a press with nothing to do with the surface as outside", () => {
+        const panel = mount(`<div id="panel"></div>`);
+        document.body.insertAdjacentHTML("beforeend", `<main><span id="canvas">x</span></main>`);
+        const canvas = document.getElementById("canvas")!;
+        expect(pressInside(pathTo(canvas), { el: panel, owner: "thread-1" })).toBe(false);
+    });
+
+    it("walks a path carrying the document and the window without tripping", () => {
+        expect(pressInside([document, window], { owner: "thread-1" })).toBe(false);
+    });
+});
+
+describe("newOwnerToken", () => {
+    it("never repeats, so two panels of the same kind own their own popovers", () => {
+        const a = newOwnerToken("thread");
+        const b = newOwnerToken("thread");
+        expect(a).not.toBe(b);
+        expect(a.startsWith("thread")).toBe(true);
     });
 });

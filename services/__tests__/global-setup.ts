@@ -30,10 +30,47 @@ export default async function setup(): Promise<void> {
         await target.end();
     }
 
-    // converges the schema on every run; the DB may persist across runs (GALLEO_TEST_DB),
-    // and --force skips the prompt — destructive convergence is fine on a throwaway test DB
-    execSync("pnpm exec drizzle-kit push --force", {
-        stdio: "inherit",
-        env: { ...process.env, DATABASE_URL: url },
-    });
+    // Converges the schema on every run; the DB may persist across runs (GALLEO_TEST_DB).
+    // `--force` only waves through data loss, not a column drizzle cannot place: a rename it cannot
+    // tell from a create still asks, and with no one there to answer it waits forever. Stdin is
+    // closed and the run is bounded so that shows up as a failure, and a test database is
+    // disposable, so the answer to a stale one is to throw it away rather than to converge it.
+    if (!push(url)) {
+        await recreate(adminUrl, dbName);
+        if (!push(url)) throw new Error(`could not converge the schema on ${dbName}`);
+    }
+}
+
+// a healthy push is a few seconds; this only has to outlast a slow machine, and overshooting it
+// costs a throwaway database rather than anything real
+const PUSH_TIMEOUT_MS = 60_000;
+
+function push(url: string): boolean {
+    try {
+        execSync("pnpm exec drizzle-kit push --force", {
+            stdio: ["ignore", "inherit", "inherit"],
+            timeout: PUSH_TIMEOUT_MS,
+            env: { ...process.env, DATABASE_URL: url },
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function recreate(adminUrl: string, dbName: string): Promise<void> {
+    const admin = postgres(adminUrl, { max: 1 });
+    try {
+        // FORCE closes any connection a killed run left behind
+        await admin.unsafe(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`);
+        await admin.unsafe(`CREATE DATABASE "${dbName}"`);
+    } finally {
+        await admin.end();
+    }
+    const fresh = postgres(adminUrl.replace(/\/[^/]+$/, `/${dbName}`), { max: 1 });
+    try {
+        await fresh.unsafe("CREATE EXTENSION IF NOT EXISTS vector");
+    } finally {
+        await fresh.end();
+    }
 }

@@ -32,12 +32,12 @@ export function heading(title: string, body: string): string {
 }
 
 export const SECTION_RULES = `## How to build a section
-- Use the layout the plan assigned (its column count + widths) AND lead each column with the block the plan assigned to it, in order (given in the section brief), don't change the column count or move a block to a different column; a live preview is already showing that exact layout, so the finished section must match it. To place several elements in one column (a headline + body + button), stack them in a \`group\` (direction 'col') led by that block.
-- The section's \`root\` is one element tree: a \`group\` with direction 'row' for side-by-side columns (each child carries \`layout.width\`), 'col' to stack, or a single element for a full-width section. Nest to any depth.
+- Use the layout the plan assigned (its column count + widths) AND lead each column with the block the plan assigned to it, in order (given in the section brief), don't change the column count or move a block to a different column; a live preview is already showing that exact layout, so the finished section must match it. To place several elements in one column (a headline + body + button), stack them in a \`container\` (direction 'col') led by that block.
+- The section's \`root\` is one element tree: a \`container\` with direction 'row' for side-by-side columns (each child carries \`layout.width\`), 'col' to stack, or a single element for a full-width section. Nest to any depth.
 - One clear headline per section (a single \`text\` with style \`h1\` or \`h2\`), plus only the supporting elements the point needs.
 - Prefer a \`stat\`, \`chart\`, \`diagram\`, \`table\`, or \`image\` over prose whenever the idea is a number, trend, comparison, or process.
-- For images, set \`src\` to a short, vivid description of the photo you want (e.g. "aerial view of a wind farm at dusk"), the module sources or generates it. Only use a real URL if you truly have one. For a PERSON (a testimonial, a headshot, a team member), describe them generically, e.g. "a confident businesswoman in her 40s, smiling". Never a specific or named individual, so a real, fitting portrait turns up instead of a random placeholder face.
-- A DECK section must fit a 16:9 slide, so a group of PEOPLE (a team, advisors, testimonials) goes in ONE HORIZONTAL ROW, a row of columns with one person per column, or a single-row \`group\` (\`columns\` = the number of people, up to 4), each a compact \`card\` of a small portrait above a name + one-line role. NEVER stack people in a 2×N grid of large square photos: it makes the slide far too tall and it letterboxes when presented. Keep portrait images modest (\`aspect\` ~1). (On doc/web there's no slide to fit, so a taller multi-row grid is fine.)
+- For images, set \`src\` to a short, vivid description of the photo you want (e.g. "aerial view of a wind farm at dusk") and the module sources or generates it. Write it as a phrase with spaces, never as a hyphenated slug or a filename. Only use a real URL if you truly have one. For a PERSON (a testimonial, a headshot, a team member), describe them generically, e.g. "a confident businesswoman in her 40s, smiling". Never a specific or named individual, so a real, fitting portrait turns up instead of a random placeholder face.
+- A DECK section must fit a 16:9 slide, so a group of PEOPLE (a team, advisors, testimonials) goes in ONE HORIZONTAL ROW, a row of columns with one person per column, or a single-row \`container\` with one person per child (up to 4), each a compact \`container\` with a \`surface\` holding a small portrait above a name + one-line role. NEVER stack people in a 2×N grid of large square photos: it makes the slide far too tall and it letterboxes when presented. Keep portrait images modest (\`aspect\` ~1). (On doc/web there's no slide to fit, so a taller multi-row grid is fine.)
 - Reach for a full-bleed section background image on covers, section-dividers, and closing/CTA sections, set "background" to { "kind": "image", "image": "<vivid, on-theme photo description>", "scrim": 0.5 }, keep the overlaid content minimal (a headline + one supporting line), and raise the scrim to 0.5–0.65 so text stays legible. Never put a background image behind a dense chart/table/stat section.
 - Give every section a unique \`id\` (\`s1\`, \`s2\`, …).`;
 
@@ -194,13 +194,13 @@ export const OUTPUT_NOTE = `Return only content that fits the schema. Never incl
 export const SECTION_OUTPUT = `## Output, return ONE JSON object and nothing else
 No prose, no explanation, no markdown fences. A section is { "id", "root" } where "root" is ONE element tree.
 
-For side-by-side columns, make "root" a group with direction "row"; each child is a column carrying its width:
+For side-by-side columns, make "root" a container with direction "row"; each child is a column carrying its width:
 {
   "id": "<this section's id>",
-  "root": { "type": "group", "data": { "direction": "row", "children": [
-    { "type": "group", "data": { "direction": "col", "children": [ /* the left column's stacked elements */ ] }, "layout": { "width": { "pct": 60 } } },
+  "root": { "type": "container", "data": { "direction": "row", "children": [
+    { "type": "container", "data": { "direction": "col", "children": [ /* the left column's stacked elements */ ] }, "layout": { "width": { "pct": 60 } } },
     { "type": "image", "data": { "src": "<photo description>", "aspect": 1.2 }, "layout": { "width": { "pct": 40 } } }
   ] } },
   "background": { "kind": "image", "image": "<vivid photo description>", "scrim": 0.5 }
 }
-For a full-width section, "root" is a single element (e.g. a group of stacked elements, or one image). Column widths (\`layout.width.pct\`) should sum to ~100; match the planned layout's column count + split. Stack several elements with a group (direction "col"); go side-by-side with direction "row". The "background" key is optional, include it only for a cover, divider, or closing section (omit it entirely otherwise). Every string is real, finished copy. Never placeholder text.`;
+For a full-width section, "root" is a single element (e.g. a container of stacked elements, or one image). Column widths (\`layout.width.pct\`) should sum to ~100; match the planned layout's column count + split. Stack several elements with a container (direction "col"); go side-by-side with direction "row". The "background" key is optional, include it only for a cover, divider, or closing section (omit it entirely otherwise). Every string is real, finished copy. Never placeholder text.`;

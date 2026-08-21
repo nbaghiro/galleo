@@ -3,6 +3,8 @@ import { test as base, expect } from "@playwright/test";
 // Shared spec plumbing: external image hosts answer with a local pixel (layout stays honest,
 // network flake dies), and any pageerror / console.error fails the spec — the cheapest real-bug
 // net. Add to ALLOWED_NOISE only with a comment saying why.
+// Content references `/api/media/asset/:id`, which is same-origin; an adopted asset redirects out to
+// one of these hosts, so the stub still catches it.
 const IMAGE_HOSTS =
     /(^|\.)randomuser\.me$|(^|\.)picsum\.photos$|(^|\.)unsplash\.com$|(^|\.)images\.unsplash\.com$|(^|\.)pexels\.com$|(^|\.)pixabay\.com$/;
 

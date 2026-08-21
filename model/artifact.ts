@@ -96,18 +96,18 @@ export function rowGroup(children: ElementInstance[], widths?: number[]): Elemen
             ? children.map((c, i) => withWidth(c, Math.round((widths[i] ?? 0) * 100)))
             : children;
     return {
-        type: "group",
+        type: "container",
         data: { direction: "row", align: "center", gap: COLUMN_GAP, children: kids },
     };
 }
 
 export const colGroup = (children: ElementInstance[]): ElementInstance => ({
-    type: "group",
+    type: "container",
     data: { direction: "col", children },
 });
 
 // childless group; compose paints it as the dashed drop placeholder
-export const emptyRegion = (): ElementInstance => ({ type: "group", data: { children: [] } });
+export const emptyRegion = (): ElementInstance => ({ type: "container", data: { children: [] } });
 
 export function childrenRaw(inst: ElementInstance): ElementInstance[] | undefined {
     const kids = (inst.data as { children?: ElementInstance[] }).children;
@@ -118,6 +118,43 @@ const withChildrenRaw = (inst: ElementInstance, children: ElementInstance[]): El
     ...inst,
     data: { ...(inst.data as Record<string, unknown>), children },
 });
+
+/**
+ * `group` and `card` merged into `container`. Pure so it can be tested without a database and reused
+ * by the backfill (scripts/migrate-container.ts).
+ *
+ * A card with no explicit `style` still rendered solid, so the mapping fills that default in rather
+ * than dropping it. Recursion goes through `childrenRaw`, which reaches table cells and the children
+ * of closed units, because a card could legitimately sit inside one. Returns the same object when
+ * nothing changed, so a caller can skip a write.
+ */
+export function toContainer(inst: ElementInstance): ElementInstance {
+    const kids = childrenRaw(inst);
+    const nextKids = kids?.map(toContainer);
+    const kidsChanged = !!kids && !!nextKids && kids.some((k, i) => k !== nextKids[i]);
+    const withKids = kidsChanged ? withChildrenRaw(inst, nextKids!) : inst;
+
+    if (inst.type === "group") return { ...withKids, type: "container" };
+    if (inst.type === "card") {
+        const d = (withKids.data ?? {}) as Record<string, unknown>;
+        const { style, ...rest } = d;
+        return {
+            ...withKids,
+            type: "container",
+            data: { ...rest, surface: typeof style === "string" ? style : "solid" },
+        };
+    }
+    return withKids;
+}
+
+/** Every section's root run through `toContainer`; the same object back when nothing moved. */
+export function contentToContainer(content: ArtifactContent): ArtifactContent {
+    const sections = content.sections.map((sec) => {
+        const root = toContainer(sec.root);
+        return root === sec.root ? sec : { ...sec, root };
+    });
+    return sections.some((s, i) => s !== content.sections[i]) ? { ...content, sections } : content;
+}
 
 // replace the node at path; [] targets the root
 export function updateAtPath(
@@ -759,6 +796,148 @@ function walkRaw(el: RawEl | undefined, visit: (el: RawEl) => void): void {
     for (const kid of nestedOf(el)) walkRaw(kid, visit);
 }
 
+// Media references: the data fields holding a url that points at an image or a clip. An `embed`
+// holds a page link and icon/graphic hold inline svg, so none of those are media.
+const MEDIA_SRC_TYPES = new Set(["image", "gif", "illustration", "sticker", "avatar", "video"]);
+const SRC_ONLY = ["src"] as const;
+const SRC_AND_POSTER = ["src", "poster"] as const;
+const NO_MEDIA: readonly string[] = [];
+
+const mediaKeysOf = (type: string | undefined): readonly string[] =>
+    type === "video" ? SRC_AND_POSTER : type && MEDIA_SRC_TYPES.has(type) ? SRC_ONLY : NO_MEDIA;
+
+type RawBg = { image?: string } | undefined;
+
+function mapBackgroundMedia(bg: RawBg, fn: (url: string) => string): RawBg {
+    if (!bg || typeof bg.image !== "string" || !bg.image) return bg;
+    const next = fn(bg.image);
+    return next === bg.image ? bg : { ...bg, image: next };
+}
+
+function mapElementMedia(el: RawEl, fn: (url: string) => string): RawEl {
+    const data = el.data;
+    if (!data || typeof data !== "object") return el;
+    const patch: Record<string, unknown> = {};
+    let changed = false;
+    for (const key of mediaKeysOf(el.type)) {
+        const cur = data[key];
+        if (typeof cur !== "string" || !cur) continue;
+        const next = fn(cur);
+        if (next === cur) continue;
+        patch[key] = next;
+        changed = true;
+    }
+    // nested elements live in any array-valued data key (children, cells…)
+    for (const [key, v] of Object.entries(data)) {
+        if (!Array.isArray(v)) continue;
+        let dirty = false;
+        const mapped = v.map((item) => {
+            if (!isEl(item)) return item;
+            const next = mapElementMedia(item, fn);
+            if (next !== item) dirty = true;
+            return next;
+        });
+        if (!dirty) continue;
+        patch[key] = mapped;
+        changed = true;
+    }
+    return changed ? { ...el, data: { ...data, ...patch } } : el;
+}
+
+function mapSectionMedia(sec: RawSection, fn: (url: string) => string): RawSection {
+    if (!sec || typeof sec !== "object") return sec;
+    const patch: Record<string, unknown> = {};
+    let changed = false;
+    const bg = mapBackgroundMedia(sec.background, fn);
+    if (bg !== sec.background) {
+        patch.background = bg;
+        changed = true;
+    }
+    if (sec.root) {
+        const root = mapElementMedia(sec.root, fn);
+        if (root !== sec.root) {
+            patch.root = root;
+            changed = true;
+        }
+    }
+    return changed ? { ...sec, ...patch } : sec;
+}
+
+/**
+ * Rewrites every media url in the tree. Identity-preserving like the stamping pass above: an
+ * unchanged branch comes back as the same object, so the paint cache and the autosave diff hold.
+ *
+ * Takes a whole draft, one section, or one element, since the AI resolves image phrases at all
+ * three levels. This and `mediaRefKinds` read raw jsonb so they accept `unknown`, which means a
+ * walk that understood only the draft shape answered "no media here" for the other two rather than
+ * failing: that is how a phrase the model wrote where a url belongs reached the canvas unresolved.
+ */
+export function mapMediaRefs(draft: unknown, fn: (url: string) => string): unknown {
+    if (!draft || typeof draft !== "object") return draft;
+    const d = draft as RawDraft & RawSection & RawEl & Record<string, unknown>;
+    if (typeof d.type === "string") return mapElementMedia(d, fn);
+    if (!Array.isArray(d.sections)) return mapSectionMedia(d, fn);
+
+    const patch: Record<string, unknown> = {};
+    let changed = false;
+    const bg = mapBackgroundMedia(d.background, fn);
+    if (bg !== d.background) {
+        patch.background = bg;
+        changed = true;
+    }
+    let dirty = false;
+    const sections = d.sections.map((sec) => {
+        const next = mapSectionMedia(sec, fn);
+        if (next !== sec) dirty = true;
+        return next;
+    });
+    if (dirty) {
+        patch.sections = sections;
+        changed = true;
+    }
+    return changed ? { ...d, ...patch } : draft;
+}
+
+/** Every distinct media url in the tree, in no particular order. */
+export function mediaRefs(draft: unknown): string[] {
+    return [...mediaRefKinds(draft).keys()];
+}
+
+/**
+ * The same urls, each with the kind of media it is used as. A `video` element's own source is a
+ * clip; its poster is a still, and so is everything else. Adoption needs this: a row stored as the
+ * wrong kind is invisible to the picker tab that should list it.
+ */
+export function mediaRefKinds(draft: unknown): Map<string, "image" | "video"> {
+    const out = new Map<string, "image" | "video">();
+    const note = (url: string, kind: "image" | "video"): void => {
+        // a url used as a clip anywhere is a clip; poster duty never demotes it
+        if (kind === "video" || !out.has(url)) out.set(url, kind);
+    };
+    const noteEl = (el: RawEl): void => {
+        for (const key of mediaKeysOf(el.type)) {
+            const v = el.data?.[key];
+            if (typeof v === "string" && v)
+                note(v, el.type === "video" && key === "src" ? "video" : "image");
+        }
+    };
+    if (!draft || typeof draft !== "object") return out;
+    const d = draft as RawDraft & RawSection & RawEl;
+    if (typeof d.type === "string") {
+        walkRaw(d, noteEl);
+        return out;
+    }
+    // a bare section stands in for its own one-section list; `note` dedupes the background
+    const sections = Array.isArray(d.sections) ? d.sections : [d];
+    if (d.background?.image) note(d.background.image, "image");
+    for (const sec of sections) {
+        if (!sec || typeof sec !== "object") continue;
+        if (sec.background?.image) note(sec.background.image, "image");
+        walkRaw(sec.root, noteEl);
+    }
+    return out;
+}
+
 function coverOf(draft: unknown): Cover {
     const d = asDraft(draft);
     const sec = d.sections?.[0];
@@ -792,7 +971,9 @@ function sectionsOf(draft: unknown): SectionSummary[] {
                 const text = str(data.text);
                 if (text && !title && style && !["label", "caption"].includes(style)) title = text;
             }
-            if (el.type && !["text", "group", "card"].includes(el.type)) kinds.add(el.type);
+            // structural wrappers never name a section's kind; group/card are pre-migration aliases
+            if (el.type && !["text", "container", "group", "card"].includes(el.type))
+                kinds.add(el.type);
         });
         let kind = "cover";
         if (idx > 0) {

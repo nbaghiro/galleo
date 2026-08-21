@@ -183,7 +183,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 key: "src",
                 type: "string",
                 required: true,
-                desc: "an image URL; if unknown. Use a short descriptive phrase and the module will source/generate it",
+                desc: "a real image URL if you have one; otherwise a short plain-language phrase for the photo you want ('aerial view of a wind farm at dusk') and the module sources or generates it. Write it as a phrase with spaces, never as a hyphenated slug or a filename",
             },
             {
                 key: "aspect",
@@ -261,18 +261,18 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 type: "enum",
                 required: true,
                 values: CHART_TYPES,
-                desc: "which chart to draw",
+                desc: "which chart to draw. `column` = vertical bars comparing a few categories; `bar` = the same read horizontally, which suits long category names; `line`/`area` = a trend along an ordered axis, `area` when the volume is the point and `stacked` when the parts make a whole; `pie`/`donut` = shares of a single total, at most six slices; `treemap`/`pack` = many magnitudes at once, `treemap` when they tile a whole and `pack` when they read as loose bubbles; `scatter`/`bubble` = how two (or three) measures relate; `radar` = one subject scored on several axes; `heatmap` = a grid of intensities; `gauge`/`progress` = one value against its maximum, radial or linear; `waterfall` = how a starting number becomes an ending one through gains and losses.",
             },
             {
                 key: "values",
                 type: "text",
                 required: true,
-                desc: "one series per line (\\n); points comma-separated within a line. e.g. '48, 62, 55, 71' or two lines for two series. scatter=x row+y row; bubble=x+y+size rows; gauge='value, max'; heatmap=one row of cells per grid row (categories label the columns, seriesNames the rows).",
+                desc: "one series per line (\\n); points comma-separated within a line. e.g. '48, 62, 55, 71' or two lines for two series. scatter=x row+y row; bubble=x+y+size rows; gauge and progress='value, max'; heatmap=one row of cells per grid row (categories label the columns, seriesNames the rows); waterfall=one row of signed deltas that accumulate left to right (categories name each step); pack=one row of magnitudes.",
             },
             {
                 key: "categories",
                 type: "string",
-                desc: "x-axis / slice labels, comma-separated (match the point count)",
+                desc: "category / slice labels, comma-separated (match the point count)",
             },
             {
                 key: "seriesNames",
@@ -295,23 +295,23 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 type: "enum",
                 required: true,
                 values: DIAGRAM_TYPES,
-                desc: "which diagram. For a LINEAR sequence of steps use `process` (connected steps, reads left-to-right). `steps` = a staircase of escalating stages; `cycle` = a repeating loop; `funnel` = narrowing stages; `pyramid` = layered levels; `timeline` = dated milestones; `matrix` = a labeled grid; `quadrant` = a 2×2 that reads exactly 4 items; `hub` = one centre with satellites (first item is the centre). Reserve `org` for a genuine hierarchy. It requires the `links` field.",
+                desc: "which diagram. For a LINEAR sequence of steps use `process` (connected steps, reads left-to-right), NOT `flow`. `steps` = a staircase of escalating stages; `cycle` = a repeating loop; `funnel` = narrowing stages; `pyramid` = layered levels; `timeline` = dated milestones; `roadmap` = phases across time columns (set `axes` to the columns); `matrix` = a labeled grid; `quadrant` = a 2×2 that reads exactly 4 items; `hub` = one centre with satellites (first item is the centre); `target` = nested scopes, widest first; `venn` = two or three overlapping sets, where a fourth item names the overlap and anything past it is dropped; `pictogram` = countable marks per row, where every row draws the same number of marks (set by the largest value) and fills its own, so the rows compare; give each item a value. The graph types need `links`: `flow` for a branching process with decisions, `org` for a reporting hierarchy, `mindmap` for one centre radiating into branches.",
             },
             {
                 key: "items",
                 type: "text",
                 required: true,
-                desc: "the node labels, comma-separated, or one per line, which is required if any label contains a comma. An entry may add a short supporting phrase after a pipe ('Label | why it matters'), rendered smaller under the label. A number after a second pipe ('Label | detail | 2') is read by `funnel`, where it sizes each band so the stages are proportional (give every stage one, or none). Other types ignore it.",
+                desc: "the node labels, comma-separated, or one per line, which is required if any label contains a comma. An entry may add a short supporting phrase after a pipe ('Label | why it matters'), rendered smaller under the label. A number after a second pipe ('Label | detail | 2') is read by `funnel`, where it sizes each band so the stages are proportional (give every stage one, or none). `pictogram` reads it as the number of marks to draw (whole numbers, at most 20), and `roadmap` as how many columns the phase spans (phases lay end to end in the order given and wrap to a new lane when one no longer fits, so a span is the only placement control). Other types ignore it. For a conversion funnel write the readable metric as the detail and the raw number as the value ('Visitors | 12.4K | 12400'), so the stage reads its figure and the band still scales.",
             },
             {
                 key: "links",
                 type: "text",
-                desc: "edges for `org` only: 'Parent>Child, Parent>Child' building the hierarchy. Each name must match an items label exactly; the item no edge points at becomes the root. Omit for every other type.",
+                desc: "edges, for the graph types only. `org` and `mindmap` take 'Parent>Child, Parent>Child'; `flow` takes 'A->B, B->C' with an optional ':label' tail ('Ready?->Ship:yes'). Each name must match an items label exactly; the item no edge points at becomes the root or the entry point. In a `flow` a label ending in '?' draws as a decision diamond and the ends of the path draw as pills, so no extra syntax is needed. Omit for every other type.",
             },
             {
                 key: "axes",
                 type: "text",
-                desc: "captions, comma-separated, only for: `quadrant` (4 axis ends: x low, x high, y low, y high), `matrix` (column headers then row headers)",
+                desc: "captions, comma-separated, only for: `quadrant` (4 axis ends: x low, x high, y low, y high), `matrix` (column headers then row headers), `roadmap` (the time columns, e.g. 'Q1, Q2, Q3, Q4'; without it the lane still draws over four unlabelled columns)",
             },
             {
                 key: "style",
@@ -334,62 +334,49 @@ export const ELEMENTS: readonly ElementSchema[] = [
             {
                 key: "itemsMeta",
                 type: "json",
-                desc: `optional per-item styling, positional: entry i styles item i, so give one entry per item ({} for an unstyled one) or omit the field entirely. Each entry may set: icon, one of ${DIAGRAM_ICONS.join(" | ")}, a leading glyph on the node (all types except pyramid/funnel; a timeline renders it as the milestone marker on the line) that replaces that item's number badge; emphasis: true, promoting the node to the solid treatment (the hub centre and org root already have it); color, overriding that item's ramp color with a hex or a theme role name (\`accent\`, \`ink\`, ...), roles staying live when the theme changes. Icons earn their place on peer-value sets (hub spokes, matrix cells, quadrants) and milestones. Never invent an icon key. An entry may also set weight, a positive width ratio vs the item's row siblings (\`process\` only; 1 = equal share); omit it unless the content genuinely wants uneven emphasis.`,
+                desc: `optional per-item styling, positional: entry i styles item i, so give one entry per item ({} for an unstyled one) or omit the field entirely. Each entry may set: icon, one of ${DIAGRAM_ICONS.join(" | ")}, a leading glyph on the node (all types except pyramid/funnel; a timeline renders it as the milestone marker on the line) that replaces that item's number badge; emphasis: true, promoting the node to the solid treatment (the hub centre and org root already have it); color, overriding that item's ramp color with a hex or a theme role name (\`accent\`, \`ink\`, ...), roles staying live when the theme changes. In a \`pictogram\` the icon is the mark itself, so set one per row there. Elsewhere icons earn their place on peer-value sets (hub spokes, matrix cells, quadrants) and milestones. Never invent an icon key. An entry may also set weight, a positive width ratio vs the item's row siblings (\`process\` only; 1 = equal share); omit it unless the content genuinely wants uneven emphasis.`,
             },
         ],
     },
 
     {
-        type: "card",
-        label: "Card",
-        category: "container",
+        type: "comparison",
+        label: "Comparison",
+        category: "composite",
         container: true,
-        when: "group a small cluster of elements into a bordered/filled panel, a feature, a plan, a person",
+        when: "two things weighed against each other, before/after, us/them, option A vs option B",
         fields: [
             childrenField(
-                "the card's contents, typically a `text` title (h3) + a `text` body, or a stat",
+                "exactly four `text` elements, two per panel: left heading (style 'h3') then left body (style 'body'), then right heading and right body",
             ),
-            {
-                key: "style",
-                type: "enum",
-                values: CARD_STYLES,
-                default: "solid",
-                desc: "solid filled / outline / left sideline / top topline / plain",
-            },
-            {
-                key: "direction",
-                type: "enum",
-                values: FLEX_DIRECTION,
-                default: "col",
-                desc: "stack children (col) or lay them in a row",
-            },
         ],
     },
     {
-        type: "group",
-        label: "Group",
+        type: "container",
+        label: "Container",
         category: "container",
         container: true,
-        when: "the default way to put several elements in one cell (a stacked title+subtitle+body, or an N-column grid of cards/stats)",
+        when: "the default way to put several elements in one cell: a stacked title+subtitle+body, an N-column row of stats, or a bordered panel for a feature, a plan, a person",
         fields: [
-            childrenField("the grouped elements in order"),
-            {
-                key: "columns",
-                type: "number",
-                desc: "1–6; >1 lays children out as an N-column grid (great for 3 cards/stats)",
-            },
+            childrenField("the contained elements in order"),
             {
                 key: "direction",
                 type: "enum",
                 values: FLEX_DIRECTION,
                 default: "col",
-                desc: "stack (col) or row; ignored when columns > 1",
+                desc: "stack children (col) or lay them side by side (row)",
             },
             {
                 key: "align",
                 type: "enum",
                 values: TEXT_ALIGN,
                 desc: "cross-axis alignment of children",
+            },
+            {
+                key: "surface",
+                type: "enum",
+                values: CARD_STYLES,
+                desc: "omit for a plain stack; set it to draw the container as a panel (solid filled / outline / left sideline / top topline / plain)",
             },
         ],
     },
@@ -446,12 +433,12 @@ function elementBlock(e: ElementSchema): string {
 export function elementCatalog(): string {
     return [
         "## Elements",
-        "A section's content is ONE element tree. A leaf is `{ type, data }`; a container (`group`/`card`/…) nests children in `data.children`. Available element types:",
+        "A section's content is ONE element tree. A leaf is `{ type, data }`; a `container` nests children in `data.children`. Available element types:",
         "",
         ELEMENTS.map(elementBlock).join("\n"),
         "",
         `Text \`style\` values (typographic roles): ${TEXT_STYLES.join(", ")}. Use exactly one \`h1\` per section.`,
-        "To place several elements together, wrap them in a `group` (direction 'col' to stack, 'row' for side-by-side) or a `card`. Set `group.columns` for an N-up grid.",
+        "To place several elements together, wrap them in a `container` (direction 'col' to stack, 'row' for side-by-side). An N-up grid is a row `container` with one child per cell. Give it `surface` to draw it as a panel.",
     ].join("\n");
 }
 
@@ -462,7 +449,7 @@ export function layoutCatalog(): string {
     ).join("\n");
     return [
         "## Section layout",
-        'A section is `{ id, root }`, where `root` is one element tree. For side-by-side columns, make `root` a `group` with `direction: "row"` whose children each carry `layout: { width: { pct } }` (their column share, summing to ~100). To stack. Use `direction: "col"`. Nest to any depth. For a full-width section, `root` is a single element. These named presets are handy starting splits (custom widths are fine too):',
+        'A section is `{ id, root }`, where `root` is one element tree. For side-by-side columns, make `root` a `container` with `direction: "row"` whose children each carry `layout: { width: { pct } }` (their column share, summing to ~100). To stack, use `direction: "col"`. Nest to any depth. For a full-width section, `root` is a single element. These named presets are handy starting splits (custom widths are fine too):',
         "",
         rows,
     ].join("\n");

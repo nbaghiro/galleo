@@ -379,7 +379,7 @@ describe("two clients converging through the real applier", () => {
             {
                 id: "s1",
                 root: {
-                    type: "group",
+                    type: "container",
                     id: "g1",
                     data: {
                         direction: "col",

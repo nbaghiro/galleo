@@ -6,7 +6,7 @@ import { galleo } from "@services/core/ai/corpus/galleo";
 const text = (t: string): ElementInstance => ({ type: "text", data: { text: t } });
 
 const group = (children: ElementInstance[]): ElementInstance => ({
-    type: "group",
+    type: "container",
     data: { children },
 });
 

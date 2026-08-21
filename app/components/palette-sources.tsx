@@ -60,7 +60,7 @@ registerPaletteSource({
     local: (query) => toRows(localHits(query), ""),
     remote: async (query, _ctx, signal) => {
         void ensureLibrary(); // opened from the editor, the local pass has nothing to rank yet
-        return toRows(reconcile(await fetchHits(query, signal)), query);
+        return toRows(reconcile(await fetchHits(query, signal, undefined, "palette")), query);
     },
 });
 

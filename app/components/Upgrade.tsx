@@ -1,11 +1,11 @@
 import type { Component, JSX } from "solid-js";
-import { Show } from "solid-js";
+import { createEffect, Show } from "solid-js";
 import type { BoolFeature } from "@model/billing";
 import { upgradeFor } from "@model/billing";
 import { Button } from "@ui/button";
 import { EmptyState } from "@ui/status";
 import { billing } from "@app/stores/billing";
-import { statusOf } from "@app/stores/features";
+import { reportPaywall, statusOf } from "@app/stores/features";
 import { go } from "@app/stores/navigate";
 
 // Every plan wall in the app renders through here, so one surface answers "why can't I do this" and
@@ -70,6 +70,15 @@ export const UpgradeNotice: Component<{
 }> = (props) => {
     const plan = (): ReturnType<typeof upgradeFor> => target(props.feature);
     const soon = (): boolean => comingSoon(props.feature);
+
+    // One of the two places the product tells a user no, and the only one an entitlement raises.
+    // Shown, not clicked: what we need to know is how often people meet the wall at all. An effect
+    // rather than onMount, because this notice renders while /features is still in flight and the
+    // wall is not real until we know the plan.
+    let reported = false;
+    createEffect(() => {
+        if (!reported) reported = reportPaywall(props.feature ?? "textModelTier", plan()?.id);
+    });
     const where = (): string =>
         soon() ? "Coming soon." : plan() ? `Available on ${plan()!.name} and above.` : "";
 

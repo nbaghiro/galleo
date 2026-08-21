@@ -12,7 +12,7 @@ import {
 
 const text = (t: string): ElementInstance => ({ type: "text", data: { text: t } });
 const group = (...kids: ElementInstance[]): ElementInstance => ({
-    type: "group",
+    type: "container",
     data: { children: kids },
 });
 
@@ -80,7 +80,7 @@ describe("replacePassage", () => {
         expect(next.bleed).toBe(true);
         expect(next.id).toBe("s2");
         // the image sibling survives untouched
-        expect((next.root as ElementInstance).type).toBe("group");
+        expect((next.root as ElementInstance).type).toBe("container");
     });
     it("does not mutate the original", () => {
         replacePassage(section, [0], "Changed");
@@ -105,7 +105,7 @@ describe("findElement", () => {
 
 describe("elementTypes", () => {
     it("lists each type once, so a miss can say what IS there", () => {
-        expect(elementTypes(section.root)).toEqual(["group", "text", "image"]);
+        expect(elementTypes(section.root)).toEqual(["container", "text", "image"]);
     });
 });
 

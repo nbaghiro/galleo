@@ -1,9 +1,9 @@
 export const RUBRIC = `## The quality bar (hit every rule)
 - Open AND close on a \`full\` section carrying a background image; the closing section mirrors the cover's shape (label → headline → subtitle → button). These are the emotional bookends.
 - Make the SECOND section restate the whole thing in one line, a single big headline or a thesis quote.
-- Default interior cell = a \`group\` of { label eyebrow → h2 headline → body paragraph }, extended only with the elements the point needs. One section = one idea.
+- Default interior cell = a \`container\` of { label eyebrow → h2 headline → body paragraph }, extended only with the elements the point needs. One section = one idea.
 - Alternate \`split-6040\` and \`split-4060\` so the image side zig-zags; use \`three-up\` only for genuine triads (3 stats, 3 cards, 3 quotes); \`two-col\` only for pairs; \`full\` for covers, single quotes, tables, and CTAs.
-- Across the piece include at least: one \`three-up\` of three \`stat\`s, one \`three-up\` of \`card\`s, one \`chart\` in a split (with a \`caption\` naming its units/axes), one \`diagram\` (process or funnel), one \`table\` with real columns, one standalone pull-\`quote\`, and one \`callout\` on the single most important claim.
+- Across the piece include at least: one \`three-up\` of three \`stat\`s, one \`three-up\` of \`container\`s with a \`surface\`, one \`chart\` in a split (with a \`caption\` naming its units/axes), one \`diagram\` (process or funnel), one \`table\` with real columns, one standalone pull-\`quote\`, and one \`callout\` on the single most important claim.
 - Put a background image ONLY on the emotional beats (cover, a big pull-quote or manifesto break, the CTA). Interior sections ride the plain theme.`;
 
 export const VOICE = `## Voice (write like the demos)

@@ -41,7 +41,7 @@ function focusLine(ctx: ChatContext): string | undefined {
             : `a ${f.elementType ?? "element"}${where}`;
     return heading(
         "The user's current selection",
-        `They have ${what} selected${f.headline ? ` (“${f.headline}”)` : ""}. If they say "this", "it", or "here". They most likely mean that.`,
+        `They have ${what} selected${f.headline ? ` (“${f.headline}”)` : ""}. If they say "this", "it", or "here", they most likely mean that.`,
     );
 }
 
@@ -119,12 +119,12 @@ The rest:
 - **rewrite-passage**, change SPECIFIC WORDING inside a written section: a headline, a bullet, one sentence. \`find\` is the passage copied verbatim from the section, \`instruction\` is how to change it. The rest of the section is left exactly as it is, so prefer this over rewrite-section whenever the ask is about particular words.
 - **rewrite-section**, rewrite a written section WHOLE, when the ask is about the section's substance rather than its wording (\`sectionId\` + \`instruction\`).
 - **suggest-section-layouts**, propose 2–4 alternative ARRANGEMENTS of a written section, keeping every word of its copy: \`sectionId\` (+ optional \`direction\`). Use when the ask is about a section's look or layout rather than what it says ("show me other layouts for the intro"); each option lands as a separate card and the user applies at most one.
-- **add-section**, ONLY for a section that is genuinely new and not in the outline at all. If the user means a beat that already exists in the plan below. You want request-write or revise-outline.
+- **add-section**, ONLY for a section that is genuinely new and not in the outline at all. If the user means a beat that already exists in the plan below, you want request-write or revise-outline.
 - **revise-element**, regenerate ONE element in place (a chart, stat, table, diagram) when it's weak but the section around it is fine: \`sectionId\` + \`elementType\` (+ \`nth\` when there are several).
 - **reimage**, replace a picture with one sourced from a new description: \`sectionId\` + \`phrase\` (what the photo shows, not an instruction), and \`target: "backdrop"\` for the section's full-bleed background.
 - **generate-theme**, DESIGN a new theme from a description ("a warm editorial magazine look"). Use it when they want a look you can't get from the built-in list; **set-theme** is for picking one that already exists. The user saves and applies it.
 - **rewrite-text** / **translate-text**, for a passage the user PASTED INTO THE CHAT, with no place in the piece. For words that live in the artifact use rewrite-passage or rewrite-section instead, those come back as an edit they can apply, these just hand back text.
-- **remove-section** / **reorder-section**, only for sections already written. For anything not yet written. Use revise-outline: it costs nothing and the writer picks it up.
+- **remove-section** / **reorder-section**, only for sections already written. For anything not yet written, use revise-outline: it costs nothing and the writer picks it up.
 - **show-sections**, show what has been written so far.
 - **suggest-sections**, ideas for what the piece is missing.
 - **set-theme**, restyle the piece (pick an id from the theme list below).

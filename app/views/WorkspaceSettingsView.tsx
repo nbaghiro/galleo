@@ -382,7 +382,7 @@ export const WorkspaceSettingsView: Component = () => {
                                                     class="text-[12px] font-semibold text-soft underline hover:text-ink"
                                                     onClick={() =>
                                                         b()?.status === "past_due"
-                                                            ? void openPortal()
+                                                            ? void openPortal("settings")
                                                             : navigate("/pricing")
                                                     }
                                                 >

@@ -46,7 +46,7 @@ function sourceForSection(source?: string): string | undefined {
     if (!s) return undefined;
     return heading(
         "Source material, the piece is built from this",
-        `Where this section's points touch the material. Use its REAL facts: the exact numbers, names, dates, and phrasing. Ground every claim you can in it, and never invent a fact that competes with it.\n\n${clipSource(s)}`,
+        `Where this section's points touch the material, use its REAL facts: the exact numbers, names, dates, and phrasing. Ground every claim you can in it, and never invent a fact that competes with it.\n\n${clipSource(s)}`,
     );
 }
 

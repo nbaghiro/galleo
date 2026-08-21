@@ -7,7 +7,7 @@ const text = (t: string, style?: string): ElementInstance => ({
     data: style ? { text: t, style } : { text: t },
 });
 const group = (children: ElementInstance[]): ElementInstance => ({
-    type: "group",
+    type: "container",
     data: { children },
 });
 const focal = (type: string): ElementInstance => ({ type, data: {} });

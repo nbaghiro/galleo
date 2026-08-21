@@ -56,3 +56,35 @@ export function dismissalFor(press: PressOn, rules: DismissRules): Dismissal {
     if (rules.dragging || press.inside) return "keep";
     return press.onCanvas && rules.deferOnCanvas ? "defer" : "close";
 }
+
+// ---- overlay ownership ------------------------------------------------------------------------
+//
+// A popover portals to <body>, so a menu opened inside a panel is a sibling of that panel rather
+// than a descendant, and no containment test can find it. Ownership is stamped instead of inferred:
+// a dismissable surface hands a token down (`OverlayOwner` in ui/overlay), every Popover under it
+// writes that token onto what it portals, and a press carrying the token counts as inside. Nesting
+// inherits, so a menu inside a dropdown inside the inspector still answers to the inspector.
+
+export const OWNER_ATTR = "data-galleo-owner";
+
+let tokens = 0;
+// Only ever compared with itself, never parsed or persisted, so a counter per document is enough.
+export const newOwnerToken = (name: string): string => `${name}-${++tokens}`;
+
+export interface PressScope {
+    el?: HTMLElement; // the surface's own element
+    owner?: string; // what its popovers are stamped with
+    opener?: string; // selector for the control that opened it, when that lives elsewhere
+}
+
+// composedPath, not `contains`: it already carries every ancestor, so matching each node covers the
+// opener too, and it is the only view that survives a portal.
+export function pressInside(path: readonly EventTarget[], scope: PressScope): boolean {
+    for (const node of path) {
+        if (scope.el && node === scope.el) return true;
+        if (!(node instanceof Element)) continue;
+        if (scope.owner && node.getAttribute(OWNER_ATTR) === scope.owner) return true;
+        if (scope.opener && node.matches(scope.opener)) return true;
+    }
+    return false;
+}

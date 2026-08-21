@@ -1,5 +1,7 @@
 import type { Component, JSX } from "solid-js";
-import { Show } from "solid-js";
+import type { MediaCredit } from "@model/media";
+import { Eyebrow } from "./button";
+import { For, Show } from "solid-js";
 
 // pass/fail are the verdict tones, deliberately not the accent (see --color-pass in styles.css)
 type FillTone = "accent" | "pass" | "fail";
@@ -82,3 +84,39 @@ export const EmptyState: Component<{
         </Show>
     </div>
 );
+
+// Where a sourced picture's credit goes when the artifact leaves the app. Providers ask for it to
+// be visible next to the work, so it renders on published pages and in exports, not in the editor.
+export const MediaCredits: Component<{ credits: MediaCredit[]; class?: string }> = (props) => (
+    <Show when={props.credits.length}>
+        <div class={`px-5 py-6 text-center text-[11px] text-muted md:px-9 ${props.class ?? ""}`}>
+            <Eyebrow as="div" tracking="wider" class="mb-1.5">
+                Images
+            </Eyebrow>
+            <p class="mx-auto max-w-150 leading-relaxed">
+                <For each={props.credits}>
+                    {(c, i) => (
+                        <>
+                            <Show when={i()}>
+                                <span aria-hidden="true"> · </span>
+                            </Show>
+                            <Show when={c.authorUrl ?? c.sourceUrl} fallback={<>{creditLine(c)}</>}>
+                                <a
+                                    href={c.authorUrl ?? c.sourceUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer nofollow"
+                                    class="text-soft underline decoration-line underline-offset-2 hover:text-ink"
+                                >
+                                    {creditLine(c)}
+                                </a>
+                            </Show>
+                        </>
+                    )}
+                </For>
+            </p>
+        </div>
+    </Show>
+);
+
+const creditLine = (c: MediaCredit): string =>
+    c.author && c.provider ? `${c.author} · ${c.provider}` : (c.author ?? c.provider ?? "");

@@ -1,5 +1,6 @@
 import type { ElementInstance, Section } from "@model/artifact";
-import type { MediaProvider } from "@model/media";
+import { mapMediaRefs, mediaRefs } from "@model/artifact";
+import type { MediaItem, MediaProvider } from "@model/media";
 import { searchStock, stockReady } from "@services/core/media";
 import { warn } from "@services/utils/env";
 
@@ -64,7 +65,7 @@ function toQuery(phrase: string, max: number): string {
         .join(" ");
 }
 
-async function findStock(phrase: string, orientation: string): Promise<string | null> {
+async function findStock(phrase: string, orientation: string): Promise<MediaItem | null> {
     const ready = stockReady();
     const queries = [toQuery(phrase, 6), toQuery(phrase, 3)].filter(
         (q, i, a) => !!q && a.indexOf(q) === i,
@@ -77,7 +78,7 @@ async function findStock(phrase: string, orientation: string): Promise<string | 
         const hits = await Promise.all(
             queries.map((q) =>
                 searchStock(provider, q, 1, orientation, "photo")
-                    .then((r) => r.items[0]?.url ?? null)
+                    .then((r) => r.items[0] ?? null)
                     .catch(() => null),
             ),
         );
@@ -93,6 +94,9 @@ export interface ImageOptions {
     source?: ImageSource; // default "stock"
     // `ref` is an existing image url to refine from; with one the prompt reads as an edit instruction
     generate?: (prompt: string, orientation: string, ref?: string) => Promise<string | null>;
+    // Adopts a sourced picture into the workspace library and hands back its canonical url. Without
+    // it the raw provider url is returned and the write path adopts it later, losing attribution.
+    adopt?: (item: MediaItem) => Promise<string>;
 }
 
 export async function resolveImage(
@@ -107,9 +111,27 @@ export async function resolveImage(
         if (made) return made;
     }
     const stock = await findStock(phrase, orientation);
-    if (stock) return stock;
+    if (stock) return opts.adopt ? await opts.adopt(stock).catch(() => stock.url) : stock.url;
     warn(`[ai:image] no image for "${clip(phrase, 60)}" — using placeholder`);
     return picsum(phrase);
+}
+
+// The model writes a phrase where a url belongs, so every media field in the tree is resolved at
+// once through the shared walk: two passes, since the map itself is synchronous.
+async function resolveTree<T>(
+    tree: T,
+    aspectFor: (url: string) => string,
+    opts: ImageOptions,
+): Promise<T> {
+    const phrases = mediaRefs(tree).filter((p) => !p.startsWith("http"));
+    if (!phrases.length) return tree;
+    const resolved = new Map<string, string>();
+    await Promise.all(
+        phrases.map(async (p) => {
+            resolved.set(p, await resolveImage(p, aspectFor(p), opts));
+        }),
+    );
+    return mapMediaRefs(tree, (url) => resolved.get(url) ?? url) as T;
 }
 
 // returns a new element only when something changed (else the same ref)
@@ -117,28 +139,33 @@ export async function resolveElement(
     el: ElementInstance,
     opts: ImageOptions,
 ): Promise<ElementInstance> {
-    let data = el.data as Record<string, unknown>;
-    if (el.type === "image" && typeof data.src === "string") {
-        data = { ...data, src: await resolveImage(data.src, orientOf(data.aspect), opts) };
-    }
-    if (Array.isArray(data.children)) {
-        data = {
-            ...data,
-            children: await Promise.all(
-                (data.children as ElementInstance[]).map((k) => resolveElement(k, opts)),
-            ),
-        };
-    }
-    return data === el.data ? el : { ...el, data };
+    const aspects = aspectIndex(el);
+    return resolveTree(el, (url) => aspects.get(url) ?? "landscape", opts);
 }
 
 export async function resolveImages(section: Section, opts: ImageOptions): Promise<Section> {
-    const bg = section.background;
-    const wantsBg = bg?.kind === "image" && typeof bg.image === "string";
-    const [root, bgImage] = await Promise.all([
-        resolveElement(section.root, opts),
-        wantsBg ? resolveImage(bg.image as string, "landscape", opts) : null,
-    ]);
-    const background = bgImage !== null && bg ? { ...bg, image: bgImage } : section.background;
-    return { ...section, root, background };
+    const aspects = aspectIndex(section.root);
+    return resolveTree(section, (url) => aspects.get(url) ?? "landscape", opts);
+}
+
+// the orientation to search at comes from the element the phrase sits on
+function aspectIndex(root: ElementInstance): Map<string, string> {
+    const out = new Map<string, string>();
+    const walk = (el: ElementInstance): void => {
+        const data = el.data as Record<string, unknown> | undefined;
+        if (!data) return;
+        const src = data.src;
+        if (typeof src === "string" && src) out.set(src, orientOf(data.aspect));
+        for (const v of Object.values(data))
+            if (Array.isArray(v))
+                for (const kid of v)
+                    if (
+                        kid &&
+                        typeof kid === "object" &&
+                        typeof (kid as ElementInstance).type === "string"
+                    )
+                        walk(kid as ElementInstance);
+    };
+    walk(root);
+    return out;
 }

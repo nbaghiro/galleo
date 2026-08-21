@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Context, MiddlewareHandler } from "hono";
 import type { ZodType } from "zod";
 import { setCookie, deleteCookie } from "hono/cookie";
@@ -5,6 +6,7 @@ import { getConnInfo } from "@hono/node-server/conninfo";
 import type { BoolFeature, NumFeature, PlanBearer } from "@model/billing";
 import { can, canTopUp, canUpgradeFrom, featuresFor, limit, withinLimit } from "@model/billing";
 import { makeSession, SESSION_COOKIE, SESSION_TTL_SECONDS } from "./auth";
+import { capture } from "./analytics";
 
 // The HTTP toolkit: everything here is database-free, so it stays unit-testable. Anything that
 // reads a row lives in domain/ (see domain/accounts.ts for the session/workspace readers).
@@ -114,7 +116,11 @@ interface RateLimitOptions {
 // Render's Cloudflare front overwrites CF-Connecting-IP with the real client; override for other proxies.
 const CLIENT_IP_HEADER = (process.env.CLIENT_IP_HEADER ?? "cf-connecting-ip").toLowerCase();
 
-function clientIp(c: Context): string {
+/** A stable, non-reversible stand-in for an address, so a raw IP never leaves the process. */
+export const anonId = (key: string): string =>
+    createHash("sha256").update(key).digest("hex").slice(0, 32);
+
+export function clientIp(c: Context): string {
     const trusted = c.req.header(CLIENT_IP_HEADER)?.trim();
     if (trusted) return trusted;
     try {
@@ -146,6 +152,13 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler {
         }
 
         if (w.count > options.limit) {
+            // Most limited routes have no session (signup, login, reset), so something has to stand
+            // in for a person. It is a hash of the bucket key, never the address itself: a raw IP
+            // is on the do-not-collect list, and this only has to be stable, not reversible.
+            capture({ userId: anonId(key), anonymous: true }, "quota_rate_limited", {
+                route: options.name,
+                plan_id: "free",
+            });
             c.header("Retry-After", String(Math.ceil((w.resetAt - now) / 1000)));
             return c.json({ error: "Too many attempts. Please wait a bit and try again." }, 429);
         }

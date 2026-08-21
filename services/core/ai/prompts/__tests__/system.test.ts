@@ -15,7 +15,7 @@ const txt = (text: string): ElementInstance => ({ type: "text", data: { text } }
 const sec = (id: string, title?: string): Section => ({
     id,
     root: title
-        ? { type: "group", data: { children: [txt(title)] } }
+        ? { type: "container", data: { children: [txt(title)] } }
         : { type: "image", data: { src: "x" } },
 });
 

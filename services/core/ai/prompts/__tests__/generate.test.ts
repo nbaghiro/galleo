@@ -18,7 +18,7 @@ import {
 const txt = (text: string): ElementInstance => ({ type: "text", data: { text } });
 const sec = (id: string, title: string): Section => ({
     id,
-    root: { type: "group", data: { children: [txt(title)] } },
+    root: { type: "container", data: { children: [txt(title)] } },
 });
 
 const content: ArtifactContent = {
@@ -227,13 +227,13 @@ describe("sectionCopyInventory", () => {
         const section: Section = {
             id: "s9",
             root: {
-                type: "group",
+                type: "container",
                 data: {
                     children: [
                         txt("Headline"),
                         { type: "image", data: { src: "https://x/a.jpg" } },
                         {
-                            type: "card",
+                            type: "container",
                             data: {
                                 children: [
                                     txt("Nested copy"),

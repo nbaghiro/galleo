@@ -38,7 +38,17 @@ export interface DropdownOption {
     value: string;
     font?: string;
     group?: string; // options sharing one are headed by it; the list must already be in group order
+    preview?: string; // inline SVG shown before the label, for options that are a shape not a word
 }
+
+// A preview is a shape the reader recognises faster than its name, so it leads the row. The art is
+// authored at 140x72 and scales into the box; CSS vars inside it recolor with the theme.
+const thumb = (svg: string, cls: string): JSX.Element => (
+    <span
+        class={`${cls} flex-none overflow-hidden rounded border border-line bg-canvas p-px`}
+        innerHTML={svg}
+    />
+);
 
 export const Dropdown: Component<{
     value: string;
@@ -107,6 +117,9 @@ export const Dropdown: Component<{
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => (open() ? setOpen(false) : openMenu())}
             >
+                <Show when={!props.compact && currentOpt()?.preview}>
+                    {(svg) => thumb(svg(), "h-5 w-9.5")}
+                </Show>
                 <span
                     class="min-w-0 flex-1 truncate text-left"
                     style={fontStyle(currentOpt()?.font)}
@@ -143,6 +156,7 @@ export const Dropdown: Component<{
                                 onMouseDown={(e) => e.preventDefault()}
                                 onClick={() => pick(o.value)}
                             >
+                                <Show when={o.preview}>{(svg) => thumb(svg(), "h-6 w-11.5")}</Show>
                                 <span class="min-w-0 flex-1 truncate" style={fontStyle(o.font)}>
                                     {o.label}
                                 </span>
@@ -158,7 +172,7 @@ export const Dropdown: Component<{
 
 export const SelectField: Component<{
     value: string;
-    options: { label: string; value: string }[];
+    options: DropdownOption[];
     onChange: (v: string) => void;
     compact?: boolean;
     toolbar?: boolean; // keeps an inline text editor alive when used mid-edit

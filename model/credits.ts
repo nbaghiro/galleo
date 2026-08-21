@@ -87,6 +87,24 @@ const UNIT_TASK: Record<CostUnit, AiTask | null> = {
 };
 
 /**
+ * The task whose model does the bulk of a usage's work, for attributing a run to a model tier.
+ * Null when the work is all media: `image` and `video` run on their own models and have no text task.
+ */
+export function taskForUsage(usage: Usage): AiTask | null {
+    let best: AiTask | null = null;
+    let heaviest = 0;
+    for (const [unit, task] of Object.entries(UNIT_TASK) as [CostUnit, AiTask | null][]) {
+        const n = usage[unit] ?? 0;
+        const weight = COST_UNITS[unit] * n;
+        if (task && weight > heaviest) {
+            heaviest = weight;
+            best = task;
+        }
+    }
+    return best;
+}
+
+/**
  * Per-unit price multipliers for the models a run will actually use.
  * `taskModel` resolves a task to a model id; `rateFor` prices that model against the baseline.
  */

@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "@solidjs/router";
 import { registerThemes, resolveTheme, themeCssVars } from "@themes";
 import { PresentSurface } from "@ui/present";
 import { UiThemeProvider } from "@ui/icons";
+import { MediaCredits } from "@ui/status";
 import { api, type PublicContent } from "@app/api";
 import { setFavicon } from "@app/stores/theme";
 
@@ -232,7 +233,10 @@ export const PublicView: Component = () => {
             }
         >
             {(c) => (
-                <Surface artifact={c().content} branded={c().branded} onProgress={onProgress} />
+                <>
+                    <Surface artifact={c().content} branded={c().branded} onProgress={onProgress} />
+                    <MediaCredits credits={c().credits} />
+                </>
             )}
         </Show>
     );

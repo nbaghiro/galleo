@@ -1,5 +1,6 @@
 import "dotenv/config"; // load SESSION_SECRET so the dev cookie check matches the backend
 import type { Plugin } from "vite";
+import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
@@ -7,6 +8,18 @@ import solid from "vite-plugin-solid";
 import { readSession, SESSION_COOKIE } from "./services/utils/auth";
 
 const abs = (p: string): string => fileURLToPath(new URL(p, import.meta.url));
+
+// Stamped onto every analytics event, so a regression can be bounded to a deploy. Render injects
+// the sha; locally git has it; a tarball build with neither says so rather than guessing.
+function appBuild(): string {
+    const injected = process.env.RENDER_GIT_COMMIT?.trim();
+    if (injected) return injected.slice(0, 7);
+    try {
+        return execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
+    } catch {
+        return "unknown";
+    }
+}
 
 function cookieValue(header: string | undefined, name: string): string | undefined {
     for (const part of header?.split(";") ?? []) {
@@ -46,6 +59,7 @@ function appSpaFallback(): Plugin {
 
 export default defineConfig({
     root: ".",
+    define: { "import.meta.env.VITE_APP_BUILD": JSON.stringify(appBuild()) },
     publicDir: false, // favicon set dynamically by setFavicon(); no static assets
     server: {
         port: 8600,

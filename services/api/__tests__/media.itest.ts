@@ -45,7 +45,7 @@ describe("storage cap", () => {
             workspaceId,
             kind: "image",
             source: "stock",
-            url: "https://images.example/cdn/x.jpg",
+            origin: "https://images.example/cdn/x.jpg",
             bytes: null,
             data: null,
         });

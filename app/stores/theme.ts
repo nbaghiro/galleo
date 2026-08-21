@@ -105,7 +105,7 @@ const tx = (text: string, style: string): ElementInstance => ({
 });
 const button = (label: string): ElementInstance => ({ type: "button", data: { label } });
 const group = (...children: ElementInstance[]): ElementInstance => ({
-    type: "group",
+    type: "container",
     data: { children },
 });
 

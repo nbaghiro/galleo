@@ -13,7 +13,7 @@ import {
 
 const text = (t: string): ElementInstance => ({ type: "text", data: { text: t } });
 const group = (...children: ElementInstance[]): ElementInstance => ({
-    type: "group",
+    type: "container",
     data: { children },
 });
 const oneSection = (root: ElementInstance): ArtifactContent => ({

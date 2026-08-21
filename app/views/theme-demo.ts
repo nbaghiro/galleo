@@ -90,7 +90,7 @@ export function themeDemo(tk: Tokens): Section[] {
         section(
             "services",
             group(t("Services", "label"), t("Three ways we work", "h3"), {
-                type: "group",
+                type: "container",
                 data: {
                     columns: 3,
                     children: [

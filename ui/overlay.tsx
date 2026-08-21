@@ -1,7 +1,17 @@
 import type { Component, JSX } from "solid-js";
-import { createEffect, createSignal, onCleanup, onMount, Show, splitProps } from "solid-js";
+import {
+    createContext,
+    createEffect,
+    createSignal,
+    onCleanup,
+    onMount,
+    Show,
+    splitProps,
+    useContext,
+} from "solid-js";
 import { Dynamic, Portal } from "solid-js/web";
 import { Button, IconButton } from "./button";
+import { OWNER_ATTR } from "./gesture";
 import { CloseIcon } from "./icons";
 import { installKeyDispatcher, pushScope } from "./keys";
 import { trapFocus } from "./focus";
@@ -46,6 +56,15 @@ function readThemeVars(el: HTMLElement): Record<string, string> {
     return out;
 }
 
+const OwnerContext = createContext<string>();
+
+// Names the surface everything inside belongs to, so a popover opened from it stays attributable
+// once it portals away (see OWNER_ATTR in ./gesture). Context, not a prop chained through Menu and
+// Dropdown: a nested popover is still rendered inside this scope, so ownership inherits by itself.
+export const OverlayOwner: Component<{ token: string; children: JSX.Element }> = (props) => (
+    <OwnerContext.Provider value={props.token}>{props.children}</OwnerContext.Provider>
+);
+
 // Portaled + fixed off the anchor, so it never clips in a scroller or shifts under a transform.
 // `toolbar` tags nodes with `data-galleo-toolbar` so an inline text editor stays alive mid-edit.
 export const Popover: Component<{
@@ -63,6 +82,7 @@ export const Popover: Component<{
 }> = (props) => {
     const [rect, setRect] = createSignal<Rect | null>(null);
     const [vars, setVars] = createSignal<Record<string, string>>({});
+    const owner = useContext(OwnerContext);
 
     createEffect(() => {
         if (!props.open) return;
@@ -93,20 +113,23 @@ export const Popover: Component<{
         onCleanup(pushScope("popover", { exclusive: true, onEscape: () => props.onClose() }));
     });
 
-    const tb = (): Record<string, string> =>
-        props.toolbar ? { "data-galleo-toolbar": "true" } : {};
+    // both portaled nodes carry it: pressing the scrim dismisses this popover, not whatever owns it
+    const stamp = (): Record<string, string> => ({
+        ...(props.toolbar ? { "data-galleo-toolbar": "true" } : {}),
+        ...(owner ? { [OWNER_ATTR]: owner } : {}),
+    });
 
     return (
         <Show when={props.open && rect()}>
             {(r) => (
                 <Portal>
                     <div
-                        {...tb()}
+                        {...stamp()}
                         class="fixed inset-0 z-popover"
                         onPointerDown={() => props.onClose()}
                     />
                     <div
-                        {...tb()}
+                        {...stamp()}
                         class={`fixed z-popover overflow-y-auto rounded-lg border border-line bg-panel font-body text-ink shadow-2xl ${props.panelClass ?? ""}`}
                         style={{
                             ...vars(),

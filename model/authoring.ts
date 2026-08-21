@@ -1,5 +1,5 @@
 import type { ArtifactContent, ElementInstance, Section, SectionBackground } from "@model/artifact";
-import { emptyRegion, rowGroup } from "@model/artifact";
+import { emptyRegion, rowGroup, withWidth } from "@model/artifact";
 
 export const t = (text: string, style: string): ElementInstance => ({
     type: "text",
@@ -34,10 +34,66 @@ export const bullets = (...items: string[]): ElementInstance => ({
     data: { children: items.map((i) => t(i, "body")) },
 });
 
-export const group = (...children: ElementInstance[]): ElementInstance => ({
-    type: "group",
-    data: { children },
+// A container takes an optional leading options object; an element always carries `type`, so the
+// two are told apart without a second entry point.
+interface ContainerOpts {
+    gap?: number;
+    align?: "start" | "center" | "end";
+    surface?: "solid" | "outline" | "sideline" | "topline" | "plain";
+    bg?: string;
+    shape?: "sharp" | "rounded";
+}
+
+const isOpts = (v: ContainerOpts | ElementInstance): v is ContainerOpts =>
+    !("type" in (v as Record<string, unknown>));
+
+const container = (
+    direction: "row" | "col",
+    args: (ContainerOpts | ElementInstance)[],
+): ElementInstance => {
+    const first = args[0];
+    const opts = first && isOpts(first) ? first : undefined;
+    const children = (opts ? args.slice(1) : args) as ElementInstance[];
+    return {
+        type: "container",
+        // col is the default direction, so it stays off the data unless a row asks for it
+        data: { ...(direction === "row" ? { direction } : {}), ...opts, children },
+    };
+};
+
+/** A column. `group` is the older spelling of the same thing. */
+export const col = (...args: (ContainerOpts | ElementInstance)[]): ElementInstance =>
+    container("col", args);
+
+export const group = (...args: (ContainerOpts | ElementInstance)[]): ElementInstance =>
+    container("col", args);
+
+/**
+ * Width lives on the CHILD, which is where the data model already keeps it (`layout.width.pct`),
+ * so any number of columns can be weighted: `row(w(50, a), b, c)` gives a half and splits the rest.
+ * This is what `split` could never express, being fixed at two.
+ */
+export const w = (pct: number, el: ElementInstance): ElementInstance => withWidth(el, pct);
+
+/** Take the leftover space in the row. */
+export const fill = (el: ElementInstance): ElementInstance => ({
+    ...el,
+    layout: { ...el.layout, width: "fill" },
 });
+
+/** Shrink to content instead of sharing the row evenly. */
+export const fitW = (el: ElementInstance): ElementInstance => ({
+    ...el,
+    layout: { ...el.layout, width: "fit" },
+});
+
+const selfAlign =
+    (align: "start" | "center" | "end") =>
+    (el: ElementInstance): ElementInstance => ({ ...el, layout: { ...el.layout, align } });
+
+export const top = selfAlign("start");
+export const middle = selfAlign("center");
+export const bottom = selfAlign("end");
 
 export const button = (label: string): ElementInstance => ({ type: "button", data: { label } });
 
@@ -48,8 +104,13 @@ export const chart = (type: string, values: string, height = 240): ElementInstan
 
 export const divider = (): ElementInstance => ({ type: "divider", data: {} });
 
-// row = even split; split(pct,…) = weighted two-column
-export const row = (...children: ElementInstance[]): ElementInstance => rowGroup(children);
+// row = even split; split(pct,…) = weighted two-column, now sugar for row(w(…), w(…))
+export const row = (...args: (ContainerOpts | ElementInstance)[]): ElementInstance => {
+    const first = args[0];
+    // rowGroup carries the row's own gap + centre alignment, so a bare row keeps going through it
+    if (!first || !isOpts(first)) return rowGroup(args as ElementInstance[]);
+    return container("row", args);
+};
 
 export const split = (
     leftPct: number,
@@ -105,10 +166,9 @@ export const callout = (tone: string, ...children: ElementInstance[]): ElementIn
     data: { tone, children },
 });
 
-export const card = (...children: ElementInstance[]): ElementInstance => ({
-    type: "card",
-    data: { children },
-});
+/** A column with a surface. The older spelling of `col({ surface: … })`. */
+export const card = (...children: ElementInstance[]): ElementInstance =>
+    container("col", [{ surface: "solid" }, ...children]);
 
 const artifact = (
     format: string,

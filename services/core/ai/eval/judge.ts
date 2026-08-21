@@ -33,7 +33,7 @@ const ask = (qs: RubricQuestion[]): string => qs.map((q) => `${q.id}: ${q.ask}`)
 /** Flattened for the judge: element types carry craft signal that raw text alone loses. */
 function renderSection(s: Section, index: number): string {
     const { texts, types } = contentOf(s);
-    const kinds = [...new Set(types.filter((t) => t !== "group"))].join(", ") || "—";
+    const kinds = [...new Set(types.filter((t) => t !== "container"))].join(", ") || "—";
     return `Section ${index + 1} (id ${s.id}) [elements: ${kinds}]\n${texts.join("\n")}`;
 }
 

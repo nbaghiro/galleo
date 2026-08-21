@@ -117,7 +117,7 @@ const serviceLayerZones = SERVICE_LAYERS.filter((l) => aboveOf(l).length).map((l
 // in a response DTO) and the column declaration in schema.ts are not `.values()`/`.set()` arguments,
 // so they do not match.
 const DERIVED_MSG =
-    "write artifact content with contentWrite() (services/core/derived.ts) so digest + search_text cannot drift";
+    "write artifact content with contentColumns() (services/core/artifacts.ts) so digest + search_text cannot drift and every media url is adopted as an asset";
 const derivedGuard = [
     {
         selector:
@@ -125,6 +125,9 @@ const derivedGuard = [
         message: DERIVED_MSG,
     },
     { selector: "AssignmentExpression[left.property.name='draftContent']", message: DERIVED_MSG },
+    // contentWrite alone derives the columns but leaves foreign media urls in the tree, which is
+    // what makes the library incomplete; contentColumns is the pair.
+    { selector: "CallExpression[callee.name='contentWrite']", message: DERIVED_MSG },
 ];
 
 // Dynamic import() escapes no-restricted-imports, so the layer law restates it as a selector.
@@ -231,7 +234,12 @@ export default tseslint.config(
     // The helper itself, and tests that deliberately seed partial or stale rows to exercise recovery.
     // Restates the layer's import guard, which this block would otherwise replace.
     {
-        files: ["services/core/derived.ts", "services/**/__tests__/**", "scripts/**/__tests__/**"],
+        files: [
+            "services/db/derived.ts",
+            "services/core/artifacts.ts",
+            "services/**/__tests__/**",
+            "scripts/**/__tests__/**",
+        ],
         rules: { "no-restricted-syntax": ["error", importGuard(LAYERS.services)] },
     },
 );

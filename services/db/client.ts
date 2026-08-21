@@ -20,3 +20,7 @@ export const db = drizzle(
         schema,
     },
 );
+
+/** A drizzle transaction handle, and the union for code that runs either inside one or on its own. */
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Db = typeof db | Tx;
