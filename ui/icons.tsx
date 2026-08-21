@@ -252,6 +252,7 @@ const PATHS: Record<string, () => JSX.Element> = {
     chevronUp: () => <path d="M6 14l6-6 6 6" />,
     chevronDown: () => <path d="M6 10l6 6 6-6" />,
     grid: () => <path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />,
+    rows: () => <path d="M4 4.5h16v6H4zM4 13.5h16v6H4z" />,
     fullscreen: () => <path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" />,
     flag: () => <path d="M5 21V4.5M5 5h13l-2.8 4 2.8 4H5" />,
     close: () => <path d="M6 6l12 12M18 6 6 18" />,

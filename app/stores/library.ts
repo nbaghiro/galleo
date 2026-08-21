@@ -8,6 +8,8 @@ import type {
 import { emptyRegion } from "@model/artifact";
 import { createSignal } from "solid-js";
 import { api, type ArtifactSummary } from "@app/api";
+import { asFormat } from "@model/analytics";
+import { capture } from "@ui/analytics";
 import { PROFILES, resolveProfile } from "@engine/profile";
 
 const [artifacts, setArtifacts] = createSignal<ArtifactSummary[]>([]);
@@ -30,6 +32,30 @@ export {
     setDraggingArtifact,
     trash,
 };
+
+// How the library draws its rows. A per-device layout choice, so localStorage rather than the
+// account row: the same person wants list on a laptop and grid on a wide monitor.
+export type LibraryLayout = "list" | "grid";
+const LAYOUT_KEY = "galleo:library-layout";
+let storedLayout: string | null = null;
+try {
+    storedLayout = localStorage.getItem(LAYOUT_KEY);
+} catch {
+    /* storage unavailable — use the default */
+}
+const [libraryLayout, setLayoutSignal] = createSignal<LibraryLayout>(
+    storedLayout === "list" ? "list" : "grid",
+);
+export { libraryLayout };
+
+export function setLibraryLayout(v: LibraryLayout): void {
+    setLayoutSignal(v);
+    try {
+        localStorage.setItem(LAYOUT_KEY, v);
+    } catch {
+        /* storage unavailable */
+    }
+}
 
 // artifacts whose server content changed since fetch → the next card render re-pulls its sections
 const staleContent = new Set<string>();
@@ -265,6 +291,11 @@ export async function duplicateArtifact(orig: ArtifactSummary): Promise<string |
             draftContent: content,
             folderId: orig.folderId ?? null,
         });
+        capture("artifact_created", { source: "duplicated", format: asFormat(orig.formatId) });
+        capture("artifact_duplicated", {
+            format: asFormat(orig.formatId),
+            section_count: content.sections.length,
+        });
         const dup: ArtifactSummary = { ...orig, id, title, updatedAt: new Date().toISOString() };
         setArtifacts([dup, ...artifacts()]);
         setContents({ ...contents(), [id]: content });
@@ -380,6 +411,7 @@ export async function createBlank(formatId: string): Promise<string | null> {
             themeId: "studio",
             draftContent: blankArtifact(formatId),
         });
+        capture("artifact_created", { source: "blank", format: asFormat(formatId) });
         return id;
     } catch {
         return null;

@@ -8,6 +8,8 @@ test("a created artifact appears, opens, trashes, and restores", async ({ page }
         sec("s1", colOf([txt("Zebra body content")])),
     ]);
     await page.goto("/");
+    // the row menu, so the list layout: the grid card runs the same component from its own chrome
+    await page.getByTitle("List", { exact: true }).click();
     const card = page.locator("section", { hasText: "Zebra lifecycle doc" }).first();
     await expect(card).toBeVisible();
 
@@ -27,6 +29,23 @@ test("a created artifact appears, opens, trashes, and restores", async ({ page }
     await expect(page.locator("section", { hasText: "Zebra lifecycle doc" }).first()).toBeVisible();
     // cleanup so reruns don't accumulate; API trash is enough
     await page.request.post(`/api/artifacts/${id}/trash`);
+});
+
+// The grid is the default and draws the same rows as cards, so what it has to prove is the part the
+// list has no equivalent for: the carousel reaches the sections. The switch and its memory follow.
+test("the grid layout carries a section carousel and remembers the switch", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("main section")).toHaveCount(0);
+
+    const next = page.getByTitle("Next section").first();
+    await next.hover();
+    await next.click();
+    await expect(page.getByText(/^\d+\/\d+$/).first()).toBeVisible();
+
+    await page.getByTitle("List", { exact: true }).click();
+    await expect(page.locator("main section").first()).toBeVisible();
+    await page.reload();
+    await expect(page.locator("main section").first()).toBeVisible();
 });
 
 test("the search field finds seeded content", async ({ page }) => {
@@ -51,8 +70,9 @@ test("a plain member's library renders the workspace's work", async ({ browser }
     const ctx = await browser.newContext({ storageState: statePath("demo+invited") });
     const page = await ctx.newPage();
     await page.goto("/");
-    await expect(page.locator("section").first()).toBeVisible();
-    const listed = await page.locator("section").count();
-    expect(listed).toBeGreaterThan(0);
+    // one draggable preview per artifact, in either layout
+    const previews = page.locator('main [draggable="true"]');
+    await expect(previews.first()).toBeVisible();
+    expect(await previews.count()).toBeGreaterThan(0);
     await ctx.close();
 });

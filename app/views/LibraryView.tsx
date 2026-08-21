@@ -25,6 +25,7 @@ import {
     artifactsLoaded,
     duplicateArtifact,
     ensureCardSections,
+    libraryLayout,
     loadLibrary,
     loadMoreArtifacts,
     moveArtifact,
@@ -33,9 +34,12 @@ import {
     removeArtifact,
     removeArtifacts,
     setDraggingArtifact,
+    setLibraryLayout,
+    type LibraryLayout,
     type LibraryQuery,
 } from "@app/stores/library";
 import { relativeTime } from "@ui/time";
+import { createSentinel } from "@ui/scroll";
 import type { ArtifactAccess } from "@model/artifact";
 import { appTheme } from "@app/stores/theme";
 import { openGenerate } from "@app/stores/generate";
@@ -44,12 +48,14 @@ import { fetchHitPage, LIBRARY_LIMIT } from "@app/stores/search";
 import { ConfirmModal, FloatingBar } from "@ui/overlay";
 import { Button, Chip, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@ui/menu";
-import { Separator, TextField } from "@ui/inputs";
+import { CONTROL_H, Segmented, Separator, TextField } from "@ui/inputs";
 import { bindingLabel } from "@ui/keys";
 import { EmptyState } from "@ui/status";
 import {
     CheckIcon,
     ChevronDownIcon,
+    ChevronLeftIcon,
+    ChevronRightIcon,
     CloseIcon,
     DuplicateIcon,
     FolderIcon,
@@ -57,7 +63,9 @@ import {
     SparkleIcon,
     TrashIcon,
 } from "@ui/icons";
-import { SectionThumb } from "@app/components/previews";
+import { isCoarsePointer } from "@ui/viewport";
+import { profileFor, sectionFrame } from "@engine/profile";
+import { MiniCanvas, SectionThumb } from "@app/components/previews";
 import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
 
 // fills use soft/accent tints, legible on light and dark unlike line
@@ -68,6 +76,29 @@ const limitedAccess = (access?: ArtifactAccess): string | undefined =>
 const TILE_W = 176;
 const TILE_LEAD = "0px 400px"; // how far beyond the viewport a tile counts as worth loading
 const TILE_SETTLE = 90; // ms of quiet before the visible tiles are asked for
+
+const LAYOUTS: { label: string; value: LibraryLayout; icon: string }[] = [
+    { label: "Grid", value: "grid", icon: "grid" },
+    { label: "List", value: "list", icon: "rows" },
+];
+
+// opaque, not tinted: the arrows sit over whatever the section painted, light or dark
+// Chrome that sits over a cover image. Theme tokens cannot carry it: the surface behind is somebody
+// else's photograph, so a cream panel reads as a sticker on top rather than part of the card. A
+// translucent scrim plus a blur takes its colour FROM the image, which is what makes it blend, and
+// white-on-dark stays legible over a bright sky as well as a night skyline.
+const OVER_MEDIA = "bg-black/25 text-white backdrop-blur-sm transition-colors hover:bg-black/45";
+// Chrome over a cover is small enough to stay out of the way of a cursor, which is too small for a
+// finger. Coarse pointer, not a breakpoint: a tablet is wide and still touched.
+const overMediaHit = (): string => (isCoarsePointer() ? "size-11" : "size-7");
+
+const navCls = (): string =>
+    `pointer-events-auto grid ${overMediaHit()} place-items-center rounded-full ${OVER_MEDIA} disabled:pointer-events-none disabled:opacity-0`;
+
+const GRID_MIN = 280; // narrowest a card gets before the grid drops a column
+const GRID_GAP = 20;
+// the card's window on the artifact; a section that doesn't share it is fitted inside, never cropped
+const CARD_ASPECT = 16 / 9;
 
 const GhostCard: Component<{ variant: number }> = (p) => (
     <div class="flex min-h-37.5 flex-col gap-2.5 rounded-xl border border-soft/15 bg-panel p-3">
@@ -251,19 +282,7 @@ export const LibraryView: Component = () => {
     // any narrowing is on, so an empty list means "no matches" rather than "no artifacts"
     const filtering = (): boolean => !!query().trim() || fmt() !== "all";
 
-    // one observer, re-pointed at whichever sentinel element is currently mounted
-    let sentinelObserver: IntersectionObserver | null = null;
-    const observeSentinel = (el: HTMLElement): void => {
-        sentinelObserver?.disconnect();
-        sentinelObserver = new IntersectionObserver(
-            (entries) => {
-                if (entries.some((e) => e.isIntersecting)) loadMore();
-            },
-            { rootMargin: "600px" },
-        );
-        sentinelObserver.observe(el);
-    };
-    onCleanup(() => sentinelObserver?.disconnect());
+    const observeSentinel = createSentinel(() => loadMore(), { margin: "600px" });
 
     // visible rows that matched only on body text
     const contentOnly = createMemo(() => {
@@ -331,19 +350,201 @@ export const LibraryView: Component = () => {
         }
     };
 
+    // one observer on the grid: a scaled canvas needs a pixel width, so the column width is
+    // computed from the container rather than left to the browser's auto-fill
+    const [gridW, setGridW] = createSignal(0);
+    let gridRo: ResizeObserver | undefined;
+    const measureGrid = (el: HTMLElement): void => {
+        gridRo?.disconnect();
+        gridRo = new ResizeObserver((es) => setGridW(es[0]?.contentRect.width ?? el.clientWidth));
+        gridRo.observe(el);
+    };
+    onCleanup(() => gridRo?.disconnect());
+    const gridCols = (): number =>
+        Math.max(1, Math.floor((gridW() + GRID_GAP) / (GRID_MIN + GRID_GAP)));
+    const cardW = (): number =>
+        gridW() ? Math.floor((gridW() - GRID_GAP * (gridCols() - 1)) / gridCols()) : 0;
+
+    // previews use the app theme for a cohesive set; the artifact's own theme is shown as metadata
+    const appTk = (): ReturnType<typeof resolveTheme>["tokens"] => resolveTheme(appTheme()).tokens;
+    // opens in the artifact's saved theme; the editor offers "switch to app theme"
+    const open = (id: string): void => navigate(`/edit/${id}`);
+    // shift, or a selection already open, turns a click into a pick rather than a navigation
+    const pickOrOpen = (id: string, e: MouseEvent): void => {
+        if (e.shiftKey || selectMode()) {
+            e.preventDefault();
+            toggleSelect(id);
+            return;
+        }
+        open(id);
+    };
+
+    const startDrag = (e: DragEvent, id: string, img?: string): void => {
+        setDraggingArtifact(id);
+        if (!e.dataTransfer) return;
+        e.dataTransfer.effectAllowed = "move";
+        // preview sits above the cursor (the spacer keeps the hotspot in-bounds) so the targeted
+        // folder row stays visible
+        const W = 200;
+        const H = 126;
+        const GAP = 18;
+        const ghost = document.createElement("div");
+        ghost.style.cssText = `position:fixed;left:-9999px;top:0;width:${W}px;height:${H + GAP}px;pointer-events:none;`;
+        const card = document.createElement("div");
+        card.style.cssText =
+            `width:${W}px;height:${H}px;border-radius:10px;overflow:hidden;` +
+            `border:1px solid ${appTk().line};background-color:${appTk().bg};` +
+            `background-image:${img ? `url(${img})` : `linear-gradient(150deg, ${appTk().surface}, ${appTk().bg})`};` +
+            `background-size:cover;background-position:center;`;
+        ghost.appendChild(card);
+        document.body.appendChild(ghost);
+        e.dataTransfer.setDragImage(ghost, W / 2, H + GAP);
+        window.setTimeout(() => ghost.remove(), 0);
+    };
+
+    // "Aa" specimen in the artifact's saved theme, not the app theme
+    const ThemeMark: Component<{ themeId: string; size?: number }> = (p) => {
+        const tk = (): ReturnType<typeof resolveTheme>["tokens"] => resolveTheme(p.themeId).tokens;
+        const s = (): number => p.size ?? 36;
+        return (
+            <span
+                class="grid flex-none place-items-center"
+                style={{
+                    width: `${s()}px`,
+                    height: `${s()}px`,
+                    background: tk().surface,
+                    "font-family": fontStack("display", tk()),
+                    "font-weight": `${tk().headingWeight}`,
+                    "border-radius": `${Math.min(10, tk().radius)}px`,
+                    "box-shadow": `inset 0 0 0 1px ${tk().line}`,
+                }}
+                title={`${resolveTheme(p.themeId).name} theme`}
+            >
+                <span
+                    class="leading-none"
+                    style={{ color: tk().ink, "font-size": `${Math.round(s() * 0.39)}px` }}
+                >
+                    A<span style={{ color: tk().accent }}>a</span>
+                </span>
+            </span>
+        );
+    };
+
+    const SelectMark: Component<{ id: string; class?: string }> = (p) => (
+        <button
+            class={`z-panel grid ${overMediaHit()} place-items-center rounded-md transition-colors ${
+                isSelected(p.id)
+                    ? "bg-accent text-onaccent" // selection is state, so it stays fully opaque
+                    : `${OVER_MEDIA} ${
+                          // without a hover to reveal it the glyph never appears, leaving a blank tile
+                          isCoarsePointer() ? "text-white/85" : "text-transparent hover:text-white"
+                      }`
+            } ${p.class ?? ""}`}
+            title={isSelected(p.id) ? "Deselect" : "Select"}
+            onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                toggleSelect(p.id);
+            }}
+        >
+            <CheckIcon size={14} />
+        </button>
+    );
+
+    const ArtifactMenu: Component<{ d: ArtifactSummary; class?: string }> = (p) => (
+        <Menu
+            align="end"
+            width={224}
+            trigger={(m) => (
+                <IconButton
+                    ref={m.ref}
+                    size={isCoarsePointer() ? "touch" : "md"}
+                    rounded="md"
+                    // onDark, not muted: muted carries hover:bg-canvas, which would fight the scrim
+                    // at equal specificity and win or lose on stylesheet order rather than intent
+                    tone="onDark"
+                    class={p.class}
+                    title="Move to folder"
+                    onClick={m.toggle}
+                >
+                    <MoreIcon size={16} />
+                </IconButton>
+            )}
+        >
+            <MenuItem
+                icon={<DuplicateIcon size={15} />}
+                onClick={() => setConfirm({ kind: "duplicate", doc: p.d })}
+            >
+                Duplicate
+            </MenuItem>
+            <MenuSeparator />
+            <MenuLabel>Move to</MenuLabel>
+            <Show when={p.d.folderId}>
+                <MenuItem onClick={() => moveArtifact(p.d.id, null)}>↑ Remove from folder</MenuItem>
+            </Show>
+            <div class="max-h-56 overflow-y-auto">
+                <For
+                    each={folders()}
+                    fallback={<p class="px-2.5 py-1.5 text-[12px] text-muted">No folders yet.</p>}
+                >
+                    {(f) => (
+                        <MenuItem
+                            icon={<FolderIcon size={14} />}
+                            selected={f.id === p.d.folderId}
+                            onClick={() => moveArtifact(p.d.id, f.id)}
+                        >
+                            {f.name}
+                        </MenuItem>
+                    )}
+                </For>
+            </div>
+            <MenuSeparator />
+            <MenuItem
+                tone="danger"
+                icon={<TrashIcon size={15} />}
+                onClick={() => setConfirm({ kind: "delete", doc: p.d })}
+            >
+                Delete
+            </MenuItem>
+        </Menu>
+    );
+
+    const CoverFill: Component<{ img?: string }> = (p) => (
+        <Show
+            when={p.img}
+            fallback={
+                <div
+                    class="absolute inset-0 grid place-items-center"
+                    style={{
+                        background: `linear-gradient(150deg, ${appTk().surface}, ${appTk().bg})`,
+                    }}
+                >
+                    <span
+                        class="h-8 w-8 rounded-xl"
+                        style={{ background: appTk().accent, opacity: "0.9" }}
+                    />
+                </div>
+            }
+        >
+            {(src) => (
+                <div
+                    class="absolute inset-0"
+                    style={{
+                        "background-image": `url(${src()})`,
+                        "background-size": "cover",
+                        "background-position": "center",
+                    }}
+                />
+            )}
+        </Show>
+    );
+
+    const tileId = (s: SectionSummary, i: number): string => s.id ?? `s${i}`;
+
     const Band: Component<{ d: ArtifactSummary }> = (p) => {
-        const tk = (): ReturnType<typeof resolveTheme>["tokens"] =>
-            resolveTheme(p.d.themeId).tokens;
-        // previews use the app theme for a cohesive set; saved theme shown as metadata
-        const appTk = (): ReturnType<typeof resolveTheme>["tokens"] =>
-            resolveTheme(appTheme()).tokens;
-        const cv = (): NonNullable<ArtifactSummary["cover"]> => p.d.cover ?? {};
-        const img = (): string | undefined => cv().image;
+        const img = (): string | undefined => p.d.cover?.image;
         // the digest names every section, so the strip is its full length from the first frame
         const secs = (): SectionSummary[] => p.d.sections ?? [];
-        const tileId = (s: SectionSummary, i: number): string => s.id ?? `s${i}`;
-        // opens in the artifact's saved theme; the editor offers "switch to app theme"
-        const open = (): void => navigate(`/edit/${p.d.id}`);
         const [hovered, setHovered] = createSignal(false);
 
         // Each tile reports its own visibility, so what loads is what the viewer can actually see:
@@ -376,14 +577,7 @@ export const LibraryView: Component = () => {
             observer.disconnect();
             window.clearTimeout(settle);
         });
-        const onCardClick = (e: MouseEvent): void => {
-            if (e.shiftKey || selectMode()) {
-                e.preventDefault();
-                toggleSelect(p.d.id);
-                return;
-            }
-            open();
-        };
+        const onCardClick = (e: MouseEvent): void => pickOrOpen(p.d.id, e);
         // stacked: children stretch, else the text column sizes to the strip's max-content
         return (
             <section
@@ -401,29 +595,9 @@ export const LibraryView: Component = () => {
                             "box-shadow": "var(--shadow)",
                             "border-radius": "var(--radius)",
                         }}
+                        title={p.d.title}
                         draggable={true}
-                        onDragStart={(e) => {
-                            setDraggingArtifact(p.d.id);
-                            if (!e.dataTransfer) return;
-                            e.dataTransfer.effectAllowed = "move";
-                            // preview sits above the cursor (the spacer keeps the hotspot
-                            // in-bounds) so the targeted folder row stays visible
-                            const W = 200;
-                            const H = 126;
-                            const GAP = 18;
-                            const ghost = document.createElement("div");
-                            ghost.style.cssText = `position:fixed;left:-9999px;top:0;width:${W}px;height:${H + GAP}px;pointer-events:none;`;
-                            const card = document.createElement("div");
-                            card.style.cssText =
-                                `width:${W}px;height:${H}px;border-radius:10px;overflow:hidden;` +
-                                `border:1px solid ${appTk().line};background-color:${appTk().bg};` +
-                                `background-image:${img() ? `url(${img()})` : `linear-gradient(150deg, ${appTk().surface}, ${appTk().bg})`};` +
-                                `background-size:cover;background-position:center;`;
-                            ghost.appendChild(card);
-                            document.body.appendChild(ghost);
-                            e.dataTransfer.setDragImage(ghost, W / 2, H + GAP);
-                            window.setTimeout(() => ghost.remove(), 0);
-                        }}
+                        onDragStart={(e) => startDrag(e, p.d.id, img())}
                         onDragEnd={() => setDraggingArtifact(null)}
                         onClick={onCardClick}
                     >
@@ -433,69 +607,16 @@ export const LibraryView: Component = () => {
                                 style={{ "border-radius": "var(--radius)" }}
                             />
                         </Show>
-                        <Show
-                            when={img()}
-                            fallback={
-                                <div
-                                    class="absolute inset-0 grid place-items-center"
-                                    style={{
-                                        background: `linear-gradient(150deg, ${appTk().surface}, ${appTk().bg})`,
-                                    }}
-                                >
-                                    <span
-                                        class="h-8 w-8 rounded-xl"
-                                        style={{ background: appTk().accent, opacity: "0.9" }}
-                                    />
-                                </div>
-                            }
-                        >
-                            <div
-                                class="absolute inset-0"
-                                style={{
-                                    "background-image": `url(${img()})`,
-                                    "background-size": "cover",
-                                    "background-position": "center",
-                                }}
-                            />
-                        </Show>
+                        <CoverFill img={img()} />
                     </button>
                     <Show when={hovered() || selectMode()}>
-                        <button
-                            class={`absolute left-2 top-2 z-panel grid h-6 w-6 place-items-center rounded-md border transition-colors ${
-                                isSelected(p.d.id)
-                                    ? "border-accent bg-accent text-onaccent"
-                                    : "border-line bg-panel/90 text-transparent hover:border-accent hover:text-soft"
-                            }`}
-                            title={isSelected(p.d.id) ? "Deselect" : "Select"}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                toggleSelect(p.d.id);
-                            }}
-                        >
-                            <CheckIcon size={14} />
-                        </button>
+                        <SelectMark id={p.d.id} class="absolute left-2 top-2" />
                     </Show>
                 </div>
 
                 <div class="flex min-w-0 flex-1 flex-col gap-3.5">
                     <div class="flex items-center gap-3">
-                        {/* "Aa" specimen in the artifact's saved theme, not the app theme */}
-                        <span
-                            class="grid h-9 w-9 flex-none place-items-center"
-                            style={{
-                                background: tk().surface,
-                                "font-family": fontStack("display", tk()),
-                                "font-weight": `${tk().headingWeight}`,
-                                "border-radius": `${Math.min(10, tk().radius)}px`,
-                                "box-shadow": `inset 0 0 0 1px ${tk().line}`,
-                            }}
-                            title={`${resolveTheme(p.d.themeId).name} theme`}
-                        >
-                            <span class="text-[14px] leading-none" style={{ color: tk().ink }}>
-                                A<span style={{ color: tk().accent }}>a</span>
-                            </span>
-                        </span>
+                        <ThemeMark themeId={p.d.themeId} />
                         <div class="min-w-0">
                             <div class="truncate text-[16px] font-semibold text-ink">
                                 {p.d.title}
@@ -521,66 +642,13 @@ export const LibraryView: Component = () => {
                             </div>
                         </div>
                         <div class="ml-auto flex-none">
-                            <Menu
-                                align="end"
-                                width={224}
-                                trigger={(m) => (
-                                    <IconButton
-                                        ref={m.ref}
-                                        size="md"
-                                        rounded="md"
-                                        tone="muted"
-                                        title="Move to folder"
-                                        onClick={m.toggle}
-                                    >
-                                        <MoreIcon size={16} />
-                                    </IconButton>
-                                )}
-                            >
-                                <MenuItem
-                                    icon={<DuplicateIcon size={15} />}
-                                    onClick={() => setConfirm({ kind: "duplicate", doc: p.d })}
-                                >
-                                    Duplicate
-                                </MenuItem>
-                                <MenuSeparator />
-                                <MenuLabel>Move to</MenuLabel>
-                                <Show when={p.d.folderId}>
-                                    <MenuItem onClick={() => moveArtifact(p.d.id, null)}>
-                                        ↑ Remove from folder
-                                    </MenuItem>
-                                </Show>
-                                <div class="max-h-56 overflow-y-auto">
-                                    <For
-                                        each={folders()}
-                                        fallback={
-                                            <p class="px-2.5 py-1.5 text-[12px] text-muted">
-                                                No folders yet.
-                                            </p>
-                                        }
-                                    >
-                                        {(f) => (
-                                            <MenuItem
-                                                icon={<FolderIcon size={14} />}
-                                                selected={f.id === p.d.folderId}
-                                                onClick={() => moveArtifact(p.d.id, f.id)}
-                                            >
-                                                {f.name}
-                                            </MenuItem>
-                                        )}
-                                    </For>
-                                </div>
-                                <MenuSeparator />
-                                <MenuItem
-                                    tone="danger"
-                                    icon={<TrashIcon size={15} />}
-                                    onClick={() => setConfirm({ kind: "delete", doc: p.d })}
-                                >
-                                    Delete
-                                </MenuItem>
-                            </Menu>
+                            <ArtifactMenu d={p.d} />
                         </div>
-                        <Button variant="link" class="flex-none text-[11.5px]" onClick={open}>
+                        <Button
+                            variant="link"
+                            class="flex-none text-[11.5px]"
+                            onClick={() => open(p.d.id)}
+                        >
                             Open →
                         </Button>
                     </div>
@@ -608,6 +676,179 @@ export const LibraryView: Component = () => {
                     </div>
                 </div>
             </section>
+        );
+    };
+
+    // The grid's card: the artifact's cover, and a carousel over its sections behind the arrows.
+    // Index -1 is the cover; 0.. walk the sections, painted by the same MiniCanvas the list's strip
+    // uses, so a tile in either layout is the same render.
+    const Card: Component<{ d: ArtifactSummary; width: number }> = (p) => {
+        const img = (): string | undefined => p.d.cover?.image;
+        const secs = (): SectionSummary[] => p.d.sections ?? [];
+        // an artifact with no cover image opens on its first section rather than on a blank gradient
+        const firstIdx = (): number => (img() ? -1 : 0);
+        const [idx, setIdx] = createSignal(firstIdx());
+        const [near, setNear] = createSignal(false);
+        const mediaH = (): number => Math.round(p.width / CARD_ASPECT);
+        const at = (): SectionSummary | undefined => (idx() >= 0 ? secs()[idx()] : undefined);
+        const summaryId = (): string | undefined => {
+            const s = at();
+            return s ? tileId(s, idx()) : undefined;
+        };
+        // the loaded section, or a stand-in the summary is painted into until it arrives
+        const shown = createMemo((): Section | undefined => {
+            const id = summaryId();
+            if (!id) return undefined;
+            return cardSection(p.d.id, id) ?? { id, root: emptyRegion() };
+        });
+        const ghost = (): SectionSummary | undefined => {
+            const id = summaryId();
+            return id && !cardSection(p.d.id, id) ? at() : undefined;
+        };
+        // fit the section's frame inside the card's window: a 16:9 deck fills it, anything else
+        // letterboxes against the backdrop rather than being cropped
+        const canvasW = (): number => {
+            const sec = shown();
+            if (!sec) return p.width;
+            const fr = sectionFrame(sec, profileFor({ format: p.d.formatId, page: p.d.page }));
+            return Math.max(1, Math.min(p.width, Math.round((mediaH() * fr.w) / fr.h)));
+        };
+
+        // the card asks for what it shows plus the next one, so an arrow click paints immediately
+        let root!: HTMLElement;
+        onMount(() => {
+            const io = new IntersectionObserver(
+                (es) => {
+                    if (!es.some((e) => e.isIntersecting)) return;
+                    setNear(true);
+                    io.disconnect();
+                },
+                { rootMargin: TILE_LEAD },
+            );
+            io.observe(root);
+            onCleanup(() => io.disconnect());
+        });
+        createEffect(() => {
+            if (!near()) return;
+            const list = secs();
+            const want = [idx(), idx() + 1]
+                .filter((i) => i >= 0 && i < list.length)
+                .map((i) => tileId(list[i]!, i));
+            if (want.length) void ensureCardSections(p.d.id, want);
+        });
+
+        // a coarse pointer has no hover, so the chrome stays out
+        // focus-visible, not focus-within: a mouse click leaves focus on the arrow, which would
+        // otherwise pin the chrome open after the pointer has left
+        const chrome = (): string =>
+            isCoarsePointer()
+                ? "opacity-100"
+                : "opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100";
+        const step = (e: MouseEvent, d: number): void => {
+            e.stopPropagation();
+            e.preventDefault();
+            setIdx((v) => Math.min(secs().length - 1, Math.max(firstIdx(), v + d)));
+        };
+
+        return (
+            <div
+                ref={(el) => (root = el)}
+                class={`flex flex-col overflow-hidden rounded-xl border bg-panel transition-colors ${
+                    isSelected(p.d.id) ? "border-accent bg-accent/5" : "border-line"
+                }`}
+            >
+                <div class="group relative" style={{ height: `${mediaH()}px` }}>
+                    <button
+                        class="absolute inset-0 block w-full overflow-hidden"
+                        style={{ background: appTk().bg }}
+                        title={p.d.title}
+                        draggable={true}
+                        onDragStart={(e) => startDrag(e, p.d.id, img())}
+                        onDragEnd={() => setDraggingArtifact(null)}
+                        onClick={(e) => pickOrOpen(p.d.id, e)}
+                    >
+                        <Show when={shown()} fallback={<CoverFill img={img()} />}>
+                            {(sec) => (
+                                <span class="absolute inset-0 grid place-items-center">
+                                    <MiniCanvas
+                                        section={sec()}
+                                        ghost={ghost()}
+                                        themeId={appTheme()}
+                                        formatId={p.d.formatId}
+                                        page={p.d.page}
+                                        width={canvasW()}
+                                        lazy
+                                    />
+                                </span>
+                            )}
+                        </Show>
+                    </button>
+                    <Show when={secs().length}>
+                        <div
+                            class={`pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-between px-1.5 ${chrome()}`}
+                        >
+                            <button
+                                class={navCls()}
+                                title="Previous section"
+                                disabled={idx() <= firstIdx()}
+                                onClick={(e) => step(e, -1)}
+                            >
+                                <ChevronLeftIcon size={14} />
+                            </button>
+                            <button
+                                class={navCls()}
+                                title="Next section"
+                                disabled={idx() >= secs().length - 1}
+                                onClick={(e) => step(e, 1)}
+                            >
+                                <ChevronRightIcon size={14} />
+                            </button>
+                        </div>
+                        <span
+                            class={`pointer-events-none absolute bottom-1.5 right-1.5 rounded-md px-1.5 py-0.5 font-mono text-[9.5px] font-semibold ${OVER_MEDIA} ${chrome()}`}
+                        >
+                            {idx() < 0 ? "Cover" : `${idx() + 1}/${secs().length}`}
+                        </span>
+                    </Show>
+                    <SelectMark
+                        id={p.d.id}
+                        class={`absolute left-2 top-2 ${selectMode() ? "" : chrome()}`}
+                    />
+                    {/* the actions sit over the preview, so the footer keeps its full width */}
+                    <ArtifactMenu
+                        d={p.d}
+                        class={`absolute right-2 top-2 ${OVER_MEDIA} ${chrome()}`}
+                    />
+                </div>
+
+                <div class="flex items-center gap-2.5 p-3">
+                    <ThemeMark themeId={p.d.themeId} size={30} />
+                    <div class="min-w-0 flex-1">
+                        <div
+                            class="truncate text-[13.5px] font-semibold text-ink"
+                            title={p.d.title}
+                        >
+                            {p.d.title}
+                        </div>
+                        <div class="mt-0.5 flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-[10.5px] text-muted">
+                            <span class="font-mono text-[9px] font-bold uppercase tracking-[0.06em] text-accent">
+                                {formatLabel(p.d.formatId)}
+                            </span>
+                            <span>·</span>
+                            <span>{secs().length} sections</span>
+                            <span>·</span>
+                            <span>{relativeTime(p.d.updatedAt)}</span>
+                        </div>
+                        <Show when={limitedAccess(p.d.access)}>
+                            {(label) => (
+                                <div class="mt-0.5 text-[10.5px] font-semibold text-soft">
+                                    {label()}
+                                </div>
+                            )}
+                        </Show>
+                    </div>
+                </div>
+            </div>
         );
     };
 
@@ -642,9 +883,15 @@ export const LibraryView: Component = () => {
                             </div>
                         </div>
                         <div class="flex items-center gap-2">
+                            <Segmented
+                                size="md"
+                                value={libraryLayout()}
+                                options={LAYOUTS}
+                                onChange={(v) => setLibraryLayout(v === "grid" ? "grid" : "list")}
+                            />
                             <TextField
                                 icon="search"
-                                class="w-56"
+                                class={`w-56 ${CONTROL_H}`}
                                 placeholder="Search artifacts…"
                                 value={query()}
                                 onChange={(v) => setSearch(v)}
@@ -664,12 +911,12 @@ export const LibraryView: Component = () => {
                             />
                             <Show when={!query().trim()}>
                                 <button
-                                    class="rounded-lg border border-line bg-panel px-3 py-2 text-[12.5px] font-medium text-soft hover:text-ink"
+                                    class={`flex items-center gap-0.75 rounded-lg border border-line bg-panel px-3 text-[12.5px] font-medium text-soft hover:text-ink ${CONTROL_H}`}
                                     onClick={() =>
                                         setSort((s) => (s === "recent" ? "az" : "recent"))
                                     }
                                 >
-                                    Sort:{" "}
+                                    Sort:
                                     <span class="text-ink">
                                         {sort() === "recent" ? "Recent" : "A–Z"}
                                     </span>
@@ -742,7 +989,27 @@ export const LibraryView: Component = () => {
                             </Show>
                         }
                     >
-                        <For each={shown()}>{(d) => <Band d={d} />}</For>
+                        <Show
+                            when={libraryLayout() === "grid"}
+                            fallback={<For each={shown()}>{(d) => <Band d={d} />}</For>}
+                        >
+                            <div class="px-5 py-6 md:px-9">
+                                <div
+                                    ref={(el) => measureGrid(el)}
+                                    class="grid"
+                                    style={{
+                                        gap: `${GRID_GAP}px`,
+                                        "grid-template-columns": `repeat(${gridCols()}, minmax(0, 1fr))`,
+                                    }}
+                                >
+                                    <Show when={cardW()}>
+                                        <For each={shown()}>
+                                            {(d) => <Card d={d} width={cardW()} />}
+                                        </For>
+                                    </Show>
+                                </div>
+                            </div>
+                        </Show>
                         {/* sentinel: crossing it requests the next page */}
                         <Show when={!exhausted()}>
                             <div

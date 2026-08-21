@@ -3,6 +3,10 @@ import { FORMATS } from "./formats";
 import { For, Show, splitProps } from "solid-js";
 import { Icon } from "./icons";
 
+// One height for a row of controls (field · button · switcher), which padding alone cannot hold to:
+// an input, a text button and an icon button each resolve their content box differently.
+export const CONTROL_H = "h-8.5";
+
 export const inputCls =
     "w-full rounded-md border border-line bg-canvas px-2 py-1.5 text-[13px] text-ink outline-none focus:border-accent";
 
@@ -194,34 +198,44 @@ export const Slider: Component<{
     </div>
 );
 
+// "md" is CONTROL_H tall, so the switcher lines up with a field or button standing beside it
+const SEG_PAD: Record<"sm" | "md", [string, string]> = {
+    sm: ["p-0.5", "px-2 py-1"],
+    md: [`${CONTROL_H} p-1`, "px-2.5"],
+};
+
 export const Segmented: Component<{
     value: string;
     options: { label: string; value: string; icon?: string }[];
     variant?: "subtle" | "accent";
+    size?: "sm" | "md";
     onChange: (v: string) => void;
-}> = (props) => (
-    <div class="flex gap-1 rounded-lg border border-line bg-canvas p-0.5">
-        <For each={props.options}>
-            {(o) => (
-                <button
-                    title={o.label}
-                    class={`flex flex-1 items-center justify-center truncate rounded-md px-2 py-1 text-[12px] transition-colors ${
-                        props.value === o.value
-                            ? props.variant === "accent"
-                                ? "bg-accent font-semibold text-onaccent"
-                                : "bg-panel font-semibold text-ink shadow-sm"
-                            : "text-soft hover:text-ink"
-                    }`}
-                    onClick={() => props.onChange(o.value)}
-                >
-                    <Show when={o.icon} fallback={o.label}>
-                        <Icon name={o.icon!} size={15} />
-                    </Show>
-                </button>
-            )}
-        </For>
-    </div>
-);
+}> = (props) => {
+    const pad = (): [string, string] => SEG_PAD[props.size ?? "sm"];
+    return (
+        <div class={`flex gap-1 rounded-lg border border-line bg-canvas ${pad()[0]}`}>
+            <For each={props.options}>
+                {(o) => (
+                    <button
+                        title={o.label}
+                        class={`flex flex-1 items-center justify-center truncate rounded-md text-[12px] transition-colors ${pad()[1]} ${
+                            props.value === o.value
+                                ? props.variant === "accent"
+                                    ? "bg-accent font-semibold text-onaccent"
+                                    : "bg-panel font-semibold text-ink shadow-sm"
+                                : "text-soft hover:text-ink"
+                        }`}
+                        onClick={() => props.onChange(o.value)}
+                    >
+                        <Show when={o.icon} fallback={o.label}>
+                            <Icon name={o.icon!} size={15} />
+                        </Show>
+                    </button>
+                )}
+            </For>
+        </div>
+    );
+};
 
 export const FormatSwitcher: Component<{
     value: string;

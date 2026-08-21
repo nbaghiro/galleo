@@ -18,6 +18,7 @@ import {
     backdropCss,
     createSectionStackCache,
     paintSectionStack,
+    scaledHostCss,
     type StackWindow,
 } from "@canvas/render/backends";
 import { stackWindow, windowMoved } from "@canvas/render/window";
@@ -207,19 +208,27 @@ const DEFAULT_W = 176;
 
 export const MiniCanvas: Component<{
     section: Section;
+    ghost?: SectionSummary; // the digest's summary, painted until the section itself loads
     themeId: string;
     formatId: string;
     page?: PageSize;
     width: number; // final (scaled) width, px
+    // A continuous format has no page shape, so sectionFrame hands it the paged 16:9 fallback and
+    // every format thumbnails identically. Pass frame="natural" with that format's own layout width
+    // to get its true proportions; the caller crops to the height it wants to show.
+    frame?: "slide" | "natural";
+    layoutWidth?: number;
     lazy?: boolean; // defer paint until near view
     class?: string;
 }> = (props) => (
     <ScaledSectionCanvas
         section={props.section}
+        ghost={props.ghost}
         theme={resolveTheme(props.themeId).tokens}
         profile={profileFor({ format: props.formatId, page: props.page })}
         width={props.width}
-        frame="slide"
+        frame={props.frame ?? "slide"}
+        layoutWidth={props.layoutWidth}
         lazy={props.lazy}
         radius={0}
         class={props.class}
@@ -255,6 +264,59 @@ export const SectionThumb: Component<{
         class="flex-none"
     />
 );
+
+/**
+ * A static, scaled copy of the editor's own canvas: the section stack at natural heights over the
+ * artifact's backdrop. Paged formats keep their inter-slide gap and the backdrop shows through it,
+ * which is what makes a deck read as slides rather than as one page. The caller crops it.
+ */
+export const ArtifactPlate: Component<{
+    content: ArtifactContent;
+    themeId: string;
+    width: number; // drawn width, px
+    layoutWidth: number; // the format's own layout width, so wraps match the real thing
+    depth?: number; // sections painted before the crop takes over
+    // drawn px of head margin, so the first section clears the card edge the way it clears the
+    // editor's own top padding; the backdrop still fills the card behind it
+    padTop?: number;
+}> = (props) => {
+    let host!: HTMLDivElement;
+    let inner!: HTMLDivElement;
+
+    createEffect(() => {
+        const tk = resolveTheme(props.themeId).tokens;
+        const profile = profileFor(props.content);
+        const sections = props.content.sections.slice(0, props.depth ?? 6);
+        // paint first: the stack painter lays out and paints in one pass, and its layers are
+        // absolutely positioned, so scaling the host afterwards is safe
+        const { height } = paintSectionStack(inner, sections, profile, tk, {
+            fullW: props.layoutWidth,
+            cache: createSectionStackCache(),
+        });
+        inner.style.cssText = scaledHostCss(
+            props.layoutWidth,
+            height,
+            props.width / props.layoutWidth,
+        );
+        host.style.background = backdropCss(props.content.background, tk);
+        host.style.backgroundSize = "cover";
+        host.style.backgroundPosition = "center";
+    });
+
+    // The backdrop fills the host edge to edge and the stack sits centred on it at its own layout
+    // width, which is exactly how the editor canvas reads: a narrow doc column shows more backdrop
+    // either side than a full-bleed site does, and that difference IS the format's proportion.
+    return (
+        <div ref={host} class="relative h-full w-full overflow-hidden">
+            <div
+                class="mx-auto"
+                style={{ width: `${props.width}px`, "padding-top": `${props.padTop ?? 0}px` }}
+            >
+                <div ref={inner} />
+            </div>
+        </div>
+    );
+};
 
 // uses natural section heights (not the 16:9 slide frame) so backgrounds show fully
 const PAD = 28;
