@@ -34,18 +34,33 @@ test("a created artifact appears, opens, trashes, and restores", async ({ page }
 // The grid is the default and draws the same rows as cards, so what it has to prove is the part the
 // list has no equivalent for: the carousel reaches the sections. The switch and its memory follow.
 test("the grid layout carries a section carousel and remembers the switch", async ({ page }) => {
+    // Its own multi-section artifact rather than whichever seeded card sorts first: a one-section
+    // card disables its arrows, and a disabled arrow is pointer-events-none, so the hover never lands.
+    const id = await makeArtifact(page.request, "Carousel fixture doc", [
+        sec("s1", colOf([txt("Carousel page one")])),
+        sec("s2", colOf([txt("Carousel page two")])),
+        sec("s3", colOf([txt("Carousel page three")])),
+    ]);
     await page.goto("/");
     await expect(page.locator("main section")).toHaveCount(0);
 
-    const next = page.getByTitle("Next section").first();
-    await next.hover();
+    // the title button's parent is the media box, which also holds the nav arrows and the counter
+    const media = page.getByTitle("Carousel fixture doc").locator("..").first();
+    await media.hover(); // the arrows are hover chrome
+    const next = media.getByTitle("Next section");
+    await expect(next).toBeEnabled();
     await next.click();
-    await expect(page.getByText(/^\d+\/\d+$/).first()).toBeVisible();
+    await expect(media.getByTestId("card-position")).toBeVisible();
 
     await page.getByTitle("List", { exact: true }).click();
     await expect(page.locator("main section").first()).toBeVisible();
     await page.reload();
     await expect(page.locator("main section").first()).toBeVisible();
+
+    // the choice persists per device, so put it back: later specs read the library in its default
+    // grid, where what is on screen (and so matchable) is not the same set of rows.
+    await page.getByTitle("Grid", { exact: true }).click();
+    await page.request.post(`/api/artifacts/${id}/trash`);
 });
 
 test("the search field finds seeded content", async ({ page }) => {
@@ -59,7 +74,9 @@ test("the command palette opens with ⌘K and searches", async ({ page }) => {
     await page.goto("/");
     await page.keyboard.press("ControlOrMeta+k");
     await page.keyboard.type("Lumen");
-    await expect(page.getByText(/Lumen/i).first()).toBeVisible();
+    // the artifacts source answers from the server, so this waits on a round trip and an FTS query
+    // over however many rows the run has accumulated, not on a local rank
+    await expect(page.getByText(/Lumen/i).first()).toBeVisible({ timeout: 15_000 });
     await page.keyboard.press("Escape");
 });
 

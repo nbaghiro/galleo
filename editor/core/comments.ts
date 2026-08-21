@@ -104,7 +104,11 @@ function ensureElementId(address: ElementAddress): Id | null {
 // that decides droppability, and for the same reason.
 const nestsParts = (inst: ElementInstance): boolean => {
     const spec = getElement(inst.type);
-    return !!spec?.container && spec.tier !== "container";
+    if (!spec?.container) return false;
+    // `container` merged group and card, so tier alone no longer separates them: a surface is what
+    // made it a card, one block that owns its children, while a bare stack is the old group.
+    if (spec.tier === "container") return !!(inst.data as { surface?: unknown }).surface;
+    return true;
 };
 
 /**

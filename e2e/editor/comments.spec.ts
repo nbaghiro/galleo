@@ -41,7 +41,9 @@ test("an element comment posts, marks the section border on hover, and reopens",
     await expect(page.getByPlaceholder("Reply")).toHaveCount(0); // the thread closed with it
     const marker = page.getByRole("button", { name: /Tighten this headline/ });
 
-    // markers are hover chrome now: with the pointer off the stack there is nothing on the canvas
+    // The marker also rides the selection chrome, so clear the selection first: what this asserts is
+    // the canvas margin, where a marker is hover chrome and nothing should remain with the pointer off.
+    await page.keyboard.press("Escape");
     await hoverStack(page, "outside");
     await expect(marker).toHaveCount(0);
 
@@ -368,8 +370,11 @@ test("no comment chip on a part of a composite, and one on the composite itself"
             colOf([
                 txt("Loose line", "h3"),
                 {
-                    type: "card",
-                    data: { children: [txt("Card headline", "h3"), txt("Card body copy")] },
+                    type: "container",
+                    data: {
+                        surface: "solid",
+                        children: [txt("Card headline", "h3"), txt("Card body copy")],
+                    },
                 },
             ]),
         ),
