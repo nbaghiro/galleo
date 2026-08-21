@@ -173,6 +173,13 @@ viewport already accounts for the strip's horizontal clipping, so one observer c
 neither needs tile geometry. Requests split into batches of 8 rather than truncating, and sections are
 held per artifact in an LRU of 30 cards, so scrolling a long library does not accumulate it.
 
+The library's grid layout, which is the default, asks for less again. A card shows the artifact's
+cover image and nothing else until someone walks it, so the only sections it fetches are the one on
+screen and the one an arrow away, and it fetches neither until the card itself has crossed into view.
+A first paint of the library therefore reads no section content at all; the list is the layout that
+pays for the strip. Both read the same per-artifact cache (`cardSections`), so switching between them
+repaints from what is already held rather than refetching.
+
 The eval list row borrows the strip's layout but not its loading. It renders `run.lead`, whole
 sections the list response already carries, so there is nothing to observe and no stand-in to paint;
 `LEAD_SECTIONS` bounds that payload rather than the layout. Both strips scroll sideways and show every

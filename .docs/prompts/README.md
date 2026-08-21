@@ -5,14 +5,13 @@ context it needs, so the intended use is to copy a whole file into a fresh sessi
 the authority on conventions; where a prompt and `AGENTS.md` disagree, `AGENTS.md` wins and the prompt is
 stale.
 
-| File                      | Feature                    | Flag              | State                                              |
-| ------------------------- | -------------------------- | ----------------- | -------------------------------------------------- |
-| `03-brand-kit.md`         | Shared workspace theme     | `workspaceThemes` | not started                                        |
-| `05-custom-domains.md`    | Custom domains             | `customDomains`   | not started; the publishing layer it sits on is in |
-| `06-public-api.md`        | Public API + API keys      | `apiAccess`       | not started                                        |
-| `07-sso.md`               | Workspace SSO              | `sso`             | partially built (Google OIDC sign-in ships)        |
-| `08-object-storage.md`    | Source files to R2 + MinIO | (infra)           | not started                                        |
-| `09-product-analytics.md` | PostHog product eventing   | (internal)        | not started                                        |
+| File                   | Feature                    | Flag              | State                                              |
+| ---------------------- | -------------------------- | ----------------- | -------------------------------------------------- |
+| `03-brand-kit.md`      | Shared workspace theme     | `workspaceThemes` | not started                                        |
+| `05-custom-domains.md` | Custom domains             | `customDomains`   | not started; the publishing layer it sits on is in |
+| `06-public-api.md`     | Public API + API keys      | `apiAccess`       | not started                                        |
+| `07-sso.md`            | Workspace SSO              | `sso`             | partially built (Google OIDC sign-in ships)        |
+| `08-object-storage.md` | Source files to R2 + MinIO | (infra)           | not started                                        |
 
 Each prompt tells its session to build the feature, gate it through the resolver in `model/billing.ts`,
 and flip `FEATURES["<flag>"].status` from `"planned"` to `"live"` once it is verified end to end. The plan
@@ -21,11 +20,6 @@ grants are already set, so that one status line is normally the only edit `model
 **Order.** These are independent of each other. `05` is the only one with a real prerequisite, public
 links, and that shipped. `08` touches the context and media storage paths and nothing else, so it runs in
 parallel with anything.
-
-**Do not confuse `09` with view analytics.** `09` is internal product instrumentation. Customer-facing
-view analytics for public links, behind the `analytics` entitlement, is built: see
-`services/core/links.ts` (`recordView`, `analyticsFor`), the gated routes in `services/api/links.ts`, and
-the panel in `app/views/SharedView.tsx`.
 
 ## Shipped, prompts removed
 
@@ -46,3 +40,7 @@ built and covered by integration tests. Recorded here so the numbering gaps do n
 - **`04-analytics.md`** (`analytics`, now `live`): the `link_views` table, `recordView` inside the public
   read, `analyticsFor`, the two gated endpoints `GET /links/:id/analytics` and
   `GET /artifacts/:id/analytics`, and the analytics panel in `app/views/SharedView.tsx`.
+- **`09-product-analytics.md`** and its spec `analytics-events.md`: internal product instrumentation,
+  built in four phases. 99 of the 101 events in that spec fire from a real call site; the two that do not,
+  and the properties that could not be filled, are listed under Planned / deferred in
+  [`../analytics.md`](../analytics.md), which is now the current-state reference.

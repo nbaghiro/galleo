@@ -88,20 +88,25 @@ gained `at`/`align` — additive and backward-compatible.)
 
 ### `inputs.tsx`
 
-| Component     | Lvl   | Props                                                       |
-| ------------- | ----- | ----------------------------------------------------------- |
-| `TextField`   | B     | `value, placeholder?, icon?, trailing?, compact?, onChange` |
-| `TextArea`    | B     | `value, placeholder?, rows?, onChange`                      |
-| `CellInput`   | B     | borderless grid-cell input                                  |
-| `Toggle`      | B     | `value, onChange`                                           |
-| `Slider`      | B     | `value, min, max, step?, unit?, onChange`                   |
-| `Segmented`   | B     | `value, options:{label,value,icon?}[], onChange`            |
-| `AlignField`  | C     | `value, onChange` (Segmented preset)                        |
-| `FieldRow`    | C     | `label?, children`                                          |
-| `Group`       | C     | `label, divider?, children`                                 |
-| `PanelHeader` | C     | `title, action?`                                            |
-| `Separator`   | C     | thin rule (`onDark?`)                                       |
-| `inputCls`    | token | —                                                           |
+| Component     | Lvl | Props                                                       |
+| ------------- | --- | ----------------------------------------------------------- |
+| `TextField`   | B   | `value, placeholder?, icon?, trailing?, compact?, onChange` |
+| `TextArea`    | B   | `value, placeholder?, rows?, onChange`                      |
+| `CellInput`   | B   | borderless grid-cell input                                  |
+| `Toggle`      | B   | `value, onChange`                                           |
+| `Slider`      | B   | `value, min, max, step?, unit?, onChange`                   |
+| `Segmented`   | B   | `value, options:{label,value,icon?}[], size?, onChange`     |
+| `AlignField`  | C   | `value, onChange` (Segmented preset)                        |
+| `FieldRow`    | C   | `label?, children`                                          |
+| `Group`       | C   | `label, divider?, children`                                 |
+| `PanelHeader` | C   | `title, action?`                                            |
+
+`inputs.tsx` also exports `CONTROL_H`, the height a row of mixed controls is held to. An input, a text
+button and an icon group each resolve their content box differently, so equal padding does not give
+equal height; the library header (switcher, search field, sort button) sets it on all three, and
+`Segmented size="md"` carries it for the switcher.
+| `Separator` | C | thin rule (`onDark?`) |
+| `inputCls` | token | — |
 
 ### `select.tsx`
 
@@ -129,6 +134,18 @@ Plus `ColorSwatch` type · `isHex()` · `textColorSwatches(t)` · `highlightSwat
 | `ConfirmModal`  | C   | `title, body, confirmLabel, onConfirm, onCancel, danger?, busy?`                                                                                                    |
 | `FloatingBar`   | C   | `tone: dark\|panel` · `anchor: bottomCenter\|free\|center` · `rounded?, shadow?, gap?` · `children`                                                                 |
 | `FloatingPanel` | C   | inline surface shell (panel sibling of `FloatingBar`) — studio asides + inline toolbar/insert popovers                                                              |
+| `OverlayOwner`  | B   | `token` · names the surface everything inside belongs to, so its popovers stay attributable once portaled                                                           |
+
+**Overlay ownership.** A `Popover` portals to `<body>`, so a menu opened inside a panel is that panel's
+sibling and no containment test can find it: a dismiss-on-outside check reads the press on its own menu
+item as outside, closes the surface, and unmounts the item before the click runs. Ownership is stamped
+rather than inferred. A dismissable surface wraps itself in `<OverlayOwner token={newOwnerToken("thread")}>`,
+every `Popover` under it writes that token onto both nodes it portals (`data-galleo-owner`, `OWNER_ATTR`),
+and `pressInside(e.composedPath(), { el, owner, opener })` in `ui/gesture.ts` counts a hit on the token as
+inside. Context rather than a prop threaded through `Menu`/`Dropdown`/`SelectField`: a nested popover is
+still rendered inside the scope, so a menu inside a dropdown inside the inspector inherits by itself.
+The scrim carries the token too, so pressing away from a dropdown dismisses the dropdown and not the
+inspector it was opened from. Consumers: the editor's right-rail flyout and all three comment panels.
 
 ### `menu.tsx`
 
@@ -254,7 +271,9 @@ splits the layout.
   and hides content under the browser toolbar. The body never scrolls, so `dvh` settles instead of
   thrashing.
 - **Gestures.** `ui/gesture.ts` holds the pure classification (`classifySwipe`, `tapZone`) with the
-  thresholds as named constants; `PresentSurface` and the editor's `Present` feed it raw pointer deltas.
+  thresholds as named constants, plus the outside-dismissal decision (`dismissalFor`) and its
+  containment half (`pressInside`, `OWNER_ATTR`, `newOwnerToken`); `PresentSurface` and the editor's
+  `Present` feed the first pair raw pointer deltas.
   Both keep the presenter convention on a fine pointer (click anywhere advances) and add swipe plus a
   leading-edge back zone on a coarse one.
 

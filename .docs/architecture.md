@@ -317,7 +317,8 @@ why the editor, present mode, publish, thumbnails, and export are pixel-identica
 > column; embeddings for the context library + conversation memory live in a `vector(768)` column in the
 > same database (the compose file runs the `pgvector/pgvector:pg16` image — plain `postgres:16` lacks the
 > extension, so recreate the container after pulling this change). Binaries (images/video/fonts) live in
-> object storage or a base64 `assets.data`; tables hold metadata + URLs. The schema is
+> object storage or a base64 `assets.data`; an adopted row instead keeps the `origin` it is served
+> from. The schema is
 > `services/db/schema.ts` (Drizzle); the content shape is `rendering.md`.
 
 ### Why PG + JSONB
@@ -356,7 +357,8 @@ embedded in the artifact's `draft_content` JSON.
 | **comments**        | comment threads on an artifact: a root plus flat replies                                                        | `workspace_id`, `artifact_id` (cascade), `section_id` (a content id, the locator), `anchor` (jsonb: element \| text), `quote`, `parent_id` (self, cascade; set = a reply), `author_id`, `body`, `resolved_at` + `resolved_by` (roots only), `updated_at`                                                                                                                                                                                                            |
 | **artifact_grants** | per-person access to one artifact, independent of workspace membership                                          | `artifact_id` (cascade), `workspace_id` (cascade), `email` + `artifact_id` (unique pair), `user_id` (null until claimed), `access` (view \| comment \| edit), `invited_by`, `token_hash` (SHA-256 only; the raw token lives in the emailed link), `accepted_at`                                                                                                                                                                                                     |
 | **themes**          | custom workspace themes (the built-in library lives in code, `@themes`)                                         | `workspace_id`, `name`, **`tokens` (jsonb)**, `mood`, `is_dark`                                                                                                                                                                                                                                                                                                                                                                                                     |
-| **assets**          | uploaded & AI media metadata (binary in object storage or `data` base64)                                        | `workspace_id`, `kind`, `source` (`upload`\|`generated`\|`stock`), `url`, `width`, `height`, `bytes`, `alt`, `meta` (jsonb), `data` (base64, stored media only), `mime`                                                                                                                                                                                                                                                                                             |
+| **assets**          | every picture and clip the workspace references; the reference is always `/api/media/asset/:id`                 | `workspace_id`, `kind`, `source` (`upload`\|`generated`\|`stock`\|`link`), `origin` (external url, null once stored), `data` (base64) + `sha256` (deduped per workspace), `mime`, `bytes` (only stored rows count against the cap), `width`, `height`, `alt`, `meta` (jsonb), `created_at`, `used_at`                                                                                                                                                               |
+| **artifact_assets** | reverse index: which assets an artifact references, replaced on every content write                             | `artifact_id`, `asset_id`                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 **Context & memory** (the pgvector substrate — see `ai.md` for the retrieval seams)
 
@@ -443,7 +445,11 @@ ones degrades rather than erroring.
 - **`format`** is a profile id (`deck`/`doc`/`web`) — the same tree renders three ways.
 - **`theme`** is either a built-in theme id or a workspace `themes.id`; the app registers custom themes
   into the `@themes` registry so `resolveTheme` finds either.
-- Images currently store a **raw URL** in `src` (stable `asset:` references are a future refinement).
+- **Every media reference is an asset.** Element `src`/`poster` and section/artifact `background.image`
+  always hold `/api/media/asset/:id`, never a foreign URL: `assetifyContent` (`services/core/media.ts`)
+  adopts anything else into the workspace's `assets` on the way in, so the library is complete by
+  construction rather than by scanning, and `artifact_assets` records which assets a tree references.
+  A platform video link (YouTube/Vimeo) stays a link, since there is no file to adopt.
 - **Live editing** writes `artifacts.draft_content` (debounced autosave, `app/stores/save.ts`);
   **published links serve that same draft live** — a `links` row grants access, it never pins a
   snapshot, so viewers always see the artifact as it is now.
@@ -780,7 +786,8 @@ Forward-looking work that's genuinely still open, grouped by area.
 rich text driving the editor directly from `@model/text` (replacing the contenteditable overlay) ·
 free-form / bento grid spanning · background jobs (no queue yet; the 8603 Redis port is reserved).
 
-**Data model.** Stable `asset:` references in element `src` (raw URLs today) · the deferred tables when
+**Data model.** Object storage for asset bytes (base64 `assets.data` today) · collecting assets no
+artifact references any more (`artifact_assets` makes them identifiable) · the deferred tables when
 their feature lands — api_keys, activity, notifications, brand kits, custom
 formats/fonts, view analytics (beyond the `link_recipients.last_viewed_at` stub), custom domains.
 

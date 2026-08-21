@@ -1,0 +1,250 @@
+# Galleo — Product analytics
+
+> The single current-state reference for internal product instrumentation: the event catalog, the two
+> wrappers, the first-party ingest proxy, the env contract, and what we deliberately do not collect.
+> Companion docs: `hosting.md` (the env table and the build-time constraint), `workspaces.md` (plans,
+> seats, the credit window), `onboarding.md` (the first-session funnel), `ai.md` (the tool catalog).
+
+## Not to be confused with view analytics
+
+Galleo has two things called analytics and they are unrelated. Customer-facing **view analytics** for
+public links is a paid feature behind the `analytics` entitlement: `services/core/links.ts`
+(`recordView`, `analyticsFor`), the two gated routes in `services/api/links.ts`, and the panel in
+`app/views/SharedView.tsx`. This document is about **product analytics**, our own instrumentation, which
+no customer sees. Nothing here changes the `link_views` table or the view counters.
+
+## Where it lives
+
+| File                          | What it is                                                           |
+| ----------------------------- | -------------------------------------------------------------------- |
+| `model/analytics.ts`          | The catalog: every event name, its property shape, traits, bucketing |
+| `ui/analytics.ts`             | The browser wrapper over `posthog-js`                                |
+| `services/utils/analytics.ts` | The server wrapper over `posthog-node`                               |
+| `services/api/ingest.ts`      | The first-party `/api/i/*` proxy to the ingest host                  |
+
+`model/analytics.ts` is the single source of truth. `Events` is an interface keyed by event name, and
+`EventName` is `keyof Events`, so an event exists exactly once and adding one is a one-line diff. Both
+wrappers type their `capture` against it, which means a call site cannot pass a name that does not exist
+or props that do not match.
+
+**The browser wrapper is in `@ui`, not in `app/`.** Both the editor and the app emit, and `editor` may
+not import `app`, so `@ui` is the lowest layer both can reach. It is the same reasoning that puts shared
+components there.
+
+**The server wrapper is in `utils/`, not in `core/`.** The two highest-value events are raised in
+`services/utils/http.ts`, and the layering law forbids `utils` from importing `core`. The wrapper touches
+no database, so it satisfies the rule that keeps `utils` unit-testable, and every layer above can reach it.
+
+## Which side emits what
+
+The rule is that the server emits what only it can know, and the client emits what only it can know.
+Where both could, the server wins, because a client can close its tab and a webhook has no client at all.
+
+**Server** (`services/utils/analytics.ts`): account lifecycle (`services/core/accounts.ts`,
+`services/api/session.ts`, `services/api/oauth.ts`), every AI action and the credit wall
+(`services/core/spend.ts`), all of billing (`services/core/billing.ts`), membership and teams
+(`services/core/workspaces.ts`, `services/api/workspace.ts`), library mutations
+(`services/api/artifacts.ts`, `services/api/folders.ts`), links and comments
+(`services/api/links.ts`, `services/core/comments.ts`), and the rate wall (`services/utils/http.ts`).
+
+**Client** (`ui/analytics.ts`): identity and grouping (`app/stores/auth.ts`, `workspace.ts`,
+`billing.ts`), the generation studio funnel (`app/stores/generate.ts`), onboarding
+(`app/stores/onboarding.ts`), editing depth (`editor/core/store.ts` and the panels), export and
+presenting (`editor/panels/ExportModal.tsx`, `editor/core/store.ts`), search
+(`app/stores/search.ts`), and the reliability events (`app/stores/errors.ts`, `save.ts`, `app/api.ts`,
+`editor/Canvas.tsx`).
+
+## The seams that make coverage automatic
+
+Four places were chosen so that new code is measured without anyone remembering to instrument it.
+
+`reserve()` in `services/core/spend.ts` wraps every metered run, free ones included, so the three
+`ai_action_*` events and `credits_exhausted` cover a tool added later the moment it runs. The charge is
+read off the settle rather than recomputed, so analytics and the ledger cannot disagree.
+
+`provisionUser` in `services/core/accounts.ts` is the only place a new account is created, so no signup
+path can miss `signed_up`.
+
+`stopEditing` in `editor/core/store.ts` is where a typing session becomes one undo entry, so
+`text_edited` is debounced per element by construction rather than by a timer.
+
+`reportError` in `app/stores/errors.ts` is the one place a failure reaches the user, so `error_shown` is
+a single call site rather than a hundred.
+
+Everything else that reports is a named function rather than an inline capture: `noteElementAdded`,
+`noteElementRemoved`, `noteElementMoved`, `noteElementResized`, `noteSectionAdded`, `noteAiAction`,
+`noteSaveState`, `reportPaywall`. A surface that gets rebuilt or moved calls the same function from its
+new home, and a surface that does not exist yet has one waiting for it.
+
+Two of those carry a guard worth knowing about. `reportPaywall` refuses to report until `/features` has
+landed, because `can()` reads false for every feature before it does, and the share modal loads its own
+features on mount: without the guard every workspace on every plan reported a `publicLinks` wall the
+first time it opened the share panel. `identifyUser` and `setWorkspace` skip a call that would repeat the
+last one, because `loadWorkspace` runs after eight different mutations and both calls are billable
+events.
+
+## Identity, in one idea
+
+There is no correlation id, no header, and no handshake between the two sides. The link is that both
+use the same value as PostHog's `distinct_id`: the `users.id` UUID from Postgres. A client event and the
+server event it triggered land on the same person because both carry the same identifier, and that is
+the whole mechanism.
+
+The browser has one extra step the server does not need. Before sign-in, `posthog-js` holds a random
+anonymous id in local storage, and with identified-only profiles those events cost us nothing and belong
+to nobody. `identify(userId)` hands PostHog the previous anonymous id alongside the real one, so that
+device's earlier activity stitches onto the person rather than being stranded. The server never has an
+anonymous id: by the time a route can emit, it has already resolved a session, so it sets the real id
+directly.
+
+`identify` therefore runs on every path that produces a user, a session restore included. That is
+deliberate. If it only ran on the login form, a returning visitor with a live cookie would look like a
+new anonymous person on every load.
+
+## Identity and grouping
+
+People are keyed by user id, never by email. `identify` runs on every path that produces a user, which
+includes a session restore, so a returning visitor is not a new anonymous person on every load.
+`reset` runs on logout, or the next person on a shared machine inherits the previous identity.
+
+Workspaces are the group, because the workspace is the billing entity and the credit pool, so almost
+every business question is really about it. Group traits are refreshed by the client on every workspace
+load, and by the Stripe webhook on a plan change, which is the one case with no client in the request.
+
+**Group analytics is a paid PostHog add-on and we are on the free tier**, so `$groups` is sent but cannot
+be aggregated yet. Every event therefore also carries a flat `workspace_id`, stamped in the server wrapper
+and registered as a client super property, which is what actually answers the per-tenant questions today.
+The `group()` and `groupIdentify()` calls stay in place, so they start working the day the add-on is
+bought, with no code change.
+
+Super properties ride every **client** event: `plan_id`, `workspace_role`, `credits_remaining`,
+`device_tier`, `app_build`. They are sticky browser state, registered once and persisted, which is a
+thing a shared Node process cannot have, so server events do not carry them. Server events carry
+`app_build` (stamped in the wrapper from `RENDER_GIT_COMMIT`) and rely on the workspace group for the
+rest: the group's own properties are queryable on any event carrying `$groups.workspace`, which is more
+reliable than a per-event copy that can go stale. Group membership on the client is sticky in the same
+way; on the server it is passed per call, for the same reason. `plan_interval` is absent because the workspace row does not store it; only the Stripe seam
+has it, and `plan_changed` and `checkout_completed` carry it explicitly.
+
+## Capture policy
+
+Autocapture and automatic pageview capture are off. The editor canvas is painted imperatively by the
+engine, so autocapture would produce a flood of anonymous div clicks that mean nothing. Session replay is
+on, but masked: `maskTextSelector: "*"` and `maskAllInputs`, so no text ever enters a recording. That
+matters because the editor paints the customer's own copy into real DOM spans
+(`canvas/render/backends.ts`), and an unmasked recording would be a video of a confidential deck. Masked,
+replay still shows layout, cursor, scroll and rage clicks, which is the part worth having, on the
+surfaces where we have drop-off events but no idea why.
+
+Recording stops entirely on the editor route (`pauseReplay` on mount, `resumeReplay` on cleanup). The
+engine repaints the whole section stack on every layout change, so the editor produces a mutation stream
+that is heavy to record and noisy to watch. Masking is the content control; the pause is the volume one.
+Note that replay only runs at all if it is enabled at the project level, since it starts from remote
+config. The publish viewer and the marketing site never initialise analytics, so a stranger reading a
+shared artifact is never recorded. Exception autocapture is off, because an exception message can carry
+the content that produced it. Person profiles are identified-only, which is a cost lever: we never query anonymous ones.
+
+The policy is exported as `CAPTURE_POLICY` in `ui/analytics.ts` rather than written inline, so a test can
+assert it. `defaults` is pinned to a dated snapshot so a new SDK default cannot switch capture on for us
+between upgrades.
+
+## The proxy
+
+Browser events go to `/api/i/*` on our own origin, which forwards to the ingest host. Galleo is
+single-origin, so these look like any other request to the app, which is what keeps them alive through the
+ad blockers a meaningful share of this audience runs. The path is deliberately not named analytics,
+tracking, or posthog. The session cookie is stripped on the way out. The caller's address is forwarded as
+`X-Forwarded-For` so the host's geo is real; without it every event would carry the server's location,
+which is worse than no location. Server-side events carry `$geoip_disable` by default, so they have no
+location at all.
+
+## Env
+
+`POSTHOG_KEY` and `POSTHOG_HOST` on the server, `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST` in the browser.
+With no key both wrappers do nothing, silently, with no network calls: dev, CI and the test suite never
+emit, and that is proven by a test rather than assumed.
+
+**`VITE_POSTHOG_KEY` is read at build time.** Vite inlines `import.meta.env.VITE_*` as a literal, so an
+unconfigured build compiles the SDK out entirely and ships zero analytics bytes, and a configured one
+loads it as a separate lazy chunk after init. Setting the key only in the runtime environment produces a
+bundle with analytics compiled out and no events, with nothing in the logs to say so. See the env table in
+`hosting.md`.
+
+## People with no account, and the one thing we cannot join
+
+Two events come from someone who has no user id. A public-link view is attributed to the view session's
+own hash, the same `sha(day|ip|ua|link)` the `link_views` row keys on, so repeat reads by one stranger
+collapse correctly while two strangers stay distinct. A rate-limit refusal is attributed to a hash of the
+limiter's bucket key. Both set `$process_person_profile: false`, so neither mints a profile, and neither
+carries the address itself: a raw IP is on the do-not-collect list.
+
+## Following one request from the browser to the server
+
+Every client call mints a `request_id` and sends it as `x-galleo-request`. A top-level middleware in
+`services/server.ts` reads it, sanitises it (an inbound header is untrusted input and it ends up in a
+property), echoes it on the response so a failure a user reports can be found in the data, and opens an
+`AsyncLocalStorage` scope for the rest of the request.
+
+The scope is what makes it free. `capture()` reads the id from the store, so a core function twelve
+frames down reports the request it is serving without anything having to thread it there, and two
+overlapping requests cannot borrow each other's id. It is the same pattern `core/ai/meter.ts` already
+uses for token spans. Both properties are covered by tests, including the concurrent case.
+
+On the browser side the id is attached to events only while an AI turn is open, set by `streamTurn` and
+cleared in its `finally`. Turns run one at a time in the studio, so that association is exact rather than
+a guess, and an unrelated event carries no id instead of a wrong one. Ordinary API calls still send the
+header, because grouping what the server did for one call is useful on its own even when no client event
+pairs with it.
+
+## What we deliberately do not collect
+
+No property carries prompt or brief text, section copy, rich-text runs, artifact titles, folder names,
+user-typed theme names, uploaded file names, extracted file contents, search queries, comment bodies,
+email addresses, display names, avatar URLs, full referrer URLs, or Stripe identifiers beyond a boolean
+that a customer exists. A reviewer should treat their appearance as a bug.
+
+Where magnitude matters, a bucket travels instead of the value: `chars_bucket` rather than a size,
+`query_length_bucket` rather than a query, `referrer_host` rather than a URL. Where the temptation is
+strongest, wanting prompt text to understand generation quality, the answer already exists: the eval
+system stores traced runs with their prompts in our own database, under the workspace that owns them.
+
+## Testing
+
+`model/__tests__/analytics.test.ts` covers the bucketing. `services/utils/__tests__/analytics.test.ts`
+proves the no-op-when-unset guarantee and asserts the real wire payload, gzip included, through a fake
+transport. `services/core/__tests__/spend-analytics.test.ts` covers the metered-run seam, including the
+failure classification. `services/api/__tests__/ingest.test.ts` pins the proxy's path rewriting and the
+fact that it strips the session cookie. `ui/__tests__/analytics.test.ts` asserts the capture policy and
+that an unconfigured client makes no network call. We do not test PostHog itself.
+
+## Planned / deferred
+
+- **Two events are not built.** `onboarding_starter_edited` needs the editor to know that the artifact it
+  holds is the onboarding starter, which nothing tracks; the server-derived "make" checklist step marks
+  the same transition and already fires as `onboarding_checklist_step_done`.
+  `onboarding_abandoned` has no definition (abandoned after how long?) and is better derived in PostHog
+  from the absence of later funnel steps than minted by a guessed timeout.
+- **Some properties are absent by necessity**, each with a comment at its declaration saying why:
+  `plan_interval` (not on the workspace row), `archetype` on `generation_section_built` (classifying a
+  section needs a real text measurer and a full layout pass), `age_days` on `artifact_opened` (not on the
+  windowed read's wire shape), `how` and `based_on_theme_id` on `custom_theme_created` (the route
+  receives tokens only), and `ms_since_signup` across onboarding (the browser never learns the signup
+  timestamp; `identify` carries `signup_at`, so it is a query-time join).
+- **`RENDER_SLOW_MS` is 120 and provisional.** It was chosen from the layout solver's own cost over the
+  135-section eval corpus (p95 0.20ms, worst case 0.98ms per section), which says only that anything two
+  orders of magnitude above that is dominated by font metrics or paint. Revisit it against real browser
+  timings, which `eval:shots` does not record today.
+- **No integration test covers the server events.** `credits_exhausted` and the webhook events need a
+  database; the unit test covers the free-tool path through `reserve`. Worth adding before the next
+  person changes `spend.ts`.
+- **Four enum values have no surface yet.** `section_added.how` never reports `"template"`, because the
+  editor has no template-insert to report from, and `element_added.how` never reports `"ai"`, because
+  element-level AI replaces rather than adds. Both go through `noteSectionAdded` / `noteElementAdded`,
+  so the surface calls one function when it exists rather than being instrumented from scratch.
+- **`tool_surface` takes the first of a tool's surfaces.** Arbitrary for a multi-surface tool, but
+  `tool_id` is the dimension that gets queried and the surface is a tiebreaker.
+- **No experiment events.** Feature-flag exposure is worth adding when we run the first onboarding
+  experiment, and not before. The flag client ships in the same package and is already initialised.
+- **Cost per outcome converts at query time.** `CREDIT_USD` in `model/credits.ts` moves when models or
+  their prices move, so a dashboard that hardcodes it will quietly drift. We send credits and convert in
+  the dashboard.

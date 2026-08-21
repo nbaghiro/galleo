@@ -280,20 +280,20 @@ side-effect-imports every element file at startup (that's when each `register(sp
 
 ### 5.2 The catalog
 
-**56 registered types, 51 palette-visible.** Hidden from the palette (`HIDDEN` in `editor/Editor.tsx`):
+**64 registered types, 60 palette-visible.** Hidden from the palette (`HIDDEN` in `editor/Editor.tsx`):
 `group`, `avatar`, and the `chart`/`diagram` elements themselves — content stores one of
 those with a `data.type`, while the per-type entries are the palette tiles. Palette rail order + labels
 (`CAT_ORDER` / `CAT_LABEL`, same file):
 
-| Rail (label)  | `category`  | Elements (tier)                                                                                                                                                                                |
-| ------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Text**      | `text`      | text (primitive, the only `richText`), bullets/callout/code/quote (smart)                                                                                                                      |
-| **Media**     | `media`     | image · gif · illustration · sticker · icon · graphic (primitive), video (interactive); _avatar (hidden)_                                                                                      |
-| **Table**     | `table`     | table · stat (smart)                                                                                                                                                                           |
-| **Composite** | `composite` | card (container), feature · profile · testimonial · pricing · cta · faq (smart); _group (hidden container)_                                                                                    |
-| **Charts**    | `chart`     | 13 smart variants: `barChart` `columnChart` `lineChart` `areaChart` `pieChart` `donutChart` `radarChart` `scatterChart` `bubbleChart` `funnelChart` `gaugeChart` `heatmapChart` `treemapChart` |
-| **Diagrams**  | `diagram`   | 10 smart variants: `processDiagram` `stepsDiagram` `cycleDiagram` `pyramidDiagram` `funnelDiagram` `timelineDiagram` `quadrantDiagram` `matrixDiagram` `hubDiagram` `orgDiagram`               |
-| **Basic**     | `basic`     | badge · button · divider · embed · gradient · shape · spacer (primitive; embed is interactive)                                                                                                 |
+| Rail (label)  | `category`  | Elements (tier)                                                                                                                                                                                                                                                                   |
+| ------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Text**      | `text`      | text (primitive, the only `richText`), bullets/callout/code/quote (smart)                                                                                                                                                                                                         |
+| **Media**     | `media`     | image · gif · illustration · sticker · icon · graphic (primitive), video (interactive); _avatar (hidden)_                                                                                                                                                                         |
+| **Table**     | `table`     | table · stat (smart)                                                                                                                                                                                                                                                              |
+| **Composite** | `composite` | card (container), feature · profile · testimonial · pricing · cta · faq · comparison (smart); _group (hidden container)_                                                                                                                                                          |
+| **Charts**    | `chart`     | 15 smart variants: `barChart` `columnChart` `lineChart` `areaChart` `pieChart` `donutChart` `radarChart` `scatterChart` `bubbleChart` `gaugeChart` `heatmapChart` `treemapChart` `waterfallChart` `packChart` `progressChart`                                                     |
+| **Diagrams**  | `diagram`   | 16 smart variants: `processDiagram` `stepsDiagram` `cycleDiagram` `pyramidDiagram` `funnelDiagram` `timelineDiagram` `quadrantDiagram` `matrixDiagram` `hubDiagram` `orgDiagram` `targetDiagram` `vennDiagram` `pictogramDiagram` `flowDiagram` `mindmapDiagram` `roadmapDiagram` |
+| **Basic**     | `basic`     | badge · button · divider · embed · gradient · shape · spacer (primitive; embed is interactive)                                                                                                                                                                                    |
 
 The taxonomy was **consolidated** from an earlier set: `data` → **Table**, `container` → **Composite**, and
 `interactive` / `branding` / `decoration` / `layout` all merged into **Basic**. (An earlier plan proposed a
@@ -634,6 +634,11 @@ Every diagram type arranges through one shared vocabulary, so styling is fixed o
   cells from content: org cells fit their longest label capped by the per-leaf share, cycle/hub cells
   tighten the ring under the geometric cap, process wraps rows from the measured longest label, and a
   value-scaled funnel band never tapers narrower than its own label (`bandGeometry`'s per-item floor).
+- **`cellChrome`/`cellHeights`** are the measuring pair the float-positioned types share: the first
+  reports what a cell spends before its text (padding, the silhouette's inset at that height, a
+  leading icon), the second what the label alone and the label-plus-detail need at the width that
+  leaves. `org`, `flow`, and `mindmap` size their uniform cells from it and hide a detail the box
+  cannot hold, which is what keeps a wrapped label inside its own node.
 - **`itemWeight` + weighted rows** (process): each row splits its width by `itemsMeta` weight with a
   per-item label floor and weight-proportional redistribution — always feasible, since every floor is
   capped at the uniform column — so the divider gesture (§6④) resizes cells without ever wrapping a
@@ -663,11 +668,21 @@ clip safety, connectors-in-gaps, badge attachment and label separation, shape pr
 containment, 3:1 label contrast, occlusion, label alignment, caption clearance. `diagram.test.ts` pins
 each type's command profile and the sizing/weight/meta behaviors.
 
-**Type catalog — built.** _Charts (13):_ bar · column · line · area · pie · donut · radar · scatter ·
-bubble · funnel · gauge · heatmap · treemap. _Diagrams (10):_ process · steps · cycle · pyramid · funnel ·
-timeline · quadrant · matrix · hub · org (org via d3-hierarchy; the seven graph/spatial types the first
-pass carried — flow, tree, mindmap, venn, target, honeycomb, roadmap — were dropped rather than ported
-when diagrams went composed, and re-enter one at a time on the composed architecture).
+**Type catalog — built.** _Charts (15):_ bar · column · line · area · pie · donut · radar · scatter ·
+bubble · gauge · heatmap · treemap · waterfall · pack · progress. `bar` is horizontal and `column`
+vertical, as everywhere else; a funnel is a diagram, since the composed one has editable labels and
+per-item styling. _Diagrams (16):_ process · steps · cycle · pyramid · funnel · timeline · quadrant ·
+matrix · hub · org · target · venn · pictogram · flow · mindmap · roadmap. The relational three carry
+their own layouts — `org` and `mindmap` over d3-hierarchy (`mindmap` splits the root's branches either
+side of centre), `flow` over a small layered pass in its own file (rank by topological sweep, order by
+barycentre, orthogonal elbows) rather than a graph-layout dependency, since a slide holds ten nodes,
+not ten thousand. `venn` is the one type that fills translucently: an overlap that cannot be seen
+through is not a Venn.
+
+**One name, one home.** A type belongs to exactly one family, guarded by a test that the two
+value-sets never intersect. The line: a **chart** is continuous geometry computed from numbers (axes,
+arcs, areas), a **diagram** is discrete labeled items in a designed composition. That is why the
+funnel, the pictogram, and the roadmap are diagrams even though each shows quantities.
 
 **Built vs deferred.** The whole `DrawContext` foundation (`path`/`measureText`/`gradient`/`shadow`), the
 d3-scale/shape/hierarchy registries, the two catalogs above, and per-item styling end-to-end (`itemsMeta`
@@ -815,13 +830,16 @@ presents, and exports at an arbitrary W×H. What is still missing before a Gamma
 **A free-form design canvas** (Gamma's "Graphic") is a different thing again: absolute placement rather
 than flow. The engine's model is deliberately flow-based, so that is a second layout mode, not a size.
 
-**Charts & diagrams breadth** — the dropped seven re-entering on the composed architecture (flow wants a
-small layered layout — elkjs was ruled out on license/async/size, dagre was removed with the first flow —
-tree/org share `layoutTree`, mindmap wants a balanced left/right split, venn an area-proportional layout);
-more chart types (sankey via d3-sankey · sunburst via d3-hierarchy · waterfall · histogram); weights on
-`steps`/`timeline` (the mechanism is per-type opt-in); **hover tooltips / click** (surfaces are static —
-needs editor-level hit-testing over the surface box); a **drift-guard script** (`pnpm check:elements`)
-generalizing the `DIAGRAM_TYPES` assertion in `diagram.test.ts` to charts + the AI catalog (§5.3).
+**Charts & diagrams breadth** — of the seven types dropped when diagrams went composed, five are back
+(flow, mindmap, venn, target, roadmap); `tree` stays folded into `org` and `honeycomb` has not earned a
+return. Still open: an area-proportional venn (the shipped one draws symmetric circles, which is what
+the presentation tools draw); sequence/UML/ERD are deliberately **out of scope**, since they are the
+diagramming tools' ground rather than a content tool's. More chart types (sankey via d3-sankey ·
+sunburst, which needs a nested chart data shape we do not have · histogram via d3-array bins); weights
+on `steps`/`timeline` (the mechanism is per-type opt-in); **hover tooltips / click** (surfaces are
+static — needs editor-level hit-testing over the surface box); a **drift-guard script**
+(`pnpm check:elements`) generalizing the `DIAGRAM_TYPES` assertion in `diagram.test.ts` to charts + the
+AI catalog (§5.3).
 
 **Rendering core** — engine-native rich text (`@model/text` is scaffolded; the editor uses a contenteditable
 overlay today); free-form / bento grid spanning; native (editable) PowerPoint charts — charts export as vector

@@ -81,28 +81,45 @@ Everything the backend reads from `process.env` (verified against `services/`). 
 Render dashboard (never in `render.yaml`, never committed). Optional keys are safe to omit — the feature
 degrades gracefully (billing/media/mail report "not configured").
 
-| Var                                                              | Req? | Secret | Source / value                                                              |
-| ---------------------------------------------------------------- | ---- | ------ | --------------------------------------------------------------------------- |
-| `NODE_ENV`                                                       | ✅   | no     | `production` — gates static serving + `secure` cookie                       |
-| `PORT`                                                           | ✅   | —      | **Injected by Render**; the server must bind it (repo change)               |
-| `DATABASE_URL`                                                   | ✅   | ✅     | Neon **direct** connection string (see pooler note below)                   |
-| `SESSION_SECRET`                                                 | ✅   | ✅     | strong random — Render `generateValue: true`, or `openssl rand -base64 32`  |
-| `APP_URL`                                                        | ✅   | no     | public origin, e.g. `https://galleo.onrender.com` (later the custom domain) |
-| `ANTHROPIC_API_KEY`                                              | ✅¹  | ✅     | console.anthropic.com — the primary AI provider                             |
-| `GOOGLE_API_KEY`                                                 | ⬜   | ✅     | Gemini text + **AI image generation** in the media picker                   |
-| `XAI_API_KEY`, `COHERE_API_KEY`                                  | ⬜   | ✅     | extra model tiers                                                           |
-| `GEMINI_IMAGE_MODEL`                                             | ⬜   | no     | override default image model                                                |
-| `UNSPLASH_ACCESS_KEY`, `PEXELS_API_KEY`, `PIXABAY_API_KEY`       | ⬜   | ✅     | stock-photo providers in the media picker                                   |
-| `RESEND_API_KEY`, `MAIL_FROM`                                    | ⬜   | ✅     | transactional email for share invites                                       |
-| `STRIPE_SECRET_KEY`                                              | ⬜²  | ✅     | live/test secret key                                                        |
-| `STRIPE_WEBHOOK_SECRET`                                          | ⬜²  | ✅     | from the webhook endpoint → `https://<origin>/api/billing/webhook`          |
-| `STRIPE_PRICE_PRO_MONTH/YEAR`, `STRIPE_PRICE_PREMIUM_MONTH/YEAR` | ⬜²  | no     | the four recurring per-seat price ids                                       |
-| `STRIPE_PORTAL_CONFIG`                                           | ⬜   | no     | Customer Portal config id (optional)                                        |
+| Var                                                              | Req? | Secret | Source / value                                                                     |
+| ---------------------------------------------------------------- | ---- | ------ | ---------------------------------------------------------------------------------- |
+| `NODE_ENV`                                                       | ✅   | no     | `production` — gates static serving + `secure` cookie                              |
+| `PORT`                                                           | ✅   | —      | **Injected by Render**; the server must bind it (repo change)                      |
+| `DATABASE_URL`                                                   | ✅   | ✅     | Neon **direct** connection string (see pooler note below)                          |
+| `SESSION_SECRET`                                                 | ✅   | ✅     | strong random — Render `generateValue: true`, or `openssl rand -base64 32`         |
+| `APP_URL`                                                        | ✅   | no     | public origin, e.g. `https://galleo.onrender.com` (later the custom domain)        |
+| `ANTHROPIC_API_KEY`                                              | ✅¹  | ✅     | console.anthropic.com — the primary AI provider                                    |
+| `GOOGLE_API_KEY`                                                 | ⬜   | ✅     | Gemini text + **AI image generation** in the media picker                          |
+| `XAI_API_KEY`, `COHERE_API_KEY`                                  | ⬜   | ✅     | extra model tiers                                                                  |
+| `GEMINI_IMAGE_MODEL`                                             | ⬜   | no     | override default image model                                                       |
+| `UNSPLASH_ACCESS_KEY`, `PEXELS_API_KEY`, `PIXABAY_API_KEY`       | ⬜   | ✅     | stock-photo providers in the media picker                                          |
+| `RESEND_API_KEY`, `MAIL_FROM`                                    | ⬜   | ✅     | transactional email for share invites                                              |
+| `STRIPE_SECRET_KEY`                                              | ⬜²  | ✅     | live/test secret key                                                               |
+| `STRIPE_WEBHOOK_SECRET`                                          | ⬜²  | ✅     | from the webhook endpoint → `https://<origin>/api/billing/webhook`                 |
+| `STRIPE_PRICE_PRO_MONTH/YEAR`, `STRIPE_PRICE_PREMIUM_MONTH/YEAR` | ⬜²  | no     | the four recurring per-seat price ids                                              |
+| `STRIPE_PORTAL_CONFIG`                                           | ⬜   | no     | Customer Portal config id (optional)                                               |
+| `POSTHOG_KEY`                                                    | ⬜³  | no     | PostHog project key (`phc_…`) — write-only, also shipped to the browser            |
+| `POSTHOG_HOST`                                                   | ⬜   | no     | ingest host; defaults to `https://us.i.posthog.com` (US Cloud, project 567553)     |
+| `VITE_POSTHOG_KEY`                                               | ⬜³  | no     | the same project key, read at build time by the browser bundle                     |
+| `VITE_POSTHOG_HOST`                                              | ⬜   | no     | the PostHog app origin for links past the proxy (default `https://us.posthog.com`) |
 
 ¹ Required for any AI feature (generation, chat, element/text edits) — the core of the product. The
 `@ai-sdk/anthropic` provider auto-reads `ANTHROPIC_API_KEY` from env. ² Stripe is **optional for the
 initial release**: without it, paid upgrades are disabled and everyone stays on Free. Wire it when you
-turn on paid plans.
+turn on paid plans. ³ Product analytics is off when the key is absent: both wrappers make no network
+calls and print nothing, which is what keeps dev, CI and the test suite silent. Events reach PostHog
+through the first-party `/api/i/*` proxy in `services/api/ingest.ts`, so no third-party origin appears in
+the browser. `VITE_APP_BUILD` is not an env var: `vite.config.ts` stamps it from `RENDER_GIT_COMMIT` or
+the local git sha.
+
+**`VITE_POSTHOG_KEY` is read at build time, not at run time.** Vite inlines `import.meta.env.VITE_*` as a
+literal, so the browser wrapper is compiled against whatever the key was when `pnpm build` ran. With it
+absent the SDK is dead code and dropped entirely, which is why an unconfigured build ships zero analytics
+bytes; with it present the SDK becomes a separate lazy chunk (~246 kB, ~80 kB gzipped) that the app chunk
+loads only after init, so the critical path is unchanged either way. On Render this means the key has to
+be set on the service **before** the build step, not just in the runtime environment: setting it only at
+run time produces a bundle with analytics compiled out and no events, with nothing in the logs to say so.
+`POSTHOG_KEY` on the server has no such constraint, since it is read from `process.env` at boot.
 
 ### Neon connection string — the pooler gotcha
 
@@ -153,7 +170,19 @@ services:
 - **Migrations on deploy:** the build command ends with `pnpm db:migrate` against `DATABASE_URL` before the new
   version takes traffic. Requires committed migrations (repo change) + `drizzle-kit`/`tsx` resolvable at
   deploy time (repo change).
-- **Data backfills on deploy: none.** `digest` + `search_text` are derived from `draft_content` at write
+- **One-off backfill, media assets.** The deploy that lands the asset invariant needs
+  `pnpm media:migrate --write` run once against production after cutover: it adopts the media urls
+  already sitting in older artifacts so they appear in the workspace library. It is not part of
+  `db:migrate`, and nothing breaks without it: those artifacts still render, and any one of them
+  heals itself the next time it is saved, since the write path adopts on the way through. Re-running
+  it is free (it reports `0 foreign urls` once there is nothing left to do).
+- **Migration window, that same deploy.** `db:migrate` finishes before cutover, so for the minute
+  between the migration and the new instance taking traffic the _old_ code is running against the
+  new schema: `assets.url` is gone and the two check constraints are live, so media writes on the
+  old instance fail for that window. Reads of already-stored media are unaffected. Deploy it when
+  the app is quiet, or split it into two deploys (additive migration first, the `url` drop and the
+  constraints second) if that window is not acceptable.
+- **Other data backfills on deploy: none.** `digest` + `search_text` are derived from `draft_content` at write
   time in `services/db/derived.ts` (ESLint blocks writing the content without them), so no row can fall out of
   sync and there is nothing for a sweep to repair. A sweep on every deploy would hide a broken write path
   rather than surface it. The one case that still needs a rewrite is a change to what `@model/artifact`

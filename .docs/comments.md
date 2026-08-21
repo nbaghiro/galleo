@@ -152,6 +152,29 @@ Placement is two functions worth knowing about. `markerX` puts a chip just outsi
 never half-hangs off. `placeMarkers` walks requests in order and pushes each one down only as far as
 `MARKER_SPACING` (32) requires, which keeps an uncrowded rail exactly where it asked to be.
 
+Two kinds of thread have no marker of their own, and each collapses into one chip in the section's
+border: the orphans, whose element is gone, and the resolved ones, which are hidden. `sectionChips`
+stacks the pair in a fixed order so they never land on each other, at a step that clears the 44px
+tap target on a hoverless tier. Which section a thread's chrome belongs to is one rule, the section
+its element sits in now or the one it was written in once that element is gone, and markers, chips
+and the reveal all key on it, which is what makes the chip that hides a resolved thread the chip
+that brings it back.
+
+## Resolving
+
+Resolving is an event rather than a state change to go looking for. The thread panel closes, the
+marker leaves the margin (resolved threads are not drawn at all until asked for), and the editor's
+transient line says so and carries a `Reopen` that puts the thread and its panel back. That line is
+the notice in `editor/core/collab.ts` (`say`, rendered by `EditorNotice` in `editor/panels/Collab.tsx`),
+which is the editor's one message surface rather than a comment-specific toast; it is not peer chrome,
+so it renders outside the `collabActive` gate.
+
+The reveal is per section and opt-in: `resolvedRevealed`/`toggleResolvedRevealed` hold the sections
+whose archive is open, and a revealed thread paints dimmed. Per section rather than per document
+because reading one section's history should not dim markers all the way down the stack. A resolved
+thread whose element is also gone joins the section's orphan stack while the archive is open, so the
+two chips together always reach everything.
+
 ## The client
 
 `app/stores/comments.ts` is the wire half. Mutations refetch the list rather than patching it in
@@ -166,19 +189,33 @@ Creating a comment flushes autosave first. A brand-new section exists only in th
 autosave lands, and the server refuses a comment on a section id its digest has never seen, so the
 checkpoint has to run before the post.
 
+## The panels and what dismisses them
+
+The thread panel, the composer and the orphan popover all close on Esc or a pointerdown that is not
+theirs. Nothing is swallowed: there is no backdrop and nothing is stopped, so the same press still
+selects an element or presses a button, and pressing a different marker still closes the panel that
+is open. What counts as "theirs" is `pressInside` from `@ui/gesture`: the panel element, the marker
+that opened it (a selector, since the marker is rendered elsewhere), and anything a `Popover` under
+the panel portalled away carrying the panel's owner token. That last part is load-bearing. The
+overflow menu holding `Delete thread` portals to `<body>`, so without it the press on the menu item
+read as outside, the panel closed on pointerdown, and the item left the DOM before the click could
+run: the action silently did nothing. See `.docs/frontend.md` for the ownership mechanism.
+
 ## Testing
 
-Six unit and integration suites totalling 97 assertions, plus eight browser flows:
+Six unit and integration suites of its own totalling 104 assertions, the shared dismissal test one
+layer down, and twelve browser flows:
 
-| Suite                                             | Covers                                                                                                     |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `model/__tests__/comments.test.ts`                | Thread grouping, anchor validation, `anchorStateOf` and degradation                                        |
-| `editor/core/__tests__/comment-anchors.test.ts`   | Capture, id minting, `commentableAt`, mark ranges                                                          |
-| `editor/core/__tests__/comment-layout.test.ts`    | `markerX` clamping, `placeMarkers` spacing, reveal rules                                                   |
-| `app/stores/__tests__/comments.test.ts`           | Refetch-on-mutate, the autosave checkpoint, polling                                                        |
-| `services/api/__tests__/comments.itest.ts`        | The six routes, the three 409s, tenant scoping                                                             |
-| `services/api/__tests__/comment-anchors.itest.ts` | Anchor round-trips and per-reader `mine`/`canDelete`                                                       |
-| `e2e/editor/comments.spec.ts`                     | Eight browser flows, including a document written before element ids and threads collecting after a delete |
+| Suite                                             | Covers                                                                                               |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `model/__tests__/comments.test.ts`                | Thread grouping, anchor validation, `anchorStateOf` and degradation                                  |
+| `editor/core/__tests__/comment-anchors.test.ts`   | Capture, id minting, `commentableAt`, mark ranges                                                    |
+| `editor/core/__tests__/comment-layout.test.ts`    | `markerX` clamping, `placeMarkers` spacing, `sectionChips` stacking, hover + resolved reveal rules   |
+| `app/stores/__tests__/comments.test.ts`           | Refetch-on-mutate, the autosave checkpoint, polling                                                  |
+| `services/api/__tests__/comments.itest.ts`        | The six routes, the three 409s, tenant scoping                                                       |
+| `services/api/__tests__/comment-anchors.itest.ts` | Anchor round-trips and per-reader `mine`/`canDelete`                                                 |
+| `e2e/editor/comments.spec.ts`                     | Twelve browser flows, including resolve-then-reveal, delete through the portaled menu, and dismissal |
+| `ui/__tests__/gesture.test.ts`                    | `pressInside`: the surface, its opener, a portaled node it owns, and another surface's               |
 
 ## Planned / deferred
 

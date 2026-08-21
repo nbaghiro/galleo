@@ -26,6 +26,8 @@ with high-fidelity export. Net-new, TypeScript.
 - `.docs/e2e.md` — the Playwright browser suite as built: fixtures, seeded state, what each spec covers.
 - `.docs/hosting.md` — how Galleo ships: Render + Neon, the single-origin topology, the env contract,
   the deploy pipeline.
+- `.docs/analytics.md` — product analytics: the event catalog, the two wrappers, the ingest proxy,
+  identity + request correlation, the capture policy, and what never leaves the system.
 - `.docs/onboarding.md` — the first session: the signup grant, the template-first path, the checklist.
 
 ## Structure (model · canvas · ui · editor · app)
@@ -41,12 +43,16 @@ with high-fidelity export. Net-new, TypeScript.
   `text` (rich-text core + the render-facing `Run`),
   `comments` (the anchors, thread DTOs + wire bodies, and the pure anchor-resolution helpers),
   `collab` (the live-collaboration wire protocol: presence/lease/op messages, their guards, and the
-  content-relative cursor math both ends share), plus
+  content-relative cursor math both ends share),
+  `analytics` (the product-event contract: every event name and its property shape, the
+  super/identify/group traits, and the bucketing that keeps content out — a genuinely new concept
+  rather than types belonging to one already here, and it lives at this layer because the frontend and
+  the backend both emit and this is the only layer both may import), plus
   `geometry` (sizing + format profiles), `media` (the picker + asset DTOs), `authoring` (fixture DSL),
   `elements` (element value-sets + the vector IR), and
   the two curated catalogs that carry their own contract: `theme` (the whole theme contract + library) and
   `templates` (the `Template` DTO + `TEMPLATE_INDEX`, ids/labels/grouping only — the bodies are served from
-  `services/core/templates.ts`, so this stays edge-safe). Sixteen files; resist adding a seventeenth for a
+  `services/core/templates.ts`, so this stays edge-safe). Seventeen files; resist adding an eighteenth for a
   handful of types that belong to a concept already here.
 - **`canvas/`** (`@canvas`, `@engine`, `@elements`) — the paint layer: the layout engine + element
   library + DOM / 2D-canvas / PDF backends + present-slide geometry + export. **Pure TS** — framework-
@@ -203,10 +209,10 @@ The layout engine (`canvas/engine/layout.ts`, Clay-style 3-pass solver) drives a
 state) and inline text editing (`panels/TextEditor.tsx`). State in `core/store.ts` (Solid store); painting
 is the `@canvas` layer — the engine's commands paint into refs (`@canvas/render/backends`, with a
 2D-canvas mirror for Present + PDF/PNG export). Sections compose via `@elements/compose`; every element
-has a structural ghost (`skeletonize` in `@elements/spec`). **51 palette elements** register via
-`canvas/elements/register.ts`'s side-effect imports (5 text · 7 media · 2 table · 7 composite · 7 basic ·
-13 chart types · 10 diagram types), plus palette-hidden internals (`group`, `avatar`, the
-`chart`/`diagram` storage elements, the drop-preview); format-as-view
+has a structural ghost (`skeletonize` in `@elements/spec`). **60 palette elements** register via
+`canvas/elements/register.ts`'s side-effect imports (5 text · 7 media · 2 table · 8 composite · 7 basic ·
+15 chart · 16 diagram), plus palette-hidden internals (`group`, `avatar`, the `chart`/`diagram` storage
+elements, the drop-preview); format-as-view
 (`@engine/profile` + `fragment`) is built, so one artifact renders as deck / doc / web.
 
 The product SPA (`app/`, served at `/app`) wraps the studio: library / templates / trash / shared /

@@ -253,7 +253,7 @@ One file per capability:
   (each returns a `WorkspaceAction` the client runs; no server mutation).
 - `structure.ts` — `reorder-section` / `remove-section` / `set-format` / `set-theme` (each emits an existing
   `PatchOp`, so it works on the open artifact, a draft, or a target identically).
-- `media.ts` — `source-image` / `find-stock-image`; `theme.ts` — `generate-theme`.
+- `media.ts` — `generate-image` / `reimage`; `theme.ts` — `generate-theme`.
 
 ## 7. The turn runtime (`services/core/ai/run.ts`)
 
@@ -326,9 +326,11 @@ hand-set `layout`, rewrites only `data`, then resolves any new images.
 it into a real URL: **AI generation** when the build asks for it (`GenerateInput.imageSource:"ai"` and the
 image model is wired) via the Gemini image model (`services/core/media.ts`), else stock search across
 providers (`unsplash → pexels → pixabay → openverse`, the last keyless so there's always a fallback), else a
-deterministic `picsum` placeholder. `resolveImages` walks a section's tree (images at any depth) + its
-background in parallel. Stock stays a provider CDN URL — no storage, no credits; an AI image is stored as a
-workspace asset and metered per variation.
+deterministic `picsum` placeholder. `resolveImages` walks a section's tree (every media field at any depth,
+through `children` and `cells`) + its background in parallel. Whatever it lands on is adopted into the
+workspace library through `ImageOptions.adopt`, so the provider's attribution survives and the turn streams
+canonical `/api/media/asset/:id` urls: stock still costs no storage and no credits (the row keeps an
+`origin` rather than bytes), while an AI image is stored and metered per variation.
 
 ## 8. The chat / workspace agent (`services/core/ai/chat.ts`)
 

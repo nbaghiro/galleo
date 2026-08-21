@@ -18,6 +18,7 @@ section for work not yet built.
 | [testing.md](testing.md)           | The mocking contract · the seam budget · test doubles · the coverage map · the still-unbuilt test tracks                                                                                           |
 | [e2e.md](e2e.md)                   | The Playwright browser suite as built: fixtures, the seeded state, and what each spec covers                                                                                                       |
 | [hosting.md](hosting.md)           | Production deploy: Render + Neon · the single-origin topology · the env contract · the deploy pipeline · dev→prod repo changes · staging · cost · scale path                                       |
+| [analytics.md](analytics.md)       | Product analytics: the event catalog · the two wrappers · the ingest proxy · identity + grouping · the capture policy · what we never collect                                                      |
 | [onboarding.md](onboarding.md)     | The first session: the signup grant · why the first artifact is a template · the format question · the activation checklist · the prefs schema · the events                                        |
 
 Feature backlog and the specs they implement against live in [prompts/](prompts/).
