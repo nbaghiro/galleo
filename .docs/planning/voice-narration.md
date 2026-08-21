@@ -11,7 +11,7 @@ through), `collab.md` (the one-write-path invariant this feature has to stay ins
 
 ## 1. What we are building
 
-Three capabilities, in the order they become useful:
+Four capabilities, in the order they become useful:
 
 1. **Speaker notes.** Every section can carry a spoken script and a set of presenter cues. They are
    authored by hand or written by the AI over the whole piece at once, they live in the artifact
@@ -21,9 +21,9 @@ Three capabilities, in the order they become useful:
    server-side with its character alignment, and played back during present mode with a caption
    overlay and auto-advance driven by the real audio duration.
 3. **A self-playing published link.** A viewer opening `/p/:slug` gets a play control, and from that
-   one gesture the deck presents itself with voice. This is the reason the feature is worth building:
-   it turns a published deck into something closer to a short explainer without anyone recording or
-   editing a video.
+   one gesture the artifact plays itself with voice: a deck advances its slides, a doc or a site scrolls
+   itself. This is the reason the feature is worth building, since it turns a published piece into
+   something closer to a short explainer without anyone recording or editing a video.
 4. **A voice the customer picked.** A workspace browses the voice library with real filters, hears
    candidates read its own words, optionally designs a voice from a written description, and keeps a
    shelf of the ones it likes with one as the default. Any artifact can override it. This is what stops
@@ -123,10 +123,13 @@ user-contributed and carry no such date, and a designed voice is ours, so both s
 Voice cloning stays out of scope: it needs consent capture and its own storage, and it is a feature in
 its own right.
 
-**Narration is paged formats only in v1.** A deck advances one section at a time and the audio boundary
-is a natural cut. A doc or a site is a continuous scroll with no equivalent boundary, so narrating it
-means scroll-syncing against character alignment, which is a different problem. Notes themselves are
-format-agnostic and ship everywhere.
+**Narration works in every format, over one step model.** An earlier draft deferred docs and sites on
+the grounds that a continuous scroll has no boundary to advance across, and that was wrong: sections
+are discrete in both kinds of format, and narration is per section in both. The only thing that differs
+is what "go to the next thing" does, which is `setIndex(i + 1)` in a paged format and a scroll to
+`sectionTops[i + 1]` in a continuous one. Section 6.3 defines the step model that makes those one
+mechanism, and the reason it is worth doing is that the alternative was two navigation implementations
+and two sets of bugs.
 
 ## 4. Data model
 
@@ -456,15 +459,13 @@ Playback is a small controller owning one `<audio>` element: preload the current
 prefetch the next, advance on `ended`, pause and resume with the deck, and re-seek when the viewer
 navigates by hand.
 
-- **A play gesture is mandatory.** Browsers block audio autoplay, so a narrated deck opens on a title
-  card with a play control. "Auto-presenting" starts from one click and is unattended after that.
+- **A play gesture is mandatory.** Browsers block audio autoplay, so a narrated artifact opens on a
+  title card with a play control. "Auto-presenting" starts from one click and is unattended after that.
 - **Auto-advance is timed from the real duration**, not from a guess, which is the whole reason for
-  pre-rendering. A section spanning several slides distributes its pages evenly across the track.
+  pre-rendering.
 - **The caption overlay** highlights the current word from the character alignment, in the artifact's
-  own theme tokens, at the bottom of the frame. It is off by default and toggled, because a caption
-  under a slide the presenter is also speaking over is noise.
-- **A section with no prepared audio is silent and does not stall**: the controller advances on a fixed
-  dwell instead, so a partly prepared deck still plays end to end.
+  own theme tokens. It is off by default and toggled, because a caption under a slide the presenter is
+  also speaking over is noise.
 - **Presenter notes stay presenter-side.** In the editor's present overlay and at `/present/:id`, `N`
   toggles a notes pane showing `spoken` and `cues` for the current section. It never renders at
   `/p/:slug`, and because the public payload has no notes, it structurally cannot.
@@ -473,7 +474,92 @@ The controls join the existing `FloatingBar`: play and pause, a voice indicator,
 a speed control. On coarse pointers they take `IconButton size="touch"`, and the tap-to-advance zones
 have to not fight the play control, which is why the bar already stops propagation.
 
-### 6.4 The notes surface in the editor
+### 6.4 Navigation: one step model for both kinds of format
+
+Today the two format kinds navigate by different means. A paged artifact holds a flat slide `index()`
+that `locate()` maps back to `{section, page}`, advanced by click, swipe, tap zone, or arrow key. A
+continuous artifact has no index at all: it is `host.scrollTop` over a painted stack, moved by scrolling
+or by Space and PageDown, with `sectionTops` recording where each section starts. Narration needs a
+single notion of "where are we and what is next", so it introduces one.
+
+**A step is one screenful of one section.** In a paged format that is a slide page, which
+`sectionSlides()` already produces. In a continuous format it is a viewport-height chunk of the section,
+`ceil(sectionHeight / viewportHeight)` of them, measured from the `sectionTops` the painter already
+returns. Both reduce to the same list:
+
+```ts
+interface Step {
+    sectionId: string;
+    within: number;
+    of: number;
+} // `within` is 0-based
+```
+
+Everything then hangs off two functions, and they are the only things that branch on format:
+
+```ts
+goToStep(i); // paged: setIndex(flat) · continuous: host.scrollTo({ top, behavior: "smooth" })
+stepAt(); // paged: locate(index()) · continuous: the section owning the viewport centre
+```
+
+Narration plays one track per **section** and steps through that section's screens at `ms / of`
+intervals, so a slide that spans three pages, or a doc section three screens tall, is traversed evenly
+while its audio plays. That was already the rule for multi-page paged sections in the last draft; making
+a continuous chunk a step is what extends it to docs and sites for free, instead of inventing a separate
+scroll-sync mechanism.
+
+**Manual navigation moves the narration.** Clicking to slide nine, or scrolling down to section five,
+switches the audio to that section rather than letting the voice carry on describing something else.
+This is how a video with chapters behaves and it is the least surprising rule. In a continuous format
+it is debounced: the section under the viewport centre for more than about 400ms becomes the target, so
+scrolling past six sections triggers one track change rather than six.
+
+**Space becomes play and pause while narration is active.** That is the universal media convention and
+people will press it expecting it. It costs the two existing meanings, which are "next slide" in a paged
+artifact and "scroll down" in a continuous one, so both move to the arrow keys for the duration. With
+narration off, every current binding stays exactly as it is.
+
+The full mapping while narrating:
+
+| Input                   | Paged                       | Continuous                       |
+| ----------------------- | --------------------------- | -------------------------------- |
+| Space                   | play / pause                | play / pause                     |
+| Arrow right, arrow down | next step                   | next step                        |
+| Arrow left, arrow up    | previous step               | previous step                    |
+| Click on the surface    | next step                   | nothing, clicks belong to links  |
+| Swipe (coarse)          | next / previous step        | native scroll, untouched         |
+| Scroll                  | not applicable              | free, and it retargets the audio |
+| `O`                     | the overview grid           | a section list, the same idea    |
+| `N`                     | notes pane (never on `/p/`) | notes pane (never on `/p/`)      |
+| Escape                  | exit                        | exit                             |
+
+Click-to-advance stays off in continuous formats because a doc or a site has real links and running
+text in it, and hijacking every click would break both. That asymmetry already exists in
+`PresentSurface`, where `onPointerDown` and `onPointerUp` return early when the profile is not paged.
+
+**Three differences that are genuinely format-specific**, and each needs its own answer rather than a
+shared one:
+
+- **Section boundaries are invisible in a continuous format.** A deck cuts to a new slide, so the
+  listener always knows where they are; a doc just keeps flowing. The narrated continuous mode therefore
+  marks the section being spoken, dimming the rest slightly. This is overlay chrome positioned from
+  `sectionTops`, in the same class as the collaboration cursors, so it must never become a render
+  command: `collab.md`'s overlay-only rule is what keeps it out of export, thumbnails and publish.
+- **Progress means different things.** `SlideProgress` counts slides, which is meaningless in a doc. A
+  narrated artifact shows elapsed against total narration time instead, which is comparable across both
+  and is the number a listener actually wants.
+- **A section with nothing to say is common on a site.** A hero, a logo row, a footer: these carry no
+  notes and never will. The controller **skips** a section with no notes rather than dwelling on it, and
+  dwells only on a section that has notes but no prepared audio, which is the different case of stale or
+  unprepared narration. Skipping silently is right for a footer and wrong for a section someone meant to
+  narrate, so the two cases must not collapse into one.
+
+**What we call it.** `editor/Editor.tsx:400` already flips the label on format, with a deck saying
+"Present" and everything else "Preview". Narration adds a third mode and neither word fits it, so the
+narrated entry point is "Play" in all three formats, which is the honest verb for something that runs
+itself and is what the control does. Silent present and preview keep their current names.
+
+### 6.5 The notes surface in the editor
 
 A `notes` tab in the existing right panel, which already keys on an arbitrary string in `rightTab`. It
 shows the selected section's script in a plain textarea, its cues as an editable list, a "Write notes"
@@ -483,7 +569,7 @@ notes get a mark in the minimap, so an author can see coverage without clicking 
 The composer textarea is a natural home for the existing `VoiceInput`, so an author can dictate a
 script rather than type it. That is a small win and it closes the loop between the two voice features.
 
-### 6.5 The published player
+### 6.6 The published player
 
 `publish/PublicView.tsx` gains the narration source and a first-run state: if the link has prepared
 narration, the viewer sees a play control over the cover rather than the bare deck. The existing view

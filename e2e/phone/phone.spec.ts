@@ -60,10 +60,12 @@ test.describe("the library grid", () => {
             .split(/\s+/);
         expect(tracks).toHaveLength(1);
 
-        const width = page.viewportSize()!.width;
-        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
-            width,
-        );
+        // `main` is the scroller, and `overflow-y-auto` computes overflow-x to auto with it, so a
+        // too-wide row scrolls there rather than growing the document
+        const overflow = await page
+            .locator("main")
+            .evaluate((el) => el.scrollWidth - el.clientWidth);
+        expect(overflow).toBeLessThanOrEqual(1);
     });
 
     test("the header controls stay inside the viewport", async ({ page }) => {
