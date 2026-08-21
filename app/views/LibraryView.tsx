@@ -63,6 +63,7 @@ import {
     SparkleIcon,
     TrashIcon,
 } from "@ui/icons";
+import { classifySwipe } from "@ui/gesture";
 import { isCoarsePointer } from "@ui/viewport";
 import { profileFor, sectionFrame } from "@engine/profile";
 import { MiniCanvas, SectionThumb } from "@app/components/previews";
@@ -92,8 +93,8 @@ const OVER_MEDIA = "bg-black/25 text-white backdrop-blur-sm transition-colors ho
 // finger. Coarse pointer, not a breakpoint: a tablet is wide and still touched.
 const overMediaHit = (): string => (isCoarsePointer() ? "size-11" : "size-7");
 
-const navCls = (): string =>
-    `pointer-events-auto grid ${overMediaHit()} place-items-center rounded-full ${OVER_MEDIA} disabled:pointer-events-none disabled:opacity-0`;
+// hover chrome, so it stays cursor-sized: touch steps the carousel by swiping instead
+const NAV_CLS = `pointer-events-auto grid size-7 place-items-center rounded-full ${OVER_MEDIA} disabled:pointer-events-none disabled:opacity-0`;
 
 const GRID_MIN = 280; // narrowest a card gets before the grid drops a column
 const GRID_GAP = 20;
@@ -435,10 +436,8 @@ export const LibraryView: Component = () => {
             class={`z-panel grid ${overMediaHit()} place-items-center rounded-md transition-colors ${
                 isSelected(p.id)
                     ? "bg-accent text-onaccent" // selection is state, so it stays fully opaque
-                    : `${OVER_MEDIA} ${
-                          // without a hover to reveal it the glyph never appears, leaving a blank tile
-                          isCoarsePointer() ? "text-white/85" : "text-transparent hover:text-white"
-                      }`
+                    : // the glyph is always drawn; when it is on screen is the container's call
+                      OVER_MEDIA
             } ${p.class ?? ""}`}
             title={isSelected(p.id) ? "Deselect" : "Select"}
             onClick={(e) => {
@@ -744,10 +743,48 @@ export const LibraryView: Component = () => {
             isCoarsePointer()
                 ? "opacity-100"
                 : "opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100";
+        const go = (d: number): void => {
+            setIdx((v) => Math.min(secs().length - 1, Math.max(firstIdx(), v + d)));
+        };
         const step = (e: MouseEvent, d: number): void => {
             e.stopPropagation();
             e.preventDefault();
-            setIdx((v) => Math.min(secs().length - 1, Math.max(firstIdx(), v + d)));
+            go(d);
+        };
+
+        // Touch walks the carousel by swiping, since arrow chrome big enough for a finger would
+        // cover most of the cover it sits on. A tap still opens the artifact, so a swipe has to eat
+        // the click behind it; `swiped` resets on every press because a real swipe often ends
+        // without a click at all, and a stale flag would swallow the next honest tap.
+        let down: { x: number; y: number; t: number } | null = null;
+        let last: { x: number; y: number } | null = null;
+        let swiped = false;
+        const onPointerDown = (e: PointerEvent): void => {
+            swiped = false;
+            down = isCoarsePointer() ? { x: e.clientX, y: e.clientY, t: e.timeStamp } : null;
+            last = down && { x: e.clientX, y: e.clientY };
+        };
+        const onPointerMove = (e: PointerEvent): void => {
+            if (down) last = { x: e.clientX, y: e.clientY };
+        };
+        // Ends on pointercancel as well as pointerup, because a drag across a vertically scrolling
+        // list is routinely taken over by the browser's own pan gesture, which cancels the pointer.
+        // The cancel carries no useful coordinates, so the distance is measured from the last move
+        // rather than from whichever event happens to end the gesture.
+        const endSwipe = (e: PointerEvent): void => {
+            const start = down;
+            const end = last;
+            down = null;
+            last = null;
+            if (!start || !end || !secs().length) return;
+            const intent = classifySwipe({
+                dx: end.x - start.x,
+                dy: end.y - start.y,
+                dt: e.timeStamp - start.t,
+            });
+            if (!intent) return;
+            swiped = true;
+            go(intent === "next" ? 1 : -1);
         };
 
         return (
@@ -757,7 +794,14 @@ export const LibraryView: Component = () => {
                     isSelected(p.d.id) ? "border-accent bg-accent/5" : "border-line"
                 }`}
             >
-                <div class="group relative" style={{ height: `${mediaH()}px` }}>
+                <div
+                    class="group relative touch-pan-y"
+                    style={{ height: `${mediaH()}px` }}
+                    onPointerDown={onPointerDown}
+                    onPointerMove={onPointerMove}
+                    onPointerUp={endSwipe}
+                    onPointerCancel={endSwipe}
+                >
                     <button
                         class="absolute inset-0 block w-full overflow-hidden"
                         style={{ background: appTk().bg }}
@@ -765,7 +809,10 @@ export const LibraryView: Component = () => {
                         draggable={true}
                         onDragStart={(e) => startDrag(e, p.d.id, img())}
                         onDragEnd={() => setDraggingArtifact(null)}
-                        onClick={(e) => pickOrOpen(p.d.id, e)}
+                        onClick={(e) => {
+                            if (swiped) return;
+                            pickOrOpen(p.d.id, e);
+                        }}
                     >
                         <Show when={shown()} fallback={<CoverFill img={img()} />}>
                             {(sec) => (
@@ -784,27 +831,30 @@ export const LibraryView: Component = () => {
                         </Show>
                     </button>
                     <Show when={secs().length}>
-                        <div
-                            class={`pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-between px-1.5 ${chrome()}`}
-                        >
-                            <button
-                                class={navCls()}
-                                title="Previous section"
-                                disabled={idx() <= firstIdx()}
-                                onClick={(e) => step(e, -1)}
+                        <Show when={!isCoarsePointer()}>
+                            <div
+                                class={`pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-between px-1.5 ${chrome()}`}
                             >
-                                <ChevronLeftIcon size={14} />
-                            </button>
-                            <button
-                                class={navCls()}
-                                title="Next section"
-                                disabled={idx() >= secs().length - 1}
-                                onClick={(e) => step(e, 1)}
-                            >
-                                <ChevronRightIcon size={14} />
-                            </button>
-                        </div>
+                                <button
+                                    class={NAV_CLS}
+                                    title="Previous section"
+                                    disabled={idx() <= firstIdx()}
+                                    onClick={(e) => step(e, -1)}
+                                >
+                                    <ChevronLeftIcon size={14} />
+                                </button>
+                                <button
+                                    class={NAV_CLS}
+                                    title="Next section"
+                                    disabled={idx() >= secs().length - 1}
+                                    onClick={(e) => step(e, 1)}
+                                >
+                                    <ChevronRightIcon size={14} />
+                                </button>
+                            </div>
+                        </Show>
                         <span
+                            data-testid="card-position"
                             class={`pointer-events-none absolute bottom-1.5 right-1.5 rounded-md px-1.5 py-0.5 font-mono text-[9.5px] font-semibold ${OVER_MEDIA} ${chrome()}`}
                         >
                             {idx() < 0 ? "Cover" : `${idx() + 1}/${secs().length}`}
@@ -882,8 +932,9 @@ export const LibraryView: Component = () => {
                                 </p>
                             </div>
                         </div>
-                        {/* the layout toggle costs this row ~140px, which is what pushed it past a
-                            phone's width, so below sm the search takes a line of its own */}
+                        {/* the layout toggle takes ~140px out of a row with ~370 to give, and flex
+                            takes it back out of the search field, which shrinks to ~150px on a
+                            phone. Below sm the search gets a line of its own instead. */}
                         <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                             <Segmented
                                 size="md"

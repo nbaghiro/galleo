@@ -140,8 +140,13 @@ export const TemplateGallery: Component<{ onCreated?: () => void; from?: string 
                                     {inCategory(cat).length}
                                 </span>
                             </div>
-                            <div class="no-scrollbar flex gap-5 overflow-x-auto overscroll-x-contain px-5 pb-2 md:px-9">
-                                <For each={inCategory(cat)}>{(t) => <Card t={t} />}</For>
+                            {/* the inset is the wrapper's, not the scroller's: a scroll container
+                                clips at its padding box, so content paints through its own
+                                padding-right and the row would run flush into the modal edge */}
+                            <div class="px-5 md:px-9">
+                                <div class="no-scrollbar flex gap-5 overflow-x-auto overscroll-x-contain pb-2">
+                                    <For each={inCategory(cat)}>{(t) => <Card t={t} />}</For>
+                                </div>
                             </div>
                         </section>
                     )}

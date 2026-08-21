@@ -69,3 +69,28 @@ export async function cssOf(locator: Locator, prop: string): Promise<string> {
     }
     throw new Error(`computed ${prop} stayed empty`);
 }
+
+// A real touch swipe. Playwright's touchscreen only taps, and a mouse drag is not a substitute: on
+// a draggable element it starts native HTML5 drag and the page gets a pointercancel a few px in.
+// Negative dx swipes leftward, which is the "next" direction.
+export async function swipe(
+    page: Page,
+    box: { x: number; y: number; width: number; height: number },
+    dx: number,
+    steps = 8,
+): Promise<void> {
+    const cdp = await page.context().newCDPSession(page);
+    const y = box.y + box.height / 2;
+    const from = dx < 0 ? box.x + box.width - 20 : box.x + 20;
+    const at = (x: number): { touchPoints: { x: number; y: number; id: number }[] } => ({
+        touchPoints: [{ x, y, id: 1 }],
+    });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", ...at(from) });
+    for (let i = 1; i <= steps; i++)
+        await cdp.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            ...at(from + (dx * i) / steps),
+        });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await cdp.detach();
+}

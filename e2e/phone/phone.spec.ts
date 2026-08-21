@@ -1,5 +1,5 @@
 import { expect, test } from "@e2e/fixtures";
-import { boxOf, colOf, cssOf, makeArtifact, paintedText, sec, txt } from "@e2e/helpers";
+import { boxOf, colOf, cssOf, makeArtifact, paintedText, sec, swipe, txt } from "@e2e/helpers";
 
 // The phone tier (device-emulated), which the project config runs under a touch device: tap
 // semantics and control-bar anchoring in the editor, and the library grid, whose chrome sits over a
@@ -68,31 +68,56 @@ test.describe("the library grid", () => {
         expect(overflow).toBeLessThanOrEqual(1);
     });
 
-    test("the header controls stay inside the viewport", async ({ page }) => {
-        const width = page.viewportSize()!.width;
-        for (const control of ["Grid", "List"]) {
-            const box = await boxOf(page.getByTitle(control, { exact: true }));
-            expect(box.x).toBeGreaterThanOrEqual(0);
-            expect(box.x + box.width).toBeLessThanOrEqual(width + 1);
-        }
+    test("the search field gets a line of its own instead of being squeezed", async ({ page }) => {
+        const toggle = await boxOf(page.getByTitle("Grid", { exact: true }));
         const search = await boxOf(page.getByPlaceholder("Search artifacts…"));
-        expect(search.x + search.width).toBeLessThanOrEqual(width + 1);
+        // sharing the row with the layout toggle shrinks the field to ~150px rather than overflowing
+        expect(search.y).toBeGreaterThan(toggle.y + toggle.height - 4);
+        expect(search.width).toBeGreaterThan(240);
+        expect(search.x + search.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
     });
 
     test("the chrome over a cover is finger-sized and visible without a hover", async ({
         page,
     }) => {
-        // a coarse pointer sends no hover, so these are painted from the start rather than revealed
-        const next = page.getByTitle("Next section").first();
-        await expect(next).toBeVisible();
-        const box = await boxOf(next);
-        expect(box.width).toBeGreaterThanOrEqual(TOUCH_TARGET);
-        expect(box.height).toBeGreaterThanOrEqual(TOUCH_TARGET);
-
+        // a coarse pointer sends no hover, so what stays must be painted from the start
         const select = page.getByTitle("Select").first();
+        await expect(select).toBeVisible();
         const mark = await boxOf(select);
         expect(mark.width).toBeGreaterThanOrEqual(TOUCH_TARGET);
-        // the glyph is transparent until hover on a fine pointer, which would leave a blank tile here
-        expect(await cssOf(select, "color")).not.toBe("rgba(0, 0, 0, 0)");
+        expect(mark.height).toBeGreaterThanOrEqual(TOUCH_TARGET);
+        const menu = await boxOf(page.getByTitle("Move to folder").first());
+        expect(menu.width).toBeGreaterThanOrEqual(TOUCH_TARGET);
+    });
+
+    test("the carousel is swiped, not arrowed, and the swipe does not open the artifact", async ({
+        page,
+    }) => {
+        // a one-section card has nowhere to step, so the subject is made rather than found
+        const id = await makeArtifact(page.request, "e2e phone swipe", [
+            sec("s1", colOf([txt("One", "h2")])),
+            sec("s2", colOf([txt("Two", "h2")])),
+            sec("s3", colOf([txt("Three", "h2")])),
+        ]);
+        await page.goto("/");
+
+        // arrows big enough for a finger would cover the cover they sit on, so touch gets neither
+        await expect(page.getByTitle("Next section")).toHaveCount(0);
+        await expect(page.getByTitle("Previous section")).toHaveCount(0);
+
+        const card = page
+            .getByTestId("library-grid")
+            .locator("> div")
+            .filter({ hasText: "e2e phone swipe" });
+        const badge = card.getByTestId("card-position");
+        await expect(badge).toHaveText("1/3"); // no cover image, so it opens on the first section
+
+        const cover = await boxOf(card.locator("button").first());
+        await swipe(page, cover, -(cover.width - 40));
+
+        await expect(badge).toHaveText("2/3");
+        await expect(page).toHaveURL(/\/$/); // a swipe is not a tap: it must not navigate
+
+        await page.request.post(`/api/artifacts/${id}/trash`); // reruns should not accumulate
     });
 });
