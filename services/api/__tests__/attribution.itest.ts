@@ -123,9 +123,9 @@ describe("billing summary", () => {
         await db.insert(schema.assets).values({
             workspaceId: owner.workspaceId,
             kind: "image",
-            url: "/api/media/asset/x",
             bytes: 3 * 1024 * 1024,
             data: "stored",
+            sha256: "a".repeat(64),
         });
 
         const body = await (await authed(owner.userId, "/billing")).json();

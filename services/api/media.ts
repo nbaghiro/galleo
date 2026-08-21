@@ -1,18 +1,24 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import type { MediaItem, MediaKind, MediaProvider } from "@model/media";
+import type { MediaItem, MediaKind, MediaProvider, MediaSource } from "@model/media";
 import { featuresFor } from "@model/billing";
 import { z } from "zod";
+import { assetUrl } from "@model/media";
 import { BAD_BODY, OUT_OF_CREDITS, readJson } from "@services/utils/http";
 import { reserve } from "@services/core/spend";
 import {
     generateVideo,
     getIcon,
     imageGenReady,
-    readAssetBytes,
-    recentAssets,
+    libraryAssets,
+    readAsset,
     refImage,
     searchIcons,
+    adoptUrls,
+    adoptable,
+    assetForBytes,
+    assetUsage,
+    deleteAsset,
     searchStock,
     stockReady,
     storageFull,
@@ -85,6 +91,8 @@ const zUpload = z.object({
     height: z.number().optional(),
 });
 // an item round-trips back to the picker, so it keeps whatever attribution it arrived with
+const zLink = z.object({ url: z.string().optional() });
+const SOURCES: MediaSource[] = ["stock", "generated", "upload", "link"];
 const zUse = z.object({
     item: z
         .custom<MediaItem>(
@@ -189,29 +197,88 @@ media.post("/media/upload", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     const body = await readJson(c, zUpload);
     if (!body?.data || !body.mime) return c.json({ error: "data and mime are required" }, 400);
-    const bytes = Buffer.from(body.data, "base64").length;
-    if (await storageFull(ws, bytes)) return c.json(STORAGE_FULL, 402);
+    // bytes we already hold cost nothing to pick again, so the cap must not reject them
+    const held = await assetForBytes(ws.id, body.data);
+    if (!held) {
+        const bytes = Buffer.from(body.data, "base64").length;
+        if (await storageFull(ws, bytes)) return c.json(STORAGE_FULL, 402);
+    }
     return c.json({
         item: await storeUpload(ws.id, { ...body, data: body.data, mime: body.mime }),
     });
 });
 
+// Returns the canonical item, which is what the picker commits into the artifact.
 media.post("/media/use", requireWorkspace, async (c) => {
     const body = await readJson(c, zUse);
     const item = body?.item;
     if (!item?.url) return c.json({ error: "item required" }, 400);
-    await useItem(c.get("ws").id, item);
-    return c.json({ item });
+    return c.json({ item: await useItem(c.get("ws").id, item) });
 });
 
-media.get("/media/recent", requireWorkspace, async (c) =>
-    c.json({ items: await recentAssets(c.get("ws").id) }),
+// The workspace library. Complete by construction: every picture in every artifact was adopted on
+// the way in, so this needs no scan and no filtering.
+media.get("/media/library", requireWorkspace, async (c) => {
+    const kindQ = c.req.query("kind");
+    const sourcesQ = (c.req.query("sources") ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s): s is MediaSource => SOURCES.includes(s as MediaSource));
+    const beforeQ = c.req.query("before");
+    const q = c.req.query("q") ?? undefined;
+    const before = beforeQ ? new Date(beforeQ) : undefined;
+    return c.json(
+        await libraryAssets(c.get("ws").id, {
+            kind: kindQ === "video" ? "video" : kindQ === "image" ? "image" : undefined,
+            sources: sourcesQ.length ? sourcesQ : undefined,
+            q,
+            before: before && !Number.isNaN(before.getTime()) ? before : undefined,
+            limit: Number(c.req.query("limit")) || undefined,
+        }),
+    );
+});
+
+// Adopts a url the user typed. The picker and the inspector both hand back the canonical url, so
+// content never carries a foreign one.
+media.post("/media/link", requireWorkspace, async (c) => {
+    const body = await readJson(c, zLink);
+    const url = body?.url?.trim();
+    if (!url) return c.json({ error: "url required" }, 400);
+    // a url we cannot adopt (a platform video page, or something already ours) passes through
+    const id = adoptable(url) ? (await adoptUrls(c.get("ws").id, [url])).get(url) : undefined;
+    return c.json({ url: id ? assetUrl(id) : url });
+});
+
+// Refusing to delete something a deck still shows beats leaving a hole in it, so the artifacts
+// using it come back instead of a bare error.
+media.delete("/media/asset/:id", requireWorkspace, async (c) => {
+    const res = await deleteAsset(c.get("ws").id, c.req.param("id"));
+    if (res.ok) return c.json({ ok: true });
+    const [first, ...rest] = res.usedBy;
+    return c.json(
+        {
+            error: rest.length
+                ? `Still used in ${res.usedBy.length} artifacts, including ${first!.title}`
+                : `Still used in ${first!.title}`,
+            usedBy: res.usedBy,
+        },
+        409,
+    );
+});
+
+media.get("/media/asset/:id/usage", requireWorkspace, async (c) =>
+    c.json({ usedBy: await assetUsage(c.get("ws").id, c.req.param("id")) }),
 );
 
-// Public by opaque uuid so <img>/canvas/export load credential-less, like a stock CDN url.
+// Public by opaque uuid so <img>/canvas/export load credential-less, like a stock CDN url. A row we
+// hold bytes for serves them; an adopted one redirects to where they still live, which is what lets
+// content reference every picture the same way whoever it came from.
 media.get("/media/asset/:id", async (c) => {
-    const a = await readAssetBytes(c.req.param("id"));
+    const a = await readAsset(c.req.param("id"));
     if (!a) return c.text("not found", 404);
+    if (!a.data) {
+        return a.origin ? c.redirect(a.origin, 302) : c.text("not found", 404);
+    }
     return c.body(Buffer.from(a.data, "base64"), 200, {
         "content-type": a.mime ?? "image/png",
         "cache-control": "public, max-age=31536000, immutable",

@@ -355,7 +355,8 @@ describe("getPublicContent — direct fetch (not via req) with URLSearchParams",
         const call = firstCall(calls);
         expect(call.url).toBe("/api/p/my-slug/content?pw=secret&k=tok123");
         expect(call.init?.credentials).toBe("same-origin");
-        expect(result).toEqual({ ok: true, content: payload });
+        // credits are resolved from the artifact's assets, so an omitted list reads as none
+        expect(result).toEqual({ ok: true, content: { ...payload, credits: [] } });
     });
 
     it("omits the query entirely when no pw/k are given", async () => {

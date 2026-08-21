@@ -20,6 +20,8 @@ import type { WorkspaceRole } from "@model/workspace";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { contentWrite } from "@services/db/derived";
+import { assetIdsOf, adoptContentMedia, syncArtifactAssets } from "@services/core/media";
+import type { Db } from "@services/db/client";
 import { grantedTo } from "./collaborators";
 
 // Keyset, not offset: the cursor names the last row seen, so a concurrent edit can't make a row repeat
@@ -254,25 +256,42 @@ export async function liveArtifactCount(workspaceId: string): Promise<number> {
     return live.length;
 }
 
+// Media normalization sits in front of the derived columns: content is rewritten so every picture
+// it references is an asset row in this workspace, and only then are digest/search_text derived
+// from it. Adopting inside the caller's transaction keeps the rows and the content atomic.
+export async function contentColumns(
+    workspaceId: string,
+    content: unknown,
+    tx: Db,
+): Promise<{ columns: ReturnType<typeof contentWrite>; assetIds: string[] }> {
+    const normalized = await adoptContentMedia(workspaceId, content, tx);
+    return { columns: contentWrite(normalized), assetIds: assetIdsOf(normalized) };
+}
+
 export async function createArtifact(
     workspaceId: string,
     userId: string,
     body: ArtifactInput,
 ): Promise<string | null> {
-    const [a] = await db
-        .insert(schema.artifacts)
-        .values({
-            workspaceId,
-            title: body.title ?? "Untitled",
-            formatId: body.formatId ?? "deck",
-            themeId: body.themeId ?? "studio",
-            ...contentWrite(body.draftContent),
-            folderId: body.folderId ?? null,
-            aiMeta: body.aiMeta ?? null,
-            createdBy: userId,
-        })
-        .returning({ id: schema.artifacts.id });
-    return a?.id ?? null;
+    return db.transaction(async (tx) => {
+        const { columns, assetIds } = await contentColumns(workspaceId, body.draftContent, tx);
+        const [a] = await tx
+            .insert(schema.artifacts)
+            .values({
+                workspaceId,
+                title: body.title ?? "Untitled",
+                formatId: body.formatId ?? "deck",
+                themeId: body.themeId ?? "studio",
+                ...columns,
+                folderId: body.folderId ?? null,
+                aiMeta: body.aiMeta ?? null,
+                createdBy: userId,
+            })
+            .returning({ id: schema.artifacts.id });
+        if (!a) return null;
+        await syncArtifactAssets(a.id, assetIds, tx);
+        return a.id;
+    });
 }
 
 export type ArtifactRow = typeof schema.artifacts.$inferSelect;
@@ -363,30 +382,53 @@ export async function readSections(workspaceId: string, id: string): Promise<Sec
     return a ? asContent(a.draftContent).sections : null;
 }
 
+/** The row as it was before the move, which is what the trash events describe. */
+export interface TrashedRow {
+    formatId: string;
+    createdAt: Date;
+    trashedAt: Date | null;
+    sectionCount: number;
+}
+
 export async function setTrashed(
     workspaceId: string,
     id: string,
     trashedAt: Date | null,
-): Promise<void> {
+): Promise<TrashedRow | null> {
+    const [before] = await db
+        .select({
+            formatId: schema.artifacts.formatId,
+            createdAt: schema.artifacts.createdAt,
+            trashedAt: schema.artifacts.trashedAt,
+            // no section-count column: the tree is the only place it exists
+            sections: sql<number>`jsonb_array_length(${schema.artifacts.draftContent} -> 'sections')`,
+        })
+        .from(schema.artifacts)
+        .where(owned(id, workspaceId));
     await db.update(schema.artifacts).set({ trashedAt }).where(owned(id, workspaceId));
+    return before ? { ...before, sectionCount: Number(before.sections) || 0 } : null;
 }
 
 // visits.ref has no FK (it spans artifacts and templates), so hard deletes drop the rows here
-export async function deleteArtifact(workspaceId: string, id: string): Promise<void> {
-    await db.transaction(async (tx) => {
+/** Days the artifact had been in the trash, or null when there was nothing to delete. */
+export async function deleteArtifact(workspaceId: string, id: string): Promise<number | null> {
+    return db.transaction(async (tx) => {
         const gone = await tx
             .delete(schema.artifacts)
             .where(owned(id, workspaceId))
-            .returning({ id: schema.artifacts.id });
+            .returning({ id: schema.artifacts.id, trashedAt: schema.artifacts.trashedAt });
         if (gone.length)
             await tx
                 .delete(schema.visits)
                 .where(and(eq(schema.visits.kind, "artifact"), eq(schema.visits.ref, id)));
+        const at = gone[0]?.trashedAt;
+        return at ? Math.round((Date.now() - at.getTime()) / (24 * 3_600_000)) : null;
     });
 }
 
-export async function emptyTrash(workspaceId: string): Promise<void> {
-    await db.transaction(async (tx) => {
+/** How many artifacts were wiped. */
+export async function emptyTrash(workspaceId: string): Promise<number> {
+    return db.transaction(async (tx) => {
         const gone = await tx
             .delete(schema.artifacts)
             .where(
@@ -406,6 +448,7 @@ export async function emptyTrash(workspaceId: string): Promise<void> {
                     ),
                 ),
             );
+        return gone.length;
     });
 }
 
@@ -438,10 +481,11 @@ export function applyContentOps(
         if (!row) return { status: 404 as const, error: "not found" };
         const next = applySectionOps(asContent(row.draftContent), ops);
         if (!next.ok) return { status: 409 as const, error: next.reason };
+        const { columns, assetIds } = await contentColumns(workspaceId, next.content, tx);
         const [saved] = await tx
             .update(schema.artifacts)
             .set({
-                ...contentWrite(next.content),
+                ...columns,
                 ...(shell.themeId !== undefined ? { themeId: shell.themeId } : {}),
                 ...(shell.formatId !== undefined ? { formatId: shell.formatId } : {}),
                 updatedAt: new Date(),
@@ -449,6 +493,7 @@ export function applyContentOps(
             })
             .where(where)
             .returning({ updatedAt: schema.artifacts.updatedAt, seq: schema.artifacts.seq });
+        await syncArtifactAssets(id, assetIds, tx);
         return {
             status: 200 as const,
             updatedAt: saved!.updatedAt,
@@ -459,35 +504,41 @@ export function applyContentOps(
 }
 
 export async function updateArtifact(workspaceId: string, id: string, body: ArtifactInput) {
-    const patch: Record<string, unknown> = {};
-    if (body.title !== undefined) patch.title = body.title;
-    if (body.themeId !== undefined) patch.themeId = body.themeId;
-    if (body.formatId !== undefined) patch.formatId = body.formatId;
-    // re-derived, never trusted from the client
-    if (body.draftContent !== undefined) {
-        Object.assign(patch, contentWrite(body.draftContent));
-        patch.seq = nextSeq; // a whole-document save is a revision too, so the room can order it
-    }
-    if (body.folderId !== undefined) patch.folderId = body.folderId;
-    // a run saves its content first and its provenance with the same call, so this arrives on PATCH too
-    if (body.aiMeta !== undefined) patch.aiMeta = body.aiMeta;
-    // a folder-only move shouldn't reorder the library; bump updatedAt only for real edits
-    if (
-        body.title !== undefined ||
-        body.themeId !== undefined ||
-        body.formatId !== undefined ||
-        body.draftContent !== undefined
-    ) {
-        patch.updatedAt = new Date();
-    }
-    const [a] = await db
-        .update(schema.artifacts)
-        .set(patch)
-        .where(owned(id, workspaceId))
-        .returning({
-            id: schema.artifacts.id,
-            updatedAt: schema.artifacts.updatedAt,
-            seq: schema.artifacts.seq,
-        });
-    return a ?? null;
+    return db.transaction(async (tx) => {
+        const patch: Record<string, unknown> = {};
+        let assetIds: string[] | null = null;
+        if (body.title !== undefined) patch.title = body.title;
+        if (body.themeId !== undefined) patch.themeId = body.themeId;
+        if (body.formatId !== undefined) patch.formatId = body.formatId;
+        // re-derived, never trusted from the client
+        if (body.draftContent !== undefined) {
+            const derived = await contentColumns(workspaceId, body.draftContent, tx);
+            Object.assign(patch, derived.columns);
+            assetIds = derived.assetIds;
+            patch.seq = nextSeq; // a whole-document save is a revision too, so the room can order it
+        }
+        if (body.folderId !== undefined) patch.folderId = body.folderId;
+        // a run saves its content first and its provenance with the same call, so this arrives on PATCH too
+        if (body.aiMeta !== undefined) patch.aiMeta = body.aiMeta;
+        // a folder-only move shouldn't reorder the library; bump updatedAt only for real edits
+        if (
+            body.title !== undefined ||
+            body.themeId !== undefined ||
+            body.formatId !== undefined ||
+            body.draftContent !== undefined
+        ) {
+            patch.updatedAt = new Date();
+        }
+        const [a] = await tx
+            .update(schema.artifacts)
+            .set(patch)
+            .where(owned(id, workspaceId))
+            .returning({
+                id: schema.artifacts.id,
+                updatedAt: schema.artifacts.updatedAt,
+                seq: schema.artifacts.seq,
+            });
+        if (a && assetIds) await syncArtifactAssets(a.id, assetIds, tx);
+        return a ?? null;
+    });
 }

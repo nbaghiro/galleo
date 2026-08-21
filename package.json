@@ -40,11 +40,14 @@
         "ai:probe": "tsx services/core/ai/eval/probe.ts",
         "db:push": "drizzle-kit push",
         "eval:ci": "tsx scripts/eval-ci.ts",
+        "migrate:container": "tsx scripts/migrate-container.ts",
         "onboarding:reset": "tsx scripts/onboarding-reset.ts",
         "eval:shots": "tsx scripts/eval-shots.ts",
         "stripe:setup": "tsx scripts/stripe-setup.ts",
         "db:generate": "drizzle-kit generate",
-        "db:migrate": "drizzle-kit migrate"
+        "db:migrate": "drizzle-kit migrate",
+        "media:migrate": "tsx scripts/migrate-media-assets.ts",
+        "media:collect": "tsx scripts/collect-media-assets.ts"
     },
     "dependencies": {
         "@ai-sdk/anthropic": "^4.0.30",
@@ -68,6 +71,8 @@
         "marked": "^18.0.6",
         "pdf-lib": "^1.17.1",
         "postgres": "^3.4.5",
+        "posthog-js": "^1.418.6",
+        "posthog-node": "^5.49.2",
         "pptxgenjs": "^4.0.1",
         "solid-js": "^1.9.13",
         "stripe": "^22.3.0",

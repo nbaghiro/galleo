@@ -7,7 +7,8 @@ import { TEMPLATE_INDEX } from "@model/templates";
 import { THEMES } from "@themes";
 import { assertDatabaseUrl, db } from "./client";
 import { schema } from "./schema";
-import { contentWrite } from "./derived";
+import { contentColumns } from "@services/core/artifacts";
+import { syncArtifactAssets } from "@services/core/media";
 import { hashPassword } from "@services/utils/auth";
 import { appUrl, out as log, warn } from "@services/utils/env";
 import { createWorkspaceForUser, type WorkspaceRow } from "@services/core/accounts";
@@ -263,6 +264,7 @@ async function seedArtifacts(
         for (const entry of group.docs) {
             const d = docFor(entry.ref);
             const touched = new Date(Date.now() - n * 9 * HOUR); // a varied library order
+            const { columns, assetIds } = await contentColumns(wsId, d.artifact, db);
             const [row] = await db
                 .insert(schema.artifacts)
                 .values({
@@ -270,7 +272,7 @@ async function seedArtifacts(
                     title: d.title,
                     formatId: d.artifact.format,
                     themeId: d.artifact.theme,
-                    ...contentWrite(d.artifact),
+                    ...columns,
                     folderId,
                     createdBy,
                     aiMeta: genMetaFor(entry, d),
@@ -281,18 +283,20 @@ async function seedArtifacts(
             if (row) {
                 byRef.set(refKey(entry.ref), row.id);
                 byTitle.set(d.title, row.id);
+                await syncArtifactAssets(row.id, assetIds, db);
             }
             n++;
         }
     }
     for (const t of spec.trashed ?? []) {
         const d = docFor(t.ref);
+        const { columns } = await contentColumns(wsId, d.artifact, db);
         await db.insert(schema.artifacts).values({
             workspaceId: wsId,
             title: d.title,
             formatId: d.artifact.format,
             themeId: d.artifact.theme,
-            ...contentWrite(d.artifact),
+            ...columns,
             createdBy,
             createdAt: ago(t.daysAgo + 20),
             updatedAt: ago(t.daysAgo),
@@ -490,97 +494,83 @@ async function seedVisits(
     }
 }
 
-const cc = (author: string) => ({
-    provider: "Openverse",
-    author,
-    authorUrl: "https://openverse.org",
-    sourceUrl: "https://openverse.org",
-});
-
+// re-ingested through the real path (chunk → embed → pgvector), so demo retrieval behaves like
+// user-fed material
+// A few pieces of media the demo workspace "chose": what the picker's Library shows. Template
+// placeholders are adopted as `link` and filtered out there, so without these it reads empty.
 const DEMO_ASSETS: {
-    source: string;
+    source: "stock" | "upload";
     seed: string;
     w: number;
     h: number;
     alt: string;
-    prompt?: string;
-    attribution?: ReturnType<typeof cc>;
+    author?: string;
 }[] = [
     {
         source: "stock",
-        seed: "galleo-meadow",
+        seed: "galleo-ridge",
         w: 1600,
         h: 1000,
-        alt: "Meadow at first light",
-        attribution: cc("Priya Nair"),
-    },
-    {
-        source: "generated",
-        seed: "galleo-solar",
-        w: 1536,
-        h: 864,
-        alt: "Rooftop solar array at golden hour",
-        prompt: "a 1.4-megawatt rooftop solar array at golden hour, wide angle, photographic",
+        alt: "A ridge line at dawn",
+        author: "Mara Vance",
     },
     {
         source: "stock",
-        seed: "galleo-coast",
-        w: 1600,
-        h: 1067,
-        alt: "Rocky coastline at dusk",
-        attribution: cc("Marco Ferri"),
-    },
-    { source: "upload", seed: "galleo-offsite", w: 1400, h: 933, alt: "team-offsite.jpg" },
-    {
-        source: "generated",
         seed: "galleo-studio",
-        w: 1024,
-        h: 1024,
-        alt: "Late-night recording studio",
-        prompt: "a moody late-night recording studio bathed in neon, cinematic, shallow depth of field",
+        w: 1600,
+        h: 1100,
+        alt: "An empty studio",
+        author: "Ines Bahri",
     },
+    { source: "upload", seed: "galleo-flatlay", w: 1200, h: 1200, alt: "Product flat lay" },
     {
         source: "stock",
         seed: "galleo-city",
         w: 1600,
         h: 1000,
         alt: "City skyline at dusk",
-        attribution: cc("Lena Osei"),
+        author: "Lena Osei",
     },
-    { source: "upload", seed: "galleo-flatlay", w: 1200, h: 1200, alt: "product-flatlay.png" },
     {
         source: "stock",
         seed: "galleo-lake",
         w: 1600,
         h: 1000,
         alt: "Mountain lake, still water",
-        attribution: cc("Kamil Porembiński"),
+        author: "Kamil Poremba",
     },
 ];
 
-// picsum gives stable photos without an API key; stock rows carry no bytes, so they cost no storage
 async function seedAssets(wsId: string): Promise<void> {
     const now = Date.now();
     for (const [i, a] of DEMO_ASSETS.entries())
-        await db.insert(schema.assets).values({
-            workspaceId: wsId,
-            kind: "image",
-            source: a.source,
-            url: `https://picsum.photos/seed/${a.seed}/${a.w}/${a.h}`,
-            width: a.w,
-            height: a.h,
-            alt: a.alt,
-            meta: {
-                attribution: a.attribution,
-                prompt: a.prompt,
-                thumbUrl: `https://picsum.photos/seed/${a.seed}/500/${Math.round((500 * a.h) / a.w)}`,
-            },
-            createdAt: new Date(now - i * HOUR), // newest first in the Recent grid
-        });
+        await db
+            .insert(schema.assets)
+            .values({
+                workspaceId: wsId,
+                kind: "image",
+                source: a.source,
+                origin: `https://picsum.photos/seed/${a.seed}/${a.w}/${a.h}`,
+                width: a.w,
+                height: a.h,
+                alt: a.alt,
+                meta: {
+                    thumbUrl: `https://picsum.photos/seed/${a.seed}/500/${Math.round((500 * a.h) / a.w)}`,
+                    ...(a.author
+                        ? {
+                              attribution: {
+                                  provider: "Openverse",
+                                  author: a.author,
+                                  authorUrl: "https://openverse.org",
+                              },
+                          }
+                        : {}),
+                },
+                usedAt: new Date(now - i * HOUR), // newest first in the grid
+            })
+            .onConflictDoNothing();
 }
 
-// re-ingested through the real path (chunk → embed → pgvector), so demo retrieval behaves like
-// user-fed material
 async function seedContexts(wsId: string, userId: string, docs: SeededDocs): Promise<number> {
     let sources = 0;
     for (const plan of DEMO_CONTEXTS) {

@@ -1,17 +1,21 @@
-import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { and, desc, eq, ilike, inArray, isNotNull, lt, notExists, or, sql } from "drizzle-orm";
 import type {
+    AssetMeta,
+    MediaCredit,
     IconItem,
     IconPick,
-    MediaAttribution,
     MediaGenStyle,
     MediaItem,
     MediaKind,
     MediaProvider,
     MediaSource,
 } from "@model/media";
-import { KIND_PROVIDERS } from "@model/media";
+import { assetIdFromUrl, assetUrl, isEmbedVideoUrl, KIND_PROVIDERS } from "@model/media";
+import { mapMediaRefs, mediaRefKinds, mediaRefs } from "@model/artifact";
 import type { FeatureOverrides, ModelTier } from "@model/billing";
 import { featuresFor, isUnlimited } from "@model/billing";
+import type { Db } from "@services/db/client";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 
@@ -635,14 +639,7 @@ export async function* streamImages(
 // ---- the workspace asset library
 
 const MB = 1024 * 1024;
-export const RECENT_LIMIT = 48;
-export const assetUrl = (id: string): string => `/api/media/asset/${id}`;
-
-export interface AssetMeta {
-    attribution?: MediaAttribution;
-    prompt?: string;
-    thumbUrl?: string;
-}
+export const LIBRARY_LIMIT = 48;
 
 export interface WorkspaceStorage {
     id: string;
@@ -650,7 +647,8 @@ export interface WorkspaceStorage {
     featureOverrides?: FeatureOverrides | null;
 }
 
-// Stored bytes only — stock rows reference the provider CDN (data/bytes stay null) and cost nothing.
+// Stored bytes only — adopted rows point at `origin` (data/bytes stay null) and cost nothing, so
+// assetifying a template's placeholders or a deck's stock photos never eats anyone's quota.
 export async function storageFull(ws: WorkspaceStorage, incoming = 0): Promise<boolean> {
     const capMb = featuresFor(ws).storageMb;
     if (isUnlimited(capMb)) return false;
@@ -664,12 +662,13 @@ export async function storageFull(ws: WorkspaceStorage, incoming = 0): Promise<b
 type AssetRow = typeof schema.assets.$inferSelect;
 
 export function toItem(row: AssetRow): MediaItem {
-    const meta = (row.meta ?? {}) as AssetMeta;
+    const meta = row.meta ?? {};
+    const url = assetUrl(row.id);
     return {
         id: row.id,
         source: row.source as MediaSource,
-        url: row.url,
-        thumbUrl: meta.thumbUrl ?? row.url,
+        url,
+        thumbUrl: meta.thumbUrl ?? url,
         width: row.width ?? 0,
         height: row.height ?? 0,
         alt: row.alt ?? undefined,
@@ -677,6 +676,9 @@ export function toItem(row: AssetRow): MediaItem {
         attribution: meta.attribution,
     };
 }
+
+const sha256Of = (base64: string): string =>
+    createHash("sha256").update(Buffer.from(base64, "base64")).digest("hex");
 
 export async function refImage(workspaceId: string, refId: string): Promise<GenRef | null> {
     const [a] = await db
@@ -686,125 +688,542 @@ export async function refImage(workspaceId: string, refId: string): Promise<GenR
     return a?.data ? { data: a.data, mime: a.mime ?? "image/png" } : null;
 }
 
+async function byDigest(
+    workspaceId: string,
+    sha256: string,
+    tx: Db = db,
+): Promise<AssetRow | undefined> {
+    const [row] = await tx
+        .select()
+        .from(schema.assets)
+        .where(and(eq(schema.assets.workspaceId, workspaceId), eq(schema.assets.sha256, sha256)));
+    return row;
+}
+
+/** The bytes this workspace already holds, or null when they are new to it. */
+export async function assetForBytes(
+    workspaceId: string,
+    base64: string,
+): Promise<MediaItem | null> {
+    const hit = await byDigest(workspaceId, sha256Of(base64));
+    return hit ? toItem(hit) : null;
+}
+
+// Identical bytes are one asset: re-uploading the same logo returns the row we already hold, so it
+// is charged against the storage cap once rather than once per pick.
+async function storeBytes(
+    workspaceId: string,
+    row: {
+        kind: "image" | "video";
+        source: MediaSource;
+        data: string;
+        mime: string;
+        width?: number | null;
+        height?: number | null;
+        alt?: string | null;
+        meta?: AssetMeta;
+    },
+    tx: Db = db,
+): Promise<MediaItem> {
+    const sha256 = sha256Of(row.data);
+    const hit = await byDigest(workspaceId, sha256, tx);
+    if (hit) {
+        await touchAsset(workspaceId, hit.id, tx);
+        return toItem(hit);
+    }
+    const [inserted] = await tx
+        .insert(schema.assets)
+        .values({
+            workspaceId,
+            kind: row.kind,
+            source: row.source,
+            origin: null,
+            data: row.data,
+            sha256,
+            mime: row.mime,
+            bytes: Buffer.from(row.data, "base64").length,
+            width: row.width ?? null,
+            height: row.height ?? null,
+            alt: row.alt ?? null,
+            meta: row.meta ?? {},
+        })
+        .onConflictDoNothing()
+        .returning();
+    // lost the race for these bytes: the row the winner wrote is the one to use
+    if (inserted) return toItem(inserted);
+    const won = await byDigest(workspaceId, sha256, tx);
+    return toItem(won!);
+}
+
 // Stores a generated image or clip and returns the picker item for it.
 export async function storeGenerated(
     workspaceId: string,
     kind: "image" | "video",
     media: { dataBase64: string; mime: string; width: number; height: number },
     prompt: string,
+    extra: Pick<AssetMeta, "style" | "model" | "refId"> = {},
+    tx: Db = db,
 ): Promise<MediaItem> {
-    const id = crypto.randomUUID();
-    const alt = prompt.slice(0, 160);
-    const meta: AssetMeta = { prompt };
-    await db.insert(schema.assets).values({
-        id,
+    return storeBytes(
         workspaceId,
-        kind,
-        source: "generated",
-        url: assetUrl(id),
-        width: media.width,
-        height: media.height,
-        bytes: Buffer.from(media.dataBase64, "base64").length,
-        alt,
-        meta,
-        data: media.dataBase64,
-        mime: media.mime,
-    });
-    return {
-        id,
-        source: "generated",
-        url: assetUrl(id),
-        thumbUrl: assetUrl(id),
-        width: media.width,
-        height: media.height,
-        alt,
-        prompt,
-    };
+        {
+            kind,
+            source: "generated",
+            data: media.dataBase64,
+            mime: media.mime,
+            width: media.width,
+            height: media.height,
+            alt: prompt.slice(0, 160),
+            meta: { prompt, ...extra },
+        },
+        tx,
+    );
 }
 
 export async function storeUpload(
     workspaceId: string,
     body: { data: string; mime: string; name?: string; width?: number; height?: number },
+    tx: Db = db,
 ): Promise<MediaItem> {
-    const id = crypto.randomUUID();
-    await db.insert(schema.assets).values({
-        id,
+    return storeBytes(
         workspaceId,
-        kind: "image",
-        source: "upload",
-        url: assetUrl(id),
-        width: body.width ?? null,
-        height: body.height ?? null,
-        bytes: Buffer.from(body.data, "base64").length,
-        alt: body.name ?? null,
-        meta: {},
-        data: body.data,
-        mime: body.mime,
-    });
-    return {
-        id,
-        source: "upload",
-        url: assetUrl(id),
-        thumbUrl: assetUrl(id),
-        width: body.width ?? 0,
-        height: body.height ?? 0,
-        alt: body.name,
-    };
+        {
+            kind: body.mime.startsWith("video/") ? "video" : "image",
+            source: "upload",
+            data: body.data,
+            mime: body.mime,
+            width: body.width,
+            height: body.height,
+            meta: body.name ? { name: body.name } : {},
+        },
+        tx,
+    );
 }
 
-const STORED_URL = /\/media\/asset\/([0-9a-f-]{36})$/i;
+const touchAsset = (workspaceId: string, id: string, tx: Db = db): Promise<unknown> =>
+    tx
+        .update(schema.assets)
+        .set({ usedAt: new Date() })
+        .where(and(eq(schema.assets.workspaceId, workspaceId), eq(schema.assets.id, id)));
 
-// Stock also fires the Unsplash download trigger, which their API terms require.
-export async function useItem(workspaceId: string, item: MediaItem): Promise<void> {
-    const storedId = STORED_URL.exec(item.url)?.[1];
-    if (storedId) {
-        // Already in the library — bump to the top of Recent.
-        await db
-            .update(schema.assets)
-            .set({ createdAt: new Date() })
-            .where(and(eq(schema.assets.workspaceId, workspaceId), eq(schema.assets.id, storedId)));
-        return;
+// The provider hosts we source from; anything else a url can point at is a plain link.
+const STOCK_HOSTS =
+    /(^|\.)(unsplash\.com|pexels\.com|pixabay\.com|openverse\.org|wikimedia\.org)$/i;
+
+// a clip referenced as a plain file; the tree tells us the rest through `kinds`
+const VIDEO_EXT = /\.(mp4|webm|ogg|mov|m4v)(\?|#|$)/i;
+const kindForUrl = (url: string): "image" | "video" => (VIDEO_EXT.test(url) ? "video" : "image");
+
+function sourceForUrl(url: string): MediaSource {
+    try {
+        return STOCK_HOSTS.test(new URL(url).hostname) ? "stock" : "link";
+    } catch {
+        return "link";
     }
-    if (item.source !== "stock") return;
-    void fireDownloadTrigger(item.attribution?.downloadLocation);
-    // Dedupe: a re-used photo moves to the top rather than stacking duplicates.
-    await db
-        .delete(schema.assets)
-        .where(and(eq(schema.assets.workspaceId, workspaceId), eq(schema.assets.url, item.url)));
-    const meta: AssetMeta = { attribution: item.attribution, thumbUrl: item.thumbUrl };
-    await db.insert(schema.assets).values({
-        id: crypto.randomUUID(),
-        workspaceId,
-        kind: "image",
-        source: "stock",
-        url: item.url,
-        width: item.width || null,
-        height: item.height || null,
-        bytes: null,
-        alt: item.alt ?? null,
-        meta,
-        data: null,
-        mime: null,
+}
+
+// A url worth an asset row: one we can actually resolve to a picture later. Platform video pages
+// stay links (there is no file), and blob:/relative urls mean nothing outside the tab that made them.
+export function adoptable(url: string): boolean {
+    if (!url || assetIdFromUrl(url)) return false;
+    if (isEmbedVideoUrl(url)) return false;
+    return /^https?:\/\//i.test(url) || url.startsWith("data:");
+}
+
+interface AdoptSeed {
+    kind?: "image" | "video";
+    source?: MediaSource;
+    width?: number;
+    height?: number;
+    alt?: string;
+    meta?: AssetMeta;
+}
+
+/**
+ * Resolves external urls to asset ids, creating a row for any this workspace has not adopted yet.
+ * Two statements regardless of how many urls come in, and none at all when every one is already
+ * canonical, which is the steady state once content has been written once.
+ */
+export async function adoptUrls(
+    workspaceId: string,
+    urls: string[],
+    seeds: Map<string, AdoptSeed> = new Map(),
+    tx: Db = db,
+): Promise<Map<string, string>> {
+    const wanted = [...new Set(urls.filter(adoptable))];
+    if (!wanted.length) return new Map();
+
+    const dataUris = wanted.filter((u) => u.startsWith("data:"));
+    const remote = wanted.filter((u) => !u.startsWith("data:"));
+    const out = new Map<string, string>();
+
+    if (remote.length) {
+        // A url may already be here as a bare link adopted from content, and only later be picked
+        // from a provider with its attribution. Enrich on conflict rather than ignoring it, or the
+        // credit is lost and the row stays filtered out of the library as a placeholder.
+        await tx
+            .insert(schema.assets)
+            .values(
+                remote.map((url) => {
+                    const seed = seeds.get(url) ?? {};
+                    return {
+                        workspaceId,
+                        kind: seed.kind ?? kindForUrl(url),
+                        source: seed.source ?? sourceForUrl(url),
+                        origin: url,
+                        width: seed.width || null,
+                        height: seed.height || null,
+                        alt: seed.alt ?? null,
+                        meta: seed.meta ?? {},
+                    };
+                }),
+            )
+            .onConflictDoUpdate({
+                target: [schema.assets.workspaceId, schema.assets.origin],
+                // the unique index is partial, so the predicate is part of the conflict target
+                targetWhere: sql`${schema.assets.origin} IS NOT NULL`,
+                set: {
+                    source: sql`CASE WHEN ${schema.assets.source} = 'link' THEN excluded.source ELSE ${schema.assets.source} END`,
+                    kind: sql`CASE WHEN excluded.kind = 'video' THEN 'video' ELSE ${schema.assets.kind} END`,
+                    width: sql`COALESCE(${schema.assets.width}, excluded.width)`,
+                    height: sql`COALESCE(${schema.assets.height}, excluded.height)`,
+                    alt: sql`COALESCE(${schema.assets.alt}, excluded.alt)`,
+                    meta: sql`${schema.assets.meta} || excluded.meta`,
+                },
+                setWhere: sql`${schema.assets.source} = 'link' OR excluded.kind = 'video'
+                    OR ${schema.assets.width} IS NULL OR ${schema.assets.alt} IS NULL
+                    OR excluded.meta <> '{}'::jsonb`,
+            });
+        const rows = await tx
+            .select({ id: schema.assets.id, origin: schema.assets.origin })
+            .from(schema.assets)
+            .where(
+                and(
+                    eq(schema.assets.workspaceId, workspaceId),
+                    inArray(schema.assets.origin, remote),
+                ),
+            );
+        for (const r of rows) if (r.origin) out.set(r.origin, r.id);
+    }
+
+    // a data: uri carries its own bytes, so it is an upload that happened to arrive inline
+    for (const uri of dataUris) {
+        const m = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(uri);
+        if (!m?.[3]) continue;
+        const mime = m[1] || "image/png";
+        const data = m[2] ? m[3] : Buffer.from(decodeURIComponent(m[3])).toString("base64");
+        const item = await storeUpload(workspaceId, { data, mime }, tx);
+        out.set(uri, item.id);
+    }
+    return out;
+}
+
+/**
+ * The invariant: content leaves here holding only canonical asset urls, so every picture in every
+ * artifact has a row and the library is complete without scanning anything.
+ */
+export async function adoptContentMedia(
+    workspaceId: string,
+    content: unknown,
+    tx: Db = db,
+): Promise<unknown> {
+    const kinds = mediaRefKinds(content);
+    const refs = [...kinds.keys()];
+    const foreign = refs.filter(adoptable);
+    const owned = await ownedElsewhere(workspaceId, refs, tx);
+    if (!foreign.length && !owned.size) return content;
+    const seeds = new Map<string, AdoptSeed>(
+        [...kinds].map(([url, kind]) => [url, { kind }] as const),
+    );
+    const ids = await adoptUrls(workspaceId, foreign, seeds, tx);
+    for (const [url, id] of owned) ids.set(url, id);
+    if (!ids.size) return content;
+    return mapMediaRefs(content, (url) => {
+        const id = ids.get(url);
+        return id ? assetUrl(id) : url;
     });
 }
 
-// image recents only — the picker's Recent tab renders <img> tiles (no video surface there)
-export async function recentAssets(workspaceId: string): Promise<MediaItem[]> {
+/**
+ * Canonical urls pointing at another workspace's rows, remapped to a copy this one owns. Content
+ * can carry them the moment an artifact is copied across workspaces: the reference would still
+ * resolve, since assets are public by uuid, while the picture belonged to someone else's library
+ * and counted against their storage.
+ */
+async function ownedElsewhere(
+    workspaceId: string,
+    refs: string[],
+    tx: Db,
+): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    const ids = new Map<string, string>(); // asset id -> the url that referenced it
+    for (const url of refs) {
+        const id = assetIdFromUrl(url);
+        if (id) ids.set(id, url);
+    }
+    if (!ids.size) return out;
+    const rows = await tx
+        .select()
+        .from(schema.assets)
+        .where(inArray(schema.assets.id, [...ids.keys()]));
+    for (const row of rows) {
+        if (row.workspaceId === workspaceId) continue;
+        const url = ids.get(row.id)!;
+        const copy = row.data
+            ? await storeBytes(
+                  workspaceId,
+                  {
+                      kind: row.kind as "image" | "video",
+                      source: row.source as MediaSource,
+                      data: row.data,
+                      mime: row.mime ?? "image/png",
+                      width: row.width,
+                      height: row.height,
+                      alt: row.alt,
+                      meta: row.meta ?? {},
+                  },
+                  tx,
+              )
+            : await adoptOne(workspaceId, row, tx);
+        out.set(url, copy.id);
+    }
+    return out;
+}
+
+async function adoptOne(workspaceId: string, row: AssetRow, tx: Db): Promise<MediaItem> {
+    const seeds = new Map<string, AdoptSeed>([
+        [
+            row.origin!,
+            {
+                kind: row.kind as "image" | "video",
+                source: row.source as MediaSource,
+                width: row.width ?? undefined,
+                height: row.height ?? undefined,
+                alt: row.alt ?? undefined,
+                meta: row.meta ?? {},
+            },
+        ],
+    ]);
+    const ids = await adoptUrls(workspaceId, [row.origin!], seeds, tx);
+    const id = ids.get(row.origin!)!;
+    return { ...toItem(row), id, url: assetUrl(id) };
+}
+
+/** The asset ids a tree references, for the reverse index. */
+export const assetIdsOf = (content: unknown): string[] => [
+    ...new Set(
+        mediaRefs(content)
+            .map(assetIdFromUrl)
+            .filter((id): id is string => !!id),
+    ),
+];
+
+export async function syncArtifactAssets(
+    artifactId: string,
+    assetIds: string[],
+    tx: Db = db,
+): Promise<void> {
+    await tx.delete(schema.artifactAssets).where(eq(schema.artifactAssets.artifactId, artifactId));
+    if (!assetIds.length) return;
+    await tx
+        .insert(schema.artifactAssets)
+        .values(assetIds.map((assetId) => ({ artifactId, assetId })))
+        .onConflictDoNothing();
+}
+
+// Records a pick: bumps an asset we already hold, or adopts the item with everything the provider
+// told us about it. Stock also fires the Unsplash download trigger, which their API terms require.
+export async function useItem(workspaceId: string, item: MediaItem): Promise<MediaItem> {
+    const held = assetIdFromUrl(item.url);
+    if (held) {
+        await touchAsset(workspaceId, held);
+        const [row] = await db
+            .select()
+            .from(schema.assets)
+            .where(and(eq(schema.assets.workspaceId, workspaceId), eq(schema.assets.id, held)));
+        return row ? toItem(row) : item;
+    }
+    if (item.source === "stock") void fireDownloadTrigger(item.attribution?.downloadLocation);
+    const seeds = new Map<string, AdoptSeed>([
+        [
+            item.url,
+            {
+                // only a provider search result is stock; anything else external is a plain link,
+                // and sourceForUrl decides which by host
+                ...(item.source === "stock" ? { source: "stock" as const } : {}),
+                width: item.width,
+                height: item.height,
+                alt: item.alt,
+                meta: { attribution: item.attribution, thumbUrl: item.thumbUrl },
+            },
+        ],
+    ]);
+    const ids = await adoptUrls(workspaceId, [item.url], seeds);
+    const id = ids.get(item.url);
+    if (!id) return item;
+    const [row] = await db
+        .update(schema.assets)
+        .set({ usedAt: new Date() })
+        .where(and(eq(schema.assets.workspaceId, workspaceId), eq(schema.assets.id, id)))
+        .returning();
+    return row ? toItem(row) : item;
+}
+
+export interface LibraryQuery {
+    kind?: "image" | "video";
+    sources?: MediaSource[];
+    q?: string;
+    before?: Date;
+    limit?: number;
+}
+
+/** The workspace's media, newest use first. Complete by construction: every picture in every
+ *  artifact was adopted on the way in. */
+export async function libraryAssets(
+    workspaceId: string,
+    q: LibraryQuery = {},
+): Promise<{ items: MediaItem[]; nextBefore: string | null }> {
+    const limit = Math.min(96, Math.max(1, q.limit ?? LIBRARY_LIMIT));
+    const where = [eq(schema.assets.workspaceId, workspaceId)];
+    if (q.kind) where.push(eq(schema.assets.kind, q.kind));
+    if (q.sources?.length) where.push(inArray(schema.assets.source, q.sources));
+    // what a person would remember about their own media: what it shows, or what they asked for
+    if (q.q?.trim()) {
+        const like = `%${q.q.trim()}%`;
+        where.push(
+            or(
+                ilike(schema.assets.alt, like),
+                sql`${schema.assets.meta} ->> 'prompt' ILIKE ${like}`,
+                sql`${schema.assets.meta} ->> 'name' ILIKE ${like}`,
+            )!,
+        );
+    }
+    if (q.before) where.push(lt(schema.assets.usedAt, q.before));
     const rows = await db
         .select()
         .from(schema.assets)
-        .where(and(eq(schema.assets.workspaceId, workspaceId), ne(schema.assets.kind, "video")))
-        .orderBy(desc(schema.assets.createdAt))
-        .limit(RECENT_LIMIT);
-    return rows.map(toItem);
+        .where(and(...where))
+        .orderBy(desc(schema.assets.usedAt))
+        .limit(limit + 1);
+    const page = rows.slice(0, limit);
+    return {
+        items: page.map(toItem),
+        nextBefore:
+            rows.length > limit ? (page[page.length - 1]?.usedAt.toISOString() ?? null) : null,
+    };
 }
 
-export async function readAssetBytes(
+/**
+ * Who to credit for the pictures in an artifact. Resolved from the reverse index at read time
+ * rather than denormalized into the tree: the row stays the only place provenance lives, and a
+ * credit line cannot drift from the asset it belongs to.
+ */
+export async function artifactCredits(artifactId: string): Promise<MediaCredit[]> {
+    const rows = await db
+        .select({ meta: schema.assets.meta })
+        .from(schema.artifactAssets)
+        .innerJoin(schema.assets, eq(schema.assets.id, schema.artifactAssets.assetId))
+        .where(eq(schema.artifactAssets.artifactId, artifactId));
+    const seen = new Set<string>();
+    const out: MediaCredit[] = [];
+    for (const { meta } of rows) {
+        const a = meta?.attribution;
+        if (!a?.author && !a?.provider) continue;
+        const key = `${a.author ?? ""}|${a.provider ?? ""}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+            provider: a.provider,
+            author: a.author,
+            authorUrl: a.authorUrl,
+            sourceUrl: a.sourceUrl,
+        });
+    }
+    return out;
+}
+
+/** Which artifacts reference an asset. What makes deleting one a decision rather than a guess. */
+export async function assetUsage(
+    workspaceId: string,
+    assetId: string,
+): Promise<{ id: string; title: string }[]> {
+    return db
+        .select({ id: schema.artifacts.id, title: schema.artifacts.title })
+        .from(schema.artifactAssets)
+        .innerJoin(schema.artifacts, eq(schema.artifacts.id, schema.artifactAssets.artifactId))
+        .where(
+            and(
+                eq(schema.artifactAssets.assetId, assetId),
+                eq(schema.artifacts.workspaceId, workspaceId),
+            ),
+        );
+}
+
+/** Removes an asset nothing points at. Returns the blockers instead when something still does. */
+export async function deleteAsset(
+    workspaceId: string,
+    assetId: string,
+): Promise<{ ok: true } | { ok: false; usedBy: { id: string; title: string }[] }> {
+    const usedBy = await assetUsage(workspaceId, assetId);
+    if (usedBy.length) return { ok: false, usedBy };
+    await db
+        .delete(schema.assets)
+        .where(and(eq(schema.assets.workspaceId, workspaceId), eq(schema.assets.id, assetId)));
+    return { ok: true };
+}
+
+export interface CollectableAsset {
+    id: string;
+    kind: string;
+    source: string;
+    bytes: number | null;
+    usedAt: Date;
+}
+
+/**
+ * Assets no artifact references any more. Mostly generation takes nobody picked, which are stored
+ * and charged the moment they stream in. Adopted rows are left alone: they hold no bytes, so they
+ * cost nothing to keep, and dropping one would lose the attribution it carries.
+ */
+export async function collectableAssets(
+    workspaceId: string,
+    olderThan: Date,
+): Promise<CollectableAsset[]> {
+    return db
+        .select({
+            id: schema.assets.id,
+            kind: schema.assets.kind,
+            source: schema.assets.source,
+            bytes: schema.assets.bytes,
+            usedAt: schema.assets.usedAt,
+        })
+        .from(schema.assets)
+        .where(
+            and(
+                eq(schema.assets.workspaceId, workspaceId),
+                isNotNull(schema.assets.data),
+                lt(schema.assets.usedAt, olderThan),
+                notExists(
+                    db
+                        .select({ one: sql`1` })
+                        .from(schema.artifactAssets)
+                        .where(eq(schema.artifactAssets.assetId, schema.assets.id)),
+                ),
+            ),
+        )
+        .orderBy(desc(schema.assets.bytes));
+}
+
+export async function readAsset(
     id: string,
-): Promise<{ data: string; mime: string | null } | null> {
+): Promise<{ data: string | null; mime: string | null; origin: string | null } | null> {
     const [a] = await db
-        .select({ data: schema.assets.data, mime: schema.assets.mime })
+        .select({
+            data: schema.assets.data,
+            mime: schema.assets.mime,
+            origin: schema.assets.origin,
+        })
         .from(schema.assets)
         .where(eq(schema.assets.id, id));
-    return a?.data ? { data: a.data, mime: a.mime } : null;
+    return a ?? null;
 }

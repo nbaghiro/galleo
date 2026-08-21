@@ -1,6 +1,7 @@
 // Openverse is keyless; the rest need a key in .env
 export type MediaProvider = "openverse" | "unsplash" | "pexels" | "pixabay";
-export type MediaSource = "stock" | "generated" | "upload";
+// "link" is an external url we did not source ourselves (pasted, or authored into a template)
+export type MediaSource = "stock" | "generated" | "upload" | "link";
 
 // "photo" is the default (backgrounds + the Image element)
 export type MediaKind = "photo" | "gif" | "illustration" | "sticker" | "icon" | "video";
@@ -35,6 +36,54 @@ export interface MediaItem {
     prompt?: string; // for generated images
     attribution?: MediaAttribution;
 }
+
+// What an asset row carries beyond its columns. Source-specific: attribution and thumbUrl are
+// stock, prompt/style/model/refId are generated, name is an upload's original filename.
+export interface AssetMeta {
+    attribution?: MediaAttribution;
+    thumbUrl?: string;
+    prompt?: string;
+    style?: MediaGenStyle;
+    model?: string;
+    refId?: string; // the take this one was refined from
+    name?: string;
+}
+
+// The visible credit a sourced picture carries. Resolved per artifact at read time from the assets
+// it references, so a published page or an export can show it without the tree carrying provenance.
+export interface MediaCredit {
+    provider?: string;
+    author?: string;
+    authorUrl?: string;
+    sourceUrl?: string;
+}
+
+// Every media reference stored in artifact content is one of these: the asset row is the only
+// place provenance lives, so the tree carries an id and nothing else.
+export const ASSET_PATH = "/api/media/asset/";
+export const assetUrl = (id: string): string => `${ASSET_PATH}${id}`;
+
+const ASSET_URL = /(?:^|\/)api\/media\/asset\/([0-9a-f-]{36})(?:[?#]|$)/i;
+
+/** The asset id a canonical url points at, or null when the url is external. */
+export function assetIdFromUrl(url: string | undefined): string | null {
+    return (url && ASSET_URL.exec(url)?.[1]) || null;
+}
+
+// A video element may hold a platform page url rather than a media file. Those stay links: there is
+// no file to adopt, and the players resolve them to an iframe at paint time. One definition, so the
+// editor's player, the poster derivation, and the server-side adopter cannot drift apart.
+const YOUTUBE_ID =
+    /(?:youtube(?:-nocookie)?\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/;
+const VIMEO_ID = /vimeo\.com\/(?:video\/)?(\d+)/;
+
+export const youtubeId = (url: string | undefined): string | null =>
+    (url && YOUTUBE_ID.exec(url)?.[1]) || null;
+
+export const vimeoId = (url: string | undefined): string | null =>
+    (url && VIMEO_ID.exec(url)?.[1]) || null;
+
+export const isEmbedVideoUrl = (url: string): boolean => !!youtubeId(url) || !!vimeoId(url);
 
 export interface MediaSearchResponse {
     items: MediaItem[];

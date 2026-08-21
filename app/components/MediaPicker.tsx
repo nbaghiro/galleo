@@ -35,8 +35,9 @@ import { CloseIcon, SparkleIcon, TrashIcon } from "@ui/icons";
 import { Modal } from "@ui/overlay";
 import { Button, Chip, Eyebrow, IconButton } from "@ui/button";
 import { TextArea, TextField } from "@ui/inputs";
+import { createSentinel } from "@ui/scroll";
 
-type Source = "recent" | "upload" | MediaProvider | "generate" | "icons";
+type Source = "library" | "upload" | MediaProvider | "generate" | "icons";
 const STOCK: MediaProvider[] = ["openverse", "unsplash", "pexels", "pixabay"];
 
 const KIND_TITLE: Record<MediaKind, string> = {
@@ -121,7 +122,7 @@ const SHIMS: { shim: true }[] = Array.from({ length: 4 }, () => ({ shim: true })
 type GridTile = MediaItem | { shim: true };
 
 const RailIcon = {
-    recent: () => (
+    library: () => (
         <svg
             viewBox="0 0 24 24"
             fill="none"
@@ -171,7 +172,7 @@ const RailIcon = {
 };
 
 export const MediaPicker: Component = () => {
-    const [source, setSource] = createSignal<Source>("recent");
+    const [source, setSource] = createSignal<Source>("library");
     const [providers, setProviders] = createSignal<MediaProvidersState>({
         stock: { openverse: true, unsplash: false, pexels: false, pixabay: false },
         generate: false,
@@ -219,7 +220,6 @@ export const MediaPicker: Component = () => {
     let fileInput!: HTMLInputElement;
     let scrollRef!: HTMLDivElement;
     let sentinelEl: HTMLDivElement | undefined;
-    let io: IntersectionObserver | undefined;
     let gridRo: ResizeObserver | undefined;
     // masonry column count follows the scroll container's width, not the viewport
     const [gridW, setGridW] = createSignal(0);
@@ -231,17 +231,7 @@ export const MediaPicker: Component = () => {
         gridRo.observe(el);
     };
 
-    const armSentinel = (el: HTMLDivElement): void => {
-        sentinelEl = el;
-        io?.disconnect();
-        io = new IntersectionObserver(
-            (es) => {
-                if (es.some((e) => e.isIntersecting)) void loadMore();
-            },
-            { root: scrollRef, rootMargin: "500px 0px" },
-        );
-        io.observe(el);
-    };
+    const armSentinel = createSentinel(() => void loadMore(), { root: () => scrollRef });
 
     const isStock = (s: Source): s is MediaProvider => (STOCK as string[]).includes(s);
     const themeVars = (): JSX.CSSProperties | undefined => overlayThemeVars();
@@ -287,7 +277,9 @@ export const MediaPicker: Component = () => {
 
     async function loadMore(): Promise<void> {
         const s = source();
-        if (!hasMore() || loading() || !isStock(s)) return;
+        if (!hasMore() || loading()) return;
+        if (s === "library") return loadLibrary(false);
+        if (!isStock(s)) return;
         const g = gen;
         const next = page() + 1;
         const buffered = ahead && ahead.page === next ? ahead.res : null;
@@ -305,11 +297,8 @@ export const MediaPicker: Component = () => {
         setPage(next);
         setHasMore(res.hasMore);
         if (res.hasMore) prefetchNext(next + 1);
-        // a short page can leave the sentinel visible with no further scroll — re-observe to re-fire
-        if (io && sentinelEl) {
-            io.unobserve(sentinelEl);
-            io.observe(sentinelEl);
-        }
+        // a short page can leave the sentinel visible with no further scroll — re-arm to re-fire
+        if (sentinelEl) armSentinel(sentinelEl);
     }
 
     // Shortest-column placement is prefix-stable: appending a page never moves an existing tile,
@@ -353,9 +342,9 @@ export const MediaPicker: Component = () => {
             if (k === "icon") {
                 setSource("icons");
                 runIconSearch();
-            } else if (k === "photo") {
-                setSource("recent");
-                loadRecent();
+            } else if (k === "photo" || k === "video") {
+                setSource("library");
+                loadLibrary(true);
             } else {
                 setSource(KIND_PROVIDERS[k][0] ?? "openverse");
                 runSearch();
@@ -387,14 +376,26 @@ export const MediaPicker: Component = () => {
         }
     }
 
-    async function loadRecent(): Promise<void> {
+    // the library pages like a stock tab does, so a workspace with thousands of pictures scrolls
+    let libraryBefore: string | null = null;
+    async function loadLibrary(reset: boolean): Promise<void> {
+        if (loading()) return;
+        const g = gen;
         setLoading(true);
         try {
-            setItems((await api.recentMedia()).items);
+            const res = await api.libraryMedia({
+                kind: kind() === "video" ? "video" : "image",
+                q: query(),
+                ...(reset ? {} : { before: libraryBefore ?? undefined }),
+            });
+            if (g !== gen) return;
+            libraryBefore = res.nextBefore;
+            setItems((cur) => (reset ? fresh(res.items) : [...cur, ...fresh(res.items)]));
+            setHasMore(!!res.nextBefore);
         } catch {
-            setItems([]);
+            if (reset) setItems([]);
         }
-        setLoading(false);
+        if (g === gen) setLoading(false);
     }
 
     async function runSearch(): Promise<void> {
@@ -430,8 +431,10 @@ export const MediaPicker: Component = () => {
         setRefItem(null);
         setHasMore(false);
         setPage(1);
-        if (s === "recent") loadRecent();
-        else if (s === "icons") runIconSearch();
+        if (s === "library") {
+            libraryBefore = null;
+            loadLibrary(true);
+        } else if (s === "icons") runIconSearch();
         else if (isStock(s)) runSearch();
     };
 
@@ -440,6 +443,15 @@ export const MediaPicker: Component = () => {
         if (source() === "icons") {
             window.clearTimeout(debounce);
             debounce = window.setTimeout(() => runIconSearch(), 300);
+            return;
+        }
+        if (source() === "library") {
+            window.clearTimeout(debounce);
+            debounce = window.setTimeout(() => {
+                resetSearch();
+                libraryBefore = null;
+                void loadLibrary(true);
+            }, 300);
             return;
         }
         if (!isStock(source())) return;
@@ -539,6 +551,18 @@ export const MediaPicker: Component = () => {
         }
     }
 
+    // Deleting something a deck still shows would leave a hole in it, so the server refuses and
+    // names the artifacts instead; the picker just relays that.
+    async function removeAsset(it: MediaItem): Promise<void> {
+        setError("");
+        try {
+            await api.deleteMedia(it.id);
+            setItems((cur) => cur.filter((x) => x.id !== it.id));
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Could not delete");
+        }
+    }
+
     async function pick(it: MediaItem): Promise<void> {
         try {
             await api.useMedia(it);
@@ -555,7 +579,6 @@ export const MediaPicker: Component = () => {
         window.addEventListener("keydown", onKey);
         onCleanup(() => {
             window.removeEventListener("keydown", onKey);
-            io?.disconnect();
             gridRo?.disconnect();
         });
     });
@@ -635,7 +658,7 @@ export const MediaPicker: Component = () => {
                 when={
                     kind() !== "video" &&
                     it.source === "generated" &&
-                    (source() === "generate" || source() === "recent")
+                    (source() === "generate" || source() === "library")
                 }
             >
                 <span
@@ -649,8 +672,8 @@ export const MediaPicker: Component = () => {
                     }}
                     onClick={(e) => {
                         e.stopPropagation();
-                        // from Recent: jump to the generate tab with this take as the base
-                        if (source() === "recent") {
+                        // from the library: jump to generate with this take as the base
+                        if (source() === "library") {
                             selectSource("generate");
                             setRefItem(it);
                         } else {
@@ -659,6 +682,19 @@ export const MediaPicker: Component = () => {
                     }}
                 >
                     {refItem()?.id === it.id ? "Refining" : "Refine"}
+                </span>
+            </Show>
+            <Show when={source() === "library"}>
+                <span
+                    role="button"
+                    title="Delete from your library"
+                    class="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-black/55 text-white opacity-0 transition group-hover:opacity-100 hover:bg-[#C0392B]"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        void removeAsset(it);
+                    }}
+                >
+                    <TrashIcon size={12} />
                 </span>
             </Show>
             <Show when={it.attribution?.author}>
@@ -711,8 +747,14 @@ export const MediaPicker: Component = () => {
                     )}
                 </Index>
             </div>
-            <Show when={isStock(source())}>
-                <div ref={armSentinel} class="h-px" />
+            <Show when={isStock(source()) || source() === "library"}>
+                <div
+                    ref={(el) => {
+                        sentinelEl = el;
+                        armSentinel(el);
+                    }}
+                    class="h-px"
+                />
                 <Show when={loading() && items().length > 0}>
                     <div class="py-3 text-center text-[12px] text-muted">Loading…</div>
                 </Show>
@@ -722,7 +764,10 @@ export const MediaPicker: Component = () => {
 
     const emptyHint = (): JSX.Element => (
         <span class="text-center">
-            <Show when={isStock(source())} fallback="No images yet.">
+            <Show
+                when={isStock(source())}
+                fallback="Nothing here yet. Upload or generate something."
+            >
                 Search {source()} for {KIND_NOUN[kind()]}.
             </Show>
         </span>
@@ -811,12 +856,9 @@ export const MediaPicker: Component = () => {
                                 </>
                             }
                         >
-                            {/* recents + uploads are image assets; video is stock-search only */}
-                            <Show when={kind() !== "video"}>
-                                {railGroup("Yours")}
-                                {railBtn("recent", "Recent", RailIcon.recent)}
-                                {railBtn("upload", "Upload", RailIcon.upload)}
-                            </Show>
+                            {railGroup("Yours")}
+                            {railBtn("library", "Library", RailIcon.library)}
+                            {railBtn("upload", "Upload", RailIcon.upload)}
                             {railGroup("Stock")}
                             <For each={stockSources()}>
                                 {(p) =>
@@ -847,21 +889,32 @@ export const MediaPicker: Component = () => {
                     </nav>
 
                     <div class="flex min-w-0 flex-1 flex-col">
-                        <Show when={isStock(source()) || source() === "icons"}>
+                        <Show
+                            when={
+                                isStock(source()) || source() === "icons" || source() === "library"
+                            }
+                        >
                             <div class="flex-none px-4 pt-3">
                                 <TextField
                                     icon="search"
                                     placeholder={
                                         source() === "icons"
                                             ? "Search icons…"
-                                            : `Search ${source()}…`
+                                            : source() === "library"
+                                              ? "Search your media…"
+                                              : `Search ${source()}…`
                                     }
                                     value={query()}
                                     onChange={onQuery}
-                                    onKeyDown={(e) =>
-                                        e.key === "Enter" &&
-                                        (source() === "icons" ? runIconSearch() : runSearch())
-                                    }
+                                    onKeyDown={(e) => {
+                                        if (e.key !== "Enter") return;
+                                        if (source() === "icons") runIconSearch();
+                                        else if (source() === "library") {
+                                            resetSearch();
+                                            libraryBefore = null;
+                                            void loadLibrary(true);
+                                        } else runSearch();
+                                    }}
                                 />
                             </div>
                         </Show>
@@ -1020,7 +1073,9 @@ export const MediaPicker: Component = () => {
                                                     ? "Uploading…"
                                                     : "Choose a file to upload"}
                                             </span>
-                                            <span class="block text-[12px]">PNG, JPG, or GIF</span>
+                                            <span class="block text-[12px]">
+                                                PNG, JPG, GIF, or MP4
+                                            </span>
                                         </span>
                                     </button>
                                 </Match>
@@ -1031,7 +1086,7 @@ export const MediaPicker: Component = () => {
                 <input
                     ref={fileInput}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/mp4,video/webm"
                     class="hidden"
                     onChange={(e) => onFiles(e.currentTarget.files)}
                 />

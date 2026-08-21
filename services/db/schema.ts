@@ -9,10 +9,12 @@ import {
     bigint,
     boolean,
     customType,
+    check,
     index,
     jsonb,
     primaryKey,
     unique,
+    uniqueIndex,
     vector,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -23,6 +25,7 @@ import type { Usage } from "@model/credits";
 import type { ArtifactContent } from "@model/artifact";
 import type { EvalCheck, EvalConfig, EvalJudgement, EvalStatus } from "@model/eval";
 import type { PublishPolicy, UserPrefs } from "@model/workspace";
+import type { AssetMeta } from "@model/media";
 
 // Drizzle has no tsvector type; the column is generated from title + search_text, never written by hand
 const tsvector = customType<{ data: string; driverData: string }>({
@@ -286,23 +289,64 @@ export const themes = pgTable("themes", {
     isDark: boolean("is_dark").notNull().default(false),
 });
 
-export const assets = pgTable("assets", {
-    id: uuid("id").primaryKey().defaultRandom(),
-    workspaceId: uuid("workspace_id")
-        .notNull()
-        .references(() => workspaces.id),
-    kind: text("kind").notNull(),
-    source: text("source").notNull().default("upload"), // upload | generated | stock
-    url: text("url").notNull(), // stock → provider CDN url; stored → /api/media/asset/:id
-    width: integer("width"),
-    height: integer("height"),
-    bytes: bigint("bytes", { mode: "number" }),
-    alt: text("alt"),
-    meta: jsonb("meta"), // { provider, author, authorUrl, sourceUrl, downloadLocation, prompt, style }
-    data: text("data"), // base64 bytes for stored media (generated / uploaded); null for stock (url only)
-    mime: text("mime"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+// Every media reference in artifact content resolves to a row here, so the library is complete by
+// construction rather than by scanning. The reference is always `/api/media/asset/:id`; `origin`
+// holds the external url the bytes still live at, and is null once we hold them ourselves.
+export const assets = pgTable(
+    "assets",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        workspaceId: uuid("workspace_id")
+            .notNull()
+            .references(() => workspaces.id, { onDelete: "cascade" }),
+        kind: text("kind").notNull(), // image | video
+        source: text("source").notNull().default("upload"), // upload | generated | stock | link
+        origin: text("origin"), // external url; null once the bytes are stored here
+        data: text("data"), // base64 bytes; null when `origin` serves them
+        sha256: text("sha256"), // hex digest of the bytes: set with `data`, deduped per workspace
+        mime: text("mime"),
+        bytes: bigint("bytes", { mode: "number" }), // only stored rows count against the plan cap
+        width: integer("width"),
+        height: integer("height"),
+        alt: text("alt"), // accessibility text, never a filename
+        meta: jsonb("meta").$type<AssetMeta>(),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+        // bumped on every pick; the library orders by this, so recency never rewrites creation time
+        usedAt: timestamp("used_at").notNull().defaultNow(),
+    },
+    (t) => [
+        index("assets_ws_used_idx").on(t.workspaceId, t.usedAt.desc()),
+        // One row per external url and per distinct file, so adopting the same picture twice or
+        // uploading the same logo twice reuses the row instead of stacking (and re-charging) it.
+        uniqueIndex("assets_ws_origin_key")
+            .on(t.workspaceId, t.origin)
+            .where(sql`${t.origin} IS NOT NULL`),
+        uniqueIndex("assets_ws_sha_key")
+            .on(t.workspaceId, t.sha256)
+            .where(sql`${t.sha256} IS NOT NULL`),
+        // bytes and their digest arrive together, and a row nothing can serve is not an asset
+        check("assets_bytes_hashed", sql`(${t.data} IS NULL) = (${t.sha256} IS NULL)`),
+        check("assets_servable", sql`${t.data} IS NOT NULL OR ${t.origin} IS NOT NULL`),
+    ],
+);
+
+// The reverse index: which assets an artifact references. Replaced wholesale on every content
+// write, so "used in N artifacts" and unreferenced-asset collection are both plain queries.
+export const artifactAssets = pgTable(
+    "artifact_assets",
+    {
+        artifactId: uuid("artifact_id")
+            .notNull()
+            .references(() => artifacts.id, { onDelete: "cascade" }),
+        assetId: uuid("asset_id")
+            .notNull()
+            .references(() => assets.id, { onDelete: "cascade" }),
+    },
+    (t) => [
+        primaryKey({ columns: [t.artifactId, t.assetId] }),
+        index("artifact_assets_asset_idx").on(t.assetId),
+    ],
+);
 
 // public = slug only, protected = slug + password hash, private = per-recipient token; none = unpublished
 export const links = pgTable("links", {
@@ -506,6 +550,7 @@ export const schema = {
     comments,
     themes,
     assets,
+    artifactAssets,
     links,
     linkRecipients,
     linkViews,
