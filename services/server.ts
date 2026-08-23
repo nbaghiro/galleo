@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { readSession, SESSION_COOKIE } from "./utils/auth";
 import { assertDatabaseUrl } from "./db/client";
+import { checkMailConfig } from "./core/mail";
 import { out } from "./utils/env";
 import { initAnalytics, shutdownAnalytics, withRequestId } from "./utils/analytics";
 import { asRequestId, REQUEST_ID_HEADER } from "@model/analytics";
@@ -111,4 +112,5 @@ const drain = (): void => {
 };
 process.on("SIGTERM", drain);
 process.on("SIGINT", drain);
+checkMailConfig();
 out(`Galleo listening on port ${port}`);

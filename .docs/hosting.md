@@ -81,27 +81,27 @@ Everything the backend reads from `process.env` (verified against `services/`). 
 Render dashboard (never in `render.yaml`, never committed). Optional keys are safe to omit — the feature
 degrades gracefully (billing/media/mail report "not configured").
 
-| Var                                                              | Req? | Secret | Source / value                                                                     |
-| ---------------------------------------------------------------- | ---- | ------ | ---------------------------------------------------------------------------------- |
-| `NODE_ENV`                                                       | ✅   | no     | `production` — gates static serving + `secure` cookie                              |
-| `PORT`                                                           | ✅   | —      | **Injected by Render**; the server must bind it (repo change)                      |
-| `DATABASE_URL`                                                   | ✅   | ✅     | Neon **direct** connection string (see pooler note below)                          |
-| `SESSION_SECRET`                                                 | ✅   | ✅     | strong random — Render `generateValue: true`, or `openssl rand -base64 32`         |
-| `APP_URL`                                                        | ✅   | no     | public origin, e.g. `https://galleo.onrender.com` (later the custom domain)        |
-| `ANTHROPIC_API_KEY`                                              | ✅¹  | ✅     | console.anthropic.com — the primary AI provider                                    |
-| `GOOGLE_API_KEY`                                                 | ⬜   | ✅     | Gemini text + **AI image generation** in the media picker                          |
-| `XAI_API_KEY`, `COHERE_API_KEY`                                  | ⬜   | ✅     | extra model tiers                                                                  |
-| `GEMINI_IMAGE_MODEL`                                             | ⬜   | no     | override default image model                                                       |
-| `UNSPLASH_ACCESS_KEY`, `PEXELS_API_KEY`, `PIXABAY_API_KEY`       | ⬜   | ✅     | stock-photo providers in the media picker                                          |
-| `RESEND_API_KEY`, `MAIL_FROM`                                    | ⬜   | ✅     | transactional email for share invites                                              |
-| `STRIPE_SECRET_KEY`                                              | ⬜²  | ✅     | live/test secret key                                                               |
-| `STRIPE_WEBHOOK_SECRET`                                          | ⬜²  | ✅     | from the webhook endpoint → `https://<origin>/api/billing/webhook`                 |
-| `STRIPE_PRICE_PRO_MONTH/YEAR`, `STRIPE_PRICE_PREMIUM_MONTH/YEAR` | ⬜²  | no     | the four recurring per-seat price ids                                              |
-| `STRIPE_PORTAL_CONFIG`                                           | ⬜   | no     | Customer Portal config id (optional)                                               |
-| `POSTHOG_KEY`                                                    | ⬜³  | no     | PostHog project key (`phc_…`) — write-only, also shipped to the browser            |
-| `POSTHOG_HOST`                                                   | ⬜   | no     | ingest host; defaults to `https://us.i.posthog.com` (US Cloud, project 567553)     |
-| `VITE_POSTHOG_KEY`                                               | ⬜³  | no     | the same project key, read at build time by the browser bundle                     |
-| `VITE_POSTHOG_HOST`                                              | ⬜   | no     | the PostHog app origin for links past the proxy (default `https://us.posthog.com`) |
+| Var                                                              | Req? | Secret | Source / value                                                                        |
+| ---------------------------------------------------------------- | ---- | ------ | ------------------------------------------------------------------------------------- |
+| `NODE_ENV`                                                       | ✅   | no     | `production` — gates static serving + `secure` cookie                                 |
+| `PORT`                                                           | ✅   | —      | **Injected by Render**; the server must bind it (repo change)                         |
+| `DATABASE_URL`                                                   | ✅   | ✅     | Neon **direct** connection string (see pooler note below)                             |
+| `SESSION_SECRET`                                                 | ✅   | ✅     | strong random — Render `generateValue: true`, or `openssl rand -base64 32`            |
+| `APP_URL`                                                        | ✅   | no     | public origin, e.g. `https://galleo.onrender.com` (later the custom domain)           |
+| `ANTHROPIC_API_KEY`                                              | ✅¹  | ✅     | console.anthropic.com — the primary AI provider                                       |
+| `GOOGLE_API_KEY`                                                 | ⬜   | ✅     | Gemini text + **AI image generation** in the media picker                             |
+| `XAI_API_KEY`, `COHERE_API_KEY`                                  | ⬜   | ✅     | extra model tiers                                                                     |
+| `GEMINI_IMAGE_MODEL`                                             | ⬜   | no     | override default image model                                                          |
+| `UNSPLASH_ACCESS_KEY`, `PEXELS_API_KEY`, `PIXABAY_API_KEY`       | ⬜   | ✅     | stock-photo providers in the media picker                                             |
+| `RESEND_API_KEY`                                                 | ⬜   | ✅     | transactional email; the sender and reply-to are constants in `services/core/mail.ts` |
+| `STRIPE_SECRET_KEY`                                              | ⬜²  | ✅     | live/test secret key                                                                  |
+| `STRIPE_WEBHOOK_SECRET`                                          | ⬜²  | ✅     | from the webhook endpoint → `https://<origin>/api/billing/webhook`                    |
+| `STRIPE_PRICE_PRO_MONTH/YEAR`, `STRIPE_PRICE_PREMIUM_MONTH/YEAR` | ⬜²  | no     | the four recurring per-seat price ids                                                 |
+| `STRIPE_PORTAL_CONFIG`                                           | ⬜   | no     | Customer Portal config id (optional)                                                  |
+| `POSTHOG_KEY`                                                    | ⬜³  | no     | PostHog project key (`phc_…`) — write-only, also shipped to the browser               |
+| `POSTHOG_HOST`                                                   | ⬜   | no     | ingest host; defaults to `https://us.i.posthog.com` (US Cloud, project 567553)        |
+| `VITE_POSTHOG_KEY`                                               | ⬜³  | no     | the same project key, read at build time by the browser bundle                        |
+| `VITE_POSTHOG_HOST`                                              | ⬜   | no     | the PostHog app origin for links past the proxy (default `https://us.posthog.com`)    |
 
 ¹ Required for any AI feature (generation, chat, element/text edits) — the core of the product. The
 `@ai-sdk/anthropic` provider auto-reads `ANTHROPIC_API_KEY` from env. ² Stripe is **optional for the

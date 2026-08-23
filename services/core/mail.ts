@@ -1,9 +1,29 @@
 import type { ArtifactAccess } from "@model/artifact";
-import { out } from "@services/utils/env";
-const FROM = process.env.MAIL_FROM ?? "Galleo <onboarding@resend.dev>";
+import { out, warn } from "@services/utils/env";
+
+// Constants rather than config: there is one production domain, neither address is a secret, and the
+// previous default (Resend's shared `onboarding@resend.dev`) only ever delivered to the Resend
+// account owner, so an unset variable failed every real signup with a 403 nobody saw.
+//
+// The apex, not `send.galleo.app`, even though the relay lives on the subdomain. DMARC on galleo.app
+// is `p=reject; adkim=s; aspf=s`: strict alignment, and Resend's Return-Path sits on the subdomain,
+// so SPF can never align. DKIM has to carry it, the key is published at `resend._domainkey.galleo.app`
+// and therefore signs `d=galleo.app`, which aligns only with an apex From.
+const FROM = "Galleo <noreply@galleo.app>";
+
+// Nothing receives on noreply@, so a person answering an invite needs somewhere real to land. A
+// Workspace group rather than a mailbox: it costs no seat and can fan out.
+const REPLY_TO = "support@galleo.app";
 
 export function mailReady(): boolean {
     return !!process.env.RESEND_API_KEY;
+}
+
+// Said once at boot rather than per send. Without a key every message is written to the log instead,
+// which is right in dev and silently loses verification mail in production.
+export function checkMailConfig(): void {
+    if (process.env.NODE_ENV === "production" && !process.env.RESEND_API_KEY)
+        warn("RESEND_API_KEY is not set: no email will be delivered, including verification");
 }
 
 export interface EmailMessage {
@@ -11,6 +31,7 @@ export interface EmailMessage {
     subject: string;
     html: string;
     text: string;
+    replyTo?: string; // defaults to the support group; pass one to route replies elsewhere
 }
 
 // Throws on failure (callers `.catch`); with no RESEND_API_KEY it logs so local flows stay testable.
@@ -25,6 +46,7 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
         body: JSON.stringify({
             from: FROM,
+            reply_to: msg.replyTo ?? REPLY_TO,
             to: msg.to,
             subject: msg.subject,
             html: msg.html,
@@ -50,7 +72,13 @@ async function deliver(msg: Email): Promise<boolean> {
         const res = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ from: FROM, to: msg.to, subject: msg.subject, html: msg.html }),
+            body: JSON.stringify({
+                from: FROM,
+                reply_to: REPLY_TO,
+                to: msg.to,
+                subject: msg.subject,
+                html: msg.html,
+            }),
         });
         return res.ok;
     } catch {

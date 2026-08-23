@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mailReady, sendShareInvite } from "@services/core/mail";
+import { mailReady, sendEmail, sendShareInvite } from "@services/core/mail";
 import type { ShareInvite } from "@services/core/mail";
 
 const invite = (over: Partial<ShareInvite> = {}): ShareInvite => ({
@@ -48,5 +48,34 @@ describe("sendShareInvite", () => {
         await expect(sendShareInvite(invite({ inviterName: null, message: null }))).resolves.toBe(
             false,
         );
+    });
+});
+
+// The sender is a constant because DMARC on galleo.app is strict-aligned: the Resend key signs
+// d=galleo.app, so an apex From is the only one that passes. A subdomain sender would be rejected,
+// and the old resend.dev default 403'd for every recipient but the account owner.
+describe("the sender", () => {
+    const body = async (): Promise<Record<string, unknown>> => {
+        const calls: string[] = [];
+        vi.stubGlobal("fetch", (_u: string, init: { body: string }) => {
+            calls.push(init.body);
+            return Promise.resolve(new Response("{}", { status: 200 }));
+        });
+        vi.stubEnv("RESEND_API_KEY", "test-key");
+        await sendEmail({ to: "a@b.co", subject: "s", html: "<p>h</p>", text: "t" });
+        vi.unstubAllEnvs();
+        vi.unstubAllGlobals();
+        return JSON.parse(calls[0]!) as Record<string, unknown>;
+    };
+
+    it("sends from the apex, never the relay subdomain or the resend sandbox", async () => {
+        const from = String((await body()).from);
+        expect(from).toContain("@galleo.app");
+        expect(from).not.toContain("send.galleo.app");
+        expect(from).not.toContain("resend.dev");
+    });
+
+    it("points replies at somewhere a person reads", async () => {
+        expect((await body()).reply_to).toBe("support@galleo.app");
     });
 });
