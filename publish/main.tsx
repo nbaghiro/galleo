@@ -5,6 +5,7 @@ import "@elements/register"; // side-effect: registers the element library
 import type { Component } from "solid-js";
 import { render } from "solid-js/web";
 import { Route, Router } from "@solidjs/router";
+import { initAnalytics } from "@ui/analytics";
 import { PublicView } from "./PublicView";
 
 const NotAvailable: Component = () => (
@@ -15,6 +16,11 @@ const NotAvailable: Component = () => (
         </div>
     </div>
 );
+
+// Reach only. These readers are our customer's audience rather than ours, looking at content its
+// author considers confidential, so the publish policy carries no campaign params, no referrer, no
+// recording, and no id that outlives the page.
+initAnalytics("publish");
 
 const root = document.getElementById("root");
 if (root)

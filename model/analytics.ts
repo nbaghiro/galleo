@@ -205,6 +205,10 @@ export type AiFailureReason =
     | "rate_limited";
 
 export interface Events {
+    // The marketing page's own conversion step. The landing itself is a $pageview, which is what
+    // carries the referrer and the campaign parameters; this is the click that leaves for signup,
+    // so the two together say which placement earned the account.
+    signup_cta_clicked: { placement: string };
     // Account and session.
     signed_up: { method: AuthMethod; invited: boolean };
     email_verified: { hours_since_signup: number };

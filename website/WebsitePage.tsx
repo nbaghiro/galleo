@@ -2,6 +2,14 @@ import type { Accessor, Component, JSX } from "solid-js";
 import { createSignal, For, onMount, Show } from "solid-js";
 import { THEME_LIST } from "@themes";
 import { visiblePlans } from "@model/billing";
+import { capture } from "@ui/analytics";
+
+// Which placement earned the account. The landing itself is a $pageview carrying the referrer and
+// the click id; this is the click that leaves for signup, so the two together close the loop from
+// an ad to a paid plan.
+const ctaClicked = (placement: string) => (): void => {
+    capture("signup_cta_clicked", { placement }, { beacon: true });
+};
 
 // the marketing "N designer themes" claim, so it cannot drift from the theme library
 const THEME_COUNT = THEME_LIST.length;
@@ -319,6 +327,7 @@ const AuthCta: Component = () => {
                         <a
                             href="/signup"
                             class="btn btn-primary text-sm"
+                            onClick={ctaClicked("nav")}
                             style={{ padding: "0.6rem 1.1rem" }}
                         >
                             Start free
@@ -464,7 +473,11 @@ export const WebsitePage: Component = () => (
                         class="md:col-span-5 flex flex-wrap gap-3 md:justify-end rise"
                         style={{ "animation-delay": "0.58s" }}
                     >
-                        <a href="/signup" class="btn btn-primary text-base">
+                        <a
+                            href="/signup"
+                            onClick={ctaClicked("hero")}
+                            class="btn btn-primary text-base"
+                        >
                             Start creating free →
                         </a>
                         <a href="#views" class="btn btn-ghost text-base">
@@ -651,7 +664,11 @@ export const WebsitePage: Component = () => (
                     . Galleo is the editor for the judging.
                 </p>
                 <div class="mt-9 flex flex-wrap items-center gap-4">
-                    <a href="/signup" class="btn btn-on-ink text-base">
+                    <a
+                        href="/signup"
+                        onClick={ctaClicked("midpage")}
+                        class="btn btn-on-ink text-base"
+                    >
                         Try the editor →
                     </a>
                     <span class="lab" style={{ color: "var(--color-canvas)", opacity: "0.7" }}>
@@ -924,6 +941,7 @@ export const WebsitePage: Component = () => (
                     <a
                         href="/signup"
                         class="btn btn-primary text-lg"
+                        onClick={ctaClicked("footer")}
                         style={{ padding: "1.1rem 2rem" }}
                     >
                         Start creating, free →

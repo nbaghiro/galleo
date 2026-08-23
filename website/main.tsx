@@ -4,6 +4,7 @@ import "./website.css";
 import { render } from "solid-js/web";
 import { registerThemes, resolveTheme, themeCssVars, type Theme } from "@themes";
 import { setFavicon } from "@app/stores/theme";
+import { initAnalytics } from "@ui/analytics";
 import { WebsitePage } from "./WebsitePage";
 
 // keep in sync with app/stores/theme.ts (KEY · DEFAULT · CUSTOM_KEY)
@@ -26,6 +27,11 @@ function read(): string {
         return DEFAULT;
     }
 }
+
+// The landing page is where paid traffic arrives, so this is the one surface where a page view is
+// the event: it carries the referrer and the click id (fbclid and friends), which PostHog persists
+// and applies to the person when they later sign up.
+initAnalytics("marketing");
 
 const root = document.getElementById("root");
 if (root) {
