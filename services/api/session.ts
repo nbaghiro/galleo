@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { z } from "zod";
-import { appUrl } from "@services/utils/env";
+import { appUrl, warn } from "@services/utils/env";
 import {
     BAD_BODY,
     readJson,
@@ -23,7 +23,6 @@ import {
     sendResetEmail,
     sendVerifyEmail,
     signUp,
-    toUser,
 } from "@services/core/accounts";
 import { releaseSignupGrant } from "@services/core/onboarding";
 import { requireUser, type AuthedEnv } from "./middleware";
@@ -48,6 +47,15 @@ const zLogin = z.object({ email: z.string().optional(), password: z.string().opt
 const zForgot = z.object({ email: z.string().optional() });
 const zReset = z.object({ token: z.string().optional(), password: z.string().optional() });
 
+// Verification became a gate on 2026-08-22. Accounts opened before it keep the access they already
+// had, so the rule applies going forward rather than reaching back and locking out people who signed
+// up under the old contract. A date rather than a per-account flag: it needs no migration and it is
+// self-documenting about when the rule changed.
+const VERIFY_GATE_FROM = new Date("2026-08-22T00:00:00Z");
+
+export const mustVerify = (u: { emailVerified: boolean; createdAt: Date | string }): boolean =>
+    !u.emailVerified && new Date(u.createdAt) >= VERIFY_GATE_FROM;
+
 session.post("/auth/signup", signupLimiter, async (c) => {
     const body = await readJson(c, zSignup);
     if (!body) return c.json(BAD_BODY, 400);
@@ -67,9 +75,16 @@ session.post("/auth/signup", signupLimiter, async (c) => {
         // unique(email) violation from a concurrent signup that raced past the check above
         return c.json({ error: "an account with this email already exists" }, 409);
     }
-    setSessionCookie(c, user.id);
-    await sendVerifyEmail(user.id, user.email).catch(() => {});
-    return c.json({ user: toUser(user) });
+    // No session yet: the account exists, but nothing is reachable until the address is confirmed.
+    // Never swallow the send, either: a verification mail that does not arrive is the difference
+    // between an account someone can finish and one they cannot, and it was silent while it was broken.
+    const sent = await sendVerifyEmail(user.id, user.email).catch((e: unknown) => {
+        warn(
+            `verify email failed for ${user.email}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+        return false;
+    });
+    return c.json({ pending: true, email: user.email, sent: sent === true });
 });
 
 session.post("/auth/login", loginLimiter, async (c) => {
@@ -79,8 +94,18 @@ session.post("/auth/login", loginLimiter, async (c) => {
     if (!email || !password) return c.json({ error: "email and password are required" }, 400);
     // cap before scrypt: an over-cap password can't match any stored hash, so reject without hashing
     if (overPasswordCap(password)) return c.json({ error: "invalid email or password" }, 401);
-    const user = await authenticate(email, password);
-    if (!user) return c.json({ error: "invalid email or password" }, 401);
+    const found = await authenticate(email, password);
+    if (!found) return c.json({ error: "invalid email or password" }, 401);
+    const user = found.user;
+    if (mustVerify({ emailVerified: user.emailVerified, createdAt: found.createdAt }))
+        return c.json(
+            {
+                error: "Confirm your email before signing in.",
+                needsVerification: true,
+                email: user.email,
+            },
+            403,
+        );
     setSessionCookie(c, user.id);
     capture({ userId: user.id }, "logged_in", { method: "password" });
     return c.json({ user });
@@ -116,8 +141,15 @@ session.post("/auth/reset", resetLimiter, async (c) => {
     if (!userId) return c.json({ error: "This reset link is invalid or has expired." }, 400);
     const user = await resetPassword(userId, password);
     if (!user) return c.json({ error: "account not found" }, 400);
+    // Consuming a link we mailed proves control of the address, which is the same thing the verify
+    // link proves. Marking it here keeps the gate coherent: otherwise a reset would hand out a
+    // session to an account the sign-in route would then refuse.
+    if (!user.emailVerified) {
+        await markEmailVerified(userId);
+        await releaseSignupGrant(userId).catch(() => false);
+    }
     setSessionCookie(c, userId);
-    return c.json({ user });
+    return c.json({ user: { ...user, emailVerified: true } });
 });
 
 // No session required: the single-use token in the emailed link is the proof.
@@ -132,6 +164,12 @@ session.get("/auth/verify", async (c) => {
 
 session.post("/auth/resend-verification", resendLimiter, requireUser, async (c) => {
     const u = c.get("user");
-    if (!u.emailVerified) await sendVerifyEmail(u.id, u.email).catch(() => {});
+    if (!u.emailVerified)
+        await sendVerifyEmail(u.id, u.email).catch((e: unknown) => {
+            warn(
+                `resend verify failed for ${u.email}: ${e instanceof Error ? e.message : String(e)}`,
+            );
+            return false;
+        });
     return c.json({ ok: true });
 });

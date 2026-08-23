@@ -1,6 +1,7 @@
 import type { Component } from "solid-js";
 import { createSignal, onMount, Show } from "solid-js";
 import { login, signup, resetPassword } from "@app/stores/auth";
+import { emailError, MAX_EMAIL } from "@model/workspace";
 import { api } from "@app/api";
 import { Visual } from "@app/components/previews";
 import { TextField } from "@ui/inputs";
@@ -51,6 +52,8 @@ export const AuthPage: Component = () => {
     const [error, setError] = createSignal("");
     const [notice, setNotice] = createSignal("");
     const [sent, setSent] = createSignal(false);
+    // whether the provider accepted the verification mail, so a failure is said out loud
+    const [mailSent, setMailSent] = createSignal(true);
     const [busy, setBusy] = createSignal(false);
     const [googleReady, setGoogleReady] = createSignal(false);
 
@@ -113,11 +116,21 @@ export const AuthPage: Component = () => {
             setError("Those passwords don’t match.");
             return;
         }
+        // The same check the route runs, so a typo is caught in the field rather than as a round trip.
+        if (mode() !== "reset") {
+            const bad = emailError(email());
+            if (bad) {
+                setError(bad);
+                return;
+            }
+        }
         setBusy(true);
         try {
             const m = mode();
-            if (m === "signup") await signup(email().trim(), password(), name().trim());
-            else if (m === "signin") await login(email().trim(), password());
+            if (m === "signup") {
+                setMailSent(await signup(email().trim(), password(), name().trim()));
+                setSent(true);
+            } else if (m === "signin") await login(email().trim(), password());
             else if (m === "forgot") {
                 await api.forgotPassword(email().trim());
                 setSent(true);
@@ -231,8 +244,36 @@ export const AuthPage: Component = () => {
                         </p>
                     </Show>
 
-                    <Show when={!(mode() === "forgot" && sent())}>
-                        <form onSubmit={(e) => submit(e)} class="flex flex-col gap-2.5">
+                    <Show when={mode() === "signup" && sent()}>
+                        <div class="rounded-lg border border-line bg-panel p-4 text-[13px] leading-relaxed text-soft">
+                            <Show
+                                when={mailSent()}
+                                fallback={
+                                    <>
+                                        Your account is ready, but we could not send the
+                                        confirmation email to{" "}
+                                        <span class="text-ink">{email().trim()}</span>. Contact
+                                        support and we will confirm it for you.
+                                    </>
+                                }
+                            >
+                                Confirm <span class="text-ink">{email().trim()}</span> to finish
+                                setting up Galleo. We’ve sent a link; it expires in 24 hours.
+                            </Show>
+                        </div>
+                        <p class="mt-6 text-[13px] text-muted">
+                            <button
+                                type="button"
+                                class="font-semibold text-accent hover:underline"
+                                onClick={() => switchMode("signin")}
+                            >
+                                Back to sign in
+                            </button>
+                        </p>
+                    </Show>
+
+                    <Show when={!sent()}>
+                        <form onSubmit={(e) => submit(e)} noValidate class="flex flex-col gap-2.5">
                             <Show when={mode() === "signup"}>
                                 <Eyebrow>Name</Eyebrow>
                                 <TextField
@@ -248,6 +289,8 @@ export const AuthPage: Component = () => {
                                 <Eyebrow>Email</Eyebrow>
                                 <TextField
                                     type="email"
+                                    required
+                                    maxLength={MAX_EMAIL}
                                     autocomplete="email"
                                     placeholder="you@studio.com"
                                     class={authField}

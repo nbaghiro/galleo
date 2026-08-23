@@ -73,7 +73,9 @@ export async function seedUser(opts: { plan?: string; password?: string } = {}):
     const password = opts.password ?? "pw-12345678";
     const [u] = await db
         .insert(schema.users)
-        .values({ email, passwordHash: hashPassword(password) })
+        // Verified: a seeded account stands in for an established user, and the sign-in gate would
+        // otherwise refuse every one of them. A test that wants the gate builds its own unverified row.
+        .values({ email, passwordHash: hashPassword(password), emailVerifiedAt: new Date() })
         .returning();
     const [w] = await db
         .insert(schema.workspaces)

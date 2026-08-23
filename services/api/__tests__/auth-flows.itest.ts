@@ -58,16 +58,23 @@ describe("POST /auth/signup", () => {
             name: "Ada",
         });
         expect(res.status).toBe(200);
-        const { user } = (await res.json()) as AuthBody;
-        expect(user.email).toBe("ada@example.com");
-        expect(user.hasPassword).toBe(true);
-        expect(user.emailVerified).toBe(false);
-        expect(res.headers.get("set-cookie")).toContain("galleo_session=");
+        // No session until the address is confirmed: the account exists, nothing is reachable yet.
+        const pending = (await res.json()) as { pending: boolean; email: string };
+        expect(pending.pending).toBe(true);
+        expect(pending.email).toBe("ada@example.com");
+        expect(res.headers.get("set-cookie") ?? "").not.toContain("galleo_session=");
+
+        const [user] = await db
+            .select()
+            .from(schema.users)
+            .where(eq(schema.users.email, "ada@example.com"));
+        expect(user!.passwordHash).not.toBeNull();
+        expect(user!.emailVerifiedAt).toBeNull();
 
         const [member] = await db
             .select()
             .from(schema.members)
-            .where(eq(schema.members.userId, user.id));
+            .where(eq(schema.members.userId, user!.id));
         expect(member!.role).toBe("owner");
         const [ws] = await db
             .select()
@@ -75,7 +82,7 @@ describe("POST /auth/signup", () => {
             .where(eq(schema.workspaces.id, member!.workspaceId));
         expect(ws!.name).toBe("Ada's Workspace");
         expect(ws!.plan).toBe("free");
-        expect(ws!.ownerId).toBe(user.id);
+        expect(ws!.ownerId).toBe(user!.id);
         expect(ws!.slug.startsWith("ada-")).toBe(true);
         // born funded and unlapsed, not waiting for a first roll
         expect(ws!.aiCreditsBalance).toBe(monthlyGrantFor({ plan: "free", seats: 1 }));
@@ -83,15 +90,53 @@ describe("POST /auth/signup", () => {
     });
 
     it("mints a verification token even though mail is unconfigured", async () => {
-        const res = await signup({ email: "verify-me@example.com", password: "pw-12345678" });
-        const { user } = (await res.json()) as AuthBody;
-        const tokens = await tokenRows(user.id);
+        await signup({ email: "verify-me@example.com", password: "pw-12345678" });
+        const [user] = await db
+            .select()
+            .from(schema.users)
+            .where(eq(schema.users.email, "verify-me@example.com"));
+        const tokens = await tokenRows(user!.id);
         expect(tokens).toHaveLength(1);
         expect(tokens[0]!.purpose).toBe("verify");
         expect(tokens[0]!.consumedAt).toBeNull();
         // 24h ttl, and only the hash is stored (sha-256 hex, never the raw link token)
         expect(tokens[0]!.expiresAt.getTime()).toBeGreaterThan(Date.now() + 23 * 60 * 60 * 1000);
         expect(tokens[0]!.tokenHash).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it("refuses a sign-in until the address is confirmed, then allows it", async () => {
+        const email = "gated@example.com";
+        await signup({ email, password: "pw-12345678" });
+
+        const blocked = await login({ email, password: "pw-12345678" });
+        expect(blocked.status).toBe(403);
+        const body = (await blocked.json()) as { needsVerification?: boolean };
+        expect(body.needsVerification).toBe(true);
+        expect(blocked.headers.get("set-cookie") ?? "").not.toContain("galleo_session=");
+
+        const [u] = await db.select().from(schema.users).where(eq(schema.users.email, email));
+        await db
+            .update(schema.users)
+            .set({ emailVerifiedAt: new Date() })
+            .where(eq(schema.users.id, u!.id));
+
+        const ok = await login({ email, password: "pw-12345678" });
+        expect(ok.status).toBe(200);
+        expect(ok.headers.get("set-cookie")).toContain("galleo_session=");
+    });
+
+    // The gate applies from its own date forward, so accounts opened before it keep their access.
+    it("lets an account created before the gate sign in unverified", async () => {
+        const email = "grandfathered@example.com";
+        await signup({ email, password: "pw-12345678" });
+        await db
+            .update(schema.users)
+            .set({ createdAt: new Date("2026-08-01T00:00:00Z") })
+            .where(eq(schema.users.email, email));
+
+        const res = await login({ email, password: "pw-12345678" });
+        expect(res.status).toBe(200);
+        expect(res.headers.get("set-cookie")).toContain("galleo_session=");
     });
 
     it("rejects a missing password, a malformed email, and a short password", async () => {
@@ -247,6 +292,11 @@ describe("POST /auth/resend-verification", () => {
 
     it("mints a fresh verify token for an unverified user, none for a verified one", async () => {
         const unverified = await seedUser();
+        // seedUser lands verified; this case is specifically about the unverified state
+        await db
+            .update(schema.users)
+            .set({ emailVerifiedAt: null })
+            .where(eq(schema.users.id, unverified.userId));
         const res = await authed(
             unverified.userId,
             "/auth/resend-verification",

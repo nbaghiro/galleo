@@ -9,7 +9,7 @@ import type {
     UserPrefs,
     WorkspaceRole,
 } from "@model/workspace";
-import { asRole, mergeUserPrefs, readUserPrefs } from "@model/workspace";
+import { asRole, mergeUserPrefs, readUserPrefs, isEmail } from "@model/workspace";
 import { db } from "@services/db/client";
 import { freshCreditWindow, rollCreditWindow } from "./ledger";
 import { schema } from "@services/db/schema";
@@ -92,6 +92,27 @@ export async function currentMembership(
         .where(eq(schema.members.userId, userId))
         .orderBy(schema.members.createdAt);
     const row = rows.find((r) => r.ws.id === r.active) ?? rows[0];
+    if (!row) return null;
+    const rolled = await rollCreditWindow(row.ws);
+    if (rolled) Object.assign(row.ws, rolled);
+    return { ws: row.ws, role: row.ws.ownerId === userId ? "owner" : asRole(row.role) };
+}
+
+/**
+ * One named membership, for a caller that carries its own workspace rather than inheriting the
+ * browser's. `users.activeWorkspaceId` is a mutable pointer written by the workspace switcher, so an
+ * external client resolving through `currentMembership` would act on whatever tab the person last
+ * used. Rolls the credit window on read for the same reason its sibling does: there is no cron.
+ */
+export async function membershipFor(
+    userId: string,
+    workspaceId: string,
+): Promise<{ ws: WorkspaceRow; role: WorkspaceRole } | null> {
+    const [row] = await db
+        .select({ ws: schema.workspaces, role: schema.members.role })
+        .from(schema.members)
+        .innerJoin(schema.workspaces, eq(schema.members.workspaceId, schema.workspaces.id))
+        .where(and(eq(schema.members.userId, userId), eq(schema.members.workspaceId, workspaceId)));
     if (!row) return null;
     const rolled = await rollCreditWindow(row.ws);
     if (rolled) Object.assign(row.ws, rolled);
@@ -344,11 +365,10 @@ export async function consumeAuthToken(
     return consumed?.userId ?? null;
 }
 
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+export { isEmail };
+
 const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 200; // cap so an oversized input can't hog the event loop in synchronous scrypt
-
-export const isEmail = (v: string): boolean => EMAIL_RE.test(v);
 
 export function passwordError(pw: string): string | null {
     if (pw.length < MIN_PASSWORD) return `password must be at least ${MIN_PASSWORD} characters`;
@@ -372,13 +392,17 @@ export async function emailTaken(email: string): Promise<boolean> {
 
 // Always runs one scrypt and returns one null, so a missing or OAuth-only account can't be
 // enumerated by wording or by timing.
-export async function authenticate(email: string, password: string): Promise<User | null> {
+export async function authenticate(
+    email: string,
+    password: string,
+): Promise<{ user: User; createdAt: Date } | null> {
     const [u] = await db
         .select()
         .from(schema.users)
         .where(eq(schema.users.email, email.trim().toLowerCase()));
     const valid = verifyPassword(password, u?.passwordHash ?? DUMMY_HASH);
-    return !u || !u.passwordHash || !valid ? null : toUser(u);
+    // createdAt rides along so the route can apply the verification gate without a second read
+    return !u || !u.passwordHash || !valid ? null : { user: toUser(u), createdAt: u.createdAt };
 }
 
 // Bumps passwordChangedAt so sessions minted before now are rejected: a stolen cookie dies here.
@@ -556,7 +580,8 @@ const VERIFY_TTL = 60 * 60 * 24; // 24h
 const RESET_TTL = 60 * 60; // 1h
 
 // Best-effort: callers don't block signup on delivery, and the user can re-request from the banner.
-export async function sendVerifyEmail(userId: string, email: string): Promise<void> {
+/** True when the provider accepted it. The caller reports that honestly rather than guessing. */
+export async function sendVerifyEmail(userId: string, email: string): Promise<boolean> {
     const raw = await createAuthToken(userId, "verify", VERIFY_TTL);
     const url = appUrl(`/api/auth/verify?token=${raw}`);
     await sendEmail({
@@ -565,6 +590,7 @@ export async function sendVerifyEmail(userId: string, email: string): Promise<vo
         text: `Confirm your email to finish setting up Galleo:\n\n${url}\n\nThis link expires in 24 hours.`,
         html: `<p>Confirm your email to finish setting up Galleo:</p>\n<p><a href="${url}">Verify email</a></p>\n<p>This link expires in 24 hours.</p>`,
     });
+    return true;
 }
 
 // Silent when the address is unknown, so the caller can always answer ok without revealing it.

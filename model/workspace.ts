@@ -150,6 +150,24 @@ export interface Folder {
     count?: number; // live artifacts in the folder, counted server-side (the client list is paged)
 }
 
+// One definition of a well-formed address, so the field and the route agree on what they reject.
+// Format only: whether the mailbox exists is what the verification email answers, and no regex can.
+// Deliberately stricter than the last version on the two things a typo actually produces, a missing
+// dot in the domain and a trailing one.
+const EMAIL_RE = /^[^@\s]+@[^@\s.]+(\.[^@\s.]+)+$/;
+
+export const MAX_EMAIL = 254; // RFC 5321 forward-path limit
+
+export function emailError(raw: string): string | null {
+    const email = raw.trim();
+    if (!email) return "Enter your email address.";
+    if (email.length > MAX_EMAIL) return "That email address is too long.";
+    if (!EMAIL_RE.test(email)) return "That does not look like an email address.";
+    return null;
+}
+
+export const isEmail = (v: string): boolean => emailError(v) === null;
+
 export interface LoginBody {
     email?: string;
     password?: string;

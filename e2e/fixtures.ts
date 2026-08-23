@@ -17,6 +17,9 @@ const ALLOWED_NOISE: RegExp[] = [
     // the boot-time session probe: logged out, /api/me answers 401 and the app renders the auth
     // gate; the browser logs every non-2xx fetch regardless of the app handling it
     /401 \(Unauthorized\) \[[^\]]*\/api\/me\]/,
+    // the verification gate: an unverified account is refused a session with a 403 the auth page
+    // reads and explains, and the browser logs the fetch regardless
+    /403 \(Forbidden\) \[[^\]]*\/api\/auth\/login\]/,
     // rapid successive commits (drop then undo) can race the debounced content save into a 409;
     // the save store rebases and retries, the browser logs the failed fetch regardless. Recorded
     // as a finding in .docs/e2e-implementation-plan.md.

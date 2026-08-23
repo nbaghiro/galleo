@@ -376,8 +376,9 @@ export const api = {
             method: "POST",
             body: JSON.stringify({ email, password }),
         }),
+    // No user comes back: signup opens the account and stops there until the address is confirmed.
     signup: (email: string, password: string, name?: string) =>
-        req<{ user: User }>("/auth/signup", {
+        req<{ pending: true; email: string; sent: boolean }>("/auth/signup", {
             method: "POST",
             body: JSON.stringify({ email, password, name }),
         }),

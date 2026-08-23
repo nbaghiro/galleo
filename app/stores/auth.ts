@@ -42,9 +42,10 @@ export async function login(email: string, password: string): Promise<void> {
     adopt(u);
 }
 
-export async function signup(email: string, password: string, name: string): Promise<void> {
-    const { user: u } = await api.signup(email, password, name || undefined);
-    adopt(u);
+/** Opens the account and returns whether the verification mail went out; no session is created. */
+export async function signup(email: string, password: string, name: string): Promise<boolean> {
+    const { sent } = await api.signup(email, password, name || undefined);
+    return sent;
 }
 
 // the backend signs the user in as part of the reset, so adopt the returned user as login does
