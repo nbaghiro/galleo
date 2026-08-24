@@ -4,8 +4,13 @@ import { IconButton } from "@ui/button";
 import { Icon } from "@ui/icons";
 import { isCoarsePointer } from "@ui/viewport";
 import { api } from "@app/api";
-import type { TranscriptState, VoiceSession, VoiceStatus } from "./voice";
-import { emptyTranscript, insertDictation, startVoiceSession, voiceSupported } from "./voice";
+import type { TranscriptState, VoiceSession, VoiceStatus } from "@app/stores/voice";
+import {
+    emptyTranscript,
+    insertDictation,
+    startVoiceSession,
+    voiceSupported,
+} from "@app/stores/voice";
 
 const STATUS_LABEL: Record<VoiceStatus, string> = {
     permission: "Allow microphone",

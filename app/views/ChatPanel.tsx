@@ -5,7 +5,7 @@ import { useNavigate } from "@solidjs/router";
 import type { ChatBlock, GenBrief, WorkspaceAction } from "@model/ai";
 import type { Section } from "@model/artifact";
 import { estimateCost } from "@model/tools";
-import { Credits } from "@app/components/credits";
+import { Credits } from "@app/components/Credits";
 import type { Tokens } from "@themes";
 import { resolveTheme, themeCssVars } from "@themes";
 import { placeholderSection } from "@canvas/elements/blueprint";
@@ -485,7 +485,7 @@ const ThinkingBlock: Component<{ steps: string[]; done: boolean }> = (props) => 
             <Show when={n() > 0}>
                 <div class="mt-0.5">
                     <button
-                        class="flex items-center gap-1.5 py-0.5 text-[11px] text-muted transition-colors hover:text-soft"
+                        class="flex icon-row gap-1.5 py-0.5 text-[11px] text-muted transition-colors hover:text-soft"
                         onClick={() => setOpen((o) => !o)}
                     >
                         <Icon name="sparkle" size={11} />
@@ -707,7 +707,7 @@ const ArtifactsList: Component<{ items: Artifacts["items"] }> = (props) => {
             <For each={props.items}>
                 {(a) => (
                     <button
-                        class="flex items-center gap-2.5 rounded-lg border border-line bg-canvas px-2.5 py-2 text-left transition-colors hover:border-accent"
+                        class="flex icon-row gap-2.5 rounded-lg border border-line bg-canvas px-2.5 py-2 text-left transition-colors hover:border-accent"
                         onClick={() => open(a.id)}
                     >
                         <Icon name="sparkle" size={13} />
@@ -785,7 +785,7 @@ const ActionCard: Component<{
             }
         >
             <button
-                class="mt-1 flex w-full items-center gap-2 rounded-lg border border-line bg-canvas px-2.5 py-2 text-left text-[12.5px] font-medium text-ink transition-colors hover:border-accent"
+                class="mt-1 flex w-full icon-row gap-2 rounded-lg border border-line bg-canvas px-2.5 py-2 text-left text-[12.5px] font-medium text-ink transition-colors hover:border-accent"
                 onClick={route}
             >
                 <Icon name="sparkle" size={13} />
@@ -801,7 +801,7 @@ const TemplatesList: Component<{ items: Templates["items"] }> = (props) => (
         <For each={props.items}>
             {(t) => (
                 <button
-                    class="flex items-center gap-2.5 rounded-lg border border-line bg-canvas px-2.5 py-2 text-left transition-colors hover:border-accent"
+                    class="flex icon-row gap-2.5 rounded-lg border border-line bg-canvas px-2.5 py-2 text-left transition-colors hover:border-accent"
                     onClick={() => void startDraftFromTemplate(t.id)}
                 >
                     <Icon name="sparkle" size={13} />
@@ -1093,7 +1093,7 @@ export const ChatPanel: Component = () => {
                     <button
                         class="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-drawer flex h-12 w-12 items-center justify-center rounded-full bg-accent text-onaccent shadow-xl transition-transform hover:scale-105"
                         title="Chat with Galleo Agent"
-                        onClick={openChat}
+                        onClick={() => openChat("fab")}
                     >
                         <AgentIcon size={24} />
                     </button>

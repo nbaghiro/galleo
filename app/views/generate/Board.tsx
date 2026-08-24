@@ -26,7 +26,7 @@ import {
     type SectionSlot,
     type SlotStatus,
 } from "@app/stores/generate";
-import { Credits } from "@app/components/credits";
+import { Credits } from "@app/components/Credits";
 import { isCoarsePointer } from "@ui/viewport";
 import { outlineSection } from "@elements/blueprint";
 import { hitRegion, outlineEditable } from "./layout";
@@ -147,7 +147,7 @@ export const Board: Component = () => {
                     </For>
                     <Show when={gen.stage === "outline"}>
                         <button
-                            class="flex items-center justify-center gap-1.5 rounded-[var(--radius)] border border-dashed border-line py-3 text-[12px] text-muted transition-colors hover:border-accent hover:text-ink"
+                            class="flex icon-row justify-center gap-1.5 rounded-[var(--radius)] border border-dashed border-line py-3 text-[12px] text-muted transition-colors hover:border-accent hover:text-ink"
                             style={{ width: `${frameWidth(avail())}px` }}
                             onClick={() =>
                                 addBeatAfter(gen.beats[gen.beats.length - 1]?.id ?? null)

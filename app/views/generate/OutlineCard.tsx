@@ -1,6 +1,7 @@
 import type { Component } from "solid-js";
 import { createSignal, For, Show } from "solid-js";
 import type { Beat } from "@model/ai";
+import { BEAT_ROLES } from "@model/ai";
 import type { Rect } from "@engine/node";
 import type { OutlineField } from "@elements/blueprint";
 import { Button, IconButton } from "@ui/button";
@@ -17,7 +18,7 @@ import {
 import { Separator } from "@ui/inputs";
 import { Dropdown } from "@ui/select";
 import { isCoarsePointer } from "@ui/viewport";
-import { Credits } from "@app/components/credits";
+import { Credits } from "@app/components/Credits";
 import { blocksForLayout, LAYOUT_IDS } from "@app/stores/generate-plan";
 import {
     addBeatAfter,
@@ -28,7 +29,7 @@ import {
     removeBeatById,
     sectionCost,
 } from "@app/stores/generate";
-import { BEAT_ROLES, LAYOUT_LABELS } from "./shared";
+import { LAYOUT_LABELS } from "./shared";
 import { Field, Inline, Tag } from "./inline";
 
 export type OutlineEdit = { field: OutlineField; box: Rect };

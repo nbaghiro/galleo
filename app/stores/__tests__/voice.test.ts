@@ -7,7 +7,7 @@ import {
     reduceTranscript,
     transcriptText,
     TARGET_RATE,
-} from "@app/components/voice";
+} from "@app/stores/voice";
 
 describe("reduceTranscript", () => {
     it("tracks the live partial, then folds commits and clears it", () => {

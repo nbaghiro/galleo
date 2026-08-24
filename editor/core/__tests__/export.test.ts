@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cachedExport, clearExportCache } from "@editor/core/exportCache";
+import { cachedExport, clearExportCache } from "@editor/core/export";
 
 afterEach(() => clearExportCache());
 

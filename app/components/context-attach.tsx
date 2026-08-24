@@ -16,7 +16,7 @@ import {
     SOURCE_OPTIONS,
     type Attachment,
     type SourceOption,
-} from "./attachments";
+} from "@app/stores/attachments";
 
 // One attach experience for every surface: the same "+" menu, option rows, and chips as the
 // generate intake. What a pick DOES stays with the surface (transient attachment · ingest into a
@@ -24,6 +24,9 @@ import {
 
 const rowCls =
     "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-ink hover:bg-canvas";
+// same row for options whose lead is a bare svg: icon-row seats it on the label's optical band
+const iconRowCls =
+    "flex w-full icon-row gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-ink hover:bg-canvas";
 
 /** The workspace's contexts as toggle rows; `selected` ids feed the turn's contextIds. */
 export const ContextToggleRows: Component<{
@@ -403,7 +406,7 @@ export const AttachMenu: Component<{
                                 <For each={SOURCE_OPTIONS}>
                                     {(opt) => (
                                         <button
-                                            class={rowCls}
+                                            class={iconRowCls}
                                             disabled={taken(s(), opt.id)}
                                             onClick={() => {
                                                 setOpen(false);

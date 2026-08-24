@@ -37,7 +37,7 @@ import { CommandPalette } from "@ui/CommandPalette";
 import { ShortcutsSheet } from "@ui/ShortcutsSheet";
 import { installKeyDispatcher } from "@ui/keys";
 import { setNavigate } from "./stores/navigate";
-import "./stores/commands"; // side-effect: register the app commands + the ⌘K sources
+import "./stores/palette"; // side-effect: register the app commands + the ⌘K sources
 import { publishRoute } from "./stores/route-context";
 import "@editor/core/commands"; // side-effect: register studio commands + editor context keys
 

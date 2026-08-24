@@ -2,12 +2,12 @@ import type { Component, JSX } from "solid-js";
 import { createMemo, createSignal, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { resolveTheme, themeCssVars } from "@themes";
-import { Button, Eyebrow, Spinner } from "@ui/button";
+import { Button, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { FormatSwitcher } from "@ui/inputs";
 import { Icon } from "@ui/icons";
 import { Modal } from "@ui/overlay";
 import { viewportTier } from "@ui/viewport";
-import { Credits } from "@app/components/credits";
+import { Credits } from "@app/components/Credits";
 import { thread } from "@app/stores/chat";
 import {
     builtCount,
@@ -292,27 +292,44 @@ export const Studio: Component = () => {
                                 ▶ Write all {gen.beats.length} · ~
                                 <Credits n={remainingBuildCost()} />
                             </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                disabled={gen.planning}
-                                title="Plan a different arc from the same brief"
-                                onClick={() => void startPlan()}
+                            <Show
+                                when={viewportTier() !== "phone"}
+                                fallback={
+                                    <IconButton
+                                        size="md"
+                                        tone="muted"
+                                        disabled={gen.planning}
+                                        title="Plan a different arc from the same brief"
+                                        onClick={() => void startPlan()}
+                                    >
+                                        <Show when={!gen.planning} fallback={<Spinner size={11} />}>
+                                            <Icon name="refresh" size={12} />
+                                        </Show>
+                                    </IconButton>
+                                }
                             >
-                                <Show
-                                    when={!gen.planning}
-                                    fallback={
-                                        <>
-                                            <Spinner size={11} /> Replanning…
-                                        </>
-                                    }
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    disabled={gen.planning}
+                                    title="Plan a different arc from the same brief"
+                                    onClick={() => void startPlan()}
                                 >
-                                    <Icon name="refresh" size={12} />
-                                    <span class="hidden items-center gap-1 md:inline-flex">
-                                        Reroll · <Credits n={planCost()} />
-                                    </span>
-                                </Show>
-                            </Button>
+                                    <Show
+                                        when={!gen.planning}
+                                        fallback={
+                                            <>
+                                                <Spinner size={11} /> Replanning…
+                                            </>
+                                        }
+                                    >
+                                        <Icon name="refresh" size={12} />
+                                        <span class="inline-flex icon-row gap-1">
+                                            Reroll · <Credits n={planCost()} />
+                                        </span>
+                                    </Show>
+                                </Button>
+                            </Show>
                         </Show>
                         <Show when={building()}>
                             {/* pause parks the queue at the next boundary; it never ends the run */}

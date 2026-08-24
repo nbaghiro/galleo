@@ -7,7 +7,7 @@ import { Icon } from "@ui/icons";
 import { Dropdown } from "@ui/select";
 import { appTheme } from "@app/stores/theme";
 import { isCoarsePointer } from "@ui/viewport";
-import { Credits } from "@app/components/credits";
+import { Credits } from "@app/components/Credits";
 import { artifactSearchText } from "@model/artifact";
 import { api } from "@app/api";
 import { closeGenerate, planCost, startSession, type Surface } from "@app/stores/generate";
@@ -33,7 +33,7 @@ import {
     SOURCE_LIMIT,
     sourceLength,
     type Attachment,
-} from "@app/components/attachments";
+} from "@app/stores/attachments";
 import { charsBucket } from "@model/analytics";
 import { capture } from "@ui/analytics";
 

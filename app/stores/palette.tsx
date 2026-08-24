@@ -1,23 +1,130 @@
 import type { SearchHit } from "@model/artifact";
+import { registerCommands } from "@ui/keys";
 import { registerPaletteSource, type Row } from "@ui/palette-model";
 import { rankItems } from "@ui/fuzzy";
-import { folders } from "@app/stores/folders";
-import { artifacts } from "@app/stores/library";
 import { relativeTime } from "@ui/time";
-import { ensureLibrary } from "@app/stores/library";
-import { openGenerate } from "@app/stores/generate";
-import { modelPickerReady, openModelPicker } from "./ModelPicker";
-import { modelRuns, stepSummary } from "@app/stores/model-usage";
-import { go } from "@app/stores/navigate";
-import {
-    fetchHits,
-    hitMeta,
-    hitSubtitle,
-    localHits,
-    reconcile,
-    SEARCH_LIMIT,
-} from "@app/stores/search";
-import { ArtifactThumb } from "./previews";
+import { modelPickerReady, openModelPicker } from "@app/components/ModelPicker";
+import { ArtifactThumb } from "@app/components/previews";
+import { logout } from "./auth";
+import { toggleChat } from "./chat";
+import { folders } from "./folders";
+import { openGenerate } from "./generate";
+import { artifacts, ensureLibrary } from "./library";
+import { modelRuns, stepSummary } from "./model-usage";
+import { go } from "./navigate";
+import { fetchHits, hitMeta, hitSubtitle, localHits, reconcile, SEARCH_LIMIT } from "./search";
+import { openThemeEditor } from "./theme";
+
+// Everything the app puts in the ⌘K palette: the commands it can run, and the sources that turn a
+// query into rows. Two halves of one surface — @ui owns the palette and both registries, and knows
+// nothing about artifacts — so they register together and App.tsx imports this once for the effect.
+
+registerCommands([
+    {
+        id: "nav.library",
+        title: "Go to library",
+        group: "navigate",
+        icon: "library",
+        keywords: ["home", "artifacts"],
+        run: () => go("/"),
+    },
+    {
+        id: "nav.templates",
+        title: "Browse templates",
+        group: "navigate",
+        icon: "templates",
+        run: () => go("/templates"),
+    },
+    {
+        id: "nav.shared",
+        title: "Shared with me",
+        group: "navigate",
+        icon: "shared",
+        run: () => go("/shared"),
+    },
+    {
+        id: "nav.trash",
+        title: "Open trash",
+        group: "navigate",
+        icon: "trash",
+        keywords: ["deleted"],
+        run: () => go("/trash"),
+    },
+    {
+        id: "doc.newViaAi",
+        title: "Generate with AI…",
+        group: "file",
+        icon: "sparkle",
+        keywords: ["create", "new", "generate"],
+        slash: "/generate",
+        run: () => openGenerate(),
+    },
+    {
+        id: "debug.models",
+        title: "Models: pick one per step",
+        group: "file",
+        icon: "sparkle",
+        keywords: ["model", "debug", "gpt", "claude", "gemini", "override"],
+        slash: "/models",
+        when: () => modelPickerReady(),
+        run: () => openModelPicker(),
+    },
+    {
+        id: "theme.open",
+        title: "Change theme…",
+        group: "theme",
+        icon: "theme",
+        keywords: ["appearance", "color"],
+        slash: "/theme",
+        run: () => openThemeEditor(),
+    },
+    {
+        id: "ai.chat.toggle",
+        title: "Toggle AI chat",
+        group: "ai",
+        icon: "agent",
+        keywords: ["assistant"],
+        slash: "/chat",
+        run: () => toggleChat(),
+    },
+    {
+        id: "account.settings",
+        title: "Account settings",
+        group: "account",
+        icon: "agent",
+        keywords: ["profile", "password", "email", "preferences"],
+        slash: "/account",
+        run: () => go("/account"),
+    },
+    {
+        id: "workspace.settings",
+        title: "Workspace settings",
+        group: "account",
+        icon: "shared",
+        keywords: ["members", "invite", "seats", "team"],
+        slash: "/settings",
+        run: () => go("/settings"),
+    },
+    {
+        id: "account.upgrade",
+        title: "Plans & pricing",
+        group: "account",
+        icon: "arrowUpRight",
+        keywords: ["billing", "upgrade"],
+        slash: "/pricing",
+        run: () => go("/pricing"),
+    },
+    {
+        id: "account.signOut",
+        title: "Sign out",
+        group: "account",
+        icon: "signOut",
+        run: () => {
+            void logout();
+            go("/");
+        },
+    },
+]);
 
 // registered as palette sources, so @ui keeps knowing nothing about artifacts
 

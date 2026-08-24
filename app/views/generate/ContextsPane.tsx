@@ -22,7 +22,7 @@ import {
     updateContext,
 } from "@app/stores/contexts";
 import { reportError } from "@app/stores/errors";
-import { extensionOf, readAttachment } from "@app/components/attachments";
+import { extensionOf, readAttachment } from "@app/stores/attachments";
 
 const KIND: Record<ContextItemMeta["kind"], { label: string; icon: string }> = {
     file: { label: "file", icon: "doc" },

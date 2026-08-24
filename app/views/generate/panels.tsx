@@ -13,7 +13,7 @@ import {
     setGen,
     setMustInclude,
 } from "@app/stores/generate";
-import { Credits } from "@app/components/credits";
+import { Credits } from "@app/components/Credits";
 
 const FIELDS = [
     ["Goal", "goal", "what it has to achieve"],

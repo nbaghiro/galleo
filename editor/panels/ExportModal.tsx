@@ -19,7 +19,7 @@ import { capture } from "@ui/analytics";
 import { asFormat } from "@model/analytics";
 import { Badge, Button, Spinner } from "@ui/button";
 import { Modal } from "@ui/overlay";
-import { cachedExport } from "@editor/core/exportCache";
+import { cachedExport } from "@editor/core/export";
 import {
     currentArtifactId,
     editSeq,
