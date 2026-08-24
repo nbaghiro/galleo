@@ -99,8 +99,10 @@ test("an element someone is typing in cannot be entered by anyone else", async (
     await expect(guest.getByTestId("text-editor")).toHaveCount(0);
 
     // the element beside it is still free to work in. Esc walks the selection up and out first, so
-    // the blocked element's floating toolbar is not sitting over the one being clicked next.
+    // the blocked element's floating toolbar is not sitting over the one being clicked next. The
+    // pointer parks off the content too: the comment chip follows hover, not just selection.
     for (let i = 0; i < 4; i++) await guest.keyboard.press("Escape");
+    await guest.mouse.move(4, 4);
     await expect(guest.locator("[data-galleo-toolbar]")).toHaveCount(0);
     await paintedText(guest, "Free line").click();
     await expect(guest.getByTestId("text-editor")).toBeVisible();

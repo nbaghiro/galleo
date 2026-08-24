@@ -139,7 +139,8 @@ export const CollabLayer: Component = () => {
 
 // Following says so at the edge of the viewport rather than over the content, the way a mode should:
 // a frame in the followed person's colour, and one line naming them with the way out. Fixed to the
-// viewport, not the stack, because what is being followed is the viewport itself.
+// viewport, not the stack, because what is being followed is the viewport itself. The pill sits just
+// below the topbar so the controls there (the avatar that toggles follow among them) stay reachable.
 const FollowBanner: Component = () => (
     <Show when={followedPeer()}>
         {(peer) => (
@@ -149,7 +150,7 @@ const FollowBanner: Component = () => (
                     class="pointer-events-none fixed inset-0 z-overlay border-2"
                     style={{ "border-color": peer().color }}
                 />
-                <div class="fixed left-1/2 top-3 z-overlay -translate-x-1/2">
+                <div class="fixed left-1/2 top-14 z-overlay -translate-x-1/2">
                     <span class="flex items-center gap-2.5 rounded-full bg-panel px-3 py-1.5 text-[12.5px] text-ink shadow-lg">
                         <span
                             class="size-2 rounded-full"
