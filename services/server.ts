@@ -32,9 +32,11 @@ import { narration } from "./api/narration";
 import { voices } from "./api/voices";
 import { search } from "./api/search";
 import { context } from "./api/context";
+import { importer } from "./api/import";
 import { evals } from "./api/eval";
 import { onboarding } from "./api/onboarding";
 import { ingest } from "./api/ingest";
+import { google } from "./api/google";
 import { authorize } from "./api/authorize";
 import { mcp } from "./api/mcp";
 import { v1 } from "./api/v1";
@@ -85,9 +87,11 @@ app.route("/api", narration);
 app.route("/api", voices);
 app.route("/api", search);
 app.route("/api", context);
+app.route("/api", importer);
 app.route("/api", evals);
 app.route("/api", onboarding);
 app.route("/api", ingest);
+app.route("/api", google);
 
 // Root-mounted on purpose: the two .well-known paths are fixed by RFC 9728 and RFC 8414, and /mcp
 // is the resource identifier a client sends back as the OAuth `resource` parameter. All three have to

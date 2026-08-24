@@ -23,11 +23,17 @@ import { narration } from "@services/api/narration";
 import { voices } from "@services/api/voices";
 import { search } from "@services/api/search";
 import { context } from "@services/api/context";
+import { importer } from "@services/api/import";
+import { evals } from "@services/api/eval";
 import { onboarding } from "@services/api/onboarding";
 import { authorize } from "@services/api/authorize";
 import { mcp } from "@services/api/mcp";
+import { v1 } from "@services/api/v1";
 
-// Kept in sync with server.ts's router list by hand.
+// Every router server.ts mounts, kept in sync by hand. A missing one is a surface no integration
+// test can reach, which is how /api/v1 stayed untested while it grew. Two stay out on purpose: the
+// collaboration router takes the WebSocket upgrader this app has no listener for, and the analytics
+// ingest proxy slices an "/api" prefix off the path it forwards, which nothing mounts here.
 export const app = new Hono();
 app.route("/", session);
 app.route("/", account);
@@ -48,9 +54,14 @@ app.route("/", narration);
 app.route("/", voices);
 app.route("/", search);
 app.route("/", context);
+app.route("/", importer);
+app.route("/", evals);
 app.route("/", onboarding);
+// The three that carry their own full paths (/oauth, /mcp, /api/v1), so a test asks for exactly
+// what production serves; everything above answers without server.ts's "/api" prefix.
 app.route("/", authorize);
 app.route("/", mcp);
+app.route("/", v1);
 
 export const request = (path: string, init?: RequestInit): Promise<Response> =>
     Promise.resolve(app.request(path, init));

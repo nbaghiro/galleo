@@ -7,6 +7,7 @@ import { profileFor } from "@engine/profile";
 import { sectionSlides } from "@canvas/render/commands";
 import {
     buildPdfAuto,
+    buildRasterPptx,
     buildSectionPngs,
     buildSectionPngZip,
     downloadBytes,
@@ -25,6 +26,7 @@ import {
     editSeq,
     editor,
     artifactCredits,
+    slidesExport,
     editorTokens,
     ensureAllSections,
     features,
@@ -78,12 +80,13 @@ const close = (): void => {
     setTarget(false);
 };
 
-type Dest = Exclude<ExportFormat, "slides">; // the four shipped destinations
+type Dest = ExportFormat; // all five ship; "slides" sends to Google Drive instead of downloading
 
 // destination brand marks — fixed on purpose, they represent the target apps, not the theme
 const DESTS: { id: Dest; label: string; mark: string; icon?: string; markBg: string }[] = [
     { id: "pdf", label: "PDF", mark: "PDF", markBg: "#C2402C" },
     { id: "pptx", label: "PowerPoint", mark: "PPT", markBg: "#C75B12" },
+    { id: "slides", label: "Google Slides", mark: "GS", markBg: "#C79A24" },
     { id: "png", label: "Images", mark: "ZIP", markBg: "#3F6E8F" },
     { id: "print", label: "Print", mark: "", icon: "print", markBg: "#57544C" },
 ];
@@ -91,6 +94,7 @@ const DESTS: { id: Dest; label: string; mark: string; icon?: string; markBg: str
 const CTA: Record<Dest, string> = {
     pdf: "Export PDF",
     pptx: "Export PowerPoint",
+    slides: "Send to Google Slides",
     png: "Export ZIP",
     print: "Open print dialog",
 };
@@ -132,6 +136,8 @@ const disposePreview = (p: Preview): void => {
 const Body: Component = () => {
     const [dest, setDest] = createSignal<Dest>("pdf");
     const [busy, setBusy] = createSignal(false);
+    // the finished Google Slides doc for this artifact state; the popup-blocker-proof way back to it
+    const [sentUrl, setSentUrl] = createSignal<{ fp: string; url: string } | null>(null);
     const destMeta = createMemo(() => DESTS.find((d) => d.id === dest())!);
 
     const profile = createMemo(() => profileFor(editor.artifact));
@@ -170,6 +176,11 @@ const Body: Component = () => {
         cachedExport("zip", fp(), async () => buildSectionPngZip(await pngFiles()));
     const pptxBytes = (): Promise<Uint8Array> =>
         cachedExport("pptx", fp(), () => buildPptx(credited(), editorTokens(), { brand: brand() }));
+    // the Google destination: every slide baked to one PNG, so nothing re-flows on conversion
+    const rasterPptxBytes = (): Promise<Uint8Array> =>
+        cachedExport("slides", fp(), () =>
+            buildRasterPptx(credited(), editorTokens(), { brand: brand() }),
+        );
     const pngPreview = (): Promise<Preview> =>
         cachedExport(
             "pngs:preview",
@@ -222,7 +233,7 @@ const Body: Component = () => {
         () => (previewRequested() ? { d: dest(), fp: fp() } : null),
         async ({ d }): Promise<Preview> => {
             if (d === "pdf") return { kind: "pdf", url: (await pdfBuild()).url };
-            if (d === "pptx") return pptxPreview();
+            if (d === "pptx" || d === "slides") return pptxPreview(); // same slide pages either way
             if (d === "png") return pngPreview();
             return printPreview();
         },
@@ -238,6 +249,8 @@ const Body: Component = () => {
                     : `${n} sections → ${nSlides()} slide pages · vector text`;
             case "pptx":
                 return `${n} sections → ${nSlides()} slides · text stays editable`;
+            case "slides":
+                return `${n} sections → ${nSlides()} slides · saved to your Google Drive as slide images`;
             case "png":
                 return `${n} sections → ${pages()} PNGs · named by order + section · zipped`;
             default:
@@ -262,7 +275,12 @@ const Body: Component = () => {
                 const b = await pdfBuild();
                 downloadBytes(b.bytes, b.filename, "application/pdf");
             } else if (d === "pptx") downloadBytes(await pptxBytes(), "galleo.pptx", PPTX_MIME);
-            else if (d === "png")
+            else if (d === "slides") {
+                const { url } = await slidesExport(await rasterPptxBytes());
+                setSentUrl({ fp: fp(), url });
+                // may be quietly blocked this long after the click; the footer link is the fallback
+                window.open(url, "_blank", "noopener");
+            } else if (d === "png")
                 downloadBytes(await pngZip(), "galleo-sections.zip", "application/zip");
             else await exportPrint(editor.artifact, editorTokens());
             // Reaching an output is the activation definition, so this is the denominator for it.
@@ -273,7 +291,8 @@ const Body: Component = () => {
                 ms: Date.now() - startedAt,
                 branded: !features().removeBranding,
             });
-            close();
+            // the slides destination stays open to offer the link, in case the tab was blocked
+            if (d !== "slides") close();
         } catch (e) {
             capture("export_failed", {
                 export_format: d,
@@ -395,6 +414,17 @@ const Body: Component = () => {
                     </span>
                 </Show>
                 <div class="flex-1" />
+                <Show when={dest() === "slides" && sentUrl()?.fp === fp() && sentUrl()}>
+                    {(sent) => (
+                        <Button
+                            variant="outline"
+                            size="md"
+                            onClick={() => window.open(sent().url, "_blank", "noopener")}
+                        >
+                            Open in Google Slides
+                        </Button>
+                    )}
+                </Show>
                 <Button variant="tool" size="md" onClick={close}>
                     Cancel
                 </Button>

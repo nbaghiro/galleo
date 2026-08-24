@@ -11,11 +11,14 @@ import { Credits } from "@app/components/Credits";
 import { artifactSearchText } from "@model/artifact";
 import { api } from "@app/api";
 import { closeGenerate, planCost, startSession, type Surface } from "@app/stores/generate";
+import { unitRates } from "@app/stores/model-usage";
+import { estimateCost } from "@model/tools";
 import { createBlank, formatLabel } from "@app/stores/library";
 import { reportError } from "@app/stores/errors";
 import { IMAGE_SOURCES, LENGTHS, PLACEHOLDER, SURFACES } from "./prompts";
 import { setPreviewFormat } from "./shared";
 import { TemplateGallery } from "@app/components/TemplateGallery";
+import { ImportModal, openImportModal } from "@app/components/ImportModal";
 import {
     AttachMenu,
     AttachmentChips,
@@ -130,6 +133,13 @@ export const Intake: Component = () => {
 
     const overLimit = (): number => Math.max(0, sourceLength(items()) - SOURCE_LIMIT);
     const ready = (): boolean => !!prompt().trim() || items().length > 0;
+    // the whole run at the chosen size, so the price is known before the first credit moves
+    const fullRunCost = (): number =>
+        estimateCost(
+            "generate-artifact",
+            { length: length(), imageSource: imageSource() === "ai" ? "ai" : "stock" },
+            unitRates(),
+        );
 
     const touch = isCoarsePointer;
     const navigate = useNavigate();
@@ -308,6 +318,12 @@ export const Intake: Component = () => {
                             </div>
                         </div>
 
+                        <p class="mt-2 text-[11.5px] leading-snug text-muted">
+                            Planning and writing everything at this size is about{" "}
+                            <Credits n={fullRunCost()} />. You approve the outline before anything
+                            is written.
+                        </p>
+
                         <Show when={fileError()}>
                             <p class="mt-2 text-[11.5px] leading-snug text-accent">{fileError()}</p>
                         </Show>
@@ -340,7 +356,17 @@ export const Intake: Component = () => {
                                     </>
                                 )}
                             </For>
+                            {" · "}
+                            <button
+                                class="font-semibold text-soft underline decoration-line underline-offset-3 transition-colors hover:text-ink"
+                                classList={{ "px-1 py-2": touch() }}
+                                title="Import PowerPoint, PDF, or Google Slides"
+                                onClick={openImportModal}
+                            >
+                                Import a file
+                            </button>
                         </p>
+                        <ImportModal />
                     </div>
                 </div>
             </Show>

@@ -723,3 +723,76 @@ export function googleProvider(): Google | null {
 export function oauthProvidersReady(): { google: boolean } {
     return { google: googleProvider() !== null };
 }
+
+// Drive access limited to files this app creates; the Slides export and (later) import both ride it.
+export const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+
+const TOKEN_SKEW_MS = 60_000; // treat a token expiring within a minute as already expired
+
+export type GoogleTokenState = "ok" | "not-connected" | "expired" | "missing-scope";
+
+export function googleTokenState(
+    row: { accessToken: string | null; accessTokenExpiresAt: Date | null; scopes: string | null },
+    now: Date = new Date(),
+): GoogleTokenState {
+    if (!row.accessToken || !row.accessTokenExpiresAt) return "not-connected";
+    if (!(row.scopes ?? "").split(" ").includes(GOOGLE_DRIVE_SCOPE)) return "missing-scope";
+    if (row.accessTokenExpiresAt.getTime() - TOKEN_SKEW_MS <= now.getTime()) return "expired";
+    return "ok";
+}
+
+/** True when the user had a live Drive grant before this one (a reconnect, not a first connect). */
+export async function saveGoogleTokens(
+    userId: string,
+    token: { accessToken: string; expiresAt: Date; scopes: string[] },
+): Promise<boolean> {
+    const [prev] = await db
+        .select({
+            accessToken: schema.oauthAccounts.accessToken,
+            accessTokenExpiresAt: schema.oauthAccounts.accessTokenExpiresAt,
+            scopes: schema.oauthAccounts.scopes,
+        })
+        .from(schema.oauthAccounts)
+        .where(
+            and(
+                eq(schema.oauthAccounts.userId, userId),
+                eq(schema.oauthAccounts.provider, "google"),
+            ),
+        );
+    await db
+        .update(schema.oauthAccounts)
+        .set({
+            accessToken: token.accessToken,
+            accessTokenExpiresAt: token.expiresAt,
+            scopes: token.scopes.join(" "),
+        })
+        .where(
+            and(
+                eq(schema.oauthAccounts.userId, userId),
+                eq(schema.oauthAccounts.provider, "google"),
+            ),
+        );
+    return !!prev && googleTokenState(prev) !== "not-connected";
+}
+
+/** The live Drive-scoped access token, or the state that explains why there is none. */
+export async function googleDriveToken(
+    userId: string,
+): Promise<{ state: "ok"; token: string } | { state: Exclude<GoogleTokenState, "ok"> }> {
+    const [row] = await db
+        .select({
+            accessToken: schema.oauthAccounts.accessToken,
+            accessTokenExpiresAt: schema.oauthAccounts.accessTokenExpiresAt,
+            scopes: schema.oauthAccounts.scopes,
+        })
+        .from(schema.oauthAccounts)
+        .where(
+            and(
+                eq(schema.oauthAccounts.userId, userId),
+                eq(schema.oauthAccounts.provider, "google"),
+            ),
+        );
+    if (!row) return { state: "not-connected" };
+    const state = googleTokenState(row);
+    return state === "ok" ? { state, token: row.accessToken! } : { state };
+}

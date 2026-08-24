@@ -76,6 +76,7 @@
         "jszip": "^3.10.1",
         "marked": "^18.0.6",
         "pdf-lib": "^1.17.1",
+        "pdfjs-dist": "^6.2.108",
         "postgres": "^3.4.5",
         "posthog-js": "^1.418.6",
         "posthog-node": "^5.49.2",
