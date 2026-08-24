@@ -343,6 +343,31 @@ describe("tools over MCP", () => {
         expect(out.result.content[0]!.text).toMatch(/not available over MCP/);
     });
 
+    // It used to answer this as a success carrying the sentence "That artifact was not found." as
+    // its result, which left a model parsing prose to find out whether the call had worked. Still a
+    // tool result rather than a transport error: the call arrived and ran, and only then failed.
+    it("marks a read of an artifact that is not there as a failed call, in the envelope", async () => {
+        const { userId, workspaceId } = await seedUser();
+        const { access } = await grantToken(userId, workspaceId, await registerClient());
+        const res = await app.request("/mcp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${access}` },
+            body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: 1,
+                method: "tools/call",
+                params: { name: "read-artifact", arguments: { id: crypto.randomUUID() } },
+            }),
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as {
+            result: { isError?: boolean; content: { text: string }[]; structuredContent?: unknown };
+        };
+        expect(body.result.isError).toBe(true);
+        expect(body.result.content[0]!.text).toMatch(/not found/);
+        expect(body.result.structuredContent).toBeUndefined();
+    });
+
     // The transport has to stay JSON-RPC even when a body fails, or a client sees a dead socket
     // rather than a failed call. Reaching a real throw is hard from here, so this pins the shape a
     // malformed call comes back in.

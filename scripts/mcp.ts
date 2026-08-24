@@ -207,23 +207,37 @@ async function tools(): Promise<void> {
 }
 
 // The render payload is the point of the component, and it is far too big to print; showing its
-// shape is what tells you it arrived.
+// shape is what tells you it arrived. One line per kind the widget knows (see widget/main.ts), so
+// a payload this misses reads as "no component" when a host would in fact paint one.
+const painted = (galleo: {
+    kind?: string;
+    content?: { sections?: unknown[]; format?: string; theme?: string };
+    artifacts?: unknown[];
+}): string | null => {
+    const { kind, content } = galleo;
+    if (kind === "library") return `library · ${galleo.artifacts?.length ?? 0} artifacts`;
+    if (!content) return null;
+    const shape = `${content.sections?.length ?? 0} sections · ${content.format} · ${content.theme}`;
+    return `${kind === "sections" ? "carousel" : "artifact"} · ${shape}`;
+};
+
 function summarise(result: unknown): void {
     const r = result as {
         content?: { text: string }[];
         structuredContent?: Record<string, unknown>;
         _meta?: {
-            galleo?: { content?: { sections?: unknown[]; format?: string; theme?: string } };
+            galleo?: {
+                kind?: string;
+                content?: { sections?: unknown[]; format?: string; theme?: string };
+                artifacts?: unknown[];
+            };
         };
         isError?: boolean;
     };
     if (r.isError) out(`ERROR  ${r.content?.[0]?.text ?? ""}`);
     else if (r.content?.[0]) out(r.content[0].text.slice(0, 2000));
-    const painted = r._meta?.galleo?.content;
-    if (painted)
-        out(
-            `\n[component] ${painted.sections?.length ?? 0} sections · ${painted.format} · ${painted.theme}`,
-        );
+    const component = r._meta?.galleo && painted(r._meta.galleo);
+    if (component) out(`\n[component] ${component}`);
     if (r.structuredContent)
         out(`[structured] ${JSON.stringify(r.structuredContent).slice(0, 400)}`);
 }

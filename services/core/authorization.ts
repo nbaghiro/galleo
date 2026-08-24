@@ -6,6 +6,7 @@ import { isToolScope, TOOL_SCOPES } from "@model/tools";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { digest } from "@services/utils/auth";
+import { capture } from "@services/utils/analytics";
 
 // Galleo as an OAuth 2.1 authorization server, for the MCP endpoint. `services/api/oauth.ts` is the
 // opposite direction (Galleo as a client of Google), which is why neither file reuses the other's
@@ -213,6 +214,9 @@ async function mint(row: {
     // A machine credential is itself the durable secret, so rotating a refresh token beside it would
     // be a second thing to look after for no gain.
     refresh?: boolean;
+    // Which door the token came through. Every token is minted here, so a grant type added later is
+    // reported without the endpoint having to remember to say so.
+    via: "authorization_code" | "refresh_token" | "client_credentials";
 }): Promise<IssuedTokens> {
     const accessToken = token();
     const refreshToken = row.refresh === false ? "" : token();
@@ -228,6 +232,12 @@ async function mint(row: {
         accessHash: digest(accessToken),
         refreshHash: refreshToken ? digest(refreshToken) : null,
         expiresAt: new Date(Date.now() + ACCESS_TTL_MS),
+    });
+    capture({ userId: row.userId, workspaceId: row.defaultWorkspaceId }, "connector_token_issued", {
+        client_id: row.clientId,
+        grant: row.via,
+        scopes: row.scopes,
+        workspace_count: row.workspaceIds.length,
     });
     return { accessToken, refreshToken, expiresIn: ACCESS_TTL_MS / 1000, scopes: row.scopes };
 }
@@ -273,6 +283,7 @@ export async function exchangeCode(input: {
         defaultWorkspaceId: row.defaultWorkspaceId,
         scopes: row.scopes.filter(isScope),
         resource: row.resource,
+        via: "authorization_code",
     });
 }
 
@@ -308,6 +319,7 @@ export async function refreshTokens(
         scopes: row.scopes.filter(isScope),
         resource: row.resource,
         familyId: row.familyId,
+        via: "refresh_token",
     });
 }
 
@@ -413,6 +425,8 @@ export async function revokeApp(userId: string, clientId: string): Promise<boole
             ),
         )
         .returning({ id: schema.oauthTokens.id });
+    if (gone.length)
+        capture({ userId }, "connector_disconnected", { client_id: clientId, from: "settings" });
     return gone.length > 0;
 }
 
@@ -422,7 +436,11 @@ export async function revokeApp(userId: string, clientId: string): Promise<boole
  */
 export async function revokeToken(raw: string, clientId: string): Promise<void> {
     const [row] = await db
-        .select({ familyId: schema.oauthTokens.familyId, clientId: schema.oauthTokens.clientId })
+        .select({
+            familyId: schema.oauthTokens.familyId,
+            clientId: schema.oauthTokens.clientId,
+            userId: schema.oauthTokens.userId,
+        })
         .from(schema.oauthTokens)
         .where(
             or(
@@ -434,6 +452,10 @@ export async function revokeToken(raw: string, clientId: string): Promise<void> 
     // to ask whether a token exists
     if (!row || row.clientId !== clientId) return;
     await revokeFamily(row.familyId);
+    capture({ userId: row.userId }, "connector_disconnected", {
+        client_id: clientId,
+        from: "client",
+    });
 }
 
 /**
@@ -486,6 +508,10 @@ export async function createMachineClient(input: {
         workspaceId: input.workspaceId,
         actorId: input.actorId,
     });
+    capture({ userId: input.actorId, workspaceId: input.workspaceId }, "api_credential_created", {
+        client_id: clientId,
+        credential_count_after: (await machineClientsFor(input.workspaceId)).length,
+    });
     return { clientId, secret, name: input.name };
 }
 
@@ -515,7 +541,11 @@ export async function machineClientsFor(workspaceId: string): Promise<MachineSum
     }));
 }
 
-export async function revokeMachineClient(workspaceId: string, clientId: string): Promise<boolean> {
+export async function revokeMachineClient(
+    workspaceId: string,
+    clientId: string,
+    actorId: string,
+): Promise<boolean> {
     const [row] = await db
         .update(schema.oauthClients)
         .set({ revokedAt: new Date() })
@@ -523,16 +553,27 @@ export async function revokeMachineClient(workspaceId: string, clientId: string)
             and(
                 eq(schema.oauthClients.clientId, clientId),
                 eq(schema.oauthClients.workspaceId, workspaceId),
+                // one revocation per credential: a second call has nothing left to turn off, and
+                // would otherwise report the credential dying twice
+                isNull(schema.oauthClients.revokedAt),
             ),
         )
-        .returning({ id: schema.oauthClients.id });
+        .returning({
+            createdAt: schema.oauthClients.createdAt,
+            lastUsedAt: schema.oauthClients.lastUsedAt,
+        });
+    if (!row) return false;
     // its live tokens die with it, or a revoked credential would keep working for an hour
-    if (row)
-        await db
-            .update(schema.oauthTokens)
-            .set({ revokedAt: new Date() })
-            .where(eq(schema.oauthTokens.clientId, clientId));
-    return !!row;
+    await db
+        .update(schema.oauthTokens)
+        .set({ revokedAt: new Date() })
+        .where(eq(schema.oauthTokens.clientId, clientId));
+    capture({ userId: actorId, workspaceId }, "api_credential_revoked", {
+        client_id: clientId,
+        days_active: Math.round((Date.now() - row.createdAt.getTime()) / (24 * 3_600_000)),
+        ever_used: !!row.lastUsedAt,
+    });
+    return true;
 }
 
 /** The `client_credentials` grant: a secret in, a token out, no person in the middle. */
@@ -562,5 +603,6 @@ export async function machineGrant(
         scopes: wanted.length ? wanted : [...SCOPES],
         resource: "",
         refresh: false,
+        via: "client_credentials",
     });
 }

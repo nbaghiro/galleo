@@ -12,6 +12,7 @@ import {
     DIAGRAM_TYPES,
     FAQ_COLLAPSE,
     FLEX_DIRECTION,
+    FLEX_JUSTIFY,
     IMAGE_FIT,
     POPUP_VARIANTS,
     TEXT_ALIGN,
@@ -451,6 +452,12 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 type: "enum",
                 values: TEXT_ALIGN,
                 desc: "cross-axis alignment of children",
+            },
+            {
+                key: "justify",
+                type: "enum",
+                values: FLEX_JUSTIFY,
+                desc: "row only: spread the leftover width between / around / evenly instead of packing the children together",
             },
             {
                 key: "surface",

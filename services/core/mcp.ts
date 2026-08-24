@@ -1,9 +1,20 @@
 import { z } from "zod";
+import type { ArtifactContent } from "@model/artifact";
+import { sectionText } from "@model/artifact";
 import type { ToolEffect, ToolId, ToolScope } from "@model/tools";
 import { isToolScope, scopeFor, TOOLS } from "@model/tools";
 import { getTool, toolsFor } from "@services/core/ai/tools";
-import { WIDGET_MIME, WIDGET_URI, widgetCsp, widgetHtml } from "@services/core/widget";
-import { callDelegated, RENDERS } from "@services/core/delegated";
+import {
+    ARTIFACT_URI,
+    COMPONENTS,
+    LIST_URI,
+    WIDGET_MIME,
+    isComponentUri,
+    widgetCsp,
+    widgetHtml,
+} from "@services/core/widget";
+import type { Outcome } from "@services/core/delegated";
+import { callDelegated, INSPECTS, RENDERS } from "@services/core/delegated";
 import type { AccessGrant } from "@services/core/authorization";
 
 // The MCP protocol over JSON-RPC, kept free of hono so the transport can stay in the api layer.
@@ -87,7 +98,17 @@ const WORKSPACE_ARG = {
 // and an external client has to say which one it means.
 const ARTIFACT_ARG = {
     type: "string",
-    description: "the id of the artifact to change",
+    description: "the id of the artifact to act on",
+};
+
+// Which of the two components paints a tool's answer. A list of pieces and a carousel of sections
+// are both rows of cards, so they share a template; anything whose answer is one artifact renders
+// as that artifact. A tool in neither set answers as prose in the transcript.
+const LISTS = new Set<ToolId>(["find-artifacts", "show-sections"]);
+
+const componentFor = (id: ToolId): string | null => {
+    if (LISTS.has(id)) return LIST_URI;
+    return RENDERS.has(id) ? ARTIFACT_URI : null;
 };
 
 const HINTS: Record<ToolEffect, { readOnlyHint: boolean; destructiveHint: boolean }> = {
@@ -104,6 +125,9 @@ function describeTool(id: ToolId): Record<string, unknown> | null {
         properties?: Record<string, unknown>;
         [k: string]: unknown;
     };
+    const component = componentFor(id);
+    // a tool that reads or changes one artifact needs to be told which, unless it already asks
+    const named = (tool.patch || INSPECTS.has(id)) && !(schema.properties ?? {}).artifactId;
     return {
         name: id,
         title: def.title,
@@ -114,10 +138,7 @@ function describeTool(id: ToolId): Record<string, unknown> | null {
             properties: {
                 ...(schema.properties ?? {}),
                 workspace: WORKSPACE_ARG,
-                // a tool that changes an artifact needs to be told which, unless it already asks
-                ...(tool.patch && !(schema.properties ?? {}).artifactId
-                    ? { artifact: ARTIFACT_ARG }
-                    : {}),
+                ...(named ? { artifact: ARTIFACT_ARG } : {}),
             },
         },
         annotations: { title: def.title, ...HINTS[def.effect ?? "write"], openWorldHint: false },
@@ -125,12 +146,12 @@ function describeTool(id: ToolId): Record<string, unknown> | null {
         // rather than discovering it by being refused.
         _meta: {
             "galleo/scope": scopeFor(id),
-            // A tool whose result is an artifact renders it, rather than describing it in prose.
+            // A tool whose answer is content paints it, rather than describing it in prose.
             // `openai/outputTemplate` is the same field under ChatGPT's compatibility alias.
-            ...(RENDERS.has(id)
+            ...(component
                 ? {
-                      ui: { resourceUri: WIDGET_URI, ...widgetCsp() },
-                      "openai/outputTemplate": WIDGET_URI,
+                      ui: { resourceUri: component, ...widgetCsp() },
+                      "openai/outputTemplate": component,
                   }
                 : {}),
         },
@@ -175,6 +196,29 @@ export const isNeedsAuth = (v: CallOutcome): v is NeedsAuth => "needsAuth" in v;
 export const isAuthChallenge = (reply: JsonRpcResponse): boolean =>
     reply.error?.code === AUTH_REQUIRED;
 
+type Done = Extract<Outcome, { ok: true }>;
+
+/** What the component is handed: the tree it paints, or the rows it lists. */
+function paintable(id: ToolId, out: Done): Record<string, unknown> | null {
+    if (id === "find-artifacts") return { kind: "library", artifacts: out.result };
+    if (!out.rendered) return null;
+    return { kind: id === "show-sections" ? "sections" : "artifact", content: out.rendered };
+}
+
+const clip = (s: string, n: number): string =>
+    s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s;
+
+const spine = (content: ArtifactContent): { id: string; text: string }[] =>
+    content.sections.map((s) => ({ id: s.id, text: clip(sectionText(s), 120) }));
+
+/**
+ * The half a model reads. It is the tool's own answer everywhere except the carousel, whose answer
+ * is every section tree: that is the component's payload, and handing it to the model as well would
+ * cost more context than reading the whole artifact and say nothing the spine does not.
+ */
+const modelResult = (id: ToolId, out: Done): unknown =>
+    id === "show-sections" && out.rendered ? spine(out.rendered) : out.result;
+
 async function callTool(grant: AccessGrant | null, params: unknown): Promise<CallOutcome> {
     const p = (params ?? {}) as { name?: string; arguments?: Record<string, unknown> };
     const id = p.name as ToolId | undefined;
@@ -189,14 +233,16 @@ async function callTool(grant: AccessGrant | null, params: unknown): Promise<Cal
         if (out.kind === "needs-auth") return { needsAuth: true };
         return text(out.message, true);
     }
+    const model = modelResult(id, out);
+    const paint = paintable(id, out);
     return {
-        content: [{ type: "text", text: out.note ?? JSON.stringify(out.result) }],
+        content: [{ type: "text", text: out.note ?? JSON.stringify(model) }],
         structuredContent: {
             ...(out.workspace ? { workspace: out.workspace } : {}),
             ...(out.artifactId ? { artifact: out.artifactId } : {}),
-            result: out.result,
+            result: model,
         },
-        ...(out.rendered ? { _meta: { galleo: { content: out.rendered } } } : {}),
+        ...(paint ? { _meta: { galleo: paint } } : {}),
     };
 }
 
@@ -221,20 +267,13 @@ export async function handleRpc(
             return ok(id, {});
         case "resources/list":
             return ok(id, {
-                resources: [
-                    {
-                        uri: WIDGET_URI,
-                        name: "Galleo artifact",
-                        description: "A deck, document or site rendered by Galleo's own engine.",
-                        mimeType: WIDGET_MIME,
-                    },
-                ],
+                resources: COMPONENTS.map((c) => ({ ...c, mimeType: WIDGET_MIME })),
             });
         case "resources/read": {
             const uri = (req.params as { uri?: string } | undefined)?.uri;
-            if (uri !== WIDGET_URI) return fail(id, -32602, `Unknown resource: ${String(uri)}`);
+            if (!isComponentUri(uri)) return fail(id, -32602, `Unknown resource: ${String(uri)}`);
             return ok(id, {
-                contents: [{ uri: WIDGET_URI, mimeType: WIDGET_MIME, text: widgetHtml() }],
+                contents: [{ uri, mimeType: WIDGET_MIME, text: widgetHtml() }],
             });
         }
         case "tools/list":

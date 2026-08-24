@@ -8,8 +8,30 @@ import { appUrl } from "@services/utils/env";
 // Dev and production find that script differently. Vite serves the entry module by path, while a
 // build emits a hashed asset whose name only the built html knows, so production reads it back out.
 
-export const WIDGET_URI = "ui://galleo/artifact";
 export const WIDGET_MIME = "text/html;profile=mcp-app";
+
+// Two components, one shell. They paint different things but share the whole host bridge (the
+// postMessage result, ChatGPT's `window.openai`, the ready handshake) and the same layout engine,
+// so a second entry would duplicate both and ship the engine twice; the script branches on which
+// payload arrived instead. The uris stay separate because a host names the template per tool.
+export const COMPONENTS = [
+    {
+        uri: "ui://galleo/artifact",
+        name: "Galleo artifact",
+        description: "A deck, document or site rendered by Galleo's own engine.",
+    },
+    {
+        uri: "ui://galleo/list",
+        name: "Galleo list",
+        description: "Pieces found in the library, or the sections inside one piece.",
+    },
+] as const;
+
+export const ARTIFACT_URI = COMPONENTS[0].uri;
+export const LIST_URI = COMPONENTS[1].uri;
+
+export const isComponentUri = (uri: string | undefined): uri is string =>
+    COMPONENTS.some((c) => c.uri === uri);
 
 const DEV_SCRIPTS = ["/@vite/client", "/widget/main.ts"];
 

@@ -1,11 +1,11 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { appUrl } from "@services/utils/env";
-import { digest } from "@services/utils/auth";
-import { rateLimit, readJson } from "@services/utils/http";
+import { readJson } from "@services/utils/http";
 import { z } from "zod";
 import { verifyAccessToken } from "@services/core/authorization";
 import { MCP_RESOURCE } from "@services/api/authorize";
+import { delegatedLimiter } from "@services/api/middleware";
 import { BASE_SCOPES } from "@services/core/authorization";
 import { handleRpc, isAuthChallenge, scopeChallengeOf } from "@services/core/mcp";
 import type { JsonRpcRequest, JsonRpcResponse } from "@services/core/mcp";
@@ -48,19 +48,7 @@ const bearer = (header: string | undefined): string | null => {
     return m ? m[1]!.trim() : null;
 };
 
-// Keyed on the token rather than the address: every user of one directory client arrives from that
-// vendor's handful of egress addresses, so an address bucket would throttle a whole platform at once.
-const mcpLimiter = rateLimit({
-    name: "mcp",
-    limit: 240,
-    windowMs: 60_000,
-    by: (c) => {
-        const raw = bearer(c.req.header("authorization"));
-        return raw ? digest(raw) : null;
-    },
-});
-
-mcp.all("/mcp", mcpLimiter, async (c) => {
+mcp.all("/mcp", delegatedLimiter, async (c) => {
     if (c.req.method === "GET" || c.req.method === "DELETE")
         // no server-initiated stream yet, so there is no session to open or close
         return c.body(null, 405, { allow: "POST" });

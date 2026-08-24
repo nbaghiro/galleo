@@ -114,15 +114,14 @@ export async function runTool<R = unknown>(
 
     if (opts.holds === "caller" || !principal) return { ok: true, result: await body() };
 
-    const held = await reserve(
-        principal.ws,
-        principal.userId,
-        call.id,
-        opts.size ?? {},
-        ratesFor(principal.ws, opts.models ?? {}),
-        opts.trace ?? false,
-        principal.role,
-    );
+    const held = await reserve(principal.ws, principal.userId, call.id, {
+        size: opts.size,
+        rates: ratesFor(principal.ws, opts.models ?? {}),
+        trace: opts.trace,
+        role: principal.role,
+        // the surface the call came in on, so a run from an MCP client is not reported as a chat one
+        surface: call.surface,
+    });
     if (!held.ok)
         return { ok: false, reason: "credits", remaining: held.remaining, capped: held.capped };
 

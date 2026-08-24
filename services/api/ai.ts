@@ -28,7 +28,7 @@ import { currentMembership, currentUser } from "@services/core/accounts";
 import { SESSION_COOKIE } from "@services/utils/auth";
 import { z } from "zod";
 import { isArtifactContent } from "@services/core/artifacts";
-import { OUT_OF_CREDITS, OVER_MEMBER_CAP, rateLimit, readJson } from "@services/utils/http";
+import { creditRefusal, rateLimit, readJson } from "@services/utils/http";
 import type { WorkspaceRow } from "@services/core/accounts";
 import type { WorkspaceRole } from "@model/workspace";
 import { warn } from "@services/utils/env";
@@ -117,10 +117,6 @@ export const ai = new Hono<WorkspaceEnv>();
 
 // A refused reserve is either the workspace running dry or this member hitting their own ceiling;
 // only the first has an upgrade or a top-up to offer.
-const denied = (ws: WorkspaceRow, held: { remaining: number; capped?: number }) =>
-    held.capped == null
-        ? OUT_OF_CREDITS(ws, held.remaining)
-        : OVER_MEMBER_CAP(held.capped, held.remaining);
 
 // The turn union and its per-kind inputs live in @model/ai; restating them here would be a second
 // copy to keep in sync, and every route below narrows what it reads anyway. z.custom validates
@@ -214,16 +210,14 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
     const overrides = overridesFrom(c);
     // a client asking to trace changes nothing on its own; only an eval admin gets a run recorded
     const traced = !!req.trace && isEvalAdmin(c.get("user"));
-    const held = await reserve(
-        ws,
-        c.get("user").id,
-        ACTION_FOR[req.kind],
-        meterFor(req, feats.maxSectionsPerGeneration),
-        ratesFor(ws, overrides),
-        traced,
-        c.get("role"),
-    );
-    if (!held.ok) return c.json(denied(ws, held), 402);
+    const held = await reserve(ws, c.get("user").id, ACTION_FOR[req.kind], {
+        size: meterFor(req, feats.maxSectionsPerGeneration),
+        rates: ratesFor(ws, overrides),
+        trace: traced,
+        role: c.get("role"),
+        surface: "direct",
+    });
+    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
 
     // AI images are counted so the settle can reconcile the estimate to the real count; stock is free.
     const imageSource =
@@ -426,9 +420,12 @@ function refused(
     out: Extract<ToolOutcome<unknown>, { ok: false }>,
 ): Response {
     const ws = c.get("ws");
-    if (out.reason === "credits") return c.json(denied(ws, out), 402);
+    if (out.reason === "credits") return c.json(creditRefusal(ws, out), 402);
     if (out.reason === "entitlement")
-        return c.json({ error: "That needs a higher plan.", upgrade: true }, 402);
+        return c.json(
+            { error: "That needs a higher plan.", reason: "feature" as const, upgrade: true },
+            402,
+        );
     if (out.reason === "bad-input") return c.json({ error: out.issues.join("; ") }, 400);
     // a route naming a tool that is not on its own surface is a wiring bug, not a caller's mistake
     return c.json({ error: "that action is not available" }, 500);

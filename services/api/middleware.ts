@@ -4,7 +4,8 @@ import type { User, WorkspaceRole } from "@model/workspace";
 import { mustConfirmEmail } from "@model/workspace";
 import type { ArtifactAccess } from "@model/artifact";
 import { atLeast } from "@model/artifact";
-import { SESSION_COOKIE } from "@services/utils/auth";
+import { SESSION_COOKIE, digest } from "@services/utils/auth";
+import { rateLimit } from "@services/utils/http";
 import { currentMembership, currentUser, type WorkspaceRow } from "@services/core/accounts";
 import { artifactStanding, type ArtifactStanding } from "@services/core/collaborators";
 import { MODEL_HEADER, parseOverrides, type ModelOverrides } from "@services/core/models";
@@ -119,6 +120,23 @@ export async function gateShared<E extends Env & AuthedEnv>(
 }
 
 export const isResponse = (v: unknown): v is Response => v instanceof Response;
+
+// The ceiling on Galleo reached from outside the product. One bucket covers /mcp and /api/v1
+// together: they take the same token and run the same executor, so a caller splitting its traffic
+// across both doors would otherwise hold twice the ceiling anybody chose. Keyed on the token rather
+// than the address, because every user of one directory client arrives from that vendor's handful
+// of egress addresses and an address bucket would throttle a whole platform at once; the public
+// part of the surface carries no token and falls back to the address, which is all there is to
+// count a caller by.
+export const delegatedLimiter = rateLimit({
+    name: "delegated",
+    limit: 240,
+    windowMs: 60_000,
+    by: (c) => {
+        const m = /^Bearer\s+(.+)$/i.exec(c.req.header("authorization") ?? "");
+        return m ? digest(m[1]!.trim()) : null;
+    },
+});
 
 // The client may pin any step to a specific model; the registry decides which ids survive.
 export const overridesFrom = (c: Context): ModelOverrides =>

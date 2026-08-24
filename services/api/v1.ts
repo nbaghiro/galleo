@@ -6,6 +6,8 @@ import { readJson } from "@services/utils/http";
 import { verifyAccessToken } from "@services/core/authorization";
 import type { AccessGrant } from "@services/core/authorization";
 import { callDelegated } from "@services/core/delegated";
+import type { Outcome } from "@services/core/delegated";
+import { delegatedLimiter } from "@services/api/middleware";
 
 // The public REST surface. It is a shape rather than a second implementation: every route resolves
 // to a tool and runs through the same executor the chat agent and the MCP server use, so the gates,
@@ -14,28 +16,19 @@ import { callDelegated } from "@services/core/delegated";
 
 export const v1 = new Hono();
 
+// The same ceiling MCP runs under, and the same bucket: one credential holds one budget however it
+// arrives. Ahead of every route, including the anonymous catalog read, which has no token to key on.
+v1.use("/api/v1/*", delegatedLimiter);
+
 const bearer = (header: string | undefined): string | null => {
     const m = /^Bearer\s+(.+)$/i.exec(header ?? "");
     return m ? m[1]!.trim() : null;
 };
 
-interface Caller {
-    grant: AccessGrant;
-    workspaceId: string;
-}
-
 // `resource: ""` on a machine token, because there is no MCP endpoint it was bound to; a browser
 // token names one and is accepted here too, so one credential can drive both surfaces.
-async function caller(header: string | undefined, named?: string): Promise<Caller | null> {
-    const raw = bearer(header);
-    if (!raw) return null;
-    const grant =
-        (await verifyAccessToken(raw, "")) ?? (await verifyAccessToken(raw, appUrl("/mcp")));
-    if (!grant) return null;
-    const workspaceId =
-        named && grant.workspaceIds.includes(named) ? named : grant.defaultWorkspaceId;
-    return grant.workspaceIds.includes(workspaceId) ? { grant, workspaceId } : null;
-}
+const grantFor = async (raw: string): Promise<AccessGrant | null> =>
+    (await verifyAccessToken(raw, "")) ?? (await verifyAccessToken(raw, appUrl("/mcp")));
 
 const unauthorized = { error: "unauthorized" } as const;
 
@@ -45,13 +38,26 @@ async function run(
     workspace: string | undefined,
     id: ToolId,
     input: Record<string, unknown>,
-): Promise<{ status: 200 | 400 | 401 | 403 | 404; body: unknown }> {
-    const who = await caller(header, workspace);
-    if (!who) return { status: 401, body: unauthorized };
-    const out = await callDelegated(
-        { id, surface: "api", input, workspace: who.workspaceId },
-        who.grant,
-    );
+): Promise<{ status: 200 | 400 | 401 | 403 | 404 | 500; body: unknown }> {
+    // No token is not a refusal here: part of the surface needs no account, and which part is the
+    // shared call's decision rather than this layer's, or the two surfaces allow different things.
+    // A token that is offered and does not verify is still refused, the same as over MCP: that is a
+    // broken client, not an anonymous one.
+    const raw = bearer(header);
+    const grant = raw ? await grantFor(raw) : null;
+    if (raw && !grant) return { status: 401, body: unauthorized };
+    let out: Outcome;
+    try {
+        // The named workspace goes through unresolved: whether the grant covers it is checked once,
+        // where the default and the membership lookup already are.
+        out = await callDelegated({ id, surface: "api", input, workspace }, grant);
+    } catch (e) {
+        // A tool body that throws is a server fault rather than something a client can act on, but
+        // it still has to come back as JSON, the way MCP catches one into its envelope: otherwise
+        // this is the one answer the two surfaces phrase differently, and the throw may land after
+        // the write it was making already happened.
+        return { status: 500, body: { error: e instanceof Error ? e.message : "the call failed" } };
+    }
     if (out.ok)
         return {
             status: 200,

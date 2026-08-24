@@ -6,6 +6,7 @@ import type { Tokens } from "@themes";
 import { resolveTheme, themeCssVars } from "@themes";
 import { readUserPrefs } from "@model/workspace";
 import { appUrl } from "@services/utils/env";
+import { capture } from "@services/utils/analytics";
 import { digest, SESSION_COOKIE } from "@services/utils/auth";
 import { currentUser } from "@services/core/accounts";
 import { rateLimit, readForm, readJson, zFormList, zFormText } from "@services/utils/http";
@@ -113,6 +114,13 @@ authorize.post("/oauth/register", registerLimiter, async (c) => {
         name: body.client_name?.slice(0, 80) || "Unnamed client",
         redirectUris: body.redirect_uris,
         source: "dynamic",
+    });
+    // Nobody is signed in yet, so the client's own id stands in for a person and no profile is
+    // minted. http was only allowed on loopback above, which is what makes it the desktop tell.
+    capture({ userId: client.clientId, anonymous: true }, "connector_registered", {
+        client_id: client.clientId,
+        loopback: body.redirect_uris.some((u) => u.startsWith("http://")),
+        redirect_uri_count: body.redirect_uris.length,
     });
     return c.json(
         {
@@ -288,15 +296,24 @@ authorize.post("/oauth/consent", consentLimiter, async (c) => {
         return c.text("redirect_uri mismatch", 400);
 
     const wanted = parseScopes(body.scope);
+    const granted = wanted.length ? wanted : BASE_SCOPES;
     const code = await issueCode({
         clientId: body.client_id,
         userId,
         workspaceIds: body.ws,
         defaultWorkspaceId,
-        scopes: wanted.length ? wanted : BASE_SCOPES,
+        scopes: granted,
         resource: body.resource || MCP_RESOURCE(),
         codeChallenge: body.code_challenge,
         redirectUri: body.redirect_uri,
+    });
+    // The person said yes, which is the only moment a connection is created. The scope set is what
+    // makes a step-up legible: the same client consenting again with a wider set is one completing.
+    capture({ userId, workspaceId: defaultWorkspaceId }, "connector_authorized", {
+        client_id: body.client_id,
+        scopes: granted,
+        workspaces_granted: body.ws.length,
+        workspaces_available: allowed.size,
     });
     const back = new URL(body.redirect_uri);
     back.searchParams.set("code", code);

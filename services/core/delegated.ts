@@ -16,6 +16,7 @@ import {
 } from "@services/core/ai/effects";
 import { setTrashed, updateArtifact } from "@services/core/artifacts";
 import type { WorkspaceRow } from "@services/core/accounts";
+import { capture } from "@services/utils/analytics";
 
 // One call, for any caller that is not the app itself. MCP and the public API differ in how they
 // authenticated and in how they phrase an answer, and in nothing else: the workspace a call lands
@@ -71,22 +72,44 @@ export const RENDERS = new Set<ToolId>([
     "create-artifact",
 ]);
 
-// A WorkspaceAction is what a tool returns instead of doing the thing, because in the app the client
-// performs it behind a confirm. With no client, performing it here is the whole point.
-async function perform(workspaceId: string, action: WorkspaceAction): Promise<string> {
+// Reads that need the stored tree the way a write does: the body is handed it, and the outcome
+// carries it back for a component to paint. Nothing is written back, so they stay reads.
+export const INSPECTS = new Set<ToolId>(["show-sections"]);
+
+// Reads about one named artifact whose body resolves the id itself, through the library reader
+// rather than through the tree loaded here. Loading it anyway is what turns a missing artifact into
+// a refusal both surfaces can act on, instead of a successful answer whose prose says otherwise.
+const RESOLVES = new Set<ToolId>(["read-artifact"]);
+
+const MISSING = "That artifact was not found.";
+
+// Postgres compares uuids, so an id that is not one throws in the first query that touches it
+// rather than simply not matching. A made-up id is a missing artifact, not a server fault.
+const ARTIFACT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * A WorkspaceAction is what a tool returns instead of doing the thing, because in the app the client
+ * performs it behind a confirm. With no client, performing it here is the whole point.
+ *
+ * Null where the artifact it names was not there: this is the only place that learns it, since the
+ * tool bodies return an intention without ever reading a row.
+ */
+async function perform(workspaceId: string, action: WorkspaceAction): Promise<string | null> {
     switch (action.kind) {
         case "rename":
-            await updateArtifact(workspaceId, action.id, { title: action.title });
-            return `Renamed to “${action.title}”.`;
+            return (await updateArtifact(workspaceId, action.id, { title: action.title }))
+                ? `Renamed to “${action.title}”.`
+                : null;
         case "move":
-            await updateArtifact(workspaceId, action.id, { folderId: action.folderId });
+            if (!(await updateArtifact(workspaceId, action.id, { folderId: action.folderId })))
+                return null;
             return action.folderId ? "Moved into the folder." : "Moved out of its folder.";
         case "trash":
-            await setTrashed(workspaceId, action.id, new Date());
-            return "Moved to Trash.";
+            return (await setTrashed(workspaceId, action.id, new Date()))
+                ? "Moved to Trash."
+                : null;
         case "restore":
-            await setTrashed(workspaceId, action.id, null);
-            return "Restored from Trash.";
+            return (await setTrashed(workspaceId, action.id, null)) ? "Restored from Trash." : null;
         default:
             // share and export route to guarded UI by design, and have no server-side path
             return `“${action.kind}” cannot be done from here yet.`;
@@ -128,7 +151,45 @@ export interface Call {
     workspace?: string;
 }
 
+/**
+ * The workspace a call landed in, filled in the moment it resolves.
+ *
+ * One report is raised around the whole call, so a refusal is measured the same way a success is,
+ * and a refusal carries no workspace of its own for the report to read.
+ */
+interface Landing {
+    workspaceId?: string;
+}
+
+/** One distinct id for every caller with no token, since none of them is a person we know. */
+const ANONYMOUS = "delegated-anonymous";
+
 export async function callDelegated(call: Call, grant: Grant | null): Promise<Outcome> {
+    const startedAt = Date.now();
+    const landing: Landing = {};
+    const out = await dispatch(call, grant, landing);
+    const def = TOOLS[call.id];
+    // No token means no person to attribute to. The event still says that a call arrived and how it
+    // ended, and mints no profile we would never query.
+    const who = grant
+        ? {
+              userId: grant.userId,
+              ...(landing.workspaceId ? { workspaceId: landing.workspaceId } : {}),
+          }
+        : { userId: ANONYMOUS, anonymous: true };
+    capture(who, "delegated_tool_called", {
+        tool_id: call.id,
+        surface: call.surface,
+        ...(def ? { scope: scopeFor(call.id), effect: def.effect ?? "write" } : {}),
+        outcome: out.ok ? "ok" : out.kind,
+        authenticated: !!grant,
+        named_workspace: !!call.workspace || typeof call.input.workspace === "string",
+        ms: Date.now() - startedAt,
+    });
+    return out;
+}
+
+async function dispatch(call: Call, grant: Grant | null, landing: Landing): Promise<Outcome> {
     const { id, surface } = call;
     const def = TOOLS[id];
     const tool = getTool(id);
@@ -172,9 +233,16 @@ export async function callDelegated(call: Call, grant: Grant | null): Promise<Ou
 
     const { workspace: named, artifact: target, ...input } = call.input;
     const wanted = call.workspace ?? (typeof named === "string" ? named : "");
+    // Destroying in the wrong tenant is the one mistake that is expensive, so a destructive call
+    // has to say where when there is more than one place it could mean. With a single workspace on
+    // the grant there is no ambiguity to resolve, and refusing would be friction rather than safety.
+    if (!wanted && def.effect === "destructive" && grant.workspaceIds.length > 1)
+        return no("refused", `Name the workspace to run “${def.title}” in.`);
     const workspaceId = wanted || grant.defaultWorkspaceId;
     if (!grant.workspaceIds.includes(workspaceId))
         return no("refused", `This connection was not granted access to workspace ${workspaceId}.`);
+
+    landing.workspaceId = workspaceId;
 
     const membership = await membershipFor(grant.userId, workspaceId);
     if (!membership) return no("refused", "That workspace is no longer available to this account.");
@@ -190,14 +258,16 @@ export async function callDelegated(call: Call, grant: Grant | null): Promise<Ou
     // A tool that changes an artifact runs against the stored tree and writes back through the same
     // save the editor uses, so the search columns, `seq` and the collaboration resync all follow.
     const changes = !!tool.patch;
+    const wants = changes || INSPECTS.has(id) || RESOLVES.has(id);
     const artifactId =
         [target, input.artifactId, input.id].find(
             (v): v is string => typeof v === "string" && v.length > 0,
         ) ?? null;
-    if (changes && !artifactId) return no("refused", "Name the artifact to change.");
+    if (wants && !artifactId) return no("refused", "Name the artifact.");
+    if (artifactId && !ARTIFACT_ID.test(artifactId)) return no("not-found", MISSING);
     const content =
-        changes && artifactId ? await loadContent({ workspaceId: ws.id, artifactId }) : null;
-    if (changes && !content) return no("not-found", "That artifact was not found.");
+        wants && artifactId ? await loadContent({ workspaceId: ws.id, artifactId }) : null;
+    if (wants && !content) return no("not-found", MISSING);
 
     // Creation has no artifact to load and none to patch: it makes one. Generation streams its work
     // and is gathered as it goes; a direct create hands the whole tree over at once.
@@ -252,7 +322,9 @@ export async function callDelegated(call: Call, grant: Grant | null): Promise<Ou
         await commitContent({ workspaceId: ws.id, artifactId }, next);
         note = "Saved.";
     } else if (isAction(out.result)) {
-        note = await perform(ws.id, out.result);
+        const done = await perform(ws.id, out.result);
+        if (done === null) return no("not-found", MISSING);
+        note = done;
     }
 
     return {
@@ -261,9 +333,11 @@ export async function callDelegated(call: Call, grant: Grant | null): Promise<Ou
         note,
         workspace: { id: ws.id, name: ws.name },
         ...(artifactId ? { artifactId } : {}),
+        // A write reloads, so what a component paints is the saved state rather than the one the
+        // tool started from; a read wrote nothing and already holds it.
         rendered:
-            RENDERS.has(id) && artifactId
+            changes && artifactId && RENDERS.has(id)
                 ? await loadContent({ workspaceId: ws.id, artifactId })
-                : null,
+                : content,
     };
 }

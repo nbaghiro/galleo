@@ -44,7 +44,10 @@ the seeded demo account. The token lands in `.mcp/`, which is gitignored.
 | `services/core/authorization.ts` | clients, codes, tokens, PKCE, rotation, families, connected apps     |
 | `services/api/authorize.ts`      | the two metadata documents, `/oauth/*`, the consent page             |
 | `services/core/mcp.ts`           | the JSON-RPC methods, hono-free                                      |
-| `services/api/mcp.ts`            | the transport, the 401 and 403 challenges, the per-token rate limit  |
+| `services/api/mcp.ts`            | the transport, the 401 and 403 challenges                            |
+| `services/api/v1.ts`             | the REST vocabulary over the same shared call                        |
+| `services/core/delegated.ts`     | the one call both delegated surfaces make, and every refusal in it   |
+| `services/api/middleware.ts`     | `delegatedLimiter`, the ceiling both `/mcp` and `/api/v1` share      |
 | `services/core/widget.ts`        | the `ui://` component html and the exact origins it may fetch from   |
 | `widget/`                        | the component itself: the real engine, no framework                  |
 | `scripts/fonts-vendor.ts`        | vendors every face the theme library and the picker can name         |
@@ -232,9 +235,11 @@ and is a plain member of their employer's gets the right role in each with no ne
 
 Two rules keep the model from choosing wrongly, which is the residual risk once escalation is
 impossible. Every tool result names the workspace it acted on, in `structuredContent`, so the choice
-is visible in the transcript instead of implied. And destructive tools take the explicit argument
-only, never falling through to the default, because `trash-artifact` in the wrong tenant is the one
-mistake that is expensive.
+is visible in the transcript instead of implied. And a destructive tool has to name its workspace when
+the grant covers more than one, rather than falling through to the default, because
+`trash-artifact` in the wrong tenant is the one mistake that is expensive. Where the grant covers a
+single workspace there is no ambiguity to resolve, so it falls through as everything else does:
+refusing there would be friction rather than safety.
 
 `list-workspaces` is the only user-scoped tool in the catalog. It is worth writing down precisely
 because it is the single exception to an otherwise uniform rule.
@@ -328,44 +333,53 @@ reachable tool without one, which is earlier and louder than a guard.
 
 ## The tool surface
 
-The `mcp` surface is 17 tools: the four reads a client needs to find its way around
-(`find-artifacts`, `read-artifact`, `show-sections`, `find-templates`) and the writes the effect path
-can carry out server-side. It was once the inverse of that, carrying generate-artifact and its
-neighbours while excluding every read tool, so an external client could generate a deck and then be
-unable to list what exists or read one back.
+The `mcp` surface is 19 tools, and the `api` surface is the same 19, because what an external AI
+client may do and what an integration may do are the same list: the difference between them is how
+they authenticated, not what they are allowed to reach. `OVER_MCP` in `model/tools.ts` is
+`["agent", "direct", "mcp", "api"]`, so the delegated surfaces move together by construction.
 
-The reads matter most because they are the highest value to an external client and the lowest risk,
-and they are the ones a store reviewer can exercise without spending credits. The writes are gated
-by scope rather than by absence: a token granted `artifacts:read` sees them in `tools/list` and is
-told what to step up to, which is what makes the read-only case genuinely read-only.
+Five reads let a client find its way around (`find-artifacts`, `read-artifact`, `show-sections`,
+`find-templates`, `list-workspaces`), eleven writes change stored state, and three are destructive or
+undo something destructive (`trash-artifact`, `remove-section`, `restore-artifact`). The reads are the
+lowest risk and the ones a store reviewer can exercise without spending credits, and `find-templates`
+is `public`, so it answers with no token at all.
 
-It is also aspirational in a way the section below makes untenable: most of those 17 cannot take
-effect over MCP at all, because they return something for a client to apply and MCP has no client. So
-the surface is now truthful rather than intended. `AGENT_DIRECT` is `["agent", "direct"]`, a second
-`OVER_MCP` carries the tools that genuinely work, and today that is four:
-`find-artifacts`, `read-artifact`, `show-sections`, `find-templates`. Everything else joins once the
-effect path exists. The agent-loop tools (`propose-generation`, `request-write`, `steer-sections`,
-`revise-outline`, `search-context`) never join, being inner-loop affordances of Galleo's own chat.
+The writes are gated by scope rather than by absence: a token granted `artifacts:read` still sees them
+in `tools/list` and is told what to step up to, which is what makes the read-only case genuinely
+read-only rather than merely undiscoverable.
 
-`apply-patch` is the exception worth noting: it is declared `["mcp", "direct"]` and has no
-implementation, which reads as somebody having anticipated exactly the gap below and left a place for
-it.
+An earlier version of this surface was four tools, all reads, because a write could not take effect
+with no client to apply it. The section below is no longer the gap it describes; the effect path is
+built, and the rest of the catalog joined once it was.
 
-Two fields are added to `ToolMeta` in `model/tools.ts`, since that file is already the one catalog:
+`apply-patch` is declared `["mcp", "direct"]` and still has no implementation, so it never appears in
+`tools/list`. `check:tools` tolerates that deliberately, because it is marked planned rather than
+live; a live tool with no body is a failure, since the list is built from the registry and would
+quietly leave it out. The agent-loop tools (`propose-generation`, `request-write`, `steer-sections`,
+`revise-outline`, `search-context`) never join, being inner-loop affordances of Galleo's own chat that
+hand a block back to a client to apply.
+
+Two fields were added to `ToolMeta` in `model/tools.ts`, since that file is already the one catalog:
 
 - **`effect`**, one of `read` / `write` / `destructive`, absent meaning `write`. The MCP layer turns
   it into the `readOnlyHint` and `destructiveHint` annotations both directories check at review, and
   Anthropic's guidance names a wrong hint as a common rejection. One field rather than three
   booleans, because the three are not independent and the catalog should not be able to state a
   combination that means nothing.
-- **an output schema.** `implement()` has none today, and both hosts want one. This is the piece with
-  real work behind it, because tools return heterogeneous values: a string, an `ArtifactRef[]`, a
-  `Section`, an `ElementInstance`.
+- **`public`**, for a tool that runs with no account and no workspace, which today is
+  `find-templates` alone. A curated catalog is not somebody's content, and letting it answer
+  unauthenticated is what lets a person, or a reviewer, see what Galleo offers before deciding to
+  sign in.
 
-## The effect path, which does not exist yet
+**Output schemas are still absent.** Both hosts want one, and the work is real rather than
+mechanical, because tools return heterogeneous values: a string, an `ArtifactRef[]`, a `Section`, an
+`ElementInstance`. `structuredContent` is already returned; the declared schema is the missing half.
 
-Tracing a call end to end turns up the one structural gap in this design, and it is why the `mcp`
-surface above is four tools rather than twenty-five.
+## The effect path
+
+An external caller has no browser, and Galleo's AI server was built on the assumption that it always
+does. That assumption is worth stating, because it is why this path had to exist before the surface
+could carry anything but reads.
 
 **The AI server never persists anything.** `services/core/ai/run.ts` contains no database write.
 `runGenerate` streams `{ type: "patch", ops }` and the browser does the work:
@@ -376,8 +390,7 @@ const next = applyPatch(drafts[id].content, ev.ops); // app/stores/chat.ts
 
 **The artifact arrives from the client, not from the database.** `zElementEdit` and `zSuggest` take
 `content: zArtifactContent` in the request body, so the browser sends the document it is already
-holding. There is no server-side load step for editing. `makeWorkspaceReader.read` exists but returns
-a prose digest for a model to read, not content to edit.
+holding. There is no server-side load step for editing in that path.
 
 **Management tools return intentions rather than effects.** `tools/manage.ts` imports no database.
 Its tools return a `WorkspaceAction`, and the comment on that type in `model/ai.ts` is explicit:
@@ -388,19 +401,23 @@ Its tools return a `WorkspaceAction`, and the comment on that type in `model/ai.
 | { kind: "export"; id: string }
 ```
 
-So `share-artifact` does not share and `export-artifact` does not export; they ask a browser to open
-a modal. `trash-artifact` is marked destructive because the client confirms it.
-
-None of this is a defect. It is a coherent design for a product whose only client is its own editor,
+None of that is a defect. It is a coherent design for a product whose only client is its own editor,
 and it keeps the AI server stateless. It simply does not survive contact with a caller that has no
-browser. MCP needs a server-side path that loads an artifact, applies a tool's result through the
-same section-op write the REST route uses (which already bumps `artifacts.seq` so the collaboration
-room can order it), and performs a `WorkspaceAction` rather than describing one.
+browser.
 
-That path is close to what `.docs/prompts/06-public-api.md` was going to build, which revises an
-earlier claim in this doc: MCP should still come first, because an OAuth token carries a real user
-and solves the principal problem an API key does not, but the two share a foundation rather than
-being independent.
+What closes the gap is `services/core/delegated.ts`, one function that both delegated surfaces call.
+It loads the stored tree (`loadContent`), applies a tool's result through the same section-op write
+the REST route uses (`applyToContent` then `commitContent`, which bumps `artifacts.seq` so the
+collaboration room can order it), and performs a `WorkspaceAction` rather than describing one. A tool
+that creates rather than patches gathers its stream into a `Built` and commits it with `commitNew`.
+`share-artifact` and `export-artifact` are still absent from the surface, because both genuinely
+route to guarded UI and have no server-side path to run.
+
+Three sets decide what a call does with an artifact, and they are not the same question:
+`tool.patch` marks a tool that writes one back, `INSPECTS` marks a read that needs the tree handed to
+its body, and `RENDERS` marks a result worth painting rather than describing. `show-sections` was
+broken for exactly this reason before `INSPECTS` existed: it was neither a patching tool nor a plain
+read, so it was never handed the artifact and answered with an empty list every time.
 
 ## Widgets
 
@@ -532,7 +549,11 @@ work and the only one that fails a submission outright.
    `services/core/mcp.ts`.
 7. ~~Fonts vendored, the existing entries switched, `check:fonts`.~~ Built, and the guard now
    runs in pre-commit and CI.
-8. The widget entry, the two component templates, the `ui://` resources.
+8. ~~The widget entry, the two component templates, the `ui://` resources.~~ Built:
+   `ui://galleo/artifact` paints a section stack with the real engine, and `ui://galleo/list` paints
+   either a library grid (`find-artifacts`) or a section carousel (`show-sections`). One script
+   serves both, since everything around the two paints is identical and a second entry would ship
+   the layout engine twice.
 9. Submission: privacy policy, reviewer account, domain verification, test cases.
 
 Steps 1 and 2 ship on their own and are worth having whether or not the rest lands, which is why they
@@ -547,10 +568,11 @@ are first.
   cannot see is a confusing failure.
 - **Artifacts reached only through a collaborator grant** (`gateShared`, outside the workspace) are
   not exposed. That is a third tenancy tier and it wants its own thinking.
-- **Whether MCP is plan-gated.** `apiAccess` is Premium-only today. Inheriting that would make a store
+- **Whether MCP is plan-gated.** Decided: it is not. `apiAccess` gates one thing, minting a workspace
+  machine credential, which stays Premium. Inheriting it on the connector path would have made a store
   listing useless as an acquisition channel, since a new user would install the app and hit an upgrade
-  wall; leaving it ungated relies on the credit meter, which already exists. Not decided.
-- **The public REST API and workspace API keys** (`.docs/prompts/06-public-api.md`) remain separate and
-  later. That design has an unresolved problem this one does not: a workspace key has no person
-  attached, so it has to invent a synthetic principal for the ledger, while an OAuth token carries a
-  real user and makes credit attribution and per-member caps work unchanged.
+  wall. The connector path relies on the credit meter instead, which already exists.
+- **Whether a headless credential should default to every scope.** `machineGrant` grants all of
+  `TOOL_SCOPES` when a `client_credentials` exchange names none, and the settings UI offers no scope
+  picker, so a key minted there can delete. That is the opposite of the browser path, which
+  advertises `artifacts:read` alone and makes everything else a step-up. Not decided.

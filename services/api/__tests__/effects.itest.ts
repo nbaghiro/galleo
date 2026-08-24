@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { app, request, resetDb, seedUser } from "@services/__tests__/harness";
 import { SESSION_COOKIE, makeSession } from "@services/utils/auth";
 import { createArtifact, readArtifact } from "@services/core/artifacts";
@@ -105,6 +105,42 @@ describe("the effect path", () => {
         const row = await readArtifact(workspaceId, artifactId);
         expect((row!.draftContent as { theme: string }).theme).toBe("noir");
         expect(row!.seq).toBeGreaterThan(before!.seq);
+    });
+
+    // A WorkspaceAction is an intention until this path carries it out, so what the row did is the
+    // only thing that can answer. Trashing something that is not there moved nothing, and used to
+    // come back as "Moved to Trash." all the same.
+    it("performs a trash, and refuses one that names an artifact there is none of", async () => {
+        const { userId, workspaceId } = await seedUser();
+        const artifactId = (await createArtifact(workspaceId, userId, {
+            title: "Trash target",
+            themeId: "studio",
+            formatId: "deck",
+            draftContent: {
+                format: "deck",
+                theme: "studio",
+                sections: [{ id: "s1", root: { type: "text", data: { text: "bye" } } }],
+            },
+        }))!;
+        const access = await grant(userId, workspaceId, "artifacts:read artifacts:delete");
+        const trash = async (
+            id: string,
+        ): Promise<{ isError?: boolean; content: { text: string }[] }> =>
+            (
+                (await rpc(access, "tools/call", {
+                    name: "trash-artifact",
+                    arguments: { artifactId: id },
+                })) as { result: { isError?: boolean; content: { text: string }[] } }
+            ).result;
+
+        const done = await trash(artifactId);
+        expect(done.isError ?? false).toBe(false);
+        expect(done.content[0]!.text).toMatch(/Trash/);
+        expect((await readArtifact(workspaceId, artifactId))!.trashedAt).not.toBe(null);
+
+        const missing = await trash(randomUUID());
+        expect(missing.isError).toBe(true);
+        expect(missing.content[0]!.text).toMatch(/not found/);
     });
 
     it("hands the component a tree to paint, and keeps it out of what the model reads", async () => {
