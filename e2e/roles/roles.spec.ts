@@ -25,7 +25,7 @@ test("the owner sees full member management, with plus-addressed emails intact",
 }) => {
     const page = await personaPage(browser, "demo");
     await enterWorkspace(page.request, "Northwind Studio");
-    await page.goto("/settings");
+    await page.goto("/settings/members");
     await expect(page.getByText("demo+admin@galleo.app")).toBeVisible();
     await expect(page.getByRole("button", { name: "Invite" })).toBeVisible();
     await expect(page.getByTitle("Make workspace owner").first()).toBeVisible();
@@ -35,7 +35,7 @@ test("the owner sees full member management, with plus-addressed emails intact",
 test("an admin manages members but cannot transfer ownership", async ({ browser }) => {
     const page = await personaPage(browser, "demo+admin");
     await enterWorkspace(page.request, "Northwind Studio");
-    await page.goto("/settings");
+    await page.goto("/settings/members");
     await expect(page.getByRole("button", { name: "Invite" })).toBeVisible();
     await expect(page.getByTitle("Make workspace owner")).toHaveCount(0);
     await page.context().close();
