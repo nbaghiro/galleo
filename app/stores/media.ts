@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { capture } from "@ui/analytics";
 import type { IconPick, MediaItem, MediaKind } from "@model/media";
 
 export interface MediaPickRequest {
@@ -21,11 +22,18 @@ export function closeMediaPicker(): void {
 }
 
 export function pickMedia(url: string, item?: MediaItem): void {
+    // `source` is what the picker resolved it from, which is the question: does anyone use stock,
+    // or is everything generated. Generation cost itself rides ai_action_*.
+    capture("media_inserted", {
+        source: item?.source ?? "link",
+        kind: mediaRequest()?.kind ?? "photo",
+    });
     mediaRequest()?.onPick(url, item);
     setMediaRequest(null);
 }
 
 export function pickMediaIcon(icon: IconPick): void {
+    capture("media_inserted", { source: "icon", kind: "icon" });
     mediaRequest()?.onPickIcon?.(icon);
     setMediaRequest(null);
 }

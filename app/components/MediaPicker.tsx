@@ -23,6 +23,8 @@ import type {
 import { KIND_PROVIDERS, MEDIA_ASPECTS, MEDIA_GEN_STYLES } from "@model/media";
 import { editorTokens } from "@editor/core/store";
 import { api, streamGenerateMedia, streamGenerateVideo, type MediaProvidersState } from "@app/api";
+import { queryBucket } from "@model/analytics";
+import { capture } from "@ui/analytics";
 import {
     closeMediaPicker,
     mediaRequest,
@@ -410,6 +412,13 @@ export const MediaPicker: Component = () => {
         try {
             const res = await api.searchMedia(s, q, 1, kind());
             if (g !== gen) return;
+            // The query never travels, only its length and whether it found anything: "does search
+            // work" is answerable, "what do people search for" is a content question we do not ask.
+            capture("media_searched", {
+                provider: s,
+                result_count: res.items.length,
+                query_length_bucket: queryBucket(q.length),
+            });
             // the response carries live key state, so the rail heals itself
             setProviders((prev) => ({ ...prev, stock: res.providers }));
             setItems(fresh(res.items));
@@ -546,6 +555,9 @@ export const MediaPicker: Component = () => {
             });
             await pick(item);
         } catch (e) {
+            capture("media_upload_failed", {
+                reason: e instanceof Error ? e.name : "unknown",
+            });
             setError(e instanceof Error ? e.message : "Upload failed");
             setLoading(false);
         }

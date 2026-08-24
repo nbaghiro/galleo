@@ -30,59 +30,8 @@ import {
     THEME_SAMPLE,
     type ThemeDraft,
 } from "@app/stores/theme";
+import { BODY_FONTS, DISPLAY_FONTS, MONO_FONTS } from "@themes";
 import { themeDemo } from "./theme-demo";
-
-const DISPLAY_FONTS = [
-    "Fraunces",
-    "Playfair Display",
-    "Cormorant Garamond",
-    "Bodoni Moda",
-    "Newsreader",
-    "Spectral",
-    "Marcellus",
-    "Cinzel",
-    "Prata",
-    "Yeseva One",
-    "Anton",
-    "Oswald",
-    "Space Grotesk",
-    "Bricolage Grotesque",
-    "Sora",
-    "Archivo",
-    "Quicksand",
-    "Fredoka",
-    "Orbitron",
-    "VT323",
-    "Tektur",
-    "Silkscreen",
-    "Handjet",
-    "Major Mono Display",
-];
-const BODY_FONTS = [
-    "Hanken Grotesk",
-    "Manrope",
-    "Mulish",
-    "Jost",
-    "Figtree",
-    "Outfit",
-    "Nunito",
-    "Albert Sans",
-    "Plus Jakarta Sans",
-    "Barlow",
-    "Inter Tight",
-    "Lora",
-    "Rajdhani",
-    "Chakra Petch",
-];
-const MONO_FONTS = [
-    "DM Mono",
-    "IBM Plex Mono",
-    "Geist Mono",
-    "Space Mono",
-    "JetBrains Mono",
-    "Fragment Mono",
-    "Overpass Mono",
-];
 
 const SHADOW_PRESETS: [string, string][] = [
     ["none", "None"],

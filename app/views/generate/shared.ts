@@ -45,8 +45,6 @@ export function togglePhonePane(): void {
     setPhonePane((p) => (p === "board" ? "chat" : "board"));
 }
 
-export const BEAT_ROLES = ["scene", "tension", "turn", "proof", "momentum", "close", "detail"];
-
 export const LAYOUT_LABELS: Record<string, string> = {
     full: "Full",
     "split-6040": "60 · 40",

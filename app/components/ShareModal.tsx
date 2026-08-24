@@ -761,7 +761,7 @@ const LinkRow: Component<{
                                 onClick={() => props.onCopy(props.link.url)}
                             >
                                 <Show when={props.copied === props.link.url} fallback="Copy">
-                                    <span class="inline-flex items-center gap-1">
+                                    <span class="inline-flex icon-row gap-1">
                                         <CheckIcon size={12} /> Copied
                                     </span>
                                 </Show>

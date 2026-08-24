@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { capture } from "@ui/analytics";
 
 // imports nothing else from app/: api.ts reads modelHeaders() and would otherwise cycle
 
@@ -37,6 +38,7 @@ const persist = (next: ModelOverrides): void => {
 
 // empty id clears the task back to the server default
 export function setModelOverride(task: string, id: string): void {
+    capture("model_pinned", { task, model_id: id });
     const next = { ...overrides() };
     if (id) next[task] = id;
     else delete next[task];

@@ -5,6 +5,8 @@ import type { PublishPolicy, WorkspaceRole } from "@model/workspace";
 import type { ArtifactAccess } from "@model/artifact";
 import { describeUsage } from "@model/credits";
 import { Avatar } from "@ui/avatar";
+import { VoiceShelf } from "@app/components/VoiceShelf";
+import { can } from "@app/stores/features";
 import { Button, Eyebrow, Spinner } from "@ui/button";
 import { TextField } from "@ui/inputs";
 import { Dropdown } from "@ui/select";
@@ -359,6 +361,10 @@ export const WorkspaceSettingsView: Component = () => {
                                         </div>
                                     </Section>
                                 </Show>
+
+                                <Section title="Voice">
+                                    <VoiceShelf canDesign={can("voiceDesign")} />
+                                </Section>
 
                                 <Section title="Plan & usage">
                                     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

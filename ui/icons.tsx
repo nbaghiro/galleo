@@ -399,6 +399,29 @@ const PATHS: Record<string, () => JSX.Element> = {
             <line x1="12" y1="18" x2="12" y2="21" />
         </>
     ),
+    // a speech bubble over ruled lines: notes that are meant to be said
+    notes: () => (
+        <>
+            <path d="M4 5h16v10H9l-4 4V5z" />
+            <path d="M8 9h8M8 12h5" />
+        </>
+    ),
+    play: () => <path d="M8 5.5v13l11-6.5z" />,
+    // two beamed notes: a bed, not a melody
+    music: () => (
+        <>
+            <path d="M9 18V6l10-2v12" />
+            <circle cx="6.5" cy="18" r="2.5" />
+            <circle cx="16.5" cy="16" r="2.5" />
+        </>
+    ),
+    pause: () => <path d="M9 5v14M15 5v14" />,
+    captions: () => (
+        <>
+            <rect x="3" y="5" width="18" height="14" rx="2" />
+            <path d="M9.5 10.5a2.5 2.5 0 1 0 0 3M16.5 10.5a2.5 2.5 0 1 0 0 3" />
+        </>
+    ),
     site: () => (
         <>
             <rect x="3" y="4" width="18" height="16" />

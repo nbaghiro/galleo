@@ -14,6 +14,7 @@ import type {
 import type { ArtifactContent, ElementInstance, Section, Target } from "@model/artifact";
 import type { Template } from "@model/templates";
 import { applyPatch } from "@model/ai";
+import { addressesEqual } from "@model/artifact";
 import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import {
@@ -21,9 +22,13 @@ import {
     currentArtifactId,
     editor,
     ensureAllSections,
+    multiSelected,
+    selectedAddresses,
     selection,
 } from "@editor/core/store";
 import { api, streamTurn } from "@app/api";
+import { charsBucket } from "@model/analytics";
+import { capture } from "@ui/analytics";
 import { appTheme, saveCustomTheme } from "./theme";
 import { openShare } from "./share";
 import { billing, loadBilling } from "./billing";
@@ -117,7 +122,8 @@ export function previewSource(): { theme: string; format: string } {
     if (d) return { theme: d.content.theme, format: d.content.format };
     return { theme: editor.artifact.theme, format: editor.artifact.format };
 }
-export const openChat = (): void => {
+export const openChat = (from = "editor"): void => {
+    capture("chat_opened", { from });
     setChatOpen(true);
     void loadBilling(); // warm the credit balance
 };
@@ -125,7 +131,8 @@ export const closeChat = (): void => {
     setChatOpen(false);
 };
 export const toggleChat = (): void => {
-    setChatOpen((v) => !v);
+    if (chatOpen()) closeChat();
+    else openChat("command");
 };
 
 let mid = 0;
@@ -152,7 +159,14 @@ function deriveFocus(): ChatFocus | undefined {
     const sectionId = t.kind === "element" ? t.address.section : t.section;
     const path = t.kind === "element" ? t.address.path : undefined;
     const sec = editor.artifact.sections.find((s) => s.id === sectionId);
-    return { kind: t.kind, sectionId, path, headline: firstText(sec) || undefined };
+    // the anchor first, so a turn that only reads the singular fields is unaffected
+    const elements =
+        multiSelected() && t.kind === "element"
+            ? [t.address, ...selectedAddresses().filter((a) => !addressesEqual(a, t.address))].map(
+                  (a) => ({ sectionId: a.section, path: a.path }),
+              )
+            : undefined;
+    return { kind: t.kind, sectionId, path, headline: firstText(sec) || undefined, elements };
 }
 
 function buildLibrary(): ChatLibrary {
@@ -332,6 +346,12 @@ function dispatch(ev: TurnEvent, aid: number): void {
 export async function sendChat(text: string): Promise<void> {
     const t = text.trim();
     if (!t || busy()) return;
+    // The message never travels, only how long it was and how deep into the thread we are: a first
+    // question and a tenth follow-up are different acts.
+    capture("chat_message_sent", {
+        chars_bucket: charsBucket(t.length),
+        thread_length: thread.messages.length,
+    });
     // the agent reasons over (and patches) the whole document, so a windowed artifact fills in first
     await ensureAllSections();
     // prior turns → text, computed before this exchange is appended
@@ -576,6 +596,7 @@ export async function persistDraft(id: string): Promise<string | null> {
 }
 
 export function discardDraft(id: string): void {
+    capture("chat_proposal_dismissed", { kind: "draft" });
     if (drafts[id]) setDrafts(id, "state", "discarded");
     if (activeDraftId() === id) setActiveDraftId(null);
 }
@@ -655,6 +676,7 @@ function handleActionBlock(msgId: number, blockId: string, action: WorkspaceActi
 }
 
 export function confirmAction(msgId: number, blockId: string): void {
+    capture("chat_proposal_applied", { kind: "action" });
     let toRun: WorkspaceAction | null = null;
     updateMsg(msgId, (m) => {
         const b = m.blocks.find((x) => x.k === "action" && x.blockId === blockId);
@@ -666,6 +688,7 @@ export function confirmAction(msgId: number, blockId: string): void {
     if (toRun) runAction(toRun);
 }
 export function dismissAction(msgId: number, blockId: string): void {
+    capture("chat_proposal_dismissed", { kind: "action" });
     updateMsg(msgId, (m) => {
         const b = m.blocks.find((x) => x.k === "action" && x.blockId === blockId);
         if (b && b.k === "action" && b.state === "pending") b.state = "dismissed";
@@ -708,6 +731,7 @@ function markApplied(msgId: number, blockId: string, state: "applied" | "discard
 
 // only the bound target holds the beats, so an outline revision has nowhere else to go
 export function applyOutline(msgId: number, blockId: string): void {
+    capture("chat_proposal_applied", { kind: "outline" });
     const w = findWidget(msgId, blockId);
     if (!w || w.block.type !== "outline" || w.applied) return;
     chatTarget()?.applyBeats?.(w.block.ops);
@@ -739,6 +763,7 @@ export async function applyTheme(msgId: number, blockId: string): Promise<void> 
 
 // writing runs through the studio's own build turns, so the console and the board share one path
 export function applyWrite(msgId: number, blockId: string): void {
+    capture("chat_proposal_applied", { kind: "write" });
     const w = findWidget(msgId, blockId);
     if (!w || w.block.type !== "write" || w.applied) return;
     chatTarget()?.writeBeats?.(w.block.beatIds);
@@ -747,6 +772,7 @@ export function applyWrite(msgId: number, blockId: string): void {
 
 // planning runs the studio's own plan turn, for the same reason
 export function applyPlanRequest(msgId: number, blockId: string): void {
+    capture("chat_proposal_applied", { kind: "plan" });
     const w = findWidget(msgId, blockId);
     if (!w || w.block.type !== "plan" || w.applied) return;
     chatTarget()?.requestPlan?.({ guidance: w.block.guidance, andWrite: w.block.andWrite });
@@ -754,6 +780,7 @@ export function applyPlanRequest(msgId: number, blockId: string): void {
 }
 
 export function applyProposal(msgId: number, blockId: string): void {
+    capture("chat_proposal_applied", { kind: "proposal" });
     const w = findWidget(msgId, blockId);
     if (!w || w.block.type !== "proposal" || w.applied) return;
     const p = w.block;

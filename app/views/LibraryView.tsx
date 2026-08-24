@@ -163,7 +163,7 @@ const EmptyLibrary: Component<{ onGenerate: () => void; onTemplates: () => void 
             </p>
             <div class="mt-6 flex flex-wrap items-center justify-center gap-2.5">
                 <button
-                    class="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-onaccent transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    class="inline-flex icon-row gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-onaccent transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     onClick={p.onGenerate}
                 >
                     <SparkleIcon size={15} /> Generate an artifact
@@ -1093,7 +1093,7 @@ export const LibraryView: Component = () => {
                         trigger={(m) => (
                             <button
                                 ref={m.ref}
-                                class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-soft hover:bg-canvas hover:text-ink"
+                                class="flex icon-row gap-2 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-soft hover:bg-canvas hover:text-ink"
                                 onClick={m.toggle}
                             >
                                 <FolderIcon size={15} /> Move to folder
@@ -1124,7 +1124,7 @@ export const LibraryView: Component = () => {
                         </div>
                     </Menu>
                     <button
-                        class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-[#C0392B] hover:bg-[#C0392B]/10"
+                        class="flex icon-row gap-2 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-[#C0392B] hover:bg-[#C0392B]/10"
                         onClick={() => setConfirm({ kind: "delete-batch", ids: selectedVisible() })}
                     >
                         <TrashIcon size={15} /> Delete

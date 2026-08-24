@@ -128,7 +128,7 @@ export const TrashView: Component = () => {
                         </div>
                         <Show when={trash().length}>
                             <button
-                                class="flex items-center gap-2 rounded-lg border px-3.5 py-2 text-[12.5px] font-semibold"
+                                class="flex icon-row gap-2 rounded-lg border px-3.5 py-2 text-[12.5px] font-semibold"
                                 style={{ "border-color": DANGER, color: DANGER }}
                                 onClick={() => setConfirm({ kind: "empty" })}
                             >

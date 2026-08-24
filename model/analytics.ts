@@ -360,8 +360,10 @@ export interface Events {
         category: ElementCategory;
         how: "palette" | "drag" | "paste" | "ai";
     };
-    element_removed: { element_type: string; category: ElementCategory };
+    // `count` is present only on the batch form, so a single removal reads exactly as it always did
+    element_removed: { element_type: string; category: ElementCategory; count?: number };
     element_moved: { element_type: string; same_section: boolean };
+    elements_grouped: { count: number };
     element_resized: { element_type: string; kind: "height" | "aspect" };
     element_revised_with_ai: { element_type: string; credits_charged: number };
     section_added: { how: "button" | "ai" | "template"; at_index: number; section_count: number };

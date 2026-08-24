@@ -669,7 +669,7 @@ const InsightsModal: Component<{
         views: number;
     }> = (r) => (
         <button
-            class="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors"
+            class="flex w-full icon-row gap-2 rounded-lg px-2.5 py-2 text-left transition-colors"
             classList={{
                 "bg-accent/10 text-ink": sel() === r.id,
                 "text-soft hover:bg-canvas hover:text-ink": sel() !== r.id,
@@ -744,7 +744,7 @@ const InsightsModal: Component<{
                             )}
                         </For>
                         <button
-                            class="mt-1 flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12.5px] font-medium text-accent transition-colors hover:bg-canvas"
+                            class="mt-1 flex icon-row gap-2 rounded-lg px-2.5 py-2 text-left text-[12.5px] font-medium text-accent transition-colors hover:bg-canvas"
                             onClick={p.onManage}
                         >
                             <PlusIcon size={13} /> New link
