@@ -1,4 +1,4 @@
-import type { DrawContext, DrawTextStyle, Rect } from "@engine/node";
+import type { DrawContext, DrawTextStyle, MeasureText, Rect } from "@engine/node";
 import type { Tokens } from "@themes";
 import { accentRamp, fontStack, mix } from "@themes";
 import { scaleBand, scaleLinear, scalePoint } from "d3-scale";
@@ -47,10 +47,75 @@ export interface PlotCtx {
     colors: (n: number) => string[];
 }
 
+// One datum's mark, as both the painter and the hit test see it. `index` is the row the data editor
+// shows for it (a category for series charts, an item for label/value, a point for scatter), so a
+// grouped bar reports one span per series under one index.
+export interface DatumSpan {
+    index: number;
+    series: number;
+    value: number;
+    box: Rect;
+    points?: [number, number][]; // set where a box would lie about the mark (a wedge)
+}
+
 export interface ChartType {
     id: string;
     label: string;
     render: (chart: ResolvedChart, ctx: PlotCtx) => void;
+    // The same geometry `render` paints, reported rather than drawn. Absent = this type has no
+    // addressable datums yet (heatmap cells, radar rings, the single-value gauges).
+    spans?: (chart: ResolvedChart, ctx: PlotCtx) => DatumSpan[];
+}
+
+// Point marks are a few px across; a hit area that small is unusable, so it floors at cursor size.
+export const HIT_R = 9;
+
+export const pointSpan = (
+    index: number,
+    series: number,
+    value: number,
+    cx: number,
+    cy: number,
+    r: number,
+): DatumSpan => {
+    const hit = Math.max(r, HIT_R);
+    return { index, series, value, box: { x: cx - hit, y: cy - hit, w: hit * 2, h: hit * 2 } };
+};
+
+export const polyBox = (points: [number, number][]): Rect => {
+    const xs = points.map((p) => p[0]);
+    const ys = points.map((p) => p[1]);
+    const x = Math.min(...xs);
+    const y = Math.min(...ys);
+    return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+};
+
+// Measurement-only context: the frame helpers paint while they compute, and `spans` wants the
+// geometry without the paint. Text metrics come from the engine's own measurer, so the frame a
+// span sits in is pixel-identical to the painted one.
+export function probeContext(measure: MeasureText): DrawContext {
+    const noop = (): void => {};
+    return {
+        rect: noop,
+        line: noop,
+        circle: noop,
+        polyline: noop,
+        wedge: noop,
+        path: noop,
+        text: noop,
+        measureText: (text, s) => ({
+            width: measure(
+                {
+                    text,
+                    fontId: s.font ?? "system-ui, sans-serif",
+                    size: s.size ?? 12,
+                    weight: s.weight ?? 400,
+                    wrap: "none",
+                },
+                Number.POSITIVE_INFINITY,
+            ).width,
+        }),
+    };
 }
 
 const registry = new Map<string, ChartType>();
@@ -335,34 +400,84 @@ export function numericAxes(
     return { x, y };
 }
 
+interface PieFrame {
+    cx: number;
+    cy: number;
+    R: number;
+    rIn: number;
+    vals: number[];
+    total: number;
+    cols: string[];
+}
+
+function pieFrame(chart: ResolvedChart, ctx: PlotCtx, donut: boolean): PieFrame | null {
+    const { g, W, H, theme } = ctx;
+    const vals = (chart.series[0]?.points ?? []).map((v) => Math.max(0, v));
+    const total = vals.reduce((s, v) => s + v, 0);
+    if (total <= 0) return null;
+    const cats = catList(chart);
+    const cols = ctx.colors(vals.length);
+    const legendH = legendRow(
+        g,
+        W,
+        H - 22,
+        vals.map((_, i) => ({ name: cats[i] ?? `#${i + 1}`, color: cols[i]! })),
+        theme,
+    );
+    const cx = W / 2;
+    const availH = H - legendH - 6;
+    const cy = 6 + availH / 2;
+    const R = Math.max(6, Math.min(W, availH) / 2 - 6);
+    return { cx, cy, R, rIn: donut ? R * 0.6 : 0, vals, total, cols };
+}
+
+// clockwise from 12 o'clock, in the order the values are authored
+function wedgeAngles(f: PieFrame): [number, number][] {
+    let a = -Math.PI / 2;
+    return f.vals.map((v) => {
+        const a0 = a;
+        a += (v / f.total) * Math.PI * 2;
+        return [a0, a];
+    });
+}
+
+const ARC_STEP = Math.PI / 30; // 6° per segment: close enough to the arc to hit-test against
+
+function arcPoints(cx: number, cy: number, r: number, a0: number, a1: number): [number, number][] {
+    const n = Math.max(1, Math.ceil(Math.abs(a1 - a0) / ARC_STEP));
+    const out: [number, number][] = [];
+    for (let i = 0; i <= n; i++) {
+        const a = a0 + ((a1 - a0) * i) / n;
+        out.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+    }
+    return out;
+}
+
+// a wedge's bbox covers most of a quadrant, so this is the one family a rect would badly misreport
+export function pieSpans(donut: boolean) {
+    return (chart: ResolvedChart, ctx: PlotCtx): DatumSpan[] => {
+        const f = pieFrame(chart, ctx, donut);
+        if (!f) return [];
+        return wedgeAngles(f).map(([a0, a1], i) => {
+            const outer = arcPoints(f.cx, f.cy, f.R, a0, a1);
+            const points: [number, number][] = donut
+                ? [...outer, ...arcPoints(f.cx, f.cy, f.rIn, a1, a0)]
+                : [...outer, [f.cx, f.cy]];
+            return { index: i, series: 0, value: f.vals[i] ?? 0, box: polyBox(points), points };
+        });
+    };
+}
+
 // drawn manually: d3.arc() centers at the origin, which would pin the pie to the top-left
 export function pieLike(donut: boolean) {
     return (chart: ResolvedChart, ctx: PlotCtx): void => {
-        const { g, W, H, theme } = ctx;
-        const vals = (chart.series[0]?.points ?? []).map((v) => Math.max(0, v));
-        const total = vals.reduce((s, v) => s + v, 0);
-        if (total <= 0) return;
-        const cats = catList(chart);
-        const cols = ctx.colors(vals.length);
-        const legendH = legendRow(
-            g,
-            W,
-            H - 22,
-            vals.map((_, i) => ({ name: cats[i] ?? `#${i + 1}`, color: cols[i]! })),
-            theme,
-        );
-        const cx = W / 2;
-        const availH = H - legendH - 6;
-        const cy = 6 + availH / 2;
-        const R = Math.max(6, Math.min(W, availH) / 2 - 6);
-        const rIn = donut ? R * 0.6 : 0;
-        const style = (i: number) => ({ fill: cols[i]!, stroke: theme.surface, width: 1.5 });
+        const { g, theme } = ctx;
+        const f = pieFrame(chart, ctx, donut);
+        if (!f) return;
+        const { cx, cy, R, rIn } = f;
+        const style = (i: number) => ({ fill: f.cols[i]!, stroke: theme.surface, width: 1.5 });
 
-        let a = -Math.PI / 2;
-        vals.forEach((v, i) => {
-            const a0 = a;
-            const a1 = a + (v / total) * Math.PI * 2;
-            a = a1;
+        wedgeAngles(f).forEach(([a0, a1], i) => {
             if (donut) {
                 g.path((p) => {
                     p.moveTo(cx + Math.cos(a0) * R, cy + Math.sin(a0) * R);
@@ -376,7 +491,7 @@ export function pieLike(donut: boolean) {
         });
 
         if (donut) {
-            g.text(fmt(total), cx, cy, {
+            g.text(fmt(f.total), cx, cy, {
                 fill: theme.ink,
                 size: Math.min(24, R * 0.5),
                 weight: 600,

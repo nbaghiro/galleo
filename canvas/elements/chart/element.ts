@@ -1,11 +1,28 @@
 import type { ControlField, ElementSpec, LayoutCtx } from "@elements/spec";
-import type { EngineNode } from "@engine/node";
+import type { EngineNode, Rect, Region } from "@engine/node";
 import { register } from "@elements/spec";
+import { datumRegionId } from "@model/artifact";
 import { grow } from "@model/geometry";
 import { previewSvg } from "@elements/previews";
-import { renderChart } from "./render";
+import { chartSpans, renderChart } from "./render";
 import { chartTypeOptions } from "./utils";
 import type { ChartData } from "./utils";
+
+// which types actually read each option (directly or via cartesianFrame/numericAxes), so a toggle
+// never shows on a type whose renderer ignores it
+const STACKED_TYPES = new Set<string>(["bar", "column", "area"]);
+const SMOOTH_TYPES = new Set<string>(["line", "area"]);
+const VALUES_TYPES = new Set<string>(["bar", "column", "heatmap", "waterfall"]);
+const GRID_TYPES = new Set<string>([
+    "bar",
+    "column",
+    "line",
+    "area",
+    "radar",
+    "scatter",
+    "bubble",
+    "waterfall",
+]);
 
 export const CHART_CONTROLS: ControlField[] = [
     // getter: a frozen array would capture an empty registry on hot re-exec
@@ -38,34 +55,39 @@ export const CHART_CONTROLS: ControlField[] = [
         key: "stacked",
         label: "Stacked",
         control: "toggle",
-        visibleWhen: (d) => d.type === "bar" || d.type === "column" || d.type === "area",
+        visibleWhen: (d) => STACKED_TYPES.has(String(d.type)),
     },
     {
         key: "smooth",
         label: "Smooth",
         control: "toggle",
-        visibleWhen: (d) => d.type === "line" || d.type === "area",
+        visibleWhen: (d) => SMOOTH_TYPES.has(String(d.type)),
     },
     {
         key: "showValues",
         label: "Value labels",
         control: "toggle",
-        visibleWhen: (d) => d.type === "bar" || d.type === "column" || d.type === "heatmap",
+        visibleWhen: (d) => VALUES_TYPES.has(String(d.type)),
     },
     {
         key: "showGrid",
         label: "Gridlines",
         control: "toggle",
-        // only cartesian charts draw a grid
-        visibleWhen: (d) =>
-            d.type !== "pie" &&
-            d.type !== "donut" &&
-            d.type !== "gauge" &&
-            d.type !== "treemap" &&
-            d.type !== "funnel" &&
-            d.type !== "heatmap",
+        visibleWhen: (d) => GRID_TYPES.has(String(d.type)),
     },
 ];
+
+// One region per painted mark, addressed by the data-editor row it belongs to. Several marks can
+// share a row (a grouped bar's per-series rects), which is what makes row hover light all of them.
+function datumRegions(ctx: LayoutCtx, box: Rect, d: ChartData): Region[] {
+    const el = ctx.region;
+    if (!el) return [];
+    return chartSpans(box, d, ctx.theme, ctx.measure).map((s) => ({
+        id: datumRegionId(el, s.index),
+        box: s.box,
+        ...(s.points ? { shape: { kind: "poly" as const, points: s.points } } : {}),
+    }));
+}
 
 function chartSpec(
     typeKey: string,
@@ -93,7 +115,10 @@ function chartSpec(
         layout: (d: ChartData, ctx: LayoutCtx): EngineNode => ({
             w: grow(),
             h: grow(d.height ?? 240),
-            surface: { paint: (g, box) => renderChart(g, box, d, ctx.theme) },
+            surface: {
+                paint: (g, box) => renderChart(g, box, d, ctx.theme),
+                regions: (box) => datumRegions(ctx, box, d),
+            },
         }),
         resize: { height: { key: "height", min: 160, max: 460, step: 10 } },
         bar: ["type"],
