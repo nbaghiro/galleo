@@ -445,6 +445,10 @@ const tagFor = (c: RenderCommand): string => (c.link ? "a" : "div");
 
 function applyCommand(el: HTMLElement, c: RenderCommand): void {
     applyLink(el, c);
+    // Decoration paints but is not read: it sits behind the flow and says nothing the text does not.
+    // A reused node may have been either, so the non-decor case clears what applyLink didn't own.
+    if (c.decor) el.setAttribute("aria-hidden", "true");
+    else if (!c.link) el.removeAttribute("aria-hidden");
     el.style.position = "absolute";
     el.style.left = `${c.box.x}px`;
     el.style.top = `${c.box.y}px`;
@@ -850,12 +854,14 @@ interface SectionCacheEntry {
     theme: Tokens;
     profileKey: string;
     hideKey: string;
+    fitKey: string; // the frozen autofit scale, so lifting the freeze is a miss
     commands: RenderCommand[];
     ghost: boolean; // a stand-in, so resolving the real content is always a cache miss
     layer: HTMLElement | null;
     nodes: HTMLElement[]; // index-parallel to `commands`, empty until the layer is painted
     regions: Region[]; // section-local (offset into stage coords per draw)
     height: number;
+    fitScale: number;
 }
 export interface SectionStackCache {
     entries: Map<string, SectionCacheEntry>;
@@ -879,6 +885,14 @@ function profileCacheKey(profile: FormatDescriptor): string {
     if (profile.kind !== "paged") return profile.id;
     const { w, h } = pagedSize(profile);
     return `${profile.id}:${w}x${h}`;
+}
+
+// section-local → stage coords; a sub-element shape (a chart wedge) travels with its box
+function offsetRegion(r: Region, dx: number, dy: number): Region {
+    const box = { x: r.box.x + dx, y: r.box.y + dy, w: r.box.w, h: r.box.h };
+    if (!r.shape) return { ...r, box };
+    const points = r.shape.points.map(([px, py]): [number, number] => [px + dx, py + dy]);
+    return { ...r, box, shape: { kind: "poly", points } };
 }
 
 // Retention beyond the paint window, so a small scroll oscillation doesn't thrash DOM.
@@ -938,6 +952,13 @@ export function paintSectionStack(
         // paged only: give every section its frame's shape (a deck authored as slides) instead of
         // its natural height. Short content centres in the frame; taller content keeps growing.
         slideFrame?: boolean;
+        // playback only: honor `Section.pinned`. The editor renders a pinned section in place, so
+        // its geometry stays the one the author is arranging.
+        pinned?: boolean;
+        // slide framing only: hold one section's autofit scale steady rather than re-solving it.
+        // The section carrying an open inline edit, so type cannot resize under the caret between
+        // keystrokes; the editor re-solves on commit by dropping the freeze.
+        freezeFit?: { id: string; scale: number } | null;
         // stand-in for a section whose content hasn't loaded yet
         placeholder?: (
             section: Section,
@@ -947,6 +968,7 @@ export function paintSectionStack(
 ): {
     tops: number[];
     heights: number[];
+    fitScales: number[];
     regions: Region[];
     height: number;
     painted: number;
@@ -954,24 +976,34 @@ export function paintSectionStack(
 } {
     const gap = profile.kind === "continuous" ? 0 : SECTION_GAP; // doc/web merge seamlessly
     const slide = !!opts.slideFrame && profile.kind === "paged";
+    // paged has no scroll to stick against, so it ignores pinning the way PNG ignores a link
+    const honorPin = !!opts.pinned && profile.kind === "continuous";
     // folded into the profile key so toggling the mode invalidates every cached layer
     const profileKey = profileCacheKey(profile) + (slide ? ":slide" : "");
     const cache = opts.cache;
     const win = opts.window;
     const tops: number[] = [];
     const heights: number[] = [];
+    const fitScales: number[] = [];
     const regions: Region[] = [];
     const layers: HTMLElement[] = [];
     const painted: SectionLayer[] = [];
     const live = new Set<string>();
     let y = opts.startY ?? 0;
+    // Pinned layers are the only ones left in normal flow, so the flow cursor counts just them and a
+    // top margin walks each one down to its own slot; the absolute layers around it displace nothing.
+    let flowY = opts.startY ?? 0;
 
     for (const section of sections) {
         live.add(section.id);
+        const pin = honorPin && !!section.pinned;
         const layoutW = sectionLayoutWidth(section, profile, opts.fullW);
         const x = Math.round((opts.fullW - layoutW) / 2); // bleed → layoutW == fullW → centered at 0
         // hideKey only in the edited section's cache key → an edit repaints one section, not the stack
         const hideKey = opts.hideId?.startsWith(`el:${section.id}:`) ? opts.hideId : "";
+        const freeze =
+            slide && opts.freezeFit?.id === section.id ? opts.freezeFit.scale : undefined;
+        const fitKey = freeze === undefined ? "" : `${freeze}`;
         const prev = cache?.entries.get(section.id);
         const ghost = opts.placeholder?.(section, layoutW);
         const reuse =
@@ -981,7 +1013,8 @@ export function paintSectionStack(
             prev.layoutW === layoutW &&
             prev.theme === theme &&
             prev.profileKey === profileKey &&
-            prev.hideKey === hideKey;
+            prev.hideKey === hideKey &&
+            prev.fitKey === fitKey;
 
         let entry: SectionCacheEntry;
         if (reuse) {
@@ -993,22 +1026,25 @@ export function paintSectionStack(
                 theme,
                 profileKey,
                 hideKey,
+                fitKey,
                 commands: ghost.commands,
                 ghost: true,
                 layer: prev?.layer ?? null,
                 nodes: [],
                 regions: [], // a stand-in isn't selectable
                 height: ghost.height,
+                fitScale: 1,
             };
             cache?.entries.set(section.id, entry);
         } else {
             const frameH = slide ? sectionFrameHeight(section, profile, layoutW) : 0;
             const res = slide
-                ? layoutSlide(section, layoutW, frameH, measureText, theme, profile)
-                : layoutSection(section, layoutW, measureText, theme, profile);
+                ? layoutSlide(section, layoutW, frameH, measureText, theme, profile, false, freeze)
+                : { ...layoutSection(section, layoutW, measureText, theme, profile), fitScale: 1 };
             let commands = hideKey
                 ? res.commands.filter((c) => !(c.kind === "text" && c.id === hideKey))
                 : res.commands;
+            // autofit reaches the frame where it can, so the hairline is left for what it cannot
             if (slide && res.height > frameH)
                 commands = [...commands, overflowMark(layoutW, frameH, theme)];
             entry = {
@@ -1017,17 +1053,20 @@ export function paintSectionStack(
                 theme,
                 profileKey,
                 hideKey,
+                fitKey,
                 commands,
                 ghost: false,
                 layer: prev?.layer ?? null,
                 nodes: [],
                 regions: res.regions,
                 height: res.height,
+                fitScale: res.fitScale,
             };
             cache?.entries.set(section.id, entry);
         }
 
-        const inWindow = !win || intersects(y, entry.height, win);
+        // a stuck nav bar must exist however far past its own slot the reader has scrolled
+        const inWindow = !win || pin || intersects(y, entry.height, win);
         if (inWindow && entry.commands.length) {
             if (!entry.layer) {
                 entry.layer = document.createElement("div");
@@ -1038,12 +1077,18 @@ export function paintSectionStack(
                     : paint(entry.commands, entry.layer);
             }
             const layer = entry.layer;
-            layer.style.position = "absolute"; // paint() forces relative; keep layers out of flow
-            layer.style.left = `${x}px`;
-            layer.style.top = `${y}px`;
+            // paint() forces relative; keep layers out of flow. A pinned one is the exception: it
+            // sticks, which needs flow, and rides above its siblings once it does.
+            layer.style.position = pin ? "sticky" : "absolute";
+            layer.style.left = pin ? "" : `${x}px`;
+            layer.style.top = pin ? "0px" : `${y}px`;
+            layer.style.marginLeft = pin ? `${x}px` : "";
+            layer.style.marginTop = pin ? `${Math.max(0, y - flowY)}px` : "";
+            layer.style.zIndex = pin ? "1" : "";
             layer.style.width = `${layoutW}px`;
             layer.style.height = `${entry.height}px`;
             layer.style.opacity = opts.dimId === section.id ? "0.4" : "1"; // reset each paint (layers cache)
+            if (pin) flowY = y + entry.height;
             layers.push(layer);
             painted.push({
                 id: section.id,
@@ -1052,23 +1097,27 @@ export function paintSectionStack(
                 commands: entry.commands,
                 nodes: entry.nodes,
             });
-            for (const r of entry.regions)
-                regions.push({
-                    id: r.id,
-                    box: { x: r.box.x + x, y: r.box.y + y, w: r.box.w, h: r.box.h },
-                    radius: r.radius,
-                });
-        } else if (win && entry.layer && !intersects(y, entry.height, keep(win))) {
+            for (const r of entry.regions) regions.push(offsetRegion(r, x, y));
+        } else if (win && !pin && entry.layer && !intersects(y, entry.height, keep(win))) {
             entry.layer = null; // out of retention range: drop the DOM, keep the layout
         }
         tops.push(y);
         heights.push(entry.height);
+        fitScales.push(entry.fitScale);
         y += entry.height + gap;
     }
     if (cache)
         for (const id of [...cache.entries.keys()]) if (!live.has(id)) cache.entries.delete(id);
     host.replaceChildren(...layers);
-    return { tops, heights, regions, height: y, painted: layers.length, layers: painted };
+    return {
+        tops,
+        heights,
+        fitScales,
+        regions,
+        height: y,
+        painted: layers.length,
+        layers: painted,
+    };
 }
 
 const keep = (w: StackWindow): StackWindow => ({

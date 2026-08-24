@@ -26,6 +26,7 @@ import {
     editor,
     editSeq,
     endThemePreview,
+    fitFreeze,
     extras,
     multiSelected,
     selectedAddresses,
@@ -39,10 +40,13 @@ import {
     previewSavedTheme,
     redo,
     removeSectionAt,
+    sectionFitScale,
     selection,
     setArtifactLive,
+    setSectionFits,
     setSelection,
     startEditing,
+    stopEditing,
     startThemePreview,
     themeForPersist,
     undo,
@@ -611,6 +615,36 @@ describe("multi-selection", () => {
             toggleExtra(addr([1]));
             startEditing(addr([0]));
             expect(extras()).toEqual([]);
+        });
+    });
+});
+
+// The one rule autofit needs from the editor: the scale a section was painted at is held for the
+// whole of an inline session, so a keystroke that crosses a wrap boundary cannot resize the type
+// under the caret. The canvas passes this straight to paintSectionStack.
+describe("the autofit freeze", () => {
+    const load = (): void => {
+        loadArtifactContent("doc", makeArt(["a", "b"]));
+        setSectionFits([0.86, 1]);
+    };
+
+    it("reads back the scale each section was painted at", () => {
+        inRoot(() => {
+            load();
+            expect(sectionFitScale("a")).toBe(0.86);
+            expect(sectionFitScale("b")).toBe(1);
+            expect(sectionFitScale("gone")).toBe(1);
+        });
+    });
+
+    it("holds the edited section's scale for the session and drops it on commit", () => {
+        inRoot(() => {
+            load();
+            expect(fitFreeze()).toBeNull();
+            startEditing({ section: "a", path: [] });
+            expect(fitFreeze()).toEqual({ id: "a", scale: 0.86 });
+            stopEditing();
+            expect(fitFreeze()).toBeNull();
         });
     });
 });

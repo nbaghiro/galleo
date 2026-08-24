@@ -17,6 +17,7 @@ import {
     addSectionAfter,
     clearExtras,
     commit,
+    datum,
     duplicateSectionAt,
     editor,
     editorAccent,
@@ -29,6 +30,7 @@ import {
     noteElementResized,
     regions,
     removeSectionAt,
+    sectionFitScale,
     selectedAddresses,
     selection,
     setSelection,
@@ -470,6 +472,36 @@ const ring = (r: Region, shadow: string) => ({
     "box-shadow": shadow,
 });
 
+// Every mark carrying the hovered datum id, so a grouped bar's whole row lights at once.
+const DatumOutline: Component = () => {
+    const marks = createMemo((): Region[] => {
+        const id = drag() ? null : datum();
+        return id ? regions().filter((r) => r.id === id) : [];
+    });
+    return (
+        <For each={marks()}>
+            {(r) =>
+                r.shape ? (
+                    <svg class="pointer-events-none absolute inset-0 size-full overflow-visible">
+                        <polygon
+                            points={r.shape.points.map((p) => `${p[0]},${p[1]}`).join(" ")}
+                            fill="none"
+                            stroke={editorAccent()}
+                            stroke-width="2"
+                        />
+                    </svg>
+                ) : (
+                    <div
+                        data-testid="datum-outline"
+                        class="pointer-events-none absolute"
+                        style={ring(r, `0 0 0 2px ${editorAccent()}`)}
+                    />
+                )
+            }
+        </For>
+    );
+};
+
 export const Overlay: Component = () => {
     // suppressed mid-drag so the rings don't compete with the drop indicators
     const sel = createMemo(() => (drag() ? null : regionFor(selection())));
@@ -516,6 +548,7 @@ export const Overlay: Component = () => {
                     />
                 )}
             </Show>
+            <DatumOutline />
         </>
     );
 };
@@ -545,6 +578,11 @@ export const SectionActions: Component = () => {
         return id ? editor.artifact.sections.find((s) => s.id === id)?.background : undefined;
     });
     const sectionIx = createMemo(() => editor.artifact.sections.findIndex((s) => s.id === sid()));
+    // render-time only: the inspector still reads the authored sizes, which is what the author set
+    const fitted = createMemo(() => {
+        const id = sid();
+        return id ? sectionFitScale(id) : 1;
+    });
     const isFirst = (): boolean => sectionIx() <= 0;
     const isLast = (): boolean => sectionIx() === editor.artifact.sections.length - 1;
     let pillRef: HTMLDivElement | undefined;
@@ -649,6 +687,15 @@ export const SectionActions: Component = () => {
                         >
                             <Icon name="trash" size={14} />
                         </button>
+                        <Show when={fitted() < 1}>
+                            <Separator vertical size="sm" />
+                            <span
+                                class="px-1 text-[11px] leading-none text-muted"
+                                title="This section is taller than its slide, so it is drawn at a smaller type and spacing scale. The sizes you set are unchanged."
+                            >
+                                Fitted {Math.round(fitted() * 100)}%
+                            </span>
+                        </Show>
                     </FloatingBar>
                     <Popover
                         anchor={() => pillRef}

@@ -1,6 +1,7 @@
 import { asFormat, RENDER_SLOW_MS } from "@model/analytics";
 import { capture } from "@ui/analytics";
-import type { Rect } from "@engine/node";
+import type { Rect, Region } from "@engine/node";
+import { inRegion } from "@engine/node";
 import { pickArtifactBackground } from "./core/media";
 import type { ElementAddress, Target, Section } from "@model/artifact";
 import type { Component } from "solid-js";
@@ -10,6 +11,7 @@ import { getElement } from "@elements/spec";
 import { profileFor } from "@engine/profile";
 import {
     elementRegionId,
+    parseDatumRegion,
     parseHitRegion,
     parseTarget,
     specificity,
@@ -36,6 +38,7 @@ import {
 } from "@canvas/render/window";
 import { layoutPlaceholder } from "@canvas/render/placeholder";
 import { measureText, layoutSection, layoutSlide } from "@canvas/render/commands";
+import { openDataEditor } from "./panels/DataEditor";
 import {
     activeSlot,
     applyDrop,
@@ -56,6 +59,7 @@ import {
     editing,
     editor,
     editorTokens,
+    fitFreeze,
     jumpToSection,
     knownHeight,
     leftOpen,
@@ -69,8 +73,10 @@ import {
     selection,
     setCanvasContentWidth,
     setCanvasEl,
+    setDatum,
     setHover,
     setRegions,
+    setSectionFits,
     setSectionTops,
     setSelection,
     noteDropSelection,
@@ -109,9 +115,12 @@ export const Canvas: Component = () => {
     // Precomputed per draw so hover is a numeric box test, not a re-parse of every region id.
     let liveHits: { target: Target; spec: number; box: Rect }[] = [];
     let affordances: { action: string; address: ElementAddress; box: Rect }[] = [];
+    // sub-element marks (a chart's bars): hover-only, and shape-aware where a box would lie
+    let datums: Region[] = [];
     let pending: { target: Target | null; x: number; y: number } | null = null;
     // an affordance press (a checklist's checkbox) acts on release and never becomes a selection
     let pendingAffordance: { action: string; address: ElementAddress; box: Rect } | null = null;
+    let pendingDatum: string | null = null;
 
     // so a frame re-lays-out only the changed section (see paintSectionStack)
     const stackCache = createSectionStackCache();
@@ -138,7 +147,7 @@ export const Canvas: Component = () => {
         const waiting = pendingSections();
         const beforeTops = editor.sectionTops;
         const paintStartedAt = performance.now();
-        const { tops, heights, regions, height } = paintSectionStack(
+        const { tops, heights, fitScales, regions, height } = paintSectionStack(
             paintHost,
             preview ?? editor.artifact.sections,
             profile,
@@ -150,6 +159,7 @@ export const Canvas: Component = () => {
                 cache: stackCache,
                 window: win,
                 slideFrame: slideFrame(),
+                freezeFit: fitFreeze(),
                 placeholder: waiting.size
                     ? (s, layoutW) => {
                           const summary = waiting.get(s.id);
@@ -185,20 +195,24 @@ export const Canvas: Component = () => {
         // a loaded section rarely matches its estimate; absorb the difference to hold the reader's place
         anchorScroll(beforeTops, tops);
         setSectionTops(tops);
+        setSectionFits(fitScales);
         // fetching runs on its own clock (see scheduleFetch): painting must never wait on the network
         if (waiting.size) scheduleFetch(viewH);
         if (!preview || track) {
             setRegions(regions);
             const hits: { target: Target; spec: number; box: Rect }[] = [];
             const aff: { action: string; address: ElementAddress; box: Rect }[] = [];
+            const marks: Region[] = [];
             for (const r of regions) {
                 const t = parseTarget(r.id);
                 if (t) hits.push({ target: t, spec: specificity(t), box: r.box });
                 const h = parseHitRegion(r.id);
                 if (h) aff.push({ ...h, box: r.box });
+                if (parseDatumRegion(r.id)) marks.push(r);
             }
             liveHits = hits;
             affordances = aff;
+            datums = marks;
         }
     };
 
@@ -306,6 +320,19 @@ export const Canvas: Component = () => {
         return liveHits.some((h) => inBox(h.box, px, py) && within(h.box, a.box)) ? null : a;
     };
 
+    // last painted wins: emit reports a parent before its children, and marks overlap (a bubble chart)
+    const datumAt = (px: number, py: number): string | null => {
+        for (let i = datums.length - 1; i >= 0; i--)
+            if (inRegion(datums[i]!, px, py)) return datums[i]!.id;
+        return null;
+    };
+
+    const ownerOf = (id: string): ElementAddress | null => {
+        const el = parseDatumRegion(id)?.element;
+        const t = el ? parseTarget(el) : null;
+        return t?.kind === "element" ? t.address : null;
+    };
+
     const runAffordance = (a: { action: string; address: ElementAddress }): void => {
         const next = applyAffordance(editor.artifact, a.action, a.address);
         if (next !== editor.artifact) commit(next);
@@ -322,6 +349,7 @@ export const Canvas: Component = () => {
             pending = null;
             return;
         }
+        pendingDatum = datumAt(...point(e));
         pending = { target: hitTest(...point(e)), x: e.clientX, y: e.clientY };
     };
 
@@ -355,11 +383,13 @@ export const Canvas: Component = () => {
         // Moves start only from the DragHandle, so a body drag never becomes an accidental move.
         const [hx, hy] = point(e);
         setHover(hitTest(hx, hy));
+        setDatum(datumAt(hx, hy));
         scrollEl.style.cursor = affordanceAt(hx, hy) ? "pointer" : "";
     };
 
     const onPointerLeaveCanvas = (): void => {
         if (!drag()) setHover(null);
+        setDatum(null);
         if (lastCursor === null) return;
         lastCursor = null;
         publishPresence();
@@ -372,9 +402,15 @@ export const Canvas: Component = () => {
             if (!drag() && !liveEdit()) runAffordance(a);
             return;
         }
-        if (drag() || liveEdit() || !pending) return;
+        if (drag() || liveEdit() || !pending) {
+            pendingDatum = null;
+            return;
+        }
         const t = pending.target;
         const caret = { x: pending.x, y: pending.y };
+        const datumHit =
+            pendingDatum && pendingDatum === datumAt(...point(e)) ? pendingDatum : null;
+        pendingDatum = null;
         pending = null;
         // Shift extends the set (desktop only: the phone path shares this handler and has no shift).
         // It aims at the movable ancestor, like the drag grip, so a part of a unit adds the unit.
@@ -390,6 +426,14 @@ export const Canvas: Component = () => {
         // stop editing first (idempotent) so a click on another text element switches straight into it
         if (editing()) stopEditing();
         setSelection(t);
+        // a mark is not a selection target: the click selects the chart, and the grid is where its
+        // numbers are edited, so landing on a bar goes straight there. The mark names its own owner,
+        // which is the element to open even where the topmost hit is something stacked over it.
+        const owner = datumHit && ownerOf(datumHit);
+        if (owner) {
+            openDataEditor(owner);
+            return;
+        }
         if (t?.kind === "element") {
             const el = getElementAt(editor.artifact, t.address);
             if (el && getElement(el.type)?.richText && (!isPhone() || already))
@@ -687,6 +731,7 @@ export const Thumb: Component<{
         const scale = w / layoutW;
         // mirrors the stack's mode, so the minimap is a true zoomed-out copy of what's on canvas
         const slide = slideFrame() && profile.kind === "paged";
+        const held = fitFreeze();
         const { commands, height } = slide
             ? layoutSlide(
                   props.section,
@@ -695,6 +740,8 @@ export const Thumb: Component<{
                   measureText,
                   theme,
                   profile,
+                  false,
+                  held?.id === props.section.id ? held.scale : undefined,
               )
             : layoutSection(props.section, layoutW, measureText, theme, profile);
         inner.style.cssText = scaledHostCss(layoutW, height, scale);

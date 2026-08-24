@@ -520,6 +520,14 @@ export function setSectionBleed(
     return mapSection(art, section, (s) => ({ ...s, bleed }));
 }
 
+export function setSectionPinned(
+    art: ArtifactContent,
+    section: Id,
+    pinned: boolean,
+): ArtifactContent {
+    return mapSection(art, section, (s) => ({ ...s, pinned }));
+}
+
 /** null clears the notes entirely, so an emptied panel leaves no key behind on the row. */
 export function setSectionNotes(
     art: ArtifactContent,

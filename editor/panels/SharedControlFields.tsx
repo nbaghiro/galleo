@@ -5,7 +5,7 @@ import type { Component, JSX } from "solid-js";
 import { parseSvg } from "@elements/media/vector";
 import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
 import { adoptLink, editorTokens } from "@editor/core/store";
-import { pickMedia, pickIcon } from "@editor/core/media";
+import { type Dims, dimsOf, pickMedia, pickIcon, probeImage } from "@editor/core/media";
 import { Icon } from "@ui/icons";
 import { Button } from "@ui/button";
 import { ColorPopover, type ColorSwatch } from "@ui/color";
@@ -71,16 +71,25 @@ export const MediaField: Component<{
     placeholder?: string;
     compact?: boolean;
     kind?: string;
-    onChange: (v: string, item?: MediaItem) => void;
+    onChange: (v: string, item?: MediaItem, dims?: Dims) => void;
 }> = (props) => {
     const [pasting, setPasting] = createSignal(false);
     const open = (): void =>
-        pickMedia((url, item) => props.onChange(url, item), props.kind as MediaKind | undefined);
+        pickMedia(
+            (url, item) => props.onChange(url, item, dimsOf(item)),
+            props.kind as MediaKind | undefined,
+        );
 
-    // a typed url is adopted like a picked one, so it lands in the library with everything else
+    // a typed url is adopted like a picked one, so it lands in the library with everything else; the
+    // pixel size the picker would have carried is probed once, here, before the write
     const commitUrl = async (url: string): Promise<void> => {
         const v = url.trim();
-        props.onChange(v ? await adoptLink(v).catch(() => v) : v);
+        if (!v) {
+            props.onChange("");
+            return;
+        }
+        const src = await adoptLink(v).catch(() => v);
+        props.onChange(src, undefined, await probeImage(src));
     };
     return (
         <Show
@@ -345,7 +354,7 @@ export const Field: Component<{
                     placeholder={f().placeholder}
                     compact={props.compact}
                     kind={f().mediaKind}
-                    onChange={(v, item) => {
+                    onChange={(v, item, dims) => {
                         props.onChange(v);
                         // a picked item carries a still frame; a pasted URL clears any stale one
                         const pk = f().posterKey;
@@ -354,6 +363,10 @@ export const Field: Component<{
                                 pk,
                                 item?.thumbUrl && item.thumbUrl !== v ? item.thumbUrl : undefined,
                             );
+                        // same for the source's pixel size: unknown clears it rather than keeping
+                        // the previous picture's ratio
+                        const dk = f().dimsKey;
+                        if (dk) props.onWrite?.(dk, dims);
                     }}
                 />
             </Match>

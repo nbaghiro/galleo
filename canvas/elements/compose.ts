@@ -1,5 +1,5 @@
 import type { LayoutCtx } from "@elements/spec";
-import type { EngineNode } from "@engine/node";
+import type { EngineNode, Rect, Region } from "@engine/node";
 import type { ElementAddress, ElementInstance, Section, SectionBackground } from "@model/artifact";
 import type { TextLeaf } from "@engine/node";
 import type { Tokens } from "@themes";
@@ -69,6 +69,20 @@ const scaleSize = (s: Size, k: number): Size =>
                 ...(s.max !== undefined ? { max: s.max * k } : {}),
             };
 
+const scaleRegion = (r: Region, k: number): Region => ({
+    ...r,
+    box: { x: r.box.x * k, y: r.box.y * k, w: r.box.w * k, h: r.box.h * k },
+    ...(r.radius !== undefined ? { radius: r.radius * k } : {}),
+    ...(r.shape
+        ? {
+              shape: {
+                  kind: "poly" as const,
+                  points: r.shape.points.map(([x, y]): [number, number] => [x * k, y * k]),
+              },
+          }
+        : {}),
+});
+
 export function scaleTokens(node: EngineNode, k: number): EngineNode {
     if (k === 1) return node;
     const out: EngineNode = { ...node, w: scaleSize(node.w, k), h: scaleSize(node.h, k) };
@@ -98,16 +112,17 @@ export function scaleTokens(node: EngineNode, k: number): EngineNode {
     // A surface draws its own text and geometry, out of reach of this walk, so scale its space instead:
     // it is handed a k-times-smaller box and a context that multiplies everything it emits.
     const surface = node.surface;
-    if (surface)
+    if (surface) {
+        const unscaled = (box: Rect): Rect => ({ x: 0, y: 0, w: box.w / k, h: box.h / k });
+        const report = surface.regions;
         out.surface = {
-            paint: (g, box) =>
-                surface.paint(scaleDrawContext(g, k), {
-                    x: 0,
-                    y: 0,
-                    w: box.w / k,
-                    h: box.h / k,
-                }),
+            paint: (g, box) => surface.paint(scaleDrawContext(g, k), unscaled(box)),
+            // the surface reports in its own smaller space, so the geometry scales back out with it
+            ...(report
+                ? { regions: (box) => report(unscaled(box)).map((r) => scaleRegion(r, k)) }
+                : {}),
         };
+    }
     if (node.children) out.children = node.children.map((c) => scaleTokens(c, k));
     return out;
 }
@@ -177,20 +192,17 @@ function rowShares(inst: ElementInstance, kids: ElementInstance[]): number[] | n
 }
 
 function composeElement(inst: ElementInstance, ctx: LayoutCtx, addr: ElementAddress): EngineNode {
+    const id = elementRegionId(addr);
     const spec = getElement(inst.type);
     if (!spec) {
-        return {
-            id: elementRegionId(addr),
-            w: grow(),
-            h: fit(40),
-            fill: { color: "#f6dede", radius: 6 },
-        };
+        return { id, w: grow(), h: fit(40), fill: { color: "#f6dede", radius: 6 } };
     }
+    const ectx: LayoutCtx = { ...ctx, region: id };
     let node: EngineNode;
     if (spec.container) {
         const childInstances = spec.container.children(inst.data);
         if (childInstances.length === 0) {
-            node = emptyRegionNode(ctx);
+            node = emptyRegionNode(ectx);
         } else {
             // a child of a row only gets its share of the width; elements that must decide layout at
             // compose time (a diagram's wrap) would otherwise size against the whole section
@@ -202,12 +214,12 @@ function composeElement(inst: ElementInstance, ctx: LayoutCtx, addr: ElementAddr
                     { section: addr.section, path: [...addr.path, i] },
                 ),
             );
-            node = spec.container.arrange(inst.data, ctx, kids);
+            node = spec.container.arrange(inst.data, ectx, kids);
         }
     } else {
-        node = spec.layout(inst.data, ctx);
+        node = spec.layout(inst.data, ectx);
     }
-    node.id = elementRegionId(addr);
+    node.id = id;
     return applyLayout(node, inst.layout);
 }
 
@@ -299,8 +311,9 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
     const contentTheme = bgIsDark(bg) ? onDark(ctx.theme) : ctx.theme;
     // The section's own gutters scale here rather than in scaleTokens, because contentW is what
     // children size against (stacksAtWidth, rowShares): scaling padding afterwards would leave them
-    // measured against a width the section no longer has.
-    const k = rampScale(ctx.format, ctx.availWidth);
+    // measured against a width the section no longer has. Autofit rides the same factor for the
+    // same reason.
+    const k = rampScale(ctx.format, ctx.availWidth) * (ctx.fitScale ?? 1);
     const sidePad = (bleed ? BLEED_PAD_X : SECTION_PAD) * k;
     const gutter = GUTTER * k;
     const outerW = ctx.availWidth - sidePad * 2;

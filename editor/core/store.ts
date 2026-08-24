@@ -58,6 +58,11 @@ export { content };
 const [sectionTops, setSectionTops] = createSignal<number[]>([]);
 export { sectionTops, setSectionTops };
 
+// The autofit scale each section was painted at (1 = authored size). Render-time only, like the
+// tops: nothing here is stored, and the inspector keeps showing authored values.
+const [sectionFits, setSectionFits] = createSignal<number[]>([]);
+export { sectionFits, setSectionFits };
+
 // getters call their signal, so a read stays reactive
 export const editor = {
     get artifact(): ArtifactContent {
@@ -66,7 +71,21 @@ export const editor = {
     get sectionTops(): number[] {
         return sectionTops();
     },
+    get sectionFits(): number[] {
+        return sectionFits();
+    },
 };
+
+/** What the canvas painted this section's type at, for chrome that must match it. */
+export function sectionFitScale(id: string): number {
+    const i = editor.artifact.sections.findIndex((s) => s.id === id);
+    return (i >= 0 ? editor.sectionFits[i] : 1) ?? 1;
+}
+
+// Held while an inline edit is open, so a keystroke that crosses a wrap boundary cannot re-solve
+// the scale and resize the type under the caret. Dropped on commit, which re-solves.
+const [fitFreeze, setFitFreeze] = createSignal<{ id: string; scale: number } | null>(null);
+export { fitFreeze };
 
 export const editorTheme = (): Theme => resolveTheme(editor.artifact.theme);
 export const editorTokens = (): Tokens => editorTheme().tokens;
@@ -142,6 +161,11 @@ const [selection, setSelectionOnly] = createSignal<Target | null>(null, {
 });
 export { selection };
 export const [hover, setHover] = createSignal<Target | null>(null, { equals: targetsEqual });
+
+// The chart datum under the pointer, as a `datum:` region id. One signal for both directions: the
+// canvas writes it on hover and the open data grid lights the matching row, and the grid writes it
+// on row hover and the canvas outlines every mark that carries the id.
+export const [datum, setDatum] = createSignal<string | null>(null);
 
 // Multi-select rides beside the anchor rather than replacing it: `selection` keeps its exact meaning
 // and every consumer that genuinely needs one element stays untouched, while the set-aware surfaces
@@ -533,7 +557,9 @@ export function startEditing(addr: ElementAddress, caret?: { x: number; y: numbe
     setEditCaret(caret ?? null);
     // hover updates are suppressed while editing, so a stale value would strand the hover chrome
     setHover(null);
+    setDatum(null);
     clearExtras(); // a session only ever addresses the anchor
+    setFitFreeze({ id: addr.section, scale: sectionFitScale(addr.section) });
     setEditing(addr);
 }
 
@@ -580,6 +606,7 @@ export function stopEditing(): void {
     editBefore = null;
     liveBase = null;
     editingElementId = undefined;
+    setFitFreeze(null); // the next paint solves the fit again, now that the text has settled
     setEditing(null);
     if (addr) leaveEditHandler?.(addr);
 }
@@ -945,6 +972,18 @@ export function requestMediaPicker(req: MediaPickerRequest): void {
     mediaPickerHandler?.(req);
 }
 
+// app registers the Google Slides sender (upload + the consent popup); the editor stays app- and
+// Google-free. No host → the export answers with a plain failure instead of hanging.
+let slidesSender: ((bytes: Uint8Array) => Promise<{ url: string }>) | null = null;
+export function onSlidesExport(fn: (bytes: Uint8Array) => Promise<{ url: string }>): void {
+    slidesSender = fn;
+}
+export function slidesExport(bytes: Uint8Array): Promise<{ url: string }> {
+    if (!slidesSender)
+        return Promise.reject(new Error("Google Slides export is not available here"));
+    return slidesSender(bytes);
+}
+
 // app registers the credits reader (GET /artifacts/:id/credits). Provenance lives on the asset row,
 // so the tree cannot answer this and the editor has to ask.
 let creditsReader: ((artifactId: string) => Promise<MediaCredit[]>) | null = null;
@@ -1133,8 +1172,10 @@ export function loadArtifactContent(id: string, art: ArtifactContent): void {
     coalesceKey = null;
     editBefore = null;
     setEditing(null);
+    setFitFreeze(null); // the session it belonged to is over, and the geometry is another artifact's
     setSelection(null);
     setHover(null);
+    setDatum(null);
     savedThemeUnderPreview = null;
     setPreviewingTheme(false);
     setCurrentArtifactId(id);

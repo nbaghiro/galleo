@@ -35,8 +35,13 @@ Why this shape:
 ## 2. The engine (`canvas/engine`)
 
 **Input** — an `EngineNode` tree (`node.ts`): each node has `w`/`h` (a `Size`: `fit`/`grow`/`percent`/
-`fixed`), optional `aspect`, `direction` (row/col), `padding`, `gap`, `alignX`/`alignY`/`alignSelf`, and
-**one leaf** (`text` | `image` | `fill` | `surface`), plus `children`. An optional `clip?: {x?,y?}` clips
+`fixed`), optional `aspect`, `direction` (row/col/grid), `padding`, `gap`, `alignX`/`alignY`/`alignSelf`, and
+**one leaf** (`text` | `image` | `fill` | `surface`), plus `children`. `distribute` ("between" | "around" |
+"evenly") spreads leftover main-axis space across the flow children instead of aligning it (a `fit` main
+axis has none, and floats are unaffected). A `grid` fills `columns` shared-width tracks row-major, with
+`gap` as the column gap and `rowGap` as the row gap: a track is pinned by a fixed/percent member,
+stretches for a grow one, and otherwise fits the widest member, then the same `distribute()` solver a row
+uses sizes the tracks. Spanning cells are out of scope. An optional `clip?: {x?,y?}` clips
 descendants to the node's box on the given axes (the engine carries the resolved rect onto each command's
 `RenderCommand.clip`); `float?` lifts a node out of the flex flow (aligned + `dx`/`dy`-offset within the
 parent's content box, painted on top by ascending `z`); `opacity` multiplies down the subtree.
@@ -46,7 +51,8 @@ parent's content box, painted on top by ascending `z`); `opacity` multiplies dow
 1. **widths** (top-down) — each parent assigns its children's widths (`percent`/`fit`/`grow` all of the
    content width _after_ inter-child gaps, so a row of `60% + 40%` columns plus a gutter fills exactly).
 2. **heights** (bottom-up) — text is measured _at its resolved width_ (width must be known first); a
-   row's cross-height is the tallest child; `grow`-height stretches to it.
+   row's cross-height is the tallest child; `grow`-height stretches to it, and a grid applies that per
+   row (a row of only `grow`-height members is measured at its content first, then stretched).
 3. **positions** (top-down) — assign `x/y`, apply alignment.
 
 Then flatten to `RenderCommand[]` (`rect`/`text`/`image`/`surface`) + `Region[]` (the box of every node
@@ -54,13 +60,17 @@ carrying an `id`) — paint and hit-testing are separate outputs. `layout(node, 
 surface; the render bridge (§8) is what calls it.
 
 > **The engine does not wrap child elements** — only text wraps. Responsive "grid of N" is built by the
-> _element_ (e.g. `group` chunks its children into rows) or the compose layer, never the engine. This is
-> deliberate: explicit, designed breakpoints we control.
+> _element_ (e.g. `group` chunks its children into rows) or the compose layer, never the engine; the
+> `grid` direction shares column widths but takes its column count from the element and never reflows it.
+> This is deliberate: explicit, designed breakpoints we control.
 
 **Text fidelity — the one hard invariant.** `MeasureText(leaf, maxWidth)` must return identical metrics
 in the editor and in every export, or exports drift from the screen. The editor uses Canvas 2D
 `measureText`; export reuses the same canvas measurement; theme fonts are bundled so both agree. The one
 measurement path is memoized in the bridge (`measureText` in `commands.ts`, cleared on font `loadingdone`).
+An `image` leaf carrying `natural` (the source's pixel size, written into media element data as `dims`
+when a picture is picked or a typed url is probed) measures at that width instead of 0, so a `fit` box or
+a grid track can size to a picture.
 
 ## 3. Format-as-view (`canvas/engine/profile.ts`)
 
@@ -158,6 +168,24 @@ It replaced a `paginate: always | export | never` field that nothing read and wh
 misled: `web` was marked `never`, yet web artifacts _do_ go through `sectionSlides` on export (everything
 exports as a deck), so honoring it would have turned a tall web section into one enormous scaled page.
 A card format wants `fit` — a card silently becoming two cards changes what the author publishes.
+
+**Autofit** (`fitScale`) is the third answer, between those two. A paged section that overflows its frame
+is re-composed at a smaller scale rather than scaled as pixels: `LayoutCtx.fitScale` multiplies the ramp in
+`composeSection`, so the section keeps its full width and smaller type re-wraps into fewer, longer lines.
+That makes height roughly `A·f² + B·f + C` (text, then space, then scale-free media), monotone, so
+`solveFitScale` (`render/commands.ts`) seeds from the `f²` term, bisects, spends at most four layouts
+counting the `f = 1` the caller already did, and snaps its probes down onto a 0.02 grid so a few pixels of
+edit cannot visibly resize type. The floor is `max(FIT_FLOOR, MIN_TEXT_PX / smallest composed text size)`
+(`@engine/profile`, 0.7 and 11): a scale floor alone is the wrong bound, because a 13px label goes
+illegible while its 44px title is still comfortable. Order in `prepareSlideNode`: the content fits;
+`coverFitMedia` absorbs the slack (cropping a photo costs nothing typographically); autofit against the
+natural height; autofit against the media-collapsed minimum, then cover-fit at that scale; otherwise
+today's fallback. It never runs on the path to pagination, since splitting a section and shrinking its
+type is the worst of both. Nothing is stored: the scale is a pure function of content, width, theme and
+profile, which keeps it out of collab, undo and the save path. `layoutSlide`/`sectionSlides` return it and
+`paintSectionStack` reports it per section, so Present, export, thumbnails and the editor agree by
+construction; the editor holds one section's scale steady while an inline edit is open in it
+(`freezeFit`), and the inspector goes on showing authored sizes. Full design: `.docs/planning/autofit.md`.
 
 ## 4. Compose — Section → EngineNode (`canvas/elements/compose.ts`)
 
@@ -267,7 +295,7 @@ canvas/elements/
              vector.ts — the vector substrate: the Vector renderer (drawVector/parseSvg/emitPath), the shape
              presets, ICON_LIBRARY, and the three specs it registers — icon · shape("basic" cat) · graphic
   table/     table · stat
-  composite/ card · group · feature · profile · testimonial · pricing · cta · faq   + shared.ts (composite factory)
+  composite/ container · comparison · cta · faq · feature · popup · pricing · profile · tabs · testimonial   + shared.ts (composite factory)
   chart/     element.ts (chartSpec + VARIANTS) · render.ts · utils.ts · one renderer per type (bar.ts …)
   diagram/   element.ts (diagramSpec + VARIANTS) · render.ts · utils.ts · one renderer per type (process.ts …)
   basic/     badge · button · divider · embed · gradient · spacer   (shape lives in media/vector.ts)
@@ -280,9 +308,10 @@ side-effect-imports every element file at startup (that's when each `register(sp
 
 ### 5.2 The catalog
 
-**64 registered types, 60 palette-visible.** Hidden from the palette (`HIDDEN` in `editor/Editor.tsx`):
-`group`, `avatar`, and the `chart`/`diagram` elements themselves — content stores one of
-those with a `data.type`, while the per-type entries are the palette tiles. Palette rail order + labels
+**65 registered types, 61 palette-visible.** Hidden from the palette (`HIDDEN` in `editor/Editor.tsx`):
+`container`, `avatar`, and the `chart`/`diagram` elements themselves — content stores one of
+those with a `data.type`, while the per-type entries are the palette tiles (`group`/`card` are legacy
+aliases `getElement` resolves onto `container`, not registered types). Palette rail order + labels
 (`CAT_ORDER` / `CAT_LABEL`, same file):
 
 | Rail (label)  | `category`  | Elements (tier)                                                                                                                                                                                                                                                                   |
@@ -290,7 +319,7 @@ those with a `data.type`, while the per-type entries are the palette tiles. Pale
 | **Text**      | `text`      | text (primitive, the only `richText`), bullets/callout/code/quote (smart)                                                                                                                                                                                                         |
 | **Media**     | `media`     | image · gif · illustration · sticker · icon · graphic (primitive), video (interactive); _avatar (hidden)_                                                                                                                                                                         |
 | **Table**     | `table`     | table · stat (smart)                                                                                                                                                                                                                                                              |
-| **Composite** | `composite` | card (container), feature · profile · testimonial · pricing · cta · faq · comparison (smart); _group (hidden container)_                                                                                                                                                          |
+| **Composite** | `composite` | popup (container, live), feature · profile · testimonial · pricing · cta · faq · comparison · tabs (smart); _container (hidden container; `group`/`card` alias onto it)_                                                                                                          |
 | **Charts**    | `chart`     | 15 smart variants: `barChart` `columnChart` `lineChart` `areaChart` `pieChart` `donutChart` `radarChart` `scatterChart` `bubbleChart` `gaugeChart` `heatmapChart` `treemapChart` `waterfallChart` `packChart` `progressChart`                                                     |
 | **Diagrams**  | `diagram`   | 16 smart variants: `processDiagram` `stepsDiagram` `cycleDiagram` `pyramidDiagram` `funnelDiagram` `timelineDiagram` `quadrantDiagram` `matrixDiagram` `hubDiagram` `orgDiagram` `targetDiagram` `vennDiagram` `pictogramDiagram` `flowDiagram` `mindmapDiagram` `roadmapDiagram` |
 | **Basic**     | `basic`     | badge · button · divider · embed · gradient · shape · spacer (primitive; embed is interactive)                                                                                                                                                                                    |
@@ -704,7 +733,9 @@ entry points:
 - **`layoutSlide` / `sectionSlides`** — the deck path. Each section is fit to its `sectionFrame` (§3.1 —
   1280 wide, 720 tall unless `section.frame.aspect` overrides): short sections stretch to fill and center
   (`prepareSlideNode`); a text+image split whose image would overflow cover-fits the dominant media
-  (`coverFitMedia`) so it fills the frame instead of scaling the whole section down. `sectionSlides` is what
+  (`coverFitMedia`) so it fills the frame instead of scaling the whole section down; a section still over
+  its frame is re-composed smaller (autofit, §3.3) and the solved `fitScale` comes back with the commands.
+  `sectionSlides` is what
   Present + export both render from — it returns one scaled slide, or several pages when a section exceeds
   `PAGINATE_ABOVE` (1.2×) its frame.
 
@@ -775,7 +806,7 @@ child `<div>`s slot-for-slot, resetting each so a kind change can't inherit stal
 ## 10. Status & deferred
 
 **Built:** the engine, all three format views + per-section `frame.aspect`, compose from the recursive root +
-the layout presets, the full element contract (56 types) with skeletons + direct-manipulation sizing (one
+the layout presets, the full element contract (65 types) with skeletons + direct-manipulation sizing (one
 divider system — slot-aware inside closed containers — edge-drop columns, collapse-on-empty), the
 chart/diagram registries (d3) over a
 shared node/connector vocabulary, DOM + canvas backends, PDF/PNG export, deck present, PPTX export.
@@ -792,6 +823,15 @@ positioned at their box, so nothing is dropped. Theme fonts are **embedded**: th
 is fetched from Google, transcoded to TTF (wawoff2), and injected as OOXML embedded fonts (zip post-process
 via JSZip) so the exact typeface renders anywhere with no "missing fonts" prompt — degrading gracefully to an
 un-embedded export on any failure.
+
+**Google Slides export (raster v1)** — the fifth destination sends to the user's Google account rather than
+downloading: `buildRasterPptx` (`render/export.ts`) renders every `sectionSlides` page through
+`renderSlidePage` and bakes it into a minimal PPTX as one full-bleed PNG per slide
+(`rasterSlidePlacement` letterboxes odd per-section aspects onto the fixed page), the app POSTs the bytes
+to `/api/google/slides`, and the server converts them on upload to a native Slides presentation (Drive
+`files.create` with the Slides mimeType) under the user's Drive-file OAuth grant (`.docs/workspaces.md`,
+Connections). All raster on purpose: nothing for Google's converter to re-flow or font-substitute. The
+editable native path (Slides API `batchUpdate`) is the deferred follow-up.
 
 **Vector PDF** (`render/pdf-draw.ts` + the native path in `render/export.ts`) — the PDF exporter is
 **command-native**, not a page raster: it walks the same `RenderCommand[]` and emits `text` as real

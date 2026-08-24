@@ -14,7 +14,7 @@ import type { Tokens } from "@themes";
 import { composeSection } from "@elements/compose";
 import { skeletonize } from "@elements/spec";
 import { fragment, layout } from "@engine/layout";
-import { DEFAULT_PROFILE, sectionFrame } from "@engine/profile";
+import { DEFAULT_PROFILE, FIT_FLOOR, MIN_TEXT_PX, sectionFrame } from "@engine/profile";
 import { fixed, grow } from "@model/geometry";
 import { DEFAULT_THEME, mix } from "@themes";
 
@@ -87,12 +87,14 @@ function findAspectMedia(n: EngineNode): EngineNode | null {
     return null;
 }
 
-// fill-and-crop the dominant media so it absorbs slide slack instead of forcing a scale-down
-function coverFitMedia(root: EngineNode): {
+interface CoverFit {
     containers: EngineNode[];
     media: EngineNode[];
     chain: EngineNode[];
-} {
+}
+
+// fill-and-crop the dominant media so it absorbs slide slack instead of forcing a scale-down
+function coverFitMedia(root: EngineNode): CoverFit {
     // el:… ids mark real content-flow cells (composeElement tags them), not a leaf's internal layout
     const flows: EngineNode[] = [];
     const parent = new Map<EngineNode, EngineNode>();
@@ -134,7 +136,109 @@ function coverFitMedia(root: EngineNode): {
     return { containers, media, chain: [...chain] };
 }
 
-// full-bleed slide node; media absorbs slide slack when it can, else the caller scales the natural height down
+const naturalHeight = (node: EngineNode, w: number, measure: MeasureText): number =>
+    bottom(layout(node, { x: 0, y: 0, w, h: 100000 }, measure).commands);
+
+// the full-bleed slide form of a section, composed at autofit scale `f`
+function composeSlideNode(
+    section: Section,
+    w: number,
+    f: number,
+    measure: MeasureText,
+    theme: Tokens,
+    format: FormatDescriptor,
+    plain: boolean,
+): EngineNode {
+    const node = composeSection(section, {
+        ...ctxFor(w, theme, format, plain, measure),
+        fitScale: f,
+    });
+    if (node.fill) node.fill = { ...node.fill, radius: 0, border: undefined };
+    if (node.image) node.image = { ...node.image, radius: 0 };
+    return node;
+}
+
+// what the section measures with its media absorbed away: coverFitMedia's precondition
+function collapsedHeight(
+    node: EngineNode,
+    media: EngineNode[],
+    w: number,
+    measure: MeasureText,
+): number {
+    for (const m of media) m.h = fixed(0);
+    const min = naturalHeight(node, w, measure);
+    for (const m of media) m.h = grow();
+    return min;
+}
+
+function centreInFrame(node: EngineNode, h: number): EngineNode {
+    node.h = fixed(h);
+    node.alignY = "center";
+    return node;
+}
+
+// Threshold of the "paginate" policy: taller than this × its frame splits; below, it scales onto one
+// page. An "fit" format never splits, however tall — the caller scales it instead.
+const PAGINATE_ABOVE = 1.2;
+
+/** The scale grid: a few pixels of edit must not visibly resize the type. */
+export const FIT_STEP = 0.02;
+const FIT_PROBES = 4; // layouts the search may spend, counting the f = 1 the caller already did
+const FIT_TOL = 0.02; // a probe filling ≥98% of the frame is as close as a wrap step will get
+
+const snapFit = (f: number, floor: number): number =>
+    Math.max(floor, Math.floor(f / FIT_STEP) * FIT_STEP);
+
+// How far the type may shrink: the flat floor, raised so the section's SMALLEST text still clears
+// MIN_TEXT_PX. Sizes here are composed (past the width ramp), which is why the bound is in pixels.
+function fitFloor(node: EngineNode): number {
+    let smallest = Infinity;
+    const walk = (n: EngineNode): void => {
+        if (n.text && n.text.text.trim()) smallest = Math.min(smallest, n.text.size);
+        for (const c of n.children ?? []) walk(c);
+    };
+    walk(node);
+    if (!Number.isFinite(smallest)) return FIT_FLOOR;
+    return Math.min(1, Math.max(FIT_FLOOR, MIN_TEXT_PX / smallest));
+}
+
+/**
+ * The largest compose scale whose content clears `frameH`, or 1 when none does.
+ *
+ * Composing at `f` rather than scaling painted pixels keeps the section at its full width, so text
+ * re-wraps into fewer longer lines: `H(f) ≈ A·f² + B·f + C`, monotone, which is what a seeded
+ * bisection needs, and the `f²` term is why a small step buys a large height. `probe` answers with
+ * the height the objective cares about (the natural height, or the media-collapsed minimum when a
+ * cover-fit is waiting on the text). Probes are snapped down onto the FIT_STEP grid, so the answer
+ * is already on it, and only a fitting probe is ever returned: a wrap step that breaks monotonicity
+ * locally degrades to a conservative answer rather than a wrong one.
+ */
+export function solveFitScale(
+    frameH: number,
+    natural: number,
+    floor: number,
+    probe: (f: number) => number,
+): { f: number; probes: number } {
+    let good = 0; // largest scale seen to fit
+    let bad = 1; // smallest seen to overflow — f = 1 by the caller's own measurement
+    let probes = 1;
+    let next = snapFit(Math.sqrt(frameH / natural), floor); // seeded from the f² term
+    while (probes < FIT_PROBES && next > good && next < bad) {
+        probes++;
+        const h = probe(next);
+        if (h > frameH) bad = next;
+        else {
+            good = next;
+            if (h >= frameH * (1 - FIT_TOL)) break;
+        }
+        if (good && bad - good <= FIT_STEP) break;
+        next = snapFit((Math.max(good, floor) + bad) / 2, floor);
+    }
+    return { f: good || 1, probes };
+}
+
+// Full-bleed slide node. In order: the content fits; the dominant media absorbs the slack; autofit
+// re-composes the section smaller until it fits; else the caller scales the natural height down.
 function prepareSlideNode(
     section: Section,
     w: number,
@@ -143,32 +247,66 @@ function prepareSlideNode(
     theme: Tokens,
     format: FormatDescriptor,
     plain = false,
-): { node: EngineNode; targetH: number } {
-    const node = composeSection(section, ctxFor(w, theme, format, plain, measure));
-    if (node.fill) node.fill = { ...node.fill, radius: 0, border: undefined };
-    if (node.image) node.image = { ...node.image, radius: 0 };
-    let natural = bottom(layout(node, { x: 0, y: 0, w, h: 100000 }, measure).commands);
+    // hold the scale steady instead of solving (an open inline edit — see backends.paintSectionStack)
+    freeze?: number,
+): { node: EngineNode; targetH: number; fitScale: number } {
+    const fitScale = freeze ?? 1;
+    const node = composeSlideNode(section, w, fitScale, measure, theme, format, plain);
+    let natural = naturalHeight(node, w, measure);
+    // Splitting a section AND shrinking its type is the worst of both, so a section headed for
+    // pagination composes at full size. An "fit" format never splits, so it always gets the search.
+    const paginates = (hh: number): boolean => format.overflow !== "fit" && hh > h * PAGINATE_ABOVE;
+    const compose = (f: number): EngineNode =>
+        composeSlideNode(section, w, f, measure, theme, format, plain);
+
     if (natural > h) {
-        const { containers, media, chain } = coverFitMedia(node);
-        if (containers.length) {
+        const cover = coverFitMedia(node);
+        if (cover.containers.length) {
             // probe with media collapsed: if the rest fits, media can absorb the overflow
-            for (const m of media) m.h = fixed(0);
-            const minH = bottom(layout(node, { x: 0, y: 0, w, h: 100000 }, measure).commands);
-            for (const m of media) m.h = grow();
+            const minH = collapsedHeight(node, cover.media, w, measure);
             if (minH <= h) {
-                for (const c of containers) c.h = grow();
-                for (const a of chain) a.h = grow();
-                node.h = fixed(h);
-                node.alignY = "center";
-                return { node, targetH: h };
+                for (const c of cover.containers) c.h = grow();
+                for (const a of cover.chain) a.h = grow();
+                return { node: centreInFrame(node, h), targetH: h, fitScale };
+            }
+            // The media can only absorb the slack once the text leaves it room, so the objective
+            // here is that collapsed minimum and the media takes whatever is left over.
+            if (freeze === undefined && !paginates(Math.min(natural, minH))) {
+                // a closure assigning to a plain `let` defeats narrowing at the read site
+                const best: { at: { node: EngineNode; cover: CoverFit } | null } = { at: null };
+                const solved = solveFitScale(h, minH, fitFloor(node), (f) => {
+                    const probe = compose(f);
+                    const c = coverFitMedia(probe);
+                    if (!c.containers.length) return Infinity;
+                    const m = collapsedHeight(probe, c.media, w, measure);
+                    if (m <= h) best.at = { node: probe, cover: c };
+                    return m;
+                });
+                if (best.at) {
+                    for (const c of best.at.cover.containers) c.h = grow();
+                    for (const a of best.at.cover.chain) a.h = grow();
+                    return {
+                        node: centreInFrame(best.at.node, h),
+                        targetH: h,
+                        fitScale: solved.f,
+                    };
+                }
             }
             natural = Math.min(natural, minH); // still overflowing (long text) → less to scale down
+        } else if (freeze === undefined && !paginates(natural)) {
+            const best: { at: { node: EngineNode; height: number } | null } = { at: null };
+            const solved = solveFitScale(h, natural, fitFloor(node), (f) => {
+                const probe = compose(f);
+                const height = naturalHeight(probe, w, measure);
+                if (height <= h) best.at = { node: probe, height };
+                return height;
+            });
+            if (best.at)
+                return { node: centreInFrame(best.at.node, h), targetH: h, fitScale: solved.f };
         }
     }
     const targetH = Math.max(h, natural);
-    node.h = fixed(targetH);
-    node.alignY = "center";
-    return { node, targetH };
+    return { node: centreInFrame(node, targetH), targetH, fitScale };
 }
 
 export function layoutSlide(
@@ -179,10 +317,20 @@ export function layoutSlide(
     theme: Tokens = DEFAULT_THEME.tokens,
     format: FormatDescriptor = DEFAULT_PROFILE,
     plain = false,
-): { commands: RenderCommand[]; regions: Region[]; height: number } {
-    const { node, targetH } = prepareSlideNode(section, w, h, measure, theme, format, plain);
+    freeze?: number,
+): { commands: RenderCommand[]; regions: Region[]; height: number; fitScale: number } {
+    const { node, targetH, fitScale } = prepareSlideNode(
+        section,
+        w,
+        h,
+        measure,
+        theme,
+        format,
+        plain,
+        freeze,
+    );
     const { commands, regions } = layout(node, { x: 0, y: 0, w, h: targetH }, measure);
-    return { commands, regions, height: targetH };
+    return { commands, regions, height: targetH, fitScale };
 }
 
 export interface SlidePage {
@@ -190,11 +338,8 @@ export interface SlidePage {
     w: number;
     h: number;
     contentH: number; // height the commands span; caller scales it to fit h (== h for a paginated page)
+    fitScale: number; // < 1 ⇒ autofit re-composed the section to reach the frame
 }
-
-// Threshold of the "paginate" policy: taller than this × its frame splits; below, it scales onto one
-// page. An "fit" format never splits, however tall — the caller scales it instead.
-const PAGINATE_ABOVE = 1.2;
 
 // one scaled slide, or several paginated when too tall; Present, export, and 16:9 thumbnails render
 // from this, so all three agree on where a tall section breaks
@@ -205,11 +350,25 @@ export function sectionSlides(
     plain = false,
 ): SlidePage[] {
     const { w, h } = sectionFrame(section, format);
-    const { node, targetH } = prepareSlideNode(section, w, h, measureText, theme, format, plain);
+    const { node, targetH, fitScale } = prepareSlideNode(
+        section,
+        w,
+        h,
+        measureText,
+        theme,
+        format,
+        plain,
+    );
     const { commands } = layout(node, { x: 0, y: 0, w, h: targetH }, measureText);
     if (format.overflow === "fit" || targetH <= h * PAGINATE_ABOVE)
-        return [{ commands, w, h, contentH: targetH }];
-    return fragment(commands, targetH, h).map((cmds) => ({ commands: cmds, w, h, contentH: h }));
+        return [{ commands, w, h, contentH: targetH, fitScale }];
+    return fragment(commands, targetH, h).map((cmds) => ({
+        commands: cmds,
+        w,
+        h,
+        contentH: h,
+        fitScale,
+    }));
 }
 
 export function layoutSlideSkeleton(

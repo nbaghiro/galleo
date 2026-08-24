@@ -2,11 +2,11 @@ import type { RenderCommand } from "@engine/node";
 import type { ArtifactContent } from "@model/artifact";
 import type { Tokens } from "@themes";
 import { PDFDocument, rgb } from "pdf-lib";
-import { profileFor, resolveProfile } from "@engine/profile";
+import { pagedSize, profileFor, resolveProfile } from "@engine/profile";
 import { EXPORT_SCALE, loadImages, paint, renderSlidePage, renderToCanvas } from "./backends";
 import { measureText, layoutSection, sectionSlides } from "./commands";
 import { applyFallbacks } from "@elements/ops";
-import { frameCommand, localize, type Transform } from "./pptx";
+import { cssColorHex, frameCommand, inch, localize, type Transform } from "./pptx";
 import {
     addLinkAnnot,
     buildFontBook,
@@ -367,6 +367,55 @@ export async function buildSectionPngZip(files: SectionPng[]): Promise<Uint8Arra
     const zip = new JSZip();
     for (const f of files) zip.file(f.name, f.bytes);
     return zip.generateAsync({ type: "uint8array" });
+}
+
+// centered scale-to-fit of a rendered page onto the fixed slide box (px in, px out)
+export function rasterSlidePlacement(
+    page: { w: number; h: number },
+    slide: { w: number; h: number },
+): { x: number; y: number; w: number; h: number } {
+    const k = Math.min(slide.w / page.w, slide.h / page.h);
+    const w = page.w * k;
+    const h = page.h * k;
+    return { x: (slide.w - w) / 2, y: (slide.h - h) / 2, w, h };
+}
+
+// Every slide is one PNG of the rendered page: nothing for a converter to re-flow or substitute.
+// This is what the Google Slides destination sends until the editable path lands; PowerPoint
+// downloads keep the native hybrid (buildPptx).
+export async function buildRasterPptx(
+    artifact: ArtifactContent,
+    tk: Tokens,
+    opts?: ExportOptions,
+): Promise<Uint8Array> {
+    const brand = opts?.brand ?? false;
+    const art = applyFallbacks(artifact);
+    const own = profileFor(art);
+    const profile = own.kind === "paged" ? own : resolveProfile("deck");
+    const slideBox = pagedSize(profile);
+    const PptxGenJS = (await import("pptxgenjs")).default;
+    const pptx = new PptxGenJS();
+    pptx.defineLayout({ name: "GALLEO_PAGE", width: inch(slideBox.w), height: inch(slideBox.h) });
+    pptx.layout = "GALLEO_PAGE";
+    const bgHex = cssColorHex(tk.bg) ?? "FFFFFF";
+    for (const section of art.sections) {
+        for (const page of sectionSlides(section, tk, profile)) {
+            const canvas = await renderSlidePage(page, tk.bg, EXPORT_SCALE);
+            const cx = canvas.getContext("2d");
+            if (brand && cx) stampBrand(cx, canvas.width, canvas.height, EXPORT_SCALE);
+            const slide = pptx.addSlide();
+            slide.background = { color: bgHex };
+            const at = rasterSlidePlacement(page, slideBox);
+            slide.addImage({
+                data: canvas.toDataURL("image/png"),
+                x: inch(at.x),
+                y: inch(at.y),
+                w: inch(at.w),
+                h: inch(at.h),
+            });
+        }
+    }
+    return new Uint8Array((await pptx.write({ outputType: "arraybuffer" })) as ArrayBuffer);
 }
 
 // A4 portrait width in CSS px at 96dpi, zero @page margins; Letter is wider, so it underfills, not clips

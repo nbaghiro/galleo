@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { A4_W, docSectionPageSize, slidePdfPageSize } from "@canvas/render/export";
+import {
+    A4_W,
+    docSectionPageSize,
+    rasterSlidePlacement,
+    slidePdfPageSize,
+} from "@canvas/render/export";
 
 describe("slidePdfPageSize", () => {
     it("keeps a fixed page width and preserves the slide aspect", () => {
@@ -8,6 +13,32 @@ describe("slidePdfPageSize", () => {
     });
     it("honors a custom page width", () => {
         expect(slidePdfPageSize({ w: 1280, h: 720 }, 640)).toEqual({ w: 640, h: 360 });
+    });
+});
+
+describe("rasterSlidePlacement", () => {
+    it("a page matching the slide box fills it exactly", () => {
+        expect(rasterSlidePlacement({ w: 1280, h: 720 }, { w: 1280, h: 720 })).toEqual({
+            x: 0,
+            y: 0,
+            w: 1280,
+            h: 720,
+        });
+    });
+    it("letterboxes a taller page (per-section frame aspect) centered horizontally", () => {
+        // a square page onto 16:9: height-bound, so it pillar-boxes
+        const at = rasterSlidePlacement({ w: 1280, h: 1280 }, { w: 1280, h: 720 });
+        expect(at.h).toBe(720);
+        expect(at.w).toBe(720);
+        expect(at.x).toBeCloseTo((1280 - 720) / 2, 6);
+        expect(at.y).toBe(0);
+    });
+    it("letterboxes a wider page centered vertically", () => {
+        const at = rasterSlidePlacement({ w: 1280, h: 320 }, { w: 1280, h: 720 });
+        expect(at.w).toBe(1280);
+        expect(at.h).toBe(320);
+        expect(at.x).toBe(0);
+        expect(at.y).toBeCloseTo(200, 6);
     });
 });
 

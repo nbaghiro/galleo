@@ -55,6 +55,9 @@ export interface Section {
     bleed?: boolean; // full-bleed edge-to-edge vs a contained card
     frame?: SectionFrame;
     notes?: SectionNotes;
+    // sticks to the top of the viewport once scrolled to (a nav bar). Continuous playback only:
+    // paged formats and export have no scroll to stick against, and the editor renders it in place.
+    pinned?: boolean;
 }
 
 // Everything except the sections. The section-ops route rewrites stored content through this, so an
@@ -347,6 +350,23 @@ export function parseHitRegion(id: string): { action: string; address: ElementAd
     if (p[0] !== "hit" || !p[1] || !p[2]) return null;
     const path = p[3] ? p[3].split(".").map(Number) : [];
     return { action: p[1], address: { section: p[2], path } };
+}
+
+// Sub-element geometry an element paints for itself (a chart's bars): `index` addresses the row the
+// data editor shows, so one id serves hover in both directions. parseTarget ignores the prefix, so a
+// datum is never a selection; several regions may share one id (a grouped bar's per-series rects).
+const DATUM = "datum:";
+export const datumRegionId = (element: string, index: number): string =>
+    `${DATUM}${element}:${index}`;
+
+export function parseDatumRegion(id: string): { element: string; index: number } | null {
+    if (!id.startsWith(DATUM)) return null;
+    const cut = id.lastIndexOf(":");
+    if (cut <= DATUM.length - 1) return null;
+    const element = id.slice(DATUM.length, cut);
+    const index = Number(id.slice(cut + 1));
+    if (!element || !Number.isInteger(index) || index < 0) return null;
+    return { element, index };
 }
 
 // most specific wins: deeper element > element > section
@@ -717,7 +737,8 @@ const SECTION_SHELL_EQUAL = (b: Section, a: Section): boolean =>
     b.background === a.background &&
     b.bleed === a.bleed &&
     b.frame === a.frame &&
-    b.notes === a.notes;
+    b.notes === a.notes &&
+    b.pinned === a.pinned;
 
 /** Rewrites the `set` ops that are only element-data changes; everything else passes through. */
 export function narrowOps(before: ArtifactContent, ops: SectionOp[]): SectionOp[] {

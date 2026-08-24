@@ -132,8 +132,14 @@ function toChecks(fit: SectionFit): EvalCheck[] {
             dimension: "layout",
             target,
             pass: fit.overflow === 0,
+            // the fit scale rides along rather than becoming its own check: it says how much of the
+            // spill the renderer absorbs, which is a number to read across runs, not a bar to pass
             ...(fit.overflow
-                ? { detail: `spills ${Math.round(fit.overflow)}px past the frame` }
+                ? {
+                      detail:
+                          `spills ${Math.round(fit.overflow)}px past the frame` +
+                          (fit.fitScale < 1 ? `, rendered at ${fit.fitScale.toFixed(2)}` : ""),
+                  }
                 : {}),
         },
     ];

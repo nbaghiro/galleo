@@ -7,16 +7,19 @@ import { getElement } from "@elements/spec";
 import { profileFor } from "@engine/profile";
 import { ctxFor } from "@canvas/render/commands";
 import { sectionLayoutWidth } from "@canvas/render/backends";
-import { canvasContentWidth, editor, editorTokens } from "./store";
+import { canvasContentWidth, editor, editorTokens, sectionFitScale } from "./store";
 
 // The compose context the canvas painted with — the type ramp makes font size a function of
-// width, so chrome that must match the screen composes at exactly this width and profile.
+// width, so chrome that must match the screen composes at exactly this width and profile. Autofit
+// is the second factor on the same type: a fitted section paints smaller than it is authored, and
+// an overlay composed without it would show the caret's line at the wrong size.
 function paintedCtx(section: Section | undefined): LayoutCtx {
     const profile = profileFor(editor.artifact);
     const w = section
         ? sectionLayoutWidth(section, profile, canvasContentWidth())
         : canvasContentWidth();
-    return ctxFor(w, editorTokens(), profile);
+    const ctx = ctxFor(w, editorTokens(), profile);
+    return section ? { ...ctx, fitScale: sectionFitScale(section.id) } : ctx;
 }
 
 // the engine subtree for an address as painted (ramp, restyling, contrast swap included)

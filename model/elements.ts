@@ -50,6 +50,10 @@ export type CardShape = (typeof CARD_SHAPES)[number];
 export const FLEX_DIRECTION = ["row", "col"] as const;
 export type FlexDirection = (typeof FLEX_DIRECTION)[number];
 
+// main-axis distribution of leftover space; absent = pack the children and align them
+export const FLEX_JUSTIFY = ["between", "around", "evenly"] as const;
+export type FlexJustify = (typeof FLEX_JUSTIFY)[number];
+
 export const BUTTON_VARIANTS = ["filled", "outline", "soft", "ghost"] as const;
 export type ButtonVariant = (typeof BUTTON_VARIANTS)[number];
 

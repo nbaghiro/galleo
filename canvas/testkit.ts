@@ -7,6 +7,7 @@ import type {
     Rect,
     Region,
     RenderCommand,
+    TextLeaf,
 } from "@engine/node";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import type { ElementLayout, FormatDescriptor, Size } from "@model/geometry";
@@ -79,6 +80,32 @@ export const commandById = (commands: RenderCommand[], id: string): RenderComman
 };
 export const bottomOf = (commands: RenderCommand[]): number =>
     commands.reduce((mx, c) => Math.max(mx, c.box.y + c.box.h), 0);
+
+/**
+ * Browse order, both sides of the same claim: `tree` is the text of the composed node walked
+ * depth-first through the flow, `emitted` is the text `layout` actually put in the command stream,
+ * floats removed. They must be equal — flow emit order IS tree order, and nothing may quietly
+ * reorder it. Identity works because `emit` passes the leaf through by reference.
+ */
+export function readingOrder(
+    node: EngineNode,
+    commands: RenderCommand[],
+): { tree: string[]; emitted: string[] } {
+    const flow: TextLeaf[] = [];
+    const floated = new Set<TextLeaf>();
+    const walk = (n: EngineNode, inFloat: boolean): void => {
+        if (n.text) {
+            if (inFloat) floated.add(n.text);
+            else flow.push(n.text);
+        }
+        for (const c of n.children ?? []) walk(c, inFloat || !!c.float);
+    };
+    walk(node, false);
+    const emitted = commands.flatMap((c) =>
+        c.kind === "text" && !floated.has(c.text) ? [c.text] : [],
+    );
+    return { tree: flow.map((t) => t.text), emitted: emitted.map((t) => t.text) };
+}
 
 // real default theme tokens (not a fake fixture)
 export const tokens = DEFAULT_THEME.tokens;

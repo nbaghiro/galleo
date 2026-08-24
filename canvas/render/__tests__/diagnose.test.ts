@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ElementInstance, Section } from "@model/artifact";
 import { resolveProfile } from "@engine/profile";
 import { diagnoseSection, diagnoseSections, SPARSE_BELOW } from "@canvas/render/diagnose";
+import type { MeasureText } from "@engine/node";
 import { measure } from "@canvas/testkit";
 import "@elements/register";
 
@@ -16,6 +17,15 @@ const DECK = resolveProfile("deck"); // 1280 × 720, a fixed frame
 const DOC = resolveProfile("doc"); // 816 wide, height "auto"
 
 const words = (n: number): string => Array.from({ length: n }, (_, i) => `word${i}`).join(" ");
+
+// The shared testkit measurer is size-blind, and autofit's whole mechanism is that a smaller type
+// re-wraps into fewer lines: this one charges half a pixel per character per point of size.
+const sized: MeasureText = (leaf, maxW) => {
+    const w = leaf.text.length * leaf.size * 0.5;
+    const lh = leaf.lineHeight ?? leaf.size * 1.35;
+    if (leaf.wrap === "none" || !Number.isFinite(maxW)) return { width: w, height: lh };
+    return { width: Math.min(w, maxW), height: Math.max(1, Math.ceil(w / Math.max(1, maxW))) * lh };
+};
 
 describe("a fixed frame", () => {
     it("reports the frame it was measured against", () => {
@@ -43,6 +53,30 @@ describe("a fixed frame", () => {
         );
         expect(fit.overflow).toBeGreaterThan(0);
         expect(fit.contentHeight).toBeGreaterThan(fit.frameHeight!);
+    });
+
+    // The spill above stays natural, so the generation signal survives autofit; the scale beside it
+    // says how much of that spill the renderer absorbs.
+    it("reports the scale the slide path would render an overflowing section at", () => {
+        const spills = diagnoseSection(
+            section("a", [text(words(500))]),
+            1280,
+            sized,
+            undefined,
+            DECK,
+        );
+        expect(spills.overflow).toBeGreaterThan(0);
+        expect(spills.fitScale).toBeLessThan(1);
+    });
+
+    it("reports 1 for a section that needs no fitting, and for an elastic page", () => {
+        expect(
+            diagnoseSection(section("a", [text("Short")]), 1280, measure, undefined, DECK).fitScale,
+        ).toBe(1);
+        expect(
+            diagnoseSection(section("a", [text(words(400))]), 816, measure, undefined, DOC)
+                .fitScale,
+        ).toBe(1);
     });
 
     it("reports fill, so a nearly empty slide is visible as a number", () => {

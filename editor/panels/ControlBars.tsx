@@ -8,15 +8,7 @@ import { profileFor } from "@engine/profile";
 import { measureText } from "@canvas/render/commands";
 import { isPhone } from "@ui/viewport";
 import { runCommand } from "@ui/keys";
-import {
-    duplicateAt,
-    duplicatedAddr,
-    getElementAt,
-    removeAt,
-    setElementLayout,
-    sharedParent,
-    updateDataAt,
-} from "@elements/ops";
+import { getElementAt, setElementLayout, sharedParent, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import {
     commit,
@@ -26,10 +18,10 @@ import {
     regions,
     selectedAddresses,
     selection,
-    setSelection,
     stageEl,
     editorTokens,
 } from "@editor/core/store";
+import { deleteSelectedElements, duplicateSelectedElements } from "@editor/core/commands";
 import { drag, movable } from "@editor/core/dnd";
 import { union } from "./Selection";
 import { paintedLeafFor } from "@editor/core/leaf";
@@ -182,28 +174,8 @@ export const ContextBar: Component = () => {
         const a = addr();
         if (a) void regenerateElement(a);
     };
-    const dup = (): void => {
-        const many = set();
-        if (many) {
-            runCommand("edit.duplicate");
-            return;
-        }
-        const a = addr();
-        if (!a) return;
-        commit(duplicateAt(editor.artifact, a));
-        setSelection({ kind: "element", address: duplicatedAddr(a) });
-    };
-    const del = (): void => {
-        const many = set();
-        if (many) {
-            runCommand("edit.delete");
-            return;
-        }
-        const a = addr();
-        if (!a) return;
-        commit(removeAt(editor.artifact, a));
-        setSelection(null);
-    };
+    const dup = (): void => duplicateSelectedElements();
+    const del = (): void => deleteSelectedElements();
 
     return (
         <Show when={pos()}>

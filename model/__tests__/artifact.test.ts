@@ -10,7 +10,10 @@ import type {
 import {
     LAYOUT_PRESETS,
     applySectionOps,
+    datumRegionId,
+    elementRegionId,
     hitRegionId,
+    parseDatumRegion,
     parseHitRegion,
     invertOps,
     narrowOps,
@@ -164,6 +167,33 @@ describe("parseTarget", () => {
     it("returns null for junk / empty input", () => {
         expect(parseTarget("junk")).toBeNull();
         expect(parseTarget("")).toBeNull();
+    });
+});
+
+describe("datumRegionId ⇄ parseDatumRegion", () => {
+    const el = elementRegionId({ section: "s1", path: [0, 2] });
+
+    it("round-trips through an element region id that has its own colons", () => {
+        expect(parseDatumRegion(datumRegionId(el, 7))).toEqual({ element: el, index: 7 });
+    });
+
+    it("round-trips a pathless element", () => {
+        const root = elementRegionId({ section: "s1", path: [] });
+        expect(parseDatumRegion(datumRegionId(root, 0))).toEqual({ element: root, index: 0 });
+    });
+
+    it("returns null for anything that is not a datum", () => {
+        expect(parseDatumRegion(el)).toBeNull();
+        expect(parseDatumRegion(hitRegionId("toggle", { section: "s1", path: [0] }))).toBeNull();
+        expect(parseDatumRegion("datum:el:s1:x")).toBeNull();
+        expect(parseDatumRegion("datum:")).toBeNull();
+    });
+
+    // hover and selection read the same region list, so a datum must be invisible to selection
+    it("is not a selection target, and not an affordance", () => {
+        const id = datumRegionId(el, 3);
+        expect(parseTarget(id)).toBeNull();
+        expect(parseHitRegion(id)).toBeNull();
     });
 });
 
@@ -539,6 +569,17 @@ describe("narrowOps", () => {
         expect(ops).toEqual([{ kind: "set", section: next }]);
         const applied = applySectionOps(before, ops);
         expect(applied.ok && applied.content.sections[0]?.notes).toEqual({ spoken: "say this" });
+    });
+
+    // same hazard as `notes`: pinning changes nothing in the tree, so the set has to survive on the
+    // shell comparison alone or the toggle silently never reaches the row
+    it("keeps a pinned-only edit as a whole-section set", () => {
+        const before = dataDoc();
+        const next: Section = { ...before.sections[0]!, pinned: true };
+        const ops = narrowOps(before, [{ kind: "set", section: next }]);
+        expect(ops).toEqual([{ kind: "set", section: next }]);
+        const applied = applySectionOps(before, ops);
+        expect(applied.ok && applied.content.sections[0]?.pinned).toBe(true);
     });
 
     it("keeps a set that changes notes and element data together", () => {

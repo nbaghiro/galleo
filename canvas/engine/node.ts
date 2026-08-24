@@ -105,6 +105,7 @@ export interface TextLeaf {
 export interface ImageLeaf {
     src: string;
     alt?: string;
+    natural?: { w: number; h: number }; // pixel size of the source, when known: a `fit` width uses it
     fit: "cover" | "contain";
     radius?: number;
     scrim?: number; // 0..1 dark overlay
@@ -123,6 +124,9 @@ export interface FillLeaf {
 
 export interface SurfaceLeaf {
     paint: (ctx: DrawContext, box: Rect) => void;
+    // Pure sibling of `paint`: the sub-element hit geometry behind the same pixels, box-relative.
+    // `emit` calls it and offsets the result into stage space; the surface owns the ids it mints.
+    regions?: (box: Rect) => Region[];
 }
 
 // A node may carry a leaf (fill/image/text/surface) AND children.
@@ -131,12 +135,18 @@ export interface EngineNode {
     w: Size;
     h: Size;
     aspect?: number;
-    direction?: "row" | "col";
+    // "grid" fills `columns` shared-width tracks row-major; `gap` is then the column gap.
+    direction?: "row" | "col" | "grid";
+    columns?: number;
+    rowGap?: number; // grid only; defaults to `gap`
     padding?: BoxInsets;
     gap?: number;
     alignX?: Align;
     alignY?: Align;
     alignSelf?: Align; // overrides the parent's cross-axis alignment
+    // Spreads leftover main-axis space across the flow children instead of aligning it; a `fit` main
+    // axis has no leftover and distributes nothing. Floats are unaffected.
+    distribute?: "between" | "around" | "evenly";
     // Clips descendants on the given axes; the resolved rect rides on each command.
     clip?: { x?: boolean; y?: boolean };
     // Lifted out of the flow (no effect on siblings or fit size). Painted by `z`: negative under
@@ -153,6 +163,8 @@ export interface EngineNode {
 }
 
 // `clip` is the ancestor-intersected rect the backends honor; absent = no clip.
+// `decor` marks a command emitted from a negative-z float, which `float.z` already defines as
+// decoration: it paints, but it is out of the reading order, so the DOM backend hides it from a11y.
 export type RenderCommand =
     | {
           kind: "rect";
@@ -162,6 +174,7 @@ export type RenderCommand =
           opacity?: number;
           clip?: Rect;
           link?: string;
+          decor?: boolean;
       }
     | {
           kind: "text";
@@ -171,6 +184,7 @@ export type RenderCommand =
           opacity?: number;
           clip?: Rect;
           link?: string;
+          decor?: boolean;
       }
     | {
           kind: "image";
@@ -180,6 +194,7 @@ export type RenderCommand =
           opacity?: number;
           clip?: Rect;
           link?: string;
+          decor?: boolean;
       }
     | {
           kind: "surface";
@@ -189,6 +204,7 @@ export type RenderCommand =
           opacity?: number;
           clip?: Rect;
           link?: string;
+          decor?: boolean;
       };
 
 // Separate from paint so selection and hit-testing don't depend on what was drawn.
@@ -196,4 +212,22 @@ export interface Region {
     id: string;
     box: Rect;
     radius?: number; // the radius this node actually painted, so selection outlines match it
+    // A non-rectangular hit area (a pie wedge), in the same coordinates as `box`; absent = the box.
+    shape?: { kind: "poly"; points: [number, number][] };
+}
+
+/** Point-in-region: the polygon when the region carries one, the box otherwise. */
+export function inRegion(r: Region, px: number, py: number): boolean {
+    const b = r.box;
+    if (px < b.x || px > b.x + b.w || py < b.y || py > b.y + b.h) return false;
+    const pts = r.shape?.points;
+    if (!pts || pts.length < 3) return true;
+    // ray casting: count the edges a ray from (px,py) to +x crosses
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const [xi, yi] = pts[i]!;
+        const [xj, yj] = pts[j]!;
+        if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
 }

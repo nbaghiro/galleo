@@ -2,23 +2,11 @@ import type { ElementAddress } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
 import { elementRegionId } from "@model/artifact";
-import {
-    deleteElement,
-    getElementAt,
-    setElementLayout,
-    sharedParent,
-    updateDataAt,
-} from "@elements/ops";
+import { getElementAt, setElementLayout, sharedParent, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { runCommand } from "@ui/keys";
-import {
-    commit,
-    editor,
-    noteElementRemoved,
-    regions,
-    selectedAddresses,
-    setSelection,
-} from "@editor/core/store";
+import { commit, editor, regions, selectedAddresses } from "@editor/core/store";
+import { deleteSelectedElements } from "@editor/core/commands";
 import { paintedLeafFor } from "@editor/core/leaf";
 import { FieldRow, PanelHeader, SchemaFields, SliderRow } from "./SharedControlFields";
 import { dataShapeFor, DATA_KEYS } from "@editor/core/infographic";
@@ -82,11 +70,7 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
             coalesce,
         });
     };
-    const del = (): void => {
-        noteElementRemoved(inst()?.type ?? "");
-        commit(deleteElement(editor.artifact, props.address));
-        setSelection(null);
-    };
+    const del = (): void => deleteSelectedElements();
 
     const DEFAULT_RADIUS = 12; // shown before layout.radius is explicitly set
     const radius = createMemo((): number => {

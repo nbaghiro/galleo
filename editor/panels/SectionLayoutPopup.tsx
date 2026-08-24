@@ -3,7 +3,7 @@ import { createMemo, For, Show } from "solid-js";
 import type { Section, SectionBackground } from "@model/artifact";
 import { profileFor } from "@engine/profile";
 import { SECTION_LAYOUTS, type SectionLayout } from "@elements/layouts";
-import { setSectionBackground, setSectionBleed } from "@elements/ops";
+import { setSectionBackground, setSectionBleed, setSectionPinned } from "@elements/ops";
 import { SECTION_CONTROLS } from "@elements/spec";
 import { ScaledSectionCanvas } from "@ui/section";
 import { capture } from "@ui/analytics";
@@ -16,6 +16,12 @@ export const SectionLayoutPopup: Component<{ section: string }> = (props) => {
     const frame = (): "slide" | "natural" =>
         profile().kind === "continuous" ? "natural" : "slide";
     const applicable = (s: Section): SectionLayout[] => SECTION_LAYOUTS.filter((l) => l.applies(s));
+    // pinning needs a scroll to stick against, which only a continuous format has
+    const controls = createMemo(() =>
+        profile().kind === "continuous"
+            ? SECTION_CONTROLS
+            : SECTION_CONTROLS.filter((c) => c.key !== "pinned"),
+    );
 
     const apply = (l: SectionLayout): void => {
         commit({
@@ -35,10 +41,13 @@ export const SectionLayoutPopup: Component<{ section: string }> = (props) => {
             setSectionBackground(editor.artifact, props.section, { ...bg(), ...patch }),
             coalesce ? { coalesce } : undefined,
         );
-    const ck = (key: string): string | undefined =>
-        ["bgColor", "bgFrom", "bgTo", "bgAngle", "bgScrim"].includes(key)
+    // slider/color drag continuously; coalesce the stream into one undo step
+    const ck = (key: string): string | undefined => {
+        const control = SECTION_CONTROLS.find((c) => c.key === key)?.control;
+        return control === "slider" || control === "color"
             ? `sec:${props.section}:${key}`
             : undefined;
+    };
     const setKind = (kind: string): void => {
         if (kind === "color" || kind === "gradient" || kind === "image")
             capture("background_set", { kind });
@@ -58,6 +67,8 @@ export const SectionLayoutPopup: Component<{ section: string }> = (props) => {
         switch (key) {
             case "bleed":
                 return sec()?.bleed ? "full" : "contained";
+            case "pinned":
+                return sec()?.pinned ?? false;
             case "bgKind":
                 return bg().kind;
             case "bgColor":
@@ -80,6 +91,9 @@ export const SectionLayoutPopup: Component<{ section: string }> = (props) => {
         switch (key) {
             case "bleed":
                 commit(setSectionBleed(editor.artifact, props.section, v === "full"));
+                break;
+            case "pinned":
+                commit(setSectionPinned(editor.artifact, props.section, !!v));
                 break;
             case "bgKind":
                 setKind(String(v));
@@ -134,7 +148,7 @@ export const SectionLayoutPopup: Component<{ section: string }> = (props) => {
                             </For>
                         </div>
                     </Group>
-                    <SchemaFields controls={SECTION_CONTROLS} read={read} write={write} />
+                    <SchemaFields controls={controls()} read={read} write={write} />
                 </div>
             )}
         </Show>

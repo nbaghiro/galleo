@@ -5,8 +5,7 @@
 > for the largest type-and-space scale at which the section's content genuinely reflows into its
 > frame, and only fall back to the existing two when that fails.
 >
-> Status: designed, not started. Nothing depends on it, and it can ship in the engine alone before
-> any editor work.
+> Status: phases A, B and C shipped (workstream W-C of the engine round). Phase D is untouched.
 
 Companion docs: `rendering.md` (the engine, the slide chain, format-as-view), `.docs/planning/engine-gaps.md`
 (item 3, which this expands), `ai.md` (generation is the biggest producer of overflowing sections),
@@ -294,35 +293,37 @@ autofit is actually doing, not as part of it.
 
 ### Phase A: the engine (ships alone)
 
-- [ ] `LayoutCtx.fitScale?: number`, consumed in `composeSection` as `rampScale(...) * (fitScale ?? 1)`.
-- [ ] `solveFitScale` in `canvas/render/commands.ts`: seed, bisect, four-probe budget, snap to 0.02.
-- [ ] The floor: `FIT_FLOOR = 0.7` beside `TYPE_RAMP.min`, `MIN_TEXT_PX`, and the walk that finds the
+- [x] `LayoutCtx.fitScale?: number`, consumed in `composeSection` as `rampScale(...) * (fitScale ?? 1)`.
+- [x] `solveFitScale` in `canvas/render/commands.ts`: seed, bisect, four-probe budget, snap to 0.02.
+- [x] The floor: `FIT_FLOOR = 0.7` beside `TYPE_RAMP.min`, `MIN_TEXT_PX`, and the walk that finds the
       smallest composed text size.
-- [ ] Wire into `prepareSlideNode` as steps 3 and 4, after `coverFitMedia`, before the pagination
+- [x] Wire into `prepareSlideNode` as steps 3 and 4, after `coverFitMedia`, before the pagination
       threshold, paged formats only, and never on the path to pagination.
-- [ ] Return the solved scale from `prepareSlideNode`, `layoutSlide` and `sectionSlides`.
-- [ ] Tests, `canvas/render/__tests__/autofit.test.ts`: a fitting section returns exactly 1 and spends
+- [x] Return the solved scale from `prepareSlideNode`, `layoutSlide` and `sectionSlides`.
+- [x] Tests, `canvas/render/__tests__/autofit.dom.test.ts`: a fitting section returns exactly 1 and spends
       one layout; an overflowing text section returns a scale that fits and respects the floor; the
       floor is honoured against the smallest type, not the average; a media section still takes the
       `coverFitMedia` path unchanged; a 3.6x section still paginates at full size.
-- [ ] Confirm `coverfit.dom.test.ts` and `overflow.dom.test.ts` still pass, and re-baseline the
+- [x] Confirm `coverfit.dom.test.ts` and `overflow.dom.test.ts` still pass, and re-baseline the
       numbers in the second one deliberately if they move.
 
 ### Phase B: the editor
 
-- [ ] `paintSectionStack` returns `fitScales`, the store keeps them beside `sectionTops`.
-- [ ] `paintedCtx` (`editor/core/leaf.ts`) passes the section's fit scale, so the inline editor
+- [x] `paintSectionStack` returns `fitScales`, the store keeps them beside `sectionTops`.
+- [x] `paintedCtx` (`editor/core/leaf.ts`) passes the section's fit scale, so the inline editor
       overlay matches the paint.
-- [ ] Freeze the fit scale while an inline edit is active in that section; re-solve on `stopEditing`.
-- [ ] The section readout: keep `overflowMark` for unfittable, add a quiet fitted indicator otherwise.
-- [ ] Confirm the inspector still shows authored sizes.
+- [x] Freeze the fit scale while an inline edit is active in that section; re-solve on `stopEditing`.
+- [x] The section readout: keep `overflowMark` for unfittable, add a quiet fitted indicator otherwise.
+- [x] Confirm the inspector still shows authored sizes.
 
 ### Phase C: measurement
 
-- [ ] `SectionFit.fitScale` on `canvas/render/diagnose.ts`, reported by `pnpm eval:shots`.
-- [ ] Decide whether a check earns its place (`fits-without-shrinking`, say) or whether the number in
+- [x] `SectionFit.fitScale` on `canvas/render/diagnose.ts`, reported by `pnpm eval:shots`.
+- [x] Decide whether a check earns its place (`fits-without-shrinking`, say) or whether the number in
       the report is enough. Prefer the number until we have seen a few runs.
-- [ ] Full before-and-after corpus run, read section by section.
+- [ ] Full before-and-after corpus run, read section by section. (CI's `eval:shots`; the shot path
+      paints the stack unframed, so the images cannot move and only the `fits-frame` detail carries
+      the number.)
 
 ### Phase D: deferred
 
@@ -331,12 +332,22 @@ autofit is actually doing, not as part of it.
       scale serves badly.
 - [ ] Revisit the generation prompts' content-volume guidance in light of what autofit absorbs.
 
+## Settled while shipping
+
+- `MIN_TEXT_PX` shipped at 11, as a tunable constant beside `FIT_FLOOR`. Still not measured against
+  the corpus: no corpus section reaches the floor, because a paginating format stops searching at
+  `PAGINATE_ABOVE` (see below), so the number is only exercised by `overflow: "fit"` formats.
+- Step 4 shipped. It is where the media case actually lands: a photo with more caption than a slide
+  holds fails `coverFitMedia`'s own probe, and shrinking the text is exactly what unblocks it.
+- The fitted indicator went into the section actions, as a muted "Fitted 84%" beside the section
+  controls. The inspector keeps showing authored values.
+- The reachable range is narrower than the floor suggests. Autofit does not run on the path to
+  pagination, so on deck/doc/web (all `paginate`) it only ever sees sections up to `PAGINATE_ABOVE`
+  = 1.2× their frame, which bottoms out around f ≈ 0.84. `FIT_FLOOR` binds only for `fit` formats.
+
 ## Still open
 
-- `MIN_TEXT_PX = 11` is a guess. Measure the corpus before fixing it.
-- Whether step 4 (solve against `minH`, then cover-fit) is worth the complexity in the first pass, or
-  whether Phase A should ship with steps 3 and 5 only and add it once the simple case is proven.
-- Whether the fitted indicator belongs in the section actions or the inspector, which is a
-  `frontend.md` question rather than an engine one.
 - Whether `overflow: "fit"` formats should be allowed below `FIT_FLOOR`, since they have no
   pagination to fall back to and a card that must be one page might prefer illegible to cropped.
+- Whether `PAGINATE_ABOVE` is still the right threshold now that a third outcome exists between
+  "scale it" and "split it". A section at 1.3× would fit comfortably at 0.88 rather than split.

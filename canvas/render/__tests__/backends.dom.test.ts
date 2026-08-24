@@ -219,6 +219,79 @@ describe("paintSectionStack — slide framing", () => {
     });
 });
 
+describe("paintSectionStack — autofit", () => {
+    const deck = resolveProfile("deck");
+    const para = (i: number): string =>
+        `Paragraph ${i}: ${"lorem ipsum dolor sit amet consectetur ".repeat(6)}`;
+    // 657px natural against a 554px frame: over the frame, under the pagination threshold
+    const dense = (n = 6): Section[] => [
+        sectionOf(
+            {
+                type: "container",
+                data: {
+                    direction: "col",
+                    children: [
+                        inst("text", { style: "h1", text: "A title" }),
+                        ...Array.from({ length: n }, (_, i) =>
+                            inst("text", { style: "body", text: para(i) }),
+                        ),
+                    ],
+                },
+            },
+            { id: "s1" },
+        ),
+    ];
+    const frameH = (): number =>
+        sectionFrameHeight(dense()[0]!, deck, sectionLayoutWidth(dense()[0]!, deck, 1000));
+    const draw = (
+        sections: Section[],
+        opts: Partial<Parameters<typeof paintSectionStack>[4]> = {},
+    ): ReturnType<typeof paintSectionStack> =>
+        paintSectionStack(document.createElement("div"), sections, deck, tokens, {
+            fullW: 1000,
+            slideFrame: true,
+            ...opts,
+        });
+    const hairlines = (r: ReturnType<typeof paintSectionStack>): number =>
+        r.layers[0]!.commands.filter((c) => c.box.h === 1 && c.box.y === frameH()).length;
+
+    it("reports the scale each section was painted at", () => {
+        const r = draw(dense());
+        expect(r.fitScales[0]).toBeLessThan(1);
+        expect(Math.round(r.heights[0]!)).toBe(frameH());
+    });
+
+    it("leaves the overflow hairline for what it cannot fit, and drops it for what it can", () => {
+        expect(hairlines(draw(dense()))).toBe(0);
+        expect(hairlines(draw(dense(7)))).toBe(1); // past the pagination threshold: not fitted
+    });
+
+    it("reports 1 for every section when the stack is not slide-framed", () => {
+        expect(draw(dense(), { slideFrame: false }).fitScales).toEqual([1]);
+    });
+
+    it("holds a frozen scale for the section carrying an inline edit, then re-solves", () => {
+        const cache = createSectionStackCache();
+        const host = document.createElement("div");
+        const same = dense(); // one identity across draws, so only the freeze can miss the cache
+        const run = (freezeFit: { id: string; scale: number } | null): [number, number] => {
+            const r = paintSectionStack(host, same, deck, tokens, {
+                fullW: 1000,
+                slideFrame: true,
+                cache,
+                freezeFit,
+            });
+            return [r.fitScales[0]!, Math.round(r.heights[0]!)];
+        };
+        const [solved, fittedH] = run(null);
+        expect(solved).toBeLessThan(1);
+        // held at the authored size, so the section spills past its frame rather than resizing type
+        expect(run({ id: "s1", scale: 1 })).toEqual([1, 657]);
+        expect(run({ id: "other", scale: 1 })).toEqual([solved, fittedH]); // another section's edit
+        expect(run(null)).toEqual([solved, fittedH]);
+    });
+});
+
 const rect = (h: number): RenderCommand => ({
     kind: "rect",
     box: { x: 0, y: 0, w: 100, h },
@@ -377,5 +450,158 @@ describe("paintSectionStack — page-size cache invalidation", () => {
         const plain = cache.entries.get("s1")!.commands;
         paintWith(host, sections, cache, page(1080, 1350));
         expect(cache.entries.get("s1")!.commands).not.toBe(plain);
+    });
+});
+
+describe("applyCommand — decoration is not read", () => {
+    const box = { x: 0, y: 0, w: 10, h: 10 };
+    const el = (c: RenderCommand): HTMLElement => {
+        const host = document.createElement("div");
+        return paint([c], host)[0]!;
+    };
+
+    it("hides a decor command from the a11y tree", () => {
+        expect(
+            el({ kind: "rect", box, fill: { color: "#000" }, decor: true }).getAttribute(
+                "aria-hidden",
+            ),
+        ).toBe("true");
+        const text = { text: "watermark", fontId: "f", size: 12, wrap: "none" as const };
+        expect(el({ kind: "text", box, text, decor: true }).getAttribute("aria-hidden")).toBe(
+            "true",
+        );
+    });
+
+    it("leaves ordinary content alone", () => {
+        expect(
+            el({ kind: "rect", box, fill: { color: "#000" } }).getAttribute("aria-hidden"),
+        ).toBeNull();
+    });
+
+    // layers are cached and their nodes reused, so a node that was decoration must not stay hidden
+    it("clears the flag when a reused node stops being decoration", () => {
+        const host = document.createElement("div");
+        const cache = createSectionStackCache();
+        const stand = (decor: boolean) => (): { commands: RenderCommand[]; height: number } => ({
+            commands: [
+                { kind: "rect", box: { ...box, w: 100, h: 40 }, ...(decor ? { decor } : {}) },
+            ],
+            height: 40,
+        });
+        const draw = (decor: boolean): void => {
+            // a fresh section object per pass, so the cached layer is reconciled rather than reused
+            const sec = sectionOf(inst("text", { text: "A" }), { id: "s1" });
+            paintSectionStack(host, [sec], resolveProfile("doc"), tokens, {
+                fullW: 1000,
+                cache,
+                placeholder: stand(decor),
+            });
+        };
+        draw(true);
+        const node = cache.entries.get("s1")!.layer!.children[0] as HTMLElement;
+        expect(node.getAttribute("aria-hidden")).toBe("true");
+        draw(false);
+        expect(cache.entries.get("s1")!.layer!.children[0]).toBe(node); // reused, not replaced
+        expect(node.getAttribute("aria-hidden")).toBeNull();
+    });
+
+    // an anchor with no name was already out of the tree; decoration must not undo that
+    it("keeps a nameless anchor hidden and a named one visible", () => {
+        expect(
+            el({ kind: "rect", box, fill: { color: "#000" }, link: "/x" }).getAttribute(
+                "aria-hidden",
+            ),
+        ).toBe("true");
+        const text = { text: "Read on", fontId: "f", size: 12, wrap: "none" as const };
+        expect(el({ kind: "text", box, text, link: "/x" }).getAttribute("aria-hidden")).toBeNull();
+    });
+});
+
+describe("paintSectionStack — pinned sections", () => {
+    const doc = resolveProfile("doc");
+    const sections = (): Section[] => [
+        sectionOf(inst("text", { text: "Nav" }), { id: "nav", pinned: true }),
+        sectionOf(inst("text", { text: "One" }), { id: "s1" }),
+        sectionOf(inst("text", { text: "Two" }), { id: "s2" }),
+    ];
+    const draw = (
+        host: HTMLElement,
+        profile = doc,
+        opts: Partial<Parameters<typeof paintSectionStack>[4]> = {},
+    ): ReturnType<typeof paintSectionStack> =>
+        paintSectionStack(host, sections(), profile, tokens, {
+            fullW: 1000,
+            pinned: true,
+            ...opts,
+        });
+
+    it("puts the pinned layer in flow at its own slot, and leaves the rest absolute", () => {
+        const host = document.createElement("div");
+        const { tops } = draw(host);
+        const [nav, one] = [...host.children] as HTMLElement[];
+        expect(nav!.style.position).toBe("sticky");
+        expect(nav!.style.top).toBe("0px");
+        expect(nav!.style.marginTop).toBe(`${tops[0]}px`);
+        expect(nav!.style.left).toBe(""); // `left` on a sticky box is a stickiness constraint
+        expect(one!.style.position).toBe("absolute");
+        expect(one!.style.top).toBe(`${tops[1]}px`);
+    });
+
+    it("stacks the pinned layer above its siblings", () => {
+        const host = document.createElement("div");
+        draw(host);
+        const [nav, one] = [...host.children] as HTMLElement[];
+        expect(nav!.style.zIndex).toBe("1");
+        expect(one!.style.zIndex).toBe("");
+    });
+
+    it("displaces nothing: tops and total height match an unpinned stack", () => {
+        const pinned = draw(document.createElement("div"));
+        const plain = draw(document.createElement("div"), doc, { pinned: false });
+        expect(pinned.tops).toEqual(plain.tops);
+        expect(pinned.height).toBe(plain.height);
+    });
+
+    it("keeps the pinned layer alive however far past its slot the reader has scrolled", () => {
+        const host = document.createElement("div");
+        const cache = createSectionStackCache();
+        const geom = draw(document.createElement("div"));
+        const far = geom.height + 5000;
+        draw(host, doc, { cache, window: { top: far, bottom: far + 800 } });
+        expect(cache.entries.get("nav")?.layer).toBeTruthy();
+        expect(cache.entries.get("s1")?.layer).toBeFalsy();
+        expect([...host.children]).toContain(cache.entries.get("nav")?.layer);
+    });
+
+    it("is ignored by a paged format, which has no scroll to stick against", () => {
+        const host = document.createElement("div");
+        draw(host, resolveProfile("deck"));
+        expect((host.children[0] as HTMLElement).style.position).toBe("absolute");
+    });
+
+    it("is ignored unless the caller opts in, so the editor renders it in place", () => {
+        const host = document.createElement("div");
+        draw(host, doc, { pinned: false });
+        const nav = host.children[0] as HTMLElement;
+        expect(nav.style.position).toBe("absolute");
+        expect(nav.style.marginTop).toBe("");
+    });
+
+    it("returns a sticky layer to absolute when the section is unpinned", () => {
+        const host = document.createElement("div");
+        const cache = createSectionStackCache();
+        draw(host, doc, { cache });
+        const nav = cache.entries.get("nav")!.layer!;
+        expect(nav.style.position).toBe("sticky");
+        paintSectionStack(
+            host,
+            sections().map((s) => (s.id === "nav" ? { ...s, pinned: false } : s)),
+            doc,
+            tokens,
+            { fullW: 1000, pinned: true, cache },
+        );
+        expect(cache.entries.get("nav")!.layer!.style.position).toBe("absolute");
+        expect(cache.entries.get("nav")!.layer!.style.marginTop).toBe("");
+        expect(cache.entries.get("nav")!.layer!.style.zIndex).toBe("");
     });
 });

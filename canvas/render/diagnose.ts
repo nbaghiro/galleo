@@ -5,7 +5,7 @@ import type { MeasureText, Rect, RenderCommand } from "@engine/node";
 import { contrastRatio } from "@themes";
 import { DEFAULT_THEME } from "@themes";
 import { DEFAULT_PROFILE } from "@engine/profile";
-import { layoutSection } from "./commands";
+import { layoutSection, layoutSlide } from "./commands";
 
 // What a section only reveals once it has been laid out. Everything here needs the engine, so it
 // cannot live in services (which may not import canvas) and is computed wherever the engine already
@@ -19,6 +19,12 @@ export interface SectionFit {
     overflow: number;
     /** Share of a fixed frame the content actually occupies; null when the frame is elastic. */
     fill: number | null;
+    /**
+     * What the slide path solves for this section: below 1, autofit re-composes it smaller to reach
+     * the frame. `overflow` above stays the NATURAL, pre-fit spill on purpose, so the generation
+     * signal survives; this says how much of it the renderer absorbs.
+     */
+    fitScale: number;
     /** The worst WCAG contrast ratio any text hits against what sits behind it; null if no text. */
     minContrast: number | null;
     /** Distinct left edges among the text; a ragged left reads as sloppy however good the copy is. */
@@ -65,6 +71,10 @@ export function diagnoseSection(
         frameHeight: scaled,
         overflow: scaled === null ? 0 : Math.max(0, height - scaled),
         fill: scaled ? height / scaled : null,
+        fitScale:
+            scaled === null || height <= scaled
+                ? 1
+                : layoutSlide(section, width, scaled, measure, theme, format).fitScale,
         ...typography(commands, theme),
     };
 }

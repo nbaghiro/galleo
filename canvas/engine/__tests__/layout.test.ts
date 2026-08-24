@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EngineNode, Region, RenderCommand } from "@engine/node";
+import { inRegion } from "@engine/node";
 import { fit, fixed, grow, percent } from "@model/geometry";
 import {
     boxNode,
@@ -262,6 +263,131 @@ describe("positioning & alignment", () => {
     });
 });
 
+describe("image intrinsic width", () => {
+    const framed = (image: EngineNode["image"]): Region[] =>
+        reg(colNode([{ id: "img", w: fit(), h: fixed(50), image }]));
+
+    it("an image leaf fits to its natural width", () => {
+        near(
+            boxOf(framed({ src: "a.png", fit: "cover", natural: { w: 120, h: 60 } }), "img").w,
+            120,
+        );
+    });
+
+    it("a natural width wider than the row shrinks to the row", () => {
+        near(
+            boxOf(framed({ src: "a.png", fit: "cover", natural: { w: 900, h: 60 } }), "img").w,
+            200,
+        );
+    });
+
+    it("without a natural size an image still measures 0, as before", () => {
+        near(boxOf(framed({ src: "a.png", fit: "cover" }), "img").w, 0);
+    });
+
+    it("a natural width feeds the fit clamp", () => {
+        const r = reg(
+            colNode([
+                {
+                    id: "img",
+                    w: fit(0, 80),
+                    h: fixed(50),
+                    image: { src: "a.png", fit: "cover", natural: { w: 300, h: 100 } },
+                },
+            ]),
+        );
+        near(boxOf(r, "img").w, 80);
+    });
+});
+
+describe("main-axis distribution", () => {
+    // three 20px boxes in a 200px row: 140px of leftover to spread
+    const row = (over?: Partial<EngineNode>): Region[] =>
+        reg(
+            rowNode(
+                ["a", "b", "c"].map((id) => boxNode(id, fixed(20), fixed(20))),
+                over,
+            ),
+        );
+    const col = (over?: Partial<EngineNode>): Region[] =>
+        reg(
+            colNode(
+                ["a", "b", "c"].map((id) => boxNode(id, fixed(20), fixed(20))),
+                over,
+            ),
+        );
+
+    it("between pins the ends and splits the leftover into the gaps", () => {
+        const r = row({ distribute: "between" });
+        near(boxOf(r, "a").x, 0);
+        near(boxOf(r, "b").x, 90); // 20 + 70
+        near(boxOf(r, "c").x + boxOf(r, "c").w, 200);
+    });
+
+    it("around gives each child half a share at each side", () => {
+        const r = row({ distribute: "around" });
+        near(boxOf(r, "a").x, 140 / 6); // half of 140/3
+        near(boxOf(r, "b").x, 140 / 6 + 20 + 140 / 3);
+    });
+
+    it("evenly makes the four gaps equal", () => {
+        const r = row({ distribute: "evenly" });
+        const g = 140 / 4;
+        near(boxOf(r, "a").x, g);
+        near(boxOf(r, "b").x, g * 2 + 20);
+        near(200 - (boxOf(r, "c").x + boxOf(r, "c").w), g);
+    });
+
+    it("overrides the main-axis alignment it replaces", () => {
+        near(boxOf(row({ distribute: "between", alignX: "center" }), "a").x, 0);
+    });
+
+    it("works down the main axis of a column too", () => {
+        const c = col({ distribute: "between" });
+        near(boxOf(c, "a").y, 0);
+        near(boxOf(c, "b").y, 90);
+        near(boxOf(c, "c").y + boxOf(c, "c").h, 200);
+    });
+
+    it("adds to the gap rather than replacing it", () => {
+        const r = row({ distribute: "between", gap: 10 });
+        near(boxOf(r, "b").x, 20 + 10 + 120 / 2);
+    });
+
+    it("a fit main axis has no leftover, so it distributes nothing", () => {
+        const fitRow = rowNode(
+            ["a", "b"].map((id) => boxNode(id, fixed(20), fixed(20))),
+            { w: fit(), distribute: "between" },
+        );
+        near(boxOf(reg(colNode([fitRow])), "b").x, 20);
+    });
+
+    it("a single child under between stays at the start", () => {
+        const r = reg(
+            rowNode([boxNode("a", fixed(20), fixed(20))], {
+                distribute: "between",
+                alignX: "center",
+            }),
+        );
+        near(boxOf(r, "a").x, 0);
+    });
+
+    it("floats keep aligning to their own edge", () => {
+        const r = reg(
+            rowNode(
+                [
+                    boxNode("a", fixed(20), fixed(20)),
+                    boxNode("b", fixed(20), fixed(20)),
+                    boxNode("f", fixed(20), fixed(20), { float: { x: "center", y: "start" } }),
+                ],
+                { distribute: "between" },
+            ),
+        );
+        near(boxOf(r, "f").x, 90); // (200 - 20) / 2, untouched by the spread
+        near(boxOf(r, "b").x, 180);
+    });
+});
+
 describe("emit — flatten to commands + regions", () => {
     it("opacity multiplies down the subtree", () => {
         const tree = colNode([boxNode("c", fixed(100), fixed(100), { opacity: 0.5 })], {
@@ -406,5 +532,112 @@ describe("floating", () => {
         const at = (id: string): number => out.findIndex((c) => c.id === id);
         expect(at("fb")).toBeLessThan(at("fc")); // z0 < z1
         expect(at("fc")).toBeLessThan(at("fa")); // z1 < z2
+    });
+});
+
+describe("surface regions", () => {
+    const marks: EngineNode = {
+        id: "chart",
+        w: fixed(100),
+        h: fixed(60),
+        surface: {
+            paint: () => {},
+            regions: (box) => [
+                { id: "datum:chart:0", box: { x: 4, y: 4, w: 10, h: box.h - 8 } },
+                {
+                    id: "datum:chart:1",
+                    box: { x: 20, y: 0, w: 20, h: 20 },
+                    shape: {
+                        kind: "poly",
+                        points: [
+                            [20, 0],
+                            [40, 0],
+                            [30, 20],
+                        ],
+                    },
+                },
+            ],
+        },
+    };
+
+    it("offsets what the surface reports into stage space, box and shape alike", () => {
+        const inset = { top: 30, right: 30, bottom: 30, left: 30 };
+        const r = reg({ w: fixed(200), h: fixed(200), padding: inset, children: [marks] });
+        expect(boxOf(r, "datum:chart:0")).toEqual({ x: 34, y: 34, w: 10, h: 52 });
+        expect(regionById(r, "datum:chart:1").shape?.points).toEqual([
+            [50, 30],
+            [70, 30],
+            [60, 50],
+        ]);
+    });
+
+    it("appends them after the node's own region", () => {
+        const r = reg(marks, 100, 60);
+        expect(r.map((x) => x.id)).toEqual(["chart", "datum:chart:0", "datum:chart:1"]);
+    });
+
+    it("reports nothing extra for a surface that has no regions()", () => {
+        const r = reg({ id: "plain", w: fixed(100), h: fixed(60), surface: { paint: () => {} } });
+        expect(r.map((x) => x.id)).toEqual(["plain"]);
+    });
+});
+
+describe("inRegion", () => {
+    const rect: Region = { id: "r", box: { x: 10, y: 10, w: 20, h: 20 } };
+    // the lower-left half of the box
+    const tri: Region = {
+        id: "t",
+        box: { x: 0, y: 0, w: 20, h: 20 },
+        shape: {
+            kind: "poly",
+            points: [
+                [0, 0],
+                [0, 20],
+                [20, 20],
+            ],
+        },
+    };
+
+    it("falls back to the box when there is no shape", () => {
+        expect(inRegion(rect, 20, 20)).toBe(true);
+        expect(inRegion(rect, 9, 20)).toBe(false);
+        expect(inRegion(rect, 20, 31)).toBe(false);
+    });
+
+    it("tests the polygon when there is one", () => {
+        expect(inRegion(tri, 5, 15)).toBe(true); // inside the triangle
+        expect(inRegion(tri, 15, 5)).toBe(false); // inside the box, outside the triangle
+    });
+
+    it("never reports a hit outside the bounding box", () => {
+        expect(inRegion(tri, -1, 10)).toBe(false);
+        expect(inRegion(tri, 10, 21)).toBe(false);
+    });
+});
+
+describe("decor — negative-z floats are out of the reading order", () => {
+    const decorated = (z: number): EngineNode => ({
+        w: fixed(200),
+        h: fixed(100),
+        children: [
+            boxNode("body", grow(), grow()),
+            {
+                ...boxNode("wash", fixed(50), fixed(50), { float: { x: "end", y: "start", z } }),
+                children: [textNode("watermark")],
+            },
+        ],
+    });
+    const decorOf = (id: string, z: number): boolean | undefined =>
+        cmds(decorated(z), 200, 100).find((c) => c.id === id)?.decor;
+
+    it("marks a negative-z float, and everything under it", () => {
+        expect(decorOf("wash", -1)).toBe(true);
+        expect(cmds(decorated(-1), 200, 100).find((c) => c.kind === "text")?.decor).toBe(true);
+    });
+
+    it("leaves the flow and non-negative floats unmarked", () => {
+        expect(decorOf("body", -1)).toBeUndefined();
+        expect(decorOf("wash", 0)).toBeUndefined();
+        expect(decorOf("wash", 2)).toBeUndefined();
     });
 });

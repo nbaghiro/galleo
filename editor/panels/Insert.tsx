@@ -6,7 +6,7 @@ import { layout } from "@engine/layout";
 import { measureText } from "@canvas/render/commands";
 import { paint } from "@canvas/render/backends";
 import { paintedNodeFor } from "@editor/core/leaf";
-import { deleteElement, duplicateAt, duplicatedAddr, getElementAt, replaceAt } from "@elements/ops";
+import { getElementAt, replaceAt } from "@elements/ops";
 import { elementRegionId } from "@model/artifact";
 import {
     addSectionAfter,
@@ -15,13 +15,12 @@ import {
     editor,
     moveSectionBy,
     noteElementAdded,
-    noteElementRemoved,
     regions,
     removeSectionAt,
     selection,
     setSelection,
 } from "@editor/core/store";
-import { leaseHolder, say } from "@editor/core/collab";
+import { deleteSelectedElements, duplicateSelectedElements } from "@editor/core/commands";
 import { Icon } from "@ui/icons";
 import { FloatingPanel, Popover } from "@ui/overlay";
 import { PRESETS } from "@elements/compose";
@@ -189,31 +188,11 @@ const commentItem = (address: ElementAddress): Item[] => {
 
 function itemsFor(t: Target | null): Item[] {
     if (t?.kind === "element") {
+        // the canvas selects the target before opening the menu, so the shared selection ops apply
         return [
-            {
-                label: "Duplicate",
-                run: () => {
-                    commit(duplicateAt(editor.artifact, t.address));
-                    setSelection({ kind: "element", address: duplicatedAddr(t.address) });
-                },
-            },
+            { label: "Duplicate", run: () => duplicateSelectedElements() },
             ...commentItem(t.address),
-            {
-                label: "Delete",
-                danger: true,
-                run: () => {
-                    // courtesy: the server never refuses a delete for lease reasons, this only
-                    // stops the accidental one while someone is visibly typing in it
-                    const holder = leaseHolder(t.address);
-                    if (holder) {
-                        say(`${holder.user.name || "Someone"} is editing this`);
-                        return;
-                    }
-                    noteElementRemoved(getElementAt(editor.artifact, t.address)?.type ?? "");
-                    commit(deleteElement(editor.artifact, t.address));
-                    setSelection(null);
-                },
-            },
+            { label: "Delete", danger: true, run: () => deleteSelectedElements() },
         ];
     }
     if (t?.kind === "section") {

@@ -2,7 +2,7 @@ import type { Component, JSX } from "solid-js";
 import { createEffect, createSignal, For, Index, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import type { ElementAddress } from "@model/artifact";
-import { elementRegionId } from "@model/artifact";
+import { datumRegionId, elementRegionId } from "@model/artifact";
 import { getElementAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { renderToCanvas } from "@canvas/render/backends";
@@ -15,9 +15,11 @@ import {
     canEdit,
     canvasContentWidth,
     commit,
+    datum,
     editor,
     editorTokens,
     regions,
+    setDatum,
 } from "@editor/core/store";
 import { claimLease, elementRefFor, leaseHolder, releaseLease, say } from "@editor/core/collab";
 import { Badge, Button } from "@ui/button";
@@ -132,6 +134,18 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
     const overLimit = (): boolean =>
         limit !== undefined && model.shape === "list" && model.items.length >= limit;
 
+    // The canvas reports one region per painted mark under the same id, so hover crosses both ways:
+    // pointing at a row outlines its marks, pointing at a mark lights the row. Charts only — no
+    // diagram type reports datum geometry yet.
+    const rowId = (i: number): string | null =>
+        kind === "chart" ? datumRegionId(elementRegionId(addr), i) : null;
+    const rowSync = (i: number): JSX.HTMLAttributes<HTMLTableRowElement> => ({
+        onPointerEnter: () => setDatum(rowId(i)),
+        onPointerLeave: () => setDatum(null),
+        classList: { "bg-accent/10": datum() !== null && datum() === rowId(i) },
+    });
+    onCleanup(() => setDatum(null));
+
     const currentData = (): Record<string, unknown> =>
         (getElementAt(editor.artifact, addr)?.data ?? {}) as Record<string, unknown>;
 
@@ -235,7 +249,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                     <tbody>
                         <Index each={m.categories}>
                             {(cat, ci) => (
-                                <tr>
+                                <tr {...rowSync(ci)}>
                                     <td class={CELL}>
                                         <CellInput
                                             class="font-medium text-soft"
@@ -299,7 +313,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                     <tbody>
                         <Index each={m.items}>
                             {(it, i) => (
-                                <tr>
+                                <tr {...rowSync(i)}>
                                     <td class={CELL}>
                                         <CellInput
                                             value={it().label}
@@ -359,7 +373,7 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
                     <tbody>
                         <Index each={m.points}>
                             {(pt, i) => (
-                                <tr>
+                                <tr {...rowSync(i)}>
                                     <td class="border-b border-r border-line/50 px-2 text-center font-mono text-[11px] text-muted">
                                         {i + 1}
                                     </td>
@@ -1028,7 +1042,8 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
     const cfgRead = (k: string): unknown => currentData()[k];
     const cfgWrite = (k: string, v: unknown): void => {
         const ctrl = configControls.find((c) => c.key === k)?.control;
-        const coalesce = ctrl === "slider" || ctrl === "color" ? `cfg:${k}` : undefined;
+        const coalesce =
+            ctrl === "slider" || ctrl === "color" ? `cfg:${elementRegionId(addr)}:${k}` : undefined;
         commit(updateDataAt(editor.artifact, addr, { ...currentData(), [k]: v }), { coalesce });
     };
 

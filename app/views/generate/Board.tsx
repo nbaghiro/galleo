@@ -163,7 +163,8 @@ export const Board: Component = () => {
                     <div class="pointer-events-auto flex max-w-full items-center gap-3 rounded-full border border-line bg-panel/90 py-1.5 pl-4 pr-3 shadow-lg backdrop-blur-sm">
                         <span class="flex flex-none items-center gap-2 whitespace-nowrap text-[12px] text-soft">
                             <Spinner size={12} />
-                            Writing {builtCount() + 1} of {gen.beats.length}
+                            Writing {builtCount() + 1} of {gen.beats.length} ·{" "}
+                            <Credits n={gen.spent} suffix="so far" />
                         </span>
                         <Button
                             class="flex-none"

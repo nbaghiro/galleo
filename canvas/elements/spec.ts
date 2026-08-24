@@ -43,6 +43,12 @@ export interface LayoutCtx {
     // solver runs (a diagram's node widths); same source as layout(), so the two can never disagree
     measure: MeasureText;
     plain?: boolean; // read-only render (previews/thumbnails): no editor-only affordances
+    // autofit: composed on top of the width ramp, so a section that overflows its frame re-wraps at
+    // full width with smaller type instead of being scaled as pixels. 1 (absent) = authored size.
+    fitScale?: number;
+    // this element's own region id, so a surface can mint sub-element ids under it (chart datums);
+    // set by composeElement, absent when a node is laid out outside the compose walk
+    region?: string;
 }
 
 export type ControlKind =
@@ -69,12 +75,13 @@ export interface ControlField {
     min?: number;
     max?: number;
     step?: number;
-    unit?: string; // suffix on slider/number values
+    unit?: string; // suffix on slider values; the number field renders none
     multiline?: boolean; // text → textarea
     placeholder?: string;
     icon?: string; // leading glyph on the compact format bar (which drops labels)
     mediaKind?: string; // for `media` controls: the kind the picker opens (photo · gif · …)
     posterKey?: string; // for `media` controls: sibling data key that receives the picked item's still frame
+    dimsKey?: string; // for `media` controls: sibling data key that receives the source's { w, h }
     group?: string; // optional inspector section heading
     visibleWhen?: (data: Record<string, unknown>) => boolean;
 }
@@ -132,6 +139,12 @@ export const SECTION_CONTROLS: ControlField[] = [
             { label: "Contained", value: "contained" },
             { label: "Full-bleed", value: "full" },
         ],
+        group: "Width",
+    },
+    {
+        key: "pinned",
+        label: "Pin to top",
+        control: "toggle",
         group: "Width",
     },
     {
@@ -258,6 +271,8 @@ export function skeletonize(node: EngineNode, colors: GhostColors = DEFAULT_GHOS
         h: node.h,
         aspect: node.aspect,
         direction: node.direction,
+        columns: node.columns,
+        rowGap: node.rowGap,
         padding: node.padding,
         gap: node.gap,
         alignX: node.alignX,

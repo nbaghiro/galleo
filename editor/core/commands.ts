@@ -97,6 +97,24 @@ const selectedElements = (): ElementInstance[] =>
         .map((a) => getElementAt(editor.artifact, a))
         .filter((e): e is ElementInstance => e !== undefined);
 
+// The one element-delete and element-duplicate, shared by the keyboard, the context bar, the
+// inspector, and the context menu, so gating, collapse, and analytics cannot diverge per surface.
+export function deleteSelectedElements(): void {
+    const set = actionableSet();
+    if (!set || heldByOther(set)) return;
+    noteElementRemoved(getElementAt(editor.artifact, set[0]!)?.type ?? "", set.length);
+    commit(removeMany(editor.artifact, set));
+    setSelection(null);
+}
+
+export function duplicateSelectedElements(): void {
+    const set = actionableSet();
+    if (!set) return;
+    const res = duplicateMany(editor.artifact, set);
+    commit(res.content);
+    selectMany(res.addresses);
+}
+
 const canGroup = (): boolean => {
     const set = selectedAddresses();
     return set.length > 1 && !!sharedParent(set) && set.every((a) => movable(editor.artifact, a));
@@ -140,11 +158,7 @@ registerCommands([
                 removeSectionAt(s.section);
                 return;
             }
-            const set = actionableSet();
-            if (!set || heldByOther(set)) return;
-            noteElementRemoved(getElementAt(editor.artifact, set[0]!)?.type ?? "", set.length);
-            commit(removeMany(editor.artifact, set));
-            setSelection(null);
+            deleteSelectedElements();
         },
     },
     {
@@ -160,11 +174,7 @@ registerCommands([
                 duplicateSectionAt(s.section);
                 return;
             }
-            const set = actionableSet();
-            if (!set) return;
-            const res = duplicateMany(editor.artifact, set);
-            commit(res.content);
-            selectMany(res.addresses);
+            duplicateSelectedElements();
         },
     },
     {
