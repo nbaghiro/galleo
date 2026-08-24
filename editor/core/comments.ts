@@ -134,6 +134,14 @@ const nestsParts = (inst: ElementInstance): boolean => {
  *
  * Creation only. An anchor that already points at a nested part keeps resolving and keeps its
  * marker, because the content it was written against has not gone anywhere.
+ *
+ * Deliberately NOT `movableAncestor`, which is how the drag grip on the element's other side picks
+ * its target. The grip climbs to whatever a structural op may act on, because moving a diagram's
+ * label means moving the diagram; a comment means the thing you pointed at, and where that thing is
+ * a part rather than a block the answer is to offer nothing rather than to quietly retarget the
+ * thread onto its card. The two rules never disagree in practice, and
+ * `comment-anchors.test.ts` pins that: wherever the grip climbs, this returns false and there is no
+ * chip to misplace. If that stops holding, the two handles start pointing at different boxes.
  */
 export function commentableAt(art: ArtifactContent, address: ElementAddress): boolean {
     if (!getElementAt(art, address)) return false;
@@ -337,8 +345,7 @@ export const MARKER_GAP = 12; // between a section's right edge and the chip
 // the same gap out from the edge, the same height, and a little more width because a speech bubble
 // needs squarer room than a grip's column of dots and looked pinched in the grip's own box.
 export const CHIP_GAP = HANDLE_GAP;
-export const CHIP_W = 20; // w-5
-export const CHIP_H = 20; // h-5, the grip's height
+export const CHIP_W = 20; // w-5; the one measurement that is the chip's own rather than shared
 export const MARKER_SPACING = 32; // the least vertical distance two chips may sit at
 // a hoverless tier draws the chip at the 44px tap target (size-11), which the desktop step overlaps
 export const MARKER_SPACING_TOUCH = 48;

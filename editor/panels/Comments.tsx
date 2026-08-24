@@ -24,6 +24,8 @@ import {
     editing,
     editor,
     editorAccent,
+    HANDLE_BRIDGE_H,
+    handleTop,
     hover,
     regions,
     selection,
@@ -60,7 +62,6 @@ import {
     sectionAtY,
     sectionChips,
     CHIP_GAP,
-    CHIP_H,
     CHIP_REQUEST_ID,
     CHIP_W,
     lineOfOffset,
@@ -268,7 +269,9 @@ export const CommentLayer: Component = () => {
         const box = regionMap().get(elementRegionId(target))?.box;
         return {
             id: CHIP_REQUEST_ID,
-            y: box ? box.y : sectionTop(target.section),
+            // the same rule the drag grip sits by, applied here rather than at render because this
+            // y is also what the placement pass sorts and pushes down on
+            y: box ? handleTop(box) : sectionTop(target.section),
             rightOf: box ? box.x + box.w : sectionRight(target.section),
             gap: CHIP_GAP,
             size: CHIP_W,
@@ -633,7 +636,7 @@ const SelectionChip: Component<{
                 left: `${props.from}px`,
                 top: `${props.y}px`,
                 width: `${Math.max(CHIP_W, props.x + CHIP_W - props.from)}px`,
-                height: `${CHIP_H}px`,
+                height: `${HANDLE_BRIDGE_H}px`,
             }}
             onPointerMove={(e) => e.stopPropagation()}
         >

@@ -16,6 +16,7 @@ import {
     startEditing,
     stopEditing,
 } from "@editor/core/store";
+import { movableAncestor } from "@editor/core/dnd";
 import {
     applyCommentMark,
     captureAnchor,
@@ -294,6 +295,25 @@ describe("commentableAt", () => {
     it("takes the composite itself, which is the block the comment belongs to", () => {
         expect(at(2)).toBe(true);
         expect(at(4)).toBe(true);
+    });
+
+    /**
+     * The two handles an element wears pick their target by different rules: the drag grip climbs
+     * through `movableAncestor` to whatever a structural op may act on, while this refuses anything
+     * that is not a block outright. They never disagree, and the reason is worth pinning rather
+     * than rediscovering: wherever the grip climbs, this says no, so there is no chip to be
+     * misplaced. If that stops holding, the grip and the chip hang off different boxes and the pair
+     * visibly comes apart on screen.
+     */
+    it("offers no chip anywhere the drag grip retargets", () => {
+        const paths = [[], [0], [1], [1, 0], [2], [2, 0], [3], [3, 0], [3, 0, 0], [4], [4, 0]];
+        const climbed = paths.filter(
+            (path) =>
+                movableAncestor(composite, { section: "s1", path }).path.join() !== path.join(),
+        );
+        // the fixture has to exercise the case at all, or this passes by saying nothing
+        expect(climbed.length).toBeGreaterThan(0);
+        for (const path of climbed) expect(at(...path)).toBe(false);
     });
 
     it("takes the section root", () => {

@@ -14,6 +14,9 @@ import {
     commitOver,
     currentArtifactId,
     currentTitle,
+    HANDLE_BAND,
+    HANDLE_H,
+    handleTop,
     renameArtifact,
     setEditAccess,
     setSlideFrame,
@@ -609,5 +612,47 @@ describe("multi-selection", () => {
             startEditing(addr([0]));
             expect(extras()).toEqual([]);
         });
+    });
+});
+
+// Where the margin handles sit against the element they belong to. Both the drag grip and the
+// comment chip read this, which is the point: they own a side each and nothing else, so the pair
+// cannot drift apart again the way it did when each carried its own numbers.
+describe("handleTop", () => {
+    const box = (y: number, h: number) => ({ y, h });
+
+    // The reported bug. A 20px pill top-anchored in a 24px one-line box left an uneven sliver under
+    // it, and the glyph inside a single line is optically centred, so the handle read as high.
+    it("centres in a one-line box, where there is no slack to hide an offset", () => {
+        expect(handleTop(box(100, 24))).toBe(102);
+    });
+
+    it("sits flush when the box is exactly the pill's height", () => {
+        expect(handleTop(box(100, HANDLE_H))).toBe(100);
+    });
+
+    // A pill taller than its box would centre to a negative offset and hang above it.
+    it("never lifts a handle above the box it belongs to", () => {
+        expect(handleTop(box(100, 8))).toBe(100);
+    });
+
+    // A tall block rests just inside its top corner rather than centring down the middle of it.
+    it("rests at the band's offset once the box is taller than the band", () => {
+        const resting = 100 + (HANDLE_BAND - HANDLE_H) / 2;
+        expect(handleTop(box(100, HANDLE_BAND))).toBe(resting);
+        expect(handleTop(box(100, 400))).toBe(resting);
+    });
+
+    // A band rather than a threshold, so a box growing past it slides rather than jumping: that is
+    // the whole reason for the min() instead of an if.
+    it("is continuous across the band edge", () => {
+        const under = handleTop(box(0, HANDLE_BAND - 1));
+        const over = handleTop(box(0, HANDLE_BAND + 1));
+        expect(over - under).toBeLessThan(1);
+    });
+
+    it("rises monotonically with the box, never doubling back", () => {
+        const tops = [20, 24, 30, 36, 40, 80, 400].map((h) => handleTop(box(0, h)));
+        for (let i = 1; i < tops.length; i++) expect(tops[i]!).toBeGreaterThanOrEqual(tops[i - 1]!);
     });
 });

@@ -172,14 +172,29 @@ never half-hangs off. `placeMarkers` walks requests in order and pushes each one
 drag grip uses, so the two travel together and an element under the pointer wears both. It used to
 key on selection alone, which pinned it beside an element for as long as that element stayed
 selected, and selection is an editing state rather than an invitation to comment. It carries the
-grip's height and icon at the same top edge, and sits the same `HANDLE_GAP` out from the element,
+grip's height and icon, and sits the same `HANDLE_GAP` out from the element,
 which is one constant in `editor/core/store.ts` rather than one per panel: they drifted 2px apart
 the first time each owned its own, the grip on its own gap and the chip on the thread rail's. It is
 a little wider than the grip (20 against 16) because a speech bubble needs squarer room than a
-column of dots and looked pinched in the grip's box. It has the grip's hover bridge: a band
+column of dots and looked pinched in the grip's box. Both hang off the same vertical rule, `handleTop` in `editor/core/store.ts`, which centres the pill
+in the first `HANDLE_BAND` pixels of the element's box rather than pinning it to the top edge. Top
+anchoring is right for a tall block and wrong for a one-line one: a 20px pill in a 24px box leaves
+an uneven sliver under it, and a single line of text is optically centred in its own box, so both
+handles read as sitting high. A band rather than a threshold, so a box growing past it slides
+instead of jumping. It has the grip's hover bridge: a band
 spanning the gap from the element's edge out to the pill, so crossing it never lands on the canvas,
 which would read as hovering the section and take the chip away mid-reach. Only the pill takes a
-press, the bridge just holds the hover.
+press, the bridge just holds the hover, and it is `HANDLE_BRIDGE_H` on both sides so a pointer
+wobbling vertically mid-reach is caught the same either way.
+
+The grip and the chip pick their target by different rules, which is deliberate. The grip climbs
+through `movableAncestor` to whatever a structural op may act on, because moving a diagram's label
+means moving the diagram. A comment means the thing you pointed at, so the chip does not climb:
+where the pointed-at thing is a part rather than a block, `commentableAt` offers nothing rather than
+quietly retargeting the thread onto its card. The two never disagree, because wherever the grip
+climbs `commentableAt` is already false and there is no chip to misplace, and
+`comment-anchors.test.ts` pins that over the composite fixture so a future loosening of the
+exemptions fails there rather than showing up as two handles hanging off different boxes.
 
 Which right edge a chip hangs off depends on what it is about, and that is the one thing `markerX`
 is parameterised on. A thread marker takes its **section's** edge, so a rail of them lines up
