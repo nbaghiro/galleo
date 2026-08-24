@@ -82,6 +82,9 @@ export default defineConfig({
             SESSION_SECRET: "e2e-0f3f9b2c7d1e4a68b5c2d9e7f4a1b8c6",
             // scripted model by default; E2E_LIVE_AI=1 hands the AI project the platform keys
             GALLEO_FAKE_AI: process.env.E2E_LIVE_AI ? "0" : "1",
+            // The server loads .env, and dotenv leaves a key that is already present alone, so this
+            // blank is what stops a signup in the suite from mailing a real address.
+            RESEND_API_KEY: "",
         },
     },
 });

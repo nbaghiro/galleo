@@ -2,17 +2,13 @@ import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, on, onMount, Show } from "solid-js";
 import { Navigate, Route, Router, useLocation, useNavigate } from "@solidjs/router";
 import { resolveTheme } from "@themes";
+import { mustConfirmEmail } from "@model/workspace";
 import { authReady, bootstrap, user } from "./stores/auth";
 import { loadFeatures } from "./stores/features";
 import { checklistVisible, loadOnboarding, onboardingNeeded } from "@app/stores/onboarding";
 import { customThemes, loadCustomThemes } from "./stores/theme";
-import {
-    faviconOverride,
-    setFavicon,
-    appTheme,
-    appThemeOverride,
-    appThemeVars,
-} from "./stores/theme";
+import { faviconOverride, appTheme, appThemeOverride, appThemeVars } from "./stores/theme";
+import { setFavicon } from "@ui/brand";
 import { AuthPage } from "./views/AuthPage";
 import { EditorView } from "./views/EditorView";
 import { ChatPanel } from "./views/ChatPanel";
@@ -41,12 +37,17 @@ import { CommandPalette } from "@ui/CommandPalette";
 import { ShortcutsSheet } from "@ui/ShortcutsSheet";
 import { installKeyDispatcher } from "@ui/keys";
 import { setNavigate } from "./stores/navigate";
-import "./stores/commands"; // side-effect: register the app commands
-import "./components/palette-sources"; // side-effect: register the ⌘K artifact + action sources
+import "./stores/commands"; // side-effect: register the app commands + the ⌘K sources
 import { publishRoute } from "./stores/route-context";
 import "@editor/core/commands"; // side-effect: register studio commands + editor context keys
 
 // singular overlays mount once here, under the Router
+// The verification gate's date, shared by the redirect and the boot reads it would otherwise 403 on.
+const unconfirmed = (): boolean => {
+    const u = user();
+    return !!u && mustConfirmEmail(u);
+};
+
 const AppShell: Component<{ children?: JSX.Element }> = (props) => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -60,6 +61,11 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => {
         if (onboardingNeeded() && location.pathname === "/")
             navigate("/welcome", { replace: true });
     });
+    // so the address bar names the screen rather than the route that was refused
+    createEffect(() => {
+        if (unconfirmed() && location.pathname !== "/welcome")
+            navigate("/welcome", { replace: true });
+    });
     // The steps are derived, so the only way to notice one landed is to re-read, and a navigation is
     // when that has usually just happened. `on` so the route is the only dependency: the body both
     // reads and writes the onboarding signal, which as a plain effect would be a cycle.
@@ -71,8 +77,11 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => {
             },
         ),
     );
+    // An unconfirmed account gets the confirm step in place of whatever the URL asked for, and none
+    // of the chrome: the studio, the pickers and the panels all read workspace routes the gate
+    // refuses, and a read rejecting on mount is an unhandled error rather than an empty state.
     return (
-        <>
+        <Show when={!unconfirmed()} fallback={<OnboardingView />}>
             {props.children}
             <GenerateStudio />
             {/* picking an app theme is a preference, so it mounts everywhere; authoring modes gate inside */}
@@ -85,8 +94,18 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => {
             <CommandPalette />
             <ShortcutsSheet />
             <VerifyBanner />
-        </>
+        </Show>
     );
+};
+
+// A signed-out visit to /oauth/authorize is bounced here to sign in; this carries them back once
+// they have. Same-origin and path-shaped only, so `next` can never become an open redirect.
+const ResumeExternalAuth: Component = () => {
+    onMount(() => {
+        const next = new URLSearchParams(window.location.search).get("next");
+        if (next?.startsWith("/oauth/")) window.location.replace(next);
+    });
+    return null;
 };
 
 export const App: Component = () => {
@@ -100,8 +119,12 @@ export const App: Component = () => {
     // and re-fetches after a user switch, so feature-gated affordances never stay stale
     let loadedFor: string | null = null;
     createEffect(() => {
-        const id = user()?.id ?? null;
+        const u = user();
+        const id = u?.id ?? null;
         if (!id || id === loadedFor) return;
+        // An unconfirmed session is refused by every guarded route, so asking would only produce a
+        // row of 403s in the console. The confirm step needs none of it.
+        if (unconfirmed()) return;
         loadedFor = id;
         void loadFeatures();
         void loadCustomThemes();
@@ -142,7 +165,11 @@ export const App: Component = () => {
                     }
                 >
                     <Show when={user() && !isResetDeepLink} fallback={<AuthPage />}>
+                        <ResumeExternalAuth />
                         <Router base="/" root={AppShell}>
+                            {/* where /oauth/authorize parks a signed-out visitor; declared so the
+                                catch-all below cannot navigate away before the resume runs */}
+                            <Route path="/connect" component={() => null} />
                             <Route path="/welcome" component={OnboardingView} />
                             <Route path="/" component={LibraryView} />
                             <Route path="/folder/:id" component={LibraryView} />
