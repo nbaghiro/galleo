@@ -14,7 +14,9 @@
         "check:boundaries": "node scripts/check-boundaries.mjs",
         "check:copy": "node scripts/check-copy.mjs",
         "check:modules": "node scripts/check-modules.mjs",
+        "check:maps": "node scripts/check-maps.mjs",
         "check:validation": "node scripts/check-validation.mjs",
+        "check:tools": "tsx scripts/check-tools.ts",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
@@ -47,7 +49,11 @@
         "db:generate": "drizzle-kit generate",
         "db:migrate": "drizzle-kit migrate",
         "media:migrate": "tsx scripts/migrate-media-assets.ts",
-        "media:collect": "tsx scripts/collect-media-assets.ts"
+        "media:collect": "tsx scripts/collect-media-assets.ts",
+        "fonts:vendor": "tsx scripts/fonts-vendor.ts",
+        "check:fonts": "tsx scripts/check-fonts.ts",
+        "mcp": "tsx scripts/mcp.ts",
+        "posthog:dashboards": "tsx scripts/posthog-dashboards.ts"
     },
     "dependencies": {
         "@ai-sdk/anthropic": "^4.0.30",

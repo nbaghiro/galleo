@@ -25,6 +25,18 @@ pnpm check:copy
 echo "▸ module-map guard"
 pnpm check:modules
 
+echo "▸ codebase-map guard"
+pnpm check:maps
+
+echo "▸ element guard"
+pnpm check:elements
+
+echo "▸ tool-executor guard"
+pnpm check:tools
+
+echo "▸ font guard"
+pnpm check:fonts
+
 echo "▸ body-validation guard"
 pnpm check:validation
 

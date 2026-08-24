@@ -18,3 +18,6 @@ canvas/boundary-check-*/
 e2e/.state/
 test-results/
 playwright-report/
+
+# the MCP CLI keeps a real access token here
+.mcp/

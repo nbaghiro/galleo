@@ -51,9 +51,26 @@ jobs:
             - name: Module-map guard
               run: pnpm check:modules
 
+            # Same, for the per-directory maps in .docs/architecture.md.
+            - name: Codebase-map guard
+              run: pnpm check:maps
+
+            # The registries must name one world, and AGENTS.md's palette tally must match it.
+            - name: Element guard
+              run: pnpm check:elements
+
+            # A family a theme can name with no vendored face renders as a silent fallback.
+            - name: Font guard
+              run: pnpm check:fonts
+
             # A request body is untrusted input, so a route must state the shape it accepts.
             - name: Body-validation guard
               run: pnpm check:validation
+
+            # Three surfaces, one envelope: a caller that reaches around it forks validation,
+            # metering and the scope check all at once.
+            - name: Tool-unification guard
+              run: pnpm check:tools
 
             - name: Format check
               run: pnpm format:check

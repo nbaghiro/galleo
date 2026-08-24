@@ -2,8 +2,9 @@
 //
 // `import/no-restricted-paths` silently checks nothing when a specifier fails to resolve, which is how
 // the law once sat dead here: ESLint reported success without examining a single import. So this
-// plants a real violation and fails if either enforcement path stays quiet. Two laws are probed: the
-// outer one (model · canvas · ui · editor · app) and the tier law inside services/.
+// plants a real violation and fails if either enforcement path stays quiet. Three laws are probed:
+// the outer one (model · canvas · ui · editor · app), the leaf builds and tooling that hang off it
+// (publish · website · widget · scripts · e2e), and the tier law inside services/.
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -51,14 +52,47 @@ const PROBES = [
         violation: "utils → db",
         source: 'import { db } from "../../db/client";\nexport const probe = db;\n',
     },
+    {
+        law: "leaf builds",
+        under: "publish",
+        violation: "publish → @app",
+        source: 'import { api } from "@app/api";\nexport const probe = api;\n',
+    },
+    {
+        law: "leaf builds (website)",
+        under: "website",
+        violation: "website → @app",
+        source: 'import { api } from "@app/api";\nexport const probe = api;\n',
+    },
+    {
+        // the widget bundles the solver with no framework, so @ui (Solid) is the line, not @app
+        law: "widget-is-framework-free",
+        under: "widget",
+        violation: "widget → @ui",
+        source: 'import { Mark } from "@ui/brand";\nexport const probe = Mark;\n',
+    },
+    {
+        law: "tooling-is-not-the-shell",
+        under: "scripts",
+        violation: "scripts → @app",
+        source: 'import { api } from "@app/api";\nexport const probe = api;\n',
+    },
+    {
+        // bound to *.spec.ts, so the probe has to be named like a spec or the zone skips it
+        law: "e2e-drives-the-real-thing",
+        under: "e2e",
+        name: "probe.spec.ts",
+        violation: "e2e spec → @services",
+        source: 'import { listArtifacts } from "@services/core/artifacts";\nexport const probe = listArtifacts;\n',
+    },
 ];
 
 const w = (s) => process.stdout.write(`${s}\n`);
 
-function probe({ under, source, rules: probeRules }) {
+function probe({ under, source, name, rules: probeRules }) {
     // process.exit() skips finally, so the probe dir is removed before any exit path is taken.
     const dir = mkdtempSync(join(process.cwd(), under, "boundary-check-"));
-    const file = join(dir, "probe.ts");
+    const file = join(dir, name ?? "probe.ts");
     try {
         writeFileSync(file, source);
         let output = "";

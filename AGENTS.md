@@ -102,6 +102,13 @@ with high-fidelity export. Net-new, TypeScript.
 - **One file per concept, in every module folder** (the rule `model/` states for itself, generalized).
   A concept's types, helpers, and pure math live in its own file; a small sibling helper file split
   out of one concept is not the pattern. Test files under `__tests__/` may still be split per topic.
+  **Length is not the test, and a long file is not a finding.** The question is whether the file holds
+  one concept or several, so a thousand-line file that is genuinely one thing stays one thing: the tool
+  catalog (`model/tools.ts`), the artifact contract (`model/artifact.ts`), the editor store
+  (`editor/core/store.ts`), the paint backends (`canvas/render/backends.ts`), the template bodies
+  (`services/core/templates.ts`). Splitting one of those to hit a line count produces exactly the
+  sibling-helper file this rule rejects, and scatters a change that should have been one diff. Split
+  when a second concept has moved in, not when the file gets long.
 - **Building UI in any module → go through `@ui`** (the layering makes cross-module reuse like
   `app → @editor` illegal, so `@ui` is the only shared home). The recipe, in order: **(1) reuse** the
   existing `@ui` primitive; **(2) extend** it with a prop/variant when it's ~90% there (don't fork the
