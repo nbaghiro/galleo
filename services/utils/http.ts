@@ -186,7 +186,10 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler {
             for (const [k, v] of buckets) if (now >= v.resetAt) buckets.delete(k);
         }
 
-        if (w.count > options.limit) {
+        // test runs multiply the budget rather than bypassing the limiter: the 429 path stays
+        // exercised by the specs that assert it, while a whole suite of honest logins fits.
+        const scale = Math.max(1, Number(process.env.RATE_LIMIT_SCALE ?? "1") || 1);
+        if (w.count > options.limit * scale) {
             // Most limited routes have no session (signup, login, reset), so something has to stand
             // in for a person. It is a hash of the bucket key, never the address itself: a raw IP
             // is on the do-not-collect list, and this only has to be stable, not reversible.

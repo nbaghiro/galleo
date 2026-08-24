@@ -76,6 +76,8 @@ export default defineConfig({
         env: {
             NODE_ENV: "production",
             PORT: String(E2E_PORT),
+            // one suite performs more honest logins than the human-scale window admits
+            RATE_LIMIT_SCALE: "20",
             DATABASE_URL: E2E_DB,
             APP_URL: E2E_BASE,
             // constant is fine: the database is throwaway and the strong-secret rule only guards prod
