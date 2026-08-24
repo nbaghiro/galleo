@@ -24,7 +24,8 @@ test("export produces a real PDF", async ({ page }) => {
     await page.goto(`/edit/${id}`);
     await page.getByRole("button", { name: "Export", exact: true }).click();
     const downloadP = page.waitForEvent("download", { timeout: 60_000 });
-    await page.getByText(/pdf/i).first().click();
+    // the modal's per-destination CTA, which builds the export if the preview was never requested
+    await page.getByRole("button", { name: "Export PDF", exact: true }).click();
     const download = await downloadP;
     const stream = await download.createReadStream();
     const first = await new Promise<Buffer>((resolve, reject) => {
