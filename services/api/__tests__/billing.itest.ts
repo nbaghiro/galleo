@@ -7,6 +7,7 @@ import {
     CREDITS_PER_GENERATION,
     PLANS,
     limitsFor,
+    rolloverCapFor,
     seatsFor,
     visiblePlans,
 } from "@model/billing";
@@ -229,6 +230,31 @@ describe("POST /billing/checkout", () => {
         expect(res.status).toBe(400);
     });
 
+    it("refuses an annual checkout when no annual price is configured, rather than booking monthly", async () => {
+        vi.stubEnv("STRIPE_PRICE_PRO_YEAR", undefined);
+        const { userId } = await seedUser();
+        const res = await authed(
+            userId,
+            "/billing/checkout",
+            jsonInit("POST", { plan: "pro", interval: "year" }),
+        );
+        expect(res.status).toBe(400);
+        expect(stripeMock.checkout.sessions.create).not.toHaveBeenCalled();
+    });
+
+    it("refuses annual extra seats when the annual seat price is not configured, rather than dropping them", async () => {
+        vi.stubEnv("STRIPE_PRICE_SEAT_YEAR", undefined);
+        const { userId } = await seedUser();
+        const res = await authed(
+            userId,
+            "/billing/checkout",
+            jsonInit("POST", { plan: "premium", interval: "year", seats: 5 }),
+        );
+        expect(res.status).toBe(400);
+        expect(((await res.json()) as { error: string }).error).toContain("seats");
+        expect(stripeMock.checkout.sessions.create).not.toHaveBeenCalled();
+    });
+
     it("503s when billing is not configured", async () => {
         vi.stubEnv("STRIPE_SECRET_KEY", undefined);
         const { userId } = await seedUser();
@@ -318,7 +344,8 @@ describe("POST /billing/change-plan", () => {
             "sub_1",
             expect.objectContaining({ cancel_at_period_end: true }),
         );
-        expect(stripeMock.subscriptions.retrieve).not.toHaveBeenCalled();
+        // the sub is retrieved only to release a parked schedule; none here, so no release
+        expect(stripeMock.subscriptionSchedules.release).not.toHaveBeenCalled();
         // Reflected immediately so the UI can show "ends <date>" without waiting on the webhook.
         expect((await getWs(workspaceId)).cancelAtPeriodEnd).toBe(true);
     });
@@ -386,6 +413,19 @@ describe("POST /billing/change-plan", () => {
                 items: [{ id: "si_1", price: PRICE.proYear, quantity: 1 }],
             }),
         );
+    });
+
+    it("refuses an interval switch that would silently drop paid seats", async () => {
+        vi.stubEnv("STRIPE_PRICE_SEAT_MONTH", "price_seat_month");
+        vi.stubEnv("STRIPE_PRICE_SEAT_YEAR", undefined);
+        const { userId } = await withSubscription("premium", PRICE.premiumMonth, 2);
+        const res = await authed(
+            userId,
+            "/billing/change-plan",
+            jsonInit("POST", { interval: "year" }),
+        );
+        expect(res.status).toBe(400);
+        expect(stripeMock.subscriptions.update).not.toHaveBeenCalled();
     });
 
     it("400s with useCheckout when there is no active subscription to change", async () => {
@@ -682,7 +722,8 @@ describe("credit engine", () => {
 describe("webhook hardening", () => {
     it("a cycle-renewal invoice re-anchors the window and grants on top of the balance", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
-        await setWs(workspaceId, { stripeCustomerId: "cus_1", aiCreditsBalance: 999 });
+        // 300 banked keeps the grant under the rollover cap, so this pins the carry, not the clip
+        await setWs(workspaceId, { stripeCustomerId: "cus_1", aiCreditsBalance: 300 });
         const ev = stripeEvent("invoice.paid", {
             id: "in_1",
             customer: "cus_1",
@@ -690,13 +731,13 @@ describe("webhook hardening", () => {
         });
         await postWebhook(ev);
         const ws = await getWs(workspaceId);
-        expect(ws.aiCreditsBalance).toBe(999 + PLANS.pro.ai.includedCredits); // leftovers carry
+        expect(ws.aiCreditsBalance).toBe(300 + PLANS.pro.ai.includedCredits); // leftovers carry
         expect(ws.planStatus).toBe("active");
 
         // Redelivery of the same invoice grants nothing: the grant keys on the invoice id.
         await postWebhook(ev);
         expect((await getWs(workspaceId)).aiCreditsBalance).toBe(
-            999 + PLANS.pro.ai.includedCredits,
+            300 + PLANS.pro.ai.includedCredits,
         );
         const rows = await db
             .select()
@@ -722,7 +763,10 @@ describe("webhook hardening", () => {
         });
         await postWebhook(ev);
         await postWebhook(ev);
-        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(10 + pack.credits);
+        const after = await getWs(workspaceId);
+        expect(after.aiCreditsBalance).toBe(10 + pack.credits);
+        // bought, not granted: exempt from the rollover clip, and not doubled by the redelivery
+        expect(after.purchasedCredits).toBe(pack.credits);
         const rows = await db
             .select()
             .from(schema.credits)
@@ -733,6 +777,50 @@ describe("webhook hardening", () => {
             reason: `topup:${pack.id}`,
             key: "cs_pack_1",
         });
+    });
+
+    it("a cycle renewal clips its grant at the rollover cap", async () => {
+        const { workspaceId } = await seedUser({ plan: "pro" });
+        const cap = rolloverCapFor({ plan: "pro", seats: 1 });
+        await setWs(workspaceId, { stripeCustomerId: "cus_1", aiCreditsBalance: cap - 100 });
+        await postWebhook(
+            stripeEvent("invoice.paid", {
+                id: "in_clip",
+                customer: "cus_1",
+                billing_reason: "subscription_cycle",
+            }),
+        );
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(cap);
+        const rows = await db
+            .select()
+            .from(schema.credits)
+            .where(eq(schema.credits.workspaceId, workspaceId));
+        expect(rows[0]).toMatchObject({ reason: "renewal-grant", delta: 100 });
+    });
+
+    it("an upgrade grant clips against what the new plan may bank", async () => {
+        const { workspaceId } = await seedUser();
+        // banked far above pro's cap (packless), so subscribing grants nothing extra
+        await setWs(workspaceId, { aiCreditsBalance: 5000 });
+        stripeMock.subscriptions.retrieve.mockResolvedValue(
+            fakeSub({ id: "sub_clip", priceId: PRICE.proMonth, quantity: 1, status: "active" }),
+        );
+        await postWebhook(
+            stripeEvent("checkout.session.completed", {
+                id: "cs_clip",
+                client_reference_id: workspaceId,
+                subscription: "sub_clip",
+                customer: "cus_clip",
+            }),
+        );
+        const ws = await getWs(workspaceId);
+        expect(ws.plan).toBe("pro"); // the sync still lands even when the grant is clipped away
+        expect(ws.aiCreditsBalance).toBe(5000);
+        const rows = await db
+            .select()
+            .from(schema.credits)
+            .where(eq(schema.credits.workspaceId, workspaceId));
+        expect(rows[0]).toMatchObject({ reason: "upgrade-grant", delta: 0, key: "cs_clip" });
     });
 
     it("a non-cycle invoice (proration/one-off) leaves the credit window alone", async () => {
@@ -831,6 +919,100 @@ describe("webhook hardening", () => {
     });
 });
 
+// One granter per interval: the cycle invoice for monthly subs (the flat 30-day window lapses
+// early in long months, so rolling on read as well would double the grant), the lazy roll for
+// annual subs (their invoice comes once a year).
+describe("interval-aware granting", () => {
+    it("a live monthly subscription is granted by its invoice, not the lazy roll, inside the webhook grace", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "pro" });
+        const lapsed = new Date(Date.now() - 24 * 3600 * 1000);
+        await setWs(workspaceId, {
+            stripeCustomerId: "cus_1",
+            stripeSubscriptionId: "sub_1",
+            planInterval: "month",
+            aiCreditsBalance: 50,
+            creditsStartedAt: new Date(lapsed.getTime() - 30 * 24 * 3600 * 1000),
+            creditsResetAt: lapsed,
+        });
+        // resolving the workspace is what used to roll a lapsed window
+        await authed(userId, "/billing");
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(50);
+
+        await postWebhook(
+            stripeEvent("invoice.paid", {
+                id: "in_cycle_1",
+                customer: "cus_1",
+                billing_reason: "subscription_cycle",
+            }),
+        );
+        const ws = await getWs(workspaceId);
+        expect(ws.aiCreditsBalance).toBe(50 + PLANS.pro.ai.includedCredits);
+        expect(ws.creditsResetAt.getTime()).toBeGreaterThan(Date.now());
+        const rows = await db
+            .select()
+            .from(schema.credits)
+            .where(eq(schema.credits.workspaceId, workspaceId));
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ reason: "renewal-grant" });
+    });
+
+    it("self-heals a missed cycle invoice once the webhook grace has passed", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "pro" });
+        // past Stripe's ~3-day retry horizon: the invoice is not coming, the roll takes over
+        const lapsed = new Date(Date.now() - 4 * 24 * 3600 * 1000);
+        await setWs(workspaceId, {
+            stripeCustomerId: "cus_1",
+            stripeSubscriptionId: "sub_1",
+            planInterval: "month",
+            aiCreditsBalance: 50,
+            creditsStartedAt: new Date(lapsed.getTime() - 30 * 24 * 3600 * 1000),
+            creditsResetAt: lapsed,
+        });
+        await authed(userId, "/billing");
+        const ws = await getWs(workspaceId);
+        expect(ws.aiCreditsBalance).toBe(50 + PLANS.pro.ai.includedCredits);
+        expect(ws.creditsResetAt.getTime()).toBeGreaterThan(Date.now());
+    });
+
+    it("a live annual subscription rolls lazily and its yearly invoice only clears dunning", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "pro" });
+        await setWs(workspaceId, {
+            stripeCustomerId: "cus_1",
+            stripeSubscriptionId: "sub_1",
+            planInterval: "year",
+            planStatus: "past_due",
+            aiCreditsBalance: 10,
+            creditsResetAt: new Date(Date.now() - 1000),
+        });
+        await authed(userId, "/billing");
+        const rolled = await getWs(workspaceId);
+        expect(rolled.aiCreditsBalance).toBe(10 + PLANS.pro.ai.includedCredits);
+
+        await postWebhook(
+            stripeEvent("invoice.paid", {
+                id: "in_year_1",
+                customer: "cus_1",
+                billing_reason: "subscription_cycle",
+            }),
+        );
+        const ws = await getWs(workspaceId);
+        expect(ws.aiCreditsBalance).toBe(rolled.aiCreditsBalance); // no second grant
+        expect(ws.planStatus).toBe("active");
+        // and the roll's window is left anchored where it was
+        expect(ws.creditsResetAt.getTime()).toBe(rolled.creditsResetAt.getTime());
+    });
+
+    it("a free workspace still rolls lazily", async () => {
+        const { userId, workspaceId } = await seedUser();
+        await setWs(workspaceId, {
+            aiCreditsBalance: 5,
+            creditsResetAt: new Date(Date.now() - 1000),
+        });
+        await authed(userId, "/billing");
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(5 + PLANS.free.ai.includedCredits);
+    });
+});
+
 describe("owner-only billing mutations", () => {
     async function seedMember(workspaceId: string): Promise<string> {
         const [member] = await db
@@ -892,6 +1074,24 @@ describe("GET /billing/ledger", () => {
         expect(entries).toHaveLength(2);
         expect(entries[0]).toMatchObject({ delta: -1 }); // rewrite-text, newest first
         expect(entries[1]).toMatchObject({ delta: -4 }); // generate-theme
+    });
+
+    it("degrades a parseable but garbage cursor to the first page", async () => {
+        const { userId, workspaceId } = await seedUser();
+        await setWs(workspaceId, {
+            aiCreditsBalance: 100,
+            creditsResetAt: new Date(Date.now() + 86400_000),
+        });
+        await reserve(await getWs(workspaceId), userId, "rewrite-text");
+        const garbage = (v: object): string => Buffer.from(JSON.stringify(v)).toString("base64url");
+        for (const cursor of [
+            garbage({ at: "not-a-date", id: "11111111-1111-1111-1111-111111111111" }),
+            garbage({ at: new Date().toISOString(), id: "not-a-uuid" }),
+        ]) {
+            const res = await authed(userId, `/billing/ledger?cursor=${cursor}`);
+            expect(res.status).toBe(200);
+            expect((await res.json()).entries).toHaveLength(1);
+        }
     });
 });
 
@@ -1249,5 +1449,77 @@ describe("scheduled downgrades", () => {
         );
         expect((await res.json()).effect).toBe("upgraded");
         expect(stripeMock.subscriptionSchedules.create).not.toHaveBeenCalled();
+    });
+
+    it("an immediate change after a parked downgrade releases the schedule", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "premium" });
+        await arm(workspaceId);
+        await authed(userId, "/billing/change-plan", jsonInit("POST", { plan: "pro", seats: 1 }));
+        // the schedule now manages the sub; without a release its second phase fires at period end
+        stripeMock.subscriptions.retrieve.mockResolvedValue({
+            ...fakeSub({
+                priceId: PRICE.premiumMonth,
+                addOns: [{ priceId: "price_seat_month", quantity: EXTRA }],
+            }),
+            schedule: "sched_1",
+        });
+        const res = await authed(
+            userId,
+            "/billing/change-plan",
+            jsonInit("POST", { plan: "premium", seats: seatsFor("premium", EXTRA + 1) }),
+        );
+        expect((await res.json()).effect).toBe("upgraded");
+        expect(stripeMock.subscriptionSchedules.release).toHaveBeenCalledWith("sched_1");
+        expect((await getWs(workspaceId)).scheduledChange).toBeNull();
+    });
+
+    it("cancelling to free while a downgrade is parked releases the schedule too", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "premium" });
+        await arm(workspaceId);
+        await authed(userId, "/billing/change-plan", jsonInit("POST", { plan: "pro", seats: 1 }));
+        stripeMock.subscriptions.retrieve.mockResolvedValue({
+            ...fakeSub({ priceId: PRICE.premiumMonth }),
+            schedule: "sched_1",
+        });
+        const res = await authed(
+            userId,
+            "/billing/change-plan",
+            jsonInit("POST", { plan: "free" }),
+        );
+        expect((await res.json()).effect).toBe("cancel_at_period_end");
+        expect(stripeMock.subscriptionSchedules.release).toHaveBeenCalledWith("sched_1");
+        const ws = await getWs(workspaceId);
+        expect(ws.cancelAtPeriodEnd).toBe(true);
+        expect(ws.scheduledChange).toBeNull();
+    });
+
+    it("a bare tier downgrade from a seated team still hits the member floor", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "premium" });
+        await arm(workspaceId);
+        const [other] = await db
+            .insert(schema.users)
+            .values({ email: `floor-${workspaceId.slice(0, 8)}@test.local` })
+            .returning();
+        await db.insert(schema.members).values({ workspaceId, userId: other!.id });
+        const res = await authed(userId, "/billing/change-plan", jsonInit("POST", { plan: "pro" }));
+        expect(res.status).toBe(400);
+        expect(((await res.json()) as { error: string }).error).toContain("2 members");
+        expect(stripeMock.subscriptionSchedules.update).not.toHaveBeenCalled();
+    });
+
+    it("a bare solo premium→pro downgrade parks the target plan's own seat count and clears on landing", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "premium" });
+        await arm(workspaceId, fakeSub({ priceId: PRICE.premiumMonth }));
+        await setWs(workspaceId, { seats: seatsFor("premium", 0) });
+        const res = await authed(userId, "/billing/change-plan", jsonInit("POST", { plan: "pro" }));
+        expect((await res.json()).effect).toBe("scheduled");
+        expect((await getWs(workspaceId)).scheduledChange).toMatchObject({ plan: "pro", seats: 1 });
+
+        await postSubEvent(
+            "customer.subscription.updated",
+            fakeSub({ id: "sub_1", priceId: PRICE.proMonth }),
+            "evt_bare_landed",
+        );
+        expect((await getWs(workspaceId)).scheduledChange).toBeNull();
     });
 });

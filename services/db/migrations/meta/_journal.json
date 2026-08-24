@@ -260,6 +260,34 @@
       "when": 1787545243648,
       "tag": "0036_known_scarecrow",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1787594544910,
+      "tag": "0037_clear_credit_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1787597231250,
+      "tag": "0038_plan_interval",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1787597901575,
+      "tag": "0039_purchased_credits",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1787600146908,
+      "tag": "0040_bizarre_lady_deathstrike",
+      "breakpoints": true
     }
   ]
 }

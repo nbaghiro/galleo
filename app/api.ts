@@ -83,12 +83,17 @@ export interface BillingState {
     status: string;
     periodEnd: string | null;
     cancelAtPeriodEnd: boolean;
+    interval: Interval | null; // which the subscription bills on; null = not subscribed
+    intervals: Record<Interval, boolean>; // which intervals this deployment can sell
     credits: {
         balance: number; // spendable now; unspent credits carry across the roll
         monthlyGrant: number; // what the subscription adds at each roll
         perGeneration: number;
         resetAt: string;
         mySpend: number; // the caller's own spend this cycle
+        myCap: number | null; // the member cap as it applies to the caller; null = uncapped
+        rolloverCap: number; // ceiling granted credits may bank to; purchases sit above it
+        capped: boolean; // the next grant will land short of the full allowance
     };
     usage: { artifacts: number; maxArtifacts: number; storageMb: number; maxStorageMb: number };
     scheduledChange: ScheduledChange | null; // a downgrade parked at period end
@@ -99,6 +104,7 @@ export interface BillingState {
     addOnQuantities: Record<AddOnId, number>;
     packs: CreditPack[]; // one-off credit purchases
     stripeReady: boolean;
+    hasCustomer: boolean; // a Stripe customer exists, so the portal has history to show
 }
 
 // GET /billing/ledger — the credit ledger (spends negative, refunds/grants positive)
@@ -125,6 +131,7 @@ export interface WorkspaceMember {
     name: string | null;
     avatarUrl: string | null;
     isOwner: boolean;
+    spend?: number; // net credits this member spent in the current cycle; only when asked (?spend=1)
 }
 
 export interface WorkspaceInvite {
@@ -148,6 +155,21 @@ export interface WorkspaceState {
     members: WorkspaceMember[];
     invites: WorkspaceInvite[];
     memberships: Membership[];
+}
+
+// GET /workspace/credentials — the workspace's machine credentials, without their secrets
+export interface ApiCredential {
+    clientId: string;
+    name: string;
+    createdAt: string;
+    lastUsedAt: string | null;
+}
+
+// POST /workspace/credentials — the one response the secret ever appears in
+export interface NewApiCredential {
+    clientId: string;
+    secret: string;
+    name: string;
 }
 
 // GET /features — resolved capabilities + each feature's launch status
@@ -289,12 +311,29 @@ export type { ThemeSummary as ApiTheme } from "@themes";
 
 import { modelHeaders } from "./stores/models";
 
+import type { ChangeEffect, PaywallReason } from "@model/billing";
+export type { ChangeEffect, PaywallReason } from "@model/billing";
+
 /** The remedies a 402 body offers; absent on every other failure. */
 export interface ErrorRemedies {
     upgrade?: boolean;
     topUp?: boolean;
     remaining?: number;
+    reason?: PaywallReason;
+    // billing-route hints: the fix is a different route on the same page
+    useChangePlan?: boolean;
+    useCheckout?: boolean;
 }
+
+/** One reading of an error body's remedy fields, shared by req and both stream helpers. */
+const remediesOf = (body: { error?: string } & ErrorRemedies): ErrorRemedies => ({
+    upgrade: body.upgrade,
+    topUp: body.topUp,
+    remaining: body.remaining,
+    reason: body.reason,
+    useChangePlan: body.useChangePlan,
+    useCheckout: body.useCheckout,
+});
 
 export class ApiError extends Error {
     constructor(
@@ -330,11 +369,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
         const body = data as { error?: string } & ErrorRemedies;
         const msg =
             body.error ?? (res.status >= 500 ? "Server error. Please try again" : res.statusText);
-        throw new ApiError(res.status, msg, {
-            upgrade: body.upgrade,
-            topUp: body.topUp,
-            remaining: body.remaining,
-        });
+        throw new ApiError(res.status, msg, remediesOf(body));
     }
     return data as T;
 }
@@ -681,6 +716,16 @@ export const api = {
         ),
     uploadMedia: (body: MediaUploadRequest) =>
         req<{ item: MediaItem }>("/media/upload", { method: "POST", body: JSON.stringify(body) }),
+    importPptx: (body: { name?: string; data: string }) =>
+        req<{ content: ArtifactContent; title: string }>("/import/pptx", {
+            method: "POST",
+            body: JSON.stringify(body),
+        }),
+    importSlides: (url: string) =>
+        req<{ content: ArtifactContent; title: string }>("/import/slides", {
+            method: "POST",
+            body: JSON.stringify({ url }),
+        }),
     useMedia: (item: MediaItem) =>
         req<{ item: MediaItem }>("/media/use", { method: "POST", body: JSON.stringify({ item }) }),
     // Everything this workspace holds. Filtering by source hid the pictures actually in people's
@@ -701,6 +746,11 @@ export const api = {
         req<{ usedBy: { id: string; title: string }[] }>(`/media/asset/${id}/usage`),
     adoptLink: (url: string) =>
         req<{ url: string }>("/media/link", { method: "POST", body: JSON.stringify({ url }) }),
+    googleSlides: (data: string, name: string) =>
+        req<{ url: string }>("/google/slides", {
+            method: "POST",
+            body: JSON.stringify({ data, name }),
+        }),
     searchIcons: (q: string, limit = 60) =>
         req<IconSearchResponse>(`/media/icons?q=${encodeURIComponent(q)}&limit=${limit}`),
     getIcon: (id: string) => req<{ icon: IconPick }>(`/media/icon?id=${encodeURIComponent(id)}`),
@@ -717,18 +767,13 @@ export const api = {
         }),
     getBilling: () => req<BillingState>("/billing"),
     getFeatures: () => req<FeaturesState>("/features"),
-    checkout: (opts: {
-        plan: PlanId;
-        interval?: Interval;
-        seats?: number;
-        creditBlocks?: number;
-    }) =>
+    checkout: (opts: { plan: PlanId; interval?: Interval; seats?: number }) =>
         req<{ url: string }>("/billing/checkout", {
             method: "POST",
             body: JSON.stringify(opts),
         }),
     changePlan: (opts: { plan?: PlanId; interval?: Interval; seats?: number }) =>
-        req<{ ok?: boolean; effect?: string }>("/billing/change-plan", {
+        req<{ ok?: boolean; effect?: ChangeEffect }>("/billing/change-plan", {
             method: "POST",
             body: JSON.stringify(opts),
         }),
@@ -737,7 +782,21 @@ export const api = {
         req<LedgerPage>(`/billing/ledger${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
     topUp: (pack: CreditPackId) =>
         req<{ url: string }>("/billing/topup", { method: "POST", body: JSON.stringify({ pack }) }),
-    getWorkspace: () => req<WorkspaceState>("/workspace"),
+    getWorkspace: (withSpend?: boolean) =>
+        req<WorkspaceState>(withSpend ? "/workspace?spend=1" : "/workspace"),
+
+    // machine credentials for the workspace's own integrations, all three admin-only server side.
+    // The secret is in the create response and nowhere else, so the caller shows it or loses it.
+    getCredentials: () => req<{ credentials: ApiCredential[] }>("/workspace/credentials"),
+    createCredential: (name: string) =>
+        req<NewApiCredential>("/workspace/credentials", {
+            method: "POST",
+            body: JSON.stringify({ name }),
+        }),
+    revokeCredential: (clientId: string) =>
+        req<{ ok: true }>(`/workspace/credentials/${encodeURIComponent(clientId)}`, {
+            method: "DELETE",
+        }),
 
     // the eval playground; 404s for anyone who is not an eval admin
     listEvalRuns: (before?: string | null) =>
@@ -898,13 +957,14 @@ export async function streamTurn(
     });
     if (!res.ok || !res.body) {
         const text = await res.text().catch(() => "");
-        let msg = res.statusText;
+        let body: { error?: string } & ErrorRemedies = {};
         try {
-            msg = (JSON.parse(text) as { error?: string }).error ?? msg;
+            body = JSON.parse(text) as typeof body;
         } catch {
             // non-JSON error body — keep the status text
         }
-        throw new ApiError(res.status, msg);
+        // same remedy carry-through as req(), so a streamed 402 walls like a fetched one
+        throw new ApiError(res.status, body.error ?? res.statusText, remediesOf(body));
     }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -981,13 +1041,14 @@ async function streamPost<T>(
     });
     if (!res.ok || !res.body) {
         const text = await res.text().catch(() => "");
-        let msg = res.statusText;
+        let body: { error?: string } & ErrorRemedies = {};
         try {
-            msg = (JSON.parse(text) as { error?: string }).error ?? msg;
+            body = JSON.parse(text) as typeof body;
         } catch {
             // non-JSON error body — keep the status text
         }
-        throw new ApiError(res.status, msg);
+        // same remedy carry-through as req(), so a streamed 402 walls like a fetched one
+        throw new ApiError(res.status, body.error ?? res.statusText, remediesOf(body));
     }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();

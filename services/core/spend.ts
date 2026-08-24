@@ -1,10 +1,10 @@
 import type { TurnKind, TurnRequest } from "@model/ai";
 import type { CostUnit, UnitRates, Usage } from "@model/credits";
-import type { MeterParams, ToolId } from "@model/tools";
+import type { MeterParams, ToolId, ToolSurface } from "@model/tools";
 import type { PlanBearer } from "@model/billing";
 import type { WorkspaceRole } from "@model/workspace";
 import { costOf, creditsForUsd, taskForUsage, unitMultipliers } from "@model/credits";
-import { ACTION_FOR, reserveCost, sectionsForLength, TOOLS, usageFor } from "@model/tools";
+import { ACTION_FOR, reserveCost, sectionsForLength, usageFor } from "@model/tools";
 export { ACTION_FOR };
 import { canTopUp, canUpgradeFrom, featuresFor, planFor } from "@model/billing";
 import type { AiFailureReason } from "@model/analytics";
@@ -63,6 +63,10 @@ interface Runner {
     ws: WorkspaceCreditFields;
     userId: string;
     tool: ToolId;
+    // Where the call arrived, not where the catalog says the tool can be reached: every tool the
+    // MCP server exposes also declares "agent", so reading the declaration made a run from a
+    // desktop client indistinguishable from one in the app's chat rail.
+    surface: ToolSurface;
 }
 
 // The model that did most of the writing. A turn can touch several, and output tokens are what the
@@ -120,7 +124,7 @@ async function measured<T>(
     const task = taskForUsage(usage);
     capture(context(r), "ai_action_started", {
         tool_id: r.tool,
-        tool_surface: TOOLS[r.tool].surfaces[0] ?? "internal",
+        tool_surface: r.surface,
         estimated_credits: estimate,
         ...(task ? { task } : {}),
     });
@@ -174,14 +178,30 @@ const free = (r: Runner): Reservation => ({
     },
 });
 
+/** Everything about the run other than who is making it, which is the part that keeps growing. */
+export interface ReserveOptions {
+    /** scales the estimate for metered tools */
+    size?: MeterParams;
+    /** prices the estimate against the models this caller pinned */
+    rates?: UnitRates;
+    /** an eval admin asked for this run to be recorded */
+    trace?: boolean;
+    /** members are capped, admins and owners are not */
+    role?: WorkspaceRole;
+    /**
+     * Where the call arrived, which is what the ai_action_* events report. The executor passes the
+     * surface its caller used; everything else that reserves is an HTTP route, so it says so.
+     */
+    surface?: ToolSurface;
+}
+
 /**
  * Hold the estimated cost of `tool`, then settle it against real usage.
  *
- * `size` scales the estimate for metered tools, `rates` prices it against the models this caller
- * pinned. The returned `settle` opens the token meter, so every model call underneath is counted
- * without being threaded through, and reconciles in a `finally`: an error still bills the tokens
- * already spent, and an abort mid-stream settles what landed. The reconcile rewrites the charge's
- * own ledger row, so one action stays one line of history.
+ * The returned `settle` opens the token meter, so every model call underneath is counted without
+ * being threaded through, and reconciles in a `finally`: an error still bills the tokens already
+ * spent, and an abort mid-stream settles what landed. The reconcile rewrites the charge's own
+ * ledger row, so one action stays one line of history.
  *
  * Tools with no price reserve nothing and are handed a settle that only runs the work.
  */
@@ -189,12 +209,10 @@ export async function reserve(
     ws: WorkspaceCreditFields,
     userId: string,
     tool: ToolId,
-    size: MeterParams = {},
-    rates: UnitRates = {},
-    trace = false,
-    role: WorkspaceRole = "member",
+    opts: ReserveOptions = {},
 ): Promise<Reservation> {
-    const runner: Runner = { ws, userId, tool };
+    const { size = {}, rates = {}, trace = false, role = "member", surface = "direct" } = opts;
+    const runner: Runner = { ws, userId, tool, surface };
     const usage = usageFor(tool, size);
     const cost = reserveCost(tool, size, rates);
     if (cost === 0) return free(runner);
@@ -243,7 +261,7 @@ export async function reserve(
                             } finally {
                                 const delta = owed(meter.uses, made, meter.extraUsd) - cost;
                                 settled = cost + delta;
-                                await settleCredits(ws, entryId, delta);
+                                await settleCredits(ws, entryId, delta, settledUsage(usage, made));
                             }
                         },
                         meter,
@@ -253,6 +271,27 @@ export async function reserve(
             );
         },
     };
+}
+
+/**
+ * The charge row's usage is the estimate; the units a run reported replace theirs and unreported
+ * units keep the estimate, so a token-billed section count survives while a cached synthesis stops
+ * claiming characters it never spoke. undefined = unchanged, null = nothing real to describe.
+ */
+export function settledUsage(estimate: Usage, made: Usage): Usage | null | undefined {
+    const reported = Object.keys(made) as CostUnit[];
+    if (!reported.length) return undefined;
+    const actual: Usage = { ...estimate };
+    for (const unit of reported) {
+        if (made[unit]) actual[unit] = made[unit];
+        else delete actual[unit];
+    }
+    const units = Object.keys(actual) as CostUnit[];
+    const unchanged =
+        units.length === Object.keys(estimate).length &&
+        units.every((u) => actual[u] === estimate[u]);
+    if (unchanged) return undefined;
+    return units.length ? actual : null;
 }
 
 /**

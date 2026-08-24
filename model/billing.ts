@@ -11,6 +11,13 @@ export interface ScheduledChange {
 
 export type PlanId = "free" | "pro" | "premium";
 export type Interval = "month" | "year";
+
+// Every 402 body names its wall, because one status covers several walls whose remedies differ and
+// telling them apart by parsing the prose picked the wrong one.
+export type PaywallReason = "credits" | "member-cap" | "storage" | "seats" | "feature";
+
+// What a plan change did, as the route reports it back.
+export type ChangeEffect = "cancel_at_period_end" | "upgraded" | "changed" | "scheduled";
 export type ModelTier = "basic" | "advanced" | "premium";
 export type ExportFormat = "png" | "pdf" | "print" | "pptx" | "slides";
 
@@ -627,6 +634,27 @@ export function featuresFor(ws: PlanBearer): Features {
  */
 export function monthlyGrantFor(ws: PlanBearer & AddOnBearer): number {
     return featuresFor(ws).includedCredits + extraSeatsOf(ws) * ADD_ONS.seat.credits;
+}
+
+/**
+ * How many months of the grant the balance may bank. A granted credit is a dollar liability at
+ * CREDIT_USD, so the cap holds the worst case near one month's revenue per plan while keeping the
+ * promise that a quiet month funds a busy one, at exactly one quiet month.
+ */
+export const ROLLOVER_CAP_MONTHS = 2;
+
+/** The ceiling granted credits may bank to; purchased credits sit above it (see clipGrant). */
+export const rolloverCapFor = (ws: PlanBearer & AddOnBearer): number =>
+    ROLLOVER_CAP_MONTHS * monthlyGrantFor(ws);
+
+/**
+ * What a grant may add given what is already banked. Clips the grant, never the balance, so a
+ * purchased credit can never be taken back; the pack credits still in the bank lift the ceiling,
+ * so a large pack cannot eat the monthly grant either.
+ */
+export function clipGrant(grant: number, balance: number, purchased: number, cap: number): number {
+    const packHeld = Math.min(Math.max(0, purchased), Math.max(0, balance));
+    return Math.min(grant, Math.max(0, cap + packHeld - balance));
 }
 
 /** Total seats the subscription pays for: the plan's own plus any seat add-on. */

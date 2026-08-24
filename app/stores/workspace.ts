@@ -7,9 +7,20 @@ import { user } from "./auth";
 const [workspaceState, setWorkspaceState] = createSignal<WorkspaceState | null>(null);
 export { workspaceState };
 
-export async function loadWorkspace(): Promise<void> {
+// Billing mutations are owner-only server-side; the views disable rather than hide. Unknown reads
+// as manageable so an owner's controls never flash disabled while the workspace loads. Lives here
+// rather than in the billing store because role is this store's concept, and the reverse import
+// would drag this store's whole graph under every consumer of billing state.
+export const canManageBilling = (): boolean => (workspaceState()?.role ?? "owner") === "owner";
+
+// Sticky: once a surface asks for per-member spend, later refetches keep it, so the settings
+// roster survives the mutations that reload this store. Boot fetches never pay for it.
+let wantSpend = false;
+
+export async function loadWorkspace(opts?: { spend?: boolean }): Promise<void> {
+    if (opts?.spend) wantSpend = true;
     try {
-        const state = await api.getWorkspace();
+        const state = await api.getWorkspace(wantSpend);
         setWorkspaceState(state);
         report(state);
     } catch {

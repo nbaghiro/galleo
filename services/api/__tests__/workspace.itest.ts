@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { authed, jsonInit, seedUser } from "@services/__tests__/harness";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
+import { chargeCredits } from "@services/core/ledger";
 
 const setSeats = (wsId: string, seats: number) =>
     db.update(schema.workspaces).set({ seats }).where(eq(schema.workspaces.id, wsId));
@@ -25,6 +26,19 @@ describe("GET /workspace", () => {
         expect(body.members[0]).toMatchObject({ email, isOwner: true });
         expect(body.memberships).toHaveLength(1);
         expect(body.memberships[0].active).toBe(true);
+    });
+
+    it("carries each member's spend this cycle only when asked, so a cap can be set against real numbers without every boot paying for the aggregation", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "pro" });
+        const [ws] = await db
+            .select()
+            .from(schema.workspaces)
+            .where(eq(schema.workspaces.id, workspaceId));
+        await chargeCredits(ws!, 7, "rewrite-text", userId, { text: 7 });
+        const plain = await (await authed(userId, "/workspace")).json();
+        expect(plain.members[0].spend).toBeUndefined();
+        const body = await (await authed(userId, "/workspace?spend=1")).json();
+        expect(body.members[0].spend).toBe(7);
     });
 });
 
@@ -190,5 +204,104 @@ describe("members & switching", () => {
             method: "DELETE",
         });
         expect(res.status).toBe(400);
+    });
+});
+
+describe("API credentials", () => {
+    it("issues one on a plan that grants API access, and shows the secret only there", async () => {
+        const owner = await seedUser({ plan: "premium" });
+        const made = await authed(
+            owner.userId,
+            "/workspace/credentials",
+            jsonInit("POST", { name: "CI" }),
+        );
+        expect(made.status).toBe(201);
+        const credential = await made.json();
+        expect(credential.clientId).toMatch(/^galleo-api-[0-9a-f]{24}$/);
+        expect(credential.secret).toBeTruthy();
+
+        const listed = await (await authed(owner.userId, "/workspace/credentials")).json();
+        expect(listed.credentials).toHaveLength(1);
+        expect(listed.credentials[0]).toMatchObject({ clientId: credential.clientId, name: "CI" });
+        expect(listed.credentials[0].secret).toBeUndefined();
+        expect(listed.credentials[0].lastUsedAt).toBeNull();
+    });
+
+    it("402s with an upgrade hint on a plan without API access", async () => {
+        const owner = await seedUser();
+        const res = await authed(
+            owner.userId,
+            "/workspace/credentials",
+            jsonInit("POST", { name: "CI" }),
+        );
+        expect(res.status).toBe(402);
+        expect((await res.json()).upgrade).toBe(true);
+    });
+
+    it("400s a nameless credential with a plain error body", async () => {
+        const owner = await seedUser({ plan: "premium" });
+        const res = await authed(
+            owner.userId,
+            "/workspace/credentials",
+            jsonInit("POST", { name: "" }),
+        );
+        expect(res.status).toBe(400);
+        expect(await res.json()).toEqual({ error: "invalid request body" });
+    });
+
+    it("is admin work: a plain member neither lists nor creates", async () => {
+        const owner = await seedUser({ plan: "premium" });
+        await setSeats(owner.workspaceId, 2);
+        const joiner = await seedUser();
+        const { token } = await invite(owner.userId, joiner.email);
+        await authed(joiner.userId, "/invites/accept", jsonInit("POST", { token }));
+
+        expect((await authed(joiner.userId, "/workspace/credentials")).status).toBe(403);
+        const res = await authed(
+            joiner.userId,
+            "/workspace/credentials",
+            jsonInit("POST", { name: "CI" }),
+        );
+        expect(res.status).toBe(403);
+    });
+
+    it("revokes one, and answers 404 for a credential that is already gone", async () => {
+        const owner = await seedUser({ plan: "premium" });
+        const made = await authed(
+            owner.userId,
+            "/workspace/credentials",
+            jsonInit("POST", { name: "CI" }),
+        );
+        const { clientId } = await made.json();
+
+        const gone = await authed(owner.userId, `/workspace/credentials/${clientId}`, {
+            method: "DELETE",
+        });
+        expect(gone.status).toBe(200);
+        const listed = await (await authed(owner.userId, "/workspace/credentials")).json();
+        expect(listed.credentials).toHaveLength(0);
+
+        const again = await authed(owner.userId, `/workspace/credentials/${clientId}`, {
+            method: "DELETE",
+        });
+        expect(again.status).toBe(404);
+    });
+
+    it("does not reach another workspace's credentials", async () => {
+        const mine = await seedUser({ plan: "premium" });
+        const theirs = await seedUser({ plan: "premium" });
+        const made = await authed(
+            theirs.userId,
+            "/workspace/credentials",
+            jsonInit("POST", { name: "CI" }),
+        );
+        const { clientId } = await made.json();
+
+        const res = await authed(mine.userId, `/workspace/credentials/${clientId}`, {
+            method: "DELETE",
+        });
+        expect(res.status).toBe(404);
+        const listed = await (await authed(theirs.userId, "/workspace/credentials")).json();
+        expect(listed.credentials).toHaveLength(1);
     });
 });

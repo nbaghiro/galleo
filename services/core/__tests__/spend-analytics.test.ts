@@ -1,7 +1,9 @@
 import { gunzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { TOOLS } from "@model/tools";
 import type { Transport } from "@services/utils/analytics";
 import { initAnalytics, shutdownAnalytics } from "@services/utils/analytics";
+import type { ReserveOptions } from "@services/core/spend";
 import { reserve } from "@services/core/spend";
 
 // Every metered action passes through `reserve`, so this is where a new tool becomes measured
@@ -42,8 +44,8 @@ describe("the metered-run seam", () => {
 
     const named = (event: string): WireEvent | undefined => events.find((e) => e.event === event);
 
-    const run = async (body: () => Promise<string>): Promise<void> => {
-        const held = await reserve(ws, "user_1", FREE_TOOL);
+    const run = async (body: () => Promise<string>, opts: ReserveOptions = {}): Promise<void> => {
+        const held = await reserve(ws, "user_1", FREE_TOOL, opts);
         if (!held.ok) throw new Error("a free tool must not be refused");
         await held.settle(body);
     };
@@ -63,6 +65,23 @@ describe("the metered-run seam", () => {
         expect(done?.properties.input_tokens).toBe(0);
         expect(typeof done?.properties.ms).toBe("number");
         expect(named("ai_action_failed")).toBeUndefined();
+    });
+
+    // The property used to be read off the catalog, which lists "agent" first for every tool the MCP
+    // server exposes, so a run from a desktop client was indistinguishable from one in the chat rail.
+    it("reports the surface the call arrived on, not the first one the catalog declares", async () => {
+        expect(TOOLS[FREE_TOOL].surfaces[0]).toBe("agent");
+        await run(async () => "done", { surface: "mcp" });
+        await shutdownAnalytics();
+
+        expect(named("ai_action_started")?.properties.tool_surface).toBe("mcp");
+    });
+
+    it("calls a run whose caller named no surface a direct one", async () => {
+        await run(async () => "done");
+        await shutdownAnalytics();
+
+        expect(named("ai_action_started")?.properties.tool_surface).toBe("direct");
     });
 
     it("classifies a provider refusal as retryable and lets the error through", async () => {

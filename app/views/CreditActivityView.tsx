@@ -2,7 +2,7 @@ import type { Component } from "solid-js";
 import { onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { capture } from "@ui/analytics";
-import { IconButton, Spinner } from "@ui/button";
+import { Button, IconButton, Spinner } from "@ui/button";
 import { Icon } from "@ui/icons";
 import { createSentinel } from "@ui/scroll";
 import { CreditActivity } from "@app/components/CreditActivity";
@@ -11,6 +11,7 @@ import {
     billing,
     ledgerCursor,
     ledgerEntries,
+    ledgerError,
     ledgerLoaded,
     ledgerLoadingMore,
     loadLedger,
@@ -63,9 +64,25 @@ export const CreditActivityView: Component = () => {
                         <Show
                             when={ledgerEntries().length > 0}
                             fallback={
-                                <div class="rounded-xl border border-line bg-panel px-4 py-8 text-center text-[13px] text-muted">
-                                    No AI activity yet. Charges and grants show up here.
-                                </div>
+                                <Show
+                                    when={ledgerError()}
+                                    fallback={
+                                        <div class="rounded-xl border border-line bg-panel px-4 py-8 text-center text-[13px] text-muted">
+                                            No AI activity yet. Charges and grants show up here.
+                                        </div>
+                                    }
+                                >
+                                    <div class="flex flex-col items-center gap-3 rounded-xl border border-line bg-panel px-4 py-8 text-center text-[13px] text-muted">
+                                        <span>The activity list could not be loaded.</span>
+                                        <Button
+                                            variant="tool"
+                                            size="sm"
+                                            onClick={() => void loadLedger()}
+                                        >
+                                            Try again
+                                        </Button>
+                                    </div>
+                                </Show>
                             }
                         >
                             <CreditActivity entries={ledgerEntries()} variant="full" />

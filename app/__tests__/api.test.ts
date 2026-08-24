@@ -329,6 +329,61 @@ describe("access + workspace policy methods", () => {
     });
 });
 
+describe("workspace API credentials", () => {
+    it("getCredentials is a plain GET and hands back the list", async () => {
+        const credentials = [
+            {
+                clientId: "galleo-api-abc",
+                name: "CI",
+                createdAt: "2026-08-01T00:00:00.000Z",
+                lastUsedAt: null,
+            },
+        ];
+        const calls = stubFetch(jsonResponse({ credentials }));
+        const result = await api.getCredentials();
+
+        const call = firstCall(calls);
+        expect(call.url).toBe("/api/workspace/credentials");
+        expect(call.init?.method).toBeUndefined();
+        expect(result).toEqual({ credentials });
+    });
+
+    // The one response the secret appears in, so the client returns it whole rather than unwrapping
+    // a field the caller would then have to re-read from somewhere it is not stored.
+    it("createCredential POSTs the name and returns the secret it was given once", async () => {
+        const made = { clientId: "galleo-api-abc", secret: "s3cret", name: "CI" };
+        const calls = stubFetch(jsonResponse(made, { status: 201 }));
+        const result = await api.createCredential("CI");
+
+        const call = firstCall(calls);
+        expect(call.url).toBe("/api/workspace/credentials");
+        expect(call.init?.method).toBe("POST");
+        expect(bodyOf(call)).toEqual({ name: "CI" });
+        expect(result).toEqual(made);
+    });
+
+    it("surfaces the plan wall as an ApiError carrying the upgrade remedy", async () => {
+        stubFetch(
+            jsonResponse(
+                { error: "API access is not on this plan", upgrade: true },
+                { status: 402 },
+            ),
+        );
+        const err = await caught(api.createCredential("CI"));
+        expect(err.status).toBe(402);
+        expect(err.remedies.upgrade).toBe(true);
+    });
+
+    it("revokeCredential DELETEs the encoded client id", async () => {
+        const calls = stubFetch(jsonResponse({ ok: true }));
+        await api.revokeCredential("galleo-api/abc");
+
+        const call = firstCall(calls);
+        expect(call.url).toBe("/api/workspace/credentials/galleo-api%2Fabc");
+        expect(call.init?.method).toBe("DELETE");
+    });
+});
+
 describe("searchMedia — query-string encoding", () => {
     it("encodes q, sets page + kind, and appends orientation when provided", async () => {
         const calls = stubFetch(jsonResponse({ items: [], total: 0 }));

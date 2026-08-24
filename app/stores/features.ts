@@ -28,7 +28,7 @@ export async function loadFeatures(): Promise<void> {
  */
 export const MUSIC_SHIPPED = false;
 
-// Read through these, never through limitsFor(plan)// Read through these, never through limitsFor(plan): only the resolved set carries the workspace's
+// Read through these, never through limitsFor(plan): only the resolved set carries the workspace's
 // featureOverrides and each feature's launch status. Before /features loads, Free is the safe answer.
 export const can = (key: BoolFeature): boolean => featuresState()?.features[key] ?? false;
 export const exportFormatsOf = (): ExportFormat[] =>

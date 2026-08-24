@@ -1,8 +1,10 @@
 import Stripe from "stripe";
+import type { WorkspaceRole } from "@model/workspace";
 import { and, desc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
 import type { AddOnId, CreditPackId, Interval, PlanId, ScheduledChange } from "@model/billing";
 import {
     addOnsFor,
+    clipGrant,
     CREDIT_PACKS,
     CREDITS_PER_GENERATION,
     extraSeatsOf,
@@ -11,6 +13,7 @@ import {
     monthlyGrantFor,
     packFor,
     planFor,
+    rolloverCapFor,
     seatsFor,
     visiblePlans,
 } from "@model/billing";
@@ -55,12 +58,11 @@ function priceEnvKey(plan: PlanId, interval: Interval): string | null {
     return null;
 }
 
+// No cross-interval fallback: quietly booking monthly against an advertised annual price is a
+// bait-and-switch, so an unconfigured interval refuses instead (the UI hides it via `intervals`).
 export function priceIdFor(plan: PlanId, interval: Interval = "month"): string | undefined {
     const key = priceEnvKey(plan, interval);
-    const id = key ? process.env[key] : undefined;
-    if (id) return id;
-    // annual missing → fall back to monthly so checkout still works
-    return interval === "year" ? priceIdFor(plan, "month") : undefined;
+    return (key ? process.env[key] : undefined) || undefined;
 }
 
 function addOnEnvKey(_id: AddOnId, interval: Interval): string {
@@ -169,7 +171,7 @@ function subPeriodEnd(sub: Stripe.Subscription): Date {
     return ts ? new Date(ts * 1000) : monthOut();
 }
 
-export async function billingSummary(ws: WorkspaceRow, userId: string) {
+export async function billingSummary(ws: WorkspaceRow, userId: string, role?: WorkspaceRole) {
     const limits = limitsFor(ws.plan);
     const capMb = featuresFor(ws).storageMb; // overrides can widen storage per workspace
     const [[artifactCount], [storage], mySpend] = await Promise.all([
@@ -190,12 +192,29 @@ export async function billingSummary(ws: WorkspaceRow, userId: string) {
         status: ws.planStatus,
         periodEnd: ws.planPeriodEnd,
         cancelAtPeriodEnd: ws.cancelAtPeriodEnd,
+        interval: ws.planInterval ?? null,
+        // which billing intervals this deployment can actually sell, so the client never offers one
+        intervals: {
+            month: !!(priceIdFor("pro", "month") && priceIdFor("premium", "month")),
+            year: !!(priceIdFor("pro", "year") && priceIdFor("premium", "year")),
+        },
         credits: {
             balance: ws.aiCreditsBalance,
             monthlyGrant: monthlyGrantFor(ws),
             perGeneration: CREDITS_PER_GENERATION,
             resetAt: ws.creditsResetAt,
             mySpend,
+            // the per-member ceiling as it applies to THIS caller; admins and owners are uncapped
+            myCap: role === "member" ? (ws.memberCreditCap ?? null) : null,
+            rolloverCap: rolloverCapFor(ws),
+            // whether the next grant will land short; derived at read time, stored nowhere
+            capped:
+                clipGrant(
+                    monthlyGrantFor(ws),
+                    ws.aiCreditsBalance,
+                    ws.purchasedCredits,
+                    rolloverCapFor(ws),
+                ) < monthlyGrantFor(ws),
         },
         // only what is actually purchasable: the plan must allow it and the price must be configured
         addOns: addOnsFor(ws.plan).filter((a) => !!addOnPriceId(a.id)),
@@ -214,6 +233,8 @@ export async function billingSummary(ws: WorkspaceRow, userId: string) {
         scheduledChange: ws.scheduledChange ?? null,
         catalog: visiblePlans(),
         stripeReady: stripeReady(),
+        // a churned workspace keeps its customer, and with it the portal's invoice history
+        hasCustomer: !!ws.stripeCustomerId,
     };
 }
 
@@ -265,11 +286,18 @@ export async function checkoutUrl(
     ws: WorkspaceRow,
     email: string,
     want: Wanted,
-): Promise<string | null | { error: "invalid-plan" }> {
+): Promise<string | null | { error: "invalid-plan" | "seats-not-configured" }> {
     if (!want.plan || want.plan === "free") return { error: "invalid-plan" };
     const interval = want.interval ?? "month";
     const price = priceIdFor(want.plan, interval);
     if (!price) return { error: "invalid-plan" };
+    // refuse rather than silently bill fewer seats than were asked for (addOnLines drops the line)
+    if (
+        planFor(want.plan).billing.sellsSeats &&
+        wantedExtraSeats(want.plan, want) > 0 &&
+        !addOnPriceId("seat", interval)
+    )
+        return { error: "seats-not-configured" };
     const p = planFor(want.plan);
     capture(payer(ws), "checkout_started", {
         target_plan: want.plan,
@@ -293,7 +321,8 @@ export async function checkoutUrl(
             submit: { message: "Change or cancel your plan anytime from Billing." },
         },
         success_url: appUrl("/pricing?status=success"),
-        cancel_url: appUrl("/pricing?status=cancel"),
+        // the plan rides along so a backed-out checkout can be attributed to what it was for
+        cancel_url: appUrl(`/pricing?status=cancel&plan=${want.plan}`),
     });
     return session.url;
 }
@@ -321,7 +350,9 @@ export async function topupUrl(
         client_reference_id: ws.id,
         metadata: { workspaceId: ws.id, pack: pack.id },
         success_url: appUrl("/pricing?status=topup-success"),
-        cancel_url: appUrl("/pricing?status=cancel"),
+        // distinct from the plan checkout's cancel so a backed-out pack is not counted as an
+        // abandoned plan checkout
+        cancel_url: appUrl("/pricing?status=topup-cancel"),
     });
     return { url: session.url };
 }
@@ -365,8 +396,16 @@ function addOnItemUpdates(
 export type ChangePlanResult =
     | { error: "no-item" }
     | { error: "invalid-plan" }
+    | { error: "seats-not-configured" }
     | { error: "seats-below-members"; members: number }
     | { effect: "cancel_at_period_end" | "upgraded" | "changed" | "scheduled"; at?: string };
+
+// A parked downgrade lives on a subscription schedule; any change taking a different path must
+// release it first, or the schedule's second phase fires at period end and downgrades anyway.
+async function releaseSchedule(sub: Stripe.Subscription): Promise<void> {
+    if (sub.schedule && typeof sub.schedule === "string")
+        await stripe().subscriptionSchedules.release(sub.schedule);
+}
 
 // Downgrade to Free cancels at period end; an upgrade invoices immediately, other changes prorate.
 export async function changePlan(
@@ -375,11 +414,12 @@ export async function changePlan(
     want: Wanted,
 ): Promise<ChangePlanResult> {
     if (want.plan === "free") {
+        await releaseSchedule(await stripe().subscriptions.retrieve(subscriptionId));
         await stripe().subscriptions.update(subscriptionId, { cancel_at_period_end: true });
         // Reflect immediately; the subscription.updated webhook re-syncs it authoritatively.
         await db
             .update(schema.workspaces)
-            .set({ cancelAtPeriodEnd: true })
+            .set({ cancelAtPeriodEnd: true, scheduledChange: null })
             .where(eq(schema.workspaces.id, ws.id));
         return { effect: "cancel_at_period_end" };
     }
@@ -393,10 +433,16 @@ export async function changePlan(
     const targetPlan = want.plan ?? curPlan;
     const targetInterval = want.interval ?? cur.interval;
     const tp = planFor(targetPlan);
-    const targetSeats = Math.max(want.seats ?? curSeats, tp.billing.includedSeats);
+    // a plan that sells no seats lands at its own included count, so a bare tier downgrade from a
+    // seated team hits the member floor below and a parked change matches what actually lands
+    const targetSeats = tp.billing.sellsSeats
+        ? Math.max(want.seats ?? curSeats, tp.billing.includedSeats)
+        : tp.billing.includedSeats;
     const targetExtraSeats = tp.billing.sellsSeats ? targetSeats - tp.billing.includedSeats : 0;
     const newPrice = priceIdFor(targetPlan, targetInterval);
     if (!newPrice) return { error: "invalid-plan" };
+    if (targetExtraSeats > 0 && !addOnPriceId("seat", targetInterval))
+        return { error: "seats-not-configured" };
 
     // seats can't drop below the people using or holding them — an unexpired invite reserves its seat
     if (targetSeats < curSeats) {
@@ -466,6 +512,7 @@ export async function changePlan(
     }
 
     const upgrading = RANK[targetPlan] > RANK[curPlan] || targetSeats > curSeats;
+    await releaseSchedule(sub);
     await stripe().subscriptions.update(subscriptionId, {
         items: [
             { id: cur.planItemId, price: newPrice, quantity: 1 },
@@ -483,12 +530,11 @@ export async function changePlan(
 
 // Resume clears both parking lots: the Free cancellation and any scheduled downgrade.
 export async function resumeSubscription(ws: WorkspaceRow, subscriptionId: string): Promise<void> {
+    // nothing parked, nothing to resume: no Stripe call, no downgrade_cancelled noise
+    if (!ws.cancelAtPeriodEnd && !ws.scheduledChange) return;
     capture(payer(ws), "downgrade_cancelled", { plan_id: planFor(ws.plan).id });
-    if (ws.scheduledChange) {
-        const sub = await stripe().subscriptions.retrieve(subscriptionId);
-        if (sub.schedule && typeof sub.schedule === "string")
-            await stripe().subscriptionSchedules.release(sub.schedule);
-    }
+    if (ws.scheduledChange)
+        await releaseSchedule(await stripe().subscriptions.retrieve(subscriptionId));
     await stripe().subscriptions.update(subscriptionId, { cancel_at_period_end: false });
     await db
         .update(schema.workspaces)
@@ -688,6 +734,8 @@ async function handleEvent(
                     key: s.id,
                     delta: pack.credits,
                     reason: `topup:${pack.id}`,
+                    // bought, not granted: the rollover clip's floor exempts this share
+                    also: { purchasedCredits: ws.purchasedCredits + pack.credits },
                 });
                 capture(payer(ws), "topup_purchased", {
                     pack_id: pack.id,
@@ -699,7 +747,7 @@ async function handleEvent(
         }
         if (!wsId || !checkoutSub) return;
         const sub = checkoutSub;
-        const plan = readSub(sub).plan;
+        const { plan, interval } = readSub(sub);
         if (plan === "free") return;
         const [before] = await tx
             .select()
@@ -707,13 +755,22 @@ async function handleEvent(
             .where(eq(schema.workspaces.id, wsId))
             .for("update");
         if (!before) return;
-        const grant = monthlyGrantFor({ ...before, plan, seats: seatsOf(sub) });
+        const shape = { ...before, plan, seats: seatsOf(sub) };
+        const grant = clipGrant(
+            monthlyGrantFor(shape),
+            before.aiCreditsBalance,
+            before.purchasedCredits,
+            rolloverCapFor(shape),
+        );
         await grantOnce(tx, before, {
             key: s.id,
             delta: grant,
             reason: "upgrade-grant",
             also: {
+                // pre-grant balance: a spent pack decays instead of absorbing the fresh grant
+                purchasedCredits: Math.min(before.purchasedCredits, before.aiCreditsBalance),
                 plan,
+                planInterval: interval,
                 planStatus: activeStatus(sub.status),
                 stripeCustomerId: customerId ?? undefined,
                 stripeSubscriptionId: sub.id,
@@ -759,6 +816,7 @@ async function handleEvent(
                 .update(schema.workspaces)
                 .set({
                     plan: "free",
+                    planInterval: null,
                     planStatus: "canceled",
                     stripeSubscriptionId: null,
                     // the seat add-on dies with the subscription; members stay and sit over the cap.
@@ -782,6 +840,12 @@ async function handleEvent(
             return;
         }
         const plan = planForPrice(sub.items.data[0]?.price.id);
+        const interval = intervalForPrice(sub.items.data[0]?.price.id);
+        // an unmapped price is an env misconfiguration; the sync silently keeps the old plan, so say so
+        if (!plan)
+            warn(
+                `[billing] unknown plan price ${sub.items.data[0]?.price.id ?? "none"} on subscription ${sub.id}`,
+            );
         // a scheduled downgrade has landed once the sub matches what was parked
         const sc = ws.scheduledChange;
         const scheduleDone = !!sc && sc.plan === plan && sc.seats === seatsOf(sub);
@@ -789,6 +853,7 @@ async function handleEvent(
             .update(schema.workspaces)
             .set({
                 ...(plan ? { plan } : {}),
+                ...(interval ? { planInterval: interval } : {}),
                 planStatus: activeStatus(sub.status),
                 stripeSubscriptionId: sub.id,
                 seats: seatsOf(sub),
@@ -800,7 +865,7 @@ async function handleEvent(
         const from = planFor(ws.plan).id;
         const to = planFor(plan ?? ws.plan).id;
         identifyWorkspace(ws.id, { plan_id: to, seats_total: seatsOf(sub) });
-        const toInterval = intervalForPrice(sub.items.data[0]?.price.id) ?? "month";
+        const toInterval = interval ?? "month";
         if (from !== to)
             capture(payer(ws), "plan_changed", {
                 from_plan: from,
@@ -838,15 +903,25 @@ async function handleEvent(
         const customerId = invCustomer(inv);
         const ws = customerId ? await workspaceByCustomer(tx, customerId) : null;
         if (!ws) return;
-        if (inv.billing_reason === "subscription_cycle") {
-            // Only a cycle renewal grants; other invoices just clear dunning. The grant adds to
-            // what is banked rather than replacing it, the same as rollCreditWindow.
+        if (inv.billing_reason === "subscription_cycle" && ws.planInterval !== "year") {
+            // Only a monthly cycle renewal grants; other invoices just clear dunning, and an annual
+            // renewal too, since the lazy roll owns an annual sub's monthly cadence and granting
+            // here as well would double it. The grant adds to what is banked rather than replacing
+            // it, the same as rollCreditWindow.
+            const grant = clipGrant(
+                monthlyGrantFor(ws),
+                ws.aiCreditsBalance,
+                ws.purchasedCredits,
+                rolloverCapFor(ws),
+            );
             await grantOnce(tx, ws, {
                 key: inv.id,
-                delta: monthlyGrantFor(ws),
+                delta: grant,
                 reason: "renewal-grant",
                 also: {
                     planStatus: "active",
+                    // pre-grant balance, as rollCreditWindow clamps
+                    purchasedCredits: Math.min(ws.purchasedCredits, ws.aiCreditsBalance),
                     creditsStartedAt: new Date(),
                     creditsResetAt: monthOut(),
                 },

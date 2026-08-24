@@ -7,9 +7,11 @@ import {
     CREDIT_PACKS,
     PLANS,
     PLAN_ORDER,
+    ROLLOVER_CAP_MONTHS,
     can,
     canTopUp,
     canUpgradeFrom,
+    clipGrant,
     featureStatus,
     featuresFor,
     limit,
@@ -17,6 +19,7 @@ import {
     monthlyGrantFor,
     packFor,
     planFor,
+    rolloverCapFor,
     sellsSeats,
     resolveFeatures,
     visiblePlans,
@@ -240,5 +243,56 @@ describe("plan credit allowances", () => {
     // only Premium holds a team, so a seat add-on has exactly one plan to attach to
     it("sells seats on exactly one plan", () => {
         expect(PLAN_ORDER.filter(sellsSeats)).toEqual(["premium"]);
+    });
+});
+
+describe("the rollover cap", () => {
+    const pro = { plan: "pro", seats: 1 };
+    const cap = rolloverCapFor(pro); // 1400
+    const grant = monthlyGrantFor(pro); // 700
+
+    it("is a whole number of monthly grants", () => {
+        expect(ROLLOVER_CAP_MONTHS).toBeGreaterThanOrEqual(1);
+        expect(cap).toBe(ROLLOVER_CAP_MONTHS * grant);
+    });
+
+    it("scales with the seat add-on's credits", () => {
+        const team = { plan: "premium", seats: 5 };
+        expect(rolloverCapFor(team)).toBe(ROLLOVER_CAP_MONTHS * monthlyGrantFor(team));
+    });
+
+    it("grants in full under the cap", () => {
+        expect(clipGrant(grant, 0, 0, cap)).toBe(grant);
+        expect(clipGrant(grant, cap - grant, 0, cap)).toBe(grant);
+    });
+
+    it("clips to the remainder near the cap", () => {
+        expect(clipGrant(grant, cap - 100, 0, cap)).toBe(100);
+    });
+
+    it("grants nothing at or beyond the cap", () => {
+        expect(clipGrant(grant, cap, 0, cap)).toBe(0);
+        expect(clipGrant(grant, cap + 500, 0, cap)).toBe(0);
+    });
+
+    it("keeps granting while the granted share is under the cap, pack banked or not", () => {
+        // a 2,000-credit pack plus 300 granted: the pack lifts the ceiling, the grant lands
+        expect(clipGrant(grant, 300 + 2000, 2000, cap)).toBe(grant);
+        // pack partly spent: what is still banked shields, and the granted share is under cap
+        expect(clipGrant(grant, 200 + 1000, 1000, cap)).toBe(grant);
+        // pack mostly spent: the balance itself is below the purchase and shields entirely
+        expect(clipGrant(grant, 200, 2000, cap)).toBe(grant);
+    });
+
+    it("clips once the granted share reaches the cap, pack or no pack", () => {
+        expect(clipGrant(grant, cap + 2000, 2000, cap)).toBe(0);
+        expect(clipGrant(grant, cap + 100, 100, cap)).toBe(0);
+        // partial headroom grants exactly the remainder
+        expect(clipGrant(grant, cap - 100 + 500, 500, cap)).toBe(100);
+    });
+
+    it("handles a zero grant and never returns a negative", () => {
+        expect(clipGrant(0, 0, 0, cap)).toBe(0);
+        expect(clipGrant(grant, cap * 3, 0, cap)).toBe(0);
     });
 });

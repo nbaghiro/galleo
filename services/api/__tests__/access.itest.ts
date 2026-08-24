@@ -467,9 +467,7 @@ describe("the per-member credit cap", () => {
     });
 
     const spend = (userId: string, role: "owner" | "admin" | "member") =>
-        getWs(cast.workspaceId).then((ws) =>
-            reserve(ws, userId, "generate-theme", {}, {}, false, role),
-        );
+        getWs(cast.workspaceId).then((ws) => reserve(ws, userId, "generate-theme", { role }));
 
     it("lets a member spend right up to the cap and refuses the call that would cross it", async () => {
         await setWs(cast.workspaceId, { memberCreditCap: COST * 2 });

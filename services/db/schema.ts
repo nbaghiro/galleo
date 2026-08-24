@@ -20,7 +20,7 @@ import {
 import { sql } from "drizzle-orm";
 import type { GenMeta, ArtifactDigest, ArtifactAccess } from "@model/artifact";
 import type { CommentAnchor } from "@model/comments";
-import type { FeatureOverrides, ScheduledChange } from "@model/billing";
+import type { FeatureOverrides, Interval, ScheduledChange } from "@model/billing";
 import type { Usage } from "@model/credits";
 import type { SpeechAlignment, VoiceLabels } from "@model/speech";
 import type { ArtifactContent } from "@model/artifact";
@@ -60,6 +60,11 @@ export const oauthAccounts = pgTable(
         provider: text("provider").notNull(), // google
         providerAccountId: text("provider_account_id").notNull(), // the provider's stable subject id
         createdAt: timestamp("created_at").notNull().defaultNow(),
+        // Connect-scope grant (Drive export). Sign-in leaves all three null. Access token only by
+        // design: expiry re-runs the consent popup instead of this row holding a refresh token.
+        accessToken: text("access_token"),
+        accessTokenExpiresAt: timestamp("access_token_expires_at"),
+        scopes: text("scopes"), // space-separated, as granted
     },
     (t) => [unique().on(t.provider, t.providerAccountId)],
 );
@@ -85,6 +90,9 @@ export const workspaces = pgTable("workspaces", {
         .notNull()
         .references(() => users.id),
     plan: text("plan").notNull().default("free"), // free | pro | premium (see @model/billing)
+    // month | year while subscribed, synced by the webhook; decides which path grants credits
+    // (monthly = the cycle invoice, annual = the lazy roll). Null = no subscription.
+    planInterval: text("plan_interval").$type<Interval>(),
     stripeCustomerId: text("stripe_customer_id"),
     stripeSubscriptionId: text("stripe_subscription_id"),
     planStatus: text("plan_status").notNull().default("active"), // active | past_due | canceled
@@ -95,6 +103,10 @@ export const workspaces = pgTable("workspaces", {
     // The only credit counter, and a balance rather than a usage tally: the monthly grant is added
     // at the roll and unspent credits carry, so a one-off purchase is just another addition and
     // nothing has to survive a reset that no longer happens.
+    // Pack credits still in the bank. Grants clip against ROLLOVER_CAP_MONTHS x the monthly grant
+    // and this floor exempts purchases; re-clamped to the balance at each grant, since spends draw
+    // granted credits first by convention.
+    purchasedCredits: integer("purchased_credits").notNull().default(0),
     creditsResetAt: timestamp("credits_reset_at").notNull().defaultNow(),
     // when the current credit window opened; every writer of credits_reset_at sets both
     creditsStartedAt: timestamp("credits_started_at").notNull().defaultNow(),

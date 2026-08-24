@@ -56,10 +56,11 @@ describe("priceIdFor", () => {
         expect(priceIdFor("pro")).toBe("price_pro_month");
     });
 
-    it("falls back to the monthly price when the annual id is missing", () => {
+    // no cross-interval fallback: an advertised annual price must never quietly book monthly
+    it("returns undefined when the annual id is missing instead of booking monthly", () => {
         vi.stubEnv("STRIPE_PRICE_PRO_MONTH", "price_pro_month");
         // STRIPE_PRICE_PRO_YEAR intentionally absent
-        expect(priceIdFor("pro", "year")).toBe("price_pro_month");
+        expect(priceIdFor("pro", "year")).toBeUndefined();
     });
 
     it("returns undefined for the free plan (no price)", () => {

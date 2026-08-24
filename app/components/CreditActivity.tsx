@@ -4,6 +4,19 @@ import { describeUsage } from "@model/credits";
 import type { LedgerEntry } from "@app/api";
 import { ledgerReasonLabel } from "@app/stores/billing";
 
+// must stay in sync with the grant reasons the ledger writes (core/ledger.ts, core/billing.ts,
+// core/onboarding.ts); a pack is keyed per pack id as `topup:<pack>`
+const GRANT_REASONS = new Set(["monthly-grant", "renewal-grant", "upgrade-grant", "signup-grant"]);
+const isGrant = (reason: string): boolean =>
+    GRANT_REASONS.has(reason) || reason.startsWith("topup:");
+
+// a spend that settled to zero: a cache hit, or a run refunded in full
+const isCached = (e: LedgerEntry): boolean => e.delta === 0 && !isGrant(e.reason);
+
+/** The preview's head rows: real spend and grants, without the zero-cost cache-hit noise. */
+export const previewEntries = (entries: LedgerEntry[]): LedgerEntry[] =>
+    entries.filter((e) => !isCached(e)).slice(0, ACTIVITY_PREVIEW_ROWS);
+
 // The one rendering of the credit ledger, shared by the pricing and settings previews and the full
 // activity page, so the three surfaces cannot drift apart. Renders its own framed list; callers
 // own the heading and any "View all" link beside it.
@@ -25,10 +38,22 @@ export const CreditActivity: Component<{
         >
             <For each={props.entries}>
                 {(e) => (
-                    <li class="flex items-center gap-3 px-4 py-2.5 tabular-nums">
+                    <li
+                        class={`flex items-center gap-3 px-4 py-2.5 tabular-nums ${e.delta === 0 ? "opacity-60" : ""}`}
+                    >
                         <div class="min-w-0 flex-1">
                             <div class="truncate font-medium capitalize text-ink">
                                 {ledgerReasonLabel(e.reason)}
+                                <Show when={isCached(e)}>
+                                    <span class="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                                        cached
+                                    </span>
+                                </Show>
+                                <Show when={e.delta === 0 && isGrant(e.reason)}>
+                                    <span class="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                                        at the cap
+                                    </span>
+                                </Show>
                             </div>
                             <Show when={full()}>
                                 <div class="truncate text-[11.5px] text-muted">

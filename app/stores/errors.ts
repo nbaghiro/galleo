@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import type { PaywallReason } from "@app/api";
 import { ApiError } from "@app/api";
 import { areaFor } from "@model/analytics";
 import { capture } from "@ui/analytics";
@@ -49,11 +50,23 @@ const HINTS: [RegExp, string][] = [
 
 const STATUS: Record<number, { title: string; hint: string }> = {
     401: { title: "You're signed out", hint: "Sign in again to pick up where you left off." },
-    402: { title: "Out of credits", hint: "" }, // the hint depends on which remedies apply
     403: { title: "Not allowed", hint: "Your plan or role doesn't cover that." },
     429: { title: "Too many requests", hint: "Give it a moment and try again." },
     501: { title: "Not available yet", hint: "That step isn't built yet." },
     503: { title: "AI is unavailable", hint: "No AI provider is configured on this server." },
+};
+
+// One status, several walls: the server names which one in `reason`, and the title and remedy
+// follow from it. A member over their own cap is not out of credits, so no sale is offered there.
+const PAYWALL: Record<PaywallReason, { title: string; hint?: string }> = {
+    credits: { title: "Out of credits" }, // the hint depends on which remedies apply
+    "member-cap": {
+        title: "Your spending limit is reached",
+        hint: "This workspace caps what each member can spend per cycle. A workspace admin can raise it.",
+    },
+    storage: { title: "Storage is full", hint: "Upgrade for more space, or remove some uploads." },
+    seats: { title: "Out of seats", hint: "Add seats or remove a member first." },
+    feature: { title: "Not on your plan", hint: "Upgrade to unlock it." },
 };
 
 // Names only the remedies the workspace actually has: on the top plan there is nothing to upgrade
@@ -65,7 +78,7 @@ const creditHint = (upgrade?: boolean, topUp?: boolean): string =>
           ? "Buy a credit pack to keep generating."
           : upgrade
             ? "Upgrade to keep generating."
-            : "Your credits reset at the start of the next billing period.";
+            : "Your plan adds more credits at the start of your next billing cycle.";
 
 const message = (e: unknown): string =>
     e instanceof Error ? e.message : typeof e === "string" ? e : "";
@@ -75,15 +88,23 @@ export function describeError(e: unknown, doing: string): AppError | null {
     if (isAbort(e)) return null; // the user cancelled; not a failure
     const raw = message(e).trim();
     if (e instanceof ApiError) {
+        if (e.status === 402) {
+            const { upgrade, topUp, reason } = e.remedies;
+            const wall = PAYWALL[reason ?? "credits"];
+            return {
+                title: wall.title,
+                detail: raw && raw !== wall.title ? raw : undefined,
+                hint: wall.hint ?? creditHint(upgrade, topUp),
+                upgrade,
+                topUp,
+            };
+        }
         const known = STATUS[e.status];
         if (known) {
-            const { upgrade, topUp } = e.remedies;
             return {
                 title: known.title,
                 detail: raw && raw !== known.title ? raw : undefined,
-                hint: known.hint || creditHint(upgrade, topUp),
-                upgrade,
-                topUp,
+                hint: known.hint,
             };
         }
     }

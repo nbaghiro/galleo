@@ -1,8 +1,8 @@
-import { and, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { db } from "@services/db/client";
 import type { Tx } from "@services/db/client";
 import { schema } from "@services/db/schema";
-import { monthlyGrantFor } from "@model/billing";
+import { clipGrant, monthlyGrantFor, rolloverCapFor } from "@model/billing";
 import type { Usage } from "@model/credits";
 
 // Re-exported so the ledger's own callers keep one import; the type belongs to the db handle.
@@ -14,7 +14,9 @@ export type { Tx };
 // There is one counter, `ai_credits_balance`, and it is a balance rather than a usage tally. The
 // subscription adds its monthly grant at each roll without clearing what is there, so unspent
 // credits carry; a purchased pack adds to the same number. Because nothing is ever wiped, a bought
-// credit needs no pool of its own, which is what lets one column hold both.
+// credit needs no pool of its own, which is what lets one column hold both. Grants clip against
+// ROLLOVER_CAP_MONTHS of banked allowance (clipGrant in @model/billing); `purchased_credits`
+// tracks the pack share the clip must never touch.
 //
 // Each mutation locks the workspace row (SELECT … FOR UPDATE) so concurrent requests serialize and
 // none passes a near-limit gate twice.
@@ -63,6 +65,9 @@ export type WorkspaceCreditFields = {
     featureOverrides?: typeof schema.workspaces.$inferSelect.featureOverrides;
     creditsStartedAt?: Date;
     memberCreditCap?: number | null;
+    stripeSubscriptionId?: string | null;
+    planInterval?: string | null;
+    purchasedCredits?: number;
 };
 
 // One person's net spend since the window opened: charges minus refunds. Only spends and settles
@@ -82,6 +87,28 @@ export async function spendThisCycle(
             ),
         );
     return Math.max(0, Number(row?.total ?? 0));
+}
+
+// Every member's net spend since the window opened, one grouped query for the roster view.
+export async function spendByMember(ws: {
+    id: string;
+    creditsStartedAt: Date;
+}): Promise<Map<string, number>> {
+    const rows = await db
+        .select({
+            userId: schema.credits.userId,
+            total: sql<string>`COALESCE(SUM(-${schema.credits.delta}), 0)`,
+        })
+        .from(schema.credits)
+        .where(
+            and(
+                eq(schema.credits.workspaceId, ws.id),
+                isNotNull(schema.credits.userId),
+                gt(schema.credits.createdAt, ws.creditsStartedAt),
+            ),
+        )
+        .groupBy(schema.credits.userId);
+    return new Map(rows.map((r) => [r.userId!, Math.max(0, Number(r.total))]));
 }
 
 interface SpendResult {
@@ -128,12 +155,14 @@ export async function chargeCredits(
 // delta > 0 bills beyond the reserve, delta < 0 refunds an over-reserve; applied against the LIVE
 // row, so a spend that landed mid-turn survives and extra spend can drive the balance to zero.
 // `entryId` is the row chargeCredits wrote, which this rewrites in place rather than appending to.
+// `usage` replaces the row's estimate with actuals (null clears it, undefined keeps it).
 export async function settleCredits(
     ws: WorkspaceCreditFields,
     entryId: string,
     delta: number,
+    usage?: Usage | null,
 ): Promise<void> {
-    if (delta === 0) return;
+    if (delta === 0 && usage === undefined) return;
     await db.transaction(async (tx) => {
         const [row] = await tx
             .select({ balance: schema.workspaces.aiCreditsBalance })
@@ -146,15 +175,20 @@ export async function settleCredits(
             .update(schema.workspaces)
             .set({ aiCreditsBalance: balance })
             .where(eq(schema.workspaces.id, ws.id));
-        // the charge row already carries the reason and who ran it; only the amount moved
+        // the charge row already carries the reason and who ran it
         await tx
             .update(schema.credits)
-            .set({ delta: sql`${schema.credits.delta} - ${delta}`, balanceAfter: balance })
+            .set({
+                delta: sql`${schema.credits.delta} - ${delta}`,
+                balanceAfter: balance,
+                ...(usage !== undefined ? { usage } : {}),
+            })
             .where(eq(schema.credits.id, entryId));
     });
 }
 
 const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+const WEBHOOK_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
 
 /**
  * What a brand-new workspace opens with. The window matters because the column defaults leave a row
@@ -191,12 +225,24 @@ export async function rollCreditWindow(
     ws: WorkspaceCreditFields & { creditsResetAt: Date },
 ): Promise<RolledWindow | null> {
     if (ws.creditsResetAt.getTime() > Date.now()) return null;
-    const grant = monthlyGrantFor(ws);
+    // A live monthly subscription is granted by its cycle invoice; rolling here too would double
+    // the grant whenever the Stripe month outruns the flat 30-day window. Annual subs keep the
+    // lazy roll, which is their only monthly granter. The grace covers Stripe's retry horizon:
+    // past it the invoice is not coming, so the roll self-heals the missed grant and re-anchors.
+    if (
+        ws.stripeSubscriptionId &&
+        ws.planInterval !== "year" &&
+        Date.now() < ws.creditsResetAt.getTime() + WEBHOOK_GRACE_MS
+    )
+        return null;
+    const cap = rolloverCapFor(ws);
+    const full = monthlyGrantFor(ws);
     return db.transaction(async (tx) => {
         const [row] = await tx
             .select({
                 balance: schema.workspaces.aiCreditsBalance,
                 resetAt: schema.workspaces.creditsResetAt,
+                purchased: schema.workspaces.purchasedCredits,
             })
             .from(schema.workspaces)
             .where(eq(schema.workspaces.id, ws.id))
@@ -204,16 +250,20 @@ export async function rollCreditWindow(
         if (!row || row.resetAt.getTime() > Date.now()) return null;
         const startedAt = new Date();
         const resetAt = new Date(startedAt.getTime() + WINDOW_MS);
+        const grant = clipGrant(full, row.balance, row.purchased, cap);
         const balance = row.balance + grant;
         await tx
             .update(schema.workspaces)
             .set({
                 aiCreditsBalance: balance,
+                // clamp against the pre-grant balance: a spent pack decays to zero rather than
+                // counting the fresh grant as pack credits and inflating every later ceiling
+                purchasedCredits: Math.min(row.purchased, row.balance),
                 creditsStartedAt: startedAt,
                 creditsResetAt: resetAt,
             })
             .where(eq(schema.workspaces.id, ws.id));
-        // a positive row, since the grant is money in rather than a counter being wiped
+        // the applied amount, clipped included: a short grant is visible rather than mysterious
         await tx.insert(schema.credits).values({
             workspaceId: ws.id,
             delta: grant,

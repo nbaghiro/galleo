@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { COST_UNITS, CREDIT_USD, creditsForUsd } from "@model/credits";
-import { owed } from "@services/core/spend";
+import { owed, settledUsage } from "@services/core/spend";
 
 const FLASH = "google:gemini-3.5-flash";
 const use = (input: number, output: number) => [{ modelId: FLASH, input, output }];
@@ -47,5 +47,27 @@ describe("what a run owes", () => {
 
     it("keeps one credit worth the same as the anchor", () => {
         expect(creditsForUsd(CREDIT_USD)).toBe(1);
+    });
+});
+
+describe("what the settled row says it bought", () => {
+    it("keeps the estimate when the run reported nothing", () => {
+        expect(settledUsage({ text: 1 }, {})).toBeUndefined();
+    });
+
+    it("keeps the estimate when the actuals match it", () => {
+        expect(settledUsage({ image: 3 }, { image: 3 })).toBeUndefined();
+    });
+
+    it("replaces reported units and keeps token-billed ones", () => {
+        expect(settledUsage({ plan: 1, section: 12, image: 3 }, { image: 2 })).toEqual({
+            plan: 1,
+            section: 12,
+            image: 2,
+        });
+    });
+
+    it("clears the row when the run reported zero of the only unit", () => {
+        expect(settledUsage({ speech: 1 }, { speech: 0 })).toBeNull();
     });
 });

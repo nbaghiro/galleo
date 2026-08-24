@@ -1,11 +1,47 @@
 import { createSignal } from "solid-js";
 import type { CreditPackId, Interval, PlanId } from "@model/billing";
-import type { BillingState, LedgerEntry } from "@app/api";
-import { api } from "@app/api";
+import type { BillingState, ChangeEffect, LedgerEntry } from "@app/api";
+import { api, ApiError } from "@app/api";
 import { capture, register } from "@ui/analytics";
 
 const [billing, setBilling] = createSignal<BillingState | null>(null);
 export { billing };
+
+// One busy scope for every billing mutation, shared by the pricing page and the plan grid, so a
+// seat change and a plan change cannot run against Stripe concurrently. Checkout and the portal
+// redirect away, so their pending state simply persists until navigation.
+const [pendingAction, setPendingAction] = createSignal<string | null>(null);
+const [mutationError, setMutationError] = createSignal<ApiError | null>(null);
+// what the last change did: applied now, parked at period end, or a pending cancel
+const [lastChange, setLastChange] = createSignal<ChangeEffect | null>(null);
+export { lastChange, mutationError };
+
+export const billingBusy = (key: string): boolean => pendingAction() === key;
+export const anyBillingBusy = (): boolean => pendingAction() !== null;
+export const dismissBillingError = (): void => {
+    setMutationError(null);
+};
+export const dismissLastChange = (): void => {
+    setLastChange(null);
+};
+
+export async function runBilling(key: string, fn: () => Promise<void>): Promise<void> {
+    if (pendingAction() !== null) return;
+    setPendingAction(key);
+    setMutationError(null);
+    setLastChange(null);
+    try {
+        await fn();
+    } catch (e) {
+        setMutationError(
+            e instanceof ApiError
+                ? e
+                : new ApiError(0, e instanceof Error ? e.message : "Something went wrong."),
+        );
+    } finally {
+        setPendingAction(null);
+    }
+}
 
 // The credit ledger, paged keyset-style by the server (30 rows a page). The pricing page shows the
 // head as a preview; the activity page appends the rest through the scroll sentinel.
@@ -14,7 +50,9 @@ const [ledgerLoaded, setLedgerLoaded] = createSignal(false);
 // null once the history is exhausted; the sentinel reads it to know when to stop
 const [ledgerCursor, setLedgerCursor] = createSignal<string | null>(null);
 const [ledgerLoadingMore, setLedgerLoadingMore] = createSignal(false);
-export { ledgerCursor, ledgerEntries, ledgerLoaded, ledgerLoadingMore };
+// the first page failed and there is nothing to show; distinct from a genuinely empty history
+const [ledgerError, setLedgerError] = createSignal(false);
+export { ledgerCursor, ledgerEntries, ledgerError, ledgerLoaded, ledgerLoadingMore };
 
 // "generate-artifact:settle" → "generate artifact (adjusted)". A settle now rewrites the charge's
 // own row, so the suffixes only appear on rows written before that change.
@@ -27,13 +65,15 @@ let ledgerEpoch = 0;
 /** Fetch page one, replacing the list. */
 export async function loadLedger(): Promise<void> {
     const mine = ++ledgerEpoch;
+    setLedgerError(false);
     try {
         const page = await api.getLedger();
         if (mine !== ledgerEpoch) return;
         setLedgerEntries(page.entries);
         setLedgerCursor(page.nextCursor);
     } catch {
-        /* keep whatever we have */
+        // keep whatever we have; with nothing, the views need "failed" over "empty"
+        if (mine === ledgerEpoch && ledgerEntries().length === 0) setLedgerError(true);
     } finally {
         if (mine === ledgerEpoch) setLedgerLoaded(true);
     }
@@ -84,24 +124,13 @@ export async function loadBilling(): Promise<void> {
     }
 }
 
-// Read by the pricing page to tell a visit that converted from one that was abandoned.
-const [checkoutStarted, setCheckoutStarted] = createSignal(false);
-export { checkoutStarted };
-
 export async function startCheckout(opts: {
     plan: PlanId;
     interval?: Interval;
     seats?: number;
 }): Promise<void> {
-    setCheckoutStarted(true);
-    try {
-        const { url } = await api.checkout(opts);
-        if (url) window.location.href = url;
-        else setCheckoutStarted(false); // nothing to go to, so the visit is still abandonable
-    } catch (e) {
-        setCheckoutStarted(false);
-        throw e;
-    }
+    const { url } = await api.checkout(opts);
+    if (url) window.location.href = url;
 }
 
 export async function changePlan(opts: {
@@ -109,7 +138,8 @@ export async function changePlan(opts: {
     interval?: Interval;
     seats?: number;
 }): Promise<void> {
-    await api.changePlan(opts);
+    const res = await api.changePlan(opts);
+    setLastChange(res.effect ?? null);
     await loadBilling();
 }
 

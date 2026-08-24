@@ -11,12 +11,15 @@ import { capture } from "./analytics";
 // The HTTP toolkit: everything here is database-free, so it stays unit-testable. Anything that
 // reads a row lives in domain/ (see domain/accounts.ts for the session/workspace readers).
 
+export type { PaywallReason } from "@model/billing";
+
 // The one 402 body every metered route returns. Which remedies apply depends on the plan and both
 // can be false-y at once in neither direction: Premium has nothing above it to upgrade to, and Free
 // may not buy packs, so a body that always said "upgrade" told a Premium workspace to do the one
 // thing it cannot.
 export const OUT_OF_CREDITS = (ws: PlanBearer, remaining: number) => ({
     error: "out of AI credits",
+    reason: "credits" as const,
     remaining,
     upgrade: canUpgradeFrom(ws.plan),
     topUp: canTopUp(ws.plan),
@@ -26,8 +29,15 @@ export const OUT_OF_CREDITS = (ws: PlanBearer, remaining: number) => ({
 // full, and only an admin can raise the cap, so the body says who to ask instead of offering a sale.
 export const OVER_MEMBER_CAP = (cap: number, remaining: number) => ({
     error: `You've used your ${cap.toLocaleString()} credit limit for this cycle. A workspace admin can raise it.`,
+    reason: "member-cap" as const,
     remaining,
 });
+
+/** A refused reserve() as its 402 body: the member's own ceiling when capped, else the pool's. */
+export const creditRefusal = (ws: PlanBearer, held: { remaining: number; capped?: number }) =>
+    held.capped == null
+        ? OUT_OF_CREDITS(ws, held.remaining)
+        : OVER_MEMBER_CAP(held.capped, held.remaining);
 
 // A body is untrusted input, so a route states the shape it accepts and gets null when the body
 // does not match. Null rather than a throw keeps the 400 in the route, beside its other failures.
@@ -106,7 +116,9 @@ export function requireFeature(
     key: BoolFeature,
     message: string,
 ): Response | null {
-    return can(featuresFor(ws), key) ? null : c.json({ error: message, upgrade: true }, 402);
+    return can(featuresFor(ws), key)
+        ? null
+        : c.json({ error: message, reason: "feature" as const, upgrade: true }, 402);
 }
 
 export function checkLimit(
@@ -122,6 +134,7 @@ export function checkLimit(
     return c.json(
         {
             error: message?.(cap) ?? `Your plan is limited to ${cap} — upgrade for more.`,
+            reason: "feature" as const,
             upgrade: true,
         },
         402,

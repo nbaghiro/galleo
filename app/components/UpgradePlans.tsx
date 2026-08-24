@@ -5,17 +5,22 @@ import { ADD_ONS } from "@model/billing";
 import { CheckIcon } from "@ui/icons";
 import { Badge, Button } from "@ui/button";
 import { Segmented, TextField } from "@ui/inputs";
-import { billing, changePlan, startCheckout } from "@app/stores/billing";
+import {
+    anyBillingBusy,
+    billing,
+    billingBusy,
+    changePlan,
+    runBilling,
+    startCheckout,
+} from "@app/stores/billing";
+import { canManageBilling } from "@app/stores/workspace";
 
 // The plan grid and the flow behind it, in one place so /pricing and any wall that wants to sell a
 // plan without leaving the page render the same thing and take the same path through Stripe.
 
 const RANK: Record<PlanId, number> = { free: 0, pro: 1, premium: 2 };
 
-export const UpgradePageContent: Component<{
-    /** Hides the interval and seat controls where the surface is too small to carry them. */
-    compact?: boolean;
-}> = (props) => {
+export const UpgradePageContent: Component = () => {
     const b = billing;
     const current = (): PlanId => b()?.plan ?? "free";
     const ready = (): boolean => b()?.stripeReady ?? false;
@@ -26,27 +31,22 @@ export const UpgradePageContent: Component<{
     // only a plan that sells seat add-ons responds to the seat control; Free and Pro are solo
     const sellsSeats = (plan: Plan): boolean => plan.billing.sellsSeats;
     const unitPrice = (plan: Plan): number =>
-        interval() === "year" ? plan.billing.priceAnnualMonthly : plan.billing.priceMonthly;
+        chosenInterval() === "year" ? plan.billing.priceAnnualMonthly : plan.billing.priceMonthly;
     const seatsFor = (plan: Plan): number => Math.max(seats(), plan.billing.includedSeats);
     const extraSeats = (plan: Plan): number => seatsFor(plan) - plan.billing.includedSeats;
     const monthlyTotal = (plan: Plan): number =>
         unitPrice(plan) + (sellsSeats(plan) ? extraSeats(plan) * ADD_ONS.seat.priceUsd : 0);
 
-    // keyed by plan id; checkout redirects away, so pending simply persists until navigation
-    const [pending, setPending] = createSignal<string | null>(null);
-    const busy = (key: string): boolean => pending() === key;
-    const anyBusy = (): boolean => pending() !== null;
-    const run = async (key: string, fn: () => Promise<void>): Promise<void> => {
-        if (anyBusy()) return;
-        setPending(key);
-        try {
-            await fn();
-        } catch {
-            // errors surface via the store / reloaded state; just release the button
-        } finally {
-            setPending(null);
-        }
-    };
+    const busy = billingBusy;
+    const anyBusy = anyBillingBusy;
+    const run = runBilling;
+
+    // which intervals this deployment can sell; the toggle exists only when both do, and a pick
+    // never sends an interval the server marked unavailable
+    const monthReady = (): boolean => b()?.intervals.month ?? true;
+    const annualReady = (): boolean => b()?.intervals.year ?? false;
+    const chosenInterval = (): Interval =>
+        monthReady() && annualReady() ? interval() : annualReady() ? "year" : "month";
 
     const pick = (plan: Plan): void => {
         if (plan.id === current()) return;
@@ -56,11 +56,20 @@ export const UpgradePageContent: Component<{
         }
         const opts = {
             plan: plan.id,
-            interval: interval(),
-            seats: sellsSeats(plan) ? seatsFor(plan) : undefined,
+            interval: chosenInterval(),
+            // explicit even on solo plans, so a downgrade never inherits the seats it is shedding
+            seats: sellsSeats(plan) ? seatsFor(plan) : plan.billing.includedSeats,
         };
         // free → paid needs Checkout (collect a payment method); paid → paid is an in-app change.
         void run(plan.id, () => (current() === "free" ? startCheckout(opts) : changePlan(opts)));
+    };
+
+    // monthly↔annual on the plan you already have, without leaving for the Stripe portal
+    const otherInterval = (): Interval | null => {
+        const cur = b()?.interval;
+        if (!cur || current() === "free") return null;
+        const other: Interval = cur === "month" ? "year" : "month";
+        return (b()?.intervals[other] ?? false) ? other : null;
     };
 
     const ctaLabel = (plan: Plan): string => {
@@ -74,8 +83,8 @@ export const UpgradePageContent: Component<{
 
     return (
         <>
-            <Show when={!props.compact}>
-                <div class="mb-4 flex flex-wrap items-center gap-3">
+            <div class="mb-4 flex flex-wrap items-center gap-3">
+                <Show when={monthReady() && annualReady()}>
                     <Segmented
                         value={interval()}
                         options={[
@@ -87,19 +96,22 @@ export const UpgradePageContent: Component<{
                     <span class="text-[11px] font-semibold text-accent">
                         annual saves about 2 months
                     </span>
-                    <label class="inline-flex items-center gap-2 text-[12px] text-muted">
-                        Seats
-                        <TextField
-                            type="number"
-                            min={1}
-                            value={String(seats())}
-                            onChange={(v) => setSeats(Math.max(1, Math.floor(Number(v) || 1)))}
-                            class="w-16"
-                        />
-                        <span class="text-[11px]">on plans that sell seats</span>
-                    </label>
-                </div>
-            </Show>
+                </Show>
+                <label class="inline-flex items-center gap-2 text-[12px] text-muted">
+                    Seats
+                    <TextField
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={String(seats())}
+                        onChange={(v) =>
+                            setSeats(Math.min(100, Math.max(1, Math.floor(Number(v) || 1))))
+                        }
+                        class="w-16"
+                    />
+                    <span class="text-[11px]">on plans that sell seats</span>
+                </label>
+            </div>
 
             <div class="grid gap-4 md:grid-cols-3">
                 <For each={b()?.catalog ?? []}>
@@ -135,7 +147,7 @@ export const UpgradePageContent: Component<{
                                     <span class="text-[13px] text-muted">/ mo</span>
                                 </div>
                                 <div class="mt-0.5 min-h-4 text-[11.5px] text-muted">
-                                    <Show when={interval() === "year" && unitPrice(plan) > 0}>
+                                    <Show when={chosenInterval() === "year" && unitPrice(plan) > 0}>
                                         billed annually
                                     </Show>
                                     <Show when={plan.billing.includedSeats > 1}>
@@ -164,13 +176,36 @@ export const UpgradePageContent: Component<{
                                     size="md"
                                     class="mt-5 w-full"
                                     disabled={
-                                        isCurrent() || (plan.id !== "free" && !ready()) || anyBusy()
+                                        isCurrent() ||
+                                        (plan.id !== "free" && !ready()) ||
+                                        anyBusy() ||
+                                        !canManageBilling()
                                     }
                                     loading={busy(plan.id)}
                                     onClick={() => pick(plan)}
                                 >
                                     {busy(plan.id) ? "Processing…" : ctaLabel(plan)}
                                 </Button>
+                                <Show when={isCurrent() && otherInterval()}>
+                                    {(other) => (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            class="mt-2 w-full"
+                                            disabled={anyBusy() || !canManageBilling() || !ready()}
+                                            loading={busy("interval")}
+                                            onClick={() =>
+                                                void run("interval", () =>
+                                                    changePlan({ interval: other() }),
+                                                )
+                                            }
+                                        >
+                                            {other() === "year"
+                                                ? "Switch to annual billing"
+                                                : "Switch to monthly billing"}
+                                        </Button>
+                                    )}
+                                </Show>
                             </div>
                         );
                     }}

@@ -26,17 +26,18 @@ const notOwner = (c: Context, ws: { ownerId: string }, userId: string): Response
         : null;
 
 const NOT_CONFIGURED = { error: "billing not configured" } as const;
+const SEATS_NOT_CONFIGURED = "Extra seats are not available on this billing interval yet.";
 
 const zWanted = z.object({
     plan: z.enum(["free", "pro", "premium"]).optional(),
     interval: z.enum(["month", "year"]).optional(),
-    seats: z.number().int().positive().optional(),
+    seats: z.number().int().positive().max(100).optional(),
 });
 
 const zTopup = z.object({ pack: z.enum(["pack-500", "pack-2k"]).optional() });
 
 plan.get("/billing", requireWorkspace, async (c) =>
-    c.json(await billingSummary(c.get("ws"), c.get("user").id)),
+    c.json(await billingSummary(c.get("ws"), c.get("user").id, c.get("role"))),
 );
 
 plan.post("/billing/checkout", requireWorkspace, async (c) => {
@@ -51,7 +52,9 @@ plan.post("/billing/checkout", requireWorkspace, async (c) => {
     if (!want) return c.json(BAD_BODY, 400);
     const result = await checkoutUrl(ws, user.email, want);
     if (result && typeof result === "object" && "error" in result)
-        return c.json({ error: "invalid plan" }, 400);
+        return result.error === "seats-not-configured"
+            ? c.json({ error: SEATS_NOT_CONFIGURED }, 400)
+            : c.json({ error: "invalid plan" }, 400);
     return c.json({ url: result });
 });
 
@@ -62,7 +65,11 @@ plan.post("/billing/topup", requireWorkspace, async (c) => {
     if (!stripeReady()) return c.json(NOT_CONFIGURED, 503);
     if (!canTopUp(ws.plan))
         return c.json(
-            { error: "Credit packs need a paid plan. Upgrade to buy one.", upgrade: true },
+            {
+                error: "Credit packs need a paid plan. Upgrade to buy one.",
+                reason: "feature" as const,
+                upgrade: true,
+            },
             402,
         );
     const body = await readJson(c, zTopup);
@@ -79,6 +86,7 @@ plan.post("/billing/portal", requireWorkspace, async (c) => {
     const [user, ws] = [c.get("user"), c.get("ws")];
     const denied = notOwner(c, ws, user.id);
     if (denied) return denied;
+    if (!stripeReady()) return c.json(NOT_CONFIGURED, 503);
     if (!ws.stripeCustomerId) return c.json({ error: "no subscription" }, 400);
     return c.json({ url: await portalUrl(ws.stripeCustomerId) });
 });
@@ -96,6 +104,8 @@ plan.post("/billing/change-plan", requireWorkspace, async (c) => {
     if ("error" in result) {
         if (result.error === "no-item") return c.json({ error: "no subscription item" }, 400);
         if (result.error === "invalid-plan") return c.json({ error: "invalid plan" }, 400);
+        if (result.error === "seats-not-configured")
+            return c.json({ error: SEATS_NOT_CONFIGURED }, 400);
         return c.json(
             {
                 error: `Your workspace has ${result.members} members. Remove some before reducing seats.`,
@@ -116,6 +126,9 @@ plan.post("/billing/resume", requireWorkspace, async (c) => {
     return c.json({ ok: true });
 });
 
+// parseable garbage must degrade too: an invalid date or a non-uuid id would 500 in the query
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 plan.get("/billing/ledger", requireWorkspace, async (c) => {
     const raw = c.req.query("cursor");
     let cursor: { at: Date; id: string } | null = null;
@@ -125,7 +138,10 @@ plan.get("/billing/ledger", requireWorkspace, async (c) => {
                 at?: string;
                 id?: string;
             };
-            if (parsed.at && parsed.id) cursor = { at: new Date(parsed.at), id: parsed.id };
+            if (parsed.at && parsed.id && UUID.test(parsed.id)) {
+                const at = new Date(parsed.at);
+                if (Number.isFinite(at.getTime())) cursor = { at, id: parsed.id };
+            }
         } catch {
             /* a bad cursor reads as the first page */
         }

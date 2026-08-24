@@ -2,7 +2,14 @@ import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import type { PlanBearer } from "@model/billing";
 import { z } from "zod";
-import { BAD_BODY, checkLimit, readJson, requireFeature } from "@services/utils/http";
+import {
+    BAD_BODY,
+    checkLimit,
+    OUT_OF_CREDITS,
+    OVER_MEMBER_CAP,
+    readJson,
+    requireFeature,
+} from "@services/utils/http";
 
 describe("plan guards", () => {
     // Hono seals its matcher on the first request, so every probe route is registered up front.
@@ -40,7 +47,11 @@ describe("plan guards", () => {
         expect((await app.request("/pro")).status).toBe(200);
         const res = await app.request("/free");
         expect(res.status).toBe(402);
-        expect(await body(res)).toEqual({ error: "Themes are Pro.", upgrade: true });
+        expect(await body(res)).toEqual({
+            error: "Themes are Pro.",
+            reason: "feature",
+            upgrade: true,
+        });
     });
 
     it("requireFeature honours a per-workspace override over the plan grant", async () => {
@@ -56,8 +67,29 @@ describe("plan guards", () => {
     it("checkLimit passes the resolved cap to the message builder", async () => {
         expect(await body(await app.request("/message"))).toEqual({
             error: "Free tops out at 10.",
+            reason: "feature",
             upgrade: true,
         });
+    });
+});
+
+describe("the 402 bodies", () => {
+    it("names its wall and only the remedies the plan really has", () => {
+        expect(OUT_OF_CREDITS({ plan: "free" }, 3)).toEqual({
+            error: "out of AI credits",
+            reason: "credits",
+            remaining: 3,
+            upgrade: true,
+            topUp: false,
+        });
+        expect(OUT_OF_CREDITS({ plan: "premium" }, 0)).toMatchObject({
+            upgrade: false,
+            topUp: true,
+        });
+    });
+
+    it("marks a member's own ceiling as the cap, not an empty pool", () => {
+        expect(OVER_MEMBER_CAP(250, 10)).toMatchObject({ reason: "member-cap", remaining: 10 });
     });
 });
 
