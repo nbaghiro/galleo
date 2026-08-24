@@ -93,3 +93,25 @@ test("a plain member's library renders the workspace's work", async ({ browser }
     expect(await previews.count()).toBeGreaterThan(0);
     await ctx.close();
 });
+
+test("the card's menu button stays put while its menu is open", async ({ page }) => {
+    const id = await makeArtifact(page.request, "Menu anchor deck", [
+        sec("s1", colOf([txt("Menu anchor body")])),
+    ]);
+    await page.goto("/");
+    const media = page.getByTitle("Menu anchor deck").locator("..").first();
+    const dots = media.getByTitle("Move to folder");
+
+    // it is hover chrome, so it is not there until the pointer is
+    await expect(dots).not.toBeVisible();
+    await media.hover();
+    await expect(dots).toBeVisible();
+
+    // Opening it moves the pointer into a panel portalled to <body>, so the card's hover ends and a
+    // mouse click does not match :focus-visible. Without care the button vanishes under its own menu.
+    await dots.click();
+    await expect(page.getByText("Duplicate", { exact: true })).toBeVisible();
+    await expect(dots).toBeVisible();
+
+    await page.request.post(`/api/artifacts/${id}/trash`);
+});

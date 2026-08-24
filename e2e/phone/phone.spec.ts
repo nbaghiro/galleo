@@ -5,7 +5,9 @@ import { boxOf, colOf, cssOf, makeArtifact, paintedText, sec, swipe, txt } from 
 // semantics and control-bar anchoring in the editor, and the library grid, whose chrome sits over a
 // cover image and so has to size itself for a finger rather than a cursor.
 
-const TOUCH_TARGET = 44; // the @ui `touch` size; below this a control is a miss on a phone
+// Chrome over a cover is 32 rather than the 44px @ui `touch` size: it sits on every card at
+// once, and at 44 it read as furniture. Still a comfortable tap, which is what this guards.
+const TOUCH_TARGET = 32;
 
 test("first tap selects, second tap edits", async ({ page }) => {
     const id = await makeArtifact(page.request, "e2e phone taps", [
@@ -81,13 +83,25 @@ test.describe("the library grid", () => {
         page,
     }) => {
         // a coarse pointer sends no hover, so what stays must be painted from the start
-        const select = page.getByTitle("Select").first();
-        await expect(select).toBeVisible();
-        const mark = await boxOf(select);
-        expect(mark.width).toBeGreaterThanOrEqual(TOUCH_TARGET);
-        expect(mark.height).toBeGreaterThanOrEqual(TOUCH_TARGET);
         const menu = await boxOf(page.getByTitle("Move to folder").first());
         expect(menu.width).toBeGreaterThanOrEqual(TOUCH_TARGET);
+        expect(menu.height).toBeGreaterThanOrEqual(TOUCH_TARGET);
+    });
+
+    test("selecting starts from the menu, not from a box on every cover", async ({ page }) => {
+        // With no hover to reveal it, a permanently visible mark put an empty box over every cover
+        // in the library. The way in is the card's own menu, and the mark appears once one is on.
+        await expect(page.getByTitle("Select").first()).not.toBeVisible();
+
+        await page.getByTitle("Move to folder").first().tap();
+        const select = page.getByRole("menuitem", { name: "Select" }).first();
+        await expect(select).toBeVisible();
+        await select.tap();
+
+        const mark = page.getByTitle("Deselect").first();
+        await expect(mark).toBeVisible();
+        const box = await boxOf(mark);
+        expect(box.width).toBeGreaterThanOrEqual(TOUCH_TARGET);
     });
 
     test("the carousel is swiped, not arrowed, and the swipe does not open the artifact", async ({
@@ -119,5 +133,22 @@ test.describe("the library grid", () => {
         await expect(page).toHaveURL(/\/$/); // a swipe is not a tap: it must not navigate
 
         await page.request.post(`/api/artifacts/${id}/trash`); // reruns should not accumulate
+    });
+
+    test("the selection bar clears the assistant button rather than sharing its corner", async ({
+        page,
+    }) => {
+        await page.getByTitle("Move to folder").first().tap();
+        await page.getByRole("menuitem", { name: "Select" }).first().tap();
+
+        const bar = await boxOf(page.getByTestId("selection-bar"));
+        const fab = await boxOf(page.getByTitle("Chat with Galleo Agent"));
+        // the bar's bottom edge sits above the button's top edge rather than under it
+        expect(bar.y + bar.height).toBeLessThanOrEqual(fab.y);
+
+        // it carries the same labels as the desktop bar, and sizes to them without overflowing
+        await expect(page.getByText("Move to folder")).toBeVisible();
+        await expect(page.getByText("Delete", { exact: true })).toBeVisible();
+        expect(bar.width).toBeLessThanOrEqual(page.viewportSize()!.width);
     });
 });

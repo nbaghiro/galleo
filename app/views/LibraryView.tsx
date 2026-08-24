@@ -91,7 +91,16 @@ const LAYOUTS: { label: string; value: LibraryLayout; icon: string }[] = [
 const OVER_MEDIA = "bg-black/25 text-white backdrop-blur-sm transition-colors hover:bg-black/45";
 // Chrome over a cover is small enough to stay out of the way of a cursor, which is too small for a
 // finger. Coarse pointer, not a breakpoint: a tablet is wide and still touched.
-const overMediaHit = (): string => (isCoarsePointer() ? "size-11" : "size-7");
+// The chrome that sits over a cover: checkbox-sized under a cursor, and the 44px tap target under a
+// finger. Small on purpose, since it covers somebody's artwork. The two forms are the same size as
+// each other, one as a class and one as the @ui token, so the mark and the menu match.
+const OVER_MEDIA_SIZE = { class: "size-5", token: "xs" } as const;
+// Bigger under a finger, but not the full 44px target: this chrome sits over somebody's cover art
+// on every card at once, and at 44 it read as furniture. 32 is still a comfortable tap and the
+// select mark only appears once selecting has started, so it is never a cold first target.
+const TOUCH_SIZE = { class: "size-8", token: "lg" } as const;
+const selectMarkSize = (): string => (isCoarsePointer() ? TOUCH_SIZE.class : OVER_MEDIA_SIZE.class);
+const menuSize = (): "lg" | "xs" => (isCoarsePointer() ? TOUCH_SIZE.token : OVER_MEDIA_SIZE.token);
 
 // hover chrome, so it stays cursor-sized: touch steps the carousel by swiping instead
 const NAV_CLS = `pointer-events-auto grid size-7 place-items-center rounded-full ${OVER_MEDIA} disabled:pointer-events-none disabled:opacity-0`;
@@ -433,11 +442,10 @@ export const LibraryView: Component = () => {
 
     const SelectMark: Component<{ id: string; class?: string }> = (p) => (
         <button
-            class={`z-panel grid ${overMediaHit()} place-items-center rounded-md transition-colors ${
+            class={`z-panel grid ${selectMarkSize()} place-items-center rounded-md transition-colors ${
                 isSelected(p.id)
                     ? "bg-accent text-onaccent" // selection is state, so it stays fully opaque
-                    : // the glyph is always drawn; when it is on screen is the container's call
-                      OVER_MEDIA
+                    : `${OVER_MEDIA} ring-1 ring-inset ring-white/40`
             } ${p.class ?? ""}`}
             title={isSelected(p.id) ? "Deselect" : "Select"}
             onClick={(e) => {
@@ -446,30 +454,45 @@ export const LibraryView: Component = () => {
                 toggleSelect(p.id);
             }}
         >
-            <CheckIcon size={14} />
+            {/* the tick is the selection, so an unselected mark is an empty box: with the glyph
+                always drawn there was nothing to tell the two states apart at a glance */}
+            <Show when={isSelected(p.id)}>
+                <CheckIcon size={12} />
+            </Show>
         </button>
     );
 
-    const ArtifactMenu: Component<{ d: ArtifactSummary; class?: string }> = (p) => (
+    const ArtifactMenu: Component<{ d: ArtifactSummary; class?: string; fade?: string }> = (p) => (
         <Menu
             align="end"
             width={224}
             trigger={(m) => (
                 <IconButton
                     ref={m.ref}
-                    size={isCoarsePointer() ? "touch" : "md"}
+                    size={menuSize()}
                     rounded="md"
                     // onDark, not muted: muted carries hover:bg-canvas, which would fight the scrim
                     // at equal specificity and win or lose on stylesheet order rather than intent
                     tone="onDark"
-                    class={p.class}
+                    // While the menu is open the pointer is inside it, not on the card, so the
+                    // hover that revealed this button is gone and `:focus-visible` does not match a
+                    // mouse click. The fading rule is left off rather than overridden: two opacity
+                    // utilities at equal specificity would resolve on stylesheet order, not intent.
+                    class={`${p.class ?? ""} ${m.open ? "" : (p.fade ?? "")}`}
                     title="Move to folder"
                     onClick={m.toggle}
                 >
-                    <MoreIcon size={16} />
+                    <MoreIcon size={14} />
                 </IconButton>
             )}
         >
+            {/* the way into selection on a touch screen, where there is no hover to reveal the
+                mark and no shift key to start a range */}
+            <Show when={isCoarsePointer()}>
+                <MenuItem icon={<CheckIcon size={14} />} onClick={() => toggleSelect(p.d.id)}>
+                    {isSelected(p.d.id) ? "Deselect" : "Select"}
+                </MenuItem>
+            </Show>
             <MenuItem
                 icon={<DuplicateIcon size={15} />}
                 onClick={() => setConfirm({ kind: "duplicate", doc: p.d })}
@@ -862,12 +885,18 @@ export const LibraryView: Component = () => {
                     </Show>
                     <SelectMark
                         id={p.d.id}
-                        class={`absolute left-2 top-2 ${selectMode() ? "" : chrome()}`}
+                        // Under a cursor it appears on hover. Under a finger there is no hover, and
+                        // showing it always put an empty box on every cover in the library; the menu
+                        // carries the way in instead, and the mark appears once selecting has begun.
+                        class={`absolute left-2 top-2 ${
+                            selectMode() ? "" : isCoarsePointer() ? "hidden" : chrome()
+                        }`}
                     />
                     {/* the actions sit over the preview, so the footer keeps its full width */}
                     <ArtifactMenu
                         d={p.d}
-                        class={`absolute right-2 top-2 ${OVER_MEDIA} ${chrome()}`}
+                        class={`absolute right-2 top-2 ${OVER_MEDIA}`}
+                        fade={chrome()}
                     />
                 </div>
 
@@ -1079,12 +1108,16 @@ export const LibraryView: Component = () => {
 
             <Show when={selectMode()}>
                 <FloatingBar
+                    data-testid="selection-bar"
                     tone="panel"
                     rounded="2xl"
                     anchor="free"
-                    class="fixed bottom-6 left-1/2 z-chrome -translate-x-1/2"
+                    // Lifted clear of the assistant button on a phone, which is 48px at
+                    // bottom-6 + safe area (ChatPanel), so this rides above it rather than sharing
+                    // the corner. From md up there is room either side and it centres as before.
+                    class="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-chrome mx-auto w-fit md:bottom-6"
                 >
-                    <span class="px-2 text-[13px] font-semibold text-ink">
+                    <span class="whitespace-nowrap px-2 text-[13px] font-semibold text-ink">
                         {selectedVisible().length} selected
                     </span>
                     <Separator vertical class="mx-0.5" />
@@ -1093,10 +1126,11 @@ export const LibraryView: Component = () => {
                         trigger={(m) => (
                             <button
                                 ref={m.ref}
-                                class="flex icon-row gap-2 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-soft hover:bg-canvas hover:text-ink"
+                                class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-soft hover:bg-canvas hover:text-ink"
                                 onClick={m.toggle}
                             >
-                                <FolderIcon size={15} /> Move to folder
+                                <FolderIcon size={15} />
+                                <span class="whitespace-nowrap">Move to folder</span>
                                 <ChevronDownIcon size={12} />
                             </button>
                         )}
@@ -1124,10 +1158,11 @@ export const LibraryView: Component = () => {
                         </div>
                     </Menu>
                     <button
-                        class="flex icon-row gap-2 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-[#C0392B] hover:bg-[#C0392B]/10"
+                        class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-[#C0392B] hover:bg-[#C0392B]/10"
                         onClick={() => setConfirm({ kind: "delete-batch", ids: selectedVisible() })}
                     >
-                        <TrashIcon size={15} /> Delete
+                        <TrashIcon size={15} />
+                        <span class="whitespace-nowrap">Delete</span>
                     </button>
                     <Separator vertical class="mx-0.5" />
                     <IconButton
