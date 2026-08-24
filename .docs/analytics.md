@@ -45,7 +45,9 @@ Where both could, the server wins, because a client can close its tab and a webh
 (`services/core/spend.ts`), all of billing (`services/core/billing.ts`), membership and teams
 (`services/core/workspaces.ts`, `services/api/workspace.ts`), library mutations
 (`services/api/artifacts.ts`, `services/api/folders.ts`), links and comments
-(`services/api/links.ts`, `services/core/comments.ts`), and the rate wall (`services/utils/http.ts`).
+(`services/api/links.ts`, `services/core/comments.ts`), the delegated surface and the connections
+behind it (`services/core/delegated.ts`, `services/core/authorization.ts`,
+`services/api/authorize.ts`), and the rate wall (`services/utils/http.ts`).
 
 **Client** (`ui/analytics.ts`): identity and grouping (`app/stores/auth.ts`, `workspace.ts`,
 `billing.ts`), the generation studio funnel (`app/stores/generate.ts`), onboarding
@@ -56,11 +58,25 @@ presenting (`editor/panels/ExportModal.tsx`, `editor/core/store.ts`), search
 
 ## The seams that make coverage automatic
 
-Four places were chosen so that new code is measured without anyone remembering to instrument it.
+Five places were chosen so that new code is measured without anyone remembering to instrument it.
 
 `reserve()` in `services/core/spend.ts` wraps every metered run, free ones included, so the three
 `ai_action_*` events and `credits_exhausted` cover a tool added later the moment it runs. The charge is
 read off the settle rather than recomputed, so analytics and the ledger cannot disagree.
+
+`reserve` also carries the surface the call arrived on, which is what `tool_surface` on
+`ai_action_started` reports. It used to be read off the catalog, taking the first surface a tool
+declares, and since every tool the MCP server exposes declares `agent` first, a generation run from a
+desktop client was indistinguishable from one in the app's own chat rail. The executor
+(`services/core/ai/execute.ts`) now passes the surface of the call it is running, and the handful of
+routes that reserve for a provider call the catalog prices but no tool body runs (narration, voice
+audition and design, image and video generation, and the turn reservation in `/ai/turn`) say
+`direct`, which is what they are. The other four trailing arguments moved into the same options
+object, since seven positional parameters had stopped being readable at the call sites.
+
+`callDelegated` in `services/core/delegated.ts` is the one place a call from outside the product
+funnels through, so `delegated_tool_called` covers both MCP and the REST API, and covers the refusals
+as well as the calls that ran.
 
 `provisionUser` in `services/core/accounts.ts` is the only place a new account is created, so no signup
 path can miss `signed_up`.
@@ -201,12 +217,16 @@ Recording stops entirely on the editor route (`pauseReplay` on mount, `resumeRep
 engine repaints the whole section stack on every layout change, so the editor produces a mutation stream
 that is heavy to record and noisy to watch. Masking is the content control; the pause is the volume one.
 Note that replay only runs at all if it is enabled at the project level, since it starts from remote
-config. The publish viewer and the marketing site never initialise analytics, so a stranger reading a
-shared artifact is never recorded. Exception autocapture is off, because an exception message can carry
-the content that produced it. Person profiles are identified-only, which is a cost lever: we never query anonymous ones.
+config. All three surfaces initialise analytics, including the marketing site and the publish viewer,
+but they do not do the same thing: replay is on for the app and marketing and off for publish, so a
+stranger reading a shared artifact is counted but never recorded. That reader is our customer's
+audience rather than ours, so the publish surface also drops the referrer and the campaign parameters
+and persists in memory only, which means nobody is given an id that outlives the page. Exception
+autocapture is off, because an exception message can carry the content that produced it. Person
+profiles are identified-only, which is a cost lever: we never query anonymous ones.
 
-The policy is exported as `CAPTURE_POLICY` in `ui/analytics.ts` rather than written inline, so a test can
-assert it. `defaults` is pinned to a dated snapshot so a new SDK default cannot switch capture on for us
+The policy is a `BASE` const plus a `policyFor(surface)` in `ui/analytics.ts` rather than options
+written inline at each entry point, so a test can assert what each surface resolves to. `defaults` is pinned to a dated snapshot so a new SDK default cannot switch capture on for us
 between upgrades.
 
 ## The proxy
@@ -274,7 +294,12 @@ system stores traced runs with their prompts in our own database, under the work
 `model/__tests__/analytics.test.ts` covers the bucketing. `services/utils/__tests__/analytics.test.ts`
 proves the no-op-when-unset guarantee and asserts the real wire payload, gzip included, through a fake
 transport. `services/core/__tests__/spend-analytics.test.ts` covers the metered-run seam, including the
-failure classification. `services/core/__tests__/analytics.itest.ts` covers what only a real database
+failure classification and the rule that `tool_surface` is the surface the call arrived on rather
+than the first one the catalog declares.
+`services/core/__tests__/delegated-analytics.test.ts` covers the delegated seam on the paths that
+refuse before a workspace is resolved, which is what lets it run without a database: the scope a
+refusal needed, the anonymous attribution of a call that arrived with no token, and a tool name the
+catalog does not hold. `services/core/__tests__/analytics.itest.ts` covers what only a real database
 shows: that the wall fires when a balance is genuinely short, that a member over their own cap is
 offered neither remedy, that `credits_charged` equals the ledger row rather than the estimate, and that
 a signed top-up webhook both reports and grants. Each was checked by breaking the code it guards and
@@ -315,8 +340,17 @@ that an unconfigured client makes no network call. We do not test PostHog itself
   editor has no template-insert to report from, and `element_added.how` never reports `"ai"`, because
   element-level AI replaces rather than adds. Both go through `noteSectionAdded` / `noteElementAdded`,
   so the surface calls one function when it exists rather than being instrumented from scratch.
-- **`tool_surface` takes the first of a tool's surfaces.** Arbitrary for a multi-surface tool, but
-  `tool_id` is the dimension that gets queried and the surface is a tiebreaker.
+- **A refused token exchange is not reported.** A replayed code, a rotated refresh token presented
+  twice, or a bad machine secret all fail with no person to attribute the failure to, and a client id
+  on its own answers a reliability question rather than a product one.
+- **The consent screen being shown is not reported.** Someone who opens it and closes the tab is
+  invisible, so the gap between `connector_registered` and `connector_authorized` is the closest
+  thing we have to a consent drop-off, and it is only close: the two are different distinct ids,
+  since nobody has signed in when a client registers.
+- **`tool_surface` on the two later AI events.** `ai_action_completed` and `ai_action_failed` carry
+  no surface, so cost and failure by surface need a join through `tool_id` and the request id rather
+  than a breakdown. Worth adding if the delegated surface grows enough traffic to make the question
+  routine.
 - **No experiment events.** Feature-flag exposure is worth adding when we run the first onboarding
   experiment, and not before. The flag client ships in the same package and is already initialised.
 - **Cost per outcome converts at query time.** `CREDIT_USD` in `model/credits.ts` moves when models or
@@ -346,3 +380,56 @@ people reach for says whether the free browse path is carrying the feature.
 
 The two AI tools (`write-speaker-notes`, `narrate-artifact`) need no events of their own: the three
 `ai_action_*` events key on `tool_id`, so a tool is instrumented the moment its id exists.
+
+## The delegated surface
+
+Galleo is also reached from outside the product, over MCP and the public REST API (see `mcp.md`), and
+that whole surface shipped with no instrumentation: a person authorizing a connector, a tool call
+arriving, a scope refusal, a token refresh and a client registering all happened with nothing
+recorded. Five events cover it, all raised server side, since several of these requests have no
+client in them at all and none of them has a browser we control.
+
+`delegated_tool_called` is raised in `callDelegated`, which is the single place both surfaces funnel
+through, so a tool joining the `mcp` surface is measured the moment it can be reached rather than
+when somebody remembers it. It carries the tool id, the surface (`mcp` or `api`), the scope and
+effect the catalog states for that tool, whether a token was presented, whether the caller named a
+workspace or fell through to the one the grant defaults to, how long the call took, and how it ended:
+`ok`, `no-tool`, `needs-auth`, `not-found`, `refused` or `scope`. What a call cost is deliberately
+absent, because a priced tool already reports the three `ai_action_*` events through `reserve`
+wherever it was reached from, and what was missing here is that a call happened at all. The outcome
+is read off the same union `callDelegated` returns, so a refusal kind added there is a type error
+here rather than a silent hole. Scope and effect are absent for a name the catalog does not hold,
+which is the whole of the `no-tool` outcome.
+
+A call that arrives with no token has no person to attribute to, so it is reported against one shared
+id with `$process_person_profile` off, which is the position public-link views already take.
+
+The other four follow the connection rather than the call. `connector_registered` is a client
+performing dynamic registration, which happens before anyone has signed in, so it is attributed to
+the client id we minted for it and mints no profile either. `connector_authorized` is the consent
+screen being agreed to, and carries the granted scopes alongside how many of the account's workspaces
+were included; the scope set is what makes a step-up legible, since the same client consenting again
+with a wider set is a step-up completing and there is no other record of one.
+`connector_token_issued` is raised in `mint` rather than at the token endpoint, so a code exchange, a
+refresh rotation and the machine `client_credentials` grant (which never sees a consent screen) are
+counted the same way and a fourth grant type would be counted without a new call site.
+`connector_disconnected` is raised in the two functions that revoke, `revokeApp` for the account
+settings and `revokeToken` for a client handing its credential back, so `from` distinguishes them
+without either route reporting for itself.
+
+No client name travels on any of them. A dynamically registered client writes its own `client_name`,
+which makes it free text somebody outside the product supplied, so what identifies a connection is
+the opaque `client_id` we issued.
+
+Two further events cover the workspace's own machine credentials, which are the same surface reached
+with a secret instead of a person: `api_credential_created` when an admin issues one from workspace
+settings, and `api_credential_revoked` when one is turned off. Both are raised in
+`createMachineClient` and `revokeMachineClient` rather than at the routes above them, so a second
+caller would be measured without a second capture. Creation carries how many credentials the
+workspace holds afterwards, which separates a workspace with one integration from one running
+several. Revocation carries how many days the credential was active and whether anything ever
+authenticated with it, because a credential that was issued and never called says something different
+about the feature than one that ran for a month; it is reported once, since the revoke only matches a
+credential that is still live. The name an admin typed is the customer's own words and never travels,
+so these carry the same opaque `client_id` as the four events above, which is what joins a credential
+to the tokens it went on to issue.

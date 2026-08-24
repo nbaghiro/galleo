@@ -506,6 +506,94 @@ const BOARDS: Board[] = [
             },
         ],
     },
+    {
+        name: "9 · The delegated surface",
+        description:
+            "Galleo reached from outside the product, over MCP or the REST API. One event covers every delegated call, so a tool joining the surface shows up here without a new tile.",
+        tiles: [
+            {
+                name: "Delegated calls by tool",
+                description:
+                    "What an external client actually reaches for, which is a different list from what the app's own users do.",
+                query: trend(
+                    [event("delegated_tool_called", { math: "total" })],
+                    breakdown("tool_id"),
+                ),
+            },
+            {
+                name: "Delegated calls by surface",
+                description: "MCP against the REST API, the two ways in.",
+                query: trend(
+                    [event("delegated_tool_called", { math: "total" })],
+                    breakdown("surface"),
+                ),
+            },
+            {
+                name: "How a delegated call ends",
+                description:
+                    "The refusal half of the surface: a missing scope, no token at all, an artifact that is not there, a plan or a balance saying no.",
+                query: trend(
+                    [event("delegated_tool_called", { math: "total" })],
+                    breakdown("outcome"),
+                ),
+            },
+            {
+                name: "Delegated calls by scope",
+                description:
+                    "Which permission class the traffic needs. A connector that only ever needs artifacts:read never has to be granted more.",
+                query: trend(
+                    [event("delegated_tool_called", { math: "total" })],
+                    breakdown("scope"),
+                ),
+            },
+            {
+                name: "Connecting: consent to first call",
+                description:
+                    "Whether authorizing a client leads anywhere. Registration is not a step here, because a client registers before anyone has signed in and so is not the same person yet.",
+                query: funnel([
+                    "connector_authorized",
+                    "connector_token_issued",
+                    "delegated_tool_called",
+                ]),
+            },
+            {
+                name: "Scopes granted at consent",
+                description:
+                    "What people agree to on the consent screen. The same client appearing twice with a wider set is a scope step-up completing.",
+                query: trend(
+                    [event("connector_authorized", { math: "total" })],
+                    breakdown("scopes"),
+                ),
+            },
+            {
+                name: "Tokens issued by grant type",
+                description:
+                    "A code exchange is a new connection, a refresh is an existing one staying alive, and client credentials is an integration with no person in the middle.",
+                query: trend(
+                    [event("connector_token_issued", { math: "total" })],
+                    breakdown("grant"),
+                ),
+            },
+            {
+                name: "Clients registered against connections disconnected",
+                description:
+                    "The two ends of the connector lifecycle. Registrations are anonymous, since nobody has signed in when a client registers.",
+                query: trend([
+                    event("connector_registered", { math: "total" }),
+                    event("connector_disconnected", { math: "total" }),
+                ]),
+            },
+            {
+                name: "AI actions by calling surface",
+                description:
+                    "Where a metered run came in on: the chat agent, a direct route, MCP or the REST API. It reported the tool's first declared surface until the property was fixed, so anything before that date reads as agent.",
+                query: trend(
+                    [event("ai_action_started", { math: "total" })],
+                    breakdown("tool_surface"),
+                ),
+            },
+        ],
+    },
 ];
 
 async function api(path: string, init?: RequestInit): Promise<Json> {

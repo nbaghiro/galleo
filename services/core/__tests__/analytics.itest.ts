@@ -8,6 +8,11 @@ import type { Transport } from "@services/utils/analytics";
 import { initAnalytics, shutdownAnalytics } from "@services/utils/analytics";
 import { reserve } from "@services/core/spend";
 import { consumeWebhook } from "@services/core/billing";
+import {
+    createMachineClient,
+    machineGrant,
+    revokeMachineClient,
+} from "@services/core/authorization";
 import { seedUser } from "@services/__tests__/harness";
 
 // The events the unit suite cannot reach: they only exist once a real ledger row is written, a real
@@ -86,15 +91,9 @@ describe("the credit wall, against a real ledger", () => {
             .set({ memberCreditCap: 1 })
             .where(eq(schema.workspaces.id, workspaceId));
 
-        const held = await reserve(
-            await workspaceRow(workspaceId),
-            userId,
-            "ask-assistant",
-            {},
-            {},
-            false,
-            "member",
-        );
+        const held = await reserve(await workspaceRow(workspaceId), userId, "ask-assistant", {
+            role: "member",
+        });
         expect(held.ok).toBe(false);
 
         const [wall] = await eventsNamed("credits_exhausted");
@@ -197,5 +196,57 @@ describe("the Stripe webhook, which has no client in the request", () => {
         expect(await consumeWebhook(payload, "t=1,v1=forged")).toEqual({ error: "bad signature" });
         expect(await eventsNamed("topup_purchased")).toHaveLength(0);
         expect((await workspaceRow(workspaceId)).aiCreditsBalance).toBe(before);
+    });
+});
+
+describe("workspace API credentials, which only the row can date", () => {
+    beforeEach(() => {
+        captured.length = 0;
+        initAnalytics({ key: "phc_itest", fetch: recorder });
+    });
+
+    afterEach(async () => {
+        await shutdownAnalytics();
+    });
+
+    it("reports an issued credential, counting what the workspace holds after it", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "premium" });
+        await createMachineClient({ name: "CI", workspaceId, actorId: userId });
+        const made = await createMachineClient({ name: "Zap", workspaceId, actorId: userId });
+
+        const events = await eventsNamed("api_credential_created");
+        expect(events).toHaveLength(2);
+        expect(events[1]?.properties.client_id).toBe(made.clientId);
+        expect(events[1]?.properties.credential_count_after).toBe(2);
+        // the name is the customer's own words, so it never travels
+        expect(JSON.stringify(events[1]?.properties)).not.toContain("Zap");
+        expect(JSON.stringify(events[1]?.properties)).not.toContain(made.secret);
+    });
+
+    it("reports a revoked credential once, with whether anything ever used it", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "premium" });
+        const made = await createMachineClient({ name: "CI", workspaceId, actorId: userId });
+
+        expect(await revokeMachineClient(workspaceId, made.clientId, userId)).toBe(true);
+        // nothing is left to turn off, so the second call is not a second death
+        expect(await revokeMachineClient(workspaceId, made.clientId, userId)).toBe(false);
+
+        const events = await eventsNamed("api_credential_revoked");
+        expect(events).toHaveLength(1);
+        expect(events[0]?.properties.client_id).toBe(made.clientId);
+        expect(events[0]?.properties.days_active).toBe(0);
+        expect(events[0]?.properties.ever_used).toBe(false);
+    });
+
+    it("says a credential was used once a token has been minted from it", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "premium" });
+        const made = await createMachineClient({ name: "CI", workspaceId, actorId: userId });
+        expect(await machineGrant(made.clientId, made.secret, ["artifacts:read"])).toMatchObject({
+            scopes: ["artifacts:read"],
+        });
+
+        await revokeMachineClient(workspaceId, made.clientId, userId);
+        const [revoked] = await eventsNamed("api_credential_revoked");
+        expect(revoked?.properties.ever_used).toBe(true);
     });
 });

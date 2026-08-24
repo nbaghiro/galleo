@@ -6,7 +6,7 @@ import type { AiTask } from "./credits";
 import type { MediaSource } from "./media";
 import type { SectionArchetype } from "./eval";
 import type { VoiceSource } from "./speech";
-import type { ToolId, ToolSurface } from "./tools";
+import type { ToolEffect, ToolId, ToolScope, ToolSurface } from "./tools";
 import type { AuthProvider, OnboardingStep, WorkspaceRole } from "./workspace";
 
 // The product-analytics contract: every event we emit, and the exact properties it carries. Shared
@@ -206,6 +206,8 @@ export interface Events {
     logged_out: NoProps;
     workspace_switched: { from_plan: PlanId; to_plan: PlanId; workspaces_available: number };
     password_reset_requested: NoProps;
+    // server-emitted at the connect callback: the Drive grant behind the Google Slides export
+    google_connected: { reconnected: boolean };
 
     // Onboarding, the first-session funnel in .docs/onboarding.md.
     onboarding_format_chosen: { format: Surface };
@@ -251,7 +253,8 @@ export interface Events {
     // is instrumented the moment its id exists.
     // `task` is absent for the two media units, which run on their own models rather than a text
     // task. `model_id` is absent on start, since nothing has picked a model yet, and on a run that
-    // died before its first model call.
+    // died before its first model call. `tool_surface` is where the call came in on, passed by the
+    // caller: a tool declares several and the one it was reached through is the answerable half.
     ai_action_started: {
         tool_id: ToolId;
         task?: AiTask;
@@ -327,10 +330,18 @@ export interface Events {
 
     // Creation and the library.
     artifact_created: {
-        source: "template" | "blank" | "generated" | "duplicated" | "chat";
+        source: "template" | "blank" | "generated" | "duplicated" | "chat" | "imported";
         format: Surface;
         template_id?: string;
     };
+    // one per finished import, beside the artifact_created it produces
+    artifact_imported: {
+        import_format: "pdf" | "pptx" | "slides";
+        section_count: number;
+        image_count: number;
+        ms: number;
+    };
+    import_failed: { import_format: "pdf" | "pptx" | "slides"; reason: string };
     // `age_days` is absent: the row's createdAt is not on the windowed read's wire shape, and
     // widening a hot read for one property is not worth it. artifact_trashed carries the real age.
     artifact_opened: {
@@ -503,7 +514,8 @@ export interface Events {
         addons: AddOnId[];
     };
     checkout_completed: { plan_id: PlanId; interval: Interval; seats: number; mrr_usd: number };
-    checkout_abandoned: { target_plan: PlanId; ms_on_page: number };
+    // fired on the return from a Checkout the user backed out of (?status=cancel)
+    checkout_abandoned: { target_plan?: PlanId };
     plan_changed: {
         from_plan: PlanId;
         to_plan: PlanId;
@@ -532,6 +544,53 @@ export interface Events {
     member_role_changed: { from_role: WorkspaceRole; to_role: WorkspaceRole };
     member_left: { role: WorkspaceRole; days_as_member: number };
     workspace_setting_changed: { setting: string; value_kind: string };
+
+    // The delegated surface: Galleo reached from outside the product, over MCP or the REST API.
+    // One event covers both, because `callDelegated` is the single place every such call funnels
+    // through, refusals included, so a tool joining the surface is measured by construction. What a
+    // priced call cost still rides the ai_action_* events; this says that a call arrived at all, on
+    // which surface, and how it ended.
+    delegated_tool_called: {
+        tool_id: ToolId;
+        surface: ToolSurface;
+        // Both absent for a name the catalog does not hold, which is the whole of the `no-tool`
+        // outcome. Redundant with `tool_id` for a query that already has the catalog, and worth
+        // sending so a refusal can be grouped by the permission it needed.
+        scope?: ToolScope;
+        effect?: ToolEffect;
+        outcome: "ok" | "no-tool" | "needs-auth" | "not-found" | "refused" | "scope";
+        authenticated: boolean;
+        // whether the caller named a workspace, or fell through to the one the grant defaults to
+        named_workspace: boolean;
+        ms: number;
+    };
+    // The OAuth connections behind that surface. A client's own name is free text it wrote about
+    // itself, so what travels is the opaque `client_id` we minted for it.
+    connector_registered: { client_id: string; loopback: boolean; redirect_uri_count: number };
+    // Consent granted. The scope set is what makes a step-up visible: the same client authorizing
+    // again with a wider set is the step-up completing, and there is no other record of it.
+    connector_authorized: {
+        client_id: string;
+        scopes: ToolScope[];
+        workspaces_granted: number;
+        workspaces_available: number;
+    };
+    // Raised where a token is minted rather than at the endpoint, so the machine grant (which has
+    // no browser and no consent screen) and a refresh rotation are counted the same way.
+    connector_token_issued: {
+        client_id: string;
+        grant: "authorization_code" | "refresh_token" | "client_credentials";
+        scopes: ToolScope[];
+        workspace_count: number;
+    };
+    connector_disconnected: { client_id: string; from: "settings" | "client" };
+    // The workspace's own half of that surface: an admin issuing a headless integration credential,
+    // and turning one off. A credential's name is the customer's own words, so what identifies it
+    // here is the opaque client id we minted, which is also what joins it to the tokens it went on
+    // to issue. `ever_used` separates a credential that was wired into something from one that was
+    // made and never called.
+    api_credential_created: { client_id: string; credential_count_after: number };
+    api_credential_revoked: { client_id: string; days_active: number; ever_used: boolean };
 
     // Reliability.
     error_shown: { code: string; http_status: number; surface: AppArea; tool_id?: ToolId };
