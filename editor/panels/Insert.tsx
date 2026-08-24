@@ -70,7 +70,7 @@ export const EmptyRegionAdd: Component = () => {
                     onPointerDown={(e) => e.stopPropagation()}
                 >
                     <button
-                        class="flex items-center gap-1.5 rounded-lg border border-dashed border-accent/60 bg-panel/95 px-3 py-2 text-[12.5px] font-semibold text-accent shadow-lg backdrop-blur-md transition hover:bg-accent hover:text-onaccent"
+                        class="flex icon-row gap-1.5 rounded-lg border border-dashed border-accent/60 bg-panel/95 px-3 py-2 text-[12.5px] font-semibold text-accent shadow-lg backdrop-blur-md transition hover:bg-accent hover:text-onaccent"
                         onClick={() => setOpen((v) => !v)}
                     >
                         <Icon name="plus" size={14} /> Add element

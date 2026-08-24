@@ -7,17 +7,28 @@ import {
     getElementAt,
     insertChild,
     insertSection,
+    moveChildrenTo,
     moveSection,
     removeAt,
     replaceAt,
+    sharedParent,
     wrapWith,
 } from "@elements/ops";
+import { addressesEqual } from "@model/artifact";
 import { getElement } from "@elements/spec";
 import { setRightTab } from "./store";
+
+// reordering co-parented siblings as one block; cross-parent multi-move is deferred
+export interface MoveManyPayload {
+    kind: "moveMany";
+    parent: ElementAddress;
+    indices: number[];
+}
 
 export type DragPayload =
     | { kind: "new"; type: string }
     | { kind: "move"; from: ElementAddress }
+    | MoveManyPayload
     | { kind: "section"; id: string };
 
 // per op: replace/wrap use path; insert path+index; column/newSection index; before = wrap first
@@ -396,12 +407,55 @@ function elementSlots(art: ArtifactContent, regions: Region[], payload: DragPayl
     return out;
 }
 
+/**
+ * The set drags as one block only when the grip is a member and every member sits under the same
+ * parent; otherwise the grip drags its own element and the caller collapses the set.
+ */
+export function moveManyPayload(
+    grip: ElementAddress,
+    members: ElementAddress[],
+): MoveManyPayload | null {
+    if (members.length < 2 || !members.some((a) => addressesEqual(a, grip))) return null;
+    const parent = sharedParent(members);
+    if (!parent) return null;
+    return { kind: "moveMany", parent, indices: members.map((a) => a.path[a.path.length - 1]!) };
+}
+
+// A block drag reorders inside its own parent and nowhere else, so only that parent's gaps are
+// enumerated: no section gaps, no columns, no foreign containers.
+function parentGapSlots(
+    art: ArtifactContent,
+    regions: Region[],
+    parent: ElementAddress,
+    indices: number[],
+): DropSlot[] {
+    const inst = getElementAt(art, parent);
+    if (!inst || getElement(inst.type)?.tier !== "container") return [];
+    const box = regionBox(regions, parent.section, parent.path);
+    if (!box) return [];
+    const axis = groupAxis(inst);
+    const kids = childBoxes(regions, parent.section, parent.path, axis);
+    if (!kids.length) return [];
+    const sorted = [...indices].sort((a, b) => a - b);
+    const lo = sorted[0]!;
+    const hi = sorted[sorted.length - 1]!;
+    const contiguous = sorted.every((v, i) => i === 0 || v === sorted[i - 1]! + 1);
+    const out: DropSlot[] = [];
+    for (let k = 0; k <= kids.length; k++) {
+        if (contiguous && k >= lo && k <= hi + 1) continue; // the block already sits there
+        out.push(gapSlot(parent.section, parent.path, axis, k, kids, box));
+    }
+    return out;
+}
+
 // enumerate every droppable place once, at drag start
 export function computeDropSlots(
     art: ArtifactContent,
     regions: Region[],
     payload: DragPayload,
 ): DropSlot[] {
+    if (payload.kind === "moveMany")
+        return parentGapSlots(art, regions, payload.parent, payload.indices);
     const gaps = sectionGapSlots(art, regions, payload);
     if (payload.kind === "section") return gaps; // a section only lands in the stack gaps
     return [...gaps, ...columnSlots(art, regions, payload), ...elementSlots(art, regions, payload)];
@@ -590,6 +644,20 @@ function resolveDrop(
         const delta = (target.index > i ? target.index - 1 : target.index) - i;
         if (delta === 0) return result(art, null);
         return result(moveSection(art, payload.id, delta), { section: payload.id, path: [] });
+    }
+    if (payload.kind === "moveMany") {
+        const { parent, indices } = payload;
+        const here =
+            target.op === "insert" &&
+            target.section === parent.section &&
+            target.path.length === parent.path.length &&
+            target.path.every((v, i) => v === parent.path[i]);
+        if (!here) return result(art, null);
+        const moved = moveChildrenTo(art, parent, indices, target.index);
+        return result(moved.content, {
+            section: parent.section,
+            path: [...parent.path, moved.at],
+        });
     }
     if (payload.kind === "move") {
         const element = getElementAt(art, payload.from);

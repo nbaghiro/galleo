@@ -1,25 +1,38 @@
 import { createEffect, createRoot } from "solid-js";
 import { registerBindings, registerCommands, setContext, type KeyCtx } from "@ui/keys";
 import { FORMATS } from "@ui/formats";
-import { deleteElement, duplicateAt, duplicatedAddr, getElementAt } from "@elements/ops";
-import type { ElementAddress } from "@model/artifact";
+import {
+    duplicateMany,
+    getElementAt,
+    groupSelection,
+    removeMany,
+    sharedParent,
+    ungroupAt,
+} from "@elements/ops";
+import { getElement } from "@elements/spec";
+import type { ElementAddress, ElementInstance } from "@model/artifact";
 import { parentTarget, type Target } from "@model/artifact";
 import {
     addSectionAfter,
     canRedo,
     canUndo,
+    clearExtras,
     commit,
     duplicateSectionAt,
     editing,
     editor,
     moveSectionBy,
+    multiSelected,
     noteElementAdded,
     noteElementRemoved,
+    noteElementsGrouped,
     present,
     presenting,
     redo,
     removeSectionAt,
     requestShare,
+    selectedAddresses,
+    selectMany,
     selection,
     setLeftOpen,
     setRightTab,
@@ -29,7 +42,7 @@ import {
 } from "./store";
 import { leaseHolder, say } from "./collab";
 import { movable, movableAncestor } from "./dnd";
-import { clipboardEl, copyToClipboard, hasClipboard, pasteElement } from "./clipboard";
+import { clipboardEl, copyToClipboard, hasClipboard, pasteElements } from "./clipboard";
 import { canRegenerate, regenerateElement } from "./ai";
 import { captureAnchor, commentableAt, commentsAvailable, startCommentDraft } from "./comments";
 import { openSectionPrompt } from "./ai";
@@ -52,6 +65,48 @@ function currentSectionId(): string | null {
     const s = selection();
     if (!s) return null;
     return s.kind === "section" ? s.section : s.address.section;
+}
+
+// A closed container's child has no independent existence, so one such member disqualifies the
+// whole gesture rather than half of it.
+function actionableSet(): ElementAddress[] | null {
+    const set = selectedAddresses();
+    if (!set.length) return null;
+    if (set.some((a) => !movable(editor.artifact, a))) {
+        say("This is part of its element; edit it in place");
+        return null;
+    }
+    return set;
+}
+
+// Courtesy only: the server never refuses a structural op for lease reasons, so a deletion still
+// wins if it happens anyway. This just stops the obvious accident.
+function heldByOther(set: ElementAddress[]): boolean {
+    for (const a of set) {
+        const holder = leaseHolder(a);
+        if (holder) {
+            say(`${holder.user.name || "Someone"} is editing this`);
+            return true;
+        }
+    }
+    return false;
+}
+
+const selectedElements = (): ElementInstance[] =>
+    selectedAddresses()
+        .map((a) => getElementAt(editor.artifact, a))
+        .filter((e): e is ElementInstance => e !== undefined);
+
+const canGroup = (): boolean => {
+    const set = selectedAddresses();
+    return set.length > 1 && !!sharedParent(set) && set.every((a) => movable(editor.artifact, a));
+};
+
+function ungroupTarget(): ElementAddress | null {
+    const s = selection();
+    if (s?.kind !== "element" || multiSelected() || s.address.path.length === 0) return null;
+    const inst = getElementAt(editor.artifact, s.address);
+    return inst && getElement(inst.type)?.tier === "container" ? s.address : null;
 }
 
 registerCommands([
@@ -81,23 +136,15 @@ registerCommands([
         run: () => {
             const s = selection();
             if (!s) return;
-            if (s.kind === "element") {
-                // a closed container's child has no independent existence to delete
-                if (!movable(editor.artifact, s.address)) {
-                    say("This is part of its element; edit it in place");
-                    return;
-                }
-                // Courtesy only: the server never refuses a structural op for lease reasons, so a
-                // deletion still wins if it happens anyway. This just stops the obvious accident.
-                const holder = leaseHolder(s.address);
-                if (holder) {
-                    say(`${holder.user.name || "Someone"} is editing this`);
-                    return;
-                }
-                noteElementRemoved(getElementAt(editor.artifact, s.address)?.type ?? "");
-                commit(deleteElement(editor.artifact, s.address));
-                setSelection(null);
-            } else removeSectionAt(s.section);
+            if (s.kind !== "element") {
+                removeSectionAt(s.section);
+                return;
+            }
+            const set = actionableSet();
+            if (!set || heldByOther(set)) return;
+            noteElementRemoved(getElementAt(editor.artifact, set[0]!)?.type ?? "", set.length);
+            commit(removeMany(editor.artifact, set));
+            setSelection(null);
         },
     },
     {
@@ -109,14 +156,15 @@ registerCommands([
         run: () => {
             const s = selection();
             if (!s) return;
-            if (s.kind === "element") {
-                if (!movable(editor.artifact, s.address)) {
-                    say("This is part of its element; edit it in place");
-                    return;
-                }
-                commit(duplicateAt(editor.artifact, s.address));
-                setSelection({ kind: "element", address: duplicatedAddr(s.address) });
-            } else duplicateSectionAt(s.section);
+            if (s.kind !== "element") {
+                duplicateSectionAt(s.section);
+                return;
+            }
+            const set = actionableSet();
+            if (!set) return;
+            const res = duplicateMany(editor.artifact, set);
+            commit(res.content);
+            selectMany(res.addresses);
         },
     },
     {
@@ -126,10 +174,8 @@ registerCommands([
         icon: "duplicate",
         when: (c) => inEditor(c) && c.has("editor.element") && notTyping(c),
         run: () => {
-            const s = selection();
-            if (s?.kind !== "element") return;
-            const el = getElementAt(editor.artifact, s.address);
-            if (el) copyToClipboard(el);
+            const els = selectedElements();
+            if (els.length) copyToClipboard(els);
         },
     },
     {
@@ -139,17 +185,12 @@ registerCommands([
         icon: "trash",
         when: (c) => inEditor(c) && c.has("editor.element") && notTyping(c),
         run: () => {
-            const s = selection();
-            if (s?.kind !== "element") return;
-            if (!movable(editor.artifact, s.address)) {
-                say("This is part of its element; edit it in place");
-                return;
-            }
-            const el = getElementAt(editor.artifact, s.address);
-            if (!el) return;
-            copyToClipboard(el);
-            noteElementRemoved(getElementAt(editor.artifact, s.address)?.type ?? "");
-            commit(deleteElement(editor.artifact, s.address));
+            const set = actionableSet();
+            const els = selectedElements();
+            if (!set || !els.length) return;
+            copyToClipboard(els);
+            noteElementRemoved(els[0]!.type, set.length);
+            commit(removeMany(editor.artifact, set));
             setSelection(null);
         },
     },
@@ -161,19 +202,48 @@ registerCommands([
         when: (c) => inEditor(c) && c.has("editor.hasSelection") && notTyping(c) && hasClipboard(),
         run: () => {
             const s = selection();
-            const clip = clipboardEl();
-            if (!s || !clip) return;
+            const clips = clipboardEl();
+            if (!s || !clips.length) return;
             // a paste anchored inside a closed container lands beside the container itself
             const anchor: Target =
                 s.kind === "element"
                     ? { kind: "element", address: movableAncestor(editor.artifact, s.address) }
                     : s;
-            const res = pasteElement(editor.artifact, clip, anchor);
-            if (res) {
-                commit(res.content);
-                noteElementAdded(clip.type, "paste");
-                setSelection({ kind: "element", address: res.address });
-            }
+            const res = pasteElements(editor.artifact, clips, anchor);
+            if (!res.addresses.length) return;
+            commit(res.content);
+            for (const clip of clips) noteElementAdded(clip.type, "paste");
+            selectMany(res.addresses);
+        },
+    },
+    {
+        id: "edit.group",
+        title: "Group selection",
+        group: "arrange",
+        icon: "container",
+        when: (c) => inEditor(c) && notTyping(c) && canGroup(),
+        run: () => {
+            const set = selectedAddresses();
+            const res = groupSelection(editor.artifact, set);
+            if (!res.address) return;
+            commit(res.content);
+            noteElementsGrouped(set.length);
+            setSelection({ kind: "element", address: res.address });
+        },
+    },
+    {
+        id: "edit.ungroup",
+        title: "Ungroup",
+        group: "arrange",
+        icon: "layers",
+        when: (c) => inEditor(c) && notTyping(c) && !!ungroupTarget(),
+        run: () => {
+            const at = ungroupTarget();
+            if (!at) return;
+            const res = ungroupAt(editor.artifact, at);
+            if (!res.addresses.length) return;
+            commit(res.content);
+            selectMany(res.addresses);
         },
     },
 
@@ -185,6 +255,7 @@ registerCommands([
         when: (c) =>
             inEditor(c) &&
             commentsAvailable() &&
+            !multiSelected() &&
             (c.has("editor.element") || c.has("editor.textEditing")) &&
             !!commentTarget(),
         run: () => {
@@ -202,6 +273,11 @@ registerCommands([
         icon: "chevronUp",
         when: (c) => inEditor(c) && c.has("editor.hasSelection") && notTyping(c),
         run: () => {
+            // Esc peels the set back to its anchor before it starts walking up the tree
+            if (multiSelected()) {
+                clearExtras();
+                return;
+            }
             setSelection((cur) => (cur ? parentTarget(cur) : null));
         },
     },
@@ -369,6 +445,8 @@ registerBindings([
     { chord: ["delete", "backspace"], command: "edit.delete", when: "editor" },
     { chord: "mod+d", command: "edit.duplicate", when: "editor" },
     { chord: "escape", command: "select.up", when: "editor" },
+    { chord: "mod+g", command: "edit.group", when: "editor" },
+    { chord: "mod+shift+g", command: "edit.ungroup", when: "editor" },
     { chord: "mod+c", command: "edit.copy", when: "editor" },
     { chord: "mod+x", command: "edit.cut", when: "editor" },
     { chord: "mod+v", command: "edit.paste", when: "editor" },

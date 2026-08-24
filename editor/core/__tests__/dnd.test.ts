@@ -11,6 +11,7 @@ import {
     computeDropSlots,
     movable,
     movableAncestor,
+    moveManyPayload,
     type DragPayload,
     type DropTarget,
 } from "@editor/core/dnd";
@@ -507,5 +508,86 @@ describe("closed containers are leaves for drag-and-drop", () => {
             section: "s1",
             path: [1],
         });
+    });
+});
+
+// A block drag reorders inside its own parent and nowhere else, so the slot set is that parent's
+// gaps minus the ones that would put the block back where it already is.
+describe("moveMany", () => {
+    const blockArt = (): ArtifactContent =>
+        artifactOf([sectionOf(colGroup([txt("a"), txt("b"), txt("c"), txt("d")]))]);
+    const blockRegions = (): Region[] => [
+        reg("section:s1", 0, 0, 400, 400),
+        reg("el:s1", 0, 0, 400, 400),
+        reg("el:s1:0", 20, 0, 360, 100),
+        reg("el:s1:1", 20, 100, 360, 100),
+        reg("el:s1:2", 20, 200, 360, 100),
+        reg("el:s1:3", 20, 300, 360, 100),
+    ];
+    const root = { section: "s1", path: [] };
+    const payload = (indices: number[]): DragPayload => ({
+        kind: "moveMany",
+        parent: root,
+        indices,
+    });
+
+    it("enumerates only the shared parent's gaps", () => {
+        const slots = computeDropSlots(blockArt(), blockRegions(), payload([0, 1]));
+        expect(slots.every((s) => s.target.op === "insert" && s.target.path.length === 0)).toBe(
+            true,
+        );
+    });
+
+    it("drops the gaps that would leave a contiguous block where it already is", () => {
+        const slots = computeDropSlots(blockArt(), blockRegions(), payload([0, 1]));
+        expect(slots.map((s) => s.target.index)).toEqual([3, 4]);
+    });
+
+    it("keeps every gap for a block that is not contiguous, since each one is a real move", () => {
+        const slots = computeDropSlots(blockArt(), blockRegions(), payload([0, 2]));
+        expect(slots.map((s) => s.target.index)).toEqual([0, 1, 2, 3, 4]);
+    });
+
+    it("lands the block together, shifting the gap past the sources removed before it", () => {
+        const art = blockArt();
+        const target: DropTarget = {
+            section: "s1",
+            op: "insert",
+            path: [],
+            index: 3,
+            before: false,
+            direction: "col",
+        };
+        const res = applyDrop(art, target, payload([0, 1]));
+        expect(collectTexts(res.content.sections[0]!.root)).toEqual(["c", "a", "b", "d"]);
+        expect(res.address).toEqual({ section: "s1", path: [1] });
+    });
+
+    it("refuses a target outside its own parent", () => {
+        const art = blockArt();
+        const elsewhere: DropTarget = {
+            section: "s1",
+            op: "column",
+            path: [],
+            index: 0,
+            before: false,
+            direction: "row",
+        };
+        expect(applyDrop(art, elsewhere, payload([0, 1])).content).toBe(art);
+    });
+
+    it("moveManyPayload gates on the grip being a member of one co-parented set", () => {
+        const co = [
+            { section: "s1", path: [0] },
+            { section: "s1", path: [1] },
+        ];
+        expect(moveManyPayload(co[0]!, co)).toEqual({
+            kind: "moveMany",
+            parent: root,
+            indices: [0, 1],
+        });
+        expect(moveManyPayload({ section: "s1", path: [2] }, co)).toBeNull();
+        expect(moveManyPayload(co[0]!, [co[0]!])).toBeNull();
+        expect(moveManyPayload(co[0]!, [co[0]!, { section: "s1", path: [1, 0] }])).toBeNull();
     });
 });

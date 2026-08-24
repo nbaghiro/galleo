@@ -11,7 +11,14 @@ import { measureText } from "@canvas/render/commands";
 import { diagramColors, diagramSupportsIcons } from "@elements/diagram/utils";
 import { ICON_LIBRARY } from "@elements/media/vector";
 import { paintedNodeFor } from "@editor/core/leaf";
-import { canvasContentWidth, commit, editor, editorTokens, regions } from "@editor/core/store";
+import {
+    canEdit,
+    canvasContentWidth,
+    commit,
+    editor,
+    editorTokens,
+    regions,
+} from "@editor/core/store";
 import { claimLease, elementRefFor, leaseHolder, releaseLease, say } from "@editor/core/collab";
 import { Badge, Button } from "@ui/button";
 import { Icon } from "@ui/icons";
@@ -921,8 +928,11 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
 };
 
 const [target, setTarget] = createSignal<ElementAddress | null>(null);
-// The grid writes the same element a text session would, so it takes the same lease.
+// The grid writes the same element a text session would, so it takes the same lease, and it is
+// gated the same way: every keystroke here commits, and a commit without edit access is dropped, so
+// opening it read-only offered a grid whose edits went nowhere.
 export function openDataEditor(address: ElementAddress): void {
+    if (!canEdit()) return;
     const holder = leaseHolder(address);
     if (holder) {
         say(`${holder.user.name || "Someone"} is editing this`);
@@ -1065,21 +1075,34 @@ const Body: Component<{ address: ElementAddress }> = (props) => {
     );
 };
 
-export const DataEditor: Component = () => (
-    <Show when={target()} keyed>
-        {(addr) => (
-            // re-parse the grid on a type switch: a different type may have a different shape
-            <Show
-                when={
-                    String(
-                        (getElementAt(editor.artifact, addr)?.data as Record<string, unknown>)
-                            ?.type ?? "",
-                    ) || "?"
-                }
-                keyed
-            >
-                <Body address={addr} />
-            </Show>
-        )}
-    </Show>
-);
+export const DataEditor: Component = () => {
+    // Entry is optimistic, so the server's answer can arrive after the grid is already open: a lease
+    // held by anyone else means this session lost, and the grid leaves rather than writing under
+    // someone. Watching the lease rather than the refusal covers a takeover from any cause.
+    createEffect(() => {
+        const addr = target();
+        const holder = addr && leaseHolder(addr);
+        if (!holder) return;
+        say(`${holder.user.name || "Someone"} is editing this`);
+        close();
+    });
+
+    return (
+        <Show when={target()} keyed>
+            {(addr) => (
+                // re-parse the grid on a type switch: a different type may have a different shape
+                <Show
+                    when={
+                        String(
+                            (getElementAt(editor.artifact, addr)?.data as Record<string, unknown>)
+                                ?.type ?? "",
+                        ) || "?"
+                    }
+                    keyed
+                >
+                    <Body address={addr} />
+                </Show>
+            )}
+        </Show>
+    );
+};

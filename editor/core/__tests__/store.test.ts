@@ -2,9 +2,10 @@
 import "@elements/register";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot } from "solid-js";
-import type { ArtifactContent } from "@model/artifact";
-import { emptyRegion } from "@model/artifact";
-import { artifactOf, sectionOf } from "@canvas/testkit";
+import type { ArtifactContent, ElementAddress, ElementInstance } from "@model/artifact";
+import { colGroup, emptyRegion } from "@model/artifact";
+import { deleteElement, updateDataAt } from "@elements/ops";
+import { artifactOf, inst, sectionOf } from "@canvas/testkit";
 import {
     addSectionAfter,
     canRedo,
@@ -22,6 +23,11 @@ import {
     editor,
     editSeq,
     endThemePreview,
+    extras,
+    multiSelected,
+    selectedAddresses,
+    selectMany,
+    toggleExtra,
     keepPreviewedTheme,
     loadArtifactContent,
     moveSectionBy,
@@ -471,5 +477,137 @@ describe("slideFrame", () => {
         });
         const fresh = await reload();
         expect(fresh.slideFrame()).toBe(false);
+    });
+});
+
+// Shift-click builds a set beside the anchor. `selection` keeps its exact meaning, so the
+// invariants that matter are the ones that keep `extras` a well-formed set around it.
+describe("multi-selection", () => {
+    const txt = (t: string): ElementInstance => inst("text", { text: t });
+    const addr = (path: number[]): ElementAddress => ({ section: "a", path });
+    const pick = (path: number[]): void => setSelection({ kind: "element", address: addr(path) });
+    const elArt = (): ArtifactContent =>
+        artifactOf([
+            sectionOf(colGroup([txt("a"), txt("b"), colGroup([txt("c"), txt("d")])]), { id: "a" }),
+        ]);
+    const load = (): void => loadArtifactContent("multi", elArt());
+
+    it("seeds the set from the anchor, then toggles a member back out", () => {
+        inRoot(() => {
+            load();
+            pick([0]);
+            toggleExtra(addr([1]));
+            expect(multiSelected()).toBe(true);
+            expect(selectedAddresses()).toEqual([addr([0]), addr([1])]);
+            toggleExtra(addr([1]));
+            expect(extras()).toEqual([]);
+            expect(selection()).toEqual({ kind: "element", address: addr([0]) });
+        });
+    });
+
+    it("shift-clicking the anchor demotes it and promotes the first extra", () => {
+        inRoot(() => {
+            load();
+            pick([0]);
+            toggleExtra(addr([1]));
+            toggleExtra(addr([0]));
+            expect(selection()).toEqual({ kind: "element", address: addr([1]) });
+            expect(extras()).toEqual([]);
+        });
+    });
+
+    it("shift-clicking a lone anchor clears it, since the toggle has nothing to promote", () => {
+        inRoot(() => {
+            load();
+            pick([0]);
+            toggleExtra(addr([0]));
+            expect(selection()).toBeNull();
+        });
+    });
+
+    it("shift-clicking with a section anchor just selects the element", () => {
+        inRoot(() => {
+            load();
+            setSelection({ kind: "section", section: "a" });
+            toggleExtra(addr([1]));
+            expect(selection()).toEqual({ kind: "element", address: addr([1]) });
+            expect(extras()).toEqual([]);
+        });
+    });
+
+    it("never holds an element together with its own ancestor", () => {
+        inRoot(() => {
+            load();
+            pick([0]);
+            toggleExtra(addr([2, 0]));
+            toggleExtra(addr([2, 1]));
+            expect(extras()).toEqual([addr([2, 0]), addr([2, 1])]);
+            toggleExtra(addr([2])); // the ancestor evicts the two it contains
+            expect(extras()).toEqual([addr([2])]);
+        });
+    });
+
+    it("refuses an extra that is the anchor's own ancestor or descendant", () => {
+        inRoot(() => {
+            load();
+            pick([2, 0]);
+            toggleExtra(addr([2]));
+            expect(extras()).toEqual([]);
+            pick([2]);
+            toggleExtra(addr([2, 1]));
+            expect(extras()).toEqual([]);
+        });
+    });
+
+    it("returns the whole set in document order, whatever order it was built in", () => {
+        inRoot(() => {
+            load();
+            pick([2, 1]);
+            toggleExtra(addr([0]));
+            expect(selectedAddresses()).toEqual([addr([0]), addr([2, 1])]);
+        });
+    });
+
+    it("collapses on a plain selection", () => {
+        inRoot(() => {
+            load();
+            pick([0]);
+            toggleExtra(addr([1]));
+            pick([1]);
+            expect(extras()).toEqual([]);
+        });
+    });
+
+    it("selectMany re-seeds the anchor and the rest of the set", () => {
+        inRoot(() => {
+            load();
+            selectMany([addr([0]), addr([1])]);
+            expect(selection()).toEqual({ kind: "element", address: addr([0]) });
+            expect(extras()).toEqual([addr([1])]);
+            selectMany([]);
+            expect(selection()).toBeNull();
+        });
+    });
+
+    it("a structural commit collapses the set; a data-only one leaves it alone", () => {
+        inRoot(() => {
+            load();
+            pick([0]);
+            toggleExtra(addr([1]));
+            commit(updateDataAt(editor.artifact, addr([0]), { text: "changed" }));
+            expect(extras()).toEqual([addr([1])]);
+            commit(deleteElement(editor.artifact, addr([1])));
+            expect(extras()).toEqual([]);
+        });
+    });
+
+    it("starting a text session collapses the set, which may only address the anchor", () => {
+        inRoot(() => {
+            load();
+            pick([0]);
+            toggleExtra(addr([1]));
+            startEditing(addr([0]));
+            expect(extras()).toEqual([]);
+        });
     });
 });

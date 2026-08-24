@@ -30,10 +30,15 @@ const fracSum = (fr: number[]): number => fr.reduce((a, b) => a + b, 0);
 describe("clipboard store", () => {
     it("deep-clones on copy and reports presence", () => {
         const source = inst("text", { text: "A" });
-        copyToClipboard(source);
+        copyToClipboard([source]);
         expect(hasClipboard()).toBe(true);
-        expect(clipboardEl()).not.toBe(source);
-        expect(textOf(clipboardEl() ?? undefined)).toBe("A");
+        expect(clipboardEl()[0]).not.toBe(source);
+        expect(textOf(clipboardEl()[0])).toBe("A");
+    });
+
+    it("holds the whole set a multi copy hands it", () => {
+        copyToClipboard([inst("text", { text: "A" }), inst("text", { text: "B" })]);
+        expect(clipboardEl().map((e) => textOf(e))).toEqual(["A", "B"]);
     });
 });
 

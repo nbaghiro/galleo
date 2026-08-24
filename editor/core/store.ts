@@ -25,11 +25,14 @@ import {
     setArtifactFormat,
 } from "@elements/ops";
 import {
+    addressesEqual,
     applySectionOps,
+    comparePaths,
     contentWithElementIds,
     diffSections,
     emptyRegion,
     invertOps,
+    isAncestorAddress,
     narrowOps,
     sectionWithElementIds,
     targetsEqual,
@@ -76,10 +79,34 @@ export { canvasEl, setCanvasEl };
 const [canvasContentWidth, setCanvasContentWidth] = createSignal(1120);
 export { canvasContentWidth, setCanvasContentWidth };
 
-// How far outside an element its margin handles sit. The drag grip hangs off the left edge and the
-// comment chip off the right, and the two are read as a pair, so the distance is one number rather
-// than one per panel: they drifted 2px apart the first time each owned its own.
+// The margin handles an element wears while the pointer is on it: the drag grip off its left edge,
+// the comment chip off its right. They are read as a pair, so the geometry is stated once here
+// rather than once per panel. It drifted the first time each owned its own, by 2px horizontally,
+// which is small enough to look like sloppiness and big enough to see.
+
+/** How far outside the element's edge a handle sits, on either side. */
 export const HANDLE_GAP = 10;
+/** The pill itself (h-5). Width is each handle's own, since a bubble needs squarer room than dots. */
+export const HANDLE_H = 20;
+// The pill plus slack. Each handle's container is a hover bridge spanning the gap to its element,
+// and the extra height is what catches a pointer wobbling vertically while it crosses.
+export const HANDLE_BRIDGE_H = 26;
+// About two pills: the band at the top of a box that a handle belongs to, which for a one-line
+// element is the whole of it.
+export const HANDLE_BAND = 40;
+
+/**
+ * Where a handle's pill sits against the box it belongs to.
+ *
+ * Top-anchoring is right for a tall block and wrong for a short one: a 20px pill in a 24px one-line
+ * box leaves an uneven sliver under it, and the glyph inside a single line is optically centred, so
+ * the handle reads as sitting high. Centring in the first `HANDLE_BAND` pixels answers both: a
+ * short box centres outright, a tall one rests just inside its top corner. A band rather than a
+ * threshold so nothing jumps as a box grows past a magic number.
+ */
+export function handleTop(box: { y: number; h: number }): number {
+    return box.y + Math.max(0, Math.min(box.h, HANDLE_BAND) - HANDLE_H) / 2;
+}
 
 // View-only: author a paged artifact at its slide shape instead of at each section's natural height.
 // Persisted, because it is how someone wants to see every deck rather than a per-visit choice, and
@@ -110,10 +137,80 @@ const [stageEl, setStageEl] = createSignal<HTMLElement | null>(null);
 export { stageEl, setStageEl };
 
 export const [regions, setRegions] = createSignal<Region[]>([]);
-export const [selection, setSelection] = createSignal<Target | null>(null, {
+const [selection, setSelectionOnly] = createSignal<Target | null>(null, {
     equals: targetsEqual,
 });
+export { selection };
 export const [hover, setHover] = createSignal<Target | null>(null, { equals: targetsEqual });
+
+// Multi-select rides beside the anchor rather than replacing it: `selection` keeps its exact meaning
+// and every consumer that genuinely needs one element stays untouched, while the set-aware surfaces
+// read `selectedAddresses`. Elements only, and never an element together with its own ancestor.
+const [extras, setExtras] = createSignal<ElementAddress[]>([]);
+export { extras };
+
+function normalizeExtras(primary: ElementAddress, list: ElementAddress[]): ElementAddress[] {
+    const out: ElementAddress[] = [];
+    for (const a of list) {
+        if (addressesEqual(a, primary)) continue;
+        if (isAncestorAddress(a, primary) || isAncestorAddress(primary, a)) continue;
+        if (out.some((k) => addressesEqual(k, a) || isAncestorAddress(k, a))) continue;
+        for (let i = out.length - 1; i >= 0; i--)
+            if (isAncestorAddress(a, out[i]!)) out.splice(i, 1);
+        out.push(a);
+    }
+    return out;
+}
+
+/** Every plain selection collapses the set; only the shift gesture below carries it forward. */
+export function setSelection(v: Target | null | ((prev: Target | null) => Target | null)): void {
+    setSelectionOnly((prev) => (typeof v === "function" ? v(prev) : v));
+    if (extras().length) setExtras([]);
+}
+
+export function clearExtras(): void {
+    if (extras().length) setExtras([]);
+}
+
+/** Shift-click: add, remove, or (on the anchor itself) demote and promote the first extra. */
+export function toggleExtra(addr: ElementAddress): void {
+    const primary = selection();
+    if (primary?.kind !== "element") {
+        setSelection({ kind: "element", address: addr });
+        return;
+    }
+    if (addressesEqual(primary.address, addr)) {
+        const [next, ...rest] = extras();
+        setSelectionOnly(next ? { kind: "element", address: next } : null);
+        setExtras(rest);
+        return;
+    }
+    const held = extras();
+    const without = held.filter((a) => !addressesEqual(a, addr));
+    const list = without.length < held.length ? without : [...held, addr];
+    setExtras(normalizeExtras(primary.address, list));
+}
+
+/** Re-seeds the selection after a batch op: the first address becomes the anchor. */
+export function selectMany(addrs: ElementAddress[]): void {
+    const [first, ...rest] = addrs;
+    setSelectionOnly(first ? { kind: "element", address: first } : null);
+    setExtras(first ? normalizeExtras(first, rest) : []);
+}
+
+/** The whole selection in document order; empty unless an element is the anchor. */
+export function selectedAddresses(): ElementAddress[] {
+    const s = selection();
+    if (s?.kind !== "element") return [];
+    const order = new Map(editor.artifact.sections.map((sec, i) => [sec.id, i]));
+    return [s.address, ...extras()].sort(
+        (a, b) =>
+            (order.get(a.section) ?? 0) - (order.get(b.section) ?? 0) ||
+            comparePaths(a.path, b.path),
+    );
+}
+
+export const multiSelected = (): boolean => extras().length > 0;
 
 // defaults are the most-restrictive Free set, so a studio with no host never leaks paid exports
 export type ExportFeatures = Pick<PlanLimits, "exportFormats" | "removeBranding" | "publicLinks">;
@@ -260,6 +357,9 @@ function record(
     // baselines disagree, and the batch that puts it back has to go out even so
     const outgoing = from === base ? forward : narrowOps(from, diffSections(from, next));
     if (!forward.length && !outgoing.length && !opts?.title) return; // keep the painted objects
+    // a structural write invalidates every held path, so the set collapses and the batch op that
+    // made the write is the one that re-seeds it
+    if (forward.some((op) => op.kind !== "data")) clearExtras();
     if (forward.length || opts?.title) {
         const key = opts?.coalesce;
         const folding = !!key && key === coalesceKey;
@@ -378,6 +478,7 @@ function replay(
             setContent(applied.content);
         }
         other.push({ ...entry, marks: marksFor(ops) });
+        if (ops.length) clearExtras(); // a replayed batch moves paths the same way the edit did
         const t = title(entry);
         if (t !== undefined) restoreTitle(t);
         if (ops.length) {
@@ -432,6 +533,7 @@ export function startEditing(addr: ElementAddress, caret?: { x: number; y: numbe
     setEditCaret(caret ?? null);
     // hover updates are suppressed while editing, so a stale value would strand the hover chrome
     setHover(null);
+    clearExtras(); // a session only ever addresses the anchor
     setEditing(addr);
 }
 
@@ -614,6 +716,7 @@ function admissible(ops: SectionOp[]): SectionOp[] {
 export function applyRemoteOps(ops: SectionOp[]): boolean {
     const usable = admissible(ops);
     markRemote(ops); // even a discarded op means someone else is in here, so undo must know
+    if (ops.some((op) => op.kind !== "data")) clearExtras(); // someone else moved the paths
     if (!usable.length) return true;
     const applied = applySectionOps(content(), usable);
     if (!applied.ok) return false;
@@ -1185,8 +1288,17 @@ export function noteElementMoved(type: string, sameSection: boolean): void {
     capture("element_moved", { element_type: type, same_section: sameSection });
 }
 
-export function noteElementRemoved(type: string): void {
-    capture("element_removed", { element_type: type, category: categoryOf(type) });
+/** `count` rides along only for a batch, so a single removal keeps the shape it always had. */
+export function noteElementRemoved(type: string, count = 1): void {
+    capture("element_removed", {
+        element_type: type,
+        category: categoryOf(type),
+        ...(count > 1 ? { count } : {}),
+    });
+}
+
+export function noteElementsGrouped(count: number): void {
+    capture("elements_grouped", { count });
 }
 
 /** One artifact rendered three ways is the product's premise, so the switch is worth counting. */

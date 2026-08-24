@@ -2,9 +2,27 @@
 import "@elements/register"; // the predicate reads element specs, so the registry has to be up
 import "@editor/core/commands"; // side-effect: register editor commands + keymap
 import { beforeEach, describe, expect, it } from "vitest";
-import { allCommands, bindingLabel, GROUP_ORDER, resolveChord, type KeyCtx } from "@ui/keys";
-import type { ArtifactContent, ElementInstance } from "@model/artifact";
-import { commit, editor, loadArtifactContent, setSelection } from "@editor/core/store";
+import {
+    allCommands,
+    bindingLabel,
+    GROUP_ORDER,
+    resolveChord,
+    runCommand,
+    type KeyCtx,
+} from "@ui/keys";
+import type { ArtifactContent, ElementAddress, ElementInstance } from "@model/artifact";
+import {
+    canUndo,
+    commit,
+    editor,
+    loadArtifactContent,
+    selectedAddresses,
+    selection,
+    setSelection,
+    toggleExtra,
+    undo,
+} from "@editor/core/store";
+import { clipboardEl } from "@editor/core/clipboard";
 import { onCommentCreate } from "@editor/core/comments";
 
 describe("editor command registry", () => {
@@ -161,5 +179,119 @@ describe("comment.add follows what is commentable", () => {
     it("goes quiet on a part of the unit", () => {
         setSelection({ kind: "element", address: { section: "s1", path: [1, 0] } });
         expect(chord()).toBeUndefined();
+    });
+});
+
+// The batch commands are one gesture and therefore one undo entry: the ops compose into a single
+// content transition before `commit` ever sees them.
+describe("commands over a multi-selection", () => {
+    const txt = (t: string): ElementInstance => ({ type: "text", data: { text: t } });
+    const addr = (path: number[]): ElementAddress => ({ section: "s1", path });
+    const doc = (): ArtifactContent => ({
+        format: "deck",
+        theme: "studio",
+        sections: [
+            {
+                id: "s1",
+                root: {
+                    type: "container",
+                    data: { direction: "col", children: [txt("a"), txt("b"), txt("c")] },
+                },
+            },
+        ],
+    });
+    const texts = (): string[] => {
+        const out: string[] = [];
+        const walk = (el: ElementInstance): void => {
+            const d = el.data as { text?: string; children?: ElementInstance[] };
+            if (typeof d.text === "string") out.push(d.text);
+            for (const k of d.children ?? []) walk(k);
+        };
+        walk(editor.artifact.sections[0]!.root);
+        return out;
+    };
+    const selectTwo = (): void => {
+        setSelection({ kind: "element", address: addr([0]) });
+        toggleExtra(addr([1]));
+    };
+
+    beforeEach(() => {
+        loadArtifactContent("batch", doc());
+    });
+
+    it("delete removes every member, in one undo step", () => {
+        selectTwo();
+        runCommand("edit.delete");
+        expect(texts()).toEqual(["c"]);
+        expect(selection()).toBeNull();
+        undo();
+        expect(texts()).toEqual(["a", "b", "c"]);
+        expect(canUndo()).toBe(false);
+    });
+
+    it("duplicate copies every member and leaves the copies selected", () => {
+        selectTwo();
+        runCommand("edit.duplicate");
+        expect(texts()).toEqual(["a", "a", "b", "b", "c"]);
+        expect(selectedAddresses()).toEqual([addr([1]), addr([3])]);
+        undo();
+        expect(texts()).toEqual(["a", "b", "c"]);
+    });
+
+    it("copy then paste puts the whole block back, in order", () => {
+        selectTwo();
+        runCommand("edit.copy");
+        setSelection({ kind: "element", address: addr([2]) });
+        runCommand("edit.paste");
+        expect(texts()).toEqual(["a", "b", "c", "a", "b"]);
+        expect(selectedAddresses()).toEqual([addr([3]), addr([4])]);
+    });
+
+    it("cut takes the block and hands it to the clipboard", () => {
+        selectTwo();
+        runCommand("edit.cut");
+        expect(texts()).toEqual(["c"]);
+        expect(clipboardEl().map((e) => (e.data as { text?: string }).text)).toEqual(["a", "b"]);
+    });
+
+    it("group wraps the members where they stood, and undo puts them back", () => {
+        selectTwo();
+        expect(
+            resolveChord("mod+g", ctx(["editor", "editor.hasSelection", "editor.element"]))?.id,
+        ).toBe("edit.group");
+        runCommand("edit.group");
+        expect(texts()).toEqual(["a", "b", "c"]);
+        expect(selection()).toEqual({ kind: "element", address: addr([0]) });
+        undo();
+        expect(canUndo()).toBe(false);
+    });
+
+    it("ungroup splices the children back and selects them all", () => {
+        selectTwo();
+        runCommand("edit.group");
+        runCommand("edit.ungroup");
+        expect(selectedAddresses()).toEqual([addr([0]), addr([1])]);
+        expect(texts()).toEqual(["a", "b", "c"]);
+    });
+
+    it("group is unavailable across parents, ungroup only on a group", () => {
+        setSelection({ kind: "element", address: addr([0]) });
+        const withSel = ctx(["editor", "editor.hasSelection", "editor.element"]);
+        expect(resolveChord("mod+g", withSel)).toBeNull(); // one element is not a set
+        expect(resolveChord("mod+shift+g", withSel)).toBeNull(); // a text is not a group
+    });
+
+    it("Esc peels the set back to its anchor before it walks up the tree", () => {
+        selectTwo();
+        runCommand("select.up");
+        expect(selectedAddresses()).toEqual([addr([0])]);
+        runCommand("select.up");
+        expect(selection()).toEqual({ kind: "element", address: addr([]) });
+    });
+
+    it("commenting goes quiet while more than one element is selected", () => {
+        onCommentCreate(() => Promise.resolve(null));
+        selectTwo();
+        expect(resolveChord("mod+alt+m", ctx(["editor", "editor.element"], true))).toBeNull();
     });
 });

@@ -95,14 +95,14 @@ export const SectionGenPopup: Component = () => {
                     onPointerMove={(e) => e.stopPropagation()}
                 >
                     <div class="mb-2 flex items-center justify-between px-1">
-                        <span class="flex items-center gap-1.5 text-soft [&_svg]:translate-y-[0.5px]">
+                        <span class="flex icon-row gap-1.5 text-soft">
                             <Icon name="sparkle" size={13} />
                             <Eyebrow tone="soft" mono={false}>
                                 Generate a section here
                             </Eyebrow>
                         </span>
                         <button
-                            class="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted hover:text-accent disabled:opacity-50 [&_svg]:translate-y-[0.5px]"
+                            class="inline-flex icon-row gap-1.5 rounded-md px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted hover:text-accent disabled:opacity-50"
                             onClick={() => void refine()}
                             disabled={loading()}
                             title="Suggest sections from this artifact's content"

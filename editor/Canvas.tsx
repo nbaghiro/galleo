@@ -1,11 +1,11 @@
 import { asFormat, RENDER_SLOW_MS } from "@model/analytics";
 import { capture } from "@ui/analytics";
 import type { Rect } from "@engine/node";
-import { embedFor, pickArtifactBackground, type Embed, type PlayerOpts } from "./core/media";
-import type { ElementAddress, Target, ElementInstance, Section } from "@model/artifact";
+import { pickArtifactBackground } from "./core/media";
+import type { ElementAddress, Target, Section } from "@model/artifact";
 import type { Component } from "solid-js";
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { getElementAt, updateDataAt } from "@elements/ops";
+import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { applyAffordance, getElementAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { profileFor } from "@engine/profile";
 import {
@@ -43,6 +43,7 @@ import {
     drag,
     dragSlots,
     endDrag,
+    movableAncestor,
     setDrag,
     setDragSlots,
 } from "./core/dnd";
@@ -73,10 +74,12 @@ import {
     setSectionTops,
     setSelection,
     noteDropSelection,
+    selectMany,
     setStageEl,
     slideFrame,
     startEditing,
     stopEditing,
+    toggleExtra,
 } from "./core/store";
 import { EmptyRegionAdd, ContextMenu, openContextMenu } from "./panels/Insert";
 import { DropIndicators, LiftVeil } from "./panels/DropIndicators";
@@ -89,6 +92,7 @@ import { ElementGenStage } from "./panels/GenOverlays";
 import { TextEditor } from "./panels/TextEditor";
 import { CommentLayer } from "./panels/Comments";
 import { CollabLayer } from "./panels/Collab";
+import { LiveLayer } from "@ui/live";
 import { collabActive, cursorForPoint, elementRefFor, sendPresence } from "./core/collab";
 
 const RAIL_GAP = 28;
@@ -281,32 +285,38 @@ export const Canvas: Component = () => {
         return best;
     };
 
+    const inBox = (b: Rect, px: number, py: number): boolean =>
+        px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h;
+
+    const within = (inner: Rect, outer: Rect): boolean =>
+        inner.x >= outer.x - 0.5 &&
+        inner.y >= outer.y - 0.5 &&
+        inner.x + inner.w <= outer.x + outer.w + 0.5 &&
+        inner.y + inner.h <= outer.y + outer.h + 0.5 &&
+        (inner.w < outer.w - 0.5 || inner.h < outer.h - 0.5);
+
+    // An affordance yields to anything selectable sitting inside it, so an author still clicks into
+    // the question text of a collapsible row that a reader presses to open.
     const affordanceAt = (
         px: number,
         py: number,
-    ): { action: string; address: ElementAddress; box: Rect } | null =>
-        affordances.find(
-            (a) =>
-                px >= a.box.x &&
-                px <= a.box.x + a.box.w &&
-                py >= a.box.y &&
-                py <= a.box.y + a.box.h,
-        ) ?? null;
+    ): { action: string; address: ElementAddress; box: Rect } | null => {
+        const a = affordances.find((x) => inBox(x.box, px, py));
+        if (!a) return null;
+        return liveHits.some((h) => inBox(h.box, px, py) && within(h.box, a.box)) ? null : a;
+    };
 
-    // today the one action is the checklist checkbox: flip `checked` on the addressed child
     const runAffordance = (a: { action: string; address: ElementAddress }): void => {
-        if (a.action !== "checkbox") return;
-        const inst = getElementAt(editor.artifact, a.address);
-        if (!inst) return;
-        const data = inst.data as Record<string, unknown>;
-        commit(
-            updateDataAt(editor.artifact, a.address, { ...data, checked: data.checked !== true }),
-        );
+        const next = applyAffordance(editor.artifact, a.action, a.address);
+        if (next !== editor.artifact) commit(next);
     };
 
     const onPointerDown = (e: PointerEvent): void => {
         // a pointerdown reaching here while editing is an outside click; in-editor ones are stopped
         if (drag() || liveEdit()) return;
+        // shift means structural selection: without this the browser extends a native text range
+        // from the overlay caret to the click point, smearing highlight across painted spans
+        if (e.shiftKey && !isPhone()) e.preventDefault();
         pendingAffordance = affordanceAt(...point(e));
         if (pendingAffordance) {
             pending = null;
@@ -355,7 +365,7 @@ export const Canvas: Component = () => {
         publishPresence();
     };
 
-    const onPointerUp = (): void => {
+    const onPointerUp = (e: PointerEvent): void => {
         if (pendingAffordance) {
             const a = pendingAffordance;
             pendingAffordance = null;
@@ -366,6 +376,14 @@ export const Canvas: Component = () => {
         const t = pending.target;
         const caret = { x: pending.x, y: pending.y };
         pending = null;
+        // Shift extends the set (desktop only: the phone path shares this handler and has no shift).
+        // It aims at the movable ancestor, like the drag grip, so a part of a unit adds the unit.
+        if (e.shiftKey && !isPhone() && t?.kind === "element") {
+            if (editing()) stopEditing();
+            document.getSelection()?.removeAllRanges();
+            toggleExtra(movableAncestor(editor.artifact, t.address));
+            return;
+        }
         // phone: first tap only selects — editing (and the keyboard) waits for a tap on the
         // already-selected text, so browsing a document never summons the keyboard
         const already = targetsEqual(t, selection());
@@ -378,6 +396,12 @@ export const Canvas: Component = () => {
                 startEditing(t.address, caret);
         }
     };
+
+    // the live overlay only turns interactive for the element the author has selected
+    const selectedRegionId = createMemo((): string | null => {
+        const s = selection();
+        return s?.kind === "element" ? elementRegionId(s.address) : null;
+    });
 
     const onContextMenu = (e: MouseEvent): void => {
         e.preventDefault();
@@ -395,6 +419,13 @@ export const Canvas: Component = () => {
     onMount(() => {
         setCanvasEl(scrollEl);
         setStageEl(stageEl);
+        // on canvas a click selects; cmd/ctrl-click follows the link, as design tools do
+        const onLinkClick = (e: MouseEvent): void => {
+            if (e.metaKey || e.ctrlKey) return;
+            if ((e.target as HTMLElement | null)?.closest("a")) e.preventDefault();
+        };
+        paintHost.addEventListener("click", onLinkClick, true);
+        onCleanup(() => paintHost.removeEventListener("click", onLinkClick, true));
         const ro = new ResizeObserver(() => scheduleDraw(null, false));
         ro.observe(scrollEl);
         // repaint only once the materialized band moves, so scrolling inside the overscan costs nothing
@@ -508,26 +539,43 @@ export const Canvas: Component = () => {
             endDrag(); // clear first so the redraw effect paints the committed result
             if (d?.target) {
                 const before = editor.artifact;
-                const moving =
+                const block = d.payload.kind === "moveMany" ? d.payload : null;
+                const source =
                     d.payload.kind === "move"
-                        ? getElementAt(before, d.payload.from)?.type
-                        : undefined;
-                const fromSection = d.payload.kind === "move" ? d.payload.from.section : null;
+                        ? d.payload.from
+                        : block
+                          ? {
+                                section: block.parent.section,
+                                path: [...block.parent.path, block.indices[0] ?? 0],
+                            }
+                          : null;
+                const moving = source ? getElementAt(before, source)?.type : undefined;
                 const res = applyDrop(before, d.target, d.payload);
                 if (res.content !== before) {
                     commit(res.content);
                     if (d.payload.kind === "new") noteElementAdded(d.payload.type, "drag");
                     else if (moving !== undefined)
-                        noteElementMoved(moving, fromSection === d.target.section);
+                        noteElementMoved(moving, source?.section === d.target.section);
                 }
                 noteDropSelection(); // the flyout must not open over what was just dropped
-                setSelection(
-                    d.payload.kind === "section"
-                        ? { kind: "section", section: d.payload.id }
-                        : res.address
-                          ? { kind: "element", address: res.address }
-                          : null,
-                );
+                const landed = res.address;
+                if (block && landed && res.content !== before) {
+                    // the block landed contiguously, so the whole set survives the drop
+                    const head = landed.path[landed.path.length - 1] ?? 0;
+                    selectMany(
+                        block.indices.map((_, i) => ({
+                            section: landed.section,
+                            path: [...landed.path.slice(0, -1), head + i],
+                        })),
+                    );
+                } else
+                    setSelection(
+                        d.payload.kind === "section"
+                            ? { kind: "section", section: d.payload.id }
+                            : res.address
+                              ? { kind: "element", address: res.address }
+                              : null,
+                    );
                 setHover(null);
             }
         };
@@ -557,7 +605,8 @@ export const Canvas: Component = () => {
     return (
         <main
             ref={scrollEl}
-            class="h-full overflow-y-auto overscroll-none pt-6 pb-35"
+            // the floating chrome sits over this scroller, so the last section needs room to clear it
+            class="h-full overflow-y-auto overscroll-none pb-35 pt-6"
             style={pageStyle()}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
@@ -567,8 +616,15 @@ export const Canvas: Component = () => {
             onPointerLeave={onPointerLeaveCanvas}
         >
             <div ref={stageEl} class="relative w-full">
-                <div ref={paintHost} class="absolute inset-0" />
-                <VideoEmbeds />
+                <div ref={paintHost} class="absolute inset-0 select-none" />
+                <LiveLayer
+                    content={editor.artifact}
+                    regions={regions}
+                    surface="editor"
+                    theme={editorTokens()}
+                    format={profileFor(editor.artifact)}
+                    selectedId={selectedRegionId}
+                />
                 <Overlay />
                 <LiftVeil />
                 <DropIndicators />
@@ -659,107 +715,5 @@ export const Thumb: Component<{
                 <div ref={inner} />
             </button>
         </div>
-    );
-};
-
-// addresses must mirror how compose tags region ids, so elementRegionId matches
-function walkAddressed(
-    section: Section,
-    visit: (el: ElementInstance, addr: ElementAddress) => void,
-): void {
-    const recurse = (el: ElementInstance | undefined, addr: ElementAddress): void => {
-        if (!el) return;
-        visit(el, addr);
-        const kids = (el.data as { children?: ElementInstance[] }).children;
-        if (Array.isArray(kids))
-            kids.forEach((k, i) => recurse(k, { ...addr, path: [...addr.path, i] }));
-    };
-    recurse(section.root, { section: section.id, path: [] });
-}
-
-const VideoEmbeds: Component = () => {
-    // reuse the Embed when id, src and opts are unchanged, or <For> gets new refs and reloads players
-    let cache = new Map<string, Embed>();
-    const same = (a: PlayerOpts, b: PlayerOpts): boolean =>
-        a.controls === b.controls &&
-        a.autoplay === b.autoplay &&
-        a.loop === b.loop &&
-        a.muted === b.muted;
-    const embeds = createMemo((): Embed[] => {
-        const next = new Map<string, Embed>();
-        const out: Embed[] = [];
-        for (const section of editor.artifact.sections)
-            walkAddressed(section, (el, addr) => {
-                if (el.type !== "video") return;
-                const d = el.data as { src?: string } & Partial<PlayerOpts>;
-                const e = embedFor(d.src ?? "", d);
-                if (!e) return;
-                const id = elementRegionId(addr);
-                const prev = cache.get(id);
-                const item =
-                    prev && prev.src === e.src && same(prev.opts, e.opts) ? prev : { id, ...e };
-                next.set(id, item);
-                out.push(item);
-            });
-        cache = next;
-        return out;
-    });
-    const selected = (id: string): boolean => {
-        const s = selection();
-        return s?.kind === "element" && elementRegionId(s.address) === id;
-    };
-    return (
-        <For each={embeds()}>
-            {(embed) => {
-                const region = createMemo(() => regions().find((r) => r.id === embed.id) ?? null);
-                return (
-                    <Show when={region()}>
-                        {(r) => {
-                            // interactive only when selected, so a click on an idle player selects it
-                            const pe = (): "auto" | "none" =>
-                                selected(embed.id) ? "auto" : "none";
-                            return (
-                                <div
-                                    class="absolute overflow-hidden"
-                                    style={{
-                                        left: `${r().box.x}px`,
-                                        top: `${r().box.y}px`,
-                                        width: `${r().box.w}px`,
-                                        height: `${r().box.h}px`,
-                                        "border-radius": `${r().radius ?? 8}px`,
-                                        "pointer-events": "none",
-                                    }}
-                                >
-                                    <Show
-                                        when={embed.kind === "iframe"}
-                                        fallback={
-                                            <video
-                                                src={embed.src}
-                                                controls={embed.opts.controls}
-                                                autoplay={embed.opts.autoplay}
-                                                loop={embed.opts.loop}
-                                                muted={embed.opts.muted}
-                                                playsinline
-                                                class="h-full w-full bg-black object-cover"
-                                                style={{ "pointer-events": pe() }}
-                                            />
-                                        }
-                                    >
-                                        <iframe
-                                            src={embed.src}
-                                            title="Embedded video"
-                                            class="h-full w-full border-0 bg-black"
-                                            style={{ "pointer-events": pe() }}
-                                            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-                                            allowfullscreen
-                                        />
-                                    </Show>
-                                </div>
-                            );
-                        }}
-                    </Show>
-                );
-            }}
-        </For>
     );
 };

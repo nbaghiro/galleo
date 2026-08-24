@@ -1,6 +1,6 @@
 import type { Component } from "solid-js";
 import { createMemo, For, Show } from "solid-js";
-import type { Rect } from "@engine/node";
+import type { Rect, Region } from "@engine/node";
 import { elementRegionId, sectionRegionId } from "@model/artifact";
 import { drag, dragSlots, sameTarget, type DropSlot } from "@editor/core/dnd";
 import { editorAccent, editorTokens, regions } from "@editor/core/store";
@@ -128,25 +128,35 @@ export const DropIndicators: Component = () => {
 // A move drag — element or section — leaves the source painted in place; this dims it until the
 // drop relocates it.
 export const LiftVeil: Component = () => {
-    const src = createMemo(() => {
+    // a block drag lifts every member, so the veil is a list rather than one box
+    const src = createMemo((): Region[] => {
         const p = drag()?.payload;
-        if (!p || p.kind === "new") return null;
-        const id = p.kind === "move" ? elementRegionId(p.from) : sectionRegionId(p.id);
-        return regions().find((r) => r.id === id) ?? null;
+        if (!p || p.kind === "new") return [];
+        const ids =
+            p.kind === "move"
+                ? [elementRegionId(p.from)]
+                : p.kind === "section"
+                  ? [sectionRegionId(p.id)]
+                  : p.indices.map((i) =>
+                        elementRegionId({ section: p.parent.section, path: [...p.parent.path, i] }),
+                    );
+        return ids
+            .map((id) => regions().find((r) => r.id === id))
+            .filter((r): r is Region => r !== undefined);
     });
     return (
-        <Show when={src()}>
+        <For each={src()}>
             {(r) => (
                 <div
                     data-testid="lift-veil"
                     class="pointer-events-none absolute opacity-65"
                     style={{
-                        ...boxStyle(r().box),
-                        "border-radius": `${r().radius ?? 0}px`,
+                        ...boxStyle(r.box),
+                        "border-radius": `${r.radius ?? 0}px`,
                         background: editorTokens().surface,
                     }}
                 />
             )}
-        </Show>
+        </For>
     );
 };

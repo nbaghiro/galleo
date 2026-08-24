@@ -15,21 +15,27 @@ import { getElement } from "@elements/spec";
 import { profileFor } from "@engine/profile";
 import {
     addSectionAfter,
+    clearExtras,
     commit,
     duplicateSectionAt,
     editor,
     editorAccent,
+    extras,
+    HANDLE_BRIDGE_H,
+    HANDLE_GAP,
+    handleTop,
     hover,
     moveSectionBy,
     noteElementResized,
     regions,
     removeSectionAt,
+    selectedAddresses,
     selection,
     setSelection,
     stageEl,
     stopEditing,
 } from "@editor/core/store";
-import { startDrag, drag, movableAncestor } from "@editor/core/dnd";
+import { startDrag, drag, movableAncestor, moveManyPayload } from "@editor/core/dnd";
 import { openSectionPrompt } from "@editor/core/ai";
 import { pickMedia } from "@editor/core/media";
 import { SectionLayoutPopup } from "./SectionLayoutPopup";
@@ -48,8 +54,8 @@ const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.m
 const EDGE = 8; // draggable border thickness
 const DRAG_THRESHOLD = 5; // px of travel before a grip press becomes a drag, not a click
 
-const GRIP_W = 16; // the visible pill (w-4)
-const GRIP_GAP = 10; // breathing room between the pill and the box it belongs to
+const GRIP_W = 16; // the visible pill (w-4); the rest of the geometry is shared, see @editor/core/store
+const GRIP_GAP = HANDLE_GAP;
 // A bleed section starts at 0, and the canvas is a scroll container, so anything left of its content
 // origin is unreachable and never paints. Clamping keeps that grip just inside instead of vanishing;
 // every other box has room outside itself and is unaffected.
@@ -93,6 +99,12 @@ export const DragHandle: Component = () => {
             if (c.kind === "element") {
                 const inst = getElementAt(editor.artifact, c.address);
                 const label = (inst && getElement(inst.type)?.label) || "Element";
+                const block = moveManyPayload(c.address, selectedAddresses());
+                if (block) {
+                    startDrag(block, sx, sy, `${block.indices.length} elements`);
+                    return;
+                }
+                clearExtras(); // the grip is dragging its own element, so the set is done
                 startDrag({ kind: "move", from: c.address }, sx, sy, label);
             } else {
                 startDrag({ kind: "section", id: c.section }, sx, sy, "Section");
@@ -128,9 +140,9 @@ export const DragHandle: Component = () => {
                     class="absolute z-menu flex items-start"
                     style={{
                         left: `${gripX(c().box)}px`,
-                        top: `${c().box.y}px`,
+                        top: `${handleTop(c().box)}px`,
                         width: `${gripW(c().box)}px`,
-                        height: "26px",
+                        height: `${HANDLE_BRIDGE_H}px`,
                     }}
                     onPointerMove={(e) => e.stopPropagation()}
                 >
@@ -233,7 +245,7 @@ interface Divider {
     apply: (stageX: number) => LiveEdit; // stageX = clientX − stage.left
 }
 
-const union = (a: Rect, b: Rect): Rect => {
+export const union = (a: Rect, b: Rect): Rect => {
     const x = Math.min(a.x, b.x);
     const y = Math.min(a.y, b.y);
     return {
@@ -461,6 +473,14 @@ const ring = (r: Region, shadow: string) => ({
 export const Overlay: Component = () => {
     // suppressed mid-drag so the rings don't compete with the drop indicators
     const sel = createMemo(() => (drag() ? null : regionFor(selection())));
+    // the anchor keeps today's ring; the rest of the set gets a lighter one
+    const rest = createMemo((): Region[] =>
+        drag()
+            ? []
+            : extras()
+                  .map((address) => regionFor({ kind: "element", address }))
+                  .filter((r): r is Region => r !== null),
+    );
     const hov = createMemo(() => {
         if (drag()) return null;
         const h = hover();
@@ -479,6 +499,15 @@ export const Overlay: Component = () => {
                     />
                 )}
             </Show>
+            <For each={rest()}>
+                {(r) => (
+                    <div
+                        data-testid="selection-extra"
+                        class="pointer-events-none absolute opacity-60"
+                        style={ring(r, `0 0 0 2px ${editorAccent()}`)}
+                    />
+                )}
+            </For>
             <Show when={sel()}>
                 {(r) => (
                     <div

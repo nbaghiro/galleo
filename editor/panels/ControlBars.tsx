@@ -2,16 +2,19 @@ import type { Rect } from "@engine/node";
 import type { ControlField } from "@elements/spec";
 import type { Component } from "solid-js";
 import { createEffect, createMemo, For, Show, createSignal } from "solid-js";
+import type { ElementAddress } from "@model/artifact";
 import { elementRegionId, parentTarget } from "@model/artifact";
 import { profileFor } from "@engine/profile";
 import { measureText } from "@canvas/render/commands";
 import { isPhone } from "@ui/viewport";
+import { runCommand } from "@ui/keys";
 import {
     duplicateAt,
     duplicatedAddr,
     getElementAt,
     removeAt,
     setElementLayout,
+    sharedParent,
     updateDataAt,
 } from "@elements/ops";
 import { getElement } from "@elements/spec";
@@ -19,13 +22,16 @@ import {
     commit,
     editing,
     editor,
+    multiSelected,
     regions,
+    selectedAddresses,
     selection,
     setSelection,
     stageEl,
     editorTokens,
 } from "@editor/core/store";
 import { drag, movable } from "@editor/core/dnd";
+import { union } from "./Selection";
 import { paintedLeafFor } from "@editor/core/leaf";
 import { canRegenerate, elementGenBusy, regenerateElement } from "@editor/core/ai";
 import {
@@ -60,6 +66,8 @@ export const ContextBar: Component = () => {
         const s = selection();
         return s?.kind === "element" ? s.address : null;
     });
+    // at more than one, the bar drops every per-element control and keeps the shared actions
+    const set = createMemo(() => (multiSelected() ? selectedAddresses() : null));
     const inst = createMemo(() => {
         const a = addr();
         return a ? getElementAt(editor.artifact, a) : undefined;
@@ -77,10 +85,16 @@ export const ContextBar: Component = () => {
             .map((k) => s.controls.find((c) => c.key === k))
             .filter((c): c is ControlField => !!c && (!c.visibleWhen || c.visibleWhen(d)));
     });
+    const boxOf = (a: ElementAddress): Rect | null =>
+        regions().find((r) => r.id === elementRegionId(a))?.box ?? null;
     const box = createMemo((): Rect | null => {
+        const many = set();
+        if (many) {
+            const boxes = many.map(boxOf).filter((b): b is Rect => b !== null);
+            return boxes.length ? boxes.reduce(union) : null;
+        }
         const a = addr();
-        if (!a) return null;
-        return regions().find((r) => r.id === elementRegionId(a))?.box ?? null;
+        return a ? boxOf(a) : null;
     });
     const pos = createMemo((): { left: number; top: number } | null => {
         const b = box();
@@ -151,20 +165,40 @@ export const ContextBar: Component = () => {
         return a ? canRegenerate(a) : false;
     });
     const structural = createMemo((): boolean => {
+        const many = set();
+        if (many) return many.every((a) => movable(editor.artifact, a));
         const a = addr();
         return a ? movable(editor.artifact, a) : false;
+    });
+    const groupable = createMemo(
+        (): boolean => !!set() && !!sharedParent(set() ?? []) && structural(),
+    );
+    const ungroupable = createMemo((): boolean => {
+        const a = addr();
+        if (!a || set() || a.path.length === 0) return false;
+        return getElement(inst()?.type ?? "")?.tier === "container";
     });
     const regen = (): void => {
         const a = addr();
         if (a) void regenerateElement(a);
     };
     const dup = (): void => {
+        const many = set();
+        if (many) {
+            runCommand("edit.duplicate");
+            return;
+        }
         const a = addr();
         if (!a) return;
         commit(duplicateAt(editor.artifact, a));
         setSelection({ kind: "element", address: duplicatedAddr(a) });
     };
     const del = (): void => {
+        const many = set();
+        if (many) {
+            runCommand("edit.delete");
+            return;
+        }
         const a = addr();
         if (!a) return;
         commit(removeAt(editor.artifact, a));
@@ -200,7 +234,7 @@ export const ContextBar: Component = () => {
                     }
                     onPointerDown={(e) => e.stopPropagation()}
                 >
-                    <Show when={barFields().length}>
+                    <Show when={!set() && barFields().length}>
                         <For each={barFields()}>
                             {(c) => (
                                 <Field
@@ -215,11 +249,11 @@ export const ContextBar: Component = () => {
                         </For>
                         <Separator vertical class="mx-0.5" />
                     </Show>
-                    <Show when={editing() && spec()?.richText}>
+                    <Show when={!set() && editing() && spec()?.richText}>
                         <MarkControls />
                         <Separator vertical class="mx-0.5" />
                     </Show>
-                    <Show when={canAlign()}>
+                    <Show when={!set() && canAlign()}>
                         <For each={ALIGNS}>
                             {([v, ic]) => (
                                 <IconButton
@@ -237,11 +271,17 @@ export const ContextBar: Component = () => {
                         <Separator vertical class="mx-0.5" />
                     </Show>
                     {/* one ✨: text intake while editing rich text, else whole-element regenerate */}
-                    <Show when={editing() && spec()?.richText && canAssistText()}>
+                    <Show when={!set() && editing() && spec()?.richText && canAssistText()}>
                         <TextAiMenu />
                         <Separator vertical class="mx-0.5" />
                     </Show>
-                    <Show when={!(editing() && spec()?.richText && canAssistText()) && canRegen()}>
+                    <Show
+                        when={
+                            !set() &&
+                            !(editing() && spec()?.richText && canAssistText()) &&
+                            canRegen()
+                        }
+                    >
                         <IconButton
                             size="md"
                             rounded="md"
@@ -259,6 +299,28 @@ export const ContextBar: Component = () => {
                             </Show>
                         </IconButton>
                         <Separator vertical class="mx-0.5" />
+                    </Show>
+                    <Show when={groupable()}>
+                        <IconButton
+                            size="md"
+                            rounded="md"
+                            tone="ink"
+                            title="Group"
+                            onClick={() => runCommand("edit.group")}
+                        >
+                            <Icon name="container" size={15} />
+                        </IconButton>
+                    </Show>
+                    <Show when={ungroupable()}>
+                        <IconButton
+                            size="md"
+                            rounded="md"
+                            tone="ink"
+                            title="Ungroup"
+                            onClick={() => runCommand("edit.ungroup")}
+                        >
+                            <Icon name="layers" size={15} />
+                        </IconButton>
                     </Show>
                     {/* a closed container's child edits in place: it has no life of its own to duplicate or delete */}
                     <Show when={structural()}>
@@ -571,7 +633,7 @@ const TextAiMenu: Component = () => {
                     </Show>
 
                     <button
-                        class="mt-2 flex w-full items-center gap-2 rounded-lg border border-line px-2.5 py-1.5 text-left text-[12.5px] font-medium text-ink transition-colors hover:border-accent hover:bg-canvas disabled:opacity-40"
+                        class="mt-2 flex w-full icon-row gap-2 rounded-lg border border-line px-2.5 py-1.5 text-left text-[12.5px] font-medium text-ink transition-colors hover:border-accent hover:bg-canvas disabled:opacity-40"
                         disabled={busy()}
                         onMouseDown={noBlur}
                         onClick={() => void act(runRegenerate())}

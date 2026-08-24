@@ -88,7 +88,7 @@ export const MediaField: Component<{
             fallback={
                 <button
                     title="Replace image"
-                    class="flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] font-medium text-ink hover:bg-canvas"
+                    class="flex icon-row gap-1.5 rounded-md px-2 py-1.25 text-[12px] font-medium text-ink hover:bg-canvas"
                     onClick={open}
                 >
                     <Icon name="media" size={14} /> Replace

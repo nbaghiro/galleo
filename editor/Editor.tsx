@@ -31,7 +31,7 @@ import { Present } from "./Present";
 import { DataEditor } from "./panels/DataEditor";
 import { ExportModal, openExportModal } from "./panels/ExportModal";
 import { DragGhost, PaletteItem } from "./panels/Insert";
-import { ElementInspector } from "./panels/RightPanel";
+import { ElementInspector, MultiSelectPanel } from "./panels/RightPanel";
 import { CommentSheets } from "./panels/Comments";
 import { collabActive, following, otherPeers, toggleFollow } from "./core/collab";
 import { drag } from "./core/dnd";
@@ -54,9 +54,11 @@ import {
     editorTheme,
     editorTokens,
     ensureAllSections,
+    extras,
     features,
     leftOpen,
     moveSectionBy,
+    multiSelected,
     present,
     redo,
     removeSectionAt,
@@ -66,6 +68,7 @@ import {
     requestThemePicker,
     requestUpgrade,
     rightTab,
+    selectedAddresses,
     selection,
     setLeftOpen,
     setRightTab,
@@ -612,11 +615,15 @@ const selectedInline = (): boolean => {
     return spec.controls.every((c) => bar.includes(c.key));
 };
 const selectedLabel = (): string | null => {
+    if (multiSelected()) return `${selectedAddresses().length} selected`;
     const a = selectedElementAddr();
     if (!a || selectedInline()) return null;
     const type = getElementAt(editor.artifact, a)?.type;
     return (type && getElement(type)?.label) || "Element";
 };
+// a set has its own panel, so it opens the inspector even when each member edits inline
+const inspectorShows = (): boolean =>
+    multiSelected() || (selection()?.kind === "element" && !selectedInline());
 const selectedSectionId = (): string | null => {
     const s = selection();
     return s ? (s.kind === "section" ? s.section : s.address.section) : null;
@@ -627,10 +634,9 @@ const selectedSectionId = (): string | null => {
 // was just placed, so that one is skipped and the panel stays as the drag left it.
 const useInspectorAutoOpen = (): void => {
     createEffect(
-        on(selection, (s) => {
+        on([selection, extras], () => {
             if (takeDropSelection()) return;
-            const showInspector = s?.kind === "element" && !selectedInline();
-            if (showInspector) setRightTab("inspector");
+            if (inspectorShows()) setRightTab("inspector");
             else setRightTab((t) => (t === "inspector" ? null : t));
         }),
     );
@@ -669,8 +675,7 @@ function dismissFlyoutOnOutside(rail: () => HTMLElement | undefined, owner: stri
             }
             // the selection the press makes decides: the inspector it opens is allowed to stay
             const settle = (): void => {
-                const s = selection();
-                if (!(s?.kind === "element" && !selectedInline())) setRightTab(null);
+                if (!inspectorShows()) setRightTab(null);
             };
             window.addEventListener("pointerup", settle, { once: true });
             // a press that never lifts here (it left the window) must not leave the hook armed
@@ -772,6 +777,9 @@ const Panel: Component = () => {
                                             </p>
                                         }
                                     >
+                                        <Match when={multiSelected()}>
+                                            <MultiSelectPanel />
+                                        </Match>
                                         <Match when={!selectedInline() && selectedElementAddr()}>
                                             {(a) => <ElementInspector address={a()} />}
                                         </Match>

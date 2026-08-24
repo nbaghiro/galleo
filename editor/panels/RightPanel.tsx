@@ -2,9 +2,23 @@ import type { ElementAddress } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
 import { elementRegionId } from "@model/artifact";
-import { deleteElement, getElementAt, setElementLayout, updateDataAt } from "@elements/ops";
+import {
+    deleteElement,
+    getElementAt,
+    setElementLayout,
+    sharedParent,
+    updateDataAt,
+} from "@elements/ops";
 import { getElement } from "@elements/spec";
-import { commit, editor, noteElementRemoved, regions, setSelection } from "@editor/core/store";
+import { runCommand } from "@ui/keys";
+import {
+    commit,
+    editor,
+    noteElementRemoved,
+    regions,
+    selectedAddresses,
+    setSelection,
+} from "@editor/core/store";
 import { paintedLeafFor } from "@editor/core/leaf";
 import { FieldRow, PanelHeader, SchemaFields, SliderRow } from "./SharedControlFields";
 import { dataShapeFor, DATA_KEYS } from "@editor/core/infographic";
@@ -12,6 +26,29 @@ import { openDataEditor } from "./DataEditor";
 import { DataGrid } from "./DataEditor";
 import { Icon } from "@ui/icons";
 import { Button, IconButton } from "@ui/button";
+
+// Shared property editing across a set is v2; the count plus the shared actions is all this is.
+export const MultiSelectPanel: Component = () => {
+    const set = createMemo(() => selectedAddresses());
+    return (
+        <div>
+            <PanelHeader title={`${set().length} selected`} />
+            <div class="flex flex-wrap gap-1.5">
+                <Show when={sharedParent(set())}>
+                    <Button variant="tool" onClick={() => runCommand("edit.group")}>
+                        Group
+                    </Button>
+                </Show>
+                <Button variant="tool" onClick={() => runCommand("edit.duplicate")}>
+                    Duplicate
+                </Button>
+                <Button variant="tool" onClick={() => runCommand("edit.delete")}>
+                    Delete
+                </Button>
+            </div>
+        </div>
+    );
+};
 
 export const ElementInspector: Component<{ address: ElementAddress }> = (props) => {
     const inst = createMemo(() => getElementAt(editor.artifact, props.address));
