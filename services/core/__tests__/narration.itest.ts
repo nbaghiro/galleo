@@ -5,7 +5,14 @@ import { seedUser } from "@services/__tests__/harness";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { adopt, shelfFor, shelve } from "@services/core/voices";
-import { audioFor, manifestFor, narratable, prepare, pruneOrphans } from "@services/core/narration";
+import {
+    audioFor,
+    manifestFor,
+    narratable,
+    prepare,
+    pruneOrphans,
+    trackFor,
+} from "@services/core/narration";
 
 let savedKey: string | undefined;
 beforeEach(() => {
@@ -342,6 +349,45 @@ describe("the premade fallback", () => {
         const m = await manifestFor(artifactId, content("one"), workspaceId, (s, h) => `${s}|${h}`);
         expect(m.tracks).toHaveLength(1);
         expect(m.stale).toEqual([]);
+    });
+
+    /**
+     * Running out of characters is not a voice problem, and the provider reports it as a 401, which
+     * reads as a bad key. It has to reach the operator in the provider's own words, and it must not
+     * send the fallback off to spend a second request on a voice that costs exactly the same.
+     */
+    it("says so once when the account is out of characters, and tries no other voice", async () => {
+        const { workspaceId } = await seedUser({});
+        let calls = 0;
+        const outOfCredits = ((url: string) => {
+            if (!String(url).includes("/text-to-speech/"))
+                return Promise.resolve(new Response(JSON.stringify({ voices: [] })));
+            calls += 1;
+            return Promise.resolve(
+                new Response(
+                    JSON.stringify({
+                        detail: {
+                            type: "invalid_request",
+                            code: "quota_exceeded",
+                            status: "quota_exceeded",
+                            message:
+                                "This request exceeds your quota of 10000. You have 56 credits remaining, while 385 credits are required for this request.",
+                        },
+                    }),
+                    { status: 401 },
+                ),
+            );
+        }) as typeof fetch;
+
+        const c = content("one");
+        const artifactId = await seedArtifact(workspaceId, c);
+        await expect(
+            trackFor(artifactId, c, workspaceId, "s1", (x, h) => `/a/${x}?v=${h}`, outOfCredits),
+        ).rejects.toMatchObject({
+            status: 503, // a plan to change, not a gateway that broke
+            message: expect.stringContaining("56 credits remaining"),
+        });
+        expect(calls).toBe(1);
     });
 
     it("does not loop when the premade voice is refused too", async () => {

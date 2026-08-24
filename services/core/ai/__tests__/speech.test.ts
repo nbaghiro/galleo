@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
     durationMs,
     providerBlocked,
+    providerExhausted,
     narrationHash,
     NARRATION_MODEL,
     speechReady,
@@ -190,12 +191,50 @@ describe("providerBlocked", () => {
         ).toContain("Free users");
     });
 
+    // Verbatim from the live API. It arrives as a 401, which reads as a credentials problem and is
+    // not one, so the message has to reach the operator rather than "the speech service refused".
+    const QUOTA = JSON.stringify({
+        detail: {
+            type: "invalid_request",
+            code: "quota_exceeded",
+            message:
+                "This request exceeds your quota of 10000. You have 56 credits remaining, while 385 credits are required for this request.",
+            status: "quota_exceeded",
+        },
+    });
+
+    it("reads running out of characters, which is neither a key nor an outage", () => {
+        expect(providerBlocked(QUOTA)).toContain("56 credits remaining");
+    });
+
     it("is null for any other failure, which is a provider problem rather than an account one", () => {
         expect(
             providerBlocked(JSON.stringify({ detail: { status: "invalid_api_key" } })),
         ).toBeNull();
         expect(providerBlocked("not json at all")).toBeNull();
         expect(providerBlocked("")).toBeNull();
+    });
+});
+
+describe("providerExhausted", () => {
+    const detail = (status: string): string => JSON.stringify({ detail: { status, message: "x" } });
+
+    // these say "this account cannot do this", so retrying on another voice buys a second refusal
+    it("is true for the refusals no other voice would survive", () => {
+        for (const status of ["quota_exceeded", "limited_access"])
+            expect(providerExhausted(detail(status))).toBe(true);
+    });
+
+    // The one that must NOT be here: a free account refuses library voices with payment_required,
+    // and reading the same words in the premade voice is exactly the way past it.
+    it("is false for a refusal the premade voice can still get past", () => {
+        expect(providerExhausted(detail("payment_required"))).toBe(false);
+        expect(providerExhausted(detail("missing_permissions"))).toBe(false);
+    });
+
+    it("is false for anything it cannot read", () => {
+        expect(providerExhausted("not json at all")).toBe(false);
+        expect(providerExhausted("")).toBe(false);
     });
 });
 

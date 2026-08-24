@@ -32,7 +32,9 @@ async function speakWith(
         return { voice, out: await synthesize(spoken, voice.externalId, fetchFn) };
     } catch (e) {
         const blocked = e instanceof SpeechError && e.status === 503;
-        if (!blocked) throw e;
+        // out of quota, or on a plan that refuses this outright: another voice costs the same and
+        // fails the same, so say so once rather than paying to be told twice
+        if (!blocked || (e as SpeechError).exhausted) throw e;
         const premade = await fallBackToPremade(workspaceId);
         if (premade.externalId === voice.externalId) throw e;
         return { voice: premade, out: await synthesize(spoken, premade.externalId, fetchFn) };
