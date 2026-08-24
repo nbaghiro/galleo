@@ -98,6 +98,56 @@ describe("POST /voices/audition", () => {
         const res = await authed(userId, "/voices/audition", jsonInit("POST", {}));
         expect(res.status).toBe(404);
     });
+
+    /**
+     * Auditioning synthesizes, so it fails the ways synthesis fails, and those carry the only
+     * sentence worth reading. Answering "the voice service failed" for an account that has simply
+     * run out of characters sends someone looking for an outage that is not there.
+     */
+    it("passes the provider's own refusal through instead of a bare gateway error", async () => {
+        const { userId, voices } = await shelved();
+        const realFetch = globalThis.fetch;
+        globalThis.fetch = ((url: string) => {
+            if (!String(url).includes("/text-to-speech/")) return realFetch(url);
+            return Promise.resolve(
+                new Response(
+                    JSON.stringify({
+                        detail: {
+                            status: "quota_exceeded",
+                            message:
+                                "This request exceeds your quota of 10000. You have 56 credits remaining, while 385 credits are required for this request.",
+                        },
+                    }),
+                    { status: 401 }, // what the provider really answers, and it is not about the key
+                ),
+            );
+        }) as typeof fetch;
+        try {
+            const res = await authed(
+                userId,
+                "/voices/audition",
+                jsonInit("POST", { voiceId: voices[0]!.id }),
+            );
+            expect(res.status).toBe(503);
+            expect(((await res.json()) as { error: string }).error).toContain(
+                "56 credits remaining",
+            );
+        } finally {
+            globalThis.fetch = realFetch;
+        }
+    });
+
+    it("is a 503 naming the server, not a 502, when there is no key at all", async () => {
+        const { userId, voices } = await shelved();
+        delete process.env.ELEVENLABS_API_KEY;
+        const res = await authed(
+            userId,
+            "/voices/audition",
+            jsonInit("POST", { voiceId: voices[0]!.id }),
+        );
+        expect(res.status).toBe(503);
+        expect(((await res.json()) as { error: string }).error).toContain("not configured");
+    });
 });
 
 describe("GET /voices/library", () => {

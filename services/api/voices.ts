@@ -16,7 +16,7 @@ import {
     VoiceError,
     voiceFor,
 } from "@services/core/voices";
-import { synthesize } from "@services/core/ai/speech";
+import { SpeechError, synthesize } from "@services/core/ai/speech";
 import { ratesFor, reserve } from "@services/core/spend";
 import { OUT_OF_CREDITS, OVER_MEMBER_CAP, rateLimit, readJson } from "@services/utils/http";
 import type { WorkspaceRow } from "@services/core/accounts";
@@ -32,8 +32,13 @@ const denied = (ws: WorkspaceRow, held: { remaining: number; capped?: number }) 
         ? OUT_OF_CREDITS(ws, held.remaining)
         : OVER_MEMBER_CAP(held.capped, held.remaining);
 
+/**
+ * Auditioning a voice synthesizes, so this sees SpeechError as well as VoiceError. Flattening either
+ * to a bare 502 throws away the only sentence that says what to go and change: "out of characters"
+ * and "the server has no key" both arrived here as "the voice service failed".
+ */
 const fail = (e: unknown): { error: string; status: 402 | 502 | 503 } =>
-    e instanceof VoiceError
+    e instanceof VoiceError || e instanceof SpeechError
         ? { error: e.message, status: e.status }
         : { error: "the voice service failed", status: 502 };
 
