@@ -121,6 +121,8 @@ export interface NarrationManifest {
     tracks: NarrationTrack[];
     /** Sections that have notes but no current audio: they dwell rather than being skipped. */
     stale: Id[];
+    /** Whether this server can synthesize at all; absent on older payloads means it can. */
+    ready?: boolean;
 }
 
 /**

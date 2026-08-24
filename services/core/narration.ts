@@ -3,7 +3,7 @@ import type { ArtifactContent, Id, Section } from "@model/artifact";
 import type { NarrationManifest, NarrationTrack } from "@model/speech";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
-import { NARRATION_MODEL, narrationHash, synthesize } from "@services/core/ai/speech";
+import { NARRATION_MODEL, narrationHash, speechReady, synthesize } from "@services/core/ai/speech";
 import { ensureVoice, fallBackToPremade, voiceFor } from "@services/core/voices";
 import { SpeechError } from "@services/core/ai/speech";
 
@@ -86,7 +86,7 @@ export async function manifestFor(
             ...(row.alignment ? { alignment: row.alignment } : {}),
         });
     }
-    return { ...(voice ? { voiceName: voice.name } : {}), tracks, stale };
+    return { ...(voice ? { voiceName: voice.name } : {}), tracks, stale, ready: speechReady() };
 }
 
 /** One section's audio bytes, by the hash the manifest handed out. */

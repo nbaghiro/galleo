@@ -316,7 +316,8 @@ export function createNarrationPlayer(opts: {
         const running = inFlight.get(sectionId);
         if (running) return running;
         const src = opts.source();
-        if (!src?.ensure) return Promise.resolve(null);
+        // an unconfigured server can only refuse a recording, so don't ask it to
+        if (!src?.ensure || manifest()?.ready === false) return Promise.resolve(null);
         const job = src
             .ensure(sectionId)
             .then((made) => {
@@ -443,7 +444,7 @@ export function createNarrationPlayer(opts: {
      * no `ensure` (a link viewer, who may not spend the owner's credits) warms nothing at all.
      */
     const warm = async (): Promise<void> => {
-        if (warming() || !opts.source()?.ensure) return;
+        if (warming() || !opts.source()?.ensure || manifest()?.ready === false) return;
         setWarming(true);
         try {
             for (const id of opts.order()) {
